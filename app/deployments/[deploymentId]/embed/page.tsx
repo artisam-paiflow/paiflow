@@ -6,11 +6,7 @@ import DeploymentView from "@/components/deploy/deployment-view";
 
 export const dynamic = "force-dynamic";
 
-export default async function EmbedPage({
-  params,
-}: {
-  params: Promise<{ deploymentId: string }>;
-}) {
+export default async function EmbedPage({ params }: { params: Promise<{ deploymentId: string }> }) {
   const { deploymentId } = await params;
   const d = await db.deployment.findUnique({
     where: { id: deploymentId },
@@ -30,6 +26,7 @@ export default async function EmbedPage({
         contractAddress={d.contractAddress}
         status={d.status}
         sep7Uri={sep7}
+        graph={graph.success ? graph.data : null}
         initialEvents={d.events.map((e) => ({
           id: e.id,
           kind: e.kind,

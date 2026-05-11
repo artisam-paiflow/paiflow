@@ -41,13 +41,13 @@ export default async function DeploymentPage({
     <>
       <Topbar username={user.username} />
       <main className="mx-auto max-w-5xl px-6 py-10">
-        <Link href="/dashboard" className="text-sm text-brand-300 hover:underline">
+        <Link href="/dashboard" className="text-brand-300 text-sm hover:underline">
           ← Back
         </Link>
         <h1 className="mt-2 text-3xl font-semibold">{d.flow.name}</h1>
         <div className="mt-1 text-sm text-zinc-400">
           {d.flow.templateKind} · {d.network} · status{" "}
-          <span className="font-mono text-brand-300">{d.status}</span>
+          <span className="text-brand-300 font-mono">{d.status}</span>
         </div>
 
         <DeploymentView
@@ -55,6 +55,7 @@ export default async function DeploymentPage({
           contractAddress={d.contractAddress}
           status={d.status}
           sep7Uri={sep7}
+          graph={graph.success ? graph.data : null}
           initialEvents={d.events.map((e) => ({
             id: e.id,
             kind: e.kind,

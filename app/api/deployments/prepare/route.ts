@@ -11,6 +11,7 @@ import { FlowGraphSchema } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToParams } from "@/lib/flows/to-params";
 import { prepareDeployTx } from "@/lib/stellar/deploy";
+import { assertMainnetAllowed } from "@/lib/mainnet";
 
 const PrepareSchema = z.object({
   flowId: z.string().uuid(),
@@ -18,6 +19,7 @@ const PrepareSchema = z.object({
   sourceAccount: z
     .string()
     .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar account"),
+  confirmation: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -27,9 +29,11 @@ export async function POST(req: NextRequest) {
     if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many deploys");
 
     const body = PrepareSchema.parse(await req.json());
-    if (body.network === "mainnet" && !env().ENABLE_MAINNET) {
-      throw new AppError("FORBIDDEN", "Mainnet deploys are disabled");
-    }
+    assertMainnetAllowed({
+      network: body.network,
+      userId: user.id,
+      confirmation: body.confirmation,
+    });
 
     const flow = await db.flow.findFirst({
       where: { id: body.flowId, ownerId: user.id },

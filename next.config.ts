@@ -20,6 +20,14 @@ const SECURITY_HEADERS = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  serverExternalPackages: [
+    "@stellar/stellar-sdk",
+    "@stellar/stellar-base",
+    "sodium-native",
+    "require-addon",
+    "argon2",
+    "@simplewebauthn/server",
+  ],
   experimental: {
     serverActions: { bodySizeLimit: "1mb" },
   },

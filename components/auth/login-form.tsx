@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { toast } from "sonner";
+import PasskeyLogin from "./passkey-login";
 
 export default function LoginForm({ from, error }: { from?: string; error?: string }) {
   const [submitting, setSubmitting] = useState(false);
@@ -38,7 +39,7 @@ export default function LoginForm({ from, error }: { from?: string; error?: stri
           name="username"
           autoComplete="username"
           required
-          className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 focus:border-brand-500 focus:outline-none"
+          className="focus:border-brand-500 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 focus:outline-none"
         />
       </label>
       <label className="grid gap-1">
@@ -49,16 +50,18 @@ export default function LoginForm({ from, error }: { from?: string; error?: stri
           autoComplete="current-password"
           required
           minLength={1}
-          className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 focus:border-brand-500 focus:outline-none"
+          className="focus:border-brand-500 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 focus:outline-none"
         />
       </label>
       <button
         type="submit"
         disabled={submitting}
-        className="rounded-md bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-500 disabled:opacity-60"
+        className="bg-brand-600 hover:bg-brand-500 rounded-md px-4 py-2 font-medium text-white disabled:opacity-60"
       >
         {submitting ? "Signing in…" : "Sign in"}
       </button>
+      <div className="text-center text-xs text-zinc-500">or</div>
+      <PasskeyLogin from={from} />
     </form>
   );
 }

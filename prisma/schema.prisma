@@ -52,6 +52,7 @@ model User {
   passkeys    Passkey[]
   sessions    Session[]
   auditLogs   AuditLog[]
+  files       FileAsset[]
 }
 
 model Session {
@@ -169,4 +170,18 @@ model AuditLog {
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([action, createdAt(sort: Desc)])
+}
+
+model FileAsset {
+  id          String   @id @default(uuid()) @db.Uuid
+  ownerId     String   @db.Uuid
+  storageKey  String   @unique
+  filename    String
+  contentType String
+  size        Int
+  createdAt   DateTime @default(now())
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, createdAt(sort: Desc)])
 }

@@ -2,7 +2,6 @@ import "server-only";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import argon2 from "argon2";
 import { z } from "zod";
 import { db } from "./db";
 import { env } from "./env";
@@ -12,27 +11,40 @@ import { AppError } from "./errors";
 import { Role } from "@prisma/client";
 import { authConfig as edgeConfig } from "@/auth.config";
 
+// Lazy-load argon2 so it isn't statically reachable from non-auth route
+// graphs; argon2 is a native addon and pulling it into static prerender
+// chunks breaks the build.
+async function argon2Mod(): Promise<typeof import("argon2")> {
+  const mod = await import("argon2");
+  return (mod as unknown as { default?: typeof import("argon2") }).default ?? mod;
+}
+
 const LOCKOUT_THRESHOLD = 5;
 const LOCKOUT_MINUTES = 15;
 
-const ARGON_OPTS = {
-  type: argon2.argon2id,
-  memoryCost: 19456,
-  timeCost: 2,
-  parallelism: 1,
-} as const;
+function argonOpts(argon2: typeof import("argon2")) {
+  return {
+    type: argon2.argon2id,
+    memoryCost: 19456,
+    timeCost: 2,
+    parallelism: 1,
+  } as const;
+}
 
 const CredentialsSchema = z.object({
-  username: z.string().trim().min(1).max(64),
-  password: z.string().min(1).max(256),
+  username: z.string().trim().min(1).max(64).optional(),
+  password: z.string().min(1).max(256).optional(),
+  passkeyTicket: z.string().min(1).max(256).optional(),
 });
 
 export async function hashPassword(password: string): Promise<string> {
-  return argon2.hash(password, ARGON_OPTS);
+  const argon2 = await argon2Mod();
+  return argon2.hash(password, argonOpts(argon2));
 }
 
 export async function verifyPassword(hash: string, password: string): Promise<boolean> {
   try {
+    const argon2 = await argon2Mod();
     return await argon2.verify(hash, password);
   } catch {
     return false;
@@ -46,7 +58,31 @@ async function authorizeUser(input: unknown): Promise<{
 } | null> {
   const parsed = CredentialsSchema.safeParse(input);
   if (!parsed.success) return null;
-  const { username, password } = parsed.data;
+  const { username, password, passkeyTicket } = parsed.data;
+
+  // Passkey login: ticket was issued by /api/auth/passkey/login/verify after
+  // a successful WebAuthn assertion. Single-use, ≤60s.
+  if (passkeyTicket) {
+    const { popChallenge } = await import("./passkey/challenges");
+    const userId = await popChallenge("ticket", passkeyTicket);
+    if (!userId) return null;
+    const u = await db.user.findUnique({ where: { id: userId } });
+    if (!u || !u.isActive) return null;
+    await db.user.update({
+      where: { id: u.id },
+      data: { lastLoginAt: new Date(), failedLogins: 0, lockedUntil: null },
+    });
+    return { id: u.id, username: u.username, role: u.role };
+  }
+
+  if (!username || !password) return null;
+
+  const { rateLimit } = await import("./rate-limit");
+  const rl = await rateLimit(`login:${username.toLowerCase()}`, 10, 60 * 10);
+  if (!rl.ok) {
+    log.warn({ username }, "login: rate limited");
+    return null;
+  }
 
   const user = await db.user.findUnique({ where: { username } });
   if (!user || !user.isActive) {

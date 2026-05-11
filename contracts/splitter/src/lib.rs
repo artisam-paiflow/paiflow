@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{
     contract, contractimpl, contracttype, panic_with_error, symbol_short, token, Address, Env,
-    IntoVal, Symbol, Vec,
+    Symbol, Vec,
 };
 
 #[contracttype]
@@ -104,7 +104,9 @@ impl Splitter {
 
         let topic: Symbol = symbol_short!("distrib");
         env.events()
-            .publish((topic, from.clone()), (asset, amount));
+            .publish((topic, from.clone()), (asset.clone(), amount));
+        env.events()
+            .publish((symbol_short!("payout"), from), recipients);
     }
 
     pub fn pause(env: Env) {
@@ -124,5 +126,71 @@ impl Splitter {
     fn require_admin(env: &Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
+    use soroban_sdk::{token, vec, Env};
+
+    fn make_recipients(
+        env: &Env,
+        a: &Address,
+        b: &Address,
+        c: &Address,
+    ) -> Vec<Recipient> {
+        vec![
+            env,
+            Recipient { address: a.clone(), bps: 6000 },
+            Recipient { address: b.clone(), bps: 3000 },
+            Recipient { address: c.clone(), bps: 1000 },
+        ]
+    }
+
+    #[test]
+    fn distribute_splits_60_30_10() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let a = Address::generate(&env);
+        let b = Address::generate(&env);
+        let c = Address::generate(&env);
+        let payer = Address::generate(&env);
+        sac.mint(&payer, &10_000_000);
+
+        let contract_id = env.register(
+            Splitter,
+            (admin.clone(), asset.address(), make_recipients(&env, &a, &b, &c)),
+        );
+        let client = SplitterClient::new(&env, &contract_id);
+        client.distribute(&payer, &10_000_000);
+
+        assert_eq!(tok.balance(&a), 6_000_000);
+        assert_eq!(tok.balance(&b), 3_000_000);
+        assert_eq!(tok.balance(&c), 1_000_000);
+        assert_eq!(tok.balance(&payer), 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn bad_bps_panics() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let a = Address::generate(&env);
+        let b = Address::generate(&env);
+        let bad = vec![
+            &env,
+            Recipient { address: a.clone(), bps: 6000 },
+            Recipient { address: b.clone(), bps: 3000 },
+        ];
+        env.register(Splitter, (admin, asset.address(), bad));
     }
 }

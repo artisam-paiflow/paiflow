@@ -1,4 +1,3 @@
-import "server-only";
 import { Asset } from "@stellar/stellar-sdk";
 import type { Asset as FlowAsset } from "@/lib/flows/schema";
 import { env, stellarPassphrase } from "@/lib/env";

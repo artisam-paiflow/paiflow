@@ -114,3 +114,45 @@ impl Streamer {
         env.events().publish((symbol_short!("cancel"),), balance);
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::testutils::{Address as _, Ledger};
+    use soroban_sdk::{token, Env};
+
+    #[test]
+    fn vest_and_claim() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+        let recipient = Address::generate(&env);
+
+        // Start at t=1000, end at t=2000, rate=10/sec → 10_000 total.
+        let contract_id = env.register(
+            Streamer,
+            (admin.clone(), recipient.clone(), asset.address(), 10_i128, 1000_u64, 2000_u64),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+
+        // Top up the contract.
+        let funder = Address::generate(&env);
+        sac.mint(&funder, &10_000);
+        client.top_up(&funder, &10_000);
+
+        // Move ledger to t=1500 → half vested.
+        env.ledger().set_timestamp(1500);
+        let claimed = client.claim();
+        assert_eq!(claimed, 5_000);
+        assert_eq!(tok.balance(&recipient), 5_000);
+
+        // Past the end → remaining.
+        env.ledger().set_timestamp(3000);
+        let claimed2 = client.claim();
+        assert_eq!(claimed2, 5_000);
+        assert_eq!(tok.balance(&recipient), 10_000);
+    }
+}

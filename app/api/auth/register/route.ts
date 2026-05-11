@@ -6,6 +6,7 @@ import { env } from "@/lib/env";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { pwnedCount } from "@/lib/hibp";
 
 const RegisterSchema = z.object({
   username: z
@@ -29,6 +30,13 @@ export async function POST(req: NextRequest) {
     const body = RegisterSchema.parse(await req.json());
     if (body.password.toLowerCase().includes(body.username.toLowerCase())) {
       throw new AppError("VALIDATION", "Password must not contain the username");
+    }
+    const pwned = await pwnedCount(body.password);
+    if (pwned !== null && pwned > 0) {
+      throw new AppError(
+        "VALIDATION",
+        "This password appears in known breach corpora. Choose another.",
+      );
     }
 
     const existing = await db.user.findUnique({ where: { username: body.username } });

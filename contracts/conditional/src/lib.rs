@@ -97,3 +97,54 @@ impl Conditional {
             .unwrap_or(false)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
+    use soroban_sdk::{token, Env, String as SorobanString};
+
+    #[test]
+    fn admin_releases_funds() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+        let recipient = Address::generate(&env);
+        let condition = SorobanString::from_str(&env, "{\"kind\":\"time_after\"}");
+
+        let contract_id = env.register(
+            Conditional,
+            (admin.clone(), recipient.clone(), asset.address(), 1_000_i128, condition),
+        );
+        sac.mint(&contract_id, &1_000);
+        let client = ConditionalClient::new(&env, &contract_id);
+        assert_eq!(client.status(), false);
+        client.release();
+        assert_eq!(tok.balance(&recipient), 1_000);
+        assert_eq!(client.status(), true);
+    }
+
+    #[test]
+    #[should_panic]
+    fn double_release_panics() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let recipient = Address::generate(&env);
+        let condition = SorobanString::from_str(&env, "{}");
+
+        let contract_id = env.register(
+            Conditional,
+            (admin.clone(), recipient.clone(), asset.address(), 100_i128, condition),
+        );
+        sac.mint(&contract_id, &100);
+        let client = ConditionalClient::new(&env, &contract_id);
+        client.release();
+        client.release();
+    }
+}

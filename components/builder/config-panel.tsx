@@ -20,7 +20,7 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
   return (
     <aside className="space-y-4 overflow-y-auto border-l border-zinc-800 bg-zinc-950 p-4 text-sm">
       <div className="flex items-center justify-between">
-        <div className="text-xs uppercase tracking-wider text-brand-400">
+        <div className="text-brand-400 text-xs tracking-wider uppercase">
           {node.type.replace("_", " ")}
         </div>
         <button
@@ -116,9 +116,7 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
             asset={node.config.asset}
             onChange={(asset) => onChange({ ...node, config: { ...node.config, asset } })}
           />
-          <div className="text-xs text-zinc-400">
-            Recipients (basis points must sum to 10000)
-          </div>
+          <div className="text-xs text-zinc-400">Recipients (basis points must sum to 10000)</div>
           {node.config.recipients.map((r, i) => (
             <div key={i} className="grid grid-cols-[1fr_72px_28px] gap-1">
               <input
@@ -174,22 +172,107 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
       )}
 
       {node.type === "condition" && (
-        <Field label="Condition kind">
-          <select
-            className="input"
-            value={node.config.kind}
-            onChange={(e) => {
-              const kind = e.target.value as "amount_gt" | "amount_lt";
-              onChange({
-                ...node,
-                config: { kind, amountStroops: "10000000" },
-              });
-            }}
-          >
-            <option value="amount_gt">amount &gt;</option>
-            <option value="amount_lt">amount &lt;</option>
-          </select>
-        </Field>
+        <>
+          <Field label="Condition kind">
+            <select
+              className="input"
+              value={node.config.kind}
+              onChange={(e) => {
+                const k = e.target.value;
+                if (k === "amount_gt" || k === "amount_lt") {
+                  onChange({ ...node, config: { kind: k, amountStroops: "10000000" } });
+                } else if (k === "oracle_gte") {
+                  onChange({
+                    ...node,
+                    config: {
+                      kind: "oracle_gte",
+                      oracle: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+                      key: "price",
+                      threshold: "100",
+                    },
+                  });
+                } else if (k === "time_after" || k === "time_before") {
+                  onChange({ ...node, config: { kind: k, at: new Date().toISOString() } });
+                }
+              }}
+            >
+              <option value="amount_gt">amount &gt;</option>
+              <option value="amount_lt">amount &lt;</option>
+              <option value="oracle_gte">oracle ≥ threshold</option>
+              <option value="time_after">time after</option>
+              <option value="time_before">time before</option>
+            </select>
+          </Field>
+          {(node.config.kind === "amount_gt" || node.config.kind === "amount_lt") && (
+            <Field label="Amount (stroops)">
+              <input
+                className="input"
+                value={node.config.amountStroops}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "");
+                  const next =
+                    node.config.kind === "amount_gt"
+                      ? { kind: "amount_gt" as const, amountStroops: v }
+                      : { kind: "amount_lt" as const, amountStroops: v };
+                  onChange({ ...node, config: next });
+                }}
+              />
+            </Field>
+          )}
+          {node.config.kind === "oracle_gte" && (
+            <>
+              <Field label="Oracle contract / account">
+                <input
+                  className="input font-mono"
+                  value={node.config.oracle}
+                  onChange={(e) => {
+                    const cfg = { ...node.config, oracle: e.target.value.trim() };
+                    onChange({ ...node, config: cfg });
+                  }}
+                />
+              </Field>
+              <Field label="Storage key">
+                <input
+                  className="input"
+                  value={node.config.key}
+                  onChange={(e) => {
+                    const cfg = { ...node.config, key: e.target.value };
+                    onChange({ ...node, config: cfg });
+                  }}
+                />
+              </Field>
+              <Field label="Threshold">
+                <input
+                  className="input"
+                  value={node.config.threshold}
+                  onChange={(e) => {
+                    const cfg = {
+                      ...node.config,
+                      threshold: e.target.value.replace(/\D/g, ""),
+                    };
+                    onChange({ ...node, config: cfg });
+                  }}
+                />
+              </Field>
+            </>
+          )}
+          {(node.config.kind === "time_after" || node.config.kind === "time_before") && (
+            <Field label="At (ISO)">
+              <input
+                className="input"
+                value={node.config.at}
+                onChange={(e) => {
+                  const at = e.target.value;
+                  const next =
+                    node.config.kind === "time_after"
+                      ? { kind: "time_after" as const, at }
+                      : { kind: "time_before" as const, at };
+                  onChange({ ...node, config: next });
+                }}
+              />
+            </Field>
+          )}
+        </>
       )}
 
       <style jsx>{`
@@ -219,7 +302,10 @@ function AssetField({
   asset,
   onChange,
 }: {
-  asset: { kind: "native" } | { kind: "known"; symbol: "USDC" } | { kind: "custom"; code: string; issuer: string };
+  asset:
+    | { kind: "native" }
+    | { kind: "known"; symbol: "USDC" }
+    | { kind: "custom"; code: string; issuer: string };
   onChange: (a: typeof asset) => void;
 }) {
   return (

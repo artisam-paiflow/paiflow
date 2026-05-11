@@ -1,6 +1,8 @@
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
+import PasskeyManager from "@/components/account/passkeys";
+import ChangePassword from "@/components/account/change-password";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +33,8 @@ export default async function Account() {
           <dt className="text-zinc-400">Last sign-in</dt>
           <dd>{me?.lastLoginAt ? new Date(me.lastLoginAt).toLocaleString() : "never"}</dd>
         </dl>
+        <ChangePassword />
+        <PasskeyManager />
       </main>
     </>
   );
