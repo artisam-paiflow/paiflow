@@ -160,7 +160,7 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
                   recipients: [
                     ...node.config.recipients,
                     {
-                      address: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+                      address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
                       bps: 0,
                     },
                   ],

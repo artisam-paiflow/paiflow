@@ -28,11 +28,27 @@ export default defineConfig({
   projects: [
     {
       name: "chromium-desktop",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: process.env.CHROMIUM_PATH
+          ? {
+              executablePath: process.env.CHROMIUM_PATH,
+              args: ["--no-sandbox", "--disable-dev-shm-usage"],
+            }
+          : undefined,
+      },
     },
     {
       name: "mobile",
-      use: { ...devices["iPhone 14 Pro"] },
+      use: {
+        ...devices["Pixel 7"],
+        launchOptions: process.env.CHROMIUM_PATH
+          ? {
+              executablePath: process.env.CHROMIUM_PATH,
+              args: ["--no-sandbox", "--disable-dev-shm-usage"],
+            }
+          : undefined,
+      },
     },
   ],
 

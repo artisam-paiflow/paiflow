@@ -31,7 +31,14 @@ export default async function globalSetup(config: FullConfig) {
   }
   await apiCtx.dispose();
 
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(
+    process.env.CHROMIUM_PATH
+      ? {
+          executablePath: process.env.CHROMIUM_PATH,
+          args: ["--no-sandbox", "--disable-dev-shm-usage"],
+        }
+      : undefined,
+  );
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
   await page.goto(`${baseURL}/login`);

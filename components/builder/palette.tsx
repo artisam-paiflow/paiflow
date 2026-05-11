@@ -11,6 +11,8 @@ function makeId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+const DEMO_ADDR = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+
 const TEMPLATES: { label: string; group: string; make: () => FlowNode }[] = [
   {
     group: "Triggers",
@@ -40,7 +42,7 @@ const TEMPLATES: { label: string; group: string; make: () => FlowNode }[] = [
       id: makeId("pay"),
       type: "pay",
       config: {
-        recipient: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+        recipient: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
         amountStroops: "10000000",
         asset: { kind: "known", symbol: "USDC" },
       },
@@ -56,12 +58,12 @@ const TEMPLATES: { label: string; group: string; make: () => FlowNode }[] = [
         asset: { kind: "known", symbol: "USDC" },
         recipients: [
           {
-            address: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+            address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
             bps: 5000,
             label: "A",
           },
           {
-            address: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+            address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
             bps: 5000,
             label: "B",
           },

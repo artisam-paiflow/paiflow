@@ -47,6 +47,18 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     errors.push({ path: "nodes", message: "Flow must have at least one action node" });
   }
 
+  for (const a of actions) {
+    if (a.type === "split") {
+      const sum = a.config.recipients.reduce((s, r) => s + r.bps, 0);
+      if (sum !== 10_000) {
+        errors.push({
+          path: `nodes.${a.id}.config.recipients`,
+          message: `Recipient basis points must sum to 10000 (got ${sum})`,
+        });
+      }
+    }
+  }
+
   // Detect cycles via DFS
   const adj = new Map<string, string[]>();
   for (const n of graph.nodes) adj.set(n.id, []);

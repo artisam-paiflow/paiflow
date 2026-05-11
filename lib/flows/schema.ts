@@ -51,19 +51,14 @@ export const SplitRecipient = z.object({
   label: z.string().max(64).optional(),
 });
 
-export const SplitAction = z
-  .object({
-    id: z.string().min(1),
-    type: z.literal("split"),
-    config: z.object({
-      asset: AssetSchema,
-      recipients: z.array(SplitRecipient).min(2).max(20),
-    }),
-  })
-  .refine(
-    (n) => n.config.recipients.reduce((s, r) => s + r.bps, 0) === 10_000,
-    "Recipients basis points must sum to 10000",
-  );
+export const SplitAction = z.object({
+  id: z.string().min(1),
+  type: z.literal("split"),
+  config: z.object({
+    asset: AssetSchema,
+    recipients: z.array(SplitRecipient).min(2).max(20),
+  }),
+});
 
 export const ConditionLogic = z.object({
   id: z.string().min(1),
