@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum TemplateKind {
+  SPLITTER
+  STREAMER
+  CONDITIONAL
+}
+
+enum DeploymentStatus {
+  DRAFT
+  BUILDING
+  PENDING_SIGNATURE
+  SUBMITTED
+  CONFIRMED
+  FAILED
+}
+
+enum EventKind {
+  RECEIVE
+  PAYOUT
+  CLAIM
+  STATUS_CHANGE
+}
+
+model User {
+  id           String       @id @default(uuid()) @db.Uuid
+  username     String       @unique
+  email        String?      @unique
+  passwordHash String
+  role         Role         @default(USER)
+  isActive     Boolean      @default(true)
+  failedLogins Int          @default(0)
+  lockedUntil  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  lastLoginAt  DateTime?
+
+  flows       Flow[]
+  deployments Deployment[]
+  passkeys    Passkey[]
+  sessions    Session[]
+  auditLogs   AuditLog[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String   @db.Uuid
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Passkey {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  credentialId Bytes     @unique
+  publicKey    Bytes
+  counter      BigInt    @default(0)
+  deviceType   String
+  backedUp     Boolean
+  transports   String[]
+  nickname     String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Flow {
+  id           String       @id @default(uuid()) @db.Uuid
+  ownerId      String       @db.Uuid
+  name         String
+  description  String?
+  templateKind TemplateKind
+  graph        Json
+  parameters   Json
+  version      Int          @default(1)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  deployments Deployment[]
+
+  @@index([ownerId, updatedAt(sort: Desc)])
+}
+
+model ContractTemplate {
+  id         String       @id @default(uuid()) @db.Uuid
+  kind       TemplateKind
+  wasmHash   String
+  network    String
+  abiJson    Json
+  uploadedAt DateTime     @default(now())
+
+  @@unique([kind, network])
+}
+
+model Deployment {
+  id              String           @id @default(uuid()) @db.Uuid
+  flowId          String           @db.Uuid
+  ownerId         String           @db.Uuid
+  network         String
+  contractAddress String?          @unique
+  deployTxHash    String?          @unique
+  status          DeploymentStatus @default(DRAFT)
+  errorMessage    String?
+  graphSnapshot   Json
+  paramsSnapshot  Json
+  createdAt       DateTime         @default(now())
+  confirmedAt     DateTime?
+  unsignedXdr     String?
+  sourceAccount   String?
+
+  flow   Flow            @relation(fields: [flowId], references: [id], onDelete: Restrict)
+  owner  User            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  events ContractEvent[]
+  cursor EventCursor?
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@index([status])
+}
+
+model ContractEvent {
+  id           String     @id @default(uuid()) @db.Uuid
+  deploymentId String     @db.Uuid
+  kind         EventKind
+  ledger       Int
+  txHash       String
+  payload      Json
+  occurredAt   DateTime
+
+  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+
+  @@unique([txHash, kind])
+  @@index([deploymentId, occurredAt(sort: Desc)])
+}
+
+model EventCursor {
+  deploymentId    String     @id @db.Uuid
+  lastLedger      Int
+  lastPagingToken String?
+  updatedAt       DateTime   @updatedAt
+  deployment      Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @db.Uuid
+  action    String
+  ip        String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+}
