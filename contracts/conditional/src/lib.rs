@@ -128,10 +128,10 @@ mod test {
         );
         sac.mint(&contract_id, &1_000);
         let client = ConditionalClient::new(&env, &contract_id);
-        assert_eq!(client.status(), false);
+        assert!(!client.status());
         client.release();
         assert_eq!(tok.balance(&recipient), 1_000);
-        assert_eq!(client.status(), true);
+        assert!(client.status());
     }
 
     #[test]
