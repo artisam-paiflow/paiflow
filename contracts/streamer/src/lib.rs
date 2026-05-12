@@ -77,9 +77,7 @@ impl Streamer {
             panic_with_error!(&env, Error::NothingToClaim);
         }
 
-        env.storage()
-            .instance()
-            .set(&Key::Claimed, &vested);
+        env.storage().instance().set(&Key::Claimed, &vested);
 
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         token::Client::new(&env, &asset).transfer(
@@ -95,11 +93,7 @@ impl Streamer {
     pub fn top_up(env: Env, from: Address, amount: i128) {
         from.require_auth();
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-        token::Client::new(&env, &asset).transfer(
-            &from,
-            &env.current_contract_address(),
-            &amount,
-        );
+        token::Client::new(&env, &asset).transfer(&from, &env.current_contract_address(), &amount);
     }
 
     pub fn cancel(env: Env) {
@@ -134,7 +128,14 @@ mod test {
         // Start at t=1000, end at t=2000, rate=10/sec → 10_000 total.
         let contract_id = env.register(
             Streamer,
-            (admin.clone(), recipient.clone(), asset.address(), 10_i128, 1000_u64, 2000_u64),
+            (
+                admin.clone(),
+                recipient.clone(),
+                asset.address(),
+                10_i128,
+                1000_u64,
+                2000_u64,
+            ),
         );
         let client = StreamerClient::new(&env, &contract_id);
 

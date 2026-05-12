@@ -135,17 +135,21 @@ mod test {
     use soroban_sdk::testutils::Address as _;
     use soroban_sdk::{token, vec, Env};
 
-    fn make_recipients(
-        env: &Env,
-        a: &Address,
-        b: &Address,
-        c: &Address,
-    ) -> Vec<Recipient> {
+    fn make_recipients(env: &Env, a: &Address, b: &Address, c: &Address) -> Vec<Recipient> {
         vec![
             env,
-            Recipient { address: a.clone(), bps: 6000 },
-            Recipient { address: b.clone(), bps: 3000 },
-            Recipient { address: c.clone(), bps: 1000 },
+            Recipient {
+                address: a.clone(),
+                bps: 6000,
+            },
+            Recipient {
+                address: b.clone(),
+                bps: 3000,
+            },
+            Recipient {
+                address: c.clone(),
+                bps: 1000,
+            },
         ]
     }
 
@@ -166,7 +170,11 @@ mod test {
 
         let contract_id = env.register(
             Splitter,
-            (admin.clone(), asset.address(), make_recipients(&env, &a, &b, &c)),
+            (
+                admin.clone(),
+                asset.address(),
+                make_recipients(&env, &a, &b, &c),
+            ),
         );
         let client = SplitterClient::new(&env, &contract_id);
         client.distribute(&payer, &10_000_000);
@@ -188,8 +196,14 @@ mod test {
         let b = Address::generate(&env);
         let bad = vec![
             &env,
-            Recipient { address: a.clone(), bps: 6000 },
-            Recipient { address: b.clone(), bps: 3000 },
+            Recipient {
+                address: a.clone(),
+                bps: 6000,
+            },
+            Recipient {
+                address: b.clone(),
+                bps: 3000,
+            },
         ];
         env.register(Splitter, (admin, asset.address(), bad));
     }

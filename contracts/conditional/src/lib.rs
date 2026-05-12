@@ -117,7 +117,13 @@ mod test {
 
         let contract_id = env.register(
             Conditional,
-            (admin.clone(), recipient.clone(), asset.address(), 1_000_i128, condition),
+            (
+                admin.clone(),
+                recipient.clone(),
+                asset.address(),
+                1_000_i128,
+                condition,
+            ),
         );
         sac.mint(&contract_id, &1_000);
         let client = ConditionalClient::new(&env, &contract_id);
@@ -140,7 +146,13 @@ mod test {
 
         let contract_id = env.register(
             Conditional,
-            (admin.clone(), recipient.clone(), asset.address(), 100_i128, condition),
+            (
+                admin.clone(),
+                recipient.clone(),
+                asset.address(),
+                100_i128,
+                condition,
+            ),
         );
         sac.mint(&contract_id, &100);
         let client = ConditionalClient::new(&env, &contract_id);
