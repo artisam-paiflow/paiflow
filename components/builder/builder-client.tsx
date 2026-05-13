@@ -38,6 +38,16 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
     type: "default",
     position: { x: 240 + index * 40, y: 80 + index * 120 },
     data: { node: n, label: n.type },
+    style: {
+      background: "#18181b",
+      color: "#e4e4e7",
+      border: "1px solid #3f3f46",
+      borderRadius: "8px",
+      padding: "10px 14px",
+      fontSize: "13px",
+      fontWeight: 500,
+      boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+    },
   };
 }
 
@@ -201,7 +211,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
             data: { ...n.data, label: nodeLabel(flowNodes.find((f) => f.id === n.id)) },
             selected: n.id === selectedId,
           }))}
-          edges={rfEdges}
+          edges={rfEdges.map((e) => ({ ...e, style: { stroke: "#71717a", strokeWidth: 2 } }))}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
@@ -209,7 +219,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           onPaneClick={() => setSelectedId(null)}
           fitView
         >
-          <Background />
+          <Background gap={16} size={1} color="#27272a" />
           <Controls />
         </ReactFlow>
         <div className="pointer-events-none absolute right-4 bottom-4 left-4 rounded-lg bg-zinc-950/90 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800">
