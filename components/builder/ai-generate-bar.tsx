@@ -5,14 +5,6 @@ import { Wand2, Loader2, AlertTriangle, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import type { FlowGraph } from "@/lib/flows/schema";
 
-const QUICK_PROMPTS = [
-  "When I receive USDC, split 50% to Alice and 50% to Bob",
-  "Pay 100 USDC to my landlord every day",
-  "When I get more than 50 USDC, send it to savings",
-  "Split 60% to Alice, 30% to Bob, 10% to Charity",
-  "Send 50 XLM to my mom every week",
-];
-
 type PreviewState =
   | { status: "idle" }
   | { status: "loading"; prompt: string }
@@ -191,19 +183,6 @@ export default function AiGenerateBar({ onGenerate }: AiGenerateBarProps) {
           )}
         </button>
       </form>
-
-      <div className="flex flex-wrap gap-1.5">
-        {QUICK_PROMPTS.map((q) => (
-          <button
-            key={q}
-            onClick={() => handleSubmit(undefined, q)}
-            disabled={preview.status === "loading"}
-            className="rounded-full bg-zinc-900 px-2.5 py-1 text-[11px] text-zinc-400 ring-1 ring-zinc-800 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {q.length > 35 ? q.slice(0, 35) + "..." : q}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
