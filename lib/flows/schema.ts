@@ -99,6 +99,12 @@ export const FlowGraphSchema = z.object({
 });
 export type FlowGraph = z.infer<typeof FlowGraphSchema>;
 
+/** Lenient graph schema for PATCH — allows incomplete work-in-progress flows. */
+export const FlowGraphPatchSchema = z.object({
+  nodes: z.array(FlowNodeSchema).max(40),
+  edges: z.array(FlowEdgeSchema).max(80),
+});
+
 export const FlowSaveSchema = z.object({
   name: z.string().min(1).max(80),
   description: z.string().max(280).optional(),
@@ -106,7 +112,11 @@ export const FlowSaveSchema = z.object({
 });
 export type FlowSaveInput = z.infer<typeof FlowSaveSchema>;
 
-export const FlowPatchSchema = FlowSaveSchema.partial();
+export const FlowPatchSchema = z.object({
+  name: z.string().min(1).max(80).optional(),
+  description: z.string().max(280).optional(),
+  graph: FlowGraphPatchSchema,
+});
 export type FlowPatchInput = z.infer<typeof FlowPatchSchema>;
 
 export type TriggerNode = z.infer<typeof OnReceiveTrigger> | z.infer<typeof OnScheduleTrigger>;
