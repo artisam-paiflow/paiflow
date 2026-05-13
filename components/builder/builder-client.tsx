@@ -118,12 +118,19 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        toast.error(`Save failed: ${body?.error?.message ?? res.status}`);
-        // Auto-trigger suggestions on save failure (validation error)
-        const graphKey = JSON.stringify(graph);
-        if (lastAutoTrigger.current !== graphKey) {
-          lastAutoTrigger.current = graphKey;
-          await fetchSuggestions({ auto: true });
+        // Silently skip validation errors (422) during autosave —
+        // the flow may be temporarily invalid while editing.
+        // Only show toast for real server errors.
+        if (res.status >= 500) {
+          toast.error(`Save failed: ${body?.error?.message ?? res.status}`);
+        }
+        // Auto-trigger suggestions on validation failure
+        if (res.status === 422) {
+          const graphKey = JSON.stringify(graph);
+          if (lastAutoTrigger.current !== graphKey) {
+            lastAutoTrigger.current = graphKey;
+            await fetchSuggestions({ auto: true });
+          }
         }
       }
     }, 1500);

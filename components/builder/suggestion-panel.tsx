@@ -64,9 +64,9 @@ export default function SuggestionPanel({
 
   return (
     <div className="border-t border-zinc-800">
-      <button
+      <div
+        className="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-sm font-medium text-zinc-300 hover:text-zinc-100"
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium text-zinc-300 hover:text-zinc-100"
       >
         <span className="flex items-center gap-2">
           <Sparkles className="text-brand-400 h-4 w-4" />
@@ -92,7 +92,7 @@ export default function SuggestionPanel({
           )}
           <span className="text-xs text-zinc-500">{expanded ? "−" : "+"}</span>
         </div>
-      </button>
+      </div>
 
       {expanded && (
         <div className="space-y-2 px-3 pb-3">
