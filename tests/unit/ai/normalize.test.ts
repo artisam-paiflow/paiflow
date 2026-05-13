@@ -26,14 +26,16 @@ describe("normalizeFlowGraph", () => {
       edges: [{ source: "n1", target: "n2" }],
     };
 
-    const graph = normalizeFlowGraph(raw);
-    expect(graph.nodes).toHaveLength(2);
-    expect(graph.nodes[0]).toMatchObject({
+    const result = normalizeFlowGraph(raw);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.graph.nodes).toHaveLength(2);
+    expect(result.graph.nodes[0]).toMatchObject({
       id: "n1",
       type: "on_receive",
       config: { asset: { kind: "known", symbol: "USDC" } },
     });
-    expect(graph.nodes[1]).toMatchObject({
+    expect(result.graph.nodes[1]).toMatchObject({
       id: "n2",
       type: "split",
       config: {
@@ -44,8 +46,8 @@ describe("normalizeFlowGraph", () => {
         ],
       },
     });
-    expect(graph.edges).toHaveLength(1);
-    expect(graph.edges[0]).toMatchObject({ source: "n1", target: "n2" });
+    expect(result.graph.edges).toHaveLength(1);
+    expect(result.graph.edges[0]).toMatchObject({ source: "n1", target: "n2" });
   });
 
   it("normalizes a streamer flow", () => {
@@ -69,14 +71,16 @@ describe("normalizeFlowGraph", () => {
       edges: [{ source: "n1", target: "n2" }],
     };
 
-    const graph = normalizeFlowGraph(raw);
-    expect(graph.nodes).toHaveLength(2);
-    expect(graph.nodes[0]).toMatchObject({
+    const result = normalizeFlowGraph(raw);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.graph.nodes).toHaveLength(2);
+    expect(result.graph.nodes[0]).toMatchObject({
       id: "n1",
       type: "on_schedule",
       config: { interval: "day", startsAt: "2026-05-14T00:00:00Z" },
     });
-    expect(graph.nodes[1]).toMatchObject({
+    expect(result.graph.nodes[1]).toMatchObject({
       id: "n2",
       type: "pay",
       config: {
@@ -96,9 +100,11 @@ describe("normalizeFlowGraph", () => {
       edges: [{ source: "n1", target: "n2" }],
     };
 
-    const graph = normalizeFlowGraph(raw);
-    expect(graph.nodes[0]!.config).toMatchObject({ asset: { kind: "native" } });
-    expect(graph.nodes[1]!.config).toMatchObject({ asset: { kind: "native" } });
+    const result = normalizeFlowGraph(raw);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.graph.nodes[0]!.config).toMatchObject({ asset: { kind: "native" } });
+    expect(result.graph.nodes[1]!.config).toMatchObject({ asset: { kind: "native" } });
   });
 
   it("normalizes custom asset", () => {
@@ -118,8 +124,10 @@ describe("normalizeFlowGraph", () => {
       edges: [{ source: "n1", target: "n2" }],
     };
 
-    const graph = normalizeFlowGraph(raw);
-    expect(graph.nodes[0]!.config).toMatchObject({
+    const result = normalizeFlowGraph(raw);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.graph.nodes[0]!.config).toMatchObject({
       asset: { kind: "custom", code: "MYT", issuer: ISSUER },
     });
   });
@@ -137,8 +145,10 @@ describe("normalizeFlowGraph", () => {
       ],
     };
 
-    const graph = normalizeFlowGraph(raw);
-    expect(graph.nodes[1]).toMatchObject({
+    const result = normalizeFlowGraph(raw);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.graph.nodes[1]).toMatchObject({
       id: "n2",
       type: "condition",
       config: { kind: "amount_gt", amountStroops: "1000000000" },
@@ -154,8 +164,10 @@ describe("normalizeFlowGraph", () => {
       edges: [{ source: "n1", target: "n2" }],
     };
 
-    const graph = normalizeFlowGraph(raw);
-    expect(graph.edges[0]!.id).toBe("e0");
+    const result = normalizeFlowGraph(raw);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.graph.edges[0]!.id).toBe("e0");
   });
 
   it("accepts config instead of data", () => {
@@ -167,12 +179,101 @@ describe("normalizeFlowGraph", () => {
       edges: [{ source: "n1", target: "n2" }],
     };
 
-    const graph = normalizeFlowGraph(raw);
-    expect(graph.nodes[0]!.config).toMatchObject({ asset: { kind: "known", symbol: "USDC" } });
+    const result = normalizeFlowGraph(raw);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.graph.nodes[0]!.config).toMatchObject({
+      asset: { kind: "known", symbol: "USDC" },
+    });
   });
 
-  it("throws on invalid input", () => {
-    expect(() => normalizeFlowGraph(null)).toThrow("AI response is not an object");
-    expect(() => normalizeFlowGraph({ nodes: [], edges: [] })).toThrow();
+  it("auto-generates edges when missing", () => {
+    const raw = {
+      nodes: [
+        { id: "n1", type: "on_receive", config: { asset: "USDC" } },
+        {
+          id: "n2",
+          type: "split",
+          config: {
+            asset: "USDC",
+            recipients: [
+              { address: ADDR1, bps: 5000, label: "A" },
+              { address: ADDR2, bps: 5000, label: "B" },
+            ],
+          },
+        },
+      ],
+      edges: [],
+    };
+
+    const result = normalizeFlowGraph(raw);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.graph.edges).toHaveLength(1);
+    expect(result.graph.edges[0]).toMatchObject({ source: "n1", target: "n2" });
+  });
+
+  it("normalizes bps that don't sum to 10000", () => {
+    const raw = {
+      nodes: [
+        { id: "n1", type: "on_receive", config: { asset: "USDC" } },
+        {
+          id: "n2",
+          type: "split",
+          config: {
+            asset: "USDC",
+            recipients: [
+              { address: ADDR1, bps: 60, label: "A" },
+              { address: ADDR2, bps: 30, label: "B" },
+              { address: ADDR1, bps: 10, label: "C" },
+            ],
+          },
+        },
+      ],
+      edges: [{ source: "n1", target: "n2" }],
+    };
+
+    const result = normalizeFlowGraph(raw);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const splitNode = result.graph.nodes[1] as Extract<
+      (typeof result.graph.nodes)[number],
+      { type: "split" }
+    >;
+    const sum = splitNode.config.recipients.reduce((s, r) => s + r.bps, 0);
+    expect(sum).toBe(10000);
+  });
+
+  it("adds missing recipient if only one provided", () => {
+    const raw = {
+      nodes: [
+        { id: "n1", type: "on_receive", config: { asset: "USDC" } },
+        {
+          id: "n2",
+          type: "split",
+          config: { asset: "USDC", recipients: [{ address: ADDR1, bps: 10000, label: "A" }] },
+        },
+      ],
+      edges: [{ source: "n1", target: "n2" }],
+    };
+
+    const result = normalizeFlowGraph(raw);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const splitNode = result.graph.nodes[1] as Extract<
+      (typeof result.graph.nodes)[number],
+      { type: "split" }
+    >;
+    expect(splitNode.config.recipients.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("returns error for invalid input", () => {
+    const r1 = normalizeFlowGraph(null);
+    expect(r1.ok).toBe(false);
+    if (r1.ok) return;
+    expect(r1.error).toContain("not an object");
+
+    const r2 = normalizeFlowGraph({ nodes: [], edges: [] });
+    expect(r2.ok).toBe(false);
   });
 });

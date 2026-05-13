@@ -23,15 +23,52 @@ function extractJson(rawText: string): string {
   return jsonStr;
 }
 
+function buildActionableError(vResult: import("@/lib/flows/validate").ValidationResult): string {
+  if (vResult.ok) return "";
+
+  const msgs: string[] = [];
+  for (const e of vResult.errors) {
+    if (e.path === "nodes" && e.message.includes("exactly one trigger")) {
+      msgs.push(
+        "The AI generated a flow with no trigger or too many triggers. Try saying 'When I receive...' or 'Every day...' in your prompt.",
+      );
+    } else if (e.path === "nodes" && e.message.includes("at least one action")) {
+      msgs.push(
+        "The AI generated a flow with no action. Try adding who should receive the payment.",
+      );
+    } else if (e.path.includes("recipients") && e.message.includes("sum to 10000")) {
+      msgs.push(
+        "The AI generated split percentages that don't add up to 100%. Try rephrasing with exact percentages.",
+      );
+    } else if (e.path === "edges" && e.message.includes("cycle")) {
+      msgs.push("The AI generated a circular flow. Try a simpler description.");
+    } else if (e.message.includes("not reachable")) {
+      msgs.push(
+        "Some nodes are disconnected. Try describing the flow more linearly (e.g., 'When X happens, then do Y').",
+      );
+    } else {
+      msgs.push(e.message);
+    }
+  }
+
+  return msgs.join(" ");
+}
+
 async function tryGenerate(
   adapter: import("@/lib/ai/types").AiAdapter,
   messages: import("@/lib/ai/types").AiMessage[],
-): Promise<{ graph: import("@/lib/flows/schema").FlowGraph; english: string } | null> {
+): Promise<
+  | { graph: import("@/lib/flows/schema").FlowGraph; english: string }
+  | { error: string; guidance?: string }
+> {
   let rawText: string;
   try {
     rawText = await adapter.chat(messages);
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof AiError) {
+      return { error: err.message };
+    }
+    return { error: "AI service unavailable. Please try again." };
   }
 
   const jsonStr = extractJson(rawText);
@@ -40,18 +77,30 @@ async function tryGenerate(
   try {
     rawGraph = JSON.parse(jsonStr);
   } catch {
-    return null;
+    return {
+      error: "AI returned text that isn't valid JSON.",
+      guidance: "Try rephrasing your prompt more simply, or drag blocks manually.",
+    };
   }
 
-  let graph: import("@/lib/flows/schema").FlowGraph;
-  try {
-    graph = normalizeFlowGraph(rawGraph);
-  } catch {
-    return null;
+  const normalized = normalizeFlowGraph(rawGraph);
+  if (!normalized.ok) {
+    return {
+      error: `AI output format issue: ${normalized.error}`,
+      guidance: normalized.detail
+        ? `Detail: ${normalized.detail}. Try rephrasing or use a simpler prompt.`
+        : "Try rephrasing your prompt more simply.",
+    };
   }
 
-  const v = validateFlow(graph);
-  if (!v.ok) return null;
+  const v = validateFlow(normalized.graph);
+  if (!v.ok) {
+    const guidance = buildActionableError(v);
+    return {
+      error: "The generated flow doesn't pass validation.",
+      guidance,
+    };
+  }
 
   const english = flowToEnglish(v.graph);
   return { graph: v.graph, english };
@@ -71,17 +120,22 @@ export async function POST(req: NextRequest) {
     let result = await tryGenerate(adapter, buildFlowGenerationMessages(body.prompt));
 
     // Retry once with stricter prompt if first attempt fails
-    if (!result) {
+    if ("error" in result) {
       result = await tryGenerate(adapter, buildRetryMessages(body.prompt));
     }
 
-    if (!result) {
+    if ("error" in result) {
       return NextResponse.json({
         ok: false,
-        error: "AI returned invalid JSON after retry. Please try again or drag blocks manually.",
+        error: result.error,
+        guidance: result.guidance,
       });
     }
 
-    return NextResponse.json({ ok: true, graph: result.graph, english: result.english });
+    return NextResponse.json({
+      ok: true,
+      graph: result.graph,
+      english: result.english,
+    });
   });
 }
