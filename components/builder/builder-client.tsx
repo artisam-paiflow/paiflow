@@ -23,6 +23,7 @@ import { FlowGraphSchema } from "@/lib/flows/schema";
 import ConfigPanel from "./config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
+import AiGenerateBar from "./ai-generate-bar";
 
 type BuilderProps = {
   flowId: string;
@@ -126,6 +127,13 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     if (selectedId === id) setSelectedId(null);
   }
 
+  function setGraph(graph: FlowGraph) {
+    setFlowNodes(graph.nodes);
+    setRfNodes(graph.nodes.map((n, i) => nodeToReactFlow(n, i)));
+    setRfEdges(graph.edges.map((e) => ({ id: e.id, source: e.source, target: e.target })));
+    setSelectedId(null);
+  }
+
   return (
     <div
       className="grid grid-cols-[220px_1fr_320px] gap-0"
@@ -134,13 +142,17 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       <Palette onAdd={addNode} />
 
       <div className="relative">
-        <div className="absolute top-3 left-3 z-10 flex items-center gap-3">
+        <div className="absolute top-3 right-3 left-3 z-10 flex items-center gap-3">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="rounded bg-zinc-900/80 px-3 py-1.5 text-sm font-medium"
           />
           <DeployButton flowId={flowId} />
+          <div className="flex-1" />
+          <div className="w-full max-w-md">
+            <AiGenerateBar onGenerate={setGraph} />
+          </div>
         </div>
         <ReactFlow
           nodes={rfNodes.map((n) => ({
