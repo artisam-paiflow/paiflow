@@ -20,7 +20,6 @@ import { toast } from "sonner";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
-import { validateFlow } from "@/lib/flows/validate";
 import ConfigPanel from "./config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
@@ -122,13 +121,6 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     saveTimer.current = setTimeout(async () => {
       if (!queuedSave.current) return;
       queuedSave.current = false;
-
-      // Pre-check: skip autosave if graph is temporarily invalid
-      // (avoids 422 console spam while the user is still editing)
-      const preCheck = FlowGraphSchema.safeParse(graph);
-      if (!preCheck.success) return;
-      const v = validateFlow(graph);
-      if (!v.ok) return;
 
       const res = await fetch(`/api/flows/${flowId}`, {
         method: "PATCH",
