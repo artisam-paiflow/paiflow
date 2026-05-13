@@ -122,10 +122,37 @@
 - Ollama model `qwen2.5:3b` pulled and ready (~1.9 GB)
 - End-to-end browser test pending (requires login + UI interaction)
 
+## Branch: `feat/ai-smart-suggestions` — COMPLETED
+
+**Completed:** 2026-05-13
+
+### What was built
+
+| File                                      | Purpose                                                                                                      |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `app/api/flows/suggest/route.ts`          | POST endpoint: auth + rate-limit (10/min) → AI adapter → parse suggestions JSON → return `{suggestions}`     |
+| `components/builder/suggestion-panel.tsx` | Dismissible severity cards (error/warning/info), collapsible panel, "Ask AI to Review" / "Re-review" buttons |
+| `components/builder/builder-client.tsx`   | Integrated suggestion panel in right sidebar; added `fetchSuggestions()` + auto-trigger on autosave failure  |
+| `tests/unit/ai/suggest.test.ts`           | 4 unit tests for suggestion schema parsing and filtering                                                     |
+
+### Acceptance criteria
+
+- ✅ `pnpm typecheck` passes
+- ✅ 45 unit tests pass
+- ✅ Suggestions gracefully degrade to empty array when AI is offline
+- ✅ Rate-limited to 10 req/min/user
+- ✅ Auto-trigger on autosave validation failure (with deduplication)
+
+### New decisions / blockers
+
+- None. Phase 3 is complete.
+
 ## Next Steps
 
-Begin Phase 3: `feat/ai-smart-suggestions`
+Begin Phase 4: `feat/ai-polish-demo`
 
-- `app/api/flows/suggest/route.ts`
-- `components/builder/suggestion-panel.tsx`
-- Auto-trigger on validation failure after autosave
+- Tune `lib/ai/prompts.ts` for `qwen2.5:3b` (JSON mode hints, stricter format)
+- Add demo quick-prompt chips to `ai-generate-bar.tsx`
+- Add retry logic for invalid AI JSON
+- Ensure all 3 contract templates generate correctly via NL
+- Run `pnpm test:e2e`

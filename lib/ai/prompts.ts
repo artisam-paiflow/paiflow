@@ -2,22 +2,25 @@
  * Prompt templates and few-shot examples for AI-powered flow generation
  * and smart suggestions.
  *
+ * Tuned for qwen2.5:3b — optimized for structured-JSON reliability.
  * All functions return plain strings so adapters stay provider-agnostic.
  */
 
 export const FLOW_GENERATION_SYSTEM_PROMPT = `You are a helpful assistant that turns natural-language payment instructions into a strict JSON representation of a Pink Raft flow graph.
 
+CRITICAL: Respond with raw JSON ONLY. No markdown, no code fences (no \`\`\`json), no explanations, no extra text before or after the JSON.
+
 A flow graph has:
-- \\"nodes\\": an array of block objects
-- \\"edges\\": an array of connection objects
+- "nodes": an array of block objects
+- "edges": an array of connection objects
 
 Allowed node types (block types):
-- trigger: \\"on_receive\\" or \\"on_schedule\\"
-- action:  \\"pay\\" or \\"split\\"
-- logic:   \\"condition\\"
+- trigger: "on_receive" or "on_schedule"
+- action:  "pay" or "split"
+- logic:   "condition"
 
 Each node must have:
-- id: a short unique string (e.g., \\"n1\\", \\"n2\\")
+- id: a short unique string (e.g., "n1", "n2")
 - type: one of the block types above
 - data: an object with config fields specific to that block
 
@@ -28,10 +31,20 @@ Edges connect nodes:
 Rules:
 1. Exactly ONE trigger node.
 2. Every path must end in at least ONE action node.
-3. For \\"split\\" actions, recipients is an array of { address: string, bps: number } where bps are basis points (0-10000) and must sum to exactly 10000.
-4. For \\"on_receive\\" trigger, asset is \\"XLM\\", \\"USDC\\", or { code: string, issuer: string }.
-5. For \\"on_schedule\\" trigger, interval is \\"minute\\", \\"hour\\", or \\"day\\", with startsAt ISO date.
+3. For "split" actions, recipients is an array of { address: string, bps: number } where bps are basis points (0-10000) and must sum to exactly 10000.
+4. For "on_receive" trigger, asset is "XLM", "USDC", or { code: string, issuer: string }.
+5. For "on_schedule" trigger, interval is "minute", "hour", or "day", with startsAt ISO date.
 6. Output ONLY valid JSON. No markdown, no explanations outside the JSON.`;
+
+export const FLOW_GENERATION_RETRY_PROMPT = `The previous response was not valid JSON or did not follow the required schema.
+
+CRITICAL: Respond with raw JSON ONLY. No markdown, no code fences, no extra text.
+
+Produce a valid flow graph with:
+- nodes: array of { id, type, data }
+- edges: array of { source, target }
+
+Make sure the JSON is syntactically correct and uses double quotes for all strings and keys.`;
 
 export const FEW_SHOT_FLOW_EXAMPLES = [
   {
@@ -80,10 +93,42 @@ export const FEW_SHOT_FLOW_EXAMPLES = [
       edges: [{ source: "n1", target: "n2" }],
     }),
   },
+  {
+    user: "When I receive more than 50 USDC, send it to my savings wallet",
+    assistant: JSON.stringify({
+      nodes: [
+        {
+          id: "n1",
+          type: "on_receive",
+          data: { asset: "USDC" },
+        },
+        {
+          id: "n2",
+          type: "condition",
+          data: { kind: "amount_gt", amount: "500000000" },
+        },
+        {
+          id: "n3",
+          type: "pay",
+          data: {
+            asset: "USDC",
+            recipient: "GSAVE...",
+            amount: "500000000",
+          },
+        },
+      ],
+      edges: [
+        { source: "n1", target: "n2" },
+        { source: "n2", target: "n3" },
+      ],
+    }),
+  },
 ];
 
 export const SUGGESTION_SYSTEM_PROMPT = `You are a meticulous reviewer of Pink Raft payment flows.
 Given a flow graph (JSON), review it for correctness, clarity, and best practices.
+
+CRITICAL: Respond with raw JSON ONLY. No markdown, no code fences, no extra text.
 
 Return a JSON array of suggestions. Each suggestion is an object with:
 - severity: "error" | "warning" | "info"
@@ -117,6 +162,19 @@ export function buildFlowGenerationMessages(userPrompt: string): Array<{
   messages.push({ role: "user", content: userPrompt });
 
   return messages;
+}
+
+export function buildRetryMessages(userPrompt: string): Array<{
+  role: "system" | "user" | "assistant";
+  content: string;
+}> {
+  return [
+    {
+      role: "system",
+      content: FLOW_GENERATION_SYSTEM_PROMPT + "\n\n" + FLOW_GENERATION_RETRY_PROMPT,
+    },
+    { role: "user", content: userPrompt },
+  ];
 }
 
 export function buildSuggestionMessages(flowGraphJson: string): Array<{
