@@ -110,22 +110,15 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     }
   }
 
-  const lastAutoTrigger = useRef<string>("");
-
-  // Debounced autosave — only save if the graph passes client-side validation
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
-  const queuedSave = useRef(false);
-  useEffect(() => {
-    queuedSave.current = true;
+
+  async function saveGraph(currentGraph: FlowGraph, currentName: string) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
-      if (!queuedSave.current) return;
-      queuedSave.current = false;
-
       const res = await fetch(`/api/flows/${flowId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, graph }),
+        body: JSON.stringify({ name: currentName, graph: currentGraph }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -133,10 +126,13 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           toast.error(`Save failed: ${body?.error?.message ?? res.status}`);
         }
       }
-    }, 1500);
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
+    }, 800);
+  }
+
+  // Autosave on name / graph changes
+  useEffect(() => {
+    saveGraph(graph, name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowId, name, graph]);
 
   const onNodesChange = useCallback(
@@ -153,18 +149,51 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   );
 
   function addNode(node: FlowNode) {
-    setFlowNodes((arr) => [...arr, node]);
-    setRfNodes((arr) => [...arr, nodeToReactFlow(node, arr.length)]);
+    setFlowNodes((arr) => {
+      const next = [...arr, node];
+      setRfNodes((rfArr) => {
+        const nextRf = [...rfArr, nodeToReactFlow(node, rfArr.length)];
+        const nextGraph = {
+          nodes: next,
+          edges: rfEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+        };
+        saveGraph(nextGraph, name);
+        return nextRf;
+      });
+      return next;
+    });
   }
 
   function updateNode(updated: FlowNode) {
-    setFlowNodes((arr) => arr.map((n) => (n.id === updated.id ? updated : n)));
+    setFlowNodes((arr) => {
+      const next = arr.map((n) => (n.id === updated.id ? updated : n));
+      const nextGraph = {
+        nodes: next,
+        edges: rfEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+      };
+      saveGraph(nextGraph, name);
+      return next;
+    });
   }
 
   function deleteNode(id: string) {
-    setFlowNodes((arr) => arr.filter((n) => n.id !== id));
-    setRfNodes((arr) => arr.filter((n) => n.id !== id));
-    setRfEdges((arr) => arr.filter((e) => e.source !== id && e.target !== id));
+    setFlowNodes((arr) => {
+      const next = arr.filter((n) => n.id !== id);
+      setRfNodes((rfArr) => {
+        const nextRf = rfArr.filter((n) => n.id !== id);
+        setRfEdges((edgeArr) => {
+          const nextEdges = edgeArr.filter((e) => e.source !== id && e.target !== id);
+          const nextGraph = {
+            nodes: next,
+            edges: nextEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+          };
+          saveGraph(nextGraph, name);
+          return nextEdges;
+        });
+        return nextRf;
+      });
+      return next;
+    });
     if (selectedId === id) setSelectedId(null);
   }
 
@@ -193,9 +222,20 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       target: idMap.get(e.target) ?? e.target,
     }));
 
-    setFlowNodes((arr) => [...arr, ...newFlowNodes]);
-    setRfNodes((arr) => [...arr, ...newRfNodes]);
-    setRfEdges((arr) => [...arr, ...newRfEdges]);
+    setFlowNodes((arr) => {
+      const next = [...arr, ...newFlowNodes];
+      setRfNodes((rfArr) => [...rfArr, ...newRfNodes]);
+      setRfEdges((edgeArr) => {
+        const nextEdges = [...edgeArr, ...newRfEdges];
+        const nextGraph = {
+          nodes: next,
+          edges: nextEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+        };
+        saveGraph(nextGraph, name);
+        return nextEdges;
+      });
+      return next;
+    });
     setSelectedId(null);
   }
 
