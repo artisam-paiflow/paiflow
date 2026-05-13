@@ -1,6 +1,9 @@
-import { execSync } from "node:child_process";
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
 import type { AiAdapter, AiMessage } from "./types";
 import { AiError } from "./types";
+
+const execAsync = promisify(exec);
 
 export interface VertexAiConfig {
   projectId: string;
@@ -28,15 +31,26 @@ interface VertexResponse {
   };
 }
 
-function getAccessToken(config: VertexAiConfig): string {
+/** Cached token to avoid blocking the event loop with execSync on every request. */
+let cachedToken: { value: string; expiresAt: number } | null = null;
+const TOKEN_TTL_MS = 50 * 60 * 1000; // 50 minutes (tokens usually last 1 hour)
+
+async function getAccessToken(config: VertexAiConfig): Promise<string> {
   if (config.accessToken) return config.accessToken;
 
+  // Return cached token if still valid
+  if (cachedToken && Date.now() < cachedToken.expiresAt) {
+    return cachedToken.value;
+  }
+
   try {
-    const token = execSync("gcloud auth print-access-token", {
-      encoding: "utf-8",
+    const { stdout } = await execAsync("gcloud auth print-access-token", {
       timeout: 10_000,
-    }).trim();
+    });
+    const token = stdout.trim();
     if (!token) throw new Error("gcloud returned empty token");
+
+    cachedToken = { value: token, expiresAt: Date.now() + TOKEN_TTL_MS };
     return token;
   } catch (err) {
     throw new AiError("Vertex AI requires authentication. Run: gcloud auth login", err);
@@ -47,7 +61,7 @@ export class VertexAiAdapter implements AiAdapter {
   constructor(private readonly config: VertexAiConfig) {}
 
   async chat(messages: AiMessage[]): Promise<string> {
-    const token = getAccessToken(this.config);
+    const token = await getAccessToken(this.config);
     const url =
       `https://${this.config.region}-aiplatform.googleapis.com/v1/` +
       `projects/${this.config.projectId}/locations/${this.config.region}/` +
