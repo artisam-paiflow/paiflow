@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
+import { validateFlow } from "@/lib/flows/validate";
 import ConfigPanel from "./config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
@@ -112,7 +113,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
   const lastAutoTrigger = useRef<string>("");
 
-  // Debounced autosave
+  // Debounced autosave — only save if the graph passes client-side validation
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
   const queuedSave = useRef(false);
   useEffect(() => {
@@ -121,6 +122,14 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     saveTimer.current = setTimeout(async () => {
       if (!queuedSave.current) return;
       queuedSave.current = false;
+
+      // Pre-check: skip autosave if graph is temporarily invalid
+      // (avoids 422 console spam while the user is still editing)
+      const preCheck = FlowGraphSchema.safeParse(graph);
+      if (!preCheck.success) return;
+      const v = validateFlow(graph);
+      if (!v.ok) return;
+
       const res = await fetch(`/api/flows/${flowId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -128,19 +137,8 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        // Silently skip validation errors (422) during autosave —
-        // the flow may be temporarily invalid while editing.
-        // Only show toast for real server errors.
         if (res.status >= 500) {
           toast.error(`Save failed: ${body?.error?.message ?? res.status}`);
-        }
-        // Auto-trigger suggestions on validation failure
-        if (res.status === 422) {
-          const graphKey = JSON.stringify(graph);
-          if (lastAutoTrigger.current !== graphKey) {
-            lastAutoTrigger.current = graphKey;
-            await fetchSuggestions({ auto: true });
-          }
         }
       }
     }, 1500);
@@ -178,10 +176,34 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     if (selectedId === id) setSelectedId(null);
   }
 
-  function setGraph(graph: FlowGraph) {
-    setFlowNodes(graph.nodes);
-    setRfNodes(graph.nodes.map((n, i) => nodeToReactFlow(n, i)));
-    setRfEdges(graph.edges.map((e) => ({ id: e.id, source: e.source, target: e.target })));
+  function appendGraph(graph: FlowGraph) {
+    // Offset new nodes so they don't overlap existing ones
+    const maxX = rfNodes.reduce((m, n) => Math.max(m, n.position?.x ?? 0), 0);
+    const offsetX = maxX + 200;
+
+    // Remap IDs to avoid collisions with existing nodes
+    const idMap = new Map<string, string>();
+    const newFlowNodes = graph.nodes.map((n) => {
+      const newId = `ai-${n.id}-${Date.now()}`;
+      idMap.set(n.id, newId);
+      return { ...n, id: newId };
+    });
+
+    const newRfNodes = graph.nodes.map((n, i) => {
+      const rf = nodeToReactFlow({ ...n, id: idMap.get(n.id)! }, i);
+      rf.position.x += offsetX;
+      return rf;
+    });
+
+    const newRfEdges = graph.edges.map((e) => ({
+      id: `ai-e-${e.source}-${e.target}-${Date.now()}`,
+      source: idMap.get(e.source) ?? e.source,
+      target: idMap.get(e.target) ?? e.target,
+    }));
+
+    setFlowNodes((arr) => [...arr, ...newFlowNodes]);
+    setRfNodes((arr) => [...arr, ...newRfNodes]);
+    setRfEdges((arr) => [...arr, ...newRfEdges]);
     setSelectedId(null);
   }
 
@@ -202,7 +224,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           <DeployButton flowId={flowId} />
           <div className="flex-1" />
           <div className="w-full max-w-md">
-            <AiGenerateBar onGenerate={setGraph} />
+            <AiGenerateBar onGenerate={appendGraph} />
           </div>
         </div>
         <ReactFlow
