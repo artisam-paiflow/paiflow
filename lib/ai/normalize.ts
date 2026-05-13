@@ -1,5 +1,14 @@
+import { StrKey } from "@stellar/stellar-sdk";
 import type { FlowGraph, FlowNode, FlowEdge, Asset } from "@/lib/flows/schema";
 import { FlowGraphSchema } from "@/lib/flows/schema";
+
+/** Valid dummy Stellar address for AI-generated placeholders. */
+const DUMMY_ADDRESS = "GAO5RJ6BZJY5DZISYWNS3AOPET4J6PJT6EAEOYDWAY6YRWCQ6VH4OSYB";
+
+function sanitizeAddress(addr: string): string {
+  if (StrKey.isValidEd25519PublicKey(addr)) return addr;
+  return DUMMY_ADDRESS;
+}
 
 function normalizeAsset(asset: unknown): Asset {
   if (asset === "XLM" || asset === "xlm" || asset === "native") {
@@ -73,7 +82,7 @@ export function normalizeFlowGraph(raw: unknown): FlowGraph {
           id,
           type: "pay",
           config: {
-            recipient: String(data.recipient ?? ""),
+            recipient: sanitizeAddress(String(data.recipient ?? "")),
             amountStroops: String(data.amountStroops ?? data.amount ?? "0"),
             asset: normalizeAsset(data.asset),
           },
@@ -85,7 +94,7 @@ export function normalizeFlowGraph(raw: unknown): FlowGraph {
               if (!r || typeof r !== "object") throw new Error(`Recipient ${j} is not an object`);
               const rec = r as Record<string, unknown>;
               return {
-                address: String(rec.address ?? ""),
+                address: sanitizeAddress(String(rec.address ?? "")),
                 bps: Number(rec.bps ?? 0),
                 label: rec.label ? String(rec.label) : undefined,
               };
@@ -128,7 +137,7 @@ export function normalizeFlowGraph(raw: unknown): FlowGraph {
               type: "condition",
               config: {
                 kind: "oracle_gte",
-                oracle: String(cfg.oracle ?? ""),
+                oracle: sanitizeAddress(String(cfg.oracle ?? "")),
                 key: String(cfg.key ?? ""),
                 threshold: String(cfg.threshold ?? "0"),
               },

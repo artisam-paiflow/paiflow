@@ -46,6 +46,8 @@ Produce a valid flow graph with:
 
 Make sure the JSON is syntactically correct and uses double quotes for all strings and keys.`;
 
+const DUMMY_ADDR = "GAO5RJ6BZJY5DZISYWNS3AOPET4J6PJT6EAEOYDWAY6YRWCQ6VH4OSYB";
+
 export const FEW_SHOT_FLOW_EXAMPLES = [
   {
     user: "When I receive USDC, split 50% to Mom and 50% to Savings",
@@ -62,8 +64,8 @@ export const FEW_SHOT_FLOW_EXAMPLES = [
           data: {
             asset: "USDC",
             recipients: [
-              { address: "GABC...", bps: 5000, label: "Mom" },
-              { address: "GDEF...", bps: 5000, label: "Savings" },
+              { address: DUMMY_ADDR, bps: 5000, label: "Mom" },
+              { address: DUMMY_ADDR, bps: 5000, label: "Savings" },
             ],
           },
         },
@@ -85,7 +87,7 @@ export const FEW_SHOT_FLOW_EXAMPLES = [
           type: "pay",
           data: {
             asset: "USDC",
-            recipient: "GXYZ...",
+            recipient: DUMMY_ADDR,
             amount: "1000000000",
           },
         },
@@ -112,7 +114,7 @@ export const FEW_SHOT_FLOW_EXAMPLES = [
           type: "pay",
           data: {
             asset: "USDC",
-            recipient: "GSAVE...",
+            recipient: DUMMY_ADDR,
             amount: "500000000",
           },
         },
