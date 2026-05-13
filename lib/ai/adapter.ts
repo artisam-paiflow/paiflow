@@ -3,6 +3,7 @@ import type { AiAdapter } from "./types";
 import { OllamaAdapter } from "./ollama";
 import { OpenAiAdapter } from "./openai";
 import { GeminiAdapter } from "./gemini";
+import { VertexAiAdapter } from "./vertex";
 
 export function createAiAdapter(): AiAdapter {
   const e = env();
@@ -28,6 +29,16 @@ export function createAiAdapter(): AiAdapter {
       return new GeminiAdapter({
         apiKey: e.GEMINI_API_KEY,
         model: e.GEMINI_MODEL,
+      });
+    }
+    case "vertex": {
+      if (!e.GCP_PROJECT_ID) {
+        throw new Error("GCP_PROJECT_ID is required when AI_PROVIDER is set to 'vertex'");
+      }
+      return new VertexAiAdapter({
+        projectId: e.GCP_PROJECT_ID,
+        region: e.GCP_REGION,
+        model: e.VERTEX_MODEL,
       });
     }
     default: {
