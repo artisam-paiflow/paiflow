@@ -2,6 +2,7 @@ import { env } from "@/lib/env";
 import type { AiAdapter } from "./types";
 import { OllamaAdapter } from "./ollama";
 import { OpenAiAdapter } from "./openai";
+import { GeminiAdapter } from "./gemini";
 
 export function createAiAdapter(): AiAdapter {
   const e = env();
@@ -18,6 +19,15 @@ export function createAiAdapter(): AiAdapter {
       return new OpenAiAdapter({
         apiKey: e.OPENAI_API_KEY,
         model: e.OPENAI_MODEL,
+      });
+    }
+    case "gemini": {
+      if (!e.GEMINI_API_KEY) {
+        throw new Error("GEMINI_API_KEY is required when AI_PROVIDER is set to 'gemini'");
+      }
+      return new GeminiAdapter({
+        apiKey: e.GEMINI_API_KEY,
+        model: e.GEMINI_MODEL,
       });
     }
     default: {

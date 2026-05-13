@@ -41,11 +41,13 @@ const EnvSchema = z.object({
   HIBP_CHECK_ENABLED: boolish,
 
   // ---- AI ----
-  AI_PROVIDER: z.enum(["ollama", "openai"]).default("ollama"),
+  AI_PROVIDER: z.enum(["ollama", "openai", "gemini"]).default("ollama"),
   OLLAMA_URL: z.string().url().default("http://localhost:11434"),
   OLLAMA_MODEL: z.string().min(1).default("qwen2.5:3b"),
   OPENAI_API_KEY: optionalString,
   OPENAI_MODEL: z.string().min(1).default("gpt-4o-mini"),
+  GEMINI_API_KEY: optionalString,
+  GEMINI_MODEL: z.string().min(1).default("gemini-2.0-flash"),
 });
 
 type EnvShape = z.infer<typeof EnvSchema>;
