@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #fff1f5;
+  --color-brand-100: #ffe4ec;
+  --color-brand-200: #fecdd9;
+  --color-brand-300: #fda4bc;
+  --color-brand-400: #fb7196;
+  --color-brand-500: #f43f74;
+  --color-brand-600: #e11d58;
+  --color-brand-700: #be1248;
+  --color-brand-800: #9f1241;
+  --color-brand-900: #88133d;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: #0b0a10;
+  color: #f5f3ff;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    "Noto Sans",
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.react-flow__node {
+  font-family: inherit;
+}

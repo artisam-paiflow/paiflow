@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["core", "full"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pinkraft
+      POSTGRES_PASSWORD: pinkraft
+      POSTGRES_DB: pinkraft
+    ports:
+      - "5432:5432"
+    volumes:
+      - pinkraft_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pinkraft"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["core", "full"]
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - pinkraft_redis:/data
+
+  minio:
+    image: minio/minio:latest
+    profiles: ["full"]
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: pinkraft
+      MINIO_ROOT_PASSWORD: pinkraft-dev-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - pinkraft_minio:/data
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    profiles: ["full"]
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  pinkraft_pg:
+  pinkraft_redis:
+  pinkraft_minio:
