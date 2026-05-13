@@ -25,7 +25,6 @@ import ConfigPanel from "./config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
 import AiGenerateBar from "./ai-generate-bar";
-import SuggestionPanel from "./suggestion-panel";
 
 type BuilderProps = {
   flowId: string;
@@ -70,10 +69,6 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     initialGraph.edges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<
-    Array<{ severity: "error" | "warning" | "info"; message: string }>
-  >([]);
-  const [suggestLoading, setSuggestLoading] = useState(false);
 
   const graph: FlowGraph = useMemo(
     () => ({
@@ -89,29 +84,6 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   }, [graph]);
 
   const selectedNode = flowNodes.find((n) => n.id === selectedId) ?? null;
-
-  async function fetchSuggestions(opts?: { auto?: boolean }) {
-    if (suggestLoading) return;
-    setSuggestLoading(true);
-    try {
-      const res = await fetch("/api/flows/suggest", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ graph }),
-      });
-      const data = await res.json().catch(() => ({ suggestions: [] }));
-      setSuggestions(data.suggestions ?? []);
-      if (!opts?.auto && (data.suggestions ?? []).length === 0) {
-        toast.success("No issues found — your flow looks good!");
-      }
-    } catch {
-      if (!opts?.auto) toast.error("Failed to get suggestions");
-    } finally {
-      setSuggestLoading(false);
-    }
-  }
-
-  const lastAutoTrigger = useRef<string>("");
 
   // Debounced autosave — only save if the graph passes client-side validation
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -254,13 +226,6 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         <div className="flex-1 overflow-auto">
           <ConfigPanel node={selectedNode} onChange={updateNode} onDelete={deleteNode} />
         </div>
-        <SuggestionPanel
-          suggestions={suggestions}
-          loading={suggestLoading}
-          onReview={() => fetchSuggestions()}
-          onDismiss={(i) => setSuggestions((s) => s.filter((_, idx) => idx !== i))}
-          onDismissAll={() => setSuggestions([])}
-        />
       </div>
     </div>
   );
