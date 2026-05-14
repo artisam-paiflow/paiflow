@@ -197,11 +197,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     if (selectedId === id) setSelectedId(null);
   }
 
-  let _appendCounter = useRef(0);
+  const appendCounter = useRef(0);
 
   function appendGraph(graph: FlowGraph) {
-    _appendCounter.current += 1;
-    const batchId = _appendCounter.current;
+    appendCounter.current += 1;
+    const batchId = appendCounter.current;
 
     // Offset new nodes so they don't overlap existing ones
     const maxX = rfNodes.reduce((m, n) => Math.max(m, n.position?.x ?? 0), 0);
