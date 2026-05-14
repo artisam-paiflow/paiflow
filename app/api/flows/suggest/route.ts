@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       rawText = await adapter.chat(messages);
     } catch (err) {
       if (err instanceof AiError) {
-        return NextResponse.json({ suggestions: [] });
+        return NextResponse.json({ data: { suggestions: [] } });
       }
       throw err;
     }
@@ -49,11 +49,11 @@ export async function POST(req: NextRequest) {
     try {
       rawSuggestions = JSON.parse(jsonStr);
     } catch {
-      return NextResponse.json({ suggestions: [] });
+      return NextResponse.json({ data: { suggestions: [] } });
     }
 
     if (!Array.isArray(rawSuggestions)) {
-      return NextResponse.json({ suggestions: [] });
+      return NextResponse.json({ data: { suggestions: [] } });
     }
 
     const suggestions = rawSuggestions
@@ -63,6 +63,6 @@ export async function POST(req: NextRequest) {
       })
       .filter(Boolean) as Array<{ severity: "error" | "warning" | "info"; message: string }>;
 
-    return NextResponse.json({ suggestions });
+    return NextResponse.json({ data: { suggestions } });
   });
 }

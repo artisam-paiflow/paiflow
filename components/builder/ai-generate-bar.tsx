@@ -88,20 +88,21 @@ export default function AiGenerateBar({ onGenerate }: AiGenerateBarProps) {
       });
       const data = await res.json();
 
-      if (!res.ok || !data.ok) {
+      if (!res.ok || data.error) {
         setPreview({
           status: "error",
-          error: typeof data.error === "string" ? data.error : "AI generation failed",
-          guidance: typeof data.guidance === "string" ? data.guidance : undefined,
+          error: data.error?.message ?? "AI generation failed",
+          guidance: data.error?.guidance,
         });
         return;
       }
 
-      const warnings = collectWarnings(data.graph);
+      const payload = data.data;
+      const warnings = collectWarnings(payload.graph);
       setPreview({
         status: "preview",
-        graph: data.graph,
-        english: data.english,
+        graph: payload.graph,
+        english: payload.english,
         warnings,
       });
     } catch {

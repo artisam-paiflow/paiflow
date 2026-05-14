@@ -483,7 +483,6 @@ function rescueFlow(
     }
   }
 
-  // 6. Connect orphaned actions that had no incoming edge (re-check after 5)
   return { nodes: rescuedNodes, edges: rescuedEdges };
 }
 

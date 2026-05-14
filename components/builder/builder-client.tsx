@@ -98,8 +98,8 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ graph }),
       });
-      const data = await res.json().catch(() => ({ suggestions: [] }));
-      setSuggestions(data.suggestions ?? []);
+      const data = await res.json().catch(() => ({ data: { suggestions: [] } }));
+      setSuggestions(data.data?.suggestions ?? []);
       if (!opts?.auto && (data.suggestions ?? []).length === 0) {
         toast.success("No issues found — your flow looks good!");
       }
@@ -151,49 +151,19 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   function addNode(node: FlowNode) {
     setFlowNodes((arr) => {
       const next = [...arr, node];
-      setRfNodes((rfArr) => {
-        const nextRf = [...rfArr, nodeToReactFlow(node, rfArr.length)];
-        const nextGraph = {
-          nodes: next,
-          edges: rfEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
-        };
-        saveGraph(nextGraph, name);
-        return nextRf;
-      });
+      setRfNodes((rfArr) => [...rfArr, nodeToReactFlow(node, rfArr.length)]);
       return next;
     });
   }
 
   function updateNode(updated: FlowNode) {
-    setFlowNodes((arr) => {
-      const next = arr.map((n) => (n.id === updated.id ? updated : n));
-      const nextGraph = {
-        nodes: next,
-        edges: rfEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
-      };
-      saveGraph(nextGraph, name);
-      return next;
-    });
+    setFlowNodes((arr) => arr.map((n) => (n.id === updated.id ? updated : n)));
   }
 
   function deleteNode(id: string) {
-    setFlowNodes((arr) => {
-      const next = arr.filter((n) => n.id !== id);
-      setRfNodes((rfArr) => {
-        const nextRf = rfArr.filter((n) => n.id !== id);
-        setRfEdges((edgeArr) => {
-          const nextEdges = edgeArr.filter((e) => e.source !== id && e.target !== id);
-          const nextGraph = {
-            nodes: next,
-            edges: nextEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
-          };
-          saveGraph(nextGraph, name);
-          return nextEdges;
-        });
-        return nextRf;
-      });
-      return next;
-    });
+    setFlowNodes((arr) => arr.filter((n) => n.id !== id));
+    setRfNodes((rfArr) => rfArr.filter((n) => n.id !== id));
+    setRfEdges((edgeArr) => edgeArr.filter((e) => e.source !== id && e.target !== id));
     if (selectedId === id) setSelectedId(null);
   }
 
@@ -233,15 +203,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
     setFlowNodes((arr) => [...arr, ...newFlowNodes]);
     setRfNodes((arr) => [...arr, ...newRfNodes]);
-    setRfEdges((arr) => {
-      const nextEdges = [...arr, ...newRfEdges];
-      const nextGraph = {
-        nodes: [...flowNodes, ...newFlowNodes],
-        edges: nextEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
-      };
-      saveGraph(nextGraph, name);
-      return nextEdges;
-    });
+    setRfEdges((arr) => [...arr, ...newRfEdges]);
     setSelectedId(null);
   }
 

@@ -39,8 +39,8 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   if (errors.length) return { ok: false, errors };
 
   const triggers = graph.nodes.filter(isTrigger);
-  if (triggers.length !== 1) {
-    errors.push({ path: "nodes", message: "Flow must have exactly one trigger node" });
+  if (triggers.length < 1) {
+    errors.push({ path: "nodes", message: "Flow must have at least one trigger node" });
   }
   const actions = graph.nodes.filter(isAction);
   if (actions.length < 1) {

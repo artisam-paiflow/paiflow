@@ -24,7 +24,7 @@ function sanitizePrompt(prompt: string): string {
       // Normalize asset aliases to canonical forms
       .replace(/\b(usdc|usd|usdt)\b/gi, "USDC")
       .replace(/\b(xlm|lumens?|native|str)\b/gi, "XLM")
-      // Capitalize first letter for better AI parsing
+      // Capitalize first letter for better AI parsing (best-effort, not security-critical)
       .replace(/^[a-z]/, (c) => c.toUpperCase())
       // "the rest to X" / "the remainder to X" -> "the remaining to X" (explicit phrasing)
       .replace(/\bthe rest\b/gi, "the remaining")
@@ -134,17 +134,14 @@ export async function POST(req: NextRequest) {
     const result = await tryGenerate(sanitizedPrompt, body.model);
 
     if ("error" in result) {
-      return NextResponse.json({
-        ok: false,
-        error: result.error,
-        guidance: result.guidance,
-      });
+      return NextResponse.json(
+        {
+          error: { code: "AI_GENERATION_FAILED", message: result.error, guidance: result.guidance },
+        },
+        { status: 422 },
+      );
     }
 
-    return NextResponse.json({
-      ok: true,
-      graph: result.graph,
-      english: result.english,
-    });
+    return NextResponse.json({ data: { graph: result.graph, english: result.english } });
   });
 }
