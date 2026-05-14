@@ -5,6 +5,24 @@ import { FlowGraphSchema, isTrigger, isAction } from "@/lib/flows/schema";
 /** Valid dummy Stellar address for AI-generated placeholders. */
 const DUMMY_ADDRESS = "GAO5RJ6BZJY5DZISYWNS3AOPET4J6PJT6EAEOYDWAY6YRWCQ6VH4OSYB";
 
+/** Warnings collected during normalization — surfaced as non-blocking hints. */
+export type NormalizeWarning = { nodeId?: string; message: string };
+let _warnings: NormalizeWarning[] = [];
+
+export function resetWarnings(): void {
+  _warnings = [];
+}
+
+export function getWarnings(): NormalizeWarning[] {
+  return _warnings;
+}
+
+/** Unique id counter for auto-created nodes. */
+let _autoIdCounter = 0;
+function nextAutoId(): string {
+  return `auto_${_autoIdCounter++}`;
+}
+
 function sanitizeAddress(addr: string): string {
   if (StrKey.isValidEd25519PublicKey(addr)) return addr;
   return DUMMY_ADDRESS;
@@ -16,6 +34,21 @@ function normalizeAsset(asset: unknown): Asset {
   }
   if (asset === "USDC" || asset === "usdc") {
     return { kind: "known", symbol: "USDC" };
+  }
+  if (typeof asset === "string") {
+    const trimmed = asset.trim();
+    // Handle cases like "10usdc", "100 USDC", "10xlm" by extracting just the asset code
+    const match = trimmed.match(/^(?:\d+\s*)?(usdc|xlm|native)$/i);
+    if (match) {
+      const code = match[1]!.toLowerCase();
+      if (code === "xlm" || code === "native") return { kind: "native" };
+      if (code === "usdc") return { kind: "known", symbol: "USDC" };
+    }
+    // If it looks like a Stellar asset code (1-12 alphanumeric), treat as custom
+    if (/^[a-zA-Z0-9]{1,12}$/.test(trimmed)) {
+      return { kind: "custom", code: trimmed.toUpperCase(), issuer: DUMMY_ADDRESS };
+    }
+    return { kind: "custom", code: trimmed, issuer: DUMMY_ADDRESS };
   }
   if (typeof asset === "object" && asset !== null) {
     const a = asset as Record<string, unknown>;
@@ -34,9 +67,6 @@ function normalizeAsset(asset: unknown): Asset {
     if ("code" in a && "issuer" in a) {
       return { kind: "custom", code: String(a.code), issuer: sanitizeAddress(String(a.issuer)) };
     }
-  }
-  if (typeof asset === "string") {
-    return { kind: "custom", code: asset, issuer: "" };
   }
   return { kind: "native" };
 }
@@ -291,15 +321,171 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
       };
     });
   } else {
-    // Auto-generate edges if AI forgot them
     edges = autoGenerateEdges(nodes);
   }
 
+  // ── Rescue mutations ──────────────────────────────────────────────
+  const rescued = rescueFlow(nodes, edges);
+
   try {
-    const graph = FlowGraphSchema.parse({ nodes, edges });
+    const graph = FlowGraphSchema.parse({ nodes: rescued.nodes, edges: rescued.edges });
     return { ok: true, graph };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: "Schema validation failed", detail: msg };
   }
+}
+
+// ── Rescue helpers ──────────────────────────────────────────────────
+
+function removeNode(nodes: FlowNode[], id: string): FlowNode[] {
+  return nodes.filter((n) => n.id !== id);
+}
+
+function buildNodeMap(nodes: FlowNode[]): Map<string, FlowNode> {
+  return new Map(nodes.map((n) => [n.id, n]));
+}
+
+/**
+ * Rescue a flow that would otherwise fail validation.
+ * Mutates nodes/edges in-place-like style (returns new arrays).
+ */
+function rescueFlow(
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+): { nodes: FlowNode[]; edges: FlowEdge[] } {
+  let rescuedNodes = [...nodes];
+  let rescuedEdges = [...edges];
+  let nodeMap = buildNodeMap(rescuedNodes);
+
+  // 1. Strip edges that reference non-existent nodes
+  rescuedEdges = rescuedEdges.filter((e) => {
+    if (!nodeMap.has(e.source)) {
+      _warnings.push({ message: `Removed edge referencing unknown source ${e.source}` });
+      return false;
+    }
+    if (!nodeMap.has(e.target)) {
+      _warnings.push({ message: `Removed edge referencing unknown target ${e.target}` });
+      return false;
+    }
+    return true;
+  });
+
+  // 2. Too many triggers → keep only the first, merge the rest as actions
+  const triggers = rescuedNodes.filter(isTrigger);
+  if (triggers.length > 1) {
+    const primary = triggers[0]!;
+    _warnings.push({
+      nodeId: primary.id,
+      message: `Merged ${triggers.length - 1} extra trigger(s) into primary trigger ${primary.id}`,
+    });
+
+    // Rewire: any edge pointing TO a removed trigger → point to primary instead
+    const removedIds = new Set(triggers.slice(1).map((t) => t.id));
+    rescuedEdges = rescuedEdges.map((e) => ({
+      ...e,
+      source: removedIds.has(e.source) ? primary.id : e.source,
+      target: removedIds.has(e.target) ? primary.id : e.target,
+    }));
+
+    // Remove duplicate self-loops
+    rescuedEdges = rescuedEdges.filter((e) => e.source !== e.target);
+
+    // Remove extra trigger nodes
+    rescuedNodes = rescuedNodes.filter((n) => !removedIds.has(n.id));
+    nodeMap = buildNodeMap(rescuedNodes);
+  }
+
+  // 3. No trigger → infer one
+  if (!rescuedNodes.some(isTrigger)) {
+    const hasSchedule = rescuedNodes.some((n) => n.type === "on_schedule");
+    const asset = inferAssetFromNodes(rescuedNodes);
+    const triggerId = nextAutoId();
+    const trigger: FlowNode = hasSchedule
+      ? {
+          id: triggerId,
+          type: "on_schedule",
+          config: { interval: "day", startsAt: new Date(Date.now() + 86400000).toISOString() },
+        }
+      : ({ id: triggerId, type: "on_receive", config: { asset } } as FlowNode);
+
+    _warnings.push({
+      nodeId: triggerId,
+      message: hasSchedule
+        ? "No trigger found — added default on_schedule"
+        : "No trigger found — added default on_receive",
+    });
+
+    rescuedNodes = [trigger, ...rescuedNodes];
+    nodeMap = buildNodeMap(rescuedNodes);
+  }
+
+  // 4. Trigger has incoming edges → strip them (trigger must be root)
+  const trigger = rescuedNodes.find(isTrigger);
+  if (trigger) {
+    const incomingCount = rescuedEdges.filter((e) => e.target === trigger.id).length;
+    if (incomingCount > 0) {
+      rescuedEdges = rescuedEdges.filter((e) => e.target !== trigger.id);
+      _warnings.push({
+        nodeId: trigger.id,
+        message: `Removed ${incomingCount} incoming edge(s) to trigger — triggers must be roots`,
+      });
+    }
+  }
+
+  // 5. Connect orphaned actions (actions with no incoming edge) to trigger
+  const hasIncoming = new Set(rescuedEdges.map((e) => e.target));
+  const actions = rescuedNodes.filter(isAction);
+  const logicNodes = rescuedNodes.filter((n) => n.type === "condition");
+  const usedEdgeIds = new Set(rescuedEdges.map((e) => e.id));
+
+  if (trigger) {
+    let newEdgeId =
+      Math.max(0, ...rescuedEdges.map((e) => parseInt(e.id.replace(/\D/g, "")) || 0)) + 1;
+
+    // Connect orphaned logic nodes to trigger
+    for (const ln of logicNodes) {
+      if (!hasIncoming.has(ln.id)) {
+        const eid = `e${newEdgeId++}`;
+        while (usedEdgeIds.has(eid)) {
+          newEdgeId++;
+        }
+        rescuedEdges.push({ id: eid, source: trigger.id, target: ln.id });
+        usedEdgeIds.add(eid);
+        hasIncoming.add(ln.id);
+        _warnings.push({ nodeId: ln.id, message: "Connected orphaned condition to trigger" });
+      }
+    }
+
+    // Connect orphaned actions to trigger or condition
+    for (const act of actions) {
+      if (!hasIncoming.has(act.id)) {
+        // Prefer connecting to a condition if one exists and it has no outgoing to this action yet
+        const targetLogic = logicNodes.find(
+          (l) => !rescuedEdges.some((e) => e.source === l.id && e.target === act.id),
+        );
+        const source = targetLogic ?? trigger;
+        const eid = `e${newEdgeId++}`;
+        while (usedEdgeIds.has(eid)) {
+          newEdgeId++;
+        }
+        rescuedEdges.push({ id: eid, source: source.id, target: act.id });
+        usedEdgeIds.add(eid);
+        hasIncoming.add(act.id);
+        _warnings.push({ nodeId: act.id, message: "Connected orphaned action to flow" });
+      }
+    }
+  }
+
+  // 6. Connect orphaned actions that had no incoming edge (re-check after 5)
+  return { nodes: rescuedNodes, edges: rescuedEdges };
+}
+
+function inferAssetFromNodes(nodes: FlowNode[]): Asset {
+  for (const n of nodes) {
+    if (n.type === "on_receive" && "asset" in n.config) return (n.config as { asset: Asset }).asset;
+    if (n.type === "pay" && "asset" in n.config) return (n.config as { asset: Asset }).asset;
+    if (n.type === "split" && "asset" in n.config) return (n.config as { asset: Asset }).asset;
+  }
+  return { kind: "known", symbol: "USDC" } as Asset;
 }

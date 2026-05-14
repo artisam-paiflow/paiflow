@@ -39,8 +39,8 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   if (errors.length) return { ok: false, errors };
 
   const triggers = graph.nodes.filter(isTrigger);
-  if (triggers.length !== 1) {
-    errors.push({ path: "nodes", message: "Flow must have exactly one trigger node" });
+  if (triggers.length < 1) {
+    errors.push({ path: "nodes", message: "Flow must have at least one trigger node" });
   }
   const actions = graph.nodes.filter(isAction);
   if (actions.length < 1) {
@@ -118,29 +118,17 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   if (errors.length) return { ok: false, errors };
 
-  // Infer template kind
-  const action = actions[0]!;
+  // Infer template kind — lenient fallback
   const hasCondition = graph.nodes.some(isLogic);
   let templateKind: TemplateKind;
+
   if (hasCondition) {
     templateKind = TemplateKind.CONDITIONAL;
-  } else if (trigger!.type === "on_schedule" && action.type === "pay") {
+  } else if (trigger?.type === "on_schedule") {
     templateKind = TemplateKind.STREAMER;
-  } else if (trigger!.type === "on_receive" && action.type === "split") {
-    templateKind = TemplateKind.SPLITTER;
-  } else if (trigger!.type === "on_receive" && action.type === "pay") {
-    templateKind = TemplateKind.SPLITTER; // a 1-recipient split = pay-through
   } else {
-    return {
-      ok: false,
-      errors: [
-        {
-          path: "nodes",
-          message:
-            "Unsupported trigger/action combination. Supported: on_receive→split, on_schedule→pay, *+condition→pay/split",
-        },
-      ],
-    };
+    // on_receive or any other trigger → SPLITTER
+    templateKind = TemplateKind.SPLITTER;
   }
 
   return { ok: true, templateKind, graph };

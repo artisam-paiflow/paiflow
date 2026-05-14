@@ -4,15 +4,33 @@ import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
 import { createAiAdapter } from "@/lib/ai/adapter";
-import { buildFlowGenerationMessages, buildRetryMessages } from "@/lib/ai/prompts";
+import { buildFlowGenerationMessages } from "@/lib/ai/prompts";
 import { normalizeFlowGraph } from "@/lib/ai/normalize";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToEnglish } from "@/lib/flows/english";
 import { AiError } from "@/lib/ai/types";
+import type { FlowGraph } from "@/lib/flows/schema";
 
 const GenerateSchema = z.object({
   prompt: z.string().min(1).max(1000),
+  model: z.string().optional(),
 });
+
+function sanitizePrompt(prompt: string): string {
+  return (
+    prompt
+      // Insert space between number and asset: "10usdc" -> "10 usdc", "10usd" -> "10 usd"
+      .replace(/(\d)(usdc|usd|usdt|xlm|str|native|lumens?)\b/gi, "$1 $2")
+      // Normalize asset aliases to canonical forms
+      .replace(/\b(usdc|usd|usdt)\b/gi, "USDC")
+      .replace(/\b(xlm|lumens?|native|str)\b/gi, "XLM")
+      // Capitalize first letter for better AI parsing
+      .replace(/^[a-z]/, (c) => c.toUpperCase())
+      // "the rest to X" / "the remainder to X" -> "the remaining to X" (explicit phrasing)
+      .replace(/\bthe rest\b/gi, "the remaining")
+      .replace(/\bthe remainder\b/gi, "the remaining")
+  );
+}
 
 function extractJson(rawText: string): string {
   let jsonStr = rawText.trim();
@@ -28,23 +46,21 @@ function buildActionableError(vResult: import("@/lib/flows/validate").Validation
 
   const msgs: string[] = [];
   for (const e of vResult.errors) {
-    if (e.path === "nodes" && e.message.includes("exactly one trigger")) {
+    if (e.path === "nodes" && e.message.includes("at least one trigger")) {
       msgs.push(
-        "The AI generated a flow with no trigger or too many triggers. Try saying 'When I receive...' or 'Every day...' in your prompt.",
+        "No trigger found. Try starting your prompt with 'When I receive...' or 'Every day...'.",
       );
     } else if (e.path === "nodes" && e.message.includes("at least one action")) {
-      msgs.push(
-        "The AI generated a flow with no action. Try adding who should receive the payment.",
-      );
+      msgs.push("No action found. Try adding who should receive the payment.");
     } else if (e.path.includes("recipients") && e.message.includes("sum to 10000")) {
       msgs.push(
-        "The AI generated split percentages that don't add up to 100%. Try rephrasing with exact percentages.",
+        "The split percentages don't add up to 100%. Try rephrasing with exact percentages that sum to 100%.",
       );
     } else if (e.path === "edges" && e.message.includes("cycle")) {
-      msgs.push("The AI generated a circular flow. Try a simpler description.");
+      msgs.push("The flow contains a loop. Try a simpler, linear description.");
     } else if (e.message.includes("not reachable")) {
       msgs.push(
-        "Some nodes are disconnected. Try describing the flow more linearly (e.g., 'When X happens, then do Y').",
+        "Some nodes are disconnected. Try describing the flow in a linear chain (e.g., 'When X happens, then do Y').",
       );
     } else {
       msgs.push(e.message);
@@ -55,15 +71,14 @@ function buildActionableError(vResult: import("@/lib/flows/validate").Validation
 }
 
 async function tryGenerate(
-  adapter: import("@/lib/ai/types").AiAdapter,
-  messages: import("@/lib/ai/types").AiMessage[],
-): Promise<
-  | { graph: import("@/lib/flows/schema").FlowGraph; english: string }
-  | { error: string; guidance?: string }
-> {
+  prompt: string,
+  model?: string,
+): Promise<{ graph: FlowGraph; english: string } | { error: string; guidance?: string }> {
+  const adapter = createAiAdapter(model);
+
   let rawText: string;
   try {
-    rawText = await adapter.chat(messages);
+    rawText = await adapter.chat(buildFlowGenerationMessages(prompt));
   } catch (err) {
     if (err instanceof AiError) {
       return { error: err.message };
@@ -114,15 +129,9 @@ export async function POST(req: NextRequest) {
       throw new AppError("RATE_LIMITED", "Too many AI generation requests. Try again in a minute.");
 
     const body = GenerateSchema.parse(await req.json());
-    const adapter = createAiAdapter();
+    const sanitizedPrompt = sanitizePrompt(body.prompt);
 
-    // First attempt
-    let result = await tryGenerate(adapter, buildFlowGenerationMessages(body.prompt));
-
-    // Retry once with stricter prompt if first attempt fails
-    if ("error" in result) {
-      result = await tryGenerate(adapter, buildRetryMessages(body.prompt));
-    }
+    const result = await tryGenerate(sanitizedPrompt, body.model);
 
     if ("error" in result) {
       return NextResponse.json({

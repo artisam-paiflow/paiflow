@@ -24,8 +24,8 @@ describe("prompts", () => {
         content: "pay salary weekly",
       });
 
-      // Should have system (1) + 6 examples (12 messages) + final user (1) = 14
-      expect(messages.length).toBe(14);
+      // Should have system (1) + 22 examples (44 messages) + final user (1) = 46
+      expect(messages.length).toBe(46);
     });
   });
 

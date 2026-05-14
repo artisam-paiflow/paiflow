@@ -267,6 +267,47 @@ describe("normalizeFlowGraph", () => {
     expect(splitNode.config.recipients.length).toBeGreaterThanOrEqual(2);
   });
 
+  it("normalizes compact asset strings like 10usdc", () => {
+    const raw = {
+      nodes: [
+        { id: "n1", type: "on_receive", config: { asset: "10usdc" } },
+        { id: "n2", type: "pay", config: { asset: "100 USDC", recipient: ADDR1, amount: "100" } },
+        { id: "n3", type: "pay", config: { asset: "10xlm", recipient: ADDR1, amount: "100" } },
+      ],
+      edges: [{ source: "n1", target: "n2" }],
+    };
+
+    const result = normalizeFlowGraph(raw);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.graph.nodes[0]!.config).toMatchObject({
+      asset: { kind: "known", symbol: "USDC" },
+    });
+    expect(result.graph.nodes[1]!.config).toMatchObject({
+      asset: { kind: "known", symbol: "USDC" },
+    });
+    expect(result.graph.nodes[2]!.config).toMatchObject({
+      asset: { kind: "native" },
+    });
+  });
+
+  it("normalizes custom asset codes to uppercase", () => {
+    const raw = {
+      nodes: [
+        { id: "n1", type: "on_receive", config: { asset: "mytoken" } },
+        { id: "n2", type: "pay", config: { asset: "mytoken", recipient: ADDR1, amount: "100" } },
+      ],
+      edges: [{ source: "n1", target: "n2" }],
+    };
+
+    const result = normalizeFlowGraph(raw);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.graph.nodes[0]!.config).toMatchObject({
+      asset: { kind: "custom", code: "MYTOKEN", issuer: ADDR1 },
+    });
+  });
+
   it("returns error for invalid input", () => {
     const r1 = normalizeFlowGraph(null);
     expect(r1.ok).toBe(false);

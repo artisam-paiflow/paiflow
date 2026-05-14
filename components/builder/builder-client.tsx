@@ -197,7 +197,12 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     if (selectedId === id) setSelectedId(null);
   }
 
+  let _appendCounter = useRef(0);
+
   function appendGraph(graph: FlowGraph) {
+    _appendCounter.current += 1;
+    const batchId = _appendCounter.current;
+
     // Offset new nodes so they don't overlap existing ones
     const maxX = rfNodes.reduce((m, n) => Math.max(m, n.position?.x ?? 0), 0);
     const offsetX = maxX + 200;
@@ -205,7 +210,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     // Remap IDs to avoid collisions with existing nodes
     const idMap = new Map<string, string>();
     const newFlowNodes = graph.nodes.map((n) => {
-      const newId = `ai-${n.id}-${Date.now()}`;
+      const newId = `ai-${batchId}-${n.id}`;
       idMap.set(n.id, newId);
       return { ...n, id: newId };
     });
@@ -216,25 +221,26 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       return rf;
     });
 
-    const newRfEdges = graph.edges.map((e) => ({
-      id: `ai-e-${e.source}-${e.target}-${Date.now()}`,
-      source: idMap.get(e.source) ?? e.source,
-      target: idMap.get(e.target) ?? e.target,
-    }));
+    let edgeIdx = 0;
+    const newRfEdges = graph.edges.map((e) => {
+      edgeIdx += 1;
+      return {
+        id: `ai-e-${batchId}-${edgeIdx}`,
+        source: idMap.get(e.source) ?? e.source,
+        target: idMap.get(e.target) ?? e.target,
+      };
+    });
 
-    setFlowNodes((arr) => {
-      const next = [...arr, ...newFlowNodes];
-      setRfNodes((rfArr) => [...rfArr, ...newRfNodes]);
-      setRfEdges((edgeArr) => {
-        const nextEdges = [...edgeArr, ...newRfEdges];
-        const nextGraph = {
-          nodes: next,
-          edges: nextEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
-        };
-        saveGraph(nextGraph, name);
-        return nextEdges;
-      });
-      return next;
+    setFlowNodes((arr) => [...arr, ...newFlowNodes]);
+    setRfNodes((arr) => [...arr, ...newRfNodes]);
+    setRfEdges((arr) => {
+      const nextEdges = [...arr, ...newRfEdges];
+      const nextGraph = {
+        nodes: [...flowNodes, ...newFlowNodes],
+        edges: nextEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+      };
+      saveGraph(nextGraph, name);
+      return nextEdges;
     });
     setSelectedId(null);
   }

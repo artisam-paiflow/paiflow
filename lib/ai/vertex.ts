@@ -77,7 +77,7 @@ export class VertexAiAdapter implements AiAdapter {
       contents,
       generationConfig: {
         temperature: 0.1,
-        maxOutputTokens: 2048,
+        maxOutputTokens: 1024,
       },
     });
 
