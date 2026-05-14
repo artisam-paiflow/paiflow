@@ -5,11 +5,11 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
 import { createAiAdapter } from "@/lib/ai/adapter";
 import { buildSuggestionMessages } from "@/lib/ai/prompts";
-import { FlowGraphSchema } from "@/lib/flows/schema";
+import { FlowGraphPatchSchema } from "@/lib/flows/schema";
 import { AiError } from "@/lib/ai/types";
 
 const SuggestSchema = z.object({
-  graph: FlowGraphSchema,
+  graph: FlowGraphPatchSchema,
 });
 
 const SuggestionSchema = z.object({
