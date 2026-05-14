@@ -8,8 +8,6 @@
 
 const DUMMY_ADDR = "GAO5RJ6BZJY5DZISYWNS3AOPET4J6PJT6EAEOYDWAY6YRWCQ6VH4OSYB";
 
-export const FLOW_GENERATION_SYSTEM_PROMPT = getFlowGenerationSystemPrompt();
-
 function getFlowGenerationSystemPrompt(): string {
   const today = new Date().toISOString().slice(0, 10);
   return `You are a payment-flow compiler. Turn natural-language payment instructions into a strict JSON flow graph.
