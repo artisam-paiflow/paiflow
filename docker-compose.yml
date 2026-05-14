@@ -41,6 +41,14 @@ services:
     volumes:
       - pinkraft_minio:/data
 
+  mailhog:
+    image: mailhog/mailhog:latest
+    profiles: ["full"]
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
 volumes:
   pinkraft_pg:
   pinkraft_redis:
