@@ -14,7 +14,10 @@ export const authConfig: NextAuthConfig = {
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 7 },
   cookies: {
     sessionToken: {
-      name: process.env.NODE_ENV === "production" ? "__Host-pinkraft.session" : "pinkraft.session",
+      name:
+        process.env.NODE_ENV === "production"
+          ? "__Host-pinkraft.session"
+          : "pinkraft.session",
       options: {
         httpOnly: true,
         sameSite: "lax",
@@ -37,7 +40,8 @@ export const authConfig: NextAuthConfig = {
       if (token && session.user) {
         session.user.id = (token.id as string) ?? "";
         (session.user as { role?: Role }).role = (token.role as Role) ?? "USER";
-        (session.user as { username?: string }).username = (token.username as string) ?? "";
+        (session.user as { username?: string }).username =
+          (token.username as string) ?? "";
       }
       return session;
     },

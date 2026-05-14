@@ -75,7 +75,9 @@ export function errorResponse(err: unknown): NextResponse {
   );
 }
 
-export async function withErrorHandler<T>(fn: () => Promise<T>): Promise<T | NextResponse> {
+export async function withErrorHandler<T>(
+  fn: () => Promise<T>,
+): Promise<T | NextResponse> {
   try {
     return await fn();
   } catch (err) {

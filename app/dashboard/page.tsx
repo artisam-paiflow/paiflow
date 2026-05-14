@@ -29,7 +29,7 @@ export default async function Dashboard() {
           <h1 className="text-3xl font-semibold">Your flows</h1>
           <Link
             href="/flows/new"
-            className="bg-brand-600 hover:bg-brand-500 rounded-md px-4 py-2 font-medium"
+            className="rounded-md bg-brand-600 px-4 py-2 font-medium hover:bg-brand-500"
           >
             New flow
           </Link>
@@ -45,9 +45,9 @@ export default async function Dashboard() {
               <Link
                 key={f.id}
                 href={`/flows/${f.id}`}
-                className="hover:border-brand-500 rounded-xl border border-zinc-800 bg-zinc-950 p-5"
+                className="rounded-xl border border-zinc-800 bg-zinc-950 p-5 hover:border-brand-500"
               >
-                <div className="text-brand-400 text-xs tracking-wide uppercase">
+                <div className="text-xs uppercase tracking-wide text-brand-400">
                   {f.templateKind}
                 </div>
                 <div className="mt-1 truncate text-lg font-medium">{f.name}</div>

@@ -55,7 +55,7 @@ export default function RegisterForm() {
       <button
         type="submit"
         disabled={submitting}
-        className="bg-brand-600 hover:bg-brand-500 rounded-md px-4 py-2 font-medium text-white disabled:opacity-60"
+        className="rounded-md bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-500 disabled:opacity-60"
       >
         {submitting ? "Creating…" : "Create account"}
       </button>

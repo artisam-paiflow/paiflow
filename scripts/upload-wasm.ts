@@ -33,9 +33,7 @@ async function main() {
       ? process.env.STELLAR_SOROBAN_RPC_URL_MAINNET
       : (process.env.STELLAR_SOROBAN_RPC_URL_TESTNET ?? "https://soroban-testnet.stellar.org");
   const passphrase =
-    network === "mainnet"
-      ? Networks.PUBLIC
-      : (process.env.STELLAR_NETWORK_PASSPHRASE_TESTNET ?? Networks.TESTNET);
+    network === "mainnet" ? Networks.PUBLIC : (process.env.STELLAR_NETWORK_PASSPHRASE_TESTNET ?? Networks.TESTNET);
   const uploaderSecret = process.env.UPLOADER_SECRET;
   if (!uploaderSecret) throw new Error("UPLOADER_SECRET env var is required");
 

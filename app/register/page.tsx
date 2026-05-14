@@ -16,8 +16,8 @@ export default function RegisterPage() {
         <RegisterForm />
       ) : (
         <p className="mt-4 rounded border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400">
-          Public registration is disabled on this instance. Ask your admin to create an account,
-          then{" "}
+          Public registration is disabled on this instance. Ask your admin to
+          create an account, then{" "}
           <Link href="/login" className="text-brand-300 hover:underline">
             sign in
           </Link>

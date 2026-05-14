@@ -18,7 +18,9 @@ async function main() {
   const network = process.env.STELLAR_NETWORK ?? "testnet";
 
   if (!password) {
-    throw new Error("ADMIN_SEED_PASSWORD is required to seed. Refusing to seed with a default.");
+    throw new Error(
+      "ADMIN_SEED_PASSWORD is required to seed. Refusing to seed with a default.",
+    );
   }
   if (password.length < 12) {
     throw new Error("ADMIN_SEED_PASSWORD must be at least 12 characters.");

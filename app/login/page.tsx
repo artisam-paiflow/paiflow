@@ -15,7 +15,8 @@ export default function LoginPage({
       </Link>
       <h1 className="mt-8 text-3xl font-semibold">Sign in</h1>
       <p className="mt-2 text-sm text-zinc-400">
-        Use the admin credentials seeded for your environment, or your own account.
+        Use the admin credentials seeded for your environment, or your own
+        account.
       </p>
       <LoginFormWrapper params={searchParams} />
       <p className="mt-6 text-sm text-zinc-400">

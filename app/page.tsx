@@ -4,14 +4,14 @@ export default function Landing() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-16">
       <header className="flex items-center justify-between">
-        <h1 className="text-brand-300 text-2xl font-bold tracking-tight">Pink Raft</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-brand-300">Pink Raft</h1>
         <nav className="flex gap-4 text-sm text-zinc-300">
           <Link href="/login" className="hover:text-white">
             Sign in
           </Link>
           <Link
             href="/register"
-            className="bg-brand-600 hover:bg-brand-500 rounded px-3 py-1.5 font-medium text-white"
+            className="rounded bg-brand-600 px-3 py-1.5 font-medium text-white hover:bg-brand-500"
           >
             Get started
           </Link>
@@ -19,20 +19,21 @@ export default function Landing() {
       </header>
 
       <section className="mt-24 text-center">
-        <p className="text-brand-400 text-sm tracking-[0.2em] uppercase">
+        <p className="text-sm uppercase tracking-[0.2em] text-brand-400">
           Zaps for money · Stellar Soroban
         </p>
-        <h2 className="mt-4 text-5xl leading-tight font-bold">
+        <h2 className="mt-4 text-5xl font-bold leading-tight">
           Drag. Drop. <span className="text-brand-400">Deploy.</span>
         </h2>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-300">
-          Connect triggers to actions on a canvas. Hit deploy. Pink Raft instantiates an audited
-          Soroban contract — real money, real blockchain, ninety seconds end-to-end.
+          Connect triggers to actions on a canvas. Hit deploy. Pink Raft
+          instantiates an audited Soroban contract — real money, real
+          blockchain, ninety seconds end-to-end.
         </p>
         <div className="mt-10 flex justify-center gap-3">
           <Link
             href="/register"
-            className="bg-brand-600 hover:bg-brand-500 rounded-lg px-6 py-3 font-semibold text-white"
+            className="rounded-lg bg-brand-600 px-6 py-3 font-semibold text-white hover:bg-brand-500"
           >
             Build a flow
           </Link>
@@ -61,14 +62,15 @@ export default function Landing() {
           },
         ].map((c) => (
           <div key={c.title} className="rounded-xl border border-zinc-800 p-6">
-            <h3 className="text-brand-300 text-lg font-semibold">{c.title}</h3>
+            <h3 className="text-lg font-semibold text-brand-300">{c.title}</h3>
             <p className="mt-2 text-zinc-300">{c.body}</p>
           </div>
         ))}
       </section>
 
       <footer className="mt-24 text-center text-sm text-zinc-500">
-        Built for builders. Testnet by default. Non-custodial — Pink Raft never holds your keys.
+        Built for builders. Testnet by default. Non-custodial — Pink Raft never
+        holds your keys.
       </footer>
     </main>
   );

@@ -86,19 +86,22 @@ export default function Palette({ onAdd }: Props) {
   const groups = ["Triggers", "Actions", "Logic"];
   const headingId = useId();
   return (
-    <aside aria-labelledby={headingId} className="border-r border-zinc-800 bg-zinc-950 p-3">
-      <h2 id={headingId} className="text-xs tracking-wide text-zinc-500 uppercase">
+    <aside
+      aria-labelledby={headingId}
+      className="border-r border-zinc-800 bg-zinc-950 p-3"
+    >
+      <h2 id={headingId} className="text-xs uppercase tracking-wide text-zinc-500">
         Blocks
       </h2>
       {groups.map((g) => (
         <div key={g} className="mt-4">
-          <div className="text-[10px] tracking-wider text-zinc-500 uppercase">{g}</div>
+          <div className="text-[10px] uppercase tracking-wider text-zinc-500">{g}</div>
           <div className="mt-1 grid gap-1">
             {TEMPLATES.filter((t) => t.group === g).map((t) => (
               <button
                 key={t.label}
                 onClick={() => onAdd(t.make())}
-                className="hover:border-brand-500 rounded border border-zinc-800 bg-zinc-900 px-3 py-2 text-left text-sm hover:bg-zinc-800"
+                className="rounded border border-zinc-800 bg-zinc-900 px-3 py-2 text-left text-sm hover:border-brand-500 hover:bg-zinc-800"
               >
                 {t.label}
               </button>
