@@ -317,4 +317,25 @@ describe("normalizeFlowGraph", () => {
     const r2 = normalizeFlowGraph({ nodes: [], edges: [] });
     expect(r2.ok).toBe(false);
   });
+
+  it("scopes auto-generated ids per normalization call", () => {
+    const raw = {
+      nodes: [{ id: "n1", type: "pay", data: { asset: "USDC", recipient: ADDR1, amount: "100" } }],
+      edges: [],
+    };
+
+    const first = normalizeFlowGraph(raw);
+    const second = normalizeFlowGraph(raw);
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+
+    expect(
+      first.graph.nodes.find((n) => n.type === "on_receive" || n.type === "on_schedule")?.id,
+    ).toBe("auto_0");
+    expect(
+      second.graph.nodes.find((n) => n.type === "on_receive" || n.type === "on_schedule")?.id,
+    ).toBe("auto_0");
+  });
 });

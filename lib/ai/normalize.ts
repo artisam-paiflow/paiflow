@@ -7,20 +7,21 @@ const DUMMY_ADDRESS = "GAO5RJ6BZJY5DZISYWNS3AOPET4J6PJT6EAEOYDWAY6YRWCQ6VH4OSYB"
 
 /** Warnings collected during normalization — surfaced as non-blocking hints. */
 export type NormalizeWarning = { nodeId?: string; message: string };
-let _warnings: NormalizeWarning[] = [];
 
-export function resetWarnings(): void {
-  _warnings = [];
-}
+type NormalizeContext = {
+  warnings: NormalizeWarning[];
+  autoIdCounter: number;
+  usedNodeIds: Set<string>;
+};
 
-export function getWarnings(): NormalizeWarning[] {
-  return _warnings;
-}
-
-/** Unique id counter for auto-created nodes. */
-let _autoIdCounter = 0;
-function nextAutoId(): string {
-  return `auto_${_autoIdCounter++}`;
+function nextAutoId(ctx: NormalizeContext): string {
+  while (true) {
+    const id = `auto_${ctx.autoIdCounter++}`;
+    if (!ctx.usedNodeIds.has(id)) {
+      ctx.usedNodeIds.add(id);
+      return id;
+    }
+  }
 }
 
 function sanitizeAddress(addr: string): string {
@@ -325,7 +326,11 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
   }
 
   // ── Rescue mutations ──────────────────────────────────────────────
-  const rescued = rescueFlow(nodes, edges);
+  const rescued = rescueFlow(nodes, edges, {
+    warnings: [],
+    autoIdCounter: 0,
+    usedNodeIds: new Set(nodes.map((n) => n.id)),
+  });
 
   try {
     const graph = FlowGraphSchema.parse({ nodes: rescued.nodes, edges: rescued.edges });
@@ -353,6 +358,7 @@ function buildNodeMap(nodes: FlowNode[]): Map<string, FlowNode> {
 function rescueFlow(
   nodes: FlowNode[],
   edges: FlowEdge[],
+  ctx: NormalizeContext,
 ): { nodes: FlowNode[]; edges: FlowEdge[] } {
   let rescuedNodes = [...nodes];
   let rescuedEdges = [...edges];
@@ -361,11 +367,11 @@ function rescueFlow(
   // 1. Strip edges that reference non-existent nodes
   rescuedEdges = rescuedEdges.filter((e) => {
     if (!nodeMap.has(e.source)) {
-      _warnings.push({ message: `Removed edge referencing unknown source ${e.source}` });
+      ctx.warnings.push({ message: `Removed edge referencing unknown source ${e.source}` });
       return false;
     }
     if (!nodeMap.has(e.target)) {
-      _warnings.push({ message: `Removed edge referencing unknown target ${e.target}` });
+      ctx.warnings.push({ message: `Removed edge referencing unknown target ${e.target}` });
       return false;
     }
     return true;
@@ -375,7 +381,7 @@ function rescueFlow(
   const triggers = rescuedNodes.filter(isTrigger);
   if (triggers.length > 1) {
     const primary = triggers[0]!;
-    _warnings.push({
+    ctx.warnings.push({
       nodeId: primary.id,
       message: `Merged ${triggers.length - 1} extra trigger(s) into primary trigger ${primary.id}`,
     });
@@ -400,7 +406,7 @@ function rescueFlow(
   if (!rescuedNodes.some(isTrigger)) {
     const hasSchedule = rescuedNodes.some((n) => n.type === "on_schedule");
     const asset = inferAssetFromNodes(rescuedNodes);
-    const triggerId = nextAutoId();
+    const triggerId = nextAutoId(ctx);
     const trigger: FlowNode = hasSchedule
       ? {
           id: triggerId,
@@ -409,7 +415,7 @@ function rescueFlow(
         }
       : ({ id: triggerId, type: "on_receive", config: { asset } } as FlowNode);
 
-    _warnings.push({
+    ctx.warnings.push({
       nodeId: triggerId,
       message: hasSchedule
         ? "No trigger found — added default on_schedule"
@@ -426,7 +432,7 @@ function rescueFlow(
     const incomingCount = rescuedEdges.filter((e) => e.target === trigger.id).length;
     if (incomingCount > 0) {
       rescuedEdges = rescuedEdges.filter((e) => e.target !== trigger.id);
-      _warnings.push({
+      ctx.warnings.push({
         nodeId: trigger.id,
         message: `Removed ${incomingCount} incoming edge(s) to trigger — triggers must be roots`,
       });
@@ -453,7 +459,7 @@ function rescueFlow(
         rescuedEdges.push({ id: eid, source: trigger.id, target: ln.id });
         usedEdgeIds.add(eid);
         hasIncoming.add(ln.id);
-        _warnings.push({ nodeId: ln.id, message: "Connected orphaned condition to trigger" });
+        ctx.warnings.push({ nodeId: ln.id, message: "Connected orphaned condition to trigger" });
       }
     }
 
@@ -472,7 +478,7 @@ function rescueFlow(
         rescuedEdges.push({ id: eid, source: source.id, target: act.id });
         usedEdgeIds.add(eid);
         hasIncoming.add(act.id);
-        _warnings.push({ nodeId: act.id, message: "Connected orphaned action to flow" });
+        ctx.warnings.push({ nodeId: act.id, message: "Connected orphaned action to flow" });
       }
     }
   }
