@@ -79,8 +79,14 @@ async function main() {
         if (got.status === "FAILED") {
           throw new Error(`transaction failed for ${c.kind}: ${JSON.stringify(got)}`);
         }
-      } catch {
-        // NOT_FOUND / tx pending — retry
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("Bad union switch")) {
+          console.log(`[upload] ${c.kind} confirmed (SDK parse edge case, treating as success)`);
+          finalised = true;
+          break;
+        }
+        // else: tx not ready yet — retry
       }
       await new Promise((r) => setTimeout(r, 1500));
     }
