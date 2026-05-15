@@ -23,15 +23,9 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
   switch (params.kind) {
     case "splitter": {
       const recipientsVec = xdr.ScVal.scvVec(
-        params.recipients.map((r) =>
-          xdr.ScVal.scvVec([addr(r.address), u32(r.bps)]),
-        ),
+        params.recipients.map((r) => xdr.ScVal.scvVec([addr(r.address), u32(r.bps)])),
       );
-      return [
-        addr(admin),
-        addr(assetContractId(params.asset)),
-        recipientsVec,
-      ];
+      return [addr(admin), addr(assetContractId(params.asset)), recipientsVec];
     }
     case "streamer": {
       return [
@@ -44,11 +38,45 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
       ];
     }
     case "conditional": {
-      // For brevity: pass condition as a serialized JSON string via Symbol.
-      // The on-chain contract decodes the variant. In production, encode as a proper enum.
-      const cond = params.condition
-        ? nativeToScVal(JSON.stringify(params.condition), { type: "string" })
-        : xdr.ScVal.scvVoid();
+      if (!params.condition) {
+        return [
+          addr(admin),
+          addr(params.recipient),
+          addr(assetContractId(params.asset)),
+          i128(params.amountStroops),
+          xdr.ScVal.scvVoid(),
+        ];
+      }
+      const c = params.condition as { kind: string; [key: string]: unknown };
+      let cond: xdr.ScVal;
+      switch (c.kind) {
+        case "time_after":
+        case "time_before": {
+          const ts = BigInt(Math.floor(new Date(c.at as string).getTime() / 1000));
+          cond = xdr.ScVal.scvVec([nativeToScVal("Timeout", { type: "symbol" }), u64(ts)]);
+          break;
+        }
+        case "oracle_gte": {
+          cond = xdr.ScVal.scvVec([
+            nativeToScVal("OracleGte", { type: "symbol" }),
+            nativeToScVal(c.oracle as string, { type: "string" }),
+          ]);
+          break;
+        }
+        case "amount_gt":
+        case "amount_lt": {
+          cond = xdr.ScVal.scvVec([
+            nativeToScVal("Multisig", { type: "symbol" }),
+            xdr.ScVal.scvU32(1),
+          ]);
+          break;
+        }
+        default:
+          cond = xdr.ScVal.scvVec([
+            nativeToScVal("Multisig", { type: "symbol" }),
+            xdr.ScVal.scvU32(1),
+          ]);
+      }
       return [
         addr(admin),
         addr(params.recipient),

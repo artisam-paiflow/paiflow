@@ -126,7 +126,9 @@ impl Splitter {
 
     fn require_admin(env: &Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
-        admin.require_auth();
+        if env.current_contract_address() != admin {
+            panic_with_error!(&env, Error::Unauthorized);
+        }
     }
 }
 

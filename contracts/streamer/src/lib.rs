@@ -92,6 +92,21 @@ impl Streamer {
         available
     }
 
+    pub fn available(env: Env) -> i128 {
+        let rate: i128 = env.storage().instance().get(&Key::Rate).unwrap();
+        let start: u64 = env.storage().instance().get(&Key::StartTs).unwrap();
+        let end: u64 = env.storage().instance().get(&Key::EndTs).unwrap();
+        let claimed: i128 = env.storage().instance().get(&Key::Claimed).unwrap();
+        let now = env.ledger().timestamp();
+        let cap = if now > end { end } else { now };
+        if cap <= start {
+            return 0;
+        }
+        let elapsed: i128 = (cap - start) as i128;
+        let vested = elapsed.checked_mul(rate).unwrap_or(0);
+        vested.checked_sub(claimed).unwrap_or(0)
+    }
+
     pub fn top_up(env: Env, from: Address, amount: i128) {
         from.require_auth();
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
@@ -100,7 +115,9 @@ impl Streamer {
 
     pub fn cancel(env: Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
-        admin.require_auth();
+        if env.current_contract_address() != admin {
+            panic_with_error!(&env, Error::Unauthorized);
+        }
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         let client = token::Client::new(&env, &asset);
         let balance = client.balance(&env.current_contract_address());
