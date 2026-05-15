@@ -99,8 +99,9 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         body: JSON.stringify({ graph }),
       });
       const data = await res.json().catch(() => ({ data: { suggestions: [] } }));
-      setSuggestions(data.data?.suggestions ?? []);
-      if (!opts?.auto && (data.suggestions ?? []).length === 0) {
+      const list = data.data?.suggestions ?? [];
+      setSuggestions(list);
+      if (!opts?.auto && list.length === 0) {
         toast.success("No issues found — your flow looks good!");
       }
     } catch {

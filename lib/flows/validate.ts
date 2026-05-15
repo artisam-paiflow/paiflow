@@ -84,19 +84,18 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
   }
 
-  // Trigger must be a root (no incoming edges)
-  const trigger = triggers[0];
-  if (trigger) {
-    const hasIncoming = graph.edges.some((e) => e.target === trigger.id);
+  // Every trigger must be a root (no incoming edges)
+  for (const t of triggers) {
+    const hasIncoming = graph.edges.some((e) => e.target === t.id);
     if (hasIncoming) {
-      errors.push({ path: "nodes", message: "Trigger node must have no incoming edges" });
+      errors.push({ path: "nodes", message: `Trigger ${t.id} must have no incoming edges` });
     }
   }
 
-  // Reachability from trigger
-  if (trigger) {
-    const seen = new Set<string>([trigger.id]);
-    const stack = [trigger.id];
+  // Reachability from any trigger
+  if (triggers.length) {
+    const seen = new Set<string>(triggers.map((t) => t.id));
+    const stack = triggers.map((t) => t.id);
     while (stack.length) {
       const id = stack.pop()!;
       for (const next of adj.get(id) ?? []) {
@@ -110,7 +109,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       if (!seen.has(a.id)) {
         errors.push({
           path: `nodes.${a.id}`,
-          message: `Action ${a.id} is not reachable from the trigger`,
+          message: `Action ${a.id} is not reachable from any trigger`,
         });
       }
     }
@@ -124,7 +123,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   if (hasCondition) {
     templateKind = TemplateKind.CONDITIONAL;
-  } else if (trigger?.type === "on_schedule") {
+  } else if (triggers[0]?.type === "on_schedule") {
     templateKind = TemplateKind.STREAMER;
   } else {
     // on_receive or any other trigger → SPLITTER
