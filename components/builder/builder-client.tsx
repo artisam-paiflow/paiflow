@@ -20,9 +20,16 @@ import { toast } from "sonner";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
+import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import ConfigPanel from "./config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
+
+const nodeTypes = {
+  trigger: TriggerNode,
+  action: ActionNode,
+  logic: LogicNode,
+};
 
 type BuilderProps = {
   flowId: string;
@@ -31,9 +38,17 @@ type BuilderProps = {
 };
 
 function nodeToReactFlow(n: FlowNode, index: number): Node {
+  let type: "trigger" | "action" | "logic";
+  if (n.type === "on_receive" || n.type === "on_schedule") {
+    type = "trigger";
+  } else if (n.type === "pay" || n.type === "split") {
+    type = "action";
+  } else {
+    type = "logic";
+  }
   return {
     id: n.id,
-    type: "default",
+    type,
     position: { x: 240 + index * 40, y: 80 + index * 120 },
     data: { node: n, label: n.type },
   };
@@ -127,11 +142,14 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   }
 
   return (
-    <div className="grid grid-cols-[220px_1fr_320px] gap-0" style={{ height: "calc(100vh - 49px)" }}>
+    <div
+      className="grid grid-cols-[220px_1fr_320px] gap-0"
+      style={{ height: "calc(100vh - 49px)" }}
+    >
       <Palette onAdd={addNode} />
 
       <div className="relative">
-        <div className="absolute left-3 top-3 z-10 flex items-center gap-3">
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-3">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -151,24 +169,19 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           onConnect={onConnect}
           onNodeClick={(_, n) => setSelectedId(n.id)}
           onPaneClick={() => setSelectedId(null)}
+          nodeTypes={nodeTypes}
           fitView
         >
           <Background />
           <Controls />
         </ReactFlow>
-        <div className="pointer-events-none absolute bottom-4 left-4 right-4 rounded-lg bg-zinc-950/90 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800">
-          <div className="text-[10px] uppercase tracking-wide text-brand-400">
-            English preview
-          </div>
+        <div className="pointer-events-none absolute right-4 bottom-4 left-4 rounded-lg bg-zinc-950/90 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800">
+          <div className="text-brand-400 text-[10px] tracking-wide uppercase">English preview</div>
           <div className="mt-1">{english}</div>
         </div>
       </div>
 
-      <ConfigPanel
-        node={selectedNode}
-        onChange={updateNode}
-        onDelete={deleteNode}
-      />
+      <ConfigPanel node={selectedNode} onChange={updateNode} onDelete={deleteNode} />
     </div>
   );
 }
