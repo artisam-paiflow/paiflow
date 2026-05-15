@@ -5,6 +5,7 @@
  *
  * Usage: tsx scripts/upload-wasm.ts
  */
+import "dotenv/config";
 import { readFileSync, existsSync, appendFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -33,7 +34,9 @@ async function main() {
       ? process.env.STELLAR_SOROBAN_RPC_URL_MAINNET
       : (process.env.STELLAR_SOROBAN_RPC_URL_TESTNET ?? "https://soroban-testnet.stellar.org");
   const passphrase =
-    network === "mainnet" ? Networks.PUBLIC : (process.env.STELLAR_NETWORK_PASSPHRASE_TESTNET ?? Networks.TESTNET);
+    network === "mainnet"
+      ? Networks.PUBLIC
+      : (process.env.STELLAR_NETWORK_PASSPHRASE_TESTNET ?? Networks.TESTNET);
   const uploaderSecret = process.env.UPLOADER_SECRET;
   if (!uploaderSecret) throw new Error("UPLOADER_SECRET env var is required");
 
@@ -61,20 +64,36 @@ async function main() {
     const send = await server.sendTransaction(prepared);
     if (send.status === "ERROR") throw new Error(`send failed: ${JSON.stringify(send)}`);
 
+    // Poll until the transaction is finalised.
+    // getTransaction throws while the tx is pending in Soroban-RPC's buffer,
+    // so we catch the error and retry.
     let attempts = 0;
+    let finalised = false;
     while (attempts++ < 20) {
-      const got = await server.getTransaction(send.hash);
-      if (got.status === "SUCCESS") break;
-      if (got.status === "FAILED") throw new Error(`tx failed for ${c.kind}`);
+      try {
+        const got = await server.getTransaction(send.hash);
+        if (got.status === "SUCCESS") {
+          finalised = true;
+          break;
+        }
+        if (got.status === "FAILED") {
+          throw new Error(`transaction failed for ${c.kind}: ${JSON.stringify(got)}`);
+        }
+      } catch {
+        // NOT_FOUND / tx pending — retry
+      }
       await new Promise((r) => setTimeout(r, 1500));
     }
+    if (!finalised)
+      throw new Error(`transaction polling timed out for ${c.kind} after 20 attempts`);
+
     const wasmHash = hash(wasm).toString("hex");
-    console.log(`[upload] ${c.kind} hash=${wasmHash}`);
+    console.log(`[upload] ${c.kind} uploaded, hash=${wasmHash}`);
     lines.push(`STELLAR_WASM_HASH_${c.kind}=${wasmHash}`);
   }
 
   appendFileSync(".env.local", `\n# uploaded ${new Date().toISOString()}\n${lines.join("\n")}\n`);
-  console.log("[upload] wrote hashes to .env.local");
+  console.log("[upload] done — hashes written to .env.local");
 }
 
 main().catch((err) => {
