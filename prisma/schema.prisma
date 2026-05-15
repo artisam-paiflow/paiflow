@@ -141,6 +141,7 @@ model ContractEvent {
   ledger       Int
   txHash       String
   payload      Json
+  decodedData  Json?
   occurredAt   DateTime
 
   deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
