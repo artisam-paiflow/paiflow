@@ -2,6 +2,7 @@
 
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Equal } from "lucide-react";
 import type { FlowNode } from "@/lib/flows/schema";
 import { isLogic } from "@/lib/flows/schema";
 
@@ -9,25 +10,6 @@ type LogicNodeData = {
   node: FlowNode;
   label: string;
 };
-
-function ConditionIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="18" y1="20" x2="18" y2="10" />
-      <line x1="12" y1="20" x2="12" y2="4" />
-      <line x1="6" y1="20" x2="6" y2="14" />
-    </svg>
-  );
-}
 
 const KIND_LABELS: Record<string, string> = {
   amount_gt: "amount >",
@@ -52,7 +34,7 @@ function LogicNodeComponent({ data }: NodeProps) {
 
       <div className="flex items-center gap-2">
         <div className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-500/20 text-amber-400">
-          <ConditionIcon />
+          <Equal size={14} />
         </div>
         <div>
           <div className="text-xs font-semibold text-zinc-200">Condition</div>

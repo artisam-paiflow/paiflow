@@ -39,12 +39,22 @@ type BuilderProps = {
 
 function nodeToReactFlow(n: FlowNode, index: number): Node {
   let type: "trigger" | "action" | "logic";
-  if (n.type === "on_receive" || n.type === "on_schedule") {
-    type = "trigger";
-  } else if (n.type === "pay" || n.type === "split") {
-    type = "action";
-  } else {
-    type = "logic";
+  switch (n.type) {
+    case "on_receive":
+    case "on_schedule":
+      type = "trigger";
+      break;
+    case "pay":
+    case "split":
+      type = "action";
+      break;
+    case "condition":
+      type = "logic";
+      break;
+    default: {
+      const _exhaustive: never = n;
+      throw new Error(`Unknown node type: ${(_exhaustive as FlowNode).type}`);
+    }
   }
   return {
     id: n.id,
