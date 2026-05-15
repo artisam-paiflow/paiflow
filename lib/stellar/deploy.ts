@@ -9,17 +9,34 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 import { randomBytes } from "node:crypto";
-import { sorobanRpc } from "./client";
+import { sorobanRpc, horizon } from "./client";
 import { stellarPassphrase } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import type { ContractParams } from "@/lib/flows/to-params";
 import { constructorArgs } from "./scval";
+
+const MIN_DEPLOYMENT_XLM_STROOPS = 20_000_000n;
 
 export type PreparedDeploy = {
   xdr: string;
   contractAddress: string;
   salt: Buffer;
 };
+
+export async function checkAccountFunding(
+  sourceAccount: string,
+  minLumens: bigint = MIN_DEPLOYMENT_XLM_STROOPS,
+): Promise<void> {
+  const acct = await horizon().loadAccount(sourceAccount);
+  const native = acct.balances.find((b) => b.asset_type === "native");
+  const balance = BigInt(Math.floor(parseFloat(native?.balance ?? "0") * 10_000_000));
+  if (balance < minLumens) {
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Account has ${native?.balance ?? "0"} XLM. Minimum ${minLumens} stroops required for deployment fees and rent.`,
+    );
+  }
+}
 
 /** Build & simulate a Soroban contract creation tx. Returns unsigned XDR. */
 export async function prepareDeployTx(opts: {
