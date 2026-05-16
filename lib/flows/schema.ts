@@ -1,6 +1,33 @@
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
 
+const PENDING_PREFIX = "PENDING:";
+
+export function isPendingAddress(addr: string): boolean {
+  return addr.startsWith(PENDING_PREFIX);
+}
+
+export function getPendingLabels(graph: FlowGraph): string[] {
+  const labels = new Set<string>();
+  for (const n of graph.nodes) {
+    if (n.type === "split") {
+      for (const r of n.config.recipients) {
+        if (isPendingAddress(r.address)) {
+          labels.add(r.label ?? "unnamed");
+        }
+      }
+    }
+    if (n.type === "pay" && isPendingAddress(n.config.recipient)) {
+      labels.add("unnamed");
+    }
+  }
+  return [...labels];
+}
+
+function validAddress(s: string): boolean {
+  return StrKey.isValidEd25519PublicKey(s) || isPendingAddress(s);
+}
+
 export const AssetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("native") }),
   z.object({
@@ -10,14 +37,12 @@ export const AssetSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("custom"),
     code: z.string().min(1).max(12),
-    issuer: z.string().refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid issuer"),
+    issuer: z.string().refine((s) => validAddress(s), "Invalid issuer"),
   }),
 ]);
 export type Asset = z.infer<typeof AssetSchema>;
 
-const stellarAccount = z
-  .string()
-  .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address");
+const stellarAccount = z.string().refine((s) => validAddress(s), "Invalid Stellar address");
 
 export const OnReceiveTrigger = z.object({
   id: z.string().min(1),
@@ -56,7 +81,7 @@ export const SplitAction = z.object({
   type: z.literal("split"),
   config: z.object({
     asset: AssetSchema,
-    recipients: z.array(SplitRecipient).min(2).max(20),
+    recipients: z.array(SplitRecipient).min(1).max(20),
   }),
 });
 
@@ -94,16 +119,10 @@ export const FlowEdgeSchema = z.object({
 export type FlowEdge = z.infer<typeof FlowEdgeSchema>;
 
 export const FlowGraphSchema = z.object({
-  nodes: z.array(FlowNodeSchema).min(2).max(40),
-  edges: z.array(FlowEdgeSchema).max(80),
-});
-export type FlowGraph = z.infer<typeof FlowGraphSchema>;
-
-/** Lenient graph schema for PATCH — allows incomplete work-in-progress flows. */
-export const FlowGraphPatchSchema = z.object({
   nodes: z.array(FlowNodeSchema).max(40),
   edges: z.array(FlowEdgeSchema).max(80),
 });
+export type FlowGraph = z.infer<typeof FlowGraphSchema>;
 
 export const FlowSaveSchema = z.object({
   name: z.string().min(1).max(80),
@@ -112,11 +131,7 @@ export const FlowSaveSchema = z.object({
 });
 export type FlowSaveInput = z.infer<typeof FlowSaveSchema>;
 
-export const FlowPatchSchema = z.object({
-  name: z.string().min(1).max(80).optional(),
-  description: z.string().max(280).optional(),
-  graph: FlowGraphPatchSchema,
-});
+export const FlowPatchSchema = FlowSaveSchema.partial();
 export type FlowPatchInput = z.infer<typeof FlowPatchSchema>;
 
 export type TriggerNode = z.infer<typeof OnReceiveTrigger> | z.infer<typeof OnScheduleTrigger>;

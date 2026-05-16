@@ -1,6 +1,6 @@
 import { shortAddr, formatStroops } from "@/lib/utils";
 import type { Asset, FlowGraph, FlowNode } from "./schema";
-import { isAction, isLogic, isTrigger } from "./schema";
+import { isAction, isLogic, isTrigger, isPendingAddress } from "./schema";
 
 function assetLabel(a: Asset): string {
   if (a.kind === "native") return "XLM";
@@ -43,13 +43,18 @@ export function flowToEnglish(graph: FlowGraph): string {
 
   let actionText: string;
   if (action.type === "pay") {
+    const who = isPendingAddress(action.config.recipient)
+      ? "(needs address)"
+      : shortAddr(action.config.recipient);
     actionText = `pay ${formatStroops(action.config.amountStroops)} ${assetLabel(
       action.config.asset,
-    )} to ${shortAddr(action.config.recipient)}`;
+    )} to ${who}`;
   } else {
     const parts = action.config.recipients.map((r) => {
       const pct = (r.bps / 100).toFixed(r.bps % 100 === 0 ? 0 : 2);
-      const who = r.label ?? shortAddr(r.address);
+      const who = isPendingAddress(r.address)
+        ? `${r.label ?? "?"} (needs address)`
+        : (r.label ?? shortAddr(r.address));
       return `${pct}% to ${who}`;
     });
     actionText = `split ${assetLabel(action.config.asset)} — ${parts.join(", ")}`;

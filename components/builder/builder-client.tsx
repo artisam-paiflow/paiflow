@@ -17,14 +17,17 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
+import { Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
+import { isPendingAddress } from "@/lib/flows/schema";
 import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import ConfigPanel from "./config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
-import AiGenerateBar from "./ai-generate-bar";
-import SuggestionPanel from "./suggestion-panel";
+import RaftLog, { type ChatMessage } from "./raft-log";
+import type { PatchOp } from "@/lib/ai/prompts";
 
 type BuilderProps = {
   flowId: string;
@@ -38,16 +41,6 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
     type: "default",
     position: { x: 240 + index * 40, y: 80 + index * 120 },
     data: { node: n, label: n.type },
-    style: {
-      background: "#18181b",
-      color: "#e4e4e7",
-      border: "1px solid #3f3f46",
-      borderRadius: "8px",
-      padding: "10px 14px",
-      fontSize: "13px",
-      fontWeight: 500,
-      boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
-    },
   };
 }
 
@@ -69,10 +62,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     initialGraph.edges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<
-    Array<{ severity: "error" | "warning" | "info"; message: string }>
-  >([]);
-  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [hasUsedChat, setHasUsedChat] = useState(false);
+  const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
 
   const graph: FlowGraph = useMemo(
     () => ({
@@ -89,52 +83,34 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
   const selectedNode = flowNodes.find((n) => n.id === selectedId) ?? null;
 
-  async function fetchSuggestions(opts?: { auto?: boolean }) {
-    if (suggestLoading) return;
-    setSuggestLoading(true);
-    try {
-      const res = await fetch("/api/flows/suggest", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ graph }),
-      });
-      const data = await res.json().catch(() => ({ data: { suggestions: [] } }));
-      const list = data.data?.suggestions ?? [];
-      setSuggestions(list);
-      if (!opts?.auto && list.length === 0) {
-        toast.success("No issues found — your flow looks good!");
-      }
-    } catch {
-      if (!opts?.auto) toast.error("Failed to get suggestions");
-    } finally {
-      setSuggestLoading(false);
-    }
-  }
-
+  // Debounced autosave
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
-
-  async function saveGraph(currentGraph: FlowGraph, currentName: string) {
+  const queuedSave = useRef(false);
+  useEffect(() => {
+    queuedSave.current = true;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
+      if (!queuedSave.current) return;
+      queuedSave.current = false;
       const res = await fetch(`/api/flows/${flowId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: currentName, graph: currentGraph }),
+        body: JSON.stringify({ name, graph }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        if (res.status >= 500) {
-          toast.error(`Save failed: ${body?.error?.message ?? res.status}`);
-        }
+        toast.error(`Save failed: ${body?.error?.message ?? res.status}`);
       }
-    }, 800);
-  }
-
-  // Autosave on name / graph changes
-  useEffect(() => {
-    saveGraph(graph, name);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, 1500);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
   }, [flowId, name, graph]);
+
+  // Track if user has used chat to stop pulsing animation
+  useEffect(() => {
+    if (messages.length > 0) setHasUsedChat(true);
+  }, [messages]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => setRfNodes((nds) => applyNodeChanges(changes, nds)),
@@ -150,11 +126,8 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   );
 
   function addNode(node: FlowNode) {
-    setFlowNodes((arr) => {
-      const next = [...arr, node];
-      setRfNodes((rfArr) => [...rfArr, nodeToReactFlow(node, rfArr.length)]);
-      return next;
-    });
+    setFlowNodes((arr) => [...arr, node]);
+    setRfNodes((arr) => [...arr, nodeToReactFlow(node, arr.length)]);
   }
 
   function updateNode(updated: FlowNode) {
@@ -163,49 +136,163 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
   function deleteNode(id: string) {
     setFlowNodes((arr) => arr.filter((n) => n.id !== id));
-    setRfNodes((rfArr) => rfArr.filter((n) => n.id !== id));
-    setRfEdges((edgeArr) => edgeArr.filter((e) => e.source !== id && e.target !== id));
+    setRfNodes((arr) => arr.filter((n) => n.id !== id));
+    setRfEdges((arr) => arr.filter((e) => e.source !== id && e.target !== id));
     if (selectedId === id) setSelectedId(null);
   }
 
-  const appendCounter = useRef(0);
-
-  function appendGraph(graph: FlowGraph) {
-    appendCounter.current += 1;
-    const batchId = appendCounter.current;
-
-    // Offset new nodes so they don't overlap existing ones
-    const maxX = rfNodes.reduce((m, n) => Math.max(m, n.position?.x ?? 0), 0);
-    const offsetX = maxX + 200;
-
-    // Remap IDs to avoid collisions with existing nodes
-    const idMap = new Map<string, string>();
-    const newFlowNodes = graph.nodes.map((n) => {
-      const newId = `ai-${batchId}-${n.id}`;
-      idMap.set(n.id, newId);
-      return { ...n, id: newId };
-    });
-
-    const newRfNodes = graph.nodes.map((n, i) => {
-      const rf = nodeToReactFlow({ ...n, id: idMap.get(n.id)! }, i);
-      rf.position.x += offsetX;
-      return rf;
-    });
-
-    let edgeIdx = 0;
-    const newRfEdges = graph.edges.map((e) => {
-      edgeIdx += 1;
-      return {
-        id: `ai-e-${batchId}-${edgeIdx}`,
-        source: idMap.get(e.source) ?? e.source,
-        target: idMap.get(e.target) ?? e.target,
+  async function sendChat(text: string) {
+    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    setChatLoading(true);
+    try {
+      const res = await fetch(`/api/flows/${flowId}/edit`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+      const json = (await res.json()) as {
+        data?: {
+          patch: PatchOp[];
+          explanation: string;
+          applied: boolean;
+          missingAddresses?: string[];
+        };
+        error?: { message: string; fields?: Record<string, string[]> };
       };
-    });
+      if (!res.ok) {
+        let content = json.error?.message ?? "Something went wrong.";
+        const fields = json.error?.fields;
+        if (fields && Object.keys(fields).length > 0) {
+          const details = Object.entries(fields)
+            .map(([k, v]) => `${k}: ${v.join(", ")}`)
+            .join("\n");
+          content += `\n\nDetails:\n${details}`;
+        }
+        setMessages((prev) => [...prev, { role: "raft", content }]);
+        return;
+      }
+      const { patch, explanation, applied, missingAddresses } = json.data!;
+      setMessages((prev) => [...prev, { role: "raft", content: explanation, patch }]);
 
-    setFlowNodes((arr) => [...arr, ...newFlowNodes]);
-    setRfNodes((arr) => [...arr, ...newRfNodes]);
-    setRfEdges((arr) => [...arr, ...newRfEdges]);
-    setSelectedId(null);
+      if (applied && patch.length) {
+        // Apply all patches atomically to avoid intermediate invalid states
+        let nextNodes = [...flowNodes];
+        let nextRfNodes = [...rfNodes];
+        let nextRfEdges = [...rfEdges];
+        const removedIds = new Set<string>();
+
+        for (const op of patch) {
+          switch (op.op) {
+            case "addNode": {
+              const node = op.node as FlowNode;
+              if (!nextNodes.some((n) => n.id === node.id)) {
+                nextNodes = [...nextNodes, node];
+                nextRfNodes = [...nextRfNodes, nodeToReactFlow(node, nextRfNodes.length)];
+              }
+              const edge = op.edge;
+              if (edge && !nextRfEdges.some((e) => e.id === edge.id)) {
+                nextRfEdges = addEdge({ ...edge, animated: true }, nextRfEdges);
+              }
+              break;
+            }
+            case "updateNode": {
+              nextNodes = nextNodes.map((n) =>
+                n.id === op.id ? ({ ...n, config: { ...n.config, ...op.config } } as FlowNode) : n,
+              );
+              break;
+            }
+            case "removeNode": {
+              removedIds.add(op.id);
+              break;
+            }
+            case "addEdge": {
+              const addEdgeOp = op.edge;
+              if (!nextRfEdges.some((e) => e.id === addEdgeOp.id)) {
+                nextRfEdges = addEdge({ ...addEdgeOp, animated: true }, nextRfEdges);
+              }
+              break;
+            }
+            case "removeEdge": {
+              nextRfEdges = nextRfEdges.filter((e) => e.id !== op.id);
+              break;
+            }
+          }
+        }
+
+        // Apply removals last so they don't interfere with other operations
+        if (removedIds.size > 0) {
+          nextNodes = nextNodes.filter((n) => !removedIds.has(n.id));
+          nextRfNodes = nextRfNodes.filter((n) => !removedIds.has(n.id));
+          nextRfEdges = nextRfEdges.filter(
+            (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
+          );
+          if (selectedId && removedIds.has(selectedId)) setSelectedId(null);
+        }
+
+        setFlowNodes(nextNodes);
+        setRfNodes(nextRfNodes);
+        setRfEdges(nextRfEdges);
+
+        // Show address prompt if the resulting graph has pending addresses
+        const pending = scanPendingLabels(nextNodes);
+        setPendingAddresses(pending);
+
+        toast.success("Flow updated");
+      }
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { role: "raft", content: "Network error. Please try again." },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+  function scanPendingLabels(nodes: FlowNode[]): string[] {
+    const labels = new Set<string>();
+    for (const n of nodes) {
+      if (n.type === "split") {
+        for (const r of n.config.recipients) {
+          if (isPendingAddress(r.address)) {
+            labels.add(r.label ?? "unnamed");
+          }
+        }
+      }
+      if (n.type === "pay" && isPendingAddress(n.config.recipient)) {
+        labels.add("unnamed");
+      }
+    }
+    return [...labels];
+  }
+
+  async function handleResolveAddress(addresses: Record<string, string>) {
+    setChatLoading(true);
+    try {
+      const res = await fetch(`/api/flows/${flowId}/resolve-addresses`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ addresses }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json?.error?.message ?? "Failed to resolve addresses");
+        return;
+      }
+      const resolvedNodes = json.data.flow.nodes as FlowNode[];
+      setFlowNodes(resolvedNodes);
+      setRfNodes(resolvedNodes.map((n, i) => nodeToReactFlow(n, i)));
+      setPendingAddresses([]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "raft", content: `Addresses resolved: ${Object.keys(addresses).join(", ")}` },
+      ]);
+      toast.success(`Addresses resolved for ${json.data.resolved} recipients`);
+    } catch {
+      toast.error("Network error while resolving addresses");
+    } finally {
+      setChatLoading(false);
+    }
   }
 
   return (
@@ -215,54 +302,74 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     >
       <Palette onAdd={addNode} />
 
-      <div className="relative">
-        <div className="absolute top-3 right-3 left-3 z-10 flex items-center gap-3">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="rounded bg-zinc-900/80 px-3 py-1.5 text-sm font-medium"
-          />
-          <DeployButton flowId={flowId} />
-          <div className="flex-1" />
-          <div className="w-full max-w-md">
-            <AiGenerateBar onGenerate={appendGraph} />
+      <div className="relative flex flex-col">
+        <div className="relative flex-1">
+          <div className="absolute top-3 left-3 z-10 flex items-center gap-3">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="rounded bg-zinc-900/80 px-3 py-1.5 text-sm font-medium"
+            />
+            <DeployButton flowId={flowId} />
           </div>
+
+          {/* Floating AI button + overlay container */}
+          <div className="absolute top-3 right-3 z-10">
+            <button
+              onClick={() => setChatOpen((v) => !v)}
+              className={cn(
+                "group flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium shadow-lg transition-all",
+                chatOpen
+                  ? "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
+                  : "bg-brand-600 hover:bg-brand-500 text-white",
+                !hasUsedChat && !chatOpen && "animate-pulse",
+              )}
+            >
+              <Sparkles className="h-4 w-4" />
+              {chatOpen ? "Close AI" : "Edit with AI"}
+            </button>
+
+            <RaftLog
+              open={chatOpen}
+              onClose={() => setChatOpen(false)}
+              messages={messages}
+              onSend={sendChat}
+              loading={chatLoading}
+              pendingAddresses={pendingAddresses}
+              onResolveAddress={handleResolveAddress}
+            />
+          </div>
+
+          <ReactFlow
+            nodes={rfNodes.map((n) => ({
+              ...n,
+              data: { ...n.data, label: nodeLabel(flowNodes.find((f) => f.id === n.id)) },
+              selected: n.id === selectedId,
+            }))}
+            edges={rfEdges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={(_, n) => setSelectedId(n.id)}
+            onPaneClick={() => setSelectedId(null)}
+            fitView
+          >
+            <Background />
+            <Controls />
+          </ReactFlow>
         </div>
-        <ReactFlow
-          nodes={rfNodes.map((n) => ({
-            ...n,
-            data: { ...n.data, label: nodeLabel(flowNodes.find((f) => f.id === n.id)) },
-            selected: n.id === selectedId,
-          }))}
-          edges={rfEdges.map((e) => ({ ...e, style: { stroke: "#71717a", strokeWidth: 2 } }))}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={(_, n) => setSelectedId(n.id)}
-          onPaneClick={() => setSelectedId(null)}
-          fitView
-        >
-          <Background gap={16} size={1} color="#27272a" />
-          <Controls />
-        </ReactFlow>
-        <div className="pointer-events-none absolute right-4 bottom-4 left-4 rounded-lg bg-zinc-950/90 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800">
-          <div className="text-brand-400 text-[10px] tracking-wide uppercase">English preview</div>
-          <div className="mt-1">{english}</div>
+
+        <div className="shrink-0 border-t border-zinc-800">
+          <div className="bg-zinc-950/90 px-4 py-3 text-sm text-zinc-200">
+            <div className="text-brand-400 text-[10px] tracking-wide uppercase">
+              English preview
+            </div>
+            <div className="mt-1">{english}</div>
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-auto">
-          <ConfigPanel node={selectedNode} onChange={updateNode} onDelete={deleteNode} />
-        </div>
-        <SuggestionPanel
-          suggestions={suggestions}
-          loading={suggestLoading}
-          onReview={() => fetchSuggestions()}
-          onDismiss={(i) => setSuggestions((s) => s.filter((_, idx) => idx !== i))}
-          onDismissAll={() => setSuggestions([])}
-        />
-      </div>
+      <ConfigPanel node={selectedNode} onChange={updateNode} onDelete={deleteNode} />
     </div>
   );
 }

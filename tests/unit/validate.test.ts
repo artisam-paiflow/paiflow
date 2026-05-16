@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { validateFlow } from "@/lib/flows/validate";
 import { TemplateKind } from "@prisma/client";
 
-const ADDR = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const ADDR_B = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 
 describe("validateFlow", () => {
   it("accepts an on_receive → split flow as SPLITTER", () => {
@@ -19,8 +20,8 @@ describe("validateFlow", () => {
           config: {
             asset: { kind: "known", symbol: "USDC" },
             recipients: [
-              { address: ADDR, bps: 6000 },
-              { address: ADDR, bps: 4000 },
+              { address: ADDR_A, bps: 6000 },
+              { address: ADDR_B, bps: 4000 },
             ],
           },
         },
@@ -45,8 +46,8 @@ describe("validateFlow", () => {
           config: {
             asset: { kind: "known", symbol: "USDC" },
             recipients: [
-              { address: ADDR, bps: 6000 },
-              { address: ADDR, bps: 3000 },
+              { address: ADDR_A, bps: 6000 },
+              { address: ADDR_B, bps: 3000 },
             ],
           },
         },
@@ -65,8 +66,8 @@ describe("validateFlow", () => {
           config: {
             asset: { kind: "known", symbol: "USDC" },
             recipients: [
-              { address: ADDR, bps: 6000 },
-              { address: ADDR, bps: 4000 },
+              { address: ADDR_A, bps: 6000 },
+              { address: ADDR_B, bps: 4000 },
             ],
           },
         },
@@ -76,8 +77,8 @@ describe("validateFlow", () => {
           config: {
             asset: { kind: "known", symbol: "USDC" },
             recipients: [
-              { address: ADDR, bps: 6000 },
-              { address: ADDR, bps: 4000 },
+              { address: ADDR_A, bps: 6000 },
+              { address: ADDR_B, bps: 4000 },
             ],
           },
         },
@@ -101,8 +102,8 @@ describe("validateFlow", () => {
           config: {
             asset: { kind: "native" },
             recipients: [
-              { address: ADDR, bps: 5000 },
-              { address: ADDR, bps: 5000 },
+              { address: ADDR_A, bps: 5000 },
+              { address: ADDR_B, bps: 5000 },
             ],
           },
         },
@@ -123,7 +124,7 @@ describe("validateFlow", () => {
           id: "a",
           type: "pay",
           config: {
-            recipient: ADDR,
+            recipient: ADDR_A,
             amountStroops: "10",
             asset: { kind: "native" },
           },
@@ -149,7 +150,7 @@ describe("validateFlow", () => {
           id: "a",
           type: "pay",
           config: {
-            recipient: ADDR,
+            recipient: ADDR_A,
             amountStroops: "100",
             asset: { kind: "known", symbol: "USDC" },
           },
@@ -159,34 +160,5 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.templateKind).toBe(TemplateKind.STREAMER);
-  });
-
-  it("accepts multiple triggers (relaxed validation)", () => {
-    const r = validateFlow({
-      nodes: [
-        { id: "t1", type: "on_receive", config: { asset: { kind: "native" } } },
-        {
-          id: "t2",
-          type: "on_schedule",
-          config: { interval: "day", startsAt: "2030-01-01T00:00:00.000Z" },
-        },
-        {
-          id: "a",
-          type: "split",
-          config: {
-            asset: { kind: "native" },
-            recipients: [
-              { address: ADDR, bps: 5000 },
-              { address: ADDR, bps: 5000 },
-            ],
-          },
-        },
-      ],
-      edges: [
-        { id: "e1", source: "t1", target: "a" },
-        { id: "e2", source: "t2", target: "a" },
-      ],
-    });
-    expect(r.ok).toBe(true);
   });
 });

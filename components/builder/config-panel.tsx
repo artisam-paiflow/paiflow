@@ -1,6 +1,7 @@
 "use client";
 
 import type { FlowNode } from "@/lib/flows/schema";
+import { isPendingAddress } from "@/lib/flows/schema";
 
 type Props = {
   node: FlowNode | null;
@@ -77,16 +78,23 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
       {node.type === "pay" && (
         <>
           <Field label="Recipient (G…)">
-            <input
-              className="input font-mono"
-              value={node.config.recipient}
-              onChange={(e) =>
-                onChange({
-                  ...node,
-                  config: { ...node.config, recipient: e.target.value.trim() },
-                })
-              }
-            />
+            <div className="relative">
+              <input
+                className={`input font-mono ${isPendingAddress(node.config.recipient) ? "ring-1 ring-amber-700" : ""}`}
+                value={node.config.recipient}
+                onChange={(e) =>
+                  onChange({
+                    ...node,
+                    config: { ...node.config, recipient: e.target.value.trim() },
+                  })
+                }
+              />
+              {isPendingAddress(node.config.recipient) && (
+                <span className="absolute -top-2 right-1 rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400">
+                  needs address
+                </span>
+              )}
+            </div>
           </Field>
           <Field label="Amount (stroops)">
             <input
@@ -117,37 +125,62 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
             onChange={(asset) => onChange({ ...node, config: { ...node.config, asset } })}
           />
           <div className="text-xs text-zinc-400">Recipients (basis points must sum to 10000)</div>
-          {node.config.recipients.map((r, i) => (
-            <div key={i} className="grid grid-cols-[1fr_72px_28px] gap-1">
-              <input
-                className="input font-mono text-xs"
-                value={r.address}
-                onChange={(e) => {
-                  const next = [...node.config.recipients];
-                  next[i] = { ...r, address: e.target.value.trim() };
-                  onChange({ ...node, config: { ...node.config, recipients: next } });
-                }}
-              />
-              <input
-                className="input text-right"
-                value={r.bps}
-                onChange={(e) => {
-                  const next = [...node.config.recipients];
-                  next[i] = { ...r, bps: Number(e.target.value) || 0 };
-                  onChange({ ...node, config: { ...node.config, recipients: next } });
-                }}
-              />
-              <button
-                onClick={() => {
-                  const next = node.config.recipients.filter((_, j) => j !== i);
-                  onChange({ ...node, config: { ...node.config, recipients: next } });
-                }}
-                className="rounded border border-zinc-800 text-zinc-400 hover:text-red-300"
-              >
-                ×
-              </button>
-            </div>
-          ))}
+          {node.config.recipients.map((r, i) => {
+            const isPending = isPendingAddress(r.address);
+            return (
+              <div key={i} className="space-y-1">
+                <div className="grid grid-cols-[1fr_72px_28px] gap-1">
+                  <div className="grid gap-0.5">
+                    <input
+                      className="input font-mono text-xs"
+                      value={r.address}
+                      placeholder="G... or PENDING:label"
+                      onChange={(e) => {
+                        const next = [...node.config.recipients];
+                        next[i] = { ...r, address: e.target.value.trim() };
+                        onChange({ ...node, config: { ...node.config, recipients: next } });
+                      }}
+                    />
+                  </div>
+                  <input
+                    className="input text-right"
+                    value={r.bps}
+                    onChange={(e) => {
+                      const next = [...node.config.recipients];
+                      next[i] = { ...r, bps: Number(e.target.value) || 0 };
+                      onChange({ ...node, config: { ...node.config, recipients: next } });
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      const next = node.config.recipients.filter((_, j) => j !== i);
+                      onChange({ ...node, config: { ...node.config, recipients: next } });
+                    }}
+                    className="rounded border border-zinc-800 text-zinc-400 hover:text-red-300"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="grid grid-cols-[1fr_72px] gap-1">
+                  <input
+                    className="input text-xs"
+                    value={r.label ?? ""}
+                    placeholder="Label (e.g. Mom)"
+                    onChange={(e) => {
+                      const next = [...node.config.recipients];
+                      next[i] = { ...r, label: e.target.value || undefined };
+                      onChange({ ...node, config: { ...node.config, recipients: next } });
+                    }}
+                  />
+                  {isPending && (
+                    <span className="flex items-center text-[10px] text-amber-400">
+                      needs address
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
           <button
             className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
             onClick={() =>
@@ -158,7 +191,7 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
                   recipients: [
                     ...node.config.recipients,
                     {
-                      address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+                      address: "PENDING:unnamed",
                       bps: 0,
                     },
                   ],
@@ -308,13 +341,11 @@ function AssetField({
     | { kind: "custom"; code: string; issuer: string };
   onChange: (a: typeof asset) => void;
 }) {
-  const selectValue = asset.kind === "known" ? `known:${asset.symbol}` : asset.kind;
-
   return (
     <Field label="Asset">
       <select
         className="input"
-        value={selectValue}
+        value={asset.kind === "known" ? `known:${asset.symbol}` : asset.kind}
         onChange={(e) => {
           const v = e.target.value;
           if (v === "native") onChange({ kind: "native" });
@@ -323,7 +354,6 @@ function AssetField({
       >
         <option value="known:USDC">USDC</option>
         <option value="native">XLM (native)</option>
-        {asset.kind === "custom" && <option value="custom">{asset.code} (custom)</option>}
       </select>
     </Field>
   );

@@ -6,12 +6,13 @@ import {
   isAction,
   isLogic,
   isTrigger,
+  isPendingAddress,
 } from "./schema";
 
 export type ValidationIssue = { path: string; message: string };
 
 export type ValidationResult =
-  | { ok: true; templateKind: TemplateKind; graph: FlowGraph }
+  | { ok: true; templateKind: TemplateKind; graph: FlowGraph; pendingLabels: string[] }
   | { ok: false; errors: ValidationIssue[] };
 
 export function validateFlow(rawGraph: unknown): ValidationResult {
@@ -27,6 +28,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   }
   const graph = parsed.data;
   const errors: ValidationIssue[] = [];
+  const pendingLabels = new Set<string>();
 
   const nodesById = new Map<string, FlowNode>(graph.nodes.map((n) => [n.id, n]));
 
@@ -39,8 +41,8 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   if (errors.length) return { ok: false, errors };
 
   const triggers = graph.nodes.filter(isTrigger);
-  if (triggers.length < 1) {
-    errors.push({ path: "nodes", message: "Flow must have at least one trigger node" });
+  if (triggers.length !== 1) {
+    errors.push({ path: "nodes", message: "Flow must have exactly one trigger node" });
   }
   const actions = graph.nodes.filter(isAction);
   if (actions.length < 1) {
@@ -56,6 +58,23 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
           message: `Recipient basis points must sum to 10000 (got ${sum})`,
         });
       }
+      const seen = new Set<string>();
+      for (const r of a.config.recipients) {
+        if (isPendingAddress(r.address)) {
+          pendingLabels.add(r.label ?? "unnamed");
+        } else {
+          if (seen.has(r.address)) {
+            errors.push({
+              path: `nodes.${a.id}.config.recipients`,
+              message: `Duplicate address ${r.address} in split recipients`,
+            });
+          }
+          seen.add(r.address);
+        }
+      }
+    }
+    if (a.type === "pay" && isPendingAddress(a.config.recipient)) {
+      pendingLabels.add("unnamed");
     }
   }
 
@@ -84,18 +103,19 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
   }
 
-  // Every trigger must be a root (no incoming edges)
-  for (const t of triggers) {
-    const hasIncoming = graph.edges.some((e) => e.target === t.id);
+  // Trigger must be a root (no incoming edges)
+  const trigger = triggers[0];
+  if (trigger) {
+    const hasIncoming = graph.edges.some((e) => e.target === trigger.id);
     if (hasIncoming) {
-      errors.push({ path: "nodes", message: `Trigger ${t.id} must have no incoming edges` });
+      errors.push({ path: "nodes", message: "Trigger node must have no incoming edges" });
     }
   }
 
-  // Reachability from any trigger
-  if (triggers.length) {
-    const seen = new Set<string>(triggers.map((t) => t.id));
-    const stack = triggers.map((t) => t.id);
+  // Reachability from trigger
+  if (trigger) {
+    const seen = new Set<string>([trigger.id]);
+    const stack = [trigger.id];
     while (stack.length) {
       const id = stack.pop()!;
       for (const next of adj.get(id) ?? []) {
@@ -109,7 +129,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       if (!seen.has(a.id)) {
         errors.push({
           path: `nodes.${a.id}`,
-          message: `Action ${a.id} is not reachable from any trigger`,
+          message: `Action ${a.id} is not reachable from the trigger`,
         });
       }
     }
@@ -117,18 +137,30 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   if (errors.length) return { ok: false, errors };
 
-  // Infer template kind — lenient fallback
+  // Infer template kind
+  const action = actions[0]!;
   const hasCondition = graph.nodes.some(isLogic);
   let templateKind: TemplateKind;
-
   if (hasCondition) {
     templateKind = TemplateKind.CONDITIONAL;
-  } else if (triggers[0]?.type === "on_schedule") {
+  } else if (trigger!.type === "on_schedule" && action.type === "pay") {
     templateKind = TemplateKind.STREAMER;
-  } else {
-    // on_receive or any other trigger → SPLITTER
+  } else if (trigger!.type === "on_receive" && action.type === "split") {
     templateKind = TemplateKind.SPLITTER;
+  } else if (trigger!.type === "on_receive" && action.type === "pay") {
+    templateKind = TemplateKind.SPLITTER; // a 1-recipient split = pay-through
+  } else {
+    return {
+      ok: false,
+      errors: [
+        {
+          path: "nodes",
+          message:
+            "Unsupported trigger/action combination. Supported: on_receive→split, on_schedule→pay, *+condition→pay/split",
+        },
+      ],
+    };
   }
 
-  return { ok: true, templateKind, graph };
+  return { ok: true, templateKind, graph, pendingLabels: [...pendingLabels] };
 }

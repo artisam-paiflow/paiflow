@@ -7,7 +7,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit } from "@/lib/rate-limit";
 import { env } from "@/lib/env";
-import { FlowGraphSchema } from "@/lib/flows/schema";
+import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToParams } from "@/lib/flows/to-params";
 import { prepareDeployTx } from "@/lib/stellar/deploy";
@@ -49,6 +49,15 @@ export async function POST(req: NextRequest) {
         Object.fromEntries(v.errors.map((e) => [e.path, [e.message]])),
       );
     }
+
+    const pending = getPendingLabels(graph);
+    if (pending.length > 0) {
+      throw new AppError(
+        "VALIDATION",
+        `Cannot deploy: these recipients need Stellar addresses first: ${pending.join(", ")}. Resolve them in the flow editor before deploying.`,
+      );
+    }
+
     const params = flowToParams(v.graph, v.templateKind);
 
     const template = await db.contractTemplate.findFirst({

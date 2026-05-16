@@ -11,8 +11,6 @@ function makeId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-const DEMO_ADDR = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
-
 const TEMPLATES: { label: string; group: string; make: () => FlowNode }[] = [
   {
     group: "Triggers",
@@ -42,7 +40,7 @@ const TEMPLATES: { label: string; group: string; make: () => FlowNode }[] = [
       id: makeId("pay"),
       type: "pay",
       config: {
-        recipient: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+        recipient: "PENDING:unnamed",
         amountStroops: "10000000",
         asset: { kind: "known", symbol: "USDC" },
       },
@@ -58,12 +56,12 @@ const TEMPLATES: { label: string; group: string; make: () => FlowNode }[] = [
         asset: { kind: "known", symbol: "USDC" },
         recipients: [
           {
-            address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+            address: "PENDING:unnamed",
             bps: 5000,
             label: "A",
           },
           {
-            address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+            address: "PENDING:unnamed",
             bps: 5000,
             label: "B",
           },
@@ -86,22 +84,19 @@ export default function Palette({ onAdd }: Props) {
   const groups = ["Triggers", "Actions", "Logic"];
   const headingId = useId();
   return (
-    <aside
-      aria-labelledby={headingId}
-      className="border-r border-zinc-800 bg-zinc-950 p-3"
-    >
-      <h2 id={headingId} className="text-xs uppercase tracking-wide text-zinc-500">
+    <aside aria-labelledby={headingId} className="border-r border-zinc-800 bg-zinc-950 p-3">
+      <h2 id={headingId} className="text-xs tracking-wide text-zinc-500 uppercase">
         Blocks
       </h2>
       {groups.map((g) => (
         <div key={g} className="mt-4">
-          <div className="text-[10px] uppercase tracking-wider text-zinc-500">{g}</div>
+          <div className="text-[10px] tracking-wider text-zinc-500 uppercase">{g}</div>
           <div className="mt-1 grid gap-1">
             {TEMPLATES.filter((t) => t.group === g).map((t) => (
               <button
                 key={t.label}
                 onClick={() => onAdd(t.make())}
-                className="rounded border border-zinc-800 bg-zinc-900 px-3 py-2 text-left text-sm hover:border-brand-500 hover:bg-zinc-800"
+                className="hover:border-brand-500 rounded border border-zinc-800 bg-zinc-900 px-3 py-2 text-left text-sm hover:bg-zinc-800"
               >
                 {t.label}
               </button>
