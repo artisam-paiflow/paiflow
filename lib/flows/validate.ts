@@ -143,7 +143,10 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   let templateKind: TemplateKind;
   if (hasCondition) {
     templateKind = TemplateKind.CONDITIONAL;
-  } else if (trigger!.type === "on_schedule" && action.type === "pay") {
+  } else if (
+    trigger!.type === "on_schedule" &&
+    (action.type === "pay" || action.type === "split")
+  ) {
     templateKind = TemplateKind.STREAMER;
   } else if (trigger!.type === "on_receive" && action.type === "split") {
     templateKind = TemplateKind.SPLITTER;
@@ -156,7 +159,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         {
           path: "nodes",
           message:
-            "Unsupported trigger/action combination. Supported: on_receive→split, on_schedule→pay, *+condition→pay/split",
+            "Unsupported trigger/action combination. Supported: on_receive→split, on_receive→pay, on_schedule→pay, on_schedule→split, any trigger+condition→pay, any trigger+condition→split",
         },
       ],
     };

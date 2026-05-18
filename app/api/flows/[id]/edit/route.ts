@@ -7,7 +7,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { validateFlow } from "@/lib/flows/validate";
 import { isPendingAddress } from "@/lib/flows/schema";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
-import { applyPatch } from "@/lib/ai/normalize";
+import { applyPatch, autoConnectOrphans, stripZeroBpsRecipients } from "@/lib/ai/normalize";
 import { callGroq } from "@/lib/ai/groq";
 import {
   buildSystemPrompt,
@@ -92,6 +92,8 @@ async function tryEdit(
   let patchedGraph: FlowGraph;
   try {
     patchedGraph = applyPatch(graph, patch);
+    patchedGraph = autoConnectOrphans(patchedGraph);
+    patchedGraph = stripZeroBpsRecipients(patchedGraph);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Patch application failed";
     throw new AppError("VALIDATION", msg, {
@@ -108,6 +110,7 @@ async function tryEdit(
     const errorMessages = v.errors.map((e) => `${e.path}: ${e.message}`);
     throw new AppError("VALIDATION", "The AI patch would create an invalid flow", {
       patch: errorMessages,
+      _rawPatch: [JSON.stringify(patch)],
     });
   }
 
@@ -123,6 +126,7 @@ async function tryEdit(
 async function retryEdit(
   graph: FlowGraph,
   instruction: string,
+  previousPatch: unknown[],
   previousErrors: string[],
   addressBook: Array<{ label: string; address: string }>,
 ): Promise<{
@@ -132,7 +136,13 @@ async function retryEdit(
   missingAddresses: string[];
 }> {
   const system = buildSystemPrompt();
-  const userMsg = buildCorrectionPrompt(graph, instruction, [], previousErrors, addressBook);
+  const userMsg = buildCorrectionPrompt(
+    graph,
+    instruction,
+    previousPatch,
+    previousErrors,
+    addressBook,
+  );
 
   const raw = await callGroq(
     [
@@ -159,6 +169,8 @@ async function retryEdit(
   let patchedGraph: FlowGraph;
   try {
     patchedGraph = applyPatch(graph, patch);
+    patchedGraph = autoConnectOrphans(patchedGraph);
+    patchedGraph = stripZeroBpsRecipients(patchedGraph);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Patch application failed";
     throw new AppError("VALIDATION", `Retry failed: ${msg}`, {
@@ -210,15 +222,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     } catch (firstErr) {
       if (firstErr instanceof AppError && firstErr.code === "VALIDATION") {
         const allErrors: string[] = [];
+        let firstPatch: unknown[] = [];
         if (firstErr.fields) {
-          for (const vals of Object.values(firstErr.fields)) {
-            if (Array.isArray(vals)) allErrors.push(...vals);
+          for (const [key, val] of Object.entries(firstErr.fields)) {
+            if (key === "_rawPatch" && Array.isArray(val) && val.length > 0) {
+              try {
+                firstPatch = JSON.parse(val[0]!);
+              } catch {
+                /* ignore parse errors */
+              }
+            } else if (Array.isArray(val)) {
+              allErrors.push(...val);
+            }
           }
         }
         if (allErrors.length === 0) {
           allErrors.push(firstErr.message);
         }
-        result = await retryEdit(graph, body.message, allErrors, addressBook);
+        result = await retryEdit(graph, body.message, firstPatch, allErrors, addressBook);
       } else {
         throw firstErr;
       }

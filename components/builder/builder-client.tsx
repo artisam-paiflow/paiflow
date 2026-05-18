@@ -23,6 +23,7 @@ import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { isPendingAddress } from "@/lib/flows/schema";
 import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
+import { validateFlow } from "@/lib/flows/validate";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import ConfigPanel from "./config-panel";
 import Palette from "./palette";
@@ -77,6 +78,12 @@ export default function BuilderClient(props: BuilderProps) {
   );
 }
 
+const TEMPLATE_LABELS: Record<string, string> = {
+  SPLITTER: "Splitter",
+  STREAMER: "Streamer",
+  CONDITIONAL: "Conditional",
+};
+
 function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [name, setName] = useState(initialName);
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>(initialGraph.nodes);
@@ -100,6 +107,8 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     }),
     [flowNodes, rfEdges],
   );
+
+  const validation = useMemo(() => validateFlow(graph), [graph]);
 
   const english = useMemo(() => {
     const v = FlowGraphSchema.safeParse(graph);
@@ -198,6 +207,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       }
       const { patch, explanation, applied, missingAddresses } = json.data!;
       setMessages((prev) => [...prev, { role: "raft", content: explanation, patch }]);
+
+      // Surface AI-requested address changes even for already-resolved labels
+      if (missingAddresses && missingAddresses.length > 0) {
+        setPendingAddresses((prev) => [...new Set([...prev, ...missingAddresses])]);
+      }
 
       if (applied && patch.length) {
         // Apply all patches atomically to avoid intermediate invalid states
@@ -320,12 +334,16 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     }
   }
 
+  const isValid = validation.ok;
+  const templateKind = validation.ok ? validation.templateKind : null;
+  const errors = validation.ok ? [] : validation.errors;
+
   return (
     <div
       className="grid grid-cols-[220px_1fr_320px] gap-0"
       style={{ height: "calc(100vh - 49px)" }}
     >
-      <Palette onAdd={addNode} />
+      <Palette onAdd={addNode} flowNodes={flowNodes} />
 
       <div className="relative flex flex-col">
         <div className="relative flex-1">
@@ -383,16 +401,43 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
             <Background gap={16} size={1} color="#27272a" />
             <Controls />
           </ReactFlow>
+
+          {/* Validation status badge */}
+          <div className="pointer-events-none absolute top-3 left-1/2 z-10 -translate-x-1/2">
+            {templateKind && (
+              <span className="text-brand-400 ring-brand-500/50 rounded-full bg-zinc-900/90 px-3 py-1 text-xs ring-1">
+                {TEMPLATE_LABELS[templateKind] ?? templateKind}
+              </span>
+            )}
+          </div>
+
+          {/* English preview + validation errors */}
           <div className="pointer-events-none absolute right-4 bottom-4 left-4 rounded-lg bg-zinc-950/90 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800">
-            <div className="text-brand-400 text-[10px] tracking-wide uppercase">
-              English preview
+            <div className="mb-1 flex items-center gap-2">
+              <div className="text-brand-400 text-[10px] tracking-wide uppercase">
+                English preview
+              </div>
+              {isValid && templateKind && (
+                <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                  valid {TEMPLATE_LABELS[templateKind]?.toLowerCase()}
+                </span>
+              )}
             </div>
             <div className="mt-1">{english}</div>
+            {!isValid && errors.length > 0 && (
+              <div className="mt-2 space-y-0.5">
+                {errors.map((e, i) => (
+                  <div key={i} className="text-[11px] text-red-400">
+                    {e.message}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <ConfigPanel node={selectedNode} onChange={updateNode} onDelete={deleteNode} />
+      <ConfigPanel node={selectedNode} graph={graph} onChange={updateNode} onDelete={deleteNode} />
     </div>
   );
 }

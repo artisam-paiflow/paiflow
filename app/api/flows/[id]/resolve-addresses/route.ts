@@ -35,17 +35,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       addrMap.set(label.toLowerCase(), addr);
     }
 
-    // Walk through all nodes and replace PENDING:<label> with real addresses
+    // Walk through all nodes and replace addresses by matching label
     const nodes = graph.nodes.map((n) => {
       if (n.type === "split") {
         const recipients = n.config.recipients.map((r) => {
-          if (isPendingAddress(r.address)) {
-            const label = (r.label ?? "unnamed").toLowerCase();
-            const resolved = addrMap.get(label);
-            if (resolved) {
-              replaced++;
-              return { ...r, address: resolved };
-            }
+          const label = (r.label ?? "unnamed").toLowerCase();
+          const resolved = addrMap.get(label);
+          if (resolved) {
+            replaced++;
+            return { ...r, address: resolved };
           }
           return r;
         });

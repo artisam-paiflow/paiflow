@@ -19,41 +19,50 @@ function u64(n: number | bigint): xdr.ScVal {
   return nativeToScVal(typeof n === "bigint" ? n : BigInt(n), { type: "u64" });
 }
 
+function recipientsVec(recipients: Array<{ address: string; bps: number }>): xdr.ScVal {
+  return xdr.ScVal.scvVec(recipients.map((r) => xdr.ScVal.scvVec([addr(r.address), u32(r.bps)])));
+}
+
+function ratePerSecondStroops(params: { ratePerSecondStroops: string }): xdr.ScVal {
+  return i128(params.ratePerSecondStroops);
+}
+
+function amountStroops(params: { amountStroops: string }): xdr.ScVal {
+  return i128(params.amountStroops);
+}
+
 export function constructorArgs(params: ContractParams, admin: string): xdr.ScVal[] {
   switch (params.kind) {
     case "splitter": {
-      const recipientsVec = xdr.ScVal.scvVec(
-        params.recipients.map((r) =>
-          xdr.ScVal.scvVec([addr(r.address), u32(r.bps)]),
-        ),
-      );
-      return [
+      const args: xdr.ScVal[] = [
         addr(admin),
         addr(assetContractId(params.asset)),
-        recipientsVec,
+        recipientsVec(params.recipients),
       ];
+      if (params.minAmountStroops) {
+        args.push(i128(params.minAmountStroops));
+      }
+      return args;
     }
     case "streamer": {
       return [
         addr(admin),
-        addr(params.recipient),
+        recipientsVec(params.recipients),
         addr(assetContractId(params.asset)),
-        i128(params.ratePerSecondStroops),
+        ratePerSecondStroops(params),
         u64(params.startTs),
         u64(params.endTs),
       ];
     }
     case "conditional": {
-      // For brevity: pass condition as a serialized JSON string via Symbol.
-      // The on-chain contract decodes the variant. In production, encode as a proper enum.
       const cond = params.condition
         ? nativeToScVal(JSON.stringify(params.condition), { type: "string" })
         : xdr.ScVal.scvVoid();
       return [
         addr(admin),
-        addr(params.recipient),
+        recipientsVec(params.recipients),
         addr(assetContractId(params.asset)),
-        i128(params.amountStroops),
+        amountStroops(params),
         cond,
       ];
     }

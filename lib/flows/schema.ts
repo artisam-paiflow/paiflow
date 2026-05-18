@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
+import { formatStroops } from "@/lib/utils";
 
 const PENDING_PREFIX = "PENDING:";
 
@@ -47,7 +48,13 @@ const stellarAccount = z.string().refine((s) => validAddress(s), "Invalid Stella
 export const OnReceiveTrigger = z.object({
   id: z.string().min(1),
   type: z.literal("on_receive"),
-  config: z.object({ asset: AssetSchema }),
+  config: z.object({
+    asset: AssetSchema,
+    minAmountStroops: z
+      .string()
+      .regex(/^\d+$/, "Amount must be a positive integer string")
+      .optional(),
+  }),
 });
 
 export const OnScheduleTrigger = z.object({
@@ -82,6 +89,10 @@ export const SplitAction = z.object({
   config: z.object({
     asset: AssetSchema,
     recipients: z.array(SplitRecipient).min(1).max(20),
+    ratePerSecondStroops: z
+      .string()
+      .regex(/^\d+$/, "Rate must be a positive integer string")
+      .optional(),
   }),
 });
 
@@ -146,4 +157,48 @@ export function isAction(n: FlowNode): n is ActionNode {
 }
 export function isLogic(n: FlowNode): n is LogicNode {
   return n.type === "condition";
+}
+
+export function assetLabel(asset: Asset): string {
+  if (asset.kind === "native") return "XLM";
+  if (asset.kind === "known") return asset.symbol;
+  return asset.code;
+}
+
+export function stroopsToDisplay(stroops: string, asset: Asset): string {
+  return `${formatStroops(stroops)} ${assetLabel(asset)}`;
+}
+
+export function tokenAmountToStroops(amount: string): string {
+  const cleaned = amount.replace(/[^0-9.]/g, "");
+  const parts = cleaned.split(".");
+  const whole = parts[0] || "0";
+  const frac = (parts[1] || "").padEnd(7, "0").slice(0, 7);
+  const combined = (whole + frac).replace(/^0+/, "") || "0";
+  return combined;
+}
+
+export const TOTAL_BPS = 10_000;
+
+export function bpsToPct(bps: number): number {
+  return bps / 100;
+}
+
+export function pctToBps(pct: number): number {
+  return Math.round(pct * 100);
+}
+
+export function sourceAmountStroops(graph: FlowGraph): string | undefined {
+  const trigger = graph.nodes.find(isTrigger);
+  if (trigger?.type === "on_receive" && trigger.config.minAmountStroops) {
+    return trigger.config.minAmountStroops;
+  }
+  const condition = graph.nodes.find(isLogic);
+  if (condition?.type === "condition") {
+    const c = condition.config;
+    if (c.kind === "amount_gt" || c.kind === "amount_lt") {
+      return c.amountStroops;
+    }
+  }
+  return undefined;
 }
