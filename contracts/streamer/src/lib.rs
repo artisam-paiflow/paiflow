@@ -115,9 +115,7 @@ impl Streamer {
 
     pub fn cancel(env: Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
-        if env.current_contract_address() != admin {
-            panic_with_error!(&env, Error::Unauthorized);
-        }
+        admin.require_auth();
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         let client = token::Client::new(&env, &asset);
         let balance = client.balance(&env.current_contract_address());
