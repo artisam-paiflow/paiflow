@@ -244,4 +244,33 @@ mod test {
         env.ledger().set_timestamp(500);
         client.release();
     }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #5)")]
+    fn oracle_gte_panics() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let recipient = Address::generate(&env);
+        let _oracle = Address::generate(&env);
+        let condition = ConditionKind::OracleGte(String::from_str(&env, "BTC/USD"));
+
+        let contract_id = env.register(
+            Conditional,
+            (
+                admin.clone(),
+                recipient.clone(),
+                asset.address(),
+                1_000_i128,
+                condition,
+            ),
+        );
+        sac.mint(&contract_id, &1_000);
+        let client = ConditionalClient::new(&env, &contract_id);
+
+        env.ledger().set_timestamp(1000);
+        client.release();
+    }
 }
