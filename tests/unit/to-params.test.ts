@@ -34,8 +34,8 @@ function splitGraph(opts?: { minAmount?: string; condition?: boolean; rate?: str
     config: {
       asset: { kind: "known", symbol: "USDC" } as const,
       recipients: [
-        { address: ADDR_A, bps: 6000, label: "Mom" },
-        { address: ADDR_B, bps: 4000, label: "Car" },
+        { address: ADDR_A, bps: 6000, label: "Alice" },
+        { address: ADDR_B, bps: 4000, label: "Bob" },
       ],
       ...(opts?.rate ? { ratePerSecondStroops: opts.rate } : {}),
     },

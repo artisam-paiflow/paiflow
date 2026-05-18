@@ -7,7 +7,7 @@ One commit on top of `feat/ai-adapter-layer`:
 
 **Theme**: Eliminate the singleton placeholder address (`GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`) and replace it with an interactive address resolution system that works like a production app would.
 
-**Before**: AI silently used a hardcoded placeholder for all unknown recipients. All 3 recipients (Mom, Car, Savings) got the same fake address. No prompt asking for real addresses.
+**Before**: AI silently used a hardcoded placeholder for all unknown recipients. All 3 recipients (Alice, Bob, Charlie) got the same fake address. No prompt asking for real addresses.
 
 **After**: AI uses `PENDING:<label>` sentinel for unknown recipients. The client shows an interactive prompt asking for each address. Addresses are saved to a per-user address book for reuse. Deployment is blocked until all addresses are resolved.
 
@@ -29,7 +29,7 @@ CRUD endpoints for the address book:
 
 ### `app/api/flows/[id]/resolve-addresses/route.ts`
 
-Bulk resolution endpoint. Accepts `{ addresses: { "Mom": "GABC...", "Car": "GDEF..." } }`. Replaces all `PENDING:<label>` recipients with real addresses, upserts each to the address book, validates the resulting flow, and saves.
+Bulk resolution endpoint. Accepts `{ addresses: { "Alice": "GABC...", "Bob": "GDEF..." } }`. Replaces all `PENDING:<label>` recipients with real addresses, upserts each to the address book, validates the resulting flow, and saves.
 
 ### `components/builder/raft-log.tsx`
 
@@ -60,7 +60,7 @@ The Raft Log chat UI component (was already on the adapter branch as untracked).
 
 ### `lib/flows/english.ts`
 
-- Pending recipients display `"50% to Mom (needs address)"` instead of converting the `PENDING:*` string to hex
+- Pending recipients display `"50% to Alice (needs address)"` instead of converting the `PENDING:*` string to hex
 - Pay nodes with pending address show `"pay to (needs address)"`
 
 ### `lib/ai/prompts.ts`
@@ -84,7 +84,7 @@ The Raft Log chat UI component (was already on the adapter branch as untracked).
 
 - **Fetches address book** before calling the AI
 - **Passes address book** to `buildUserMessage()` and `buildCorrectionPrompt()`
-- **Auto-resolves** known labels: if the AI creates `PENDING:Mom` but Mom exists in the address book, replaces with the real address immediately (reduces unnecessary prompts)
+- **Auto-resolves** known labels: if the AI creates `PENDING:Alice` but Alice exists in the address book, replaces with the real address immediately (reduces unnecessary prompts)
 - **Forwards `missingAddresses`** in the API response so the client can show the address prompt
 - Returns `{ patch, explanation, applied, missingAddresses, templateKind }`
 
@@ -94,7 +94,7 @@ The Raft Log chat UI component (was already on the adapter branch as untracked).
 
 ### `app/api/deployments/prepare/route.ts`
 
-- **Deploy guard**: after `FlowGraphSchema.parse` + `validateFlow`, calls `getPendingLabels(graph)`. If any pending labels exist, throws `AppError("VALIDATION", "Cannot deploy: these recipients need Stellar addresses first: Mom, Car. Resolve them in the flow editor before deploying.")`. Fires **before** `deployment.create()` — no failed deployment record is created.
+- **Deploy guard**: after `FlowGraphSchema.parse` + `validateFlow`, calls `getPendingLabels(graph)`. If any pending labels exist, throws `AppError("VALIDATION", "Cannot deploy: these recipients need Stellar addresses first: Alice, Bob. Resolve them in the flow editor before deploying.")`. Fires **before** `deployment.create()` — no failed deployment record is created.
 
 ### `components/builder/builder-client.tsx`
 
@@ -119,7 +119,7 @@ The Raft Log chat UI component (was already on the adapter branch as untracked).
 
 ### `app/flows/new/page.tsx`
 
-- Starter template now uses `PENDING:Mom`, `PENDING:Landlord`, `PENDING:Savings` instead of the placeholder
+- Starter template now uses `PENDING:Alice`, `PENDING:Bob`, `PENDING:Charlie` instead of the placeholder
 
 ### `prisma/schema.prisma`
 
@@ -167,14 +167,14 @@ Creates the `AddressBookEntry` table with:
 User: "when i receive 50usdc. split 50/30 to mom, car, savings"
   │
   ▼
-AI creates patch with PENDING:Mom, PENDING:Car, PENDING:Savings
-missingAddresses: ["Mom", "Car", "Savings"]
+AI creates patch with PENDING:Alice, PENDING:Bob, PENDING:Charlie
+missingAddresses: ["Alice", "Bob", "Charlie"]
   │
   ▼
 Client applies patch, scans for pending → shows MissingAddressPrompt
   │
   ▼
-User types: Mom=GABC..., Car=GDEF..., Savings=GHIJ...
+User types: Alice=GABC..., Bob=GDEF..., Charlie=GHIJ...
   │
   ▼
 POST /resolve-addresses → replaces in graph + upserts to address book
@@ -183,7 +183,7 @@ POST /resolve-addresses → replaces in graph + upserts to address book
 Graph saved with real addresses. Flow is deployable.
   │
   ▼
-Next time user says "send to Mom" → AI looks up address book → uses GABC... directly
+Next time user says "send to Alice" → AI looks up address book → uses GABC... directly
 ```
 
 ### Guard chain (blocks deploy with pending addresses)
@@ -196,21 +196,21 @@ PATCH (autosave) ──→ Schema: passes (PENDING:* is valid)
 
 POST (deploy)     ──→ Schema: passes
                    → validateFlow: passes
-                   → getPendingLabels(): returns ["Mom", "Car"] → THROW AppError
+                   → getPendingLabels(): returns ["Alice", "Bob"] → THROW AppError
                    → ✗ Never reaches constructorArgs / deployment.create()
 ```
 
 ### Safety properties
 
-| Scenario                                           | What happens                                                                 |
-| -------------------------------------------------- | ---------------------------------------------------------------------------- |
-| AI returns `PENDING:Mom` + Mom in address book     | Auto-resolved in `edit/route.ts:autoResolvePending()`                        |
-| AI returns `PENDING:Mom` + Mom NOT in address book | `missingAddresses: ["Mom"]` → client shows prompt                            |
-| User skips address prompt                          | Graph saved with `PENDING:Mom` → deploy blocked with clear error             |
-| User re-enters existing address for Mom            | Address book upsert is idempotent (unique `[ownerId, label]`)                |
-| User deletes node mid-edit                         | Graph saved anyway (relaxed validation) → no 422 errors                      |
-| User deploys without resolving                     | `getPendingLabels()` fires before `deployment.create()` → rejected           |
-| `PENDING:*` reaches `constructorArgs()`            | Impossible (deploy guard blocks before `flowToParams` passes to deploy path) |
+| Scenario                                               | What happens                                                                 |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| AI returns `PENDING:Alice` + Alice in address book     | Auto-resolved in `edit/route.ts:autoResolvePending()`                        |
+| AI returns `PENDING:Alice` + Alice NOT in address book | `missingAddresses: ["Alice"]` → client shows prompt                          |
+| User skips address prompt                              | Graph saved with `PENDING:Alice` → deploy blocked with clear error           |
+| User re-enters existing address for Alice              | Address book upsert is idempotent (unique `[ownerId, label]`)                |
+| User deletes node mid-edit                             | Graph saved anyway (relaxed validation) → no 422 errors                      |
+| User deploys without resolving                         | `getPendingLabels()` fires before `deployment.create()` → rejected           |
+| `PENDING:*` reaches `constructorArgs()`                | Impossible (deploy guard blocks before `flowToParams` passes to deploy path) |
 
 ---
 

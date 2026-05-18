@@ -19,9 +19,9 @@ describe("flowToEnglish", () => {
           config: {
             asset: { kind: "known", symbol: "USDC" },
             recipients: [
-              { address: ADDR, bps: 6000, label: "Mom" },
-              { address: ADDR, bps: 3000, label: "Landlord" },
-              { address: ADDR_B, bps: 1000, label: "Savings" },
+              { address: ADDR, bps: 6000, label: "Alice" },
+              { address: ADDR, bps: 3000, label: "Bob" },
+              { address: ADDR_B, bps: 1000, label: "Charlie" },
             ],
           },
         },
@@ -29,9 +29,9 @@ describe("flowToEnglish", () => {
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
     expect(out).toContain("receives USDC");
-    expect(out).toContain("60% to Mom");
-    expect(out).toContain("30% to Landlord");
-    expect(out).toContain("10% to Savings");
+    expect(out).toContain("60% to Alice");
+    expect(out).toContain("30% to Bob");
+    expect(out).toContain("10% to Charlie");
   });
 
   it("describes a split with minAmountStroops trigger", () => {

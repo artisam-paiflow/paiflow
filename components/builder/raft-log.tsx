@@ -23,7 +23,7 @@ interface RaftLogProps {
 const SUGGESTIONS = [
   "Add a recipient",
   "Change asset to XLM",
-  "Make Mom 55%",
+  "Make Alice 55%",
   "Add a condition",
   "Remove the last node",
 ];

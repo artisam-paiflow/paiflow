@@ -72,13 +72,13 @@ Rules:
 FINDING & UPDATING EXISTING NODES:
 - When the user says "change", "update", "modify", "set", or "make [something]" — use updateNode on EXISTING nodes. Only use addNode when the user says "add", "create", or "new".
 - You MUST use the EXACT node id from the provided Nodes list. Never invent your own node IDs.
-- FIND BY LABEL: When the user says "change Mom" or "make Mom 60%", find the split node whose recipients contain label "Mom". Use updateNode on that split node's id, updating the full recipients array.
+- FIND BY LABEL: When the user says "change Alice" or "make Alice 60%", find the split node whose recipients contain label "Alice". Use updateNode on that split node's id, updating the full recipients array.
 - SPLIT SHARE CHANGES: Each recipient's bps must be at least 1. Never set bps to 0 — that would represent 0% ownership and isn't allowed. To remove a recipient, omit them from the array entirely.
-- REDISTRIBUTING SHARES: When you change one recipient's share, keep the other recipients at their current bps and adjust only the LAST recipient to balance the total back to 10000. Example: Mom 5000 (50%), Dad 3000 (30%), Savings 2000 (20%). "Change Mom to 40%" → Mom 4000, Dad 3000, Savings 3000 (last adjusted to balance).
+- REDISTRIBUTING SHARES: When you change one recipient's share, keep the other recipients at their current bps and adjust only the LAST recipient to balance the total back to 10000. Example: Alice 5000 (50%), Bob 3000 (30%), Charlie 2000 (20%). "Change Alice to 40%" → Alice 4000, Bob 3000, Charlie 3000 (last adjusted to balance).
 - FIND BY TYPE: When the user says "change the schedule to daily", find the on_schedule trigger node. When the user says "change the pay amount", find the pay action node.
 - FIND BY ASSET: When the user says "change asset to XLM", find all applicable nodes and updateNode each one's config.asset.
 - CHANGE ADDRESS: When the user says "change [label]'s address" without a new address → return an empty patch and include the label in "missingAddresses" to prompt the user.
-- CHANGE ADDRESS DIRECTLY: When the user provides both a label and a new G... address (e.g., "change Mom to GA5Z...") → use updateNode on the split node to replace Mom's address directly.
+- CHANGE ADDRESS DIRECTLY: When the user provides both a label and a new G... address (e.g., "change Alice to GA5Z...") → use updateNode on the split node to replace Alice's address directly.
 
 CRITICAL SAFETY RULES:
 - NEVER add a second trigger node. Every flow has exactly ONE trigger (on_receive or on_schedule). To change the trigger type, use updateNode on the existing trigger.
@@ -104,27 +104,27 @@ Examples — updateNode (change existing):
 }
 
 {
-  "explanation": "Changed Mom's share from 50% to 60%, Landlord from 30% to 20%.",
+  "explanation": "Changed Alice's share from 50% to 60%, Bob from 30% to 20%.",
   "patch": [
-    { "op": "updateNode", "id": "split-x7k2m3", "config": { "recipients": [{"address": "PENDING:Mom", "bps": 6000, "label": "Mom"}, {"address": "PENDING:Landlord", "bps": 2000, "label": "Landlord"}, {"address": "PENDING:Savings", "bps": 2000, "label": "Savings"}] } }
+    { "op": "updateNode", "id": "split-x7k2m3", "config": { "recipients": [{"address": "PENDING:Alice", "bps": 6000, "label": "Alice"}, {"address": "PENDING:Bob", "bps": 2000, "label": "Bob"}, {"address": "PENDING:Charlie", "bps": 2000, "label": "Charlie"}] } }
   ],
-  "missingAddresses": ["Mom", "Landlord"]
+  "missingAddresses": ["Alice", "Bob"]
 }
 
 Example — address change request (no patch, prompt user):
 {
-  "explanation": "What's Mom's new Stellar address?",
+  "explanation": "What's Alice's new Stellar address?",
   "patch": [],
-  "missingAddresses": ["Mom"]
+  "missingAddresses": ["Alice"]
 }
 
 Example — addNode (creating new):
 {
-  "explanation": "Created a split: 50% to Mom, 30% to Car, 20% to Savings.",
+  "explanation": "Created a split: 50% to Alice, 30% to Bob, 20% to Charlie.",
   "patch": [
-    { "op": "addNode", "node": { "id": "split-1", "type": "split", "config": { "asset": {"kind": "known", "symbol": "USDC"}, "recipients": [{"address": "PENDING:Mom", "bps": 5000, "label": "Mom"}, {"address": "PENDING:Car", "bps": 3000, "label": "Car"}, {"address": "PENDING:Savings", "bps": 2000, "label": "Savings"}] } }, "edge": { "id": "e1", "source": "recv-abc123", "target": "split-1" } }
+    { "op": "addNode", "node": { "id": "split-1", "type": "split", "config": { "asset": {"kind": "known", "symbol": "USDC"}, "recipients": [{"address": "PENDING:Alice", "bps": 5000, "label": "Alice"}, {"address": "PENDING:Bob", "bps": 3000, "label": "Bob"}, {"address": "PENDING:Charlie", "bps": 2000, "label": "Charlie"}] } }, "edge": { "id": "e1", "source": "recv-abc123", "target": "split-1" } }
   ],
-  "missingAddresses": ["Mom", "Car", "Savings"]
+  "missingAddresses": ["Alice", "Bob", "Charlie"]
 }
 
 Respond with valid JSON only. No markdown fences. No extra text.`;

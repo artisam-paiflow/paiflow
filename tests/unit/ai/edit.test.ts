@@ -19,8 +19,8 @@ const baseGraph: FlowGraph = {
       config: {
         asset: { kind: "native" },
         recipients: [
-          { address: ADDR, bps: 6000, label: "Mom" },
-          { address: ADDR, bps: 4000, label: "Dad" },
+          { address: ADDR, bps: 6000, label: "Alice" },
+          { address: ADDR, bps: 4000, label: "Bob" },
         ],
       },
     },
@@ -36,8 +36,8 @@ describe("applyPatch", () => {
         id: "a",
         config: {
           recipients: [
-            { address: ADDR, bps: 5500, label: "Mom" },
-            { address: ADDR, bps: 4500, label: "Dad" },
+            { address: ADDR, bps: 5500, label: "Alice" },
+            { address: ADDR, bps: 4500, label: "Bob" },
           ],
         },
       },
@@ -130,8 +130,8 @@ describe("prompts", () => {
   });
 
   it("buildUserMessage includes graph and instruction", () => {
-    const msg = buildUserMessage(baseGraph, "Make Mom 55%");
-    expect(msg).toContain("Make Mom 55%");
+    const msg = buildUserMessage(baseGraph, "Make Alice 55%");
+    expect(msg).toContain("Make Alice 55%");
     expect(msg).toContain('"t"');
     expect(msg).toContain("Current flow:");
   });
@@ -140,12 +140,12 @@ describe("prompts", () => {
 describe("EditResponseSchema", () => {
   it("accepts a valid patch response", () => {
     const result = EditResponseSchema.safeParse({
-      explanation: "Changed Mom to 55%",
+      explanation: "Changed Alice to 55%",
       patch: [{ op: "updateNode", id: "a", config: { recipients: [] } }],
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.explanation).toBe("Changed Mom to 55%");
+      expect(result.data.explanation).toBe("Changed Alice to 55%");
       expect(result.data.patch).toHaveLength(1);
     }
   });
@@ -163,11 +163,11 @@ describe("buildCorrectionPrompt", () => {
   it("includes original instruction and validation errors", () => {
     const prompt = buildCorrectionPrompt(
       baseGraph,
-      "Make Mom 55%",
+      "Make Alice 55%",
       [],
       ["nodes.a.config.recipients: Recipient basis points must sum to 10000"],
     );
-    expect(prompt).toContain("Make Mom 55%");
+    expect(prompt).toContain("Make Alice 55%");
     expect(prompt).toContain("Validation errors");
     expect(prompt).toContain("10000");
     expect(prompt).toContain("corrected patch");

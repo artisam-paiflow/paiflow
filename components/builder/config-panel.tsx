@@ -260,7 +260,7 @@ export default function ConfigPanel({ node, graph, onChange, onDelete }: Props) 
                   <input
                     className="input text-xs"
                     value={r.label ?? ""}
-                    placeholder="Label (e.g. Mom)"
+                    placeholder="Label (e.g. Alice)"
                     onChange={(e) => {
                       const next = [...node.config.recipients];
                       next[i] = { ...r, label: e.target.value || undefined };
