@@ -103,14 +103,13 @@ impl Splitter {
             i += 1;
         }
 
+        let topic: Symbol = symbol_short!("distrib");
         #[allow(deprecated)]
-        {
-            let topic: Symbol = symbol_short!("distrib");
-            env.events()
-                .publish((topic, from.clone()), (asset.clone(), amount));
-            env.events()
-                .publish((symbol_short!("payout"), from), recipients);
-        }
+        env.events()
+            .publish((topic, from.clone()), (asset.clone(), amount));
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("payout"), from), recipients);
     }
 
     pub fn pause(env: Env) {

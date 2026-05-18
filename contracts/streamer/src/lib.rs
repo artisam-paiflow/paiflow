@@ -59,40 +59,38 @@ impl Streamer {
     }
 
     pub fn claim(env: Env) -> i128 {
-        #[allow(deprecated)]
-        {
-            let recipient: Address = env.storage().instance().get(&Key::Recipient).unwrap();
-            recipient.require_auth();
+        let recipient: Address = env.storage().instance().get(&Key::Recipient).unwrap();
+        recipient.require_auth();
 
-            let rate: i128 = env.storage().instance().get(&Key::Rate).unwrap();
-            let start: u64 = env.storage().instance().get(&Key::StartTs).unwrap();
-            let end: u64 = env.storage().instance().get(&Key::EndTs).unwrap();
-            let claimed: i128 = env.storage().instance().get(&Key::Claimed).unwrap();
+        let rate: i128 = env.storage().instance().get(&Key::Rate).unwrap();
+        let start: u64 = env.storage().instance().get(&Key::StartTs).unwrap();
+        let end: u64 = env.storage().instance().get(&Key::EndTs).unwrap();
+        let claimed: i128 = env.storage().instance().get(&Key::Claimed).unwrap();
 
-            let now = env.ledger().timestamp();
-            let cap = if now > end { end } else { now };
-            if cap <= start {
-                panic_with_error!(&env, Error::NothingToClaim);
-            }
-            let elapsed: i128 = (cap - start) as i128;
-            let vested = elapsed.checked_mul(rate).unwrap_or(0);
-            let available = vested.checked_sub(claimed).unwrap_or(0);
-            if available <= 0 {
-                panic_with_error!(&env, Error::NothingToClaim);
-            }
-
-            env.storage().instance().set(&Key::Claimed, &vested);
-
-            let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-            token::Client::new(&env, &asset).transfer(
-                &env.current_contract_address(),
-                &recipient,
-                &available,
-            );
-            env.events()
-                .publish((symbol_short!("claim"), recipient.clone()), available);
-            available
+        let now = env.ledger().timestamp();
+        let cap = if now > end { end } else { now };
+        if cap <= start {
+            panic_with_error!(&env, Error::NothingToClaim);
         }
+        let elapsed: i128 = (cap - start) as i128;
+        let vested = elapsed.checked_mul(rate).unwrap_or(0);
+        let available = vested.checked_sub(claimed).unwrap_or(0);
+        if available <= 0 {
+            panic_with_error!(&env, Error::NothingToClaim);
+        }
+
+        env.storage().instance().set(&Key::Claimed, &vested);
+
+        let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+        token::Client::new(&env, &asset).transfer(
+            &env.current_contract_address(),
+            &recipient,
+            &available,
+        );
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("claim"), recipient.clone()), available);
+        available
     }
 
     pub fn available(env: Env) -> i128 {
@@ -117,18 +115,16 @@ impl Streamer {
     }
 
     pub fn cancel(env: Env) {
-        #[allow(deprecated)]
-        {
-            let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
-            admin.require_auth();
-            let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-            let client = token::Client::new(&env, &asset);
-            let balance = client.balance(&env.current_contract_address());
-            if balance > 0 {
-                client.transfer(&env.current_contract_address(), &admin, &balance);
-            }
-            env.events().publish((symbol_short!("cancel"),), balance);
+        let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
+        admin.require_auth();
+        let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+        let client = token::Client::new(&env, &asset);
+        let balance = client.balance(&env.current_contract_address());
+        if balance > 0 {
+            client.transfer(&env.current_contract_address(), &admin, &balance);
         }
+        #[allow(deprecated)]
+        env.events().publish((symbol_short!("cancel"),), balance);
     }
 }
 

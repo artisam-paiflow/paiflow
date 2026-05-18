@@ -1,28 +1,14 @@
 #!/usr/bin/env tsx
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { config } from "dotenv";
 import { PrismaClient, TemplateKind } from "@prisma/client";
 
 const db = new PrismaClient();
 
-function loadEnvLocal() {
-  try {
-    const content = readFileSync(resolve(".env.local"), "utf-8");
-    const lines = content.split("\n");
-    for (const line of lines) {
-      const [key, ...valueParts] = line.split("=");
-      if (key && key.startsWith("STELLAR_WASM_HASH_") && valueParts.length > 0) {
-        process.env[key.trim()] = valueParts.join("=").trim();
-      }
-    }
-  } catch (e) {
-    console.log("Could not load .env.local:", e);
-  }
-}
-
-loadEnvLocal();
+config({ path: resolve(".env.local") });
 
 async function update() {
+  const network = process.env.STELLAR_NETWORK ?? "testnet";
   const templates = [
     { kind: TemplateKind.SPLITTER, envKey: "STELLAR_WASM_HASH_SPLITTER" },
     { kind: TemplateKind.STREAMER, envKey: "STELLAR_WASM_HASH_STREAMER" },
@@ -37,12 +23,13 @@ async function update() {
     }
 
     const result = await db.contractTemplate.upsert({
-      where: { kind_network: { kind: t.kind, network: "testnet" } },
+      where: { kind_network: { kind: t.kind, network } },
       update: { wasmHash: hash },
       create: {
         kind: t.kind,
-        network: "testnet",
+        network,
         wasmHash: hash,
+        // TODO: ABI ingestion — abiJson is empty until ABI extraction lands.
         abiJson: {},
       },
     });

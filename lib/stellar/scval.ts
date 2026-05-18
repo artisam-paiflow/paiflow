@@ -25,6 +25,7 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
       const recipientsVec = xdr.ScVal.scvVec(
         params.recipients.map((r) =>
           xdr.ScVal.scvMap([
+            // Keys must be in lexicographic Symbol order for Soroban Map decoding.
             new xdr.ScMapEntry({
               key: nativeToScVal("address", { type: "symbol" }),
               val: addr(r.address),

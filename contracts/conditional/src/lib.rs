@@ -62,57 +62,53 @@ impl Conditional {
     }
 
     pub fn release(env: Env) {
-        #[allow(deprecated)]
+        let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
+        admin.require_auth();
+        if env
+            .storage()
+            .instance()
+            .get::<_, bool>(&Key::Released)
+            .unwrap_or(false)
         {
-            let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
-            admin.require_auth();
-            if env
-                .storage()
-                .instance()
-                .get::<_, bool>(&Key::Released)
-                .unwrap_or(false)
-            {
-                panic_with_error!(&env, Error::AlreadyReleased);
-            }
-            let condition: ConditionKind = env.storage().instance().get(&Key::Condition).unwrap();
-            let now = env.ledger().timestamp();
-            let can_release = match condition {
-                ConditionKind::Timeout(ts) => now >= ts,
-                ConditionKind::OracleGte(_) => {
-                    panic_with_error!(&env, Error::OracleNotSupported);
-                }
-                ConditionKind::Multisig(_threshold) => true,
-            };
-            if !can_release {
-                panic_with_error!(&env, Error::ConditionNotMet);
-            }
-            let amount: i128 = env.storage().instance().get(&Key::Amount).unwrap();
-            let recipient: Address = env.storage().instance().get(&Key::Recipient).unwrap();
-            let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-            token::Client::new(&env, &asset).transfer(
-                &env.current_contract_address(),
-                &recipient,
-                &amount,
-            );
-            env.storage().instance().set(&Key::Released, &true);
-            env.events()
-                .publish((symbol_short!("release"), recipient), amount);
+            panic_with_error!(&env, Error::AlreadyReleased);
         }
+        let condition: ConditionKind = env.storage().instance().get(&Key::Condition).unwrap();
+        let now = env.ledger().timestamp();
+        let can_release = match condition {
+            ConditionKind::Timeout(ts) => now >= ts,
+            ConditionKind::OracleGte(_) => {
+                panic_with_error!(&env, Error::OracleNotSupported);
+            }
+            ConditionKind::Multisig(_threshold) => true,
+        };
+        if !can_release {
+            panic_with_error!(&env, Error::ConditionNotMet);
+        }
+        let amount: i128 = env.storage().instance().get(&Key::Amount).unwrap();
+        let recipient: Address = env.storage().instance().get(&Key::Recipient).unwrap();
+        let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+        token::Client::new(&env, &asset).transfer(
+            &env.current_contract_address(),
+            &recipient,
+            &amount,
+        );
+        env.storage().instance().set(&Key::Released, &true);
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("release"), recipient), amount);
     }
 
     pub fn cancel(env: Env) {
-        #[allow(deprecated)]
-        {
-            let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
-            admin.require_auth();
-            let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-            let client = token::Client::new(&env, &asset);
-            let bal = client.balance(&env.current_contract_address());
-            if bal > 0 {
-                client.transfer(&env.current_contract_address(), &admin, &bal);
-            }
-            env.events().publish((symbol_short!("cancel"),), bal);
+        let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
+        admin.require_auth();
+        let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+        let client = token::Client::new(&env, &asset);
+        let bal = client.balance(&env.current_contract_address());
+        if bal > 0 {
+            client.transfer(&env.current_contract_address(), &admin, &bal);
         }
+        #[allow(deprecated)]
+        env.events().publish((symbol_short!("cancel"),), bal);
     }
 
     pub fn status(env: Env) -> bool {
