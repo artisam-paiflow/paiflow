@@ -72,6 +72,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    await checkAccountFunding(body.sourceAccount);
+
     const deployment = await db.deployment.create({
       data: {
         flowId: flow.id,

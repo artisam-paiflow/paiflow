@@ -187,7 +187,7 @@ mod test {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Error(Contract, #2)")]
     fn bad_bps_panics() {
         let env = Env::default();
         env.mock_all_auths();

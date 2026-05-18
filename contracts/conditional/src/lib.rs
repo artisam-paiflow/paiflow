@@ -369,6 +369,7 @@ mod test {
         let asset = env.register_stellar_asset_contract_v2(admin.clone());
         let sac = token::StellarAssetClient::new(&env, &asset.address());
         let recipient = Address::generate(&env);
+        let _oracle = Address::generate(&env);
         let condition = ConditionKind::OracleGte(String::from_str(&env, "BTC/USD"));
 
         let contract_id = env.register(

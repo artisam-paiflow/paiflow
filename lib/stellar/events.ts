@@ -44,6 +44,7 @@ const SPLITTER_REGISTRY: EventRegistry = {
     decode: (topics, value) => {
       if (!value || !Array.isArray(value)) return null;
       const from = topics[1] ?? null;
+      // recipients: Array<{ address: string; bps: number }>
       const recipients = value as ScValNative[];
       return from && recipients ? { from, recipients } : null;
     },
