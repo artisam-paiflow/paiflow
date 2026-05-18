@@ -40,3 +40,41 @@ body {
 .react-flow__node {
   font-family: inherit;
 }
+
+/* React Flow dark theme overrides */
+.react-flow__node.react-flow__node-default {
+  background: #18181b;
+  color: #e4e4e7;
+  border: 1px solid #3f3f46;
+}
+
+.react-flow__node.react-flow__node-default.selectable:hover {
+  border-color: #fb7185;
+  box-shadow: 0 0 0 2px rgba(251, 113, 133, 0.2);
+}
+
+.react-flow__node.react-flow__node-default.selected {
+  border-color: #fb7185;
+  box-shadow: 0 0 0 2px rgba(251, 113, 133, 0.3);
+}
+
+.react-flow__handle {
+  background: #fb7185;
+  border-color: #18181b;
+  width: 8px;
+  height: 8px;
+}
+
+.react-flow__controls button {
+  background: #18181b;
+  color: #e4e4e7;
+  border-color: #3f3f46;
+}
+
+.react-flow__controls button:hover {
+  background: #27272a;
+}
+
+.react-flow__controls button svg {
+  fill: #e4e4e7;
+}

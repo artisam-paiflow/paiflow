@@ -308,11 +308,13 @@ function AssetField({
     | { kind: "custom"; code: string; issuer: string };
   onChange: (a: typeof asset) => void;
 }) {
+  const selectValue = asset.kind === "known" ? `known:${asset.symbol}` : asset.kind;
+
   return (
     <Field label="Asset">
       <select
         className="input"
-        value={asset.kind === "known" ? `known:${asset.symbol}` : asset.kind}
+        value={selectValue}
         onChange={(e) => {
           const v = e.target.value;
           if (v === "native") onChange({ kind: "native" });
@@ -321,6 +323,7 @@ function AssetField({
       >
         <option value="known:USDC">USDC</option>
         <option value="native">XLM (native)</option>
+        {asset.kind === "custom" && <option value="custom">{asset.code} (custom)</option>}
       </select>
     </Field>
   );

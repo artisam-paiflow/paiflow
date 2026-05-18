@@ -24,6 +24,8 @@ import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import ConfigPanel from "./config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
+import AiGenerateBar from "./ai-generate-bar";
+import SuggestionPanel from "./suggestion-panel";
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -61,6 +63,16 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
     type,
     position: { x: 240 + index * 40, y: 80 + index * 120 },
     data: { node: n, label: n.type },
+    style: {
+      background: "#18181b",
+      color: "#e4e4e7",
+      border: "1px solid #3f3f46",
+      borderRadius: "8px",
+      padding: "10px 14px",
+      fontSize: "13px",
+      fontWeight: 500,
+      boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+    },
   };
 }
 
@@ -82,6 +94,10 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     initialGraph.edges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<
+    Array<{ severity: "error" | "warning" | "info"; message: string }>
+  >([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
 
   const graph: FlowGraph = useMemo(
     () => ({
@@ -98,28 +114,51 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
   const selectedNode = flowNodes.find((n) => n.id === selectedId) ?? null;
 
-  // Debounced autosave
+  async function fetchSuggestions(opts?: { auto?: boolean }) {
+    if (suggestLoading) return;
+    setSuggestLoading(true);
+    try {
+      const res = await fetch("/api/flows/suggest", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ graph }),
+      });
+      const data = await res.json().catch(() => ({ data: { suggestions: [] } }));
+      const list = data.data?.suggestions ?? [];
+      setSuggestions(list);
+      if (!opts?.auto && list.length === 0) {
+        toast.success("No issues found — your flow looks good!");
+      }
+    } catch {
+      if (!opts?.auto) toast.error("Failed to get suggestions");
+    } finally {
+      setSuggestLoading(false);
+    }
+  }
+
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
-  const queuedSave = useRef(false);
-  useEffect(() => {
-    queuedSave.current = true;
+
+  async function saveGraph(currentGraph: FlowGraph, currentName: string) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
-      if (!queuedSave.current) return;
-      queuedSave.current = false;
       const res = await fetch(`/api/flows/${flowId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, graph }),
+        body: JSON.stringify({ name: currentName, graph: currentGraph }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        toast.error(`Save failed: ${body?.error?.message ?? res.status}`);
+        if (res.status >= 500) {
+          toast.error(`Save failed: ${body?.error?.message ?? res.status}`);
+        }
       }
-    }, 1500);
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
+    }, 800);
+  }
+
+  // Autosave on name / graph changes
+  useEffect(() => {
+    saveGraph(graph, name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowId, name, graph]);
 
   const onNodesChange = useCallback(
@@ -136,8 +175,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   );
 
   function addNode(node: FlowNode) {
-    setFlowNodes((arr) => [...arr, node]);
-    setRfNodes((arr) => [...arr, nodeToReactFlow(node, arr.length)]);
+    setFlowNodes((arr) => {
+      const next = [...arr, node];
+      setRfNodes((rfArr) => [...rfArr, nodeToReactFlow(node, rfArr.length)]);
+      return next;
+    });
   }
 
   function updateNode(updated: FlowNode) {
@@ -146,9 +188,49 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
   function deleteNode(id: string) {
     setFlowNodes((arr) => arr.filter((n) => n.id !== id));
-    setRfNodes((arr) => arr.filter((n) => n.id !== id));
-    setRfEdges((arr) => arr.filter((e) => e.source !== id && e.target !== id));
+    setRfNodes((rfArr) => rfArr.filter((n) => n.id !== id));
+    setRfEdges((edgeArr) => edgeArr.filter((e) => e.source !== id && e.target !== id));
     if (selectedId === id) setSelectedId(null);
+  }
+
+  const appendCounter = useRef(0);
+
+  function appendGraph(graph: FlowGraph) {
+    appendCounter.current += 1;
+    const batchId = appendCounter.current;
+
+    // Offset new nodes so they don't overlap existing ones
+    const maxX = rfNodes.reduce((m, n) => Math.max(m, n.position?.x ?? 0), 0);
+    const offsetX = maxX + 200;
+
+    // Remap IDs to avoid collisions with existing nodes
+    const idMap = new Map<string, string>();
+    const newFlowNodes = graph.nodes.map((n) => {
+      const newId = `ai-${batchId}-${n.id}`;
+      idMap.set(n.id, newId);
+      return { ...n, id: newId };
+    });
+
+    const newRfNodes = graph.nodes.map((n, i) => {
+      const rf = nodeToReactFlow({ ...n, id: idMap.get(n.id)! }, i);
+      rf.position.x += offsetX;
+      return rf;
+    });
+
+    let edgeIdx = 0;
+    const newRfEdges = graph.edges.map((e) => {
+      edgeIdx += 1;
+      return {
+        id: `ai-e-${batchId}-${edgeIdx}`,
+        source: idMap.get(e.source) ?? e.source,
+        target: idMap.get(e.target) ?? e.target,
+      };
+    });
+
+    setFlowNodes((arr) => [...arr, ...newFlowNodes]);
+    setRfNodes((arr) => [...arr, ...newRfNodes]);
+    setRfEdges((arr) => [...arr, ...newRfEdges]);
+    setSelectedId(null);
   }
 
   return (
@@ -159,13 +241,17 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       <Palette onAdd={addNode} />
 
       <div className="relative">
-        <div className="absolute top-3 left-3 z-10 flex items-center gap-3">
+        <div className="absolute top-3 right-3 left-3 z-10 flex items-center gap-3">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="rounded bg-zinc-900/80 px-3 py-1.5 text-sm font-medium"
           />
           <DeployButton flowId={flowId} />
+          <div className="flex-1" />
+          <div className="w-full max-w-md">
+            <AiGenerateBar onGenerate={appendGraph} />
+          </div>
         </div>
         <ReactFlow
           nodes={rfNodes.map((n) => ({
@@ -173,7 +259,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
             data: { ...n.data, label: nodeLabel(flowNodes.find((f) => f.id === n.id)) },
             selected: n.id === selectedId,
           }))}
-          edges={rfEdges}
+          edges={rfEdges.map((e) => ({ ...e, style: { stroke: "#71717a", strokeWidth: 2 } }))}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
@@ -182,7 +268,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           nodeTypes={nodeTypes}
           fitView
         >
-          <Background />
+          <Background gap={16} size={1} color="#27272a" />
           <Controls />
         </ReactFlow>
         <div className="pointer-events-none absolute right-4 bottom-4 left-4 rounded-lg bg-zinc-950/90 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800">
@@ -191,7 +277,18 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         </div>
       </div>
 
-      <ConfigPanel node={selectedNode} onChange={updateNode} onDelete={deleteNode} />
+      <div className="flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-auto">
+          <ConfigPanel node={selectedNode} onChange={updateNode} onDelete={deleteNode} />
+        </div>
+        <SuggestionPanel
+          suggestions={suggestions}
+          loading={suggestLoading}
+          onReview={() => fetchSuggestions()}
+          onDismiss={(i) => setSuggestions((s) => s.filter((_, idx) => idx !== i))}
+          onDismissAll={() => setSuggestions([])}
+        />
+      </div>
     </div>
   );
 }

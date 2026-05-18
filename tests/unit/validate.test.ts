@@ -160,4 +160,33 @@ describe("validateFlow", () => {
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.templateKind).toBe(TemplateKind.STREAMER);
   });
+
+  it("accepts multiple triggers (relaxed validation)", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t1", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "t2",
+          type: "on_schedule",
+          config: { interval: "day", startsAt: "2030-01-01T00:00:00.000Z" },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [
+              { address: ADDR, bps: 5000 },
+              { address: ADDR, bps: 5000 },
+            ],
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t1", target: "a" },
+        { id: "e2", source: "t2", target: "a" },
+      ],
+    });
+    expect(r.ok).toBe(true);
+  });
 });
