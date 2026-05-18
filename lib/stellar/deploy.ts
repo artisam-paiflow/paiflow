@@ -15,6 +15,7 @@ import { AppError } from "@/lib/errors";
 import type { ContractParams } from "@/lib/flows/to-params";
 import { constructorArgs } from "./scval";
 
+// 20 XLM covers: 1 XLM base reserve + ~0.5 XLM Soroban storage entries + ~0.5 XLM tx fee buffer
 const MIN_DEPLOYMENT_XLM_STROOPS = 20_000_000n;
 
 export type PreparedDeploy = {
@@ -27,13 +28,25 @@ export async function checkAccountFunding(
   sourceAccount: string,
   minLumens: bigint = MIN_DEPLOYMENT_XLM_STROOPS,
 ): Promise<void> {
-  const acct = await horizon().loadAccount(sourceAccount);
+  let acct: Awaited<ReturnType<ReturnType<typeof horizon>["loadAccount"]>>;
+  try {
+    acct = await horizon().loadAccount(sourceAccount);
+  } catch (e) {
+    if (e instanceof Error && e.name === "NotFoundError") {
+      throw new AppError(
+        "INSUFFICIENT_FUNDS",
+        `Account ${sourceAccount} is not funded. Send at least ${Number(minLumens) / 10_000_000} XLM to activate it first.`,
+      );
+    }
+    throw e;
+  }
   const native = acct.balances.find((b) => b.asset_type === "native");
-  const balance = BigInt(Math.floor(parseFloat(native?.balance ?? "0") * 10_000_000));
+  const [whole = "0", frac = ""] = (native?.balance ?? "0").split(".");
+  const balance = BigInt(whole) * 10_000_000n + BigInt(frac.padEnd(7, "0").slice(0, 7));
   if (balance < minLumens) {
     throw new AppError(
       "INSUFFICIENT_FUNDS",
-      `Account has ${native?.balance ?? "0"} XLM. Minimum ${minLumens} stroops required for deployment fees and rent.`,
+      `Account has ${native?.balance ?? "0"} XLM. Minimum ${Number(minLumens) / 10_000_000} XLM required for deployment fees and rent.`,
     );
   }
 }
