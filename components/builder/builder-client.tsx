@@ -23,11 +23,18 @@ import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { isPendingAddress } from "@/lib/flows/schema";
 import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
+import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import ConfigPanel from "./config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
 import RaftLog, { type ChatMessage } from "./raft-log";
 import type { PatchOp } from "@/lib/ai/prompts";
+
+const nodeTypes = {
+  trigger: TriggerNode,
+  action: ActionNode,
+  logic: LogicNode,
+};
 
 type BuilderProps = {
   flowId: string;
@@ -36,9 +43,27 @@ type BuilderProps = {
 };
 
 function nodeToReactFlow(n: FlowNode, index: number): Node {
+  let type: "trigger" | "action" | "logic";
+  switch (n.type) {
+    case "on_receive":
+    case "on_schedule":
+      type = "trigger";
+      break;
+    case "pay":
+    case "split":
+      type = "action";
+      break;
+    case "condition":
+      type = "logic";
+      break;
+    default: {
+      const _exhaustive: never = n;
+      throw new Error(`Unknown node type: ${(_exhaustive as FlowNode).type}`);
+    }
+  }
   return {
     id: n.id,
-    type: "default",
+    type,
     position: { x: 240 + index * 40, y: 80 + index * 120 },
     data: { node: n, label: n.type },
   };
@@ -346,21 +371,19 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
               data: { ...n.data, label: nodeLabel(flowNodes.find((f) => f.id === n.id)) },
               selected: n.id === selectedId,
             }))}
-            edges={rfEdges}
+            edges={rfEdges.map((e) => ({ ...e, style: { stroke: "#71717a", strokeWidth: 2 } }))}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={(_, n) => setSelectedId(n.id)}
             onPaneClick={() => setSelectedId(null)}
+            nodeTypes={nodeTypes}
             fitView
           >
-            <Background />
+            <Background gap={16} size={1} color="#27272a" />
             <Controls />
           </ReactFlow>
-        </div>
-
-        <div className="shrink-0 border-t border-zinc-800">
-          <div className="bg-zinc-950/90 px-4 py-3 text-sm text-zinc-200">
+          <div className="pointer-events-none absolute right-4 bottom-4 left-4 rounded-lg bg-zinc-950/90 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800">
             <div className="text-brand-400 text-[10px] tracking-wide uppercase">
               English preview
             </div>
