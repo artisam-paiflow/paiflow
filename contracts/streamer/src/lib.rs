@@ -113,7 +113,7 @@ impl Streamer {
     pub fn top_up(env: Env, from: Address, amount: i128) {
         from.require_auth();
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-        token::Client::new(&env, &asset).transfer(&from, &env.current_contract_address(), &amount);
+        token::Client::new(&env, &asset).transfer(&from, env.current_contract_address(), &amount);
     }
 
     pub fn cancel(env: Env) {
