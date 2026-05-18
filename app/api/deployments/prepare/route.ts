@@ -10,7 +10,7 @@ import { env } from "@/lib/env";
 import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToParams } from "@/lib/flows/to-params";
-import { prepareDeployTx } from "@/lib/stellar/deploy";
+import { prepareDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
 import { assertMainnetAllowed } from "@/lib/mainnet";
 
 const PrepareSchema = z.object({
@@ -59,6 +59,8 @@ export async function POST(req: NextRequest) {
     }
 
     const params = flowToParams(v.graph, v.templateKind);
+
+    await checkAccountFunding(body.sourceAccount);
 
     const template = await db.contractTemplate.findFirst({
       where: { kind: v.templateKind, network: body.network },

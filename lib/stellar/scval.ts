@@ -55,9 +55,43 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
       ];
     }
     case "conditional": {
-      const cond = params.condition
-        ? nativeToScVal(JSON.stringify(params.condition), { type: "string" })
-        : xdr.ScVal.scvVoid();
+      if (!params.condition) {
+        return [
+          addr(admin),
+          recipientsVec(params.recipients),
+          addr(assetContractId(params.asset)),
+          amountStroops(params),
+          xdr.ScVal.scvVoid(),
+        ];
+      }
+      const c = params.condition as { kind: string; [key: string]: unknown };
+      let cond: xdr.ScVal;
+      switch (c.kind) {
+        case "time_after": {
+          const ts = BigInt(Math.floor(new Date(c.at as string).getTime() / 1000));
+          cond = xdr.ScVal.scvVec([nativeToScVal("Timeout", { type: "symbol" }), u64(ts)]);
+          break;
+        }
+        case "time_before": {
+          throw new Error("time_before condition is not yet supported — use time_after");
+        }
+        case "oracle_gte": {
+          cond = xdr.ScVal.scvVec([
+            nativeToScVal("OracleGte", { type: "symbol" }),
+            nativeToScVal(c.oracle as string, { type: "string" }),
+          ]);
+          break;
+        }
+        case "amount_gt":
+        case "amount_lt": {
+          throw new Error("amount_gt/amount_lt conditions are not yet supported");
+        }
+        default:
+          cond = xdr.ScVal.scvVec([
+            nativeToScVal("Multisig", { type: "symbol" }),
+            xdr.ScVal.scvU32(1),
+          ]);
+      }
       return [
         addr(admin),
         recipientsVec(params.recipients),

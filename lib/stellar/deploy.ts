@@ -9,17 +9,47 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 import { randomBytes } from "node:crypto";
-import { sorobanRpc } from "./client";
+import { sorobanRpc, horizon } from "./client";
 import { stellarPassphrase } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import type { ContractParams } from "@/lib/flows/to-params";
 import { constructorArgs } from "./scval";
+
+// 2 XLM covers: 1 XLM base reserve + ~0.5 XLM Soroban storage entries + ~0.5 XLM tx fee buffer
+const MIN_DEPLOYMENT_XLM_STROOPS = 20_000_000n;
 
 export type PreparedDeploy = {
   xdr: string;
   contractAddress: string;
   salt: Buffer;
 };
+
+export async function checkAccountFunding(
+  sourceAccount: string,
+  minLumens: bigint = MIN_DEPLOYMENT_XLM_STROOPS,
+): Promise<void> {
+  let acct: Awaited<ReturnType<ReturnType<typeof horizon>["loadAccount"]>>;
+  try {
+    acct = await horizon().loadAccount(sourceAccount);
+  } catch (e) {
+    if (e instanceof Error && e.name === "NotFoundError") {
+      throw new AppError(
+        "INSUFFICIENT_FUNDS",
+        `Account ${sourceAccount} is not funded. Send at least ${Number(minLumens) / 10_000_000} XLM to activate it first.`,
+      );
+    }
+    throw e;
+  }
+  const native = acct.balances.find((b) => b.asset_type === "native");
+  const [whole = "0", frac = ""] = (native?.balance ?? "0").split(".");
+  const balance = BigInt(whole) * 10_000_000n + BigInt(frac.padEnd(7, "0").slice(0, 7));
+  if (balance < minLumens) {
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Account has ${native?.balance ?? "0"} XLM. Minimum ${Number(minLumens) / 10_000_000} XLM required for deployment fees and rent.`,
+    );
+  }
+}
 
 /** Build & simulate a Soroban contract creation tx. Returns unsigned XDR. */
 export async function prepareDeployTx(opts: {
