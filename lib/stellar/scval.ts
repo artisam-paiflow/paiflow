@@ -23,7 +23,15 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
   switch (params.kind) {
     case "splitter": {
       const recipientsVec = xdr.ScVal.scvVec(
-        params.recipients.map((r) => xdr.ScVal.scvVec([addr(r.address), u32(r.bps)])),
+        params.recipients.map((r) =>
+          xdr.ScVal.scvMap([
+            new xdr.ScMapEntry({
+              key: nativeToScVal("address", { type: "symbol" }),
+              val: addr(r.address),
+            }),
+            new xdr.ScMapEntry({ key: nativeToScVal("bps", { type: "symbol" }), val: u32(r.bps) }),
+          ]),
+        ),
       );
       return [addr(admin), addr(assetContractId(params.asset)), recipientsVec];
     }
