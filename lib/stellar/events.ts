@@ -150,11 +150,19 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
 
   let resp: rpc.Api.GetEventsResponse;
   try {
-    resp = await server.getEvents({
-      startLedger: startLedger > 0 ? startLedger : undefined,
-      filters: [{ type: "contract", contractIds: [deployment.contractAddress] }],
-      limit: 100,
-    });
+    const pagingToken = deployment.cursor?.lastPagingToken;
+    const request = pagingToken
+      ? {
+          cursor: pagingToken,
+          filters: [{ type: "contract" as const, contractIds: [deployment.contractAddress] }],
+          limit: 100,
+        }
+      : {
+          startLedger,
+          filters: [{ type: "contract" as const, contractIds: [deployment.contractAddress] }],
+          limit: 100,
+        };
+    resp = await server.getEvents(request);
   } catch (err) {
     log.warn({ err, deploymentId }, "getEvents failed");
     return 0;
