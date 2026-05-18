@@ -1,4 +1,5 @@
 import "server-only";
+import { Prisma } from "@prisma/client";
 import { rpc, scValToNative } from "@stellar/stellar-sdk";
 import { EventKind, TemplateKind } from "@prisma/client";
 import { sorobanRpc } from "./client";
@@ -6,7 +7,7 @@ import { db } from "@/lib/db";
 import { redis, eventChannel } from "@/lib/redis";
 import { log } from "@/lib/log";
 
-type ScValNative = Awaited<ReturnType<typeof scValToNative>>;
+type ScValNative = ReturnType<typeof scValToNative>;
 
 type DecodedData = Record<string, ScValNative> | null;
 
@@ -43,6 +44,7 @@ const SPLITTER_REGISTRY: EventRegistry = {
     decode: (topics, value) => {
       if (!value || !Array.isArray(value)) return null;
       const from = topics[1] ?? null;
+      // recipients: Array<{ address: string; bps: number }>
       const recipients = value as ScValNative[];
       return from && recipients ? { from, recipients } : null;
     },
@@ -59,7 +61,7 @@ const STREAMER_REGISTRY: EventRegistry = {
     },
   },
   cancel: {
-    kind: EventKind.RECEIVE,
+    kind: EventKind.CANCEL,
     decode: (_topics, value) => {
       const balance = value ?? null;
       return balance !== null ? { balance } : null;
@@ -77,7 +79,7 @@ const CONDITIONAL_REGISTRY: EventRegistry = {
     },
   },
   cancel: {
-    kind: EventKind.RECEIVE,
+    kind: EventKind.CANCEL,
     decode: (_topics, value) => {
       const balance = value ?? null;
       return balance !== null ? { balance } : null;
@@ -138,7 +140,10 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
   if (!deployment?.contractAddress || deployment.status !== "CONFIRMED") return 0;
 
   const templateKind = deployment.flow?.templateKind;
-  if (!templateKind) return 0;
+  if (!templateKind) {
+    log.warn({ deploymentId }, "pollEventsFor: flow templateKind not found, skipping");
+    return 0;
+  }
 
   const server = sorobanRpc();
   const startLedger = (deployment.cursor?.lastLedger ?? 0) + 1;
@@ -181,7 +186,7 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
           ledger: ev.ledger,
           txHash: ev.txHash,
           payload: { topics, value } as object,
-          decodedData: decodedData as object,
+          decodedData: (decodedData ?? Prisma.JsonNull) as Prisma.InputJsonValue,
           occurredAt: new Date(ev.ledgerClosedAt),
         },
       });
