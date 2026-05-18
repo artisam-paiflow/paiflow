@@ -51,8 +51,8 @@ describe("checkAccountFunding", () => {
     });
   });
 
-  it("succeeds when balance is at minimum (20 XLM)", async () => {
-    const mockAcct = { balances: [{ asset_type: "native", balance: "20" }] };
+  it("succeeds when balance is at minimum (2 XLM)", async () => {
+    const mockAcct = { balances: [{ asset_type: "native", balance: "2" }] };
     vi.mocked(horizon).mockReturnValue({
       loadAccount: async () => mockAcct,
     } as unknown as ReturnType<typeof horizon>);

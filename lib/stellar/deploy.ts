@@ -15,7 +15,7 @@ import { AppError } from "@/lib/errors";
 import type { ContractParams } from "@/lib/flows/to-params";
 import { constructorArgs } from "./scval";
 
-// 20 XLM covers: 1 XLM base reserve + ~0.5 XLM Soroban storage entries + ~0.5 XLM tx fee buffer
+// 2 XLM covers: 1 XLM base reserve + ~0.5 XLM Soroban storage entries + ~0.5 XLM tx fee buffer
 const MIN_DEPLOYMENT_XLM_STROOPS = 20_000_000n;
 
 export type PreparedDeploy = {
