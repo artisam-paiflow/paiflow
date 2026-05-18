@@ -425,10 +425,10 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
             </div>
             <div className="mt-1">{english}</div>
             {!isValid && errors.length > 0 && (
-              <div className="mt-2 space-y-0.5">
+              <div className="mt-2 space-y-1">
                 {errors.map((e, i) => (
                   <div key={i} className="text-[11px] text-red-400">
-                    {e.message}
+                    {e.friendlyMessage}
                   </div>
                 ))}
               </div>

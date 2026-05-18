@@ -107,7 +107,7 @@ async function tryEdit(
 
   const v = validateFlow(patchedGraph);
   if (!v.ok) {
-    const errorMessages = v.errors.map((e) => `${e.path}: ${e.message}`);
+    const errorMessages = v.errors.map((e) => `${e.path}: ${e.message}\n  → ${e.friendlyMessage}`);
     throw new AppError("VALIDATION", "The AI patch would create an invalid flow", {
       patch: errorMessages,
       _rawPatch: [JSON.stringify(patch)],
@@ -183,7 +183,7 @@ async function retryEdit(
 
   const v = validateFlow(patchedGraph);
   if (!v.ok) {
-    const errorMessages = v.errors.map((e) => `${e.path}: ${e.message}`);
+    const errorMessages = v.errors.map((e) => `${e.path}: ${e.message}\n  → ${e.friendlyMessage}`);
     throw new AppError(
       "VALIDATION",
       "The AI couldn't produce a valid patch. Try describing your change differently.",
