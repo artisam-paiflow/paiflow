@@ -9,17 +9,14 @@ export interface GroqMessage {
 }
 
 function extractJson(text: string): string | null {
-  // Try to extract JSON from markdown code blocks
   const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (codeBlock?.[1]) return codeBlock[1].trim();
 
-  // Try to find JSON object/array boundaries
   const objStart = text.indexOf("{");
   const arrStart = text.indexOf("[");
   const start = Math.min(objStart >= 0 ? objStart : Infinity, arrStart >= 0 ? arrStart : Infinity);
   if (start === Infinity) return null;
 
-  // Find matching closing brace/bracket
   let depth = 0;
   let inString = false;
   let escapeNext = false;
@@ -50,28 +47,33 @@ function extractJson(text: string): string | null {
   return null;
 }
 
-export async function callGroq(
+function getModelChain(callerModel?: string): string[] {
+  if (callerModel) return [callerModel];
+  const primary = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
+  const fallbacksRaw = process.env.GROQ_FALLBACK_MODELS ?? "";
+  const fallbacks = fallbacksRaw
+    ? fallbacksRaw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : ["llama-3.1-8b-instant", "qwen/qwen3-32b"];
+  return [primary, ...fallbacks];
+}
+
+async function tryModel(
+  apiKey: string,
+  model: string,
+  temperature: number,
   messages: GroqMessage[],
-  opts: { model?: string; temperature?: number; responseFormat?: "json_object" | "text" } = {},
+  responseFormat?: "json_object" | "text",
 ): Promise<unknown> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    throw new AppError(
-      "INTERNAL",
-      "Groq API key is not configured. Set GROQ_API_KEY in your environment.",
-    );
-  }
-
-  const model = opts.model ?? process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
-  const temperature = opts.temperature ?? 0.2;
-
   const body: Record<string, unknown> = {
     model,
     temperature,
     messages,
   };
 
-  if (opts.responseFormat === "json_object") {
+  if (responseFormat === "json_object") {
     body.response_format = { type: "json_object" };
   }
 
@@ -86,7 +88,8 @@ export async function callGroq(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "unknown");
-    throw new AppError("UPSTREAM_RPC", `Groq request failed: ${res.status} ${text}`);
+    const code = res.status === 429 ? "RATE_LIMITED" : "UPSTREAM_RPC";
+    throw new AppError(code, `Groq request failed: ${res.status} ${text}`);
   }
 
   const json = (await res.json()) as {
@@ -95,11 +98,9 @@ export async function callGroq(
   const content = json.choices?.[0]?.message?.content;
   if (!content) throw new AppError("UPSTREAM_RPC", "Empty response from Groq");
 
-  // First try direct parse
   try {
     return JSON.parse(content);
   } catch {
-    // Try to extract JSON from markdown or partial content
     const extracted = extractJson(content);
     if (extracted) {
       try {
@@ -110,4 +111,50 @@ export async function callGroq(
     }
     throw new AppError("UPSTREAM_RPC", `Groq returned invalid JSON: ${content.slice(0, 200)}`);
   }
+}
+
+export async function callGroq(
+  messages: GroqMessage[],
+  opts: { model?: string; temperature?: number; responseFormat?: "json_object" | "text" } = {},
+): Promise<unknown> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    throw new AppError(
+      "INTERNAL",
+      "Groq API key is not configured. Set GROQ_API_KEY in your environment.",
+    );
+  }
+
+  const models = getModelChain(opts.model);
+  const temperature = opts.temperature ?? 0.2;
+  const rawErrors: Array<{ model: string; status: number; message: string }> = [];
+
+  for (const model of models) {
+    try {
+      return await tryModel(apiKey, model, temperature, messages, opts.responseFormat);
+    } catch (err) {
+      if (err instanceof AppError && (err.code === "UPSTREAM_RPC" || err.code === "RATE_LIMITED")) {
+        const statusMatch = err.message.match(/Groq request failed: (\d+)/);
+        const status = statusMatch ? Number(statusMatch[1]) : 0;
+        rawErrors.push({ model, status, message: err.message });
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  const allRatedLimited = rawErrors.every((e) => e.status === 429);
+  if (allRatedLimited) {
+    throw new AppError(
+      "RATE_LIMITED",
+      "All Groq AI models are currently rate-limited. Please try again later (limits reset daily).",
+    );
+  }
+
+  const details = Object.fromEntries(rawErrors.map((e) => [e.model, [e.message]]));
+  throw new AppError(
+    "UPSTREAM_RPC",
+    "All Groq AI models failed. Check your API key or try again later.",
+    details,
+  );
 }
