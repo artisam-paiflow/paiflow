@@ -126,9 +126,7 @@ impl Splitter {
 
     fn require_admin(env: &Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
-        if env.current_contract_address() != admin {
-            panic_with_error!(&env, Error::Unauthorized);
-        }
+        admin.require_auth();
     }
 }
 
@@ -189,7 +187,7 @@ mod test {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Error(Contract, #2)")]
     fn bad_bps_panics() {
         let env = Env::default();
         env.mock_all_auths();
