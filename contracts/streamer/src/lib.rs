@@ -252,16 +252,6 @@ mod test {
                 bps: 6000,
             },
         ];
-        env.register(
-            Streamer,
-            (
-                admin,
-                bad,
-                asset.address(),
-                10_i128,
-                1000_u64,
-                2000_u64,
-            ),
-        );
+        env.register(Streamer, (admin, bad, asset.address(), 10_i128, 1000_u64, 2000_u64));
     }
 }
