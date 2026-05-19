@@ -128,6 +128,7 @@ impl Streamer {
             i += 1;
         }
 
+        #[allow(deprecated)]
         env.events()
             .publish((symbol_short!("claim"), recipients), available);
         available
