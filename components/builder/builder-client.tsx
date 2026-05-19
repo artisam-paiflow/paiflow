@@ -24,6 +24,7 @@ import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
+import AnimatedStraightEdge from "@/components/nodes/animated-edge";
 import ConfigPanel from "./config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
@@ -34,6 +35,10 @@ const nodeTypes = {
   trigger: TriggerNode,
   action: ActionNode,
   logic: LogicNode,
+};
+
+const edgeTypes = {
+  straight: AnimatedStraightEdge,
 };
 
 const TEMPLATE_LABELS: Record<string, string> = {
@@ -75,6 +80,40 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
   };
 }
 
+function nodeBorderColor(n: FlowNode | undefined): string {
+  if (!n) return "#71717a";
+  switch (n.type) {
+    case "on_receive":
+    case "on_schedule":
+      return "#98cbff";
+    case "pay":
+    case "split":
+      return "#ffb1c4";
+    case "condition":
+      return "#ffba20";
+    default:
+      return "#71717a";
+  }
+}
+
+function edgeWithColors(
+  e: { id: string; source: string; target: string },
+  nodes: FlowNode[],
+): Edge {
+  const src = nodes.find((n) => n.id === e.source);
+  const tgt = nodes.find((n) => n.id === e.target);
+  return {
+    id: e.id,
+    source: e.source,
+    target: e.target,
+    type: "straight",
+    data: {
+      sourceColor: nodeBorderColor(src),
+      targetColor: nodeBorderColor(tgt),
+    },
+  };
+}
+
 export default function BuilderClient(props: BuilderProps) {
   return (
     <ReactFlowProvider>
@@ -90,12 +129,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     initialGraph.nodes.map((n, i) => nodeToReactFlow(n, i)),
   );
   const [rfEdges, setRfEdges] = useState<Edge[]>(
-    initialGraph.edges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      type: "straight",
-    })),
+    initialGraph.edges.map((e) => edgeWithColors(e, initialGraph.nodes)),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [chatCollapsed, setChatCollapsed] = useState(false);
@@ -166,10 +200,42 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     [],
   );
   const onConnect = useCallback(
-    (c: Connection) =>
-      setRfEdges((eds) => addEdge({ ...c, type: "straight", animated: true }, eds)),
-    [],
+    (c: Connection) => {
+      const src = flowNodes.find((n) => n.id === c.source);
+      const tgt = flowNodes.find((n) => n.id === c.target);
+      setRfEdges((eds) =>
+        addEdge(
+          {
+            ...c,
+            type: "straight",
+            data: {
+              sourceColor: nodeBorderColor(src),
+              targetColor: nodeBorderColor(tgt),
+            },
+          },
+          eds,
+        ),
+      );
+    },
+    [flowNodes],
   );
+
+  // Re-sync edge gradient colors whenever node types change
+  useEffect(() => {
+    setRfEdges((eds) =>
+      eds.map((e) => {
+        const src = flowNodes.find((n) => n.id === e.source);
+        const tgt = flowNodes.find((n) => n.id === e.target);
+        return {
+          ...e,
+          data: {
+            sourceColor: nodeBorderColor(src),
+            targetColor: nodeBorderColor(tgt),
+          },
+        };
+      }),
+    );
+  }, [flowNodes]);
 
   function addNode(node: FlowNode) {
     setFlowNodes((arr) => [...arr, node]);
@@ -230,15 +296,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         // Use server-normalized graph directly (Issue #6 fix)
         setFlowNodes(patchedGraph.nodes);
         setRfNodes(patchedGraph.nodes.map((n, i) => nodeToReactFlow(n, i)));
-        setRfEdges(
-          patchedGraph.edges.map((e) => ({
-            id: e.id,
-            source: e.source,
-            target: e.target,
-            animated: true,
-            type: "straight",
-          })),
-        );
+        setRfEdges(patchedGraph.edges.map((e) => edgeWithColors(e, patchedGraph.nodes)));
 
         // Show address prompt if the resulting graph has pending addresses
         const pending = scanPendingLabels(patchedGraph.nodes);
@@ -290,15 +348,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       const resolvedFlow = json.data.flow as FlowGraph;
       setFlowNodes(resolvedFlow.nodes);
       setRfNodes(resolvedFlow.nodes.map((n, i) => nodeToReactFlow(n, i)));
-      setRfEdges(
-        resolvedFlow.edges.map((e) => ({
-          id: e.id,
-          source: e.source,
-          target: e.target,
-          animated: true,
-          type: "straight",
-        })),
-      );
+      setRfEdges(resolvedFlow.edges.map((e) => edgeWithColors(e, resolvedFlow.nodes)));
       setPendingAddresses([]);
       setMessages((prev) => [
         ...prev,
@@ -372,7 +422,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                 data: { ...n.data, label: nodeLabel(flowNodes.find((f) => f.id === n.id)) },
                 selected: n.id === selectedId,
               }))}
-              edges={rfEdges.map((e) => ({ ...e, style: { stroke: "#71717a", strokeWidth: 2 } }))}
+              edges={rfEdges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
@@ -382,10 +432,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                 if (!chatCollapsed) setChatCollapsed(true);
               }}
               nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
               fitView
             >
               <Background gap={16} size={1} color="#27272a" />
-              <Controls />
+              <Controls position="top-left" className="!top-14 !left-3" />
             </ReactFlow>
 
             {/* Validation status badge */}

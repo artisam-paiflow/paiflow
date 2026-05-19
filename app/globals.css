@@ -315,20 +315,11 @@ h4 {
   animation: pulse-glow-tertiary 2s infinite;
 }
 
-/* Animated dashed flow lines (BRAND §3.4 / §6 visual builder edges) */
+/* Animated flow line keyframe — used by custom builder edges */
 @keyframes flow-dash {
   to {
     stroke-dashoffset: -1000;
   }
-}
-
-path.connection-line,
-.react-flow__edge-path {
-  stroke: #ffb1c4;
-  stroke-width: 1.5;
-  fill: none;
-  stroke-dasharray: 6;
-  animation: flow-dash 20s linear infinite;
 }
 
 /* Typography utility shortcuts */
