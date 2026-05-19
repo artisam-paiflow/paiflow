@@ -177,6 +177,7 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
               interval: String(data.interval ?? "day") as "minute" | "hour" | "day",
               startsAt,
               endsAt: data.endsAt ? String(data.endsAt) : undefined,
+              occurrences: data.occurrences ? Number(data.occurrences) : undefined,
             },
           } as FlowNode);
           break;
