@@ -51,9 +51,11 @@ const EnvSchema = z.object({
   // Optional in dev — when RESEND_API_KEY is unset, `lib/mail.ts` logs the
   // payload to stdout instead of delivering. Required in prod.
   RESEND_API_KEY: optionalString,
+  // Default kicks in when unset OR empty (.env.example ships `EMAIL_FROM=`).
+  // Don't add `.min(3)` here — that runs before the transform and crashes
+  // env() on the empty-string case the default is meant to catch.
   EMAIL_FROM: z
     .string()
-    .min(3)
     .optional()
     .transform((v) => (v && v.length > 0 ? v : "Pink Raft <onboarding@resend.dev>")),
 });
