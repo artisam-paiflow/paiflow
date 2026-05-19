@@ -161,10 +161,21 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowId, name, graph]);
 
-  const onNodesChange = useCallback(
-    (changes: NodeChange[]) => setRfNodes((nds) => applyNodeChanges(changes, nds)),
-    [],
-  );
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    setRfNodes((nds) => applyNodeChanges(changes, nds));
+
+    const removedIds = changes
+      .filter((c): c is { type: "remove"; id: string } => c.type === "remove")
+      .map((c) => c.id);
+
+    if (removedIds.length > 0) {
+      const removedSet = new Set(removedIds);
+      setFlowNodes((arr) => arr.filter((n) => !removedSet.has(n.id)));
+      setRfEdges((eds) =>
+        eds.filter((e) => !removedSet.has(e.source) && !removedSet.has(e.target)),
+      );
+    }
+  }, []);
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => setRfEdges((eds) => applyEdgeChanges(changes, eds)),
     [],
