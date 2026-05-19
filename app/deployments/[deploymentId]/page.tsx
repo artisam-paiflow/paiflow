@@ -58,7 +58,9 @@ export default async function DeploymentPage({
   });
   if (!d) notFound();
 
-  const graph = FlowGraphSchema.parse(d.graphSnapshot);
+  const graphResult = FlowGraphSchema.safeParse(d.graphSnapshot);
+  if (!graphResult.success) notFound();
+  const graph = graphResult.data;
 
   const invokeUri =
     d.contractAddress && d.flow.templateKind === "SPLITTER"

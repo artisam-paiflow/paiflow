@@ -17,7 +17,9 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
     },
   });
   if (!d || d.status !== "CONFIRMED" || !d.contractAddress) notFound();
-  const graph = FlowGraphSchema.parse(d.graphSnapshot);
+  const graphResult = FlowGraphSchema.safeParse(d.graphSnapshot);
+  if (!graphResult.success) notFound();
+  const graph = graphResult.data;
 
   const invokeUri =
     d.flow.templateKind === "SPLITTER"
