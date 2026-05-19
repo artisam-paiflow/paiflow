@@ -61,9 +61,6 @@ impl Conditional {
         env.storage().instance().set(&Key::Version, &VERSION);
     }
 
-    /// Release funds. Admin is checked via `admin.require_auth()`.
-    /// ConditionKind is evaluated; if not met, returns ConditionNotMet.
-    /// OracleGte condition always returns OracleNotSupported (v1 stub).
     pub fn release(env: Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
@@ -96,6 +93,7 @@ impl Conditional {
             &amount,
         );
         env.storage().instance().set(&Key::Released, &true);
+        #[allow(deprecated)]
         env.events()
             .publish((symbol_short!("release"), recipient), amount);
     }
@@ -109,6 +107,7 @@ impl Conditional {
         if bal > 0 {
             client.transfer(&env.current_contract_address(), &admin, &bal);
         }
+        #[allow(deprecated)]
         env.events().publish((symbol_short!("cancel"),), bal);
     }
 

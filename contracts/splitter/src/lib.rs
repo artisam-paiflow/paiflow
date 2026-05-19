@@ -80,7 +80,7 @@ impl Splitter {
         let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
 
         let client = token::Client::new(&env, &asset);
-        client.transfer(&from, &env.current_contract_address(), &amount);
+        client.transfer(&from, env.current_contract_address(), &amount);
 
         let len = recipients.len();
         let last_idx = len - 1;
@@ -104,8 +104,10 @@ impl Splitter {
         }
 
         let topic: Symbol = symbol_short!("distrib");
+        #[allow(deprecated)]
         env.events()
             .publish((topic, from.clone()), (asset.clone(), amount));
+        #[allow(deprecated)]
         env.events()
             .publish((symbol_short!("payout"), from), recipients);
     }
