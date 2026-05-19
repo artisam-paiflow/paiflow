@@ -110,11 +110,64 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
           <Field label="Starts at (ISO)">
             <input
               className="input"
-              value={node.config.startsAt}
+              type="datetime-local"
+              value={node.config.startsAt.slice(0, 16)}
               onChange={(e) =>
                 onChange({
                   ...node,
-                  config: { ...node.config, startsAt: e.target.value },
+                  config: { ...node.config, startsAt: new Date(e.target.value).toISOString() },
+                })
+              }
+            />
+          </Field>
+          <Field label="Ends at — optional">
+            <div className="flex gap-1">
+              <input
+                className="input"
+                type="datetime-local"
+                value={node.config.endsAt?.slice(0, 16) ?? ""}
+                onChange={(e) =>
+                  onChange({
+                    ...node,
+                    config: {
+                      ...node.config,
+                      endsAt: e.target.value ? new Date(e.target.value).toISOString() : undefined,
+                      occurrences: undefined,
+                    },
+                  })
+                }
+              />
+              {node.config.endsAt && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onChange({
+                      ...node,
+                      config: { ...node.config, endsAt: undefined },
+                    })
+                  }
+                  className="rounded border border-zinc-700 px-2 text-zinc-400 hover:text-red-300"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </Field>
+          <Field label="Occurrences — optional">
+            <input
+              className="input"
+              type="number"
+              min="1"
+              placeholder="e.g. 5"
+              value={node.config.occurrences ?? ""}
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: {
+                    ...node.config,
+                    endsAt: undefined,
+                    occurrences: e.target.value ? Number(e.target.value) : undefined,
+                  },
                 })
               }
             />

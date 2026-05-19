@@ -14,18 +14,28 @@ export default function GlobalError({
     console.error(error);
   }, [error]);
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-6 text-center">
-      <div className="text-brand-300 text-sm tracking-[0.2em] uppercase">Error</div>
-      <h1 className="mt-3 text-4xl font-semibold">Something went wrong</h1>
-      <p className="mt-3 text-zinc-400">
-        {error.digest ? <code className="text-xs">{error.digest}</code> : null}
-      </p>
-      <button
-        onClick={reset}
-        className="bg-brand-600 hover:bg-brand-500 mt-8 rounded-md px-4 py-2 font-medium"
-      >
-        Try again
-      </button>
+    <main className="px-margin mx-auto flex min-h-screen max-w-md flex-col items-center justify-center text-center">
+      <div className="glass-panel-hero p-lg w-full rounded-full">
+        <div className="text-label-sm text-error flex items-center justify-center gap-2 font-mono">
+          <span className="material-symbols-outlined text-[14px]">error</span>
+          ERROR
+        </div>
+        <h1 className="font-display text-on-surface mt-3 text-[40px] leading-[1.1] font-semibold tracking-[-0.02em]">
+          Something went wrong.
+        </h1>
+        {error.digest ? (
+          <p className="text-label-sm text-on-surface-variant mt-3 font-mono">
+            DIGEST · {error.digest}
+          </p>
+        ) : null}
+        <button
+          onClick={reset}
+          className="mt-md bg-primary px-md text-label-md text-on-primary inline-flex items-center justify-center gap-2 rounded-lg py-2.5 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_20px_rgba(255,177,196,0.55)] active:scale-95"
+        >
+          <span className="material-symbols-outlined text-[16px]">refresh</span>
+          TRY AGAIN
+        </button>
+      </div>
     </main>
   );
 }

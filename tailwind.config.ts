@@ -1,30 +1,19 @@
 import type { Config } from "tailwindcss";
 
+/**
+ * Tailwind v4 is configured via the `@theme` block in app/globals.css per
+ * BRAND.md §11 + §12. This file only keeps `content` paths and `darkMode`
+ * declared so editors and the `prettier-plugin-tailwindcss` resolver find them.
+ *
+ * Dark-mode policy: Pink Raft is dark-only by design (BRAND.md §10 lists
+ * light mode as an anti-pattern). `darkMode: "class"` + an always-on
+ * `<html className="dark">` in app/layout.tsx is intentional, not a stub
+ * for a future light theme. Do not wire a light variant without updating
+ * BRAND.md first.
+ */
 const config: Config = {
-  content: [
-    "./app/**/*.{ts,tsx}",
-    "./components/**/*.{ts,tsx}",
-    "./lib/**/*.{ts,tsx}",
-  ],
-  theme: {
-    extend: {
-      colors: {
-        brand: {
-          50: "#fff1f5",
-          100: "#ffe4ec",
-          200: "#fecdd9",
-          300: "#fda4bc",
-          400: "#fb7196",
-          500: "#f43f74",
-          600: "#e11d58",
-          700: "#be1248",
-          800: "#9f1241",
-          900: "#88133d",
-        },
-      },
-    },
-  },
-  plugins: [],
+  darkMode: "class",
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
 };
 
 export default config;

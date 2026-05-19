@@ -1,17 +1,159 @@
 @import "tailwindcss";
 
+/* Fonts (Space Grotesk / Geist / JetBrains Mono / Material Symbols Outlined)
+ * are self-hosted via `next/font/google` in app/layout.tsx — each one
+ * exposes a CSS variable (--font-grotesk, --font-geist, --font-jbm,
+ * --font-symbols) which the @theme aliases below reference. No remote
+ * font requests at runtime. */
+
+/* ---------------------------------------------------------------------------
+ * Pink Raft — BRAND.md token system (Tailwind v4 @theme)
+ * Source of truth: /BRAND.md. Do not introduce new colors / fonts / effects
+ * without updating BRAND.md first.
+ * ------------------------------------------------------------------------- */
 @theme {
-  --color-brand-50: #fff1f5;
-  --color-brand-100: #ffe4ec;
-  --color-brand-200: #fecdd9;
-  --color-brand-300: #fda4bc;
-  --color-brand-400: #fb7196;
-  --color-brand-500: #f43f74;
-  --color-brand-600: #e11d58;
-  --color-brand-700: #be1248;
-  --color-brand-800: #9f1241;
-  --color-brand-900: #88133d;
+  --color-background: #131313;
+  --color-surface: #131313;
+  --color-surface-container-lowest: #0e0e0e;
+  --color-surface-container-low: #1c1b1b;
+  --color-surface-container: #201f1f;
+  --color-surface-container-high: #2a2a2a;
+  --color-surface-container-highest: #353534;
+  --color-surface-bright: #3a3939;
+  --color-surface-dim: #131313;
+  --color-surface-variant: #353534;
+  --color-surface-tint: #ffb1c4;
+
+  --color-primary: #ffb1c4;
+  --color-primary-container: #ff4a8d;
+  --color-primary-fixed: #ffd9e1;
+  --color-primary-fixed-dim: #ffb1c4;
+  --color-on-primary: #65002e;
+  --color-on-primary-fixed: #3f001a;
+  --color-on-primary-fixed-variant: #8f0044;
+  --color-on-primary-container: #590028;
+  --color-inverse-primary: #ba005b;
+
+  --color-secondary: #98cbff;
+  --color-secondary-container: #00a2fd;
+  --color-secondary-fixed: #cfe5ff;
+  --color-secondary-fixed-dim: #98cbff;
+  --color-on-secondary: #003354;
+  --color-on-secondary-fixed: #001d33;
+  --color-on-secondary-fixed-variant: #004a77;
+  --color-on-secondary-container: #003558;
+
+  --color-tertiary: #ffba20;
+  --color-tertiary-container: #bc8700;
+  --color-tertiary-fixed: #ffdea8;
+  --color-tertiary-fixed-dim: #ffba20;
+  --color-on-tertiary: #412d00;
+  --color-on-tertiary-fixed: #271900;
+  --color-on-tertiary-fixed-variant: #5e4200;
+  --color-on-tertiary-container: #392600;
+
+  --color-error: #ffb4ab;
+  --color-error-container: #93000a;
+  --color-on-error: #690005;
+  --color-on-error-container: #ffdad6;
+
+  --color-outline: #ac878f;
+  --color-outline-variant: #5c3f46;
+  --color-on-surface: #e5e2e1;
+  --color-on-surface-variant: #e5bcc5;
+  --color-on-background: #e5e2e1;
+  --color-inverse-surface: #e5e2e1;
+  --color-inverse-on-surface: #313030;
+
+  /* Signature electric pink — sparing emphasis only */
+  --color-hot: #ff007f;
+
+  --radius: 0.125rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  --radius-full: 0.75rem;
+
+  --spacing-xs: 4px;
+  --spacing-sm: 12px;
+  --spacing-base: 8px;
+  --spacing-md: 24px;
+  --spacing-gutter: 24px;
+  --spacing-margin: 32px;
+  --spacing-lg: 48px;
+  --spacing-xl: 80px;
+
+  --container-3xs: 16rem;
+  --container-2xs: 18rem;
+  --container-xs: 20rem;
+  --container-sm: 24rem;
+  --container-md: 28rem;
+  --container-lg: 32rem;
+  --container-xl: 36rem;
+  --container-2xl: 42rem;
+  --container-3xl: 48rem;
+  --container-4xl: 56rem;
+  --container-5xl: 64rem;
+  --container-6xl: 72rem;
+  --container-7xl: 80rem;
+
+  /* BRAND.md font aliases. The leading `var(--font-*)` is supplied by
+   * next/font/google (see app/layout.tsx). System fallbacks keep things
+   * legible during the brief next-font swap. */
+  --font-display: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jbm), ui-monospace, monospace;
+
+  --text-headline-lg: 48px;
+  --text-headline-lg--line-height: 1.1;
+  --text-headline-lg--letter-spacing: -0.02em;
+  --text-headline-lg--font-weight: 700;
+
+  --text-headline-md: 32px;
+  --text-headline-md--line-height: 1.2;
+  --text-headline-md--letter-spacing: -0.01em;
+  --text-headline-md--font-weight: 600;
+
+  --text-headline-sm: 24px;
+  --text-headline-sm--line-height: 1.3;
+  --text-headline-sm--font-weight: 600;
+
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 1.6;
+  --text-body-lg--font-weight: 400;
+
+  --text-body-md: 16px;
+  --text-body-md--line-height: 1.5;
+  --text-body-md--font-weight: 400;
+
+  --text-label-md: 14px;
+  --text-label-md--line-height: 1.4;
+  --text-label-md--letter-spacing: 0.05em;
+  --text-label-md--font-weight: 500;
+
+  --text-label-sm: 12px;
+  --text-label-sm--line-height: 1.4;
+  --text-label-sm--letter-spacing: 0.08em;
+  --text-label-sm--font-weight: 500;
 }
+
+/* ---------------------------------------------------------------------------
+ * Tailwind v4 sizing-utility correction
+ * BRAND's spacing tokens (`xs`, `sm`, `md`, `lg`, `xl`) share names with the
+ * Tailwind container scale. v4 lets `--spacing-*` win for sizing utilities,
+ * which silently breaks `max-w-xl` etc. — re-point the conflicting utilities
+ * at `--container-*` so both scales coexist.
+ *
+ * TODO(brand): This is a targeted shim, not a structural fix. The long-term
+ * play is to rename the conflicting BRAND spacing tokens (e.g. tight /
+ * compact / comfortable / spacious / huge) and update every consumer — at
+ * which point this block, and the `--container-*` re-declarations above,
+ * can be removed. Track in BRAND.md before doing the rename.
+ * ------------------------------------------------------------------------- */
+.max-w-xs { max-width: var(--container-xs); }
+.max-w-sm { max-width: var(--container-sm); }
+.max-w-md { max-width: var(--container-md); }
+.max-w-lg { max-width: var(--container-lg); }
+.max-w-xl { max-width: var(--container-xl); }
 
 html,
 body {
@@ -19,24 +161,515 @@ body {
 }
 
 body {
-  background: #0b0a10;
-  color: #f5f3ff;
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    "Helvetica Neue",
-    Arial,
-    "Noto Sans",
-    sans-serif;
+  background-color: #0e0e0e;
+  color: #e5e2e1;
+  font-family: var(--font-body);
+  background-image:
+    radial-gradient(circle at 50% 50%, rgba(255, 0, 127, 0.03) 0%, transparent 100%),
+    linear-gradient(to right, rgba(0, 162, 253, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 162, 253, 0.02) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    32px 32px,
+    32px 32px;
+  background-attachment: fixed;
 }
 
 * {
   box-sizing: border-box;
 }
 
+::selection {
+  background: rgba(255, 177, 196, 0.25);
+  color: #ffe4ec;
+}
+
+/* Display fonts wired to headline scale */
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+}
+
+/* ---------------------------------------------------------------------------
+ * Signature effects (BRAND §3)
+ * ------------------------------------------------------------------------- */
+.glass-panel {
+  background: rgba(28, 27, 27, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(92, 63, 70, 0.2);
+}
+
+.glass-panel-hero {
+  background: rgba(14, 14, 14, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(92, 63, 70, 0.2);
+}
+
+.glass-panel-sidebar {
+  background: rgba(28, 27, 27, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-right: 1px solid rgba(92, 63, 70, 0.2);
+}
+
+.glass-panel-nav {
+  background: rgba(19, 19, 19, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(92, 63, 70, 0.2);
+}
+
+.canvas-grid {
+  background-color: #0e0e0e;
+  background-image:
+    linear-gradient(to right, rgba(0, 162, 253, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 162, 253, 0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.neon-glow {
+  border: 1px solid #ffb1c4;
+  box-shadow: 0 0 15px rgba(255, 177, 196, 0.3);
+}
+
+.neon-border-primary {
+  border: 1px solid #ffb1c4;
+  box-shadow: 0 0 8px #ffb1c4;
+}
+
+.neon-glow-secondary {
+  border: 1px solid #98cbff;
+  box-shadow: 0 0 15px rgba(152, 203, 255, 0.3);
+}
+
+.neon-glow-tertiary {
+  border: 1px solid #ffba20;
+  box-shadow: 0 0 15px rgba(255, 186, 32, 0.3);
+}
+
+/* Pulsing dot rings — primary / secondary / tertiary */
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 177, 196, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(255, 177, 196, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 177, 196, 0);
+  }
+}
+
+@keyframes pulse-glow-secondary {
+  0% {
+    box-shadow: 0 0 0 0 rgba(152, 203, 255, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(152, 203, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(152, 203, 255, 0);
+  }
+}
+
+@keyframes pulse-glow-tertiary {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 186, 32, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(255, 186, 32, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 186, 32, 0);
+  }
+}
+
+.status-dot-live {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ffb1c4;
+  box-shadow: 0 0 6px rgba(255, 177, 196, 0.8);
+  animation: pulse-glow 2s infinite;
+}
+
+.status-dot-deploy {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #98cbff;
+  box-shadow: 0 0 6px rgba(152, 203, 255, 0.8);
+  animation: pulse-glow-secondary 2s infinite;
+}
+
+.status-dot-warn {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ffba20;
+  box-shadow: 0 0 6px rgba(255, 186, 32, 0.8);
+  animation: pulse-glow-tertiary 2s infinite;
+}
+
+/* Animated dashed flow lines (BRAND §3.4 / §6 visual builder edges) */
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+
+path.connection-line,
+.react-flow__edge-path {
+  stroke: #ffb1c4;
+  stroke-width: 1.5;
+  fill: none;
+  stroke-dasharray: 6;
+  animation: flow-dash 20s linear infinite;
+}
+
+/* Typography utility shortcuts */
+.text-headline-lg {
+  font-family: var(--font-display);
+  font-size: 48px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+.text-headline-md {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+.text-headline-sm {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+.text-body-lg {
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.6;
+  font-weight: 400;
+}
+.text-body-md {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+.text-label-md {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.4;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+.text-label-sm {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+.font-body {
+  font-family: var(--font-body);
+}
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Material Symbols base render. Self-hosted via next/font/google in
+ * app/layout.tsx; --font-symbols points at the local woff2. The literal
+ * "Material Symbols Outlined" fallback covers the early-paint window
+ * before next-font's CSS lands and any local-OS instances of the font. */
+.material-symbols-outlined {
+  font-family: var(--font-symbols), "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 400,
+    "GRAD" 0,
+    "opsz" 24;
+}
+
+.material-symbols-outlined.filled {
+  font-variation-settings:
+    "FILL" 1,
+    "wght" 400,
+    "GRAD" 0,
+    "opsz" 24;
+}
+
+/* ---------------------------------------------------------------------------
+ * React Flow — overrides aligned with BRAND.md
+ * ------------------------------------------------------------------------- */
+.react-flow__renderer,
+.react-flow__pane {
+  background-color: transparent;
+}
+
 .react-flow__node {
-  font-family: inherit;
+  font-family: var(--font-body);
+}
+
+.react-flow__node.react-flow__node-default {
+  background: rgba(28, 27, 27, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #e5e2e1;
+  border: 1px solid rgba(92, 63, 70, 0.3);
+  border-radius: 0.5rem;
+  padding: 0;
+}
+
+.react-flow__node.react-flow__node-default.selectable:hover {
+  border-color: rgba(255, 177, 196, 0.5);
+}
+
+.react-flow__node.react-flow__node-default.selected,
+.react-flow__node.selected {
+  border-color: #ffb1c4;
+  box-shadow: 0 0 15px rgba(255, 177, 196, 0.3);
+}
+
+.react-flow__handle {
+  background: #201f1f;
+  border: 1px solid #ffb1c4;
+  width: 10px;
+  height: 10px;
+}
+
+.react-flow__handle.source {
+  border-color: #ffb1c4;
+}
+
+.react-flow__handle.target {
+  border-color: #98cbff;
+}
+
+.react-flow__controls {
+  background: rgba(28, 27, 27, 0.9);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(92, 63, 70, 0.3);
+  border-radius: 0.5rem;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.react-flow__controls button {
+  background: transparent;
+  color: #e5e2e1;
+  border-color: rgba(92, 63, 70, 0.3);
+  border-bottom-width: 1px;
+}
+
+.react-flow__controls button:hover {
+  background: rgba(42, 42, 42, 0.6);
+  color: #ffb1c4;
+}
+
+.react-flow__controls button svg {
+  fill: currentColor;
+}
+
+.react-flow__minimap {
+  background: rgba(14, 14, 14, 0.9);
+  border: 1px solid rgba(92, 63, 70, 0.3);
+  border-radius: 0.5rem;
+}
+
+.react-flow__attribution {
+  background: transparent;
+  color: rgba(229, 188, 197, 0.4);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.react-flow__background {
+  background-color: transparent;
+}
+
+/* ---------------------------------------------------------------------------
+ * Sonner toast — align to BRAND
+ * ------------------------------------------------------------------------- */
+[data-sonner-toaster] [data-sonner-toast] {
+  background: rgba(28, 27, 27, 0.92) !important;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(92, 63, 70, 0.3) !important;
+  color: #e5e2e1 !important;
+  font-family: var(--font-body) !important;
+  border-radius: 0.5rem !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="success"] {
+  border-color: rgba(152, 203, 255, 0.4) !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] {
+  border-color: rgba(255, 180, 171, 0.5) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-dot-live,
+  .status-dot-deploy,
+  .status-dot-warn,
+  path.connection-line,
+  .react-flow__edge-path {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Motion (BRAND §8) — staggered reveals on load, scroll-driven reveals
+ * below the fold, a live telemetry ticker. CSS-only, no libraries.
+ * ------------------------------------------------------------------------- */
+
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.reveal {
+  opacity: 0;
+  animation: fade-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  animation-delay: var(--reveal-delay, 0ms);
+  will-change: transform, opacity;
+}
+
+/* Scroll-driven reveals via view-timeline (Chromium-current; Safari fallback
+ * leaves elements visible). No JS needed. */
+.scroll-reveal {
+  opacity: 1;
+}
+
+@supports (animation-timeline: view()) {
+  .scroll-reveal {
+    opacity: 0;
+    animation: fade-rise both linear;
+    animation-timeline: view();
+    animation-range: entry 0% cover 22%;
+  }
+}
+
+/* Horizontal telemetry marquee. Tracks duplicate their content so the loop
+ * is seamless. */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee {
+  overflow: hidden;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 8%,
+    black 92%,
+    transparent
+  );
+}
+
+.marquee-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: marquee 38s linear infinite;
+  will-change: transform;
+}
+
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+/* A faint amber sweep for amber-coded ticker entries. Subtle, never loud. */
+@keyframes sheen {
+  0%,
+  60% {
+    opacity: 0.55;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+.sheen {
+  animation: sheen 4s ease-in-out infinite;
+}
+
+/* Background radial drift — barely perceptible (0.02 opacity range) so the
+ * dot grid feels alive without distracting from content. */
+@keyframes hue-drift {
+  0%,
+  100% {
+    background-position:
+      0% 0%,
+      0 0,
+      0 0;
+  }
+  50% {
+    background-position:
+      100% 50%,
+      0 0,
+      0 0;
+  }
+}
+
+body {
+  animation: hue-drift 28s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .scroll-reveal {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .marquee-track,
+  .sheen {
+    animation: none;
+  }
+  body {
+    animation: none;
+  }
 }

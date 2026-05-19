@@ -72,16 +72,6 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
     type,
     position: { x: 240 + index * 40, y: 80 + index * 120 },
     data: { node: n, label: n.type },
-    style: {
-      background: "#18181b",
-      color: "#e4e4e7",
-      border: "1px solid #3f3f46",
-      borderRadius: "8px",
-      padding: "10px 14px",
-      fontSize: "13px",
-      fontWeight: 500,
-      boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
-    },
   };
 }
 
