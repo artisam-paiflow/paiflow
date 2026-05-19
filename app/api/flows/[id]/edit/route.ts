@@ -43,7 +43,8 @@ function autoResolvePending(
       return { ...n, config: { ...n.config, recipients } } as FlowNode;
     }
     if (n.type === "pay" && isPendingAddress(n.config.recipient)) {
-      const entry = addressBook.find((e) => e.label === "unnamed");
+      const label = n.config.recipient.slice(8).toLowerCase() || "unnamed";
+      const entry = addressBook.find((e) => e.label.toLowerCase() === label);
       if (entry) {
         resolvedCount++;
         return { ...n, config: { ...n.config, recipient: entry.address } } as FlowNode;
@@ -266,6 +267,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         applied: true,
         missingAddresses,
         templateKind: v.templateKind,
+        patchedGraph: result.patchedGraph,
       },
     });
   });

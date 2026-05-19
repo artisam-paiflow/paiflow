@@ -19,7 +19,7 @@ export function getPendingLabels(graph: FlowGraph): string[] {
       }
     }
     if (n.type === "pay" && isPendingAddress(n.config.recipient)) {
-      labels.add("unnamed");
+      labels.add(n.config.recipient.slice(PENDING_PREFIX.length) || "unnamed");
     }
   }
   return [...labels];

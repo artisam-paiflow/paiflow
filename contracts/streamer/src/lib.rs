@@ -82,9 +82,6 @@ impl Streamer {
 
     pub fn claim(env: Env) -> i128 {
         let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
-        let caller = recipients.first().unwrap().address.clone();
-        caller.require_auth();
-
         let rate: i128 = env.storage().instance().get(&Key::Rate).unwrap();
         let start: u64 = env.storage().instance().get(&Key::StartTs).unwrap();
         let end: u64 = env.storage().instance().get(&Key::EndTs).unwrap();

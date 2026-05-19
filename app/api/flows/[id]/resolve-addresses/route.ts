@@ -50,7 +50,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         return { ...n, config: { ...n.config, recipients } };
       }
       if (n.type === "pay" && isPendingAddress(n.config.recipient)) {
-        const resolved = addrMap.get("unnamed");
+        const label = n.config.recipient.slice(8).toLowerCase() || "unnamed";
+        const resolved = addrMap.get(label);
         if (resolved) {
           replaced++;
           return { ...n, config: { ...n.config, recipient: resolved } };

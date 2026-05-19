@@ -118,7 +118,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       }
     }
     if (a.type === "pay" && isPendingAddress(a.config.recipient)) {
-      pendingLabels.add("unnamed");
+      pendingLabels.add(a.config.recipient.slice(8) || "unnamed");
     }
   }
 

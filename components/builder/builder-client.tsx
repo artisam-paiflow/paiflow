@@ -37,6 +37,12 @@ const nodeTypes = {
   logic: LogicNode,
 };
 
+const TEMPLATE_LABELS: Record<string, string> = {
+  SPLITTER: "Splitter",
+  STREAMER: "Streamer",
+  CONDITIONAL: "Conditional",
+};
+
 type BuilderProps = {
   flowId: string;
   initialName: string;
@@ -67,6 +73,16 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
     type,
     position: { x: 240 + index * 40, y: 80 + index * 120 },
     data: { node: n, label: n.type },
+    style: {
+      background: "#18181b",
+      color: "#e4e4e7",
+      border: "1px solid #3f3f46",
+      borderRadius: "8px",
+      padding: "10px 14px",
+      fontSize: "13px",
+      fontWeight: 500,
+      boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+    },
   };
 }
 
@@ -77,12 +93,6 @@ export default function BuilderClient(props: BuilderProps) {
     </ReactFlowProvider>
   );
 }
-
-const TEMPLATE_LABELS: Record<string, string> = {
-  SPLITTER: "Splitter",
-  STREAMER: "Streamer",
-  CONDITIONAL: "Conditional",
-};
 
 function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [name, setName] = useState(initialName);
@@ -117,39 +127,51 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
   const selectedNode = flowNodes.find((n) => n.id === selectedId) ?? null;
 
-  // Debounced autosave
+  // Autosave with 800ms debounce (from develop)
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
-  const queuedSave = useRef(false);
-  useEffect(() => {
-    queuedSave.current = true;
+  async function saveGraph(currentGraph: FlowGraph, currentName: string) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
-      if (!queuedSave.current) return;
-      queuedSave.current = false;
       const res = await fetch(`/api/flows/${flowId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, graph }),
+        body: JSON.stringify({ name: currentName, graph: currentGraph }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        toast.error(`Save failed: ${body?.error?.message ?? res.status}`);
+        if (res.status >= 500) {
+          toast.error(`Save failed: ${body?.error?.message ?? res.status}`);
+        }
       }
-    }, 1500);
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
+    }, 800);
+  }
+
+  useEffect(() => {
+    saveGraph(graph, name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowId, name, graph]);
 
-  // Track if user has used chat to stop pulsing animation
   useEffect(() => {
     if (messages.length > 0) setHasUsedChat(true);
   }, [messages]);
 
-  const onNodesChange = useCallback(
-    (changes: NodeChange[]) => setRfNodes((nds) => applyNodeChanges(changes, nds)),
-    [],
-  );
+  // Sync React Flow node removals back to flowNodes (from develop)
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    setRfNodes((nds) => applyNodeChanges(changes, nds));
+
+    const removedIds = changes
+      .filter((c): c is { type: "remove"; id: string } => c.type === "remove")
+      .map((c) => c.id);
+
+    if (removedIds.length > 0) {
+      const removedSet = new Set(removedIds);
+      setFlowNodes((arr) => arr.filter((n) => !removedSet.has(n.id)));
+      setRfEdges((eds) =>
+        eds.filter((e) => !removedSet.has(e.source) && !removedSet.has(e.target)),
+      );
+    }
+  }, []);
+
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => setRfEdges((eds) => applyEdgeChanges(changes, eds)),
     [],
@@ -190,6 +212,8 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           explanation: string;
           applied: boolean;
           missingAddresses?: string[];
+          patchedGraph?: FlowGraph;
+          templateKind?: string;
         };
         error?: { message: string; fields?: Record<string, string[]> };
       };
@@ -205,75 +229,28 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         setMessages((prev) => [...prev, { role: "raft", content }]);
         return;
       }
-      const { patch, explanation, applied, missingAddresses } = json.data!;
+      const { patch, explanation, applied, missingAddresses, patchedGraph } = json.data!;
       setMessages((prev) => [...prev, { role: "raft", content: explanation, patch }]);
 
-      // Surface AI-requested address changes even for already-resolved labels
       if (missingAddresses && missingAddresses.length > 0) {
         setPendingAddresses((prev) => [...new Set([...prev, ...missingAddresses])]);
       }
 
-      if (applied && patch.length) {
-        // Apply all patches atomically to avoid intermediate invalid states
-        let nextNodes = [...flowNodes];
-        let nextRfNodes = [...rfNodes];
-        let nextRfEdges = [...rfEdges];
-        const removedIds = new Set<string>();
-
-        for (const op of patch) {
-          switch (op.op) {
-            case "addNode": {
-              const node = op.node as FlowNode;
-              if (!nextNodes.some((n) => n.id === node.id)) {
-                nextNodes = [...nextNodes, node];
-                nextRfNodes = [...nextRfNodes, nodeToReactFlow(node, nextRfNodes.length)];
-              }
-              const edge = op.edge;
-              if (edge && !nextRfEdges.some((e) => e.id === edge.id)) {
-                nextRfEdges = addEdge({ ...edge, animated: true }, nextRfEdges);
-              }
-              break;
-            }
-            case "updateNode": {
-              nextNodes = nextNodes.map((n) =>
-                n.id === op.id ? ({ ...n, config: { ...n.config, ...op.config } } as FlowNode) : n,
-              );
-              break;
-            }
-            case "removeNode": {
-              removedIds.add(op.id);
-              break;
-            }
-            case "addEdge": {
-              const addEdgeOp = op.edge;
-              if (!nextRfEdges.some((e) => e.id === addEdgeOp.id)) {
-                nextRfEdges = addEdge({ ...addEdgeOp, animated: true }, nextRfEdges);
-              }
-              break;
-            }
-            case "removeEdge": {
-              nextRfEdges = nextRfEdges.filter((e) => e.id !== op.id);
-              break;
-            }
-          }
-        }
-
-        // Apply removals last so they don't interfere with other operations
-        if (removedIds.size > 0) {
-          nextNodes = nextNodes.filter((n) => !removedIds.has(n.id));
-          nextRfNodes = nextRfNodes.filter((n) => !removedIds.has(n.id));
-          nextRfEdges = nextRfEdges.filter(
-            (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
-          );
-          if (selectedId && removedIds.has(selectedId)) setSelectedId(null);
-        }
-
-        setFlowNodes(nextNodes);
-        setRfNodes(nextRfNodes);
-        setRfEdges(nextRfEdges);
+      if (applied && patchedGraph) {
+        // Use server-normalized graph directly (Issue #6 fix)
+        setFlowNodes(patchedGraph.nodes);
+        setRfNodes(patchedGraph.nodes.map((n, i) => nodeToReactFlow(n, i)));
+        setRfEdges(
+          patchedGraph.edges.map((e) => ({
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            animated: true,
+          })),
+        );
 
         // Show address prompt if the resulting graph has pending addresses
-        const pending = scanPendingLabels(nextNodes);
+        const pending = scanPendingLabels(patchedGraph.nodes);
         setPendingAddresses(pending);
 
         toast.success("Flow updated");
@@ -299,7 +276,8 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         }
       }
       if (n.type === "pay" && isPendingAddress(n.config.recipient)) {
-        labels.add("unnamed");
+        const label = n.config.recipient.slice(8) || "unnamed";
+        labels.add(label);
       }
     }
     return [...labels];
@@ -332,6 +310,10 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     } finally {
       setChatLoading(false);
     }
+  }
+
+  function handleSkipAddresses() {
+    setPendingAddresses([]);
   }
 
   const isValid = validation.ok;
@@ -380,6 +362,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
               loading={chatLoading}
               pendingAddresses={pendingAddresses}
               onResolveAddress={handleResolveAddress}
+              onSkipAddresses={handleSkipAddresses}
             />
           </div>
 

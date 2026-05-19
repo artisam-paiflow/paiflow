@@ -18,6 +18,7 @@ interface RaftLogProps {
   className?: string;
   pendingAddresses?: string[];
   onResolveAddress?: (addresses: Record<string, string>) => Promise<void>;
+  onSkipAddresses?: () => void;
 }
 
 const SUGGESTIONS = [
@@ -54,10 +55,12 @@ function patchSummary(patch: unknown[]): string {
 function MissingAddressPrompt({
   labels,
   onResolve,
+  onSkip,
   loading,
 }: {
   labels: string[];
   onResolve: (addresses: Record<string, string>) => void;
+  onSkip?: () => void;
   loading: boolean;
 }) {
   const [values, setValues] = useState<Record<string, string>>(() =>
@@ -126,7 +129,7 @@ function MissingAddressPrompt({
       </div>
       <div className="mt-3 flex gap-2">
         <button
-          onClick={() => onResolve({})}
+          onClick={() => onSkip?.()}
           disabled={loading}
           className="rounded-md px-3 py-1.5 text-xs text-zinc-400 ring-1 ring-zinc-700 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-40"
         >
@@ -153,6 +156,7 @@ export default function RaftLog({
   className,
   pendingAddresses,
   onResolveAddress,
+  onSkipAddresses,
 }: RaftLogProps) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -180,10 +184,6 @@ export default function RaftLog({
     if (loading) return;
     onSend(text);
     inputRef.current?.focus();
-  }
-
-  function handleSkip() {
-    if (onResolveAddress) onResolveAddress({});
   }
 
   const isEmpty = messages.length === 0;
@@ -290,6 +290,7 @@ export default function RaftLog({
           <MissingAddressPrompt
             labels={pendingAddresses}
             onResolve={onResolveAddress}
+            onSkip={onSkipAddresses}
             loading={loading ?? false}
           />
         )}

@@ -38,10 +38,8 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
         addr(admin),
         addr(assetContractId(params.asset)),
         recipientsVec(params.recipients),
+        i128(params.minAmountStroops ?? "0"),
       ];
-      if (params.minAmountStroops) {
-        args.push(i128(params.minAmountStroops));
-      }
       return args;
     }
     case "streamer": {
