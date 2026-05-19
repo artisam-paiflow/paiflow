@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import DeploymentCanvas from "./deployment-canvas";
@@ -19,19 +19,26 @@ export default function DeploymentView({
   deploymentId,
   contractAddress,
   status,
-  invokeUri,
+  qrUrl,
+  distributeAmountStroops,
   initialEvents,
   graph,
 }: {
   deploymentId: string;
   contractAddress: string | null;
   status: string;
-  invokeUri: string | null;
+  qrUrl: string | null;
+  distributeAmountStroops: string | null;
   initialEvents: Evt[];
   graph: FlowGraph | null;
 }) {
   const [events, setEvents] = useState<Evt[]>(initialEvents);
   const [pulse, setPulse] = useState(0);
+  const [showAmountModal, setShowAmountModal] = useState(false);
+  const [amountInput, setAmountInput] = useState("");
+  const [pendingAmount, setPendingAmount] = useState<string | null>(distributeAmountStroops);
+  const [qrSvg, setQrSvg] = useState<string | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
 
   useEffect(() => {
     if (status !== "CONFIRMED") return;
@@ -54,9 +61,57 @@ export default function DeploymentView({
     return () => es.close();
   }, [deploymentId, status]);
 
+  const fetchQr = useCallback(
+    async (amount: string) => {
+      if (!qrUrl) return;
+      setQrLoading(true);
+      try {
+        const res = await fetch(`${qrUrl}&amount=${encodeURIComponent(amount)}`);
+        if (!res.ok) {
+          let msg = "Failed to generate QR";
+          try {
+            const body = await res.json();
+            msg = body?.error?.message ?? msg;
+          } catch {
+            /* use default */
+          }
+          throw new Error(msg);
+        }
+        const svg = await res.text();
+        setQrSvg(svg);
+        setPendingAmount(amount);
+        await fetch(`/api/deployments/${deploymentId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ distributeAmountStroops: amount }),
+        });
+        toast.success("Amount saved. QR code updated.");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to generate QR");
+      } finally {
+        setQrLoading(false);
+      }
+    },
+    [qrUrl, deploymentId],
+  );
+
   async function copy(text: string) {
     await navigator.clipboard.writeText(text);
     toast.success("Copied to clipboard.");
+  }
+
+  function openAmountModal() {
+    setAmountInput(pendingAmount ?? "");
+    setShowAmountModal(true);
+  }
+
+  function submitAmount() {
+    if (!amountInput || !/^\d+$/.test(amountInput) || amountInput === "0") {
+      toast.error("Enter a valid stroops amount (positive integer)");
+      return;
+    }
+    setShowAmountModal(false);
+    fetchQr(amountInput);
   }
 
   return (
@@ -84,11 +139,17 @@ export default function DeploymentView({
           {contractAddress ? (
             <>
               <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
-                SCAN WITH FREIGHTER WALLET. ENTER AMOUNT WHEN PROMPTED.
+                SET AMOUNT · SCAN WITH FREIGHTER WALLET.
               </p>
               <div className="mt-md gap-md grid grid-cols-[160px_1fr]">
-                <div className="rounded-lg bg-white p-3">
-                  <QRCodeSVG value={invokeUri ?? ""} size={140} />
+                <div className="flex min-h-[160px] items-center justify-center rounded-lg bg-white p-3">
+                  {qrLoading ? (
+                    <span className="animate-pulse font-mono text-xs text-zinc-400">LOADING…</span>
+                  ) : qrSvg ? (
+                    <div dangerouslySetInnerHTML={{ __html: qrSvg }} />
+                  ) : (
+                    <span className="font-mono text-xs text-zinc-400">NO QR YET</span>
+                  )}
                 </div>
                 <div className="text-body-md space-y-3">
                   <div>
@@ -102,6 +163,22 @@ export default function DeploymentView({
                       {contractAddress}
                     </button>
                   </div>
+                  {pendingAmount && (
+                    <div>
+                      <div className="text-label-sm text-on-surface-variant font-mono uppercase">
+                        Amount (stroops)
+                      </div>
+                      <div className="text-on-surface font-mono text-[14px]">
+                        {Number(pendingAmount).toLocaleString()}
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={openAmountModal}
+                    className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 rounded border px-3 py-1.5 font-mono text-xs transition-colors"
+                  >
+                    {pendingAmount ? "CHANGE AMOUNT" : "SET AMOUNT"}
+                  </button>
                 </div>
               </div>
             </>
@@ -151,6 +228,47 @@ export default function DeploymentView({
           </ul>
         </section>
       </div>
+
+      {showAmountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="glass-panel w-full max-w-sm space-y-4 rounded-xl p-6">
+            <h3 className="text-headline-sm text-on-surface font-semibold">
+              Set Distribution Amount
+            </h3>
+            <p className="text-label-sm text-on-surface-variant font-mono">
+              This amount will be locked into the transaction XDR. You cannot change it after
+              scanning.
+            </p>
+            <label className="grid gap-1">
+              <span className="text-xs text-zinc-400">Amount (stroops)</span>
+              <input
+                className="input"
+                type="text"
+                inputMode="numeric"
+                placeholder="e.g. 5000000"
+                value={amountInput}
+                onChange={(e) => setAmountInput(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => e.key === "Enter" && submitAmount()}
+                autoFocus
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowAmountModal(false)}
+                className="rounded border border-zinc-700 px-3 py-1.5 font-mono text-xs text-zinc-400 hover:bg-zinc-900"
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={submitAmount}
+                className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 rounded border px-3 py-1.5 font-mono text-xs"
+              >
+                GENERATE QR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

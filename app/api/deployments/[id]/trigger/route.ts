@@ -1,0 +1,43 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { db } from "@/lib/db";
+import { AppError, withErrorHandler } from "@/lib/errors";
+import { prepareTriggerTx } from "@/lib/stellar/trigger";
+import { stellarPassphrase } from "@/lib/env";
+
+const PostSchema = z.object({
+  amount: z.string().regex(/^\d+$/, "Must be a positive integer"),
+  userAddress: z.string().min(56).max(56),
+});
+
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  return withErrorHandler(async () => {
+    const { id } = await ctx.params;
+    const body = PostSchema.parse(await req.json());
+
+    const d = await db.deployment.findFirst({
+      where: { id, status: "CONFIRMED" },
+      include: { flow: { select: { templateKind: true } } },
+    });
+    if (!d) throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
+    if (d.flow.templateKind !== "SPLITTER") {
+      throw new AppError("VALIDATION", "Only splitter deployments support trigger");
+    }
+    if (!d.contractAddress) {
+      throw new AppError("VALIDATION", "Contract address not available");
+    }
+
+    const { xdr } = await prepareTriggerTx({
+      contractAddress: d.contractAddress,
+      amount: body.amount,
+      fromAddress: body.userAddress,
+    });
+
+    return NextResponse.json({
+      data: {
+        xdr,
+        networkPassphrase: stellarPassphrase(),
+      },
+    });
+  });
+}

@@ -2,14 +2,16 @@ import { NextRequest } from "next/server";
 import QRCode from "qrcode";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
-import { sep7PaymentUri, sep7InvokeUri } from "@/lib/stellar/sep7";
+import { sep7PaymentUri } from "@/lib/stellar/sep7";
+import { prepareDistributeTx } from "@/lib/stellar/invoke";
 import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
 import { z } from "zod";
 
 const Query = z.object({
   size: z.coerce.number().int().min(64).max(1024).default(256),
   format: z.enum(["svg", "png"]).default("svg"),
-  action: z.enum(["pay", "invoke"]).default("pay"),
+  action: z.enum(["pay", "invoke", "trigger"]).default("pay"),
+  amount: z.string().regex(/^\d+$/).optional(),
 });
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -24,20 +26,38 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!d || !d.contractAddress) return new Response("Not ready", { status: 404 });
 
   let uri: string;
-  if (q.action === "invoke") {
+  if (q.action === "trigger") {
+    if (d.flow.templateKind !== "SPLITTER") {
+      return new Response("Trigger QR only available for splitter deployments", { status: 400 });
+    }
+    if (d.status !== "CONFIRMED") {
+      return new Response("Contract not yet confirmed", { status: 400 });
+    }
+    if (!d.contractAddress) {
+      return new Response("Contract address not available", { status: 400 });
+    }
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    uri = `${appUrl}/trigger/${d.id}`;
+  } else if (q.action === "invoke") {
     if (d.flow.templateKind !== "SPLITTER") {
       return new Response("Invoke QR only available for splitter deployments", { status: 400 });
     }
     if (d.status !== "CONFIRMED") {
       return new Response("Contract not yet confirmed", { status: 400 });
     }
-    uri = sep7InvokeUri({
-      destination: d.contractAddress,
-      function: "distribute",
-      paramName: "amount",
-      paramType: "i128",
-      message: "Trigger splitter distribution",
+    const amount = q.amount ?? d.distributeAmountStroops;
+    if (!amount) {
+      return new Response("Amount required for invoke action", { status: 400 });
+    }
+    if (!d.sourceAccount) {
+      return new Response("Source account not available", { status: 400 });
+    }
+    const { xdr } = await prepareDistributeTx({
+      contractAddress: d.contractAddress,
+      amount,
+      sourceAccount: d.sourceAccount,
     });
+    uri = `web+stellar:tx?xdr=${encodeURIComponent(xdr)}`;
   } else {
     const graph = FlowGraphSchema.safeParse(d.graphSnapshot);
     const trigger = graph.success ? graph.data.nodes.find(isTrigger) : null;

@@ -140,6 +140,7 @@ model Deployment {
   confirmedAt     DateTime?
   unsignedXdr     String?
   sourceAccount   String?
+  distributeAmountStroops String?
 
   flow   Flow            @relation(fields: [flowId], references: [id], onDelete: Restrict)
   owner  User            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
