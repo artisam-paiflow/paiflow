@@ -162,8 +162,23 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   }, [flowId, name, graph]);
 
   const onNodesChange = useCallback(
-    (changes: NodeChange[]) => setRfNodes((nds) => applyNodeChanges(changes, nds)),
-    [],
+    (changes: NodeChange[]) => {
+      const rfNodesNext = applyNodeChanges(changes, rfNodes);
+      const removedIds = changes
+        .filter((c): c is { type: "remove"; id: string } => c.type === "remove")
+        .map((c) => c.id);
+      if (removedIds.length > 0) {
+        const removedSet = new Set(removedIds);
+        setRfNodes(rfNodesNext);
+        setFlowNodes((arr) => arr.filter((n) => !removedSet.has(n.id)));
+        setRfEdges((eds) =>
+          eds.filter((e) => !removedSet.has(e.source) && !removedSet.has(e.target)),
+        );
+      } else {
+        setRfNodes(rfNodesNext);
+      }
+    },
+    [rfNodes],
   );
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => setRfEdges((eds) => applyEdgeChanges(changes, eds)),
