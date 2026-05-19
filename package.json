@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && DATABASE_URL='${DATABASE_URL:-postgresql://dummy:dummy@localhost:5432/dummy?schema=public}' AUTH_SECRET='${AUTH_SECRET:-build-time-dummy-secret-32-chars-long-aaaaaa}' next build",
     "start": "prisma migrate deploy && next start -p ${PORT:-3000}",
     "lint": "next lint",
     "format": "prettier --write .",
