@@ -29,6 +29,7 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
         contractAddress={d.contractAddress}
         status={d.status}
         sep7Uri={sep7}
+        network={d.network}
         templateKind={d.flow.templateKind}
         graph={graph.success ? graph.data : null}
         initialEvents={d.events.map((e) => ({

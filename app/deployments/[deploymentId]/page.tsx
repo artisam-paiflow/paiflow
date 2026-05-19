@@ -55,6 +55,7 @@ export default async function DeploymentPage({
           contractAddress={d.contractAddress}
           status={d.status}
           sep7Uri={sep7}
+          network={d.network}
           templateKind={d.flow.templateKind}
           graph={graph.success ? graph.data : null}
           initialEvents={d.events.map((e) => ({
