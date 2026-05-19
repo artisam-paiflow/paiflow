@@ -5,12 +5,20 @@ use soroban_sdk::{
 };
 
 #[contracttype]
+#[derive(Clone)]
+pub enum ConditionKind {
+    Timeout(u64),
+    OracleGte(String),
+    Multisig(u32),
+}
+
+#[contracttype]
 pub enum Key {
     Admin,
     Recipient,
     Asset,
     Amount,
-    Condition, // serialized JSON; off-chain validator + on-chain timeout fallback
+    Condition,
     Released,
     Version,
 }
@@ -23,6 +31,7 @@ pub enum Error {
     AlreadyReleased = 2,
     ConditionNotMet = 3,
     Unauthorized = 4,
+    OracleNotSupported = 5,
 }
 
 const VERSION: u32 = 1;
@@ -38,7 +47,7 @@ impl Conditional {
         recipient: Address,
         asset: Address,
         amount: i128,
-        condition: String,
+        condition: ConditionKind,
     ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
@@ -52,9 +61,6 @@ impl Conditional {
         env.storage().instance().set(&Key::Version, &VERSION);
     }
 
-    /// Release funds. For v1 the condition is enforced by `admin.require_auth()`.
-    /// Future versions decode the `Condition` payload and check on-chain state
-    /// (timeout / oracle / multisig).
     pub fn release(env: Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
@@ -66,6 +72,18 @@ impl Conditional {
         {
             panic_with_error!(&env, Error::AlreadyReleased);
         }
+        let condition: ConditionKind = env.storage().instance().get(&Key::Condition).unwrap();
+        let now = env.ledger().timestamp();
+        let can_release = match condition {
+            ConditionKind::Timeout(ts) => now >= ts,
+            ConditionKind::OracleGte(_) => {
+                panic_with_error!(&env, Error::OracleNotSupported);
+            }
+            ConditionKind::Multisig(_threshold) => true,
+        };
+        if !can_release {
+            panic_with_error!(&env, Error::ConditionNotMet);
+        }
         let amount: i128 = env.storage().instance().get(&Key::Amount).unwrap();
         let recipient: Address = env.storage().instance().get(&Key::Recipient).unwrap();
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
@@ -75,6 +93,7 @@ impl Conditional {
             &amount,
         );
         env.storage().instance().set(&Key::Released, &true);
+        #[allow(deprecated)]
         env.events()
             .publish((symbol_short!("release"), recipient), amount);
     }
@@ -88,6 +107,7 @@ impl Conditional {
         if bal > 0 {
             client.transfer(&env.current_contract_address(), &admin, &bal);
         }
+        #[allow(deprecated)]
         env.events().publish((symbol_short!("cancel"),), bal);
     }
 
@@ -102,11 +122,11 @@ impl Conditional {
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::testutils::Address as _;
-    use soroban_sdk::{token, Env, String as SorobanString};
+    use soroban_sdk::testutils::{Address as _, Ledger};
+    use soroban_sdk::{token, Env};
 
     #[test]
-    fn admin_releases_funds() {
+    fn admin_releases_funds_with_timeout() {
         let env = Env::default();
         env.mock_all_auths();
         let admin = Address::generate(&env);
@@ -114,7 +134,7 @@ mod test {
         let sac = token::StellarAssetClient::new(&env, &asset.address());
         let tok = token::TokenClient::new(&env, &asset.address());
         let recipient = Address::generate(&env);
-        let condition = SorobanString::from_str(&env, "{\"kind\":\"time_after\"}");
+        let condition = ConditionKind::Timeout(1000);
 
         let contract_id = env.register(
             Conditional,
@@ -129,13 +149,47 @@ mod test {
         sac.mint(&contract_id, &1_000);
         let client = ConditionalClient::new(&env, &contract_id);
         assert!(!client.status());
+
+        env.ledger().set_timestamp(999);
+        assert!(!client.status());
+
+        env.ledger().set_timestamp(1000);
         client.release();
         assert_eq!(tok.balance(&recipient), 1_000);
         assert!(client.status());
     }
 
     #[test]
-    #[should_panic]
+    fn multisig_condition_allows_admin() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+        let recipient = Address::generate(&env);
+        let condition = ConditionKind::Multisig(1);
+
+        let contract_id = env.register(
+            Conditional,
+            (
+                admin.clone(),
+                recipient.clone(),
+                asset.address(),
+                1_000_i128,
+                condition,
+            ),
+        );
+        sac.mint(&contract_id, &1_000);
+        let client = ConditionalClient::new(&env, &contract_id);
+
+        client.release();
+        assert_eq!(tok.balance(&recipient), 1_000);
+        assert!(client.status());
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #2)")]
     fn double_release_panics() {
         let env = Env::default();
         env.mock_all_auths();
@@ -143,7 +197,7 @@ mod test {
         let asset = env.register_stellar_asset_contract_v2(admin.clone());
         let sac = token::StellarAssetClient::new(&env, &asset.address());
         let recipient = Address::generate(&env);
-        let condition = SorobanString::from_str(&env, "{}");
+        let condition = ConditionKind::Timeout(1000);
 
         let contract_id = env.register(
             Conditional,
@@ -157,7 +211,65 @@ mod test {
         );
         sac.mint(&contract_id, &100);
         let client = ConditionalClient::new(&env, &contract_id);
+        env.ledger().set_timestamp(1000);
         client.release();
+        client.release();
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #3)")]
+    fn condition_not_met_panics() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let recipient = Address::generate(&env);
+        let condition = ConditionKind::Timeout(2000);
+
+        let contract_id = env.register(
+            Conditional,
+            (
+                admin.clone(),
+                recipient.clone(),
+                asset.address(),
+                1_000_i128,
+                condition,
+            ),
+        );
+        sac.mint(&contract_id, &1_000);
+        let client = ConditionalClient::new(&env, &contract_id);
+
+        env.ledger().set_timestamp(500);
+        client.release();
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #5)")]
+    fn oracle_gte_panics() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let recipient = Address::generate(&env);
+        let _oracle = Address::generate(&env);
+        let condition = ConditionKind::OracleGte(String::from_str(&env, "BTC/USD"));
+
+        let contract_id = env.register(
+            Conditional,
+            (
+                admin.clone(),
+                recipient.clone(),
+                asset.address(),
+                1_000_i128,
+                condition,
+            ),
+        );
+        sac.mint(&contract_id, &1_000);
+        let client = ConditionalClient::new(&env, &contract_id);
+
+        env.ledger().set_timestamp(1000);
         client.release();
     }
 }

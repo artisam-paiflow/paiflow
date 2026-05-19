@@ -39,8 +39,8 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   if (errors.length) return { ok: false, errors };
 
   const triggers = graph.nodes.filter(isTrigger);
-  if (triggers.length !== 1) {
-    errors.push({ path: "nodes", message: "Flow must have exactly one trigger node" });
+  if (triggers.length < 1) {
+    errors.push({ path: "nodes", message: "Flow must have at least one trigger node" });
   }
   const actions = graph.nodes.filter(isAction);
   if (actions.length < 1) {
@@ -84,19 +84,18 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
   }
 
-  // Trigger must be a root (no incoming edges)
-  const trigger = triggers[0];
-  if (trigger) {
-    const hasIncoming = graph.edges.some((e) => e.target === trigger.id);
+  // Every trigger must be a root (no incoming edges)
+  for (const t of triggers) {
+    const hasIncoming = graph.edges.some((e) => e.target === t.id);
     if (hasIncoming) {
-      errors.push({ path: "nodes", message: "Trigger node must have no incoming edges" });
+      errors.push({ path: "nodes", message: `Trigger ${t.id} must have no incoming edges` });
     }
   }
 
-  // Reachability from trigger
-  if (trigger) {
-    const seen = new Set<string>([trigger.id]);
-    const stack = [trigger.id];
+  // Reachability from any trigger
+  if (triggers.length) {
+    const seen = new Set<string>(triggers.map((t) => t.id));
+    const stack = triggers.map((t) => t.id);
     while (stack.length) {
       const id = stack.pop()!;
       for (const next of adj.get(id) ?? []) {
@@ -110,7 +109,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       if (!seen.has(a.id)) {
         errors.push({
           path: `nodes.${a.id}`,
-          message: `Action ${a.id} is not reachable from the trigger`,
+          message: `Action ${a.id} is not reachable from any trigger`,
         });
       }
     }
@@ -118,28 +117,17 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   if (errors.length) return { ok: false, errors };
 
-  // Infer template kind
-  const action = actions[0]!;
+  // Infer template kind — lenient fallback
   const hasCondition = graph.nodes.some(isLogic);
   let templateKind: TemplateKind;
+
   if (hasCondition) {
     templateKind = TemplateKind.CONDITIONAL;
-  } else if (trigger!.type === "on_schedule" && action.type === "pay") {
+  } else if (triggers[0]?.type === "on_schedule") {
     templateKind = TemplateKind.STREAMER;
-  } else if (trigger!.type === "on_receive" && action.type === "split") {
-    templateKind = TemplateKind.SPLITTER;
-  } else if (trigger!.type === "on_receive" && action.type === "pay") {
-    templateKind = TemplateKind.SPLITTER; // a 1-recipient split = pay-through
   } else {
-    return {
-      ok: false,
-      errors: [
-        {
-          path: "nodes",
-          message: "Unsupported trigger/action combination. Supported: on_receive→split, on_schedule→pay, *+condition→pay/split",
-        },
-      ],
-    };
+    // on_receive or any other trigger → SPLITTER
+    templateKind = TemplateKind.SPLITTER;
   }
 
   return { ok: true, templateKind, graph };

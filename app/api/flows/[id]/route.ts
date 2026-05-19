@@ -33,17 +33,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     let parameters = flow.parameters;
     let graph = flow.graph;
     if (body.graph) {
-      const v = validateFlow(body.graph);
-      if (!v.ok) {
-        throw new AppError(
-          "VALIDATION",
-          "Invalid flow graph",
-          Object.fromEntries(v.errors.map((e) => [e.path, [e.message]])),
-        );
-      }
-      templateKind = v.templateKind;
-      parameters = flowToParams(v.graph, v.templateKind) as object;
+      // Allow saving incomplete/work-in-progress graphs.
+      // Validation only happens at deploy time.
       graph = body.graph;
+      const v = validateFlow(body.graph);
+      if (v.ok) {
+        templateKind = v.templateKind;
+        parameters = flowToParams(v.graph, v.templateKind) as object;
+      }
     }
 
     const updated = await db.flow.update({

@@ -80,7 +80,7 @@ impl Splitter {
         let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
 
         let client = token::Client::new(&env, &asset);
-        client.transfer(&from, &env.current_contract_address(), &amount);
+        client.transfer(&from, env.current_contract_address(), &amount);
 
         let len = recipients.len();
         let last_idx = len - 1;
@@ -104,8 +104,10 @@ impl Splitter {
         }
 
         let topic: Symbol = symbol_short!("distrib");
+        #[allow(deprecated)]
         env.events()
             .publish((topic, from.clone()), (asset.clone(), amount));
+        #[allow(deprecated)]
         env.events()
             .publish((symbol_short!("payout"), from), recipients);
     }
@@ -187,7 +189,7 @@ mod test {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Error(Contract, #2)")]
     fn bad_bps_panics() {
         let env = Env::default();
         env.mock_all_auths();

@@ -10,7 +10,7 @@ import { env } from "@/lib/env";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToParams } from "@/lib/flows/to-params";
-import { prepareDeployTx } from "@/lib/stellar/deploy";
+import { prepareDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
 import { assertMainnetAllowed } from "@/lib/mainnet";
 
 const PrepareSchema = z.object({
@@ -60,6 +60,8 @@ export async function POST(req: NextRequest) {
         `No WASM uploaded for ${v.templateKind} on ${body.network}. Run pnpm contracts:upload.`,
       );
     }
+
+    await checkAccountFunding(body.sourceAccount);
 
     const deployment = await db.deployment.create({
       data: {
