@@ -6,8 +6,10 @@ import Topbar from "@/components/app/topbar";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToEnglish } from "@/lib/flows/english";
+import { flowToParams } from "@/lib/flows/to-params";
 import DeployReview from "@/components/deploy/deploy-review";
 import { env } from "@/lib/env";
+import { TemplateKind } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,46 @@ export default async function DeployReviewPage({
   const graph = FlowGraphSchema.safeParse(flow.graph);
   const validation = graph.success ? validateFlow(graph.data) : null;
   const english = graph.success ? flowToEnglish(graph.data) : "(invalid graph)";
+
+  let streamerPreview: {
+    totalStroops: string;
+    durationSecs: number;
+    intervalLabel: string;
+    startDate: string;
+    endDate: string;
+  } | null = null;
+  if (graph.success && validation?.ok && validation.templateKind === TemplateKind.STREAMER) {
+    const params = flowToParams(graph.data, validation.templateKind);
+    if (params.kind === "streamer") {
+      const durationSecs = params.endTs - params.startTs;
+      const triggerNode = graph.data.nodes.find((n) => n.type === "on_schedule") as
+        | {
+            type: "on_schedule";
+            config: { interval: string };
+          }
+        | undefined;
+      const intervalSeconds =
+        triggerNode?.config.interval === "minute"
+          ? 60
+          : triggerNode?.config.interval === "hour"
+            ? 3600
+            : 86400;
+      const intervalLabel =
+        intervalSeconds === 60
+          ? "every minute"
+          : intervalSeconds === 3600
+            ? "every hour"
+            : "every day";
+      const totalStroops = (BigInt(params.ratePerSecondStroops) * BigInt(durationSecs)).toString();
+      streamerPreview = {
+        totalStroops,
+        durationSecs,
+        intervalLabel,
+        startDate: new Date(params.startTs * 1000).toISOString(),
+        endDate: new Date(params.endTs * 1000).toISOString(),
+      };
+    }
+  }
 
   return (
     <>
@@ -55,6 +97,44 @@ export default async function DeployReviewPage({
             TEMPLATE: <span className="text-on-surface">{flow.templateKind}</span>
           </div>
         </section>
+
+        {streamerPreview && (
+          <section className="mt-4 rounded-xl border border-amber-900 bg-amber-950/20 p-4">
+            <div className="text-[10px] font-medium tracking-wide text-amber-400 uppercase">
+              Streamer funding required
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <div className="text-xs text-zinc-400">Total vest amount</div>
+                <div className="font-mono text-lg text-amber-200">
+                  {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()} XLM
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-zinc-400">Vesting interval</div>
+                <div className="font-mono text-lg text-amber-200">
+                  {streamerPreview.intervalLabel}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-zinc-400">Start</div>
+                <div className="text-xs text-zinc-300">{streamerPreview.startDate}</div>
+              </div>
+              <div>
+                <div className="text-xs text-zinc-400">End</div>
+                <div className="text-xs text-zinc-300">{streamerPreview.endDate}</div>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-amber-300">
+              This contract will vest{" "}
+              <strong>
+                {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()} XLM
+              </strong>{" "}
+              over its lifetime. You must top up the contract with sufficient funds for claims to
+              succeed.
+            </p>
+          </section>
+        )}
 
         {validation && !validation.ok && (
           <div className="glass-panel mt-md border-error/40 p-md rounded-xl">
