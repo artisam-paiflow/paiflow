@@ -130,5 +130,35 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     templateKind = TemplateKind.SPLITTER;
   }
 
+  // Streamer-specific validation
+  if (templateKind === TemplateKind.STREAMER) {
+    const trigger = triggers[0];
+    if (trigger?.type === "on_schedule") {
+      const { startsAt, endsAt, occurrences } = trigger.config;
+      if (startsAt && endsAt && occurrences !== undefined) {
+        errors.push({
+          path: `nodes.${trigger.id}.config`,
+          message: "Cannot specify both 'Ends at' and 'Number of occurrences' — choose one",
+        });
+      }
+      const startMs = new Date(startsAt).getTime();
+      const endMs = endsAt ? new Date(endsAt).getTime() : null;
+      if (endMs && startMs >= endMs) {
+        errors.push({
+          path: `nodes.${trigger.id}.config.endsAt`,
+          message: "'Ends at' must be after 'Starts at'",
+        });
+      }
+      if (occurrences !== undefined && occurrences < 1) {
+        errors.push({
+          path: `nodes.${trigger.id}.config.occurrences`,
+          message: "'Number of occurrences' must be at least 1",
+        });
+      }
+    }
+  }
+
+  if (errors.length) return { ok: false, errors };
+
   return { ok: true, templateKind, graph };
 }

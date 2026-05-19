@@ -55,9 +55,16 @@ export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): Cont
       throw new Error("Streamer requires on_schedule → pay");
     }
     const start = Math.floor(new Date(trigger.config.startsAt).getTime() / 1000);
-    const end = trigger.config.endsAt
-      ? Math.floor(new Date(trigger.config.endsAt).getTime() / 1000)
-      : start + 60 * 60 * 24 * 30; // default 30 days
+    const intervalSeconds =
+      trigger.config.interval === "minute" ? 60 : trigger.config.interval === "hour" ? 3600 : 86400;
+    let end: number;
+    if (trigger.config.endsAt) {
+      end = Math.floor(new Date(trigger.config.endsAt).getTime() / 1000);
+    } else if (trigger.config.occurrences) {
+      end = start + intervalSeconds * trigger.config.occurrences;
+    } else {
+      end = start + 60 * 60 * 24 * 30;
+    }
     return {
       kind: "streamer",
       asset: action.config.asset,

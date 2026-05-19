@@ -19,14 +19,14 @@ export default function DeploymentView({
   deploymentId,
   contractAddress,
   status,
-  sep7Uri,
+  invokeUri,
   initialEvents,
   graph,
 }: {
   deploymentId: string;
   contractAddress: string | null;
   status: string;
-  sep7Uri: string | null;
+  invokeUri: string | null;
   initialEvents: Evt[];
   graph: FlowGraph | null;
 }) {
@@ -75,20 +75,20 @@ export default function DeploymentView({
       <div className="gap-md grid grid-cols-1 lg:grid-cols-2">
         <section className="glass-panel p-md rounded-xl">
           <div className="flex items-center justify-between">
-            <h2 className="text-headline-sm text-on-surface">Send funds</h2>
+            <h2 className="text-headline-sm text-on-surface">Trigger distribution</h2>
             <span className="border-secondary/30 bg-secondary/10 text-label-sm text-secondary inline-flex items-center gap-1.5 rounded border px-2 py-1 font-mono">
               <span className="material-symbols-outlined text-[12px]">qr_code_2</span>
-              SEP-7
+              FREIGHTER
             </span>
           </div>
           {contractAddress ? (
             <>
               <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
-                SCAN WITH ANY STELLAR WALLET.
+                SCAN WITH FREIGHTER WALLET. ENTER AMOUNT WHEN PROMPTED.
               </p>
               <div className="mt-md gap-md grid grid-cols-[160px_1fr]">
                 <div className="rounded-lg bg-white p-3">
-                  <QRCodeSVG value={sep7Uri ?? contractAddress} size={140} />
+                  <QRCodeSVG value={invokeUri ?? ""} size={140} />
                 </div>
                 <div className="text-body-md space-y-3">
                   <div>
@@ -102,19 +102,6 @@ export default function DeploymentView({
                       {contractAddress}
                     </button>
                   </div>
-                  {sep7Uri && (
-                    <div>
-                      <div className="text-label-sm text-on-surface-variant font-mono uppercase">
-                        SEP-7 URI
-                      </div>
-                      <button
-                        onClick={() => copy(sep7Uri)}
-                        className="text-on-surface hover:text-primary mt-1 text-left font-mono text-[12px] break-all transition-colors"
-                      >
-                        {sep7Uri}
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
             </>
@@ -137,7 +124,7 @@ export default function DeploymentView({
           <ul className="mt-md max-h-96 space-y-2 overflow-y-auto">
             {events.length === 0 && (
               <li className="border-outline-variant/30 text-label-sm text-on-surface-variant rounded border border-dashed p-3 font-mono">
-                NO EVENTS YET. SEND FUNDS TO THE CONTRACT.
+                NO EVENTS YET. TRIGGER DISTRIBUTE TO SEE THEM HERE.
               </li>
             )}
             {events.map((e) => (
