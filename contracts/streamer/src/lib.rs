@@ -151,7 +151,7 @@ impl Streamer {
     pub fn top_up(env: Env, from: Address, amount: i128) {
         from.require_auth();
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-        token::Client::new(&env, &asset).transfer(&from, &env.current_contract_address(), &amount);
+        token::Client::new(&env, &asset).transfer(&from, env.current_contract_address(), &amount);
     }
 
     pub fn cancel(env: Env) {
@@ -163,6 +163,7 @@ impl Streamer {
         if balance > 0 {
             client.transfer(&env.current_contract_address(), &admin, &balance);
         }
+        #[allow(deprecated)]
         env.events().publish((symbol_short!("cancel"),), balance);
     }
 }
