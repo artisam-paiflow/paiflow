@@ -2,7 +2,12 @@ import Link from "next/link";
 import Logo from "@/components/app/logo";
 import NewPasswordForm from "@/components/auth/new-password-form";
 
-export const metadata = { title: "Set new password · Pink Raft" };
+// `referrer: no-referrer` ensures the `?token=…` URL is never sent in the
+// `Referer` header to anything the user navigates to from this page.
+export const metadata = {
+  title: "Set new password · Pink Raft",
+  referrer: "no-referrer" as const,
+};
 
 export default async function NewPasswordPage({
   searchParams,

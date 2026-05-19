@@ -63,13 +63,22 @@ export async function POST(req: NextRequest) {
     const tokenHash = hashResetToken(rawToken);
     const expiresAt = resetTokenExpiresAt();
 
-    await db.passwordResetToken.create({
-      data: {
-        userId: user.id,
-        tokenHash,
-        expiresAt,
-      },
-    });
+    // A fresh request supersedes any outstanding links. Invalidate them in
+    // the same transaction as the new token so the user never has more than
+    // one usable reset link at a time.
+    await db.$transaction([
+      db.passwordResetToken.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: new Date() },
+      }),
+      db.passwordResetToken.create({
+        data: {
+          userId: user.id,
+          tokenHash,
+          expiresAt,
+        },
+      }),
+    ]);
 
     const resetLink = `${env().NEXT_PUBLIC_APP_URL}/auth/new-password?token=${rawToken}`;
 
