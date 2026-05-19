@@ -108,15 +108,10 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     })),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const graph: FlowGraph = useMemo(
     () => ({
@@ -336,126 +331,121 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const errors = validation.ok ? [] : validation.errors;
 
   return (
-    <div className="grid grid-cols-[220px_1fr] gap-0" style={{ height: "calc(100vh - 49px)" }}>
-      <Palette onAdd={addNode} flowNodes={flowNodes} />
+    <>
+      <div className="grid grid-cols-[220px_1fr] gap-0" style={{ height: "calc(100vh - 49px)" }}>
+        <Palette onAdd={addNode} flowNodes={flowNodes} />
 
-      <div className="relative flex flex-col">
-        <div className="relative flex-1">
-          {/* Top-left: name + deploy + AI toggle */}
-          <div className="absolute top-3 left-3 z-10 flex items-center gap-3">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="rounded bg-zinc-900/80 px-3 py-1.5 text-sm font-medium"
-            />
-            <DeployButton flowId={flowId} />
-            <button
-              onClick={() => setSidebarOpen((v) => !v)}
-              className={cn(
-                "rounded-full px-3 py-1.5 text-xs font-medium transition-all",
-                sidebarOpen
-                  ? "bg-zinc-800 text-zinc-300 ring-1 ring-zinc-700"
-                  : "bg-brand-600 hover:bg-brand-500 text-white",
-              )}
-            >
-              {sidebarOpen ? "Close AI" : "Edit with AI"}
-            </button>
-          </div>
-
-          {/* Floating ConfigPanel — shifts left when sidebar opens */}
-          {selectedNode && (
-            <div
-              className={cn(
-                "absolute top-3 z-20 max-h-[calc(100vh-100px)] w-80 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl transition-all duration-300 ease-in-out",
-                sidebarOpen ? "right-[340px]" : "right-3",
-              )}
-            >
-              <ConfigPanel
-                node={selectedNode}
-                graph={graph}
-                onChange={updateNode}
-                onDelete={deleteNode}
-                className="border-0"
+        <div className="relative flex flex-col">
+          <div className="relative flex-1">
+            {/* Top-left: name + deploy + AI toggle */}
+            <div className="absolute top-3 left-3 z-10 flex items-center gap-3">
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="rounded bg-zinc-900/80 px-3 py-1.5 text-sm font-medium"
               />
+              <DeployButton flowId={flowId} />
+              <button
+                onClick={() => setChatCollapsed((v) => !v)}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-xs font-medium transition-all",
+                  !chatCollapsed
+                    ? "bg-zinc-800 text-zinc-300 ring-1 ring-zinc-700"
+                    : "bg-brand-600 hover:bg-brand-500 text-white",
+                )}
+              >
+                {!chatCollapsed ? "Close AI" : "Edit with AI"}
+              </button>
             </div>
-          )}
 
-          {/* Railway-style right sidebar — slides in from right */}
-          {mounted && (
-            <div
-              className={cn(
-                "absolute top-0 right-0 bottom-0 z-30 w-80 transition-transform duration-300 ease-in-out",
-                sidebarOpen
-                  ? "pointer-events-auto translate-x-0"
-                  : "pointer-events-none translate-x-full",
-              )}
-            >
-              <RaftLog
-                messages={messages}
-                onSend={sendChat}
-                loading={chatLoading}
-                pendingAddresses={pendingAddresses}
-                onResolveAddress={handleResolveAddress}
-                onSkipAddresses={handleSkipAddresses}
-                onClose={() => setSidebarOpen(false)}
-              />
-            </div>
-          )}
-
-          <ReactFlow
-            nodes={rfNodes.map((n) => ({
-              ...n,
-              data: { ...n.data, label: nodeLabel(flowNodes.find((f) => f.id === n.id)) },
-              selected: n.id === selectedId,
-            }))}
-            edges={rfEdges.map((e) => ({ ...e, style: { stroke: "#71717a", strokeWidth: 2 } }))}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodeClick={(_, n) => setSelectedId(n.id)}
-            onPaneClick={() => setSelectedId(null)}
-            nodeTypes={nodeTypes}
-            fitView
-          >
-            <Background gap={16} size={1} color="#27272a" />
-            <Controls />
-          </ReactFlow>
-
-          {/* Validation status badge */}
-          <div className="pointer-events-none absolute top-3 left-1/2 z-10 -translate-x-1/2">
-            {templateKind && (
-              <span className="text-brand-400 ring-brand-500/50 rounded-full bg-zinc-900/90 px-3 py-1 text-xs ring-1">
-                {TEMPLATE_LABELS[templateKind] ?? templateKind}
-              </span>
-            )}
-          </div>
-
-          {/* English preview + validation errors */}
-          <div className="pointer-events-none absolute right-4 bottom-4 left-4 rounded-lg bg-zinc-950/90 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800">
-            <div className="mb-1 flex items-center gap-2">
-              <div className="text-brand-400 text-[10px] tracking-wide uppercase">
-                English preview
+            {/* Floating ConfigPanel — shifts left when sidebar opens */}
+            {selectedNode && (
+              <div
+                className={cn(
+                  "absolute top-3 z-20 max-h-[calc(100vh-100px)] w-80 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl transition-all duration-300 ease-in-out",
+                  !chatCollapsed ? "right-[340px]" : "right-3",
+                )}
+              >
+                <ConfigPanel
+                  node={selectedNode}
+                  graph={graph}
+                  onChange={updateNode}
+                  onDelete={deleteNode}
+                  className="border-0"
+                />
               </div>
-              {isValid && templateKind && (
-                <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                  valid {TEMPLATE_LABELS[templateKind]?.toLowerCase()}
+            )}
+
+            <ReactFlow
+              nodes={rfNodes.map((n) => ({
+                ...n,
+                data: { ...n.data, label: nodeLabel(flowNodes.find((f) => f.id === n.id)) },
+                selected: n.id === selectedId,
+              }))}
+              edges={rfEdges.map((e) => ({ ...e, style: { stroke: "#71717a", strokeWidth: 2 } }))}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onNodeClick={(_, n) => setSelectedId(n.id)}
+              onPaneClick={() => {
+                setSelectedId(null);
+                if (!chatCollapsed) setChatCollapsed(true);
+              }}
+              nodeTypes={nodeTypes}
+              fitView
+            >
+              <Background gap={16} size={1} color="#27272a" />
+              <Controls />
+            </ReactFlow>
+
+            {/* Validation status badge */}
+            <div className="pointer-events-none absolute top-3 left-1/2 z-10 -translate-x-1/2">
+              {templateKind && (
+                <span className="text-brand-400 ring-brand-500/50 rounded-full bg-zinc-900/90 px-3 py-1 text-xs ring-1">
+                  {TEMPLATE_LABELS[templateKind] ?? templateKind}
                 </span>
               )}
             </div>
-            <div className="mt-1">{english}</div>
-            {!isValid && errors.length > 0 && (
-              <div className="mt-2 space-y-1">
-                {errors.map((e, i) => (
-                  <div key={i} className="text-[11px] text-red-400">
-                    {e.friendlyMessage}
-                  </div>
-                ))}
+
+            {/* English preview + validation errors */}
+            <div className="pointer-events-none absolute right-4 bottom-4 left-4 rounded-lg bg-zinc-950/90 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800">
+              <div className="mb-1 flex items-center gap-2">
+                <div className="text-brand-400 text-[10px] tracking-wide uppercase">
+                  English preview
+                </div>
+                {isValid && templateKind && (
+                  <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                    valid {TEMPLATE_LABELS[templateKind]?.toLowerCase()}
+                  </span>
+                )}
               </div>
-            )}
+              <div className="mt-1">{english}</div>
+              {!isValid && errors.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {errors.map((e, i) => (
+                    <div key={i} className="text-[11px] text-red-400">
+                      {e.friendlyMessage}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Railway-style slide-in chat panel */}
+      <RaftLog
+        messages={messages}
+        onSend={sendChat}
+        loading={chatLoading}
+        pendingAddresses={pendingAddresses}
+        onResolveAddress={handleResolveAddress}
+        onSkipAddresses={handleSkipAddresses}
+        collapsed={chatCollapsed}
+        onToggleCollapse={() => setChatCollapsed((v) => !v)}
+      />
+    </>
   );
 }
 
