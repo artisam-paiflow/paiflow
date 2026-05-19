@@ -61,8 +61,8 @@ export default async function DeployReviewPage({
         totalStroops,
         durationSecs,
         intervalLabel,
-        startDate: new Date(params.startTs * 1000).toLocaleString(),
-        endDate: new Date(params.endTs * 1000).toLocaleString(),
+        startDate: new Date(params.startTs * 1000).toISOString(),
+        endDate: new Date(params.endTs * 1000).toISOString(),
       };
     }
   }
