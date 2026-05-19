@@ -110,9 +110,14 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const graph: FlowGraph = useMemo(
     () => ({
@@ -335,7 +340,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     <div className="grid grid-cols-[220px_1fr] gap-0" style={{ height: "calc(100vh - 49px)" }}>
       <Palette onAdd={addNode} flowNodes={flowNodes} />
 
-      <div className="relative flex flex-col overflow-hidden">
+      <div className="relative flex flex-col">
         <div className="relative flex-1">
           {/* Top-left: name + deploy */}
           <div className="absolute top-3 left-3 z-10 flex items-center gap-3">
@@ -382,22 +387,26 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           )}
 
           {/* Railway-style right sidebar — slides in from right */}
-          <div
-            className={cn(
-              "absolute top-0 right-0 bottom-0 z-30 w-80 transition-transform duration-300 ease-in-out",
-              sidebarOpen ? "translate-x-0" : "translate-x-full",
-            )}
-          >
-            <RaftLog
-              messages={messages}
-              onSend={sendChat}
-              loading={chatLoading}
-              pendingAddresses={pendingAddresses}
-              onResolveAddress={handleResolveAddress}
-              onSkipAddresses={handleSkipAddresses}
-              onClose={() => setSidebarOpen(false)}
-            />
-          </div>
+          {mounted && (
+            <div
+              className={cn(
+                "absolute top-0 right-0 bottom-0 z-30 w-80 transition-transform duration-300 ease-in-out",
+                sidebarOpen
+                  ? "pointer-events-auto translate-x-0"
+                  : "pointer-events-none translate-x-full",
+              )}
+            >
+              <RaftLog
+                messages={messages}
+                onSend={sendChat}
+                loading={chatLoading}
+                pendingAddresses={pendingAddresses}
+                onResolveAddress={handleResolveAddress}
+                onSkipAddresses={handleSkipAddresses}
+                onClose={() => setSidebarOpen(false)}
+              />
+            </div>
+          )}
 
           <ReactFlow
             nodes={rfNodes.map((n) => ({
