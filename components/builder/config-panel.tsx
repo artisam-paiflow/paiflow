@@ -62,11 +62,46 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
           <Field label="Starts at (ISO)">
             <input
               className="input"
-              value={node.config.startsAt}
+              type="datetime-local"
+              value={node.config.startsAt.slice(0, 16)}
               onChange={(e) =>
                 onChange({
                   ...node,
-                  config: { ...node.config, startsAt: e.target.value },
+                  config: { ...node.config, startsAt: new Date(e.target.value).toISOString() },
+                })
+              }
+            />
+          </Field>
+          <Field label="Ends at (ISO) — optional">
+            <input
+              className="input"
+              type="datetime-local"
+              value={node.config.endsAt?.slice(0, 16) ?? ""}
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: {
+                    ...node.config,
+                    endsAt: e.target.value ? new Date(e.target.value).toISOString() : undefined,
+                  },
+                })
+              }
+            />
+          </Field>
+          <Field label="Number of occurrences — optional">
+            <input
+              className="input"
+              type="number"
+              min="1"
+              placeholder="e.g. 5 (mutually exclusive with Ends at)"
+              value={node.config.occurrences ?? ""}
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: {
+                    ...node.config,
+                    occurrences: e.target.value ? Number(e.target.value) : undefined,
+                  },
                 })
               }
             />
