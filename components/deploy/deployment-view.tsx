@@ -20,6 +20,7 @@ export default function DeploymentView({
   contractAddress,
   status,
   sep7Uri,
+  network,
   templateKind,
   initialEvents,
   graph,
@@ -28,6 +29,7 @@ export default function DeploymentView({
   contractAddress: string | null;
   status: string;
   sep7Uri: string | null;
+  network: string;
   templateKind: string;
   initialEvents: Evt[];
   graph: FlowGraph | null;
@@ -155,22 +157,22 @@ export default function DeploymentView({
               <div className="rounded border border-amber-900 bg-zinc-950 p-3">
                 <div className="text-xs text-zinc-400">1. Top up the contract</div>
                 <code className="mt-1 block font-mono text-xs break-all text-amber-200">
-                  stellar contract invoke --id {contractAddress} --source your_key --network testnet
-                  -- top_up --from "YOUR_ADDR" --amount 10000000
+                  stellar contract invoke --id {contractAddress} --source your_key --network{" "}
+                  {network} -- top_up --from "YOUR_ADDR" --amount 10000000
                 </code>
               </div>
               <div className="rounded border border-amber-900 bg-zinc-950 p-3">
                 <div className="text-xs text-zinc-400">2. Recipient claims vested funds</div>
                 <code className="mt-1 block font-mono text-xs break-all text-amber-200">
-                  stellar contract invoke --id {contractAddress} --source recipient_key --network
-                  testnet -- claim
+                  stellar contract invoke --id {contractAddress} --source recipient_key --network{" "}
+                  {network} -- claim
                 </code>
               </div>
             </div>
             <button
               onClick={() =>
                 copy(
-                  `stellar contract invoke --id ${contractAddress} --source your_key --network testnet -- top_up --from "YOUR_ADDR" --amount 10000000`,
+                  `stellar contract invoke --id ${contractAddress} --source your_key --network ${network} -- top_up --from "YOUR_ADDR" --amount 10000000`,
                 )
               }
               className="mt-3 rounded border border-amber-700 px-3 py-1 text-xs text-amber-300 hover:bg-amber-900/30"
