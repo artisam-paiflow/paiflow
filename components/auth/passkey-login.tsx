@@ -39,11 +39,13 @@ export default function PasskeyLogin({ from }: { from?: string }) {
 
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={busy}
-      className="rounded-md border border-zinc-700 px-4 py-2 text-sm font-medium hover:bg-zinc-900 disabled:opacity-60"
+      className="border-secondary/60 px-md py-sm text-label-md text-secondary hover:border-secondary hover:bg-secondary/10 inline-flex items-center justify-center gap-2 rounded-lg border bg-transparent font-mono transition-all duration-200 hover:shadow-[0_0_16px_rgba(152,203,255,0.35)] disabled:cursor-not-allowed disabled:opacity-50"
     >
-      {busy ? "Talking to your device…" : "Sign in with passkey"}
+      <span className="material-symbols-outlined text-[16px]">key</span>
+      {busy ? "TALKING TO YOUR DEVICE…" : "SIGN IN WITH PASSKEY"}
     </button>
   );
 }

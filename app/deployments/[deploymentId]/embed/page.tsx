@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { sep7PaymentUri } from "@/lib/stellar/sep7";
 import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
 import DeploymentView from "@/components/deploy/deployment-view";
+import Logo from "@/components/app/logo";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,12 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
   const sep7 = sep7PaymentUri({ destination: d.contractAddress, asset });
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-6">
+    <main className="px-margin py-md mx-auto max-w-4xl">
+      <div className="mb-md text-label-sm text-on-surface-variant flex items-center gap-2 font-mono">
+        <Logo size={18} />
+        <span className="text-outline-variant">·</span>
+        <span>EMBED</span>
+      </div>
       <DeploymentView
         deploymentId={d.id}
         contractAddress={d.contractAddress}

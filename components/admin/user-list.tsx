@@ -28,7 +28,7 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
       toast.error(b?.error?.message ?? "Failed");
       return;
     }
-    toast.success("Updated");
+    toast.success("Updated.");
     setUsers((u) =>
       u.map((x) =>
         x.id === id
@@ -58,93 +58,123 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
       toast.error(body?.error?.message ?? "Failed");
       return;
     }
-    toast.success("Created");
+    toast.success("Created.");
     setShowCreate(false);
     window.location.reload();
   }
 
   return (
     <>
-      <div className="mt-6 flex justify-end">
+      <div className="mt-md flex justify-end">
         <button
           onClick={() => setShowCreate((s) => !s)}
-          className="bg-brand-600 hover:bg-brand-500 rounded px-3 py-1.5 text-sm"
+          className="bg-primary text-label-md text-on-primary inline-flex items-center gap-2 rounded-lg px-3 py-1.5 font-mono font-bold transition-all hover:-translate-y-px hover:shadow-[0_0_16px_rgba(255,177,196,0.5)] active:scale-95"
         >
-          {showCreate ? "Cancel" : "New user"}
+          <span className="material-symbols-outlined text-[16px]">
+            {showCreate ? "close" : "person_add"}
+          </span>
+          {showCreate ? "CANCEL" : "NEW USER"}
         </button>
       </div>
       {showCreate && (
         <form
           action={create}
-          className="mt-4 grid grid-cols-[1fr_1fr_120px_auto] gap-2 rounded border border-zinc-800 bg-zinc-950 p-3 text-sm"
+          className="glass-panel mt-md grid grid-cols-[1fr_1fr_120px_auto] gap-2 rounded-xl p-3"
         >
-          <input name="username" placeholder="username" className="input" required />
+          <input name="username" placeholder="username" className="admin-input" required />
           <input
             name="password"
             placeholder="password (12+)"
             type="password"
             minLength={12}
-            className="input"
+            className="admin-input"
             required
           />
-          <select name="role" className="input">
+          <select name="role" className="admin-input">
             <option value="USER">USER</option>
             <option value="ADMIN">ADMIN</option>
           </select>
-          <button className="bg-brand-600 hover:bg-brand-500 rounded px-3 py-1">Create</button>
+          <button className="bg-primary text-label-sm text-on-primary inline-flex items-center gap-1 rounded-lg px-3 py-1.5 font-mono font-bold transition-all hover:-translate-y-px hover:shadow-[0_0_16px_rgba(255,177,196,0.5)] active:scale-95">
+            <span className="material-symbols-outlined text-[14px]">check</span>
+            CREATE
+          </button>
           <style jsx>{`
-            :global(.input) {
-              background-color: #0a0a0f;
-              border: 1px solid #27272a;
-              padding: 0.4rem 0.6rem;
-              border-radius: 0.375rem;
+            :global(.admin-input) {
+              background-color: #0e0e0e;
+              border: 1px solid rgba(92, 63, 70, 0.4);
+              padding: 0.45rem 0.65rem;
+              border-radius: 0.125rem;
+              font-family: "JetBrains Mono", ui-monospace, monospace;
+              font-size: 13px;
+              color: #e5e2e1;
+            }
+            :global(.admin-input:focus) {
+              outline: none;
+              border-color: #ffb1c4;
+              box-shadow: 0 0 0 1px #ffb1c4;
             }
           `}</style>
         </form>
       )}
-      <table className="mt-6 w-full text-left text-sm">
-        <thead className="bg-zinc-950 text-zinc-400">
-          <tr>
-            <th className="px-3 py-2">Username</th>
-            <th className="px-3 py-2">Role</th>
-            <th className="px-3 py-2">Active</th>
-            <th className="px-3 py-2">Locked</th>
-            <th className="px-3 py-2">Created</th>
-            <th className="px-3 py-2">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-zinc-900">
+
+      <div className="glass-panel mt-md overflow-hidden rounded-xl">
+        <div className="bg-surface-container/60 px-md text-label-sm text-on-surface-variant grid grid-cols-[1.5fr_120px_80px_80px_120px_1fr] gap-3 py-2.5 font-mono">
+          <span>USERNAME</span>
+          <span>ROLE</span>
+          <span>ACTIVE</span>
+          <span>LOCKED</span>
+          <span>CREATED</span>
+          <span>ACTIONS</span>
+        </div>
+        <div className="divide-outline-variant/10 divide-y">
           {users.map((u) => (
-            <tr key={u.id}>
-              <td className="px-3 py-2">{u.username}</td>
-              <td className="px-3 py-2">
-                <select
-                  value={u.role}
-                  onChange={(e) => patch(u.id, { role: e.target.value })}
-                  className="rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5"
-                >
-                  <option value="USER">USER</option>
-                  <option value="ADMIN">ADMIN</option>
-                </select>
-              </td>
-              <td className="px-3 py-2">{u.isActive ? "yes" : "no"}</td>
-              <td className="px-3 py-2">{u.lockedUntil ? "yes" : "no"}</td>
-              <td className="px-3 py-2 text-zinc-400">
+            <div
+              key={u.id}
+              className="px-md text-body-md hover:bg-surface-container-high/40 grid grid-cols-[1.5fr_120px_80px_80px_120px_1fr] items-center gap-3 py-2 transition-colors"
+            >
+              <span className="text-on-surface truncate">{u.username}</span>
+              <select
+                value={u.role}
+                onChange={(e) => patch(u.id, { role: e.target.value })}
+                className="admin-input"
+              >
+                <option value="USER">USER</option>
+                <option value="ADMIN">ADMIN</option>
+              </select>
+              <span
+                className={`text-label-sm inline-flex w-fit rounded border px-1.5 py-0.5 font-mono ${
+                  u.isActive
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-outline-variant/40 text-on-surface-variant"
+                }`}
+              >
+                {u.isActive ? "YES" : "NO"}
+              </span>
+              <span
+                className={`text-label-sm inline-flex w-fit rounded border px-1.5 py-0.5 font-mono ${
+                  u.lockedUntil
+                    ? "border-error/40 bg-error-container/30 text-error"
+                    : "border-outline-variant/40 text-on-surface-variant"
+                }`}
+              >
+                {u.lockedUntil ? "YES" : "NO"}
+              </span>
+              <span className="text-label-sm text-on-surface-variant font-mono">
                 {new Date(u.createdAt).toLocaleDateString()}
-              </td>
-              <td className="space-x-2 px-3 py-2">
+              </span>
+              <div className="flex flex-wrap gap-1.5">
                 <button
                   onClick={() => patch(u.id, { isActive: !u.isActive })}
-                  className="rounded border border-zinc-700 px-2 py-0.5 text-xs hover:bg-zinc-900"
+                  className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:border-primary/40 hover:text-on-surface rounded border px-2 py-0.5 font-mono transition-colors"
                 >
-                  {u.isActive ? "Deactivate" : "Activate"}
+                  {u.isActive ? "DEACTIVATE" : "ACTIVATE"}
                 </button>
                 {u.lockedUntil && (
                   <button
                     onClick={() => patch(u.id, { unlock: true })}
-                    className="rounded border border-zinc-700 px-2 py-0.5 text-xs hover:bg-zinc-900"
+                    className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:border-primary/40 hover:text-on-surface rounded border px-2 py-0.5 font-mono transition-colors"
                   >
-                    Unlock
+                    UNLOCK
                   </button>
                 )}
                 <button
@@ -152,15 +182,15 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
                     const pw = prompt("New password (min 12 chars):");
                     if (pw && pw.length >= 12) patch(u.id, { resetPassword: pw });
                   }}
-                  className="rounded border border-zinc-700 px-2 py-0.5 text-xs hover:bg-zinc-900"
+                  className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:border-primary/40 hover:text-on-surface rounded border px-2 py-0.5 font-mono transition-colors"
                 >
-                  Reset password
+                  RESET PW
                 </button>
-              </td>
-            </tr>
+              </div>
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+      </div>
     </>
   );
 }

@@ -21,21 +21,43 @@ export default async function Account() {
   return (
     <>
       <Topbar username={user.username} />
-      <main className="mx-auto max-w-2xl px-6 py-10">
-        <h1 className="text-3xl font-semibold">Account</h1>
-        <dl className="mt-6 grid grid-cols-[140px_1fr] gap-y-2 text-sm">
-          <dt className="text-zinc-400">Username</dt>
-          <dd>{me?.username}</dd>
-          <dt className="text-zinc-400">Role</dt>
-          <dd>{me?.role}</dd>
-          <dt className="text-zinc-400">Member since</dt>
-          <dd>{me?.createdAt ? new Date(me.createdAt).toLocaleString() : ""}</dd>
-          <dt className="text-zinc-400">Last sign-in</dt>
-          <dd>{me?.lastLoginAt ? new Date(me.lastLoginAt).toLocaleString() : "never"}</dd>
-        </dl>
+      <main className="px-margin py-lg mx-auto max-w-3xl">
+        <p className="text-label-sm text-on-surface-variant font-mono">/ ACCOUNT</p>
+        <h1 className="font-display text-on-surface mt-2 text-[40px] leading-[1.1] font-semibold tracking-[-0.02em]">
+          Profile.
+        </h1>
+
+        <section className="glass-panel mt-md p-md grid grid-cols-[160px_1fr] gap-y-3 rounded-xl">
+          <KV k="USERNAME" v={me?.username ?? "—"} mono />
+          <KV k="ROLE" v={me?.role ?? "—"} mono />
+          <KV
+            k="MEMBER SINCE"
+            v={me?.createdAt ? new Date(me.createdAt).toLocaleString() : "—"}
+            mono
+          />
+          <KV
+            k="LAST SIGN-IN"
+            v={me?.lastLoginAt ? new Date(me.lastLoginAt).toLocaleString() : "NEVER"}
+            mono
+          />
+        </section>
+
         <ChangePassword />
         <PasskeyManager />
       </main>
+    </>
+  );
+}
+
+function KV({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
+  return (
+    <>
+      <dt className="text-label-sm text-on-surface-variant font-mono uppercase">{k}</dt>
+      <dd
+        className={mono ? "text-body-md text-on-surface font-mono" : "text-body-md text-on-surface"}
+      >
+        {v}
+      </dd>
     </>
   );
 }

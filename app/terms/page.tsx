@@ -1,37 +1,46 @@
 import Link from "next/link";
+import Logo from "@/components/app/logo";
 
 export const metadata = { title: "Terms · Pink Raft" };
 
 export default function TermsPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16">
-      <Link href="/" className="text-brand-300 font-bold">
-        Pink Raft
+    <main className="px-margin py-xl mx-auto max-w-3xl">
+      <Link href="/" className="inline-flex" aria-label="Pink Raft home">
+        <Logo size={22} />
       </Link>
-      <h1 className="mt-8 text-4xl font-semibold">Terms of use</h1>
-      <p className="mt-4 text-sm text-zinc-500">
-        Last updated: {new Date().toISOString().slice(0, 10)}
+
+      <p className="mt-lg text-label-sm text-on-surface-variant font-mono">/ TERMS</p>
+      <h1 className="font-display text-on-surface mt-2 text-[48px] leading-[1.05] font-bold tracking-[-0.02em]">
+        Terms of use.
+      </h1>
+      <p className="text-label-sm text-on-surface-variant mt-3 font-mono">
+        LAST UPDATED: {new Date().toISOString().slice(0, 10)}
       </p>
-      <h2 className="mt-10 text-2xl font-semibold">No financial advice</h2>
-      <p className="mt-4 text-zinc-300">
-        Pink Raft is a developer tool. Anything you deploy is your own responsibility. We don't
-        audit your flow's economic logic, only the underlying contract templates.
-      </p>
-      <h2 className="mt-10 text-2xl font-semibold">Non-custodial</h2>
-      <p className="mt-4 text-zinc-300">
-        You sign every transaction. We never see, store, or transmit your private key. Lose your
-        wallet and we cannot recover your funds.
-      </p>
-      <h2 className="mt-10 text-2xl font-semibold">Testnet default</h2>
-      <p className="mt-4 text-zinc-300">
-        Deployments default to Stellar testnet. Mainnet is gated by an allowlist and an explicit
-        confirmation. You agree to verify addresses and amounts before signing.
-      </p>
-      <h2 className="mt-10 text-2xl font-semibold">No warranty</h2>
-      <p className="mt-4 text-zinc-300">
-        The service is provided "as is" without warranty. To the maximum extent permitted by law,
-        the operator is not liable for any loss arising from use of the service.
-      </p>
+
+      {[
+        {
+          title: "No financial advice",
+          body: "Pink Raft is a developer tool. Anything you deploy is your own responsibility. We don’t audit your flow’s economic logic, only the underlying contract templates.",
+        },
+        {
+          title: "Non-custodial",
+          body: "You sign every transaction. We never see, store, or transmit your private key. Lose your wallet and we cannot recover your funds.",
+        },
+        {
+          title: "Testnet default",
+          body: "Deployments default to Stellar testnet. Mainnet is gated by an allowlist and an explicit confirmation. You agree to verify addresses and amounts before signing.",
+        },
+        {
+          title: "No warranty",
+          body: "The service is provided “as is” without warranty. To the maximum extent permitted by law, the operator is not liable for any loss arising from use of the service.",
+        },
+      ].map((s) => (
+        <section key={s.title} className="mt-xl">
+          <h2 className="text-headline-sm text-on-surface">{s.title}</h2>
+          <p className="text-body-md text-on-surface-variant mt-3">{s.body}</p>
+        </section>
+      ))}
     </main>
   );
 }
