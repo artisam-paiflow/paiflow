@@ -19,14 +19,14 @@ export default function DeploymentView({
   deploymentId,
   contractAddress,
   status,
-  sep7Uri,
+  invokeUri,
   initialEvents,
   graph,
 }: {
   deploymentId: string;
   contractAddress: string | null;
   status: string;
-  sep7Uri: string | null;
+  invokeUri: string | null;
   initialEvents: Evt[];
   graph: FlowGraph | null;
 }) {
@@ -74,13 +74,15 @@ export default function DeploymentView({
       )}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-6">
-          <h2 className="text-lg font-semibold">Send funds</h2>
+          <h2 className="text-lg font-semibold">Trigger distribution</h2>
           {contractAddress ? (
             <>
-              <p className="mt-1 text-xs text-zinc-400">Scan with any Stellar wallet (SEP-7).</p>
+              <p className="mt-1 text-xs text-zinc-400">
+                Scan with Freighter wallet. Enter amount when prompted.
+              </p>
               <div className="mt-4 grid grid-cols-[160px_1fr] gap-4">
                 <div className="rounded-lg bg-white p-3">
-                  <QRCodeSVG value={sep7Uri ?? contractAddress} size={140} />
+                  <QRCodeSVG value={invokeUri ?? ""} size={140} />
                 </div>
                 <div className="space-y-2 text-sm">
                   <div>
@@ -92,17 +94,6 @@ export default function DeploymentView({
                       {contractAddress}
                     </button>
                   </div>
-                  {sep7Uri && (
-                    <div>
-                      <div className="text-xs text-zinc-400">SEP-7 URI</div>
-                      <button
-                        onClick={() => copy(sep7Uri)}
-                        className="hover:text-brand-300 text-left font-mono text-xs break-all"
-                      >
-                        {sep7Uri}
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
             </>
@@ -120,9 +111,7 @@ export default function DeploymentView({
           </p>
           <ul className="mt-4 max-h-96 space-y-2 overflow-y-auto text-sm">
             {events.length === 0 && (
-              <li className="text-zinc-500">
-                No events yet. Send funds to the contract to see them here.
-              </li>
+              <li className="text-zinc-500">No events yet. Trigger distribute to see them here.</li>
             )}
             {events.map((e) => (
               <li key={e.id} className="rounded border border-zinc-800 bg-zinc-900 p-3">
