@@ -2,16 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import {
-  Ship,
-  Send,
-  Loader2,
-  Wand2,
-  CheckCircle2,
-  ChevronUp,
-  ChevronDown,
-  AlertTriangle,
-} from "lucide-react";
+import { Ship, Send, Loader2, Wand2, CheckCircle2, X, AlertTriangle } from "lucide-react";
 import { StrKey } from "@stellar/stellar-sdk";
 
 export type ChatMessage =
@@ -25,8 +16,7 @@ interface RaftLogProps {
   pendingAddresses?: string[];
   onResolveAddress?: (addresses: Record<string, string>) => Promise<void>;
   onSkipAddresses?: () => void;
-  collapsed?: boolean;
-  onToggleCollapse?: () => void;
+  onClose?: () => void;
 }
 
 const SUGGESTIONS = [
@@ -162,8 +152,7 @@ export default function RaftLog({
   pendingAddresses,
   onResolveAddress,
   onSkipAddresses,
-  collapsed = false,
-  onToggleCollapse,
+  onClose,
 }: RaftLogProps) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -174,10 +163,8 @@ export default function RaftLog({
   }, [messages, loading]);
 
   useEffect(() => {
-    if (!collapsed) {
-      inputRef.current?.focus();
-    }
-  }, [collapsed]);
+    inputRef.current?.focus();
+  }, []);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -198,7 +185,7 @@ export default function RaftLog({
 
   return (
     <div className="flex h-full flex-col border-l border-zinc-800 bg-zinc-950">
-      {/* Header — always visible */}
+      {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2.5">
         <div className="flex items-center gap-2">
           <div className="bg-brand-500/20 flex h-6 w-6 items-center justify-center rounded-full">
@@ -215,122 +202,117 @@ export default function RaftLog({
           )}
         </div>
         <button
-          onClick={onToggleCollapse}
+          onClick={onClose}
           className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
-          title={collapsed ? "Expand chat" : "Collapse chat"}
+          title="Close chat"
         >
-          {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          <X className="h-4 w-4" />
         </button>
       </div>
 
-      {/* Content — hidden when collapsed */}
-      {!collapsed && (
-        <>
-          {/* Messages */}
-          <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
-            {isEmpty && (
-              <div className="flex flex-col items-center gap-3 py-4 text-center">
-                <div className="bg-brand-500/10 flex h-10 w-10 items-center justify-center rounded-full">
-                  <Wand2 className="text-brand-400 h-5 w-5" />
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-zinc-200">
-                    What would you like to change?
-                  </div>
-                  <div className="mt-1 max-w-[240px] text-xs leading-relaxed text-zinc-500">
-                    Describe edits in plain English. The AI will update your flow automatically.
-                  </div>
-                </div>
-                <div className="mt-1 flex flex-wrap justify-center gap-1.5">
-                  {SUGGESTIONS.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => handleSuggestion(s)}
-                      className="rounded-full bg-zinc-900 px-2.5 py-1 text-[11px] text-zinc-400 ring-1 ring-zinc-800 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
+      {/* Messages */}
+      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
+        {isEmpty && (
+          <div className="flex flex-col items-center gap-3 py-4 text-center">
+            <div className="bg-brand-500/10 flex h-10 w-10 items-center justify-center rounded-full">
+              <Wand2 className="text-brand-400 h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-sm font-medium text-zinc-200">
+                What would you like to change?
               </div>
-            )}
-
-            {messages.map((m, i) =>
-              m.role === "user" ? (
-                <div key={i} className="flex justify-end">
-                  <div className="bg-brand-600 max-w-[85%] rounded-2xl rounded-br-sm px-3 py-2 text-sm text-white shadow-sm">
-                    {m.content}
-                  </div>
-                </div>
-              ) : (
-                <div key={i} className="flex gap-2">
-                  <div className="bg-brand-500/20 mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full">
-                    <Ship className="text-brand-400 h-2.5 w-2.5" />
-                  </div>
-                  <div className="max-w-[85%]">
-                    <div className="rounded-2xl rounded-tl-sm bg-zinc-900 px-3 py-2 text-sm text-zinc-200 shadow-sm">
-                      {m.content}
-                    </div>
-                    {m.patch && m.patch.length > 0 && (
-                      <div className="mt-1 flex items-center gap-1 text-[11px] text-emerald-400">
-                        <CheckCircle2 className="h-3 w-3" />
-                        {patchSummary(m.patch)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ),
-            )}
-
-            {loading && (
-              <div className="flex gap-2">
-                <div className="bg-brand-500/20 mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full">
-                  <Ship className="text-brand-400 h-2.5 w-2.5" />
-                </div>
-                <div className="rounded-2xl rounded-tl-sm bg-zinc-900 px-3 py-2 text-sm text-zinc-400 shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    <span className="text-xs">Thinking…</span>
-                  </div>
-                </div>
+              <div className="mt-1 max-w-[240px] text-xs leading-relaxed text-zinc-500">
+                Describe edits in plain English. The AI will update your flow automatically.
               </div>
-            )}
-
-            {hasPending && onResolveAddress && (
-              <MissingAddressPrompt
-                labels={pendingAddresses!}
-                onResolve={onResolveAddress}
-                onSkip={onSkipAddresses}
-                loading={loading ?? false}
-              />
-            )}
-
-            <div ref={bottomRef} />
+            </div>
+            <div className="mt-1 flex flex-wrap justify-center gap-1.5">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => handleSuggestion(s)}
+                  className="rounded-full bg-zinc-900 px-2.5 py-1 text-[11px] text-zinc-400 ring-1 ring-zinc-800 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
+        )}
 
-          {/* Input */}
-          <form
-            onSubmit={handleSubmit}
-            className="flex items-center gap-2 border-t border-zinc-800 bg-zinc-950 px-2.5 py-2"
-          >
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask to edit your flow…"
-              disabled={loading}
-              className="focus:ring-brand-500 flex-1 rounded-full bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 ring-1 ring-zinc-800 transition-all outline-none placeholder:text-zinc-600 focus:ring-2"
-            />
-            <button
-              type="submit"
-              disabled={loading || !input.trim()}
-              className="bg-brand-600 hover:bg-brand-500 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white transition-colors disabled:opacity-40"
-            >
-              <Send className="h-3 w-3" />
-            </button>
-          </form>
-        </>
-      )}
+        {messages.map((m, i) =>
+          m.role === "user" ? (
+            <div key={i} className="flex justify-end">
+              <div className="bg-brand-600 max-w-[85%] rounded-2xl rounded-br-sm px-3 py-2 text-sm text-white shadow-sm">
+                {m.content}
+              </div>
+            </div>
+          ) : (
+            <div key={i} className="flex gap-2">
+              <div className="bg-brand-500/20 mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full">
+                <Ship className="text-brand-400 h-2.5 w-2.5" />
+              </div>
+              <div className="max-w-[85%]">
+                <div className="rounded-2xl rounded-tl-sm bg-zinc-900 px-3 py-2 text-sm text-zinc-200 shadow-sm">
+                  {m.content}
+                </div>
+                {m.patch && m.patch.length > 0 && (
+                  <div className="mt-1 flex items-center gap-1 text-[11px] text-emerald-400">
+                    <CheckCircle2 className="h-3 w-3" />
+                    {patchSummary(m.patch)}
+                  </div>
+                )}
+              </div>
+            </div>
+          ),
+        )}
+
+        {loading && (
+          <div className="flex gap-2">
+            <div className="bg-brand-500/20 mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full">
+              <Ship className="text-brand-400 h-2.5 w-2.5" />
+            </div>
+            <div className="rounded-2xl rounded-tl-sm bg-zinc-900 px-3 py-2 text-sm text-zinc-400 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span className="text-xs">Thinking…</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {hasPending && onResolveAddress && (
+          <MissingAddressPrompt
+            labels={pendingAddresses!}
+            onResolve={onResolveAddress}
+            onSkip={onSkipAddresses}
+            loading={loading ?? false}
+          />
+        )}
+
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <form
+        onSubmit={handleSubmit}
+        className="flex items-center gap-2 border-t border-zinc-800 bg-zinc-950 px-2.5 py-2"
+      >
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Ask to edit your flow…"
+          disabled={loading}
+          className="focus:ring-brand-500 flex-1 rounded-full bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 ring-1 ring-zinc-800 transition-all outline-none placeholder:text-zinc-600 focus:ring-2"
+        />
+        <button
+          type="submit"
+          disabled={loading || !input.trim()}
+          className="bg-brand-600 hover:bg-brand-500 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white transition-colors disabled:opacity-40"
+        >
+          <Send className="h-3 w-3" />
+        </button>
+      </form>
     </div>
   );
 }

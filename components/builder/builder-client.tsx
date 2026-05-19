@@ -17,6 +17,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
+import { Ship } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { isPendingAddress } from "@/lib/flows/schema";
 import { flowToEnglish } from "@/lib/flows/english";
@@ -107,7 +109,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     })),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
@@ -330,14 +332,12 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const errors = validation.ok ? [] : validation.errors;
 
   return (
-    <div
-      className="grid grid-cols-[220px_1fr_320px] gap-0"
-      style={{ height: "calc(100vh - 49px)" }}
-    >
+    <div className="grid grid-cols-[220px_1fr] gap-0" style={{ height: "calc(100vh - 49px)" }}>
       <Palette onAdd={addNode} flowNodes={flowNodes} />
 
-      <div className="relative flex flex-col">
+      <div className="relative flex flex-col overflow-hidden">
         <div className="relative flex-1">
+          {/* Top-left: name + deploy */}
           <div className="absolute top-3 left-3 z-10 flex items-center gap-3">
             <input
               value={name}
@@ -347,9 +347,14 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
             <DeployButton flowId={flowId} />
           </div>
 
-          {/* Floating ConfigPanel */}
+          {/* Floating ConfigPanel — shifts left when sidebar opens */}
           {selectedNode && (
-            <div className="absolute top-3 right-3 z-10 max-h-[calc(100vh-100px)] w-80 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl">
+            <div
+              className={cn(
+                "absolute top-3 z-20 max-h-[calc(100vh-100px)] w-80 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl transition-all duration-300 ease-in-out",
+                sidebarOpen ? "right-[340px]" : "right-3",
+              )}
+            >
               <ConfigPanel
                 node={selectedNode}
                 graph={graph}
@@ -359,6 +364,40 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
               />
             </div>
           )}
+
+          {/* Floating tab — opens sidebar when clicked */}
+          {!sidebarOpen && (
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="absolute top-1/2 right-0 z-30 flex -translate-y-1/2 flex-col items-center gap-1 rounded-l-lg bg-zinc-800 px-2 py-4 text-zinc-400 shadow-lg transition-colors hover:bg-zinc-700 hover:text-zinc-200"
+            >
+              <Ship className="h-4 w-4" />
+              <span className="text-[10px] font-medium">AI</span>
+              {pendingAddresses.length > 0 && (
+                <span className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-600 text-[9px] text-white">
+                  {pendingAddresses.length}
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* Railway-style right sidebar — slides in from right */}
+          <div
+            className={cn(
+              "absolute top-0 right-0 bottom-0 z-30 w-80 transition-transform duration-300 ease-in-out",
+              sidebarOpen ? "translate-x-0" : "translate-x-full",
+            )}
+          >
+            <RaftLog
+              messages={messages}
+              onSend={sendChat}
+              loading={chatLoading}
+              pendingAddresses={pendingAddresses}
+              onResolveAddress={handleResolveAddress}
+              onSkipAddresses={handleSkipAddresses}
+              onClose={() => setSidebarOpen(false)}
+            />
+          </div>
 
           <ReactFlow
             nodes={rfNodes.map((n) => ({
@@ -413,18 +452,6 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           </div>
         </div>
       </div>
-
-      {/* Right sidebar — RaftLog */}
-      <RaftLog
-        messages={messages}
-        onSend={sendChat}
-        loading={chatLoading}
-        pendingAddresses={pendingAddresses}
-        onResolveAddress={handleResolveAddress}
-        onSkipAddresses={handleSkipAddresses}
-        collapsed={chatCollapsed}
-        onToggleCollapse={() => setChatCollapsed((v) => !v)}
-      />
     </div>
   );
 }
