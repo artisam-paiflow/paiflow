@@ -17,7 +17,6 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
-import { Ship } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { isPendingAddress } from "@/lib/flows/schema";
@@ -342,7 +341,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
       <div className="relative flex flex-col">
         <div className="relative flex-1">
-          {/* Top-left: name + deploy */}
+          {/* Top-left: name + deploy + AI toggle */}
           <div className="absolute top-3 left-3 z-10 flex items-center gap-3">
             <input
               value={name}
@@ -350,6 +349,17 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
               className="rounded bg-zinc-900/80 px-3 py-1.5 text-sm font-medium"
             />
             <DeployButton flowId={flowId} />
+            <button
+              onClick={() => setSidebarOpen((v) => !v)}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-xs font-medium transition-all",
+                sidebarOpen
+                  ? "bg-zinc-800 text-zinc-300 ring-1 ring-zinc-700"
+                  : "bg-brand-600 hover:bg-brand-500 text-white",
+              )}
+            >
+              {sidebarOpen ? "Close AI" : "Edit with AI"}
+            </button>
           </div>
 
           {/* Floating ConfigPanel — shifts left when sidebar opens */}
@@ -368,22 +378,6 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                 className="border-0"
               />
             </div>
-          )}
-
-          {/* Floating tab — opens sidebar when clicked */}
-          {!sidebarOpen && (
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="absolute top-1/2 right-0 z-30 flex -translate-y-1/2 flex-col items-center gap-1 rounded-l-lg bg-zinc-800 px-2 py-4 text-zinc-400 shadow-lg transition-colors hover:bg-zinc-700 hover:text-zinc-200"
-            >
-              <Ship className="h-4 w-4" />
-              <span className="text-[10px] font-medium">AI</span>
-              {pendingAddresses.length > 0 && (
-                <span className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-600 text-[9px] text-white">
-                  {pendingAddresses.length}
-                </span>
-              )}
-            </button>
           )}
 
           {/* Railway-style right sidebar — slides in from right */}
