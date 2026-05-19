@@ -32,6 +32,7 @@ export const OnScheduleTrigger = z.object({
     interval: z.enum(["minute", "hour", "day"]),
     startsAt: z.string().datetime(),
     endsAt: z.string().datetime().optional(),
+    occurrences: z.number().int().positive().optional(),
   }),
 });
 
