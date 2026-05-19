@@ -278,7 +278,6 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           onPaneClick={() => setSelectedId(null)}
           nodeTypes={nodeTypes}
           fitView
-          proOptions={{ hideAttribution: true }}
         >
           <Background gap={24} size={1} color="rgba(0, 162, 253, 0.08)" />
           <Controls />

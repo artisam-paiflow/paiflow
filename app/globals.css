@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
 /* Fonts (Space Grotesk / Geist / JetBrains Mono / Material Symbols Outlined)
- * are loaded via <link> tags in app/layout.tsx — Tailwind v4 strips remote
- * `@import url(...)` from the bundled stylesheet, so they must live in <head>. */
+ * are self-hosted via `next/font/google` in app/layout.tsx — each one
+ * exposes a CSS variable (--font-grotesk, --font-geist, --font-jbm,
+ * --font-symbols) which the @theme aliases below reference. No remote
+ * font requests at runtime. */
 
 /* ---------------------------------------------------------------------------
  * Pink Raft — BRAND.md token system (Tailwind v4 @theme)
@@ -94,9 +96,12 @@
   --container-6xl: 72rem;
   --container-7xl: 80rem;
 
-  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-body: "Geist", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /* BRAND.md font aliases. The leading `var(--font-*)` is supplied by
+   * next/font/google (see app/layout.tsx). System fallbacks keep things
+   * legible during the brief next-font swap. */
+  --font-display: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jbm), ui-monospace, monospace;
 
   --text-headline-lg: 48px;
   --text-headline-lg--line-height: 1.1;
@@ -137,6 +142,12 @@
  * Tailwind container scale. v4 lets `--spacing-*` win for sizing utilities,
  * which silently breaks `max-w-xl` etc. — re-point the conflicting utilities
  * at `--container-*` so both scales coexist.
+ *
+ * TODO(brand): This is a targeted shim, not a structural fix. The long-term
+ * play is to rename the conflicting BRAND spacing tokens (e.g. tight /
+ * compact / comfortable / spacious / huge) and update every consumer — at
+ * which point this block, and the `--container-*` re-declarations above,
+ * can be removed. Track in BRAND.md before doing the rename.
  * ------------------------------------------------------------------------- */
 .max-w-xs { max-width: var(--container-xs); }
 .max-w-sm { max-width: var(--container-sm); }
@@ -378,9 +389,12 @@ path.connection-line,
   font-family: var(--font-mono);
 }
 
-/* Material Symbols base render */
+/* Material Symbols base render. Self-hosted via next/font/google in
+ * app/layout.tsx; --font-symbols points at the local woff2. The literal
+ * "Material Symbols Outlined" fallback covers the early-paint window
+ * before next-font's CSS lands and any local-OS instances of the font. */
 .material-symbols-outlined {
-  font-family: "Material Symbols Outlined";
+  font-family: var(--font-symbols), "Material Symbols Outlined";
   font-weight: normal;
   font-style: normal;
   font-size: 24px;

@@ -60,7 +60,6 @@ export default function DeploymentCanvas({
         elementsSelectable={false}
         zoomOnScroll={false}
         panOnScroll={false}
-        proOptions={{ hideAttribution: true }}
         fitView
       >
         <Background gap={24} size={1} color="rgba(0, 162, 253, 0.08)" />

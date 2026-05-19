@@ -27,9 +27,9 @@ export function cspHeader(nonce: string, isDev: boolean): string {
       "'strict-dynamic'",
       ...(isDev ? ["'unsafe-eval'"] : []),
     ],
-    "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+    "style-src": ["'self'", "'unsafe-inline'"],
     "img-src": ["'self'", "data:", "blob:"],
-    "font-src": ["'self'", "data:", "https://fonts.gstatic.com"],
+    "font-src": ["'self'", "data:"],
     "connect-src": [
       "'self'",
       "https://*.stellar.org",
