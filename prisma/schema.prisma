@@ -32,6 +32,7 @@ enum EventKind {
   PAYOUT
   CLAIM
   STATUS_CHANGE
+  CANCEL
 }
 
 model User {
@@ -47,12 +48,27 @@ model User {
   updatedAt    DateTime     @updatedAt
   lastLoginAt  DateTime?
 
-  flows       Flow[]
-  deployments Deployment[]
-  passkeys    Passkey[]
-  sessions    Session[]
-  auditLogs   AuditLog[]
-  files       FileAsset[]
+  flows            Flow[]
+  deployments      Deployment[]
+  passkeys         Passkey[]
+  sessions         Session[]
+  auditLogs        AuditLog[]
+  files            FileAsset[]
+  addressBookEntries AddressBookEntry[]
+}
+
+model AddressBookEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  ownerId   String   @db.Uuid
+  label     String
+  address   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, label])
+  @@index([ownerId])
 }
 
 model Session {
@@ -141,6 +157,7 @@ model ContractEvent {
   ledger       Int
   txHash       String
   payload      Json
+  decodedData  Json?
   occurredAt   DateTime
 
   deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)

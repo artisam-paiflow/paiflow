@@ -19,41 +19,82 @@ function u64(n: number | bigint): xdr.ScVal {
   return nativeToScVal(typeof n === "bigint" ? n : BigInt(n), { type: "u64" });
 }
 
+function recipientsVec(recipients: Array<{ address: string; bps: number }>): xdr.ScVal {
+  return xdr.ScVal.scvVec(recipients.map((r) => xdr.ScVal.scvVec([addr(r.address), u32(r.bps)])));
+}
+
+function ratePerSecondStroops(params: { ratePerSecondStroops: string }): xdr.ScVal {
+  return i128(params.ratePerSecondStroops);
+}
+
+function amountStroops(params: { amountStroops: string }): xdr.ScVal {
+  return i128(params.amountStroops);
+}
+
 export function constructorArgs(params: ContractParams, admin: string): xdr.ScVal[] {
   switch (params.kind) {
     case "splitter": {
-      const recipientsVec = xdr.ScVal.scvVec(
-        params.recipients.map((r) =>
-          xdr.ScVal.scvVec([addr(r.address), u32(r.bps)]),
-        ),
-      );
-      return [
+      const args: xdr.ScVal[] = [
         addr(admin),
         addr(assetContractId(params.asset)),
-        recipientsVec,
+        recipientsVec(params.recipients),
+        i128(params.minAmountStroops ?? "0"),
       ];
+      return args;
     }
     case "streamer": {
       return [
         addr(admin),
-        addr(params.recipient),
+        recipientsVec(params.recipients),
         addr(assetContractId(params.asset)),
-        i128(params.ratePerSecondStroops),
+        ratePerSecondStroops(params),
         u64(params.startTs),
         u64(params.endTs),
       ];
     }
     case "conditional": {
-      // For brevity: pass condition as a serialized JSON string via Symbol.
-      // The on-chain contract decodes the variant. In production, encode as a proper enum.
-      const cond = params.condition
-        ? nativeToScVal(JSON.stringify(params.condition), { type: "string" })
-        : xdr.ScVal.scvVoid();
+      if (!params.condition) {
+        return [
+          addr(admin),
+          recipientsVec(params.recipients),
+          addr(assetContractId(params.asset)),
+          amountStroops(params),
+          xdr.ScVal.scvVoid(),
+        ];
+      }
+      const c = params.condition as { kind: string; [key: string]: unknown };
+      let cond: xdr.ScVal;
+      switch (c.kind) {
+        case "time_after": {
+          const ts = BigInt(Math.floor(new Date(c.at as string).getTime() / 1000));
+          cond = xdr.ScVal.scvVec([nativeToScVal("Timeout", { type: "symbol" }), u64(ts)]);
+          break;
+        }
+        case "time_before": {
+          throw new Error("time_before condition is not yet supported — use time_after");
+        }
+        case "oracle_gte": {
+          cond = xdr.ScVal.scvVec([
+            nativeToScVal("OracleGte", { type: "symbol" }),
+            nativeToScVal(c.oracle as string, { type: "string" }),
+          ]);
+          break;
+        }
+        case "amount_gt":
+        case "amount_lt": {
+          throw new Error("amount_gt/amount_lt conditions are not yet supported");
+        }
+        default:
+          cond = xdr.ScVal.scvVec([
+            nativeToScVal("Multisig", { type: "symbol" }),
+            xdr.ScVal.scvU32(1),
+          ]);
+      }
       return [
         addr(admin),
-        addr(params.recipient),
+        recipientsVec(params.recipients),
         addr(assetContractId(params.asset)),
-        i128(params.amountStroops),
+        amountStroops(params),
         cond,
       ];
     }

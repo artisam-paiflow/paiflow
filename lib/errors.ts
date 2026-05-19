@@ -10,6 +10,7 @@ export type AppErrorCode =
   | "CONFLICT"
   | "RATE_LIMITED"
   | "UPSTREAM_RPC"
+  | "INSUFFICIENT_FUNDS"
   | "INTERNAL";
 
 const STATUS: Record<AppErrorCode, number> = {
@@ -20,6 +21,7 @@ const STATUS: Record<AppErrorCode, number> = {
   CONFLICT: 409,
   RATE_LIMITED: 429,
   UPSTREAM_RPC: 502,
+  INSUFFICIENT_FUNDS: 402,
   INTERNAL: 500,
 };
 
@@ -75,9 +77,7 @@ export function errorResponse(err: unknown): NextResponse {
   );
 }
 
-export async function withErrorHandler<T>(
-  fn: () => Promise<T>,
-): Promise<T | NextResponse> {
+export async function withErrorHandler<T>(fn: () => Promise<T>): Promise<T | NextResponse> {
   try {
     return await fn();
   } catch (err) {

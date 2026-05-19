@@ -44,7 +44,7 @@ Pink Raft is the missing middle layer:
 
 ### 1.3 Hero Demo Beat
 
-> Presenter drags **`On Receive USDC` → `Split 60/30/10` → `[Mom, Landlord, Savings]`** on a phone. Hits **Deploy**. QR code appears. Audience member scans, sends 10 testnet USDC. Within 5 seconds, three transactions fan out on the explorer projected on screen.
+> Presenter drags **`On Receive USDC` → `Split 60/30/10` → `[Alice, Bob, Charlie]`** on a phone. Hits **Deploy**. QR code appears. Audience member scans, sends 10 testnet USDC. Within 5 seconds, three transactions fan out on the explorer projected on screen.
 
 ### 1.4 Non-Goals (v1)
 
@@ -505,7 +505,7 @@ Next.js App Router (`/app/...`). Server Components by default; mark interactive 
 ├─────────┬─────────────────────────────────────┬────────────────┤
 │ Block   │                                     │ Config panel   │
 │ palette │           React Flow canvas         │ (selected      │
-│ (drag   │  ▢ on_receive ─▶ ▢ split ─▶ {Mom,…} │  block fields) │
+│ (drag   │  ▢ on_receive ─▶ ▢ split ─▶ {Alice,…} │  block fields) │
 │  source)│                                     │                │
 │         │                                     │ ──────────────  │
 │         │                                     │ English preview│
@@ -967,7 +967,7 @@ Set all values from `.env.example` in the project's "Variables" page; mark `AUTH
 1. Presenter opens `https://pinkraft.app` on a phone.
 2. Logs in with passkey (Face ID).
 3. Drags `On Receive USDC` → `Split` block.
-4. Adds three recipients: `Mom 60%`, `Landlord 30%`, `Savings 10%`.
+4. Adds three recipients: `Alice 60%`, `Bob 30%`, `Charlie 10%`.
 5. The English preview pane reads: _"When this contract receives USDC, split 60% to GABC…, 30% to GDEF…, 10% to GHIJ…."_
 6. Hits **Deploy** → wallet pop-up → signs.
 7. QR code + contract address appears.

@@ -14,9 +14,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const graph = FlowGraphSchema.parse(d.graphSnapshot);
     const trigger = graph.nodes.find(isTrigger);
     const asset =
-      trigger?.type === "on_receive"
-        ? trigger.config.asset
-        : ({ kind: "native" } as const);
+      trigger?.type === "on_receive" ? trigger.config.asset : ({ kind: "native" } as const);
     const uri = sep7PaymentUri({
       destination: d.contractAddress,
       asset,

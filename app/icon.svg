@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!--
+    Pink Raft mark — three chevrons cascading diagonally:
+    trigger → logic → action. Stroked, geometric, no outer shape.
+    Drawn on the dark surface so the background is intentionally absent;
+    when used as a favicon Chrome/Firefox render it against tab chrome.
+  -->
+  <rect width="32" height="32" rx="6" fill="#0e0e0e" />
+  <g
+    stroke="#ffb1c4"
+    stroke-width="2.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  >
+    <polyline points="6,7 10,11 6,15" />
+    <polyline points="13,11 17,15 13,19" opacity="0.78" />
+    <polyline points="20,15 24,19 20,23" opacity="0.55" />
+  </g>
+</svg>
