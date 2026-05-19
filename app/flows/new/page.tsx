@@ -17,19 +17,19 @@ const STARTER_GRAPH = {
         asset: { kind: "known", symbol: "USDC" },
         recipients: [
           {
-            address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+            address: "PENDING:Alice",
             bps: 6000,
-            label: "Mom",
+            label: "Alice",
           },
           {
-            address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+            address: "PENDING:Bob",
             bps: 3000,
-            label: "Landlord",
+            label: "Bob",
           },
           {
-            address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+            address: "PENDING:Charlie",
             bps: 1000,
-            label: "Savings",
+            label: "Charlie",
           },
         ],
       },
