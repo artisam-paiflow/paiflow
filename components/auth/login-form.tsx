@@ -26,42 +26,85 @@ export default function LoginForm({ from, error }: { from?: string; error?: stri
   }
 
   return (
-    <form
-      action={onSubmit}
-      className="mt-6 grid gap-4 rounded-xl border border-zinc-800 bg-zinc-950 p-6"
-    >
+    <form action={onSubmit} className="glass-panel mt-md gap-md p-md grid rounded-xl">
       {error ? (
-        <p className="rounded bg-red-900/40 px-3 py-2 text-sm text-red-200">{error}</p>
+        <p className="border-error/40 bg-error-container/30 text-label-sm text-error flex items-center gap-2 rounded border px-3 py-2 font-mono">
+          <span className="material-symbols-outlined text-[14px]">error</span>
+          {error}
+        </p>
       ) : null}
-      <label className="grid gap-1">
-        <span className="text-sm text-zinc-400">Username</span>
-        <input
-          name="username"
-          autoComplete="username"
-          required
-          className="focus:border-brand-500 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 focus:outline-none"
-        />
-      </label>
-      <label className="grid gap-1">
-        <span className="text-sm text-zinc-400">Password</span>
-        <input
-          type="password"
-          name="password"
-          autoComplete="current-password"
-          required
-          minLength={1}
-          className="focus:border-brand-500 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 focus:outline-none"
-        />
-      </label>
+
+      <Field label="Username" name="username" autoComplete="username" required />
+      <Field
+        label="Password"
+        name="password"
+        type="password"
+        autoComplete="current-password"
+        required
+        minLength={1}
+      />
+
       <button
         type="submit"
         disabled={submitting}
-        className="bg-brand-600 hover:bg-brand-500 rounded-md px-4 py-2 font-medium text-white disabled:opacity-60"
+        className="bg-primary px-md py-sm text-label-md text-on-primary mt-2 inline-flex items-center justify-center gap-2 rounded-lg font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_20px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >
-        {submitting ? "Signing in…" : "Sign in"}
+        {submitting ? "SIGNING IN…" : "SIGN IN"}
+        {!submitting ? (
+          <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+        ) : null}
       </button>
-      <div className="text-center text-xs text-zinc-500">or</div>
+
+      <div className="text-label-sm text-outline-variant flex items-center gap-3 font-mono">
+        <span className="bg-outline-variant/30 h-px flex-1" />
+        OR
+        <span className="bg-outline-variant/30 h-px flex-1" />
+      </div>
+
       <PasskeyLogin from={from} />
     </form>
+  );
+}
+
+function Field({
+  label,
+  name,
+  type = "text",
+  autoComplete,
+  required,
+  minLength,
+  maxLength,
+  pattern,
+  helper,
+}: {
+  label: string;
+  name: string;
+  type?: string;
+  autoComplete?: string;
+  required?: boolean;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  helper?: string;
+}) {
+  return (
+    <label className="group grid gap-1.5">
+      <span className="text-label-sm text-on-surface-variant group-focus-within:text-primary font-mono uppercase transition-colors">
+        {label}
+      </span>
+      <input
+        name={name}
+        type={type}
+        autoComplete={autoComplete}
+        required={required}
+        minLength={minLength}
+        maxLength={maxLength}
+        pattern={pattern}
+        className="border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline-variant focus:border-primary focus:ring-primary w-full rounded border px-3 py-2 font-mono text-[14px] focus:ring-1 focus:outline-none"
+      />
+      {helper ? (
+        <span className="text-label-sm text-on-surface-variant/70 font-mono">{helper}</span>
+      ) : null}
+    </label>
   );
 }

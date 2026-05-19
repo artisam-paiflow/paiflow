@@ -9,6 +9,39 @@ import { sep7InvokeUri } from "@/lib/stellar/sep7";
 
 export const dynamic = "force-dynamic";
 
+const statusMeta: Record<string, { label: string; tone: string; dot?: string }> = {
+  PENDING: {
+    label: "PENDING",
+    tone: "border-tertiary/30 bg-tertiary/10 text-tertiary",
+    dot: "status-dot-warn",
+  },
+  RUNNING: {
+    label: "DEPLOYING",
+    tone: "border-secondary/30 bg-secondary/10 text-secondary",
+    dot: "status-dot-deploy",
+  },
+  CONFIRMED: {
+    label: "ACTIVE",
+    tone: "border-primary/30 bg-primary/10 text-primary",
+    dot: "status-dot-live",
+  },
+  SUCCEEDED: {
+    label: "ACTIVE",
+    tone: "border-primary/30 bg-primary/10 text-primary",
+    dot: "status-dot-live",
+  },
+  FAILED: {
+    label: "FAILED",
+    tone: "border-error/40 bg-error-container/30 text-error",
+  },
+};
+
+function truncateAddr(addr: string | null) {
+  if (!addr) return "—";
+  if (addr.length <= 14) return addr;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
 export default async function DeploymentPage({
   params,
 }: {
@@ -38,17 +71,60 @@ export default async function DeploymentPage({
         })
       : null;
 
+  const badge = statusMeta[d.status] ?? {
+    label: d.status?.toUpperCase() ?? "—",
+    tone: "border-outline-variant/40 bg-surface-container-low/60 text-on-surface-variant",
+  };
+
   return (
     <>
       <Topbar username={user.username} />
-      <main className="mx-auto max-w-5xl px-6 py-10">
-        <Link href="/dashboard" className="text-brand-300 text-sm hover:underline">
-          ← Back
+      <main className="px-margin py-lg mx-auto max-w-7xl">
+        <Link
+          href="/dashboard"
+          className="text-label-sm text-on-surface-variant hover:text-primary inline-flex items-center gap-1 font-mono transition-colors"
+        >
+          <span className="material-symbols-outlined text-[14px]">arrow_back</span>
+          BACK
         </Link>
-        <h1 className="mt-2 text-3xl font-semibold">{d.flow.name}</h1>
-        <div className="mt-1 text-sm text-zinc-400">
-          {d.flow.templateKind} · {d.network} · status{" "}
-          <span className="text-brand-300 font-mono">{d.status}</span>
+
+        {/* Header */}
+        <div className="mt-md gap-md flex flex-wrap items-end justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-label-sm text-on-surface-variant font-mono">/ SOROBAN CONTRACT</p>
+              <span
+                className={`text-label-sm inline-flex items-center gap-1.5 rounded border px-2 py-1 font-mono ${badge.tone}`}
+              >
+                {badge.dot ? <span className={`${badge.dot} h-1.5 w-1.5`} /> : null}
+                {badge.label}
+              </span>
+            </div>
+            <h1 className="font-display text-on-surface mt-2 truncate text-[40px] leading-[1.1] font-semibold tracking-[-0.02em]">
+              {d.flow.name}
+            </h1>
+            <div className="text-label-sm text-on-surface-variant mt-3 flex flex-wrap items-center gap-3 font-mono">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[14px]">category</span>
+                {d.flow.templateKind?.toUpperCase()}
+              </span>
+              <span className="text-outline-variant">·</span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[14px]">hub</span>
+                {d.network?.toUpperCase()}
+              </span>
+              <span className="text-outline-variant">·</span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[14px]">tag</span>
+                <span className="text-on-surface">{truncateAddr(d.contractAddress)}</span>
+              </span>
+              <span className="text-outline-variant">·</span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[14px]">schedule</span>
+                {new Date(d.createdAt).toLocaleString()}
+              </span>
+            </div>
+          </div>
         </div>
 
         <DeploymentView

@@ -56,40 +56,48 @@ export default function DeploymentView({
 
   async function copy(text: string) {
     await navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard");
+    toast.success("Copied to clipboard.");
   }
 
   return (
-    <div className="mt-8 space-y-6">
+    <div className="mt-md space-y-md">
       {graph && (
         <section>
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Live flow</h2>
-            <span className="text-xs text-zinc-500">
-              Arrows animate when an on-chain event fires.
+            <h2 className="text-headline-sm text-on-surface">Live flow</h2>
+            <span className="text-label-sm text-on-surface-variant font-mono">
+              EDGES PULSE ON-CHAIN EVENTS
             </span>
           </div>
           <DeploymentCanvas graph={graph} pulseTick={pulse} />
         </section>
       )}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-6">
-          <h2 className="text-lg font-semibold">Trigger distribution</h2>
+      <div className="gap-md grid grid-cols-1 lg:grid-cols-2">
+        <section className="glass-panel p-md rounded-xl">
+          <div className="flex items-center justify-between">
+            <h2 className="text-headline-sm text-on-surface">Trigger distribution</h2>
+            <span className="border-secondary/30 bg-secondary/10 text-label-sm text-secondary inline-flex items-center gap-1.5 rounded border px-2 py-1 font-mono">
+              <span className="material-symbols-outlined text-[12px]">qr_code_2</span>
+              FREIGHTER
+            </span>
+          </div>
           {contractAddress ? (
             <>
-              <p className="mt-1 text-xs text-zinc-400">
-                Scan with Freighter wallet. Enter amount when prompted.
+              <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
+                SCAN WITH FREIGHTER WALLET. ENTER AMOUNT WHEN PROMPTED.
               </p>
-              <div className="mt-4 grid grid-cols-[160px_1fr] gap-4">
+              <div className="mt-md gap-md grid grid-cols-[160px_1fr]">
                 <div className="rounded-lg bg-white p-3">
                   <QRCodeSVG value={invokeUri ?? ""} size={140} />
                 </div>
-                <div className="space-y-2 text-sm">
+                <div className="text-body-md space-y-3">
                   <div>
-                    <div className="text-xs text-zinc-400">Contract address</div>
+                    <div className="text-label-sm text-on-surface-variant font-mono uppercase">
+                      Contract address
+                    </div>
                     <button
                       onClick={() => copy(contractAddress)}
-                      className="hover:text-brand-300 text-left font-mono text-xs break-all"
+                      className="text-on-surface hover:text-primary mt-1 text-left font-mono text-[12px] break-all transition-colors"
                     >
                       {contractAddress}
                     </button>
@@ -98,31 +106,44 @@ export default function DeploymentView({
               </div>
             </>
           ) : (
-            <p className="mt-2 text-sm text-zinc-400">
-              Waiting for confirmation… the contract address will appear here.
-            </p>
+            <div className="mt-md text-label-sm text-on-surface-variant flex items-center gap-2 font-mono">
+              <span className="status-dot-deploy h-1.5 w-1.5" />
+              WAITING FOR CONFIRMATION…
+            </div>
           )}
         </section>
 
-        <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-6">
-          <h2 className="text-lg font-semibold">Live events</h2>
-          <p className="mt-1 text-xs text-zinc-400">
-            Updates stream in via Server-Sent Events. Polling cadence ~15s.
-          </p>
-          <ul className="mt-4 max-h-96 space-y-2 overflow-y-auto text-sm">
+        <section className="glass-panel p-md rounded-xl">
+          <div className="flex items-center justify-between">
+            <h2 className="text-headline-sm text-on-surface">Live events</h2>
+            <span className="text-label-sm text-on-surface-variant inline-flex items-center gap-1.5 font-mono">
+              <span className="status-dot-live h-1.5 w-1.5" />
+              SSE · ~15s
+            </span>
+          </div>
+          <ul className="mt-md max-h-96 space-y-2 overflow-y-auto">
             {events.length === 0 && (
-              <li className="text-zinc-500">No events yet. Trigger distribute to see them here.</li>
+              <li className="border-outline-variant/30 text-label-sm text-on-surface-variant rounded border border-dashed p-3 font-mono">
+                NO EVENTS YET. TRIGGER DISTRIBUTE TO SEE THEM HERE.
+              </li>
             )}
             {events.map((e) => (
-              <li key={e.id} className="rounded border border-zinc-800 bg-zinc-900 p-3">
+              <li
+                key={e.id}
+                className="border-outline-variant/15 bg-surface-container-low/40 rounded-lg border p-3"
+              >
                 <div className="flex items-center justify-between">
-                  <span className="text-brand-300 font-medium">{e.kind}</span>
-                  <span className="text-xs text-zinc-500">
+                  <span className="border-primary/30 bg-primary/10 text-label-sm text-primary inline-flex items-center gap-1.5 rounded border px-2 py-0.5 font-mono">
+                    {e.kind}
+                  </span>
+                  <span className="text-label-sm text-on-surface-variant font-mono">
                     {new Date(e.occurredAt).toLocaleString()}
                   </span>
                 </div>
-                <div className="mt-1 font-mono text-[10px] text-zinc-400">{e.txHash}</div>
-                <pre className="mt-2 overflow-x-auto text-[11px] text-zinc-300">
+                <div className="text-on-surface-variant mt-2 font-mono text-[11px] break-all">
+                  {e.txHash}
+                </div>
+                <pre className="border-outline-variant/15 bg-surface-container-lowest/60 text-on-surface mt-2 overflow-x-auto rounded border p-2 font-mono text-[11px]">
                   {JSON.stringify(e.payload, null, 2)}
                 </pre>
               </li>
