@@ -17,8 +17,6 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { isPendingAddress } from "@/lib/flows/schema";
 import { flowToEnglish } from "@/lib/flows/english";
@@ -101,13 +99,17 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     initialGraph.nodes.map((n, i) => nodeToReactFlow(n, i)),
   );
   const [rfEdges, setRfEdges] = useState<Edge[]>(
-    initialGraph.edges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+    initialGraph.edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      type: "straight",
+    })),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
-  const [hasUsedChat, setHasUsedChat] = useState(false);
   const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
 
   const graph: FlowGraph = useMemo(
@@ -151,10 +153,6 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowId, name, graph]);
 
-  useEffect(() => {
-    if (messages.length > 0) setHasUsedChat(true);
-  }, [messages]);
-
   // Sync React Flow node removals back to flowNodes (from develop)
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setRfNodes((nds) => applyNodeChanges(changes, nds));
@@ -177,7 +175,8 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     [],
   );
   const onConnect = useCallback(
-    (c: Connection) => setRfEdges((eds) => addEdge({ ...c, animated: true }, eds)),
+    (c: Connection) =>
+      setRfEdges((eds) => addEdge({ ...c, type: "straight", animated: true }, eds)),
     [],
   );
 
@@ -246,6 +245,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
             source: e.source,
             target: e.target,
             animated: true,
+            type: "straight",
           })),
         );
 
@@ -296,9 +296,18 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         toast.error(json?.error?.message ?? "Failed to resolve addresses");
         return;
       }
-      const resolvedNodes = json.data.flow.nodes as FlowNode[];
-      setFlowNodes(resolvedNodes);
-      setRfNodes(resolvedNodes.map((n, i) => nodeToReactFlow(n, i)));
+      const resolvedFlow = json.data.flow as FlowGraph;
+      setFlowNodes(resolvedFlow.nodes);
+      setRfNodes(resolvedFlow.nodes.map((n, i) => nodeToReactFlow(n, i)));
+      setRfEdges(
+        resolvedFlow.edges.map((e) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          animated: true,
+          type: "straight",
+        })),
+      );
       setPendingAddresses([]);
       setMessages((prev) => [
         ...prev,
@@ -338,33 +347,18 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
             <DeployButton flowId={flowId} />
           </div>
 
-          {/* Floating AI button + overlay container */}
-          <div className="absolute top-3 right-3 z-10">
-            <button
-              onClick={() => setChatOpen((v) => !v)}
-              className={cn(
-                "group flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium shadow-lg transition-all",
-                chatOpen
-                  ? "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"
-                  : "bg-brand-600 hover:bg-brand-500 text-white",
-                !hasUsedChat && !chatOpen && "animate-pulse",
-              )}
-            >
-              <Sparkles className="h-4 w-4" />
-              {chatOpen ? "Close AI" : "Edit with AI"}
-            </button>
-
-            <RaftLog
-              open={chatOpen}
-              onClose={() => setChatOpen(false)}
-              messages={messages}
-              onSend={sendChat}
-              loading={chatLoading}
-              pendingAddresses={pendingAddresses}
-              onResolveAddress={handleResolveAddress}
-              onSkipAddresses={handleSkipAddresses}
-            />
-          </div>
+          {/* Floating ConfigPanel */}
+          {selectedNode && (
+            <div className="absolute top-3 right-3 z-10 max-h-[calc(100vh-100px)] w-80 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl">
+              <ConfigPanel
+                node={selectedNode}
+                graph={graph}
+                onChange={updateNode}
+                onDelete={deleteNode}
+                className="border-0"
+              />
+            </div>
+          )}
 
           <ReactFlow
             nodes={rfNodes.map((n) => ({
@@ -420,7 +414,17 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         </div>
       </div>
 
-      <ConfigPanel node={selectedNode} graph={graph} onChange={updateNode} onDelete={deleteNode} />
+      {/* Right sidebar — RaftLog */}
+      <RaftLog
+        messages={messages}
+        onSend={sendChat}
+        loading={chatLoading}
+        pendingAddresses={pendingAddresses}
+        onResolveAddress={handleResolveAddress}
+        onSkipAddresses={handleSkipAddresses}
+        collapsed={chatCollapsed}
+        onToggleCollapse={() => setChatCollapsed((v) => !v)}
+      />
     </div>
   );
 }

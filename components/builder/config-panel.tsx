@@ -12,19 +12,22 @@ import {
   stroopsToDisplay,
   tokenAmountToStroops,
 } from "@/lib/flows/schema";
-import { formatStroops } from "@/lib/utils";
+import { cn, formatStroops } from "@/lib/utils";
 
 type Props = {
   node: FlowNode | null;
   graph: FlowGraph;
   onChange: (n: FlowNode) => void;
   onDelete: (id: string) => void;
+  className?: string;
 };
 
-export default function ConfigPanel({ node, graph, onChange, onDelete }: Props) {
+export default function ConfigPanel({ node, graph, onChange, onDelete, className }: Props) {
   if (!node) {
     return (
-      <aside className="border-l border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400">
+      <aside
+        className={cn("border-l border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400", className)}
+      >
         Select a block on the canvas to edit it.
       </aside>
     );
@@ -35,7 +38,12 @@ export default function ConfigPanel({ node, graph, onChange, onDelete }: Props) 
   const sourceAmount = sourceAmountStroops(graph);
 
   return (
-    <aside className="space-y-4 overflow-y-auto border-l border-zinc-800 bg-zinc-950 p-4 text-sm">
+    <aside
+      className={cn(
+        "space-y-4 overflow-y-auto border-l border-zinc-800 bg-zinc-950 p-4 text-sm",
+        className,
+      )}
+    >
       <div className="flex items-center justify-between">
         <div className="text-brand-400 text-xs tracking-wider uppercase">
           {node.type.replace("_", " ")}
