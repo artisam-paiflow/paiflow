@@ -46,6 +46,16 @@ const EnvSchema = z.object({
 
   GROQ_API_KEY: optionalString,
   GROQ_MODEL: optionalString,
+
+  // ---- Email (Resend) ----
+  // Optional in dev — when RESEND_API_KEY is unset, `lib/mail.ts` logs the
+  // payload to stdout instead of delivering. Required in prod.
+  RESEND_API_KEY: optionalString,
+  EMAIL_FROM: z
+    .string()
+    .min(3)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : "Pink Raft <onboarding@resend.dev>")),
 });
 
 type EnvShape = z.infer<typeof EnvSchema>;

@@ -830,13 +830,14 @@ Services:
 - `postgres:16-alpine` → exposes 5432.
 - `redis:7-alpine` → exposes 6379.
 - `minio:latest` (file storage, S3-compatible) → exposes 9000 (API) and 9001 (console). Volume mounted at `./.docker/minio`.
-- `RESEND_API_KEY` (required, transactional email delivery framework for authentication, security alerts, and system notifications) → integrated directly via HTTPS API endpoints.
+
+Email is **not** a containerized service. Transactional email goes through [Resend](https://resend.com) over HTTPS via `RESEND_API_KEY` (optional in dev — `lib/mail.ts` logs to stdout when the key is unset; required in production for password-reset and other system emails).
 
 Profiles let devs start a minimal set:
 
 ```
 docker compose --profile core up -d       # postgres + redis
-docker compose --profile full up -d       # + minio + resend core components
+docker compose --profile full up -d       # + minio
 ```
 
 ### 14.2 `.env.example`

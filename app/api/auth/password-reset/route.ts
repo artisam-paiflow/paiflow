@@ -1,59 +1,105 @@
-import { NextResponse } from "next/server";
-import crypto from "crypto";
-import { sendEmail } from "@/lib/mail";
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { db } from "@/lib/db";
+import { env } from "@/lib/env";
+import { AppError, withErrorHandler } from "@/lib/errors";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { audit } from "@/lib/audit";
+import { log } from "@/lib/log";
+import { generateResetToken, hashResetToken, resetTokenExpiresAt } from "@/lib/auth/password-reset";
+import { sendPasswordResetEmail } from "@/lib/email/password-reset";
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { email } = body;
+const Body = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email address"),
+});
 
-    // 1. Basic input validation
-    if (!email || typeof email !== "string") {
-      return NextResponse.json({ error: "A valid email address is required." }, { status: 400 });
+// Generic response body used for every public-facing outcome so we don't leak
+// whether the email is registered. Front-end mirrors this message verbatim.
+const GENERIC_OK = {
+  data: {
+    message:
+      "If an account exists for that email, a reset link is on its way. Check your inbox in a minute.",
+  },
+};
+
+export async function POST(req: NextRequest) {
+  return withErrorHandler(async () => {
+    const ip = clientIp(req);
+    const body = Body.parse(await req.json());
+
+    // Two-layer rate limit: per-IP catches shotgun abuse, per-email caps
+    // targeted attempts at a single account.
+    const ipBucket = await rateLimit(`pwreset:ip:${ip}`, 10, 60 * 60);
+    if (!ipBucket.ok) {
+      throw new AppError(
+        "RATE_LIMITED",
+        "Too many reset requests from this network. Try again in an hour.",
+      );
+    }
+    const emailBucket = await rateLimit(`pwreset:email:${body.email}`, 5, 60 * 60);
+    if (!emailBucket.ok) {
+      // Still return the generic response — don't let an attacker discover the
+      // rate-limit boundary on a specific email.
+      log.warn({ email: body.email }, "password-reset: per-email rate limit hit");
+      return NextResponse.json(GENERIC_OK);
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
-
-    // 2. Generate a secure, URL-safe random token natively via Web Crypto API
-    const token = crypto.randomBytes(32).toString("hex");
-
-    // 3. Construct the deep link pointing back to your update password UI page
-    const domain = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const resetLink = `${domain}/auth/new-password?token=${token}`;
-
-    // 4. Route the payload through your new Resend client wrapper helper
-    const { error } = await sendEmail({
-      to: normalizedEmail,
-      subject: "Reset your Pink Raft password",
-      html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
-          <h2 style="color: #ec4899; font-size: 24px; margin-bottom: 16px;">Password Reset Request</h2>
-          <p style="color: #374151; font-size: 16px; line-height: 1.5;">We received a request to reset your password for your Pink Raft account.</p>
-          <p style="color: #374151; font-size: 16px; line-height: 1.5; margin-bottom: 24px;">Click the action button below to set up a new password. This secure link is valid for 1 hour.</p>
-          <div style="margin: 24px 0;">
-            <a href="${resetLink}" style="background-color: #ec4899; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-              Reset Password
-            </a>
-          </div>
-          <p style="color: #6b7280; font-size: 14px; line-height: 1.5; margin-top: 32px; border-top: 1px solid #e5e7eb; padding-top: 16px;">
-            If you did not make this request, you can safely ignore this communication.
-          </p>
-        </div>
-      `,
+    const user = await db.user.findUnique({
+      where: { email: body.email },
+      select: { id: true, email: true, username: true, isActive: true },
     });
 
-    if (error) {
-      console.error("Resend API communication failure:", error);
-      return NextResponse.json(
-        { error: "Failed to process transactional authentication email." },
-        { status: 500 },
+    // Always return the same response shape regardless of whether the email
+    // belongs to a known account. Only do real work when it does.
+    if (!user || !user.email || !user.isActive) {
+      log.info(
+        { ip, email: body.email, found: Boolean(user) },
+        "password-reset: request for unknown/inactive email — returning generic ok",
+      );
+      return NextResponse.json(GENERIC_OK);
+    }
+
+    const rawToken = generateResetToken();
+    const tokenHash = hashResetToken(rawToken);
+    const expiresAt = resetTokenExpiresAt();
+
+    await db.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      },
+    });
+
+    const resetLink = `${env().NEXT_PUBLIC_APP_URL}/auth/new-password?token=${rawToken}`;
+
+    const result = await sendPasswordResetEmail({
+      to: user.email,
+      resetLink,
+      recipientLabel: user.username,
+    });
+
+    if (!result.ok) {
+      // Email transport failure: drop the token we just persisted so it can't
+      // be used (defensive — without the email the user has no way to read
+      // the raw token anyway, but we don't want stale rows piling up).
+      await db.passwordResetToken
+        .deleteMany({ where: { userId: user.id, tokenHash } })
+        .catch(() => {});
+      throw new AppError(
+        "UPSTREAM_RPC",
+        "Couldn't send the reset email right now. Please try again shortly.",
       );
     }
 
-    // Always return success to complete the flow gracefully
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("PASSWORD_RESET_ROUTE_EXCEPTION:", error);
-    return NextResponse.json({ error: "Internal server error encountered." }, { status: 500 });
-  }
+    await audit({
+      action: "USER_PASSWORD_RESET_REQUEST",
+      userId: user.id,
+      ip,
+      userAgent: req.headers.get("user-agent") ?? undefined,
+      metadata: { email: user.email },
+    });
+
+    return NextResponse.json(GENERIC_OK);
+  });
 }
