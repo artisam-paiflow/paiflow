@@ -45,7 +45,7 @@ export default function PasskeyManager() {
         const b = await verifyRes.json().catch(() => ({}));
         throw new Error(b?.error?.message ?? "Verification failed");
       }
-      toast.success("Passkey added");
+      toast.success("Passkey added.");
       await refresh();
     } catch (err) {
       toast.error((err as Error).message ?? "Failed");
@@ -61,7 +61,7 @@ export default function PasskeyManager() {
       toast.error("Failed to remove");
       return;
     }
-    toast.success("Removed");
+    toast.success("Removed.");
     await refresh();
   }
 
@@ -76,46 +76,53 @@ export default function PasskeyManager() {
   }
 
   return (
-    <section className="mt-10 rounded-xl border border-zinc-800 p-6">
+    <section className="glass-panel mt-md p-md rounded-xl">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Passkeys</h2>
+        <h2 className="text-headline-sm text-on-surface">Passkeys</h2>
         <button
           onClick={addPasskey}
           disabled={busy}
-          className="bg-brand-600 hover:bg-brand-500 rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-60"
+          className="bg-primary text-label-md text-on-primary inline-flex items-center gap-2 rounded-lg px-3 py-1.5 font-mono font-bold transition-all hover:-translate-y-px hover:shadow-[0_0_16px_rgba(255,177,196,0.5)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
         >
-          {busy ? "Adding…" : "Add a passkey"}
+          <span className="material-symbols-outlined text-[16px]">key</span>
+          {busy ? "ADDING…" : "ADD PASSKEY"}
         </button>
       </div>
-      <ul className="mt-4 space-y-2 text-sm">
-        {loaded && items.length === 0 && <li className="text-zinc-400">No passkeys yet.</li>}
+      <ul className="mt-md space-y-2">
+        {loaded && items.length === 0 && (
+          <li className="border-outline-variant/30 text-label-sm text-on-surface-variant rounded border border-dashed p-3 font-mono">
+            NO PASSKEYS YET.
+          </li>
+        )}
         {items.map((p) => (
           <li
             key={p.id}
-            className="flex items-center justify-between rounded border border-zinc-800 bg-zinc-950 px-3 py-2"
+            className="border-outline-variant/15 bg-surface-container-low/40 flex items-center justify-between rounded-lg border px-3 py-2.5"
           >
             <div>
-              <div className="font-medium">{p.nickname ?? "Unnamed device"}</div>
-              <div className="text-xs text-zinc-500">
-                {p.deviceType} · added {new Date(p.createdAt).toLocaleString()}
-                {p.lastUsedAt ? ` · last used ${new Date(p.lastUsedAt).toLocaleString()}` : ""}
+              <div className="text-body-md text-on-surface">{p.nickname ?? "Unnamed device"}</div>
+              <div className="text-label-sm text-on-surface-variant font-mono">
+                {p.deviceType.toUpperCase()} · ADDED {new Date(p.createdAt).toLocaleString()}
+                {p.lastUsedAt ? ` · LAST USED ${new Date(p.lastUsedAt).toLocaleString()}` : ""}
               </div>
             </div>
             <button
               onClick={() => remove(p.id)}
-              className="rounded border border-red-900 px-2 py-1 text-xs text-red-300 hover:bg-red-950"
+              className="border-error/40 text-label-sm text-error hover:bg-error-container/30 inline-flex items-center gap-1 rounded border px-2 py-1 font-mono transition-colors"
             >
-              Remove
+              <span className="material-symbols-outlined text-[14px]">delete</span>
+              REMOVE
             </button>
           </li>
         ))}
       </ul>
-      <div className="mt-6 border-t border-zinc-800 pt-4">
+      <div className="mt-md border-outline-variant/15 pt-md border-t">
         <button
           onClick={revokeAll}
-          className="rounded border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900"
+          className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:border-error/40 hover:text-error inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors"
         >
-          Sign out everywhere
+          <span className="material-symbols-outlined text-[14px]">logout</span>
+          SIGN OUT EVERYWHERE
         </button>
       </div>
     </section>

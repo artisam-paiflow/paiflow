@@ -24,8 +24,11 @@ export default async function AdminUsers() {
   return (
     <>
       <Topbar username={user.username} />
-      <main className="mx-auto max-w-5xl px-6 py-10">
-        <h1 className="text-3xl font-semibold">Users</h1>
+      <main className="px-margin py-lg mx-auto max-w-7xl">
+        <p className="text-label-sm text-on-surface-variant font-mono">/ ADMIN · USERS</p>
+        <h1 className="font-display text-on-surface mt-2 text-[40px] leading-[1.1] font-semibold tracking-[-0.02em]">
+          Users.
+        </h1>
         <AdminUserList
           initial={users.map((u) => ({
             ...u,

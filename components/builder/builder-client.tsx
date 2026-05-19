@@ -63,16 +63,6 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
     type,
     position: { x: 240 + index * 40, y: 80 + index * 120 },
     data: { node: n, label: n.type },
-    style: {
-      background: "#18181b",
-      color: "#e4e4e7",
-      border: "1px solid #3f3f46",
-      borderRadius: "8px",
-      padding: "10px 14px",
-      fontSize: "13px",
-      fontWeight: 500,
-      boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
-    },
   };
 }
 
@@ -246,21 +236,27 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
   return (
     <div
-      className="grid grid-cols-[220px_1fr_320px] gap-0"
-      style={{ height: "calc(100vh - 49px)" }}
+      className="bg-surface-container-lowest grid grid-cols-[240px_1fr_340px] gap-0"
+      style={{ height: "calc(100vh - 64px)" }}
     >
       <Palette onAdd={addNode} />
 
-      <div className="relative">
-        <div className="absolute top-3 right-3 left-3 z-10 flex items-center gap-3">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="rounded bg-zinc-900/80 px-3 py-1.5 text-sm font-medium"
-          />
-          <DeployButton flowId={flowId} />
+      <div className="canvas-grid relative">
+        <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex items-start gap-3">
+          <div className="glass-panel pointer-events-auto inline-flex items-center gap-2 rounded-lg px-3 py-1.5">
+            <span className="material-symbols-outlined text-primary text-[14px]">account_tree</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="text-on-surface min-w-[200px] bg-transparent font-mono text-[13px] focus:outline-none"
+              aria-label="Flow name"
+            />
+          </div>
+          <div className="pointer-events-auto">
+            <DeployButton flowId={flowId} />
+          </div>
           <div className="flex-1" />
-          <div className="w-full max-w-md">
+          <div className="pointer-events-auto w-full max-w-md">
             <AiGenerateBar onGenerate={appendGraph} />
           </div>
         </div>
@@ -270,7 +266,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
             data: { ...n.data, label: nodeLabel(flowNodes.find((f) => f.id === n.id)) },
             selected: n.id === selectedId,
           }))}
-          edges={rfEdges.map((e) => ({ ...e, style: { stroke: "#71717a", strokeWidth: 2 } }))}
+          edges={rfEdges.map((e) => ({
+            ...e,
+            animated: true,
+            style: { stroke: "#ffb1c4", strokeWidth: 1.5, strokeDasharray: 6 },
+          }))}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
@@ -279,12 +279,15 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           nodeTypes={nodeTypes}
           fitView
         >
-          <Background gap={16} size={1} color="#27272a" />
+          <Background gap={24} size={1} color="rgba(0, 162, 253, 0.08)" />
           <Controls />
         </ReactFlow>
-        <div className="pointer-events-none absolute right-4 bottom-4 left-4 rounded-lg bg-zinc-950/90 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800">
-          <div className="text-brand-400 text-[10px] tracking-wide uppercase">English preview</div>
-          <div className="mt-1">{english}</div>
+        <div className="glass-panel-hero px-md text-body-md text-on-surface pointer-events-none absolute inset-x-4 bottom-4 rounded-xl py-3">
+          <div className="text-label-sm text-primary flex items-center gap-2 font-mono">
+            <span className="material-symbols-outlined text-[14px]">subject</span>
+            ENGLISH PREVIEW
+          </div>
+          <div className="mt-1.5">{english}</div>
         </div>
       </div>
 

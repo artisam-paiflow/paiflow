@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, X, AlertCircle, AlertTriangle, Info } from "lucide-react";
 
 type Suggestion = {
   severity: "error" | "warning" | "info";
@@ -16,25 +15,14 @@ type SuggestionPanelProps = {
   onDismissAll: () => void;
 };
 
-function severityIcon(severity: Suggestion["severity"]) {
+function severityMeta(severity: Suggestion["severity"]) {
   switch (severity) {
     case "error":
-      return <AlertCircle className="h-4 w-4 text-red-400" />;
+      return { icon: "error", border: "border-l-error", tone: "text-error" };
     case "warning":
-      return <AlertTriangle className="h-4 w-4 text-amber-400" />;
+      return { icon: "warning", border: "border-l-tertiary", tone: "text-tertiary" };
     case "info":
-      return <Info className="h-4 w-4 text-sky-400" />;
-  }
-}
-
-function severityBorder(severity: Suggestion["severity"]) {
-  switch (severity) {
-    case "error":
-      return "border-l-red-400";
-    case "warning":
-      return "border-l-amber-400";
-    case "info":
-      return "border-l-sky-400";
+      return { icon: "info", border: "border-l-secondary", tone: "text-secondary" };
   }
 }
 
@@ -49,30 +37,30 @@ export default function SuggestionPanel({
 
   if (!suggestions.length && !loading) {
     return (
-      <div className="border-t border-zinc-800 p-3">
+      <div className="border-outline-variant/15 border-t p-3">
         <button
           onClick={onReview}
           disabled={loading}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-300 ring-1 ring-zinc-800 transition-colors hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="border-outline-variant/40 bg-surface-container-low/50 text-label-md text-on-surface-variant hover:border-primary/40 hover:bg-surface-container-high/40 hover:text-on-surface flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 font-mono transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Sparkles className="text-brand-400 h-4 w-4" />
-          Ask AI to Review
+          <span className="material-symbols-outlined text-primary text-[14px]">auto_awesome</span>
+          ASK AI TO REVIEW
         </button>
       </div>
     );
   }
 
   return (
-    <div className="border-t border-zinc-800">
+    <div className="border-outline-variant/15 border-t">
       <div
-        className="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-sm font-medium text-zinc-300 hover:text-zinc-100"
+        className="px-md text-label-md text-on-surface-variant hover:text-on-surface flex w-full cursor-pointer items-center justify-between py-2.5 font-mono transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
         <span className="flex items-center gap-2">
-          <Sparkles className="text-brand-400 h-4 w-4" />
-          AI Suggestions
+          <span className="material-symbols-outlined text-primary text-[14px]">auto_awesome</span>
+          AI SUGGESTIONS
           {suggestions.length > 0 && (
-            <span className="bg-brand-500 rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white">
+            <span className="bg-primary text-on-primary rounded-full px-1.5 py-0.5 text-[10px] font-bold">
               {suggestions.length}
             </span>
           )}
@@ -84,46 +72,55 @@ export default function SuggestionPanel({
                 e.stopPropagation();
                 onDismissAll();
               }}
-              className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
+              className="text-on-surface-variant hover:bg-surface-container-high/40 hover:text-on-surface rounded p-1 transition-colors"
               title="Dismiss all"
             >
-              <X className="h-3.5 w-3.5" />
+              <span className="material-symbols-outlined text-[14px]">close</span>
             </button>
           )}
-          <span className="text-xs text-zinc-500">{expanded ? "−" : "+"}</span>
+          <span className="text-label-sm text-on-surface-variant font-mono">
+            {expanded ? "−" : "+"}
+          </span>
         </div>
       </div>
 
       {expanded && (
-        <div className="space-y-2 px-3 pb-3">
+        <div className="px-md pb-md space-y-2">
           {loading && (
-            <div className="flex items-center gap-2 rounded-lg bg-zinc-900/50 px-3 py-2 text-xs text-zinc-400">
-              <Sparkles className="text-brand-400 h-3.5 w-3.5 animate-pulse" />
-              Analyzing flow...
+            <div className="bg-surface-container-low/40 text-label-sm text-on-surface-variant flex items-center gap-2 rounded-lg px-3 py-2 font-mono">
+              <span className="material-symbols-outlined text-primary animate-pulse text-[14px]">
+                auto_awesome
+              </span>
+              ANALYZING FLOW…
             </div>
           )}
-          {suggestions.map((s, i) => (
-            <div
-              key={i}
-              className={`flex items-start gap-2 rounded-r-lg border-l-2 ${severityBorder(s.severity)} bg-zinc-900/50 px-3 py-2 text-xs text-zinc-300`}
-            >
-              {severityIcon(s.severity)}
-              <span className="flex-1 leading-relaxed">{s.message}</span>
-              <button
-                onClick={() => onDismiss(i)}
-                className="mt-0.5 rounded p-0.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
-                title="Dismiss"
+          {suggestions.map((s, i) => {
+            const m = severityMeta(s.severity);
+            return (
+              <div
+                key={i}
+                className={`flex items-start gap-2 rounded-r-lg border-l-2 ${m.border} bg-surface-container-low/40 text-body-md text-on-surface px-3 py-2`}
               >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
+                <span className={`material-symbols-outlined mt-0.5 text-[14px] ${m.tone}`}>
+                  {m.icon}
+                </span>
+                <span className="flex-1 leading-relaxed">{s.message}</span>
+                <button
+                  onClick={() => onDismiss(i)}
+                  className="text-on-surface-variant hover:bg-surface-container-high/40 hover:text-on-surface mt-0.5 rounded p-0.5 transition-colors"
+                  title="Dismiss"
+                >
+                  <span className="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              </div>
+            );
+          })}
           {!loading && (
             <button
               onClick={onReview}
-              className="mt-1 w-full rounded bg-zinc-900 py-1.5 text-xs font-medium text-zinc-400 ring-1 ring-zinc-800 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+              className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:border-primary/40 hover:text-on-surface mt-1 w-full rounded-lg border py-1.5 font-mono transition-colors"
             >
-              Re-review
+              RE-REVIEW
             </button>
           )}
         </div>
