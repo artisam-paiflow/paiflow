@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Wand2, Loader2, AlertTriangle, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import type { FlowGraph } from "@/lib/flows/schema";
 
@@ -54,7 +53,6 @@ export default function AiGenerateBar({ onGenerate }: AiGenerateBarProps) {
   const [preview, setPreview] = useState<PreviewState>({ status: "idle" });
   const [model, setModel] = useState<string>(MODELS[0].id);
 
-  // Load saved model preference
   useEffect(() => {
     try {
       const saved = localStorage.getItem(MODEL_STORAGE_KEY);
@@ -64,7 +62,6 @@ export default function AiGenerateBar({ onGenerate }: AiGenerateBarProps) {
     }
   }, []);
 
-  // Persist model preference
   useEffect(() => {
     try {
       localStorage.setItem(MODEL_STORAGE_KEY, model);
@@ -116,7 +113,7 @@ export default function AiGenerateBar({ onGenerate }: AiGenerateBarProps) {
   function applyGraph() {
     if (preview.status !== "preview") return;
     onGenerate(preview.graph);
-    toast.success("Flow applied to canvas!");
+    toast.success("Flow applied to canvas.");
     setPreview({ status: "idle" });
     setPrompt("");
   }
@@ -127,22 +124,25 @@ export default function AiGenerateBar({ onGenerate }: AiGenerateBarProps) {
 
   if (preview.status === "preview") {
     return (
-      <div className="space-y-2 rounded-lg bg-zinc-900/90 px-3 py-2 ring-1 ring-zinc-800">
+      <div className="glass-panel space-y-sm px-md py-sm rounded-xl">
         <div className="flex items-center gap-2">
-          <Wand2 className="text-brand-400 h-4 w-4 shrink-0" />
-          <span className="text-brand-400 text-xs font-medium">AI Preview</span>
-          <span className="ml-auto text-[10px] text-zinc-500">
+          <span className="material-symbols-outlined text-primary text-[14px]">auto_awesome</span>
+          <span className="text-label-sm text-primary font-mono">AI PREVIEW</span>
+          <span className="text-label-sm text-on-surface-variant ml-auto font-mono">
             {MODELS.find((m) => m.id === model)?.label ?? model}
           </span>
         </div>
-        <div className="rounded bg-zinc-950/50 px-3 py-2 text-sm text-zinc-200">
+        <div className="border-outline-variant/20 bg-surface-container-lowest/60 text-body-md text-on-surface rounded border px-3 py-2">
           {preview.english}
         </div>
         {preview.warnings.length > 0 && (
           <div className="space-y-1">
             {preview.warnings.map((w, i) => (
-              <div key={i} className="flex items-start gap-1.5 text-xs text-amber-400">
-                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+              <div
+                key={i}
+                className="text-label-sm text-tertiary flex items-start gap-1.5 font-mono"
+              >
+                <span className="material-symbols-outlined mt-0.5 text-[14px]">warning</span>
                 {w}
               </div>
             ))}
@@ -151,17 +151,17 @@ export default function AiGenerateBar({ onGenerate }: AiGenerateBarProps) {
         <div className="flex items-center gap-2">
           <button
             onClick={applyGraph}
-            className="bg-brand-500 hover:bg-brand-400 flex flex-1 items-center justify-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium text-white transition-colors"
+            className="bg-primary text-label-md text-on-primary flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 font-mono font-bold transition-all hover:-translate-y-px hover:shadow-[0_0_16px_rgba(255,177,196,0.5)] active:scale-95"
           >
-            <Check className="h-3.5 w-3.5" />
-            Apply to Canvas
+            <span className="material-symbols-outlined text-[14px]">check</span>
+            APPLY TO CANVAS
           </button>
           <button
             onClick={cancel}
-            className="flex items-center justify-center gap-1.5 rounded bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-700"
+            className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:border-error/40 hover:text-error flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 font-mono transition-colors"
           >
-            <X className="h-3.5 w-3.5" />
-            Cancel
+            <span className="material-symbols-outlined text-[14px]">close</span>
+            CANCEL
           </button>
         </div>
       </div>
@@ -170,66 +170,71 @@ export default function AiGenerateBar({ onGenerate }: AiGenerateBarProps) {
 
   if (preview.status === "error") {
     return (
-      <div className="space-y-2 rounded-lg bg-zinc-900/90 px-3 py-2 ring-1 ring-red-900/50">
+      <div className="glass-panel space-y-sm border-error/40 px-md py-sm rounded-xl">
         <div className="flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" />
-          <span className="text-xs font-medium text-red-400">Couldn&apos;t generate flow</span>
+          <span className="material-symbols-outlined text-error text-[14px]">error</span>
+          <span className="text-label-sm text-error font-mono">COULDN’T GENERATE</span>
         </div>
-        <p className="text-sm text-zinc-300">{preview.error}</p>
-        {preview.guidance && <p className="text-xs text-zinc-400">{preview.guidance}</p>}
+        <p className="text-body-md text-on-surface">{preview.error}</p>
+        {preview.guidance && (
+          <p className="text-label-sm text-on-surface-variant font-mono">{preview.guidance}</p>
+        )}
         <button
           onClick={cancel}
-          className="w-full rounded bg-zinc-800 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-700"
+          className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:border-primary/40 hover:text-on-surface w-full rounded-lg border py-2 font-mono transition-colors"
         >
-          Try Again
+          TRY AGAIN
         </button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-2">
-      <form
-        onSubmit={handleSubmit}
-        className="flex items-center gap-2 rounded-lg bg-zinc-900/90 px-3 py-2 ring-1 ring-zinc-800"
+    <form
+      onSubmit={handleSubmit}
+      className="glass-panel flex items-center gap-2 rounded-xl px-3 py-2"
+    >
+      <div className="flex shrink-0 items-center gap-1">
+        {MODELS.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => setModel(m.id)}
+            className={`text-label-sm rounded px-2 py-1 font-mono transition-colors ${
+              model === m.id
+                ? "bg-primary text-on-primary"
+                : "bg-surface-container-low/60 text-on-surface-variant hover:text-on-surface"
+            }`}
+            title={m.desc}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+      <input
+        type="text"
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+        placeholder="DESCRIBE YOUR PAYMENT FLOW…"
+        className="text-on-surface placeholder:text-outline-variant min-w-0 flex-1 bg-transparent font-mono text-[13px] tracking-[0.04em] uppercase focus:outline-none"
+        disabled={preview.status === "loading"}
+      />
+      <button
+        type="submit"
+        disabled={preview.status === "loading" || !prompt.trim()}
+        className="bg-primary text-label-sm text-on-primary inline-flex shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 font-mono font-bold transition-all hover:-translate-y-px hover:shadow-[0_0_16px_rgba(255,177,196,0.5)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >
-        <div className="flex shrink-0 items-center gap-1">
-          {MODELS.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => setModel(m.id)}
-              className={`rounded px-2 py-1 text-[10px] font-medium transition-colors ${
-                model === m.id
-                  ? "bg-brand-500 text-white"
-                  : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
-              }`}
-              title={m.desc}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-        <input
-          type="text"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Describe your payment flow..."
-          className="min-w-0 flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
-          disabled={preview.status === "loading"}
-        />
-        <button
-          type="submit"
-          disabled={preview.status === "loading" || !prompt.trim()}
-          className="bg-brand-500 hover:bg-brand-400 shrink-0 rounded px-3 py-1.5 text-xs font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {preview.status === "loading" ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            "Generate"
-          )}
-        </button>
-      </form>
-    </div>
+        {preview.status === "loading" ? (
+          <span className="material-symbols-outlined animate-spin text-[14px]">
+            progress_activity
+          </span>
+        ) : (
+          <>
+            <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+            GENERATE
+          </>
+        )}
+      </button>
+    </form>
   );
 }

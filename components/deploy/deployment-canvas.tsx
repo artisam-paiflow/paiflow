@@ -28,7 +28,7 @@ export default function DeploymentCanvas({
   pulseTick,
 }: {
   graph: FlowGraph;
-  pulseTick: number; // increment to trigger a fan-out animation
+  pulseTick: number;
 }) {
   const layout = useMemo(() => layoutGraph(graph), [graph]);
   const [animatedEdges, setAnimatedEdges] = useState<Set<string>>(new Set());
@@ -46,12 +46,12 @@ export default function DeploymentCanvas({
     target: e.target,
     animated: animatedEdges.has(e.id),
     style: animatedEdges.has(e.id)
-      ? { stroke: "#f43f74", strokeWidth: 2.5 }
-      : { stroke: "#52525b" },
+      ? { stroke: "#ffb1c4", strokeWidth: 2, strokeDasharray: 6 }
+      : { stroke: "rgba(172, 135, 143, 0.4)", strokeWidth: 1.5, strokeDasharray: 4 },
   }));
 
   return (
-    <div style={{ height: 360 }} className="rounded-xl border border-zinc-800 bg-zinc-950">
+    <div style={{ height: 360 }} className="canvas-grid glass-panel overflow-hidden rounded-xl">
       <ReactFlow
         nodes={layout.nodes}
         edges={edges}
@@ -60,10 +60,9 @@ export default function DeploymentCanvas({
         elementsSelectable={false}
         zoomOnScroll={false}
         panOnScroll={false}
-        proOptions={{ hideAttribution: true }}
         fitView
       >
-        <Background />
+        <Background gap={24} size={1} color="rgba(0, 162, 253, 0.08)" />
         <Controls showInteractive={false} />
       </ReactFlow>
     </div>
@@ -74,7 +73,6 @@ function layoutGraph(graph: FlowGraph): {
   nodes: Node[];
   edges: { id: string; source: string; target: string }[];
 } {
-  // Simple top-down layout based on topological order.
   const adj = new Map<string, string[]>();
   const indeg = new Map<string, number>();
   for (const n of graph.nodes) {
@@ -113,20 +111,30 @@ function layoutGraph(graph: FlowGraph): {
       const isT = isTrigger(n);
       const isA = isAction(n);
       const isL = isLogic(n);
-      const color = isT
-        ? "border-brand-500"
+      const tone = isT
+        ? { border: "#98cbff", glow: "0 0 12px rgba(152,203,255,0.25)" }
         : isA
-          ? "border-emerald-600"
+          ? { border: "#ffb1c4", glow: "0 0 12px rgba(255,177,196,0.25)" }
           : isL
-            ? "border-amber-500"
-            : "border-zinc-700";
+            ? { border: "#ffba20", glow: "0 0 12px rgba(255,186,32,0.25)" }
+            : { border: "rgba(172,135,143,0.4)", glow: "none" };
       nodes.push({
         id: n.id,
         type: "default",
         position: { x: 60 + i * 280, y: 60 + l * 140 },
         data: { label: nodeLabel(n) },
-        className: `bg-zinc-900 border-2 ${color} text-white`,
         draggable: false,
+        style: {
+          background: "rgba(28, 27, 27, 0.7)",
+          backdropFilter: "blur(8px)",
+          border: `1px solid ${tone.border}`,
+          color: "#e5e2e1",
+          boxShadow: tone.glow,
+          borderRadius: "8px",
+          padding: "10px 14px",
+          fontFamily: "Geist, sans-serif",
+          fontSize: "13px",
+        },
       });
     });
   }
