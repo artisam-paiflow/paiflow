@@ -4,8 +4,8 @@ import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
 import DeploymentView from "@/components/deploy/deployment-view";
-import { sep7PaymentUri } from "@/lib/stellar/sep7";
-import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
+import { FlowGraphSchema } from "@/lib/flows/schema";
+import { sep7InvokeUri } from "@/lib/stellar/sep7";
 
 export const dynamic = "force-dynamic";
 
@@ -25,17 +25,18 @@ export default async function DeploymentPage({
   });
   if (!d) notFound();
 
-  const graph = FlowGraphSchema.safeParse(d.graphSnapshot);
-  const trigger = graph.success ? graph.data.nodes.find(isTrigger) : null;
-  const asset = trigger?.type === "on_receive" ? trigger.config.asset : { kind: "native" as const };
+  const graph = FlowGraphSchema.parse(d.graphSnapshot);
 
-  const sep7 = d.contractAddress
-    ? sep7PaymentUri({
-        destination: d.contractAddress,
-        asset,
-        message: "Pink Raft deployment",
-      })
-    : null;
+  const invokeUri =
+    d.contractAddress && d.flow.templateKind === "SPLITTER"
+      ? sep7InvokeUri({
+          destination: d.contractAddress,
+          function: "distribute",
+          paramName: "amount",
+          paramType: "i128",
+          message: "Trigger splitter distribution",
+        })
+      : null;
 
   return (
     <>
@@ -54,8 +55,8 @@ export default async function DeploymentPage({
           deploymentId={d.id}
           contractAddress={d.contractAddress}
           status={d.status}
-          sep7Uri={sep7}
-          graph={graph.success ? graph.data : null}
+          invokeUri={invokeUri}
+          graph={graph}
           initialEvents={d.events.map((e) => ({
             id: e.id,
             kind: e.kind,
