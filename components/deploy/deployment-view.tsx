@@ -20,6 +20,7 @@ export default function DeploymentView({
   contractAddress,
   status,
   sep7Uri,
+  templateKind,
   initialEvents,
   graph,
 }: {
@@ -27,6 +28,7 @@ export default function DeploymentView({
   contractAddress: string | null;
   status: string;
   sep7Uri: string | null;
+  templateKind: string;
   initialEvents: Evt[];
   graph: FlowGraph | null;
 }) {
@@ -140,6 +142,43 @@ export default function DeploymentView({
             ))}
           </ul>
         </section>
+
+        {templateKind === "STREAMER" && contractAddress && status === "CONFIRMED" && (
+          <section className="rounded-xl border border-amber-900 bg-amber-950/20 p-6">
+            <h2 className="text-lg font-semibold text-amber-300">Top up your streamer</h2>
+            <p className="mt-1 text-xs text-zinc-400">
+              Streamer contracts hold funds in escrow and release them to the recipient over time
+              via <code className="text-amber-200">claim()</code>. You must top up the contract
+              before claims can succeed.
+            </p>
+            <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+              <div className="rounded border border-amber-900 bg-zinc-950 p-3">
+                <div className="text-xs text-zinc-400">1. Top up the contract</div>
+                <code className="mt-1 block font-mono text-xs break-all text-amber-200">
+                  stellar contract invoke --id {contractAddress} --source your_key --network testnet
+                  -- top_up --from "YOUR_ADDR" --amount 10000000
+                </code>
+              </div>
+              <div className="rounded border border-amber-900 bg-zinc-950 p-3">
+                <div className="text-xs text-zinc-400">2. Recipient claims vested funds</div>
+                <code className="mt-1 block font-mono text-xs break-all text-amber-200">
+                  stellar contract invoke --id {contractAddress} --source recipient_key --network
+                  testnet -- claim
+                </code>
+              </div>
+            </div>
+            <button
+              onClick={() =>
+                copy(
+                  `stellar contract invoke --id ${contractAddress} --source your_key --network testnet -- top_up --from "YOUR_ADDR" --amount 10000000`,
+                )
+              }
+              className="mt-3 rounded border border-amber-700 px-3 py-1 text-xs text-amber-300 hover:bg-amber-900/30"
+            >
+              Copy top_up command
+            </button>
+          </section>
+        )}
       </div>
     </div>
   );

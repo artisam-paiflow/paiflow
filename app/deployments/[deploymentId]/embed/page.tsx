@@ -10,7 +10,10 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
   const { deploymentId } = await params;
   const d = await db.deployment.findUnique({
     where: { id: deploymentId },
-    include: { events: { orderBy: { occurredAt: "desc" }, take: 50 } },
+    include: {
+      flow: { select: { templateKind: true } },
+      events: { orderBy: { occurredAt: "desc" }, take: 50 },
+    },
   });
   if (!d || d.status !== "CONFIRMED" || !d.contractAddress) notFound();
   const graph = FlowGraphSchema.safeParse(d.graphSnapshot);
@@ -26,6 +29,7 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
         contractAddress={d.contractAddress}
         status={d.status}
         sep7Uri={sep7}
+        templateKind={d.flow.templateKind}
         graph={graph.success ? graph.data : null}
         initialEvents={d.events.map((e) => ({
           id: e.id,
