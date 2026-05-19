@@ -1,5 +1,6 @@
 import LoginForm from "@/components/auth/login-form";
 import Link from "next/link";
+import Logo from "@/components/app/logo";
 
 export const metadata = { title: "Sign in · Pink Raft" };
 
@@ -9,22 +10,29 @@ export default function LoginPage({
   searchParams: Promise<{ from?: string; error?: string }>;
 }) {
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-10">
-      <Link href="/" className="text-brand-300 text-xl font-bold">
-        Pink Raft
+    <main className="px-margin py-lg relative mx-auto flex min-h-screen w-full max-w-md flex-col justify-center">
+      <Link href="/" className="inline-flex w-fit" aria-label="Pink Raft home">
+        <Logo size={24} />
       </Link>
-      <h1 className="mt-8 text-3xl font-semibold">Sign in</h1>
-      <p className="mt-2 text-sm text-zinc-400">
-        Use the admin credentials seeded for your environment, or your own
-        account.
+
+      <p className="mt-lg text-label-sm text-on-surface-variant font-mono">/ AUTH · CREDENTIALS</p>
+      <h1 className="font-display text-on-surface mt-2 text-[40px] leading-[1.1] font-semibold tracking-[-0.02em]">
+        Sign in.
+      </h1>
+      <p className="text-body-md text-on-surface-variant mt-3">
+        Use the admin credentials seeded for your environment, or your own account.
       </p>
+
       <LoginFormWrapper params={searchParams} />
-      <p className="mt-6 text-sm text-zinc-400">
-        No account?{" "}
-        <Link href="/register" className="text-brand-300 hover:underline">
-          Create one
+
+      <p className="mt-md text-label-sm text-on-surface-variant font-mono">
+        NO ACCOUNT?{" "}
+        <Link
+          href="/register"
+          className="text-primary hover:text-primary-fixed underline-offset-4 transition-colors hover:underline"
+        >
+          CREATE ONE
         </Link>
-        .
       </p>
     </main>
   );

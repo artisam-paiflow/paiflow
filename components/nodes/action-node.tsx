@@ -2,7 +2,6 @@
 
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { DollarSign, Split } from "lucide-react";
 import type { FlowNode } from "@/lib/flows/schema";
 import { isAction } from "@/lib/flows/schema";
 import { formatStroops } from "@/lib/utils";
@@ -12,12 +11,13 @@ type ActionNodeData = {
   label: string;
 };
 
-function ActionNodeComponent({ data }: NodeProps) {
+function ActionNodeComponent({ data, selected }: NodeProps) {
   const d = data as ActionNodeData;
   const n = d.node;
   if (!isAction(n)) return null;
 
   const isPay = n.type === "pay";
+  const icon = isPay ? "payments" : "call_split";
 
   const assetLabel =
     n.config.asset.kind === "known"
@@ -26,32 +26,40 @@ function ActionNodeComponent({ data }: NodeProps) {
         ? "XLM"
         : n.config.asset.code;
 
+  const detail = isPay
+    ? `${formatStroops(n.config.amountStroops)} ${assetLabel}`
+    : `${n.config.recipients.length} recipients`;
+
   return (
-    <div className="relative min-w-[160px] rounded-lg border-2 border-emerald-600 bg-zinc-900 px-4 py-3 shadow-lg shadow-emerald-600/10">
+    <div
+      className={`glass-panel relative min-w-[200px] rounded-xl ${selected ? "neon-glow" : ""}`}
+      style={{ borderColor: selected ? undefined : "rgba(255, 177, 196, 0.3)" }}
+    >
       <Handle
         type="target"
         position={Position.Top}
-        className="!h-2.5 !w-2.5 !rounded-full !border-2 !border-emerald-600 !bg-zinc-900"
+        className="!border-primary !bg-surface-container !h-2.5 !w-2.5 !rounded-full !border-2"
       />
 
-      <div className="flex items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-600/20 text-emerald-400">
-          {isPay ? <DollarSign size={14} /> : <Split size={14} />}
+      <div className="border-primary/20 flex items-center justify-between border-b px-3 py-2">
+        <span className="text-label-sm text-primary inline-flex items-center gap-1.5 font-mono">
+          <span className="material-symbols-outlined text-[14px]">{icon}</span>
+          ACTION
+        </span>
+        <span className="status-dot-live h-1.5 w-1.5" />
+      </div>
+
+      <div className="px-3 py-2.5">
+        <div className="font-display text-on-surface text-[14px] leading-tight font-semibold">
+          {isPay ? "Pay" : "Split"}
         </div>
-        <div>
-          <div className="text-xs font-semibold text-zinc-200">{isPay ? "Pay" : "Split"}</div>
-          <div className="text-[10px] text-zinc-500">
-            {isPay
-              ? `${formatStroops(n.config.amountStroops)} ${assetLabel}`
-              : `${n.config.recipients.length} recipients`}
-          </div>
-        </div>
+        <div className="text-on-surface-variant mt-1 font-mono text-[11px]">{detail}</div>
       </div>
 
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!h-2.5 !w-2.5 !rounded-full !border-2 !border-emerald-600 !bg-zinc-900"
+        className="!border-primary !bg-surface-container !h-2.5 !w-2.5 !rounded-full !border-2"
       />
     </div>
   );

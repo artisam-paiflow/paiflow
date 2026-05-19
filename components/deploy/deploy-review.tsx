@@ -77,7 +77,7 @@ export default function DeployReview({
       });
       const subData = await submit.json();
       if (!submit.ok) throw new Error(subData?.error?.message ?? "Submit failed");
-      toast.success("Contract deployed");
+      toast.success("Contract deployed.");
       window.location.href = `/deployments/${prepData.data.deploymentId}`;
     } catch (err) {
       toast.error((err as Error).message ?? "Deploy failed");
@@ -87,40 +87,48 @@ export default function DeployReview({
   }
 
   return (
-    <section className="mt-6 space-y-4 rounded-xl border border-zinc-800 bg-zinc-950 p-5">
-      <div className="grid gap-1 text-sm">
-        <label className="text-zinc-400">Network</label>
+    <section className="glass-panel mt-md space-y-md p-md rounded-xl">
+      <div className="grid gap-2">
+        <span className="text-label-sm text-on-surface-variant font-mono uppercase">Network</span>
         <div className="flex gap-2">
           <button
             onClick={() => setNetwork("testnet")}
-            className={`rounded px-3 py-1 text-sm ${
+            className={`text-label-md inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors ${
               network === "testnet"
-                ? "bg-brand-600 text-white"
-                : "border border-zinc-700 text-zinc-300"
+                ? "border-secondary bg-secondary/10 text-secondary"
+                : "border-outline-variant/40 text-on-surface-variant hover:border-outline hover:text-on-surface"
             }`}
           >
-            Testnet
+            {network === "testnet" ? (
+              <span className="status-dot-deploy h-1.5 w-1.5" />
+            ) : (
+              <span className="bg-outline-variant h-1.5 w-1.5 rounded-full" />
+            )}
+            TESTNET
           </button>
           <button
             onClick={() => setNetwork("mainnet")}
             disabled={!enableMainnet}
-            className={`rounded px-3 py-1 text-sm ${
+            className={`text-label-md inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
               network === "mainnet"
-                ? "bg-red-600 text-white"
-                : "border border-zinc-700 text-zinc-300"
-            } disabled:opacity-40`}
+                ? "border-error bg-error-container/30 text-error"
+                : "border-outline-variant/40 text-on-surface-variant hover:border-outline hover:text-on-surface"
+            }`}
           >
-            Mainnet{!enableMainnet && " (disabled)"}
+            <span className="material-symbols-outlined text-[14px]">warning</span>
+            MAINNET{!enableMainnet && " · DISABLED"}
           </button>
         </div>
       </div>
       {network === "mainnet" && (
-        <label className="grid gap-1 text-sm">
-          <span className="text-zinc-400">Type "I understand" to confirm mainnet:</span>
+        <label className="grid gap-1.5">
+          <span className="text-label-sm text-error font-mono uppercase">
+            Type “I understand” to confirm mainnet
+          </span>
           <input
             value={confirmation}
             onChange={(e) => setConfirmation(e.target.value)}
-            className="rounded border border-red-700 bg-zinc-900 px-3 py-2 font-mono"
+            className="border-error/60 bg-surface-container-lowest text-on-surface focus:border-error focus:ring-error rounded border px-3 py-2 font-mono text-[14px] focus:ring-1 focus:outline-none"
             placeholder="I understand"
           />
         </label>
@@ -128,13 +136,28 @@ export default function DeployReview({
       <button
         onClick={onDeploy}
         disabled={busy || (network === "mainnet" && confirmation !== "I understand")}
-        className="bg-brand-600 hover:bg-brand-500 w-full rounded-md px-4 py-2 font-semibold disabled:opacity-50"
+        className="bg-primary px-md text-label-md text-on-primary inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >
-        {busy ? "Deploying…" : `Deploy to ${network}`}
+        {busy ? (
+          <>
+            <span className="material-symbols-outlined animate-spin text-[16px]">
+              progress_activity
+            </span>
+            DEPLOYING…
+          </>
+        ) : (
+          <>
+            <span className="material-symbols-outlined text-[16px]">rocket_launch</span>
+            DEPLOY TO {network.toUpperCase()}
+          </>
+        )}
       </button>
-      <p className="text-xs text-zinc-500">
-        You'll sign the transaction in your wallet (Freighter, Albedo, xBull, LOBSTR, Hana). Pink
-        Raft never sees your secret key.
+      <p className="text-label-sm text-on-surface-variant flex items-start gap-1.5 font-mono">
+        <span className="material-symbols-outlined text-secondary mt-0.5 text-[14px]">
+          shield_lock
+        </span>
+        YOU’LL SIGN IN YOUR WALLET (FREIGHTER, ALBEDO, XBULL, LOBSTR, HANA). PINK RAFT NEVER SEES
+        YOUR SECRET KEY.
       </p>
     </section>
   );
