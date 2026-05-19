@@ -23,3 +23,21 @@ export function sep7PaymentUri(opts: {
   if (opts.message) params.set("msg", opts.message);
   return `web+stellar:pay?${params.toString()}`;
 }
+
+export function sep7InvokeUri(opts: {
+  destination: string;
+  function: string;
+  paramName?: string;
+  paramType?: "i128" | "u32" | "address" | "symbol";
+  message?: string;
+}): string {
+  const params = new URLSearchParams();
+  params.set("destination", opts.destination);
+  params.set("fn", opts.function);
+  if (opts.paramName && opts.paramType) {
+    params.set("param[name]", opts.paramName);
+    params.set("param[type]", opts.paramType);
+  }
+  if (opts.message) params.set("msg", opts.message);
+  return `web+stellar:invoke?${params.toString()}`;
+}
