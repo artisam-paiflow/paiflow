@@ -9,6 +9,8 @@ const PUBLIC_PATHS = [
   /^\/$/,
   /^\/login$/,
   /^\/register$/,
+  /^\/forgot-password$/,
+  /^\/auth\/new-password$/,
   /^\/about$/,
   /^\/privacy$/,
   /^\/terms$/,

@@ -37,7 +37,8 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 - Node `22.11.x` (capped at `<23` — see `engines` in `package.json`)
 - pnpm `10.4.1` — `corepack enable && corepack prepare pnpm@10.4.1 --activate`
-- Docker (for Postgres / Redis / MinIO / MailHog)
+- Docker (for Postgres / Redis / MinIO)
+- _(Optional)_ A [Resend](https://resend.com) account for outbound transactional email (password reset). When unset, emails are logged to the dev console.
 - _(Optional, for contract work)_ Rust `1.88.0` with the `wasm32v1-none` target:
   ```bash
   rustup install 1.88.0
@@ -59,7 +60,7 @@ cp .env.example .env
 #   CRON_SECRET=$(openssl rand -hex 32)
 
 # 3. Start backing services
-pnpm docker:up               # Postgres + Redis + MinIO + MailHog
+pnpm docker:up               # Postgres + Redis + MinIO
 # or:  docker compose --profile core up -d   # Postgres + Redis only
 
 # 4. Run migrations and seed the admin user
@@ -70,7 +71,7 @@ pnpm db:seed
 pnpm dev                     # http://localhost:3000
 ```
 
-Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Outbound dev emails land at MailHog (`http://localhost:8025`).
+Log in with `admin` / your `ADMIN_SEED_PASSWORD`. In local dev without a `RESEND_API_KEY`, outbound emails (e.g. password reset) are logged to the server console instead of delivered.
 
 ### Local services map
 
@@ -80,7 +81,8 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Outbound dev emails land at Ma
 | Postgres | 5432        | `pinkraft / pinkraft / pinkraft`                     |
 | Redis    | 6379        | —                                                    |
 | MinIO    | 9000 / 9001 | console at `:9001`, `pinkraft / pinkraft-dev-secret` |
-| MailHog  | 1025 / 8025 | SMTP / UI                                            |
+
+> **Email** is a cloud service (Resend), not a local container — set `RESEND_API_KEY` to deliver, leave it unset to log to the dev console.
 
 ---
 

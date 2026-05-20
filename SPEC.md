@@ -830,13 +830,14 @@ Services:
 - `postgres:16-alpine` → exposes 5432.
 - `redis:7-alpine` → exposes 6379.
 - `minio:latest` (file storage, S3-compatible) → exposes 9000 (API) and 9001 (console). Volume mounted at `./.docker/minio`.
-- `mailhog/mailhog:latest` (optional, email capture for password reset flow in v1.1) → exposes 8025.
+
+Email is **not** a containerized service. Transactional email goes through [Resend](https://resend.com) over HTTPS via `RESEND_API_KEY` (optional in dev — `lib/mail.ts` logs to stdout when the key is unset; required in production for password-reset and other system emails).
 
 Profiles let devs start a minimal set:
 
 ```
 docker compose --profile core up -d       # postgres + redis
-docker compose --profile full up -d       # + minio + mailhog
+docker compose --profile full up -d       # + minio
 ```
 
 ### 14.2 `.env.example`
