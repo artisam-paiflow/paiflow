@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { QRCodeSVG } from "qrcode.react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import DeploymentCanvas from "./deployment-canvas";
 import type { FlowGraph } from "@/lib/flows/schema";
@@ -37,8 +36,6 @@ export default function DeploymentView({
   const [showAmountModal, setShowAmountModal] = useState(false);
   const [amountInput, setAmountInput] = useState("");
   const [pendingAmount, setPendingAmount] = useState<string | null>(distributeAmountStroops);
-  const [qrSvg, setQrSvg] = useState<string | null>(null);
-  const [qrLoading, setQrLoading] = useState(false);
 
   useEffect(() => {
     if (status !== "CONFIRMED") return;
@@ -61,40 +58,6 @@ export default function DeploymentView({
     return () => es.close();
   }, [deploymentId, status]);
 
-  const fetchQr = useCallback(
-    async (amount: string) => {
-      if (!qrUrl) return;
-      setQrLoading(true);
-      try {
-        const res = await fetch(`${qrUrl}&amount=${encodeURIComponent(amount)}`);
-        if (!res.ok) {
-          let msg = "Failed to generate QR";
-          try {
-            const body = await res.json();
-            msg = body?.error?.message ?? msg;
-          } catch {
-            /* use default */
-          }
-          throw new Error(msg);
-        }
-        const svg = await res.text();
-        setQrSvg(svg);
-        setPendingAmount(amount);
-        await fetch(`/api/deployments/${deploymentId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ distributeAmountStroops: amount }),
-        });
-        toast.success("Amount saved. QR code updated.");
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to generate QR");
-      } finally {
-        setQrLoading(false);
-      }
-    },
-    [qrUrl, deploymentId],
-  );
-
   async function copy(text: string) {
     await navigator.clipboard.writeText(text);
     toast.success("Copied to clipboard.");
@@ -111,7 +74,13 @@ export default function DeploymentView({
       return;
     }
     setShowAmountModal(false);
-    fetchQr(amountInput);
+    setPendingAmount(amountInput);
+    fetch(`/api/deployments/${deploymentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ distributeAmountStroops: amountInput }),
+    });
+    toast.success("Amount saved.");
   }
 
   return (
@@ -143,10 +112,13 @@ export default function DeploymentView({
               </p>
               <div className="mt-md gap-md grid grid-cols-[160px_1fr]">
                 <div className="flex min-h-[160px] items-center justify-center rounded-lg bg-white p-3">
-                  {qrLoading ? (
-                    <span className="animate-pulse font-mono text-xs text-zinc-400">LOADING…</span>
-                  ) : qrSvg ? (
-                    <div dangerouslySetInnerHTML={{ __html: qrSvg }} />
+                  {qrUrl && pendingAmount ? (
+                    <img
+                      src={`${qrUrl}&amount=${encodeURIComponent(pendingAmount)}`}
+                      width={140}
+                      height={140}
+                      alt="QR code"
+                    />
                   ) : (
                     <span className="font-mono text-xs text-zinc-400">NO QR YET</span>
                   )}
