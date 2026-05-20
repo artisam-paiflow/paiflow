@@ -158,3 +158,76 @@ export async function callGroq(
     details,
   );
 }
+
+export async function transcribeAudio(
+  audioBuffer: Buffer,
+  filename: string,
+  mimeType = "audio/webm",
+): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    throw new AppError(
+      "INTERNAL",
+      "Groq API key is not configured. Set GROQ_API_KEY in your environment.",
+    );
+  }
+
+  const primary = process.env.GROQ_STT_MODEL_PRIMARY ?? "whisper-large-v3";
+  const fallback = process.env.GROQ_STT_MODEL_FALLBACK ?? "whisper-large-v3-turbo";
+  const models = Array.from(new Set([primary, fallback]));
+  const rawErrors: Array<{ model: string; status: number }> = [];
+
+  async function tryModel(model: string): Promise<string> {
+    const formData = new FormData();
+    const blob = new Blob([new Uint8Array(audioBuffer)], { type: mimeType });
+    formData.append("file", blob, filename);
+    formData.append("model", model);
+
+    const res = await fetch(`${GROQ_BASE_URL}/audio/transcriptions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "unknown");
+      rawErrors.push({ model, status: res.status });
+      throw new AppError(
+        res.status === 429 ? "RATE_LIMITED" : "UPSTREAM_RPC",
+        `Groq transcription failed: ${res.status} ${text}`,
+      );
+    }
+
+    const json = (await res.json()) as { text?: string };
+    if (!json.text) throw new AppError("UPSTREAM_RPC", "Empty transcription response from Groq");
+    return json.text!;
+  }
+
+  let attempt = 0;
+  for (const model of models) {
+    try {
+      return await tryModel(model);
+    } catch (err) {
+      if (
+        !(err instanceof AppError) ||
+        (err.code !== "UPSTREAM_RPC" && err.code !== "RATE_LIMITED")
+      ) {
+        throw err;
+      }
+      if (attempt < models.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+      attempt++;
+    }
+  }
+
+  const allRatedLimited = rawErrors.length > 0 && rawErrors.every((e) => e.status === 429);
+  if (allRatedLimited) {
+    throw new AppError(
+      "RATE_LIMITED",
+      "Groq STT is currently rate-limited. Please try again later.",
+    );
+  }
+
+  throw new AppError("UPSTREAM_RPC", "Groq transcription failed on all models.");
+}

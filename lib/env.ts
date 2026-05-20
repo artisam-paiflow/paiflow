@@ -46,6 +46,8 @@ const EnvSchema = z.object({
 
   GROQ_API_KEY: optionalString,
   GROQ_MODEL: optionalString,
+  GROQ_STT_MODEL_PRIMARY: optionalString,
+  GROQ_STT_MODEL_FALLBACK: optionalString,
 
   // ---- Email (Resend) ----
   // Optional in dev — when RESEND_API_KEY is unset, `lib/mail.ts` logs the
