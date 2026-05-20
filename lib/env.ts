@@ -46,6 +46,8 @@ const EnvSchema = z.object({
 
   GROQ_API_KEY: optionalString,
   GROQ_MODEL: optionalString,
+  GROQ_STT_MODEL_PRIMARY: optionalString,
+  GROQ_STT_MODEL_FALLBACK: optionalString,
 });
 
 type EnvShape = z.infer<typeof EnvSchema>;
