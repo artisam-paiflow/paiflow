@@ -20,7 +20,17 @@ function u64(n: number | bigint): xdr.ScVal {
 }
 
 function recipientsVec(recipients: Array<{ address: string; bps: number }>): xdr.ScVal {
-  return xdr.ScVal.scvVec(recipients.map((r) => xdr.ScVal.scvVec([addr(r.address), u32(r.bps)])));
+  return xdr.ScVal.scvVec(
+    recipients.map((r) =>
+      xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({
+          key: nativeToScVal("address", { type: "symbol" }),
+          val: addr(r.address),
+        }),
+        new xdr.ScMapEntry({ key: nativeToScVal("bps", { type: "symbol" }), val: u32(r.bps) }),
+      ]),
+    ),
+  );
 }
 
 function ratePerSecondStroops(params: { ratePerSecondStroops: string }): xdr.ScVal {
