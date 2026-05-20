@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { TriggerButton } from "@/components/deploy/trigger-button";
 import type { FlowGraph } from "@/lib/flows/schema";
 
@@ -18,8 +19,17 @@ export default function TriggerClient({
   network: "testnet" | "mainnet";
   graph: FlowGraph | null;
 }) {
+  const searchParams = useSearchParams();
+  const urlAmount = searchParams.get("amount");
   const [amount, setAmount] = useState("");
   const [amountSet, setAmountSet] = useState(false);
+
+  useEffect(() => {
+    if (urlAmount && /^\d+$/.test(urlAmount) && urlAmount !== "0") {
+      setAmount(urlAmount);
+      setAmountSet(true);
+    }
+  }, [urlAmount]);
 
   async function copy(text: string) {
     await navigator.clipboard.writeText(text);
@@ -79,13 +89,6 @@ export default function TriggerClient({
             )}
           </div>
 
-          <TriggerButton
-            deploymentId={deploymentId}
-            network={network}
-            amount={amountSet ? amount : ""}
-            onSuccess={() => setAmountSet(true)}
-          />
-
           {!amountSet && amount && /^\d+$/.test(amount) && amount !== "0" && (
             <button
               onClick={() => setAmountSet(true)}
@@ -94,6 +97,13 @@ export default function TriggerClient({
               CONFIRM AMOUNT
             </button>
           )}
+
+          <TriggerButton
+            deploymentId={deploymentId}
+            network={network}
+            amount={amountSet ? amount : ""}
+            onSuccess={() => setAmountSet(true)}
+          />
         </div>
 
         <p className="text-label-sm text-on-surface-variant text-center font-mono">

@@ -37,7 +37,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       return new Response("Contract address not available", { status: 400 });
     }
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    uri = `${appUrl}/trigger/${d.id}`;
+    uri = d.distributeAmountStroops
+      ? `${appUrl}/trigger/${d.id}?amount=${d.distributeAmountStroops}`
+      : `${appUrl}/trigger/${d.id}`;
   } else if (q.action === "invoke") {
     if (d.flow.templateKind !== "SPLITTER") {
       return new Response("Invoke QR only available for splitter deployments", { status: 400 });
