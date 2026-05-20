@@ -324,7 +324,11 @@ export default function RaftLog({
 
         recognition.onend = () => {
           logDiag("SpeechRecognition: onend");
-          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+          if (
+            recognitionRef.current === recognition &&
+            mediaRecorderRef.current &&
+            mediaRecorderRef.current.state !== "inactive"
+          ) {
             try {
               recognition.start();
             } catch {
