@@ -141,7 +141,7 @@ export default function DeploymentView({
                         Amount (stroops)
                       </div>
                       <div className="text-on-surface font-mono text-[14px]">
-                        {Number(pendingAmount).toLocaleString()}
+                        {BigInt(pendingAmount).toLocaleString()}
                       </div>
                     </div>
                   )}
