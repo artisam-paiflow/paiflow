@@ -215,17 +215,48 @@ export default function RaftLog({
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.code !== "Space" || collapsed) return;
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if ((e.target as HTMLElement).isContentEditable) return;
-      if (loading) return;
+      if (e.code !== "Space" || collapsed || loading) return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
 
-      e.preventDefault();
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-        stopRecording();
-      } else {
-        startRecording();
+      const target = e.target as HTMLElement | null;
+      const activeElement = document.activeElement as HTMLElement | null;
+      const focusedElement = activeElement ?? target;
+
+      if (!focusedElement) return;
+      if (focusedElement === document.body) {
+        e.preventDefault();
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+          stopRecording();
+        } else {
+          startRecording();
+        }
+        return;
+      }
+
+      const tag = focusedElement.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        tag === "BUTTON" ||
+        tag === "A"
+      ) {
+        return;
+      }
+      if (focusedElement.isContentEditable) return;
+
+      const role = focusedElement.getAttribute("role");
+      if (
+        role === "button" ||
+        role === "link" ||
+        role === "checkbox" ||
+        role === "radio" ||
+        role === "switch" ||
+        role === "tab" ||
+        role === "menuitem" ||
+        role === "option"
+      ) {
+        return;
       }
     }
 
