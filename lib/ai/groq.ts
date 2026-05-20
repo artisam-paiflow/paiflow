@@ -159,7 +159,11 @@ export async function callGroq(
   );
 }
 
-export async function transcribeAudio(audioBuffer: Buffer, filename: string): Promise<string> {
+export async function transcribeAudio(
+  audioBuffer: Buffer,
+  filename: string,
+  mimeType = "audio/webm",
+): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     throw new AppError(
@@ -175,7 +179,7 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
 
   async function tryModel(model: string): Promise<string> {
     const formData = new FormData();
-    const blob = new Blob([new Uint8Array(audioBuffer)], { type: "audio/webm" });
+    const blob = new Blob([new Uint8Array(audioBuffer)], { type: mimeType });
     formData.append("file", blob, filename);
     formData.append("model", model);
 

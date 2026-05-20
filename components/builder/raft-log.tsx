@@ -282,31 +282,30 @@ export default function RaftLog({
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
       if (SpeechRecognitionClass) {
+        const logDiag =
+          process.env.NODE_ENV !== "production"
+            ? (...args: any[]) => console.debug("[DIAG]", ...args)
+            : () => {};
+
         const recognition = new SpeechRecognitionClass();
         recognition.continuous = true;
         recognition.interimResults = true;
         recognition.lang = "en-US";
 
-        recognition.onstart = () => {
-          console.debug("[DIAG] SpeechRecognition: onstart fired");
-        };
-        recognition.onaudiostart = () => {
-          console.debug("[DIAG] SpeechRecognition: onaudiostart - audio capture began");
-        };
-        recognition.onaudioend = () => {
-          console.debug("[DIAG] SpeechRecognition: onaudioend - audio capture ended");
-        };
-        recognition.onsoundstart = () => {
-          console.debug("[DIAG] SpeechRecognition: onsoundstart - sound detected");
-        };
-        recognition.onspeechend = () => {
-          console.debug("[DIAG] SpeechRecognition: onspeechend - speech ended");
-        };
+        recognition.onstart = () => logDiag("SpeechRecognition: onstart fired");
+        recognition.onaudiostart = () =>
+          logDiag("SpeechRecognition: onaudiostart - audio capture began");
+        recognition.onaudioend = () =>
+          logDiag("SpeechRecognition: onaudioend - audio capture ended");
+        recognition.onsoundstart = () =>
+          logDiag("SpeechRecognition: onsoundstart - sound detected");
+        recognition.onspeechend = () => logDiag("SpeechRecognition: onspeechend - speech ended");
 
         recognition.onresult = (event: any) => {
           const isFinal = event.results[event.results.length - 1]?.isFinal;
-          console.debug(
-            `[DIAG] SpeechRecognition: onresult interim=${!isFinal} results=${event.results.length} resultIndex=${event.resultIndex}`,
+          logDiag(
+            "SpeechRecognition: onresult",
+            `interim=${!isFinal} results=${event.results.length}`,
             event.results[event.results.length - 1]?.[0]?.transcript,
           );
           let transcript = "";
@@ -317,17 +316,14 @@ export default function RaftLog({
         };
 
         recognition.onerror = (event: any) => {
-          console.debug("[DIAG] SpeechRecognition: onerror", event.error);
-          // Only clear transcript on fatal / permission errors
+          logDiag("SpeechRecognition: onerror", event.error);
           if (event.error === "not-allowed" || event.error === "service-not-allowed") {
             setLiveTranscript("");
           }
         };
 
         recognition.onend = () => {
-          console.debug("[DIAG] SpeechRecognition: onend");
-          // SpeechRecognition can auto-stop after silence in some browsers
-          // even with continuous=true. Restart it if we're still recording.
+          logDiag("SpeechRecognition: onend");
           if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
             try {
               recognition.start();
@@ -339,13 +335,15 @@ export default function RaftLog({
 
         recognition.start();
         recognitionRef.current = recognition;
-        console.debug("[DIAG] SpeechRecognition: .start() called");
+        logDiag("SpeechRecognition: .start() called");
 
-        // Give SpeechRecognition time to initialize its audio pipeline
-        // before getUserMedia claims the mic.
         await new Promise((r) => setTimeout(r, 200));
       } else {
-        console.debug("[DIAG] SpeechRecognition: NOT AVAILABLE in this browser");
+        const logDiag =
+          process.env.NODE_ENV !== "production"
+            ? (...args: any[]) => console.debug("[DIAG]", ...args)
+            : () => {};
+        logDiag("SpeechRecognition: NOT AVAILABLE in this browser");
       }
 
       // Acquire the microphone for MediaRecorder (audio file → Groq whisper)

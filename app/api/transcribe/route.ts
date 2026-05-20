@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     }
 
     const buf = Buffer.from(await file.arrayBuffer());
-    const text = await transcribeAudio(buf, file.name);
+    const text = await transcribeAudio(buf, file.name, baseType);
 
     return NextResponse.json({ data: { text } });
   });
