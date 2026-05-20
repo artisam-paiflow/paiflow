@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { z } from "zod";
+import { audit } from "@/lib/audit";
 
 const PatchSchema = z.object({
   distributeAmountStroops: z.string().regex(/^\d+$/).optional(),
@@ -36,6 +37,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       data: {
         distributeAmountStroops: body.distributeAmountStroops ?? deployment.distributeAmountStroops,
       },
+    });
+    await audit({
+      action: "DEPLOY_AMOUNT_CHANGE",
+      userId: user.id,
+      metadata: { deploymentId: id, amount: body.distributeAmountStroops },
     });
     return NextResponse.json({ data: updated });
   });
