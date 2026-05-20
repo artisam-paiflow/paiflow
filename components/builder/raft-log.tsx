@@ -37,10 +37,16 @@ const SUGGESTIONS_ROWS = [
     "Change asset to XLM",
     "Make Alice 55%",
     "Set payment amount",
-    "Add a co-signer",
+    "Remove last node",
   ],
-  ["Add a time lock", "Swap to USDC", "Set minimum 100 XLM", "Remove last node", "Add a deadline"],
-  ["Add a memo", "Make it periodic", "Require approval", "Increase share to 1%", "Add a condition"],
+  [
+    "Swap to USDC",
+    "Add a condition",
+    "Change schedule to daily",
+    "Add a split",
+    "Change pay amount",
+  ],
+  ["Add a stream", "Remove a condition", "Change asset to USDC", "Make Bob 30%", "Set to hourly"],
 ];
 
 function patchSummary(patch: unknown[]): string {
@@ -182,10 +188,11 @@ export default function RaftLog({
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const recognitionRef = useRef<any>(null);
   const animationFrameRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -196,14 +203,15 @@ export default function RaftLog({
   }, []);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
       if (audioContextRef.current) audioContextRef.current.close();
       if (timerRef.current) clearInterval(timerRef.current);
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-        recognitionRef.current = null;
-      }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
       }
@@ -258,6 +266,14 @@ export default function RaftLog({
       ) {
         return;
       }
+
+      // Default: space on a non-interactive element toggles recording
+      e.preventDefault();
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        stopRecording();
+      } else {
+        startRecording();
+      }
     }
 
     document.addEventListener("keydown", handleKeyDown);
@@ -275,84 +291,7 @@ export default function RaftLog({
       setLiveTranscript("");
       setAudioLevel(0);
 
-      // Start browser SpeechRecognition FIRST, before getUserMedia.
-      // On many browsers getUserMedia claims the mic exclusively and
-      // prevents SpeechRecognition from receiving any audio.
-      const SpeechRecognitionClass =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-      if (SpeechRecognitionClass) {
-        const logDiag =
-          process.env.NODE_ENV !== "production"
-            ? (...args: any[]) => console.debug("[DIAG]", ...args)
-            : () => {};
-
-        const recognition = new SpeechRecognitionClass();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = "en-US";
-
-        recognition.onstart = () => logDiag("SpeechRecognition: onstart fired");
-        recognition.onaudiostart = () =>
-          logDiag("SpeechRecognition: onaudiostart - audio capture began");
-        recognition.onaudioend = () =>
-          logDiag("SpeechRecognition: onaudioend - audio capture ended");
-        recognition.onsoundstart = () =>
-          logDiag("SpeechRecognition: onsoundstart - sound detected");
-        recognition.onspeechend = () => logDiag("SpeechRecognition: onspeechend - speech ended");
-
-        recognition.onresult = (event: any) => {
-          const isFinal = event.results[event.results.length - 1]?.isFinal;
-          logDiag(
-            "SpeechRecognition: onresult",
-            `interim=${!isFinal} results=${event.results.length}`,
-            event.results[event.results.length - 1]?.[0]?.transcript,
-          );
-          let transcript = "";
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            transcript += event.results[i][0].transcript;
-          }
-          setLiveTranscript(transcript);
-        };
-
-        recognition.onerror = (event: any) => {
-          logDiag("SpeechRecognition: onerror", event.error);
-          if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-            setLiveTranscript("");
-          }
-        };
-
-        recognition.onend = () => {
-          logDiag("SpeechRecognition: onend");
-          if (
-            recognitionRef.current === recognition &&
-            mediaRecorderRef.current &&
-            mediaRecorderRef.current.state !== "inactive"
-          ) {
-            try {
-              recognition.start();
-            } catch {
-              // ignore restart failures
-            }
-          }
-        };
-
-        recognition.start();
-        recognitionRef.current = recognition;
-        logDiag("SpeechRecognition: .start() called");
-
-        await new Promise((r) => setTimeout(r, 200));
-      } else {
-        const logDiag =
-          process.env.NODE_ENV !== "production"
-            ? (...args: any[]) => console.debug("[DIAG]", ...args)
-            : () => {};
-        logDiag("SpeechRecognition: NOT AVAILABLE in this browser");
-      }
-
-      // Acquire the microphone for MediaRecorder (audio file → Groq whisper)
-      // Use raw audio constraints so we don't accidentally claim exclusive
-      // audio processing that could starve SpeechRecognition.
+      // Acquire the microphone for MediaRecorder (audio file → Groq Whisper)
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: false,
@@ -363,8 +302,7 @@ export default function RaftLog({
       streamRef.current = stream;
 
       // Set up audio level meter using Web Audio API
-      // This provides visual feedback that the mic is live, even if
-      // SpeechRecognition isn't producing interim results.
+      // Provides visual feedback that the mic is live.
       try {
         const actx = new AudioContext();
         const source = actx.createMediaStreamSource(stream);
@@ -436,10 +374,6 @@ export default function RaftLog({
         setLiveTranscript("");
         setAudioLevel(0);
 
-        if (recognitionRef.current) {
-          recognitionRef.current.stop();
-          recognitionRef.current = null;
-        }
         if (timerRef.current) {
           clearInterval(timerRef.current);
           timerRef.current = null;
@@ -455,8 +389,13 @@ export default function RaftLog({
         const formData = new FormData();
         formData.append("file", blob, `recording.${ext}`);
 
-        fetch("/api/transcribe", { method: "POST", body: formData })
+        abortControllerRef.current?.abort();
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+
+        fetch("/api/transcribe", { method: "POST", body: formData, signal: abortController.signal })
           .then(async (res) => {
+            if (!isMountedRef.current) return;
             const json = await res.json();
             if (!res.ok) {
               toast.error(json?.error?.message ?? "Transcription failed");
@@ -466,7 +405,13 @@ export default function RaftLog({
             setInput("");
           })
           .catch(() => {
+            if (!isMountedRef.current) return;
             toast.error("Network error while transcribing audio");
+          })
+          .finally(() => {
+            if (abortControllerRef.current === abortController) {
+              abortControllerRef.current = null;
+            }
           });
       };
 
@@ -510,10 +455,6 @@ export default function RaftLog({
   }
 
   function stopRecording() {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
-    }
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
