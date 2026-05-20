@@ -16,6 +16,7 @@ pub enum Key {
     Admin,
     Asset,
     Recipients,
+    MinAmount,
     Paused,
     Version,
 }
@@ -40,7 +41,13 @@ pub struct Splitter;
 
 #[contractimpl]
 impl Splitter {
-    pub fn __constructor(env: Env, admin: Address, asset: Address, recipients: Vec<Recipient>) {
+    pub fn __constructor(
+        env: Env,
+        admin: Address,
+        asset: Address,
+        recipients: Vec<Recipient>,
+        min_amount: i128,
+    ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
         }
@@ -59,6 +66,7 @@ impl Splitter {
         env.storage().instance().set(&Key::Admin, &admin);
         env.storage().instance().set(&Key::Asset, &asset);
         env.storage().instance().set(&Key::Recipients, &recipients);
+        env.storage().instance().set(&Key::MinAmount, &min_amount);
         env.storage().instance().set(&Key::Paused, &false);
         env.storage().instance().set(&Key::Version, &VERSION);
     }
@@ -66,6 +74,10 @@ impl Splitter {
     pub fn distribute(env: Env, from: Address, amount: i128) {
         from.require_auth();
         if amount <= 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
+        let min_amount: i128 = env.storage().instance().get(&Key::MinAmount).unwrap_or(0);
+        if min_amount > 0 && amount < min_amount {
             panic_with_error!(&env, Error::InvalidAmount);
         }
         if env
@@ -177,6 +189,7 @@ mod test {
                 admin.clone(),
                 asset.address(),
                 make_recipients(&env, &a, &b, &c),
+                0_i128,
             ),
         );
         let client = SplitterClient::new(&env, &contract_id);
@@ -208,6 +221,6 @@ mod test {
                 bps: 3000,
             },
         ];
-        env.register(Splitter, (admin, asset.address(), bad));
+        env.register(Splitter, (admin, asset.address(), bad, 0_i128));
     }
 }

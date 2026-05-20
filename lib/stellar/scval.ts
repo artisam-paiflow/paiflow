@@ -19,29 +19,45 @@ function u64(n: number | bigint): xdr.ScVal {
   return nativeToScVal(typeof n === "bigint" ? n : BigInt(n), { type: "u64" });
 }
 
+function recipientsVec(recipients: Array<{ address: string; bps: number }>): xdr.ScVal {
+  return xdr.ScVal.scvVec(
+    recipients.map((r) =>
+      xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({
+          key: nativeToScVal("address", { type: "symbol" }),
+          val: addr(r.address),
+        }),
+        new xdr.ScMapEntry({ key: nativeToScVal("bps", { type: "symbol" }), val: u32(r.bps) }),
+      ]),
+    ),
+  );
+}
+
+function ratePerSecondStroops(params: { ratePerSecondStroops: string }): xdr.ScVal {
+  return i128(params.ratePerSecondStroops);
+}
+
+function amountStroops(params: { amountStroops: string }): xdr.ScVal {
+  return i128(params.amountStroops);
+}
+
 export function constructorArgs(params: ContractParams, admin: string): xdr.ScVal[] {
   switch (params.kind) {
     case "splitter": {
-      const recipientsVec = xdr.ScVal.scvVec(
-        params.recipients.map((r) =>
-          xdr.ScVal.scvMap([
-            // Keys must be in lexicographic Symbol order for Soroban Map decoding.
-            new xdr.ScMapEntry({
-              key: nativeToScVal("address", { type: "symbol" }),
-              val: addr(r.address),
-            }),
-            new xdr.ScMapEntry({ key: nativeToScVal("bps", { type: "symbol" }), val: u32(r.bps) }),
-          ]),
-        ),
-      );
-      return [addr(admin), addr(assetContractId(params.asset)), recipientsVec];
+      const args: xdr.ScVal[] = [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        recipientsVec(params.recipients),
+        i128(params.minAmountStroops ?? "0"),
+      ];
+      return args;
     }
     case "streamer": {
       return [
         addr(admin),
-        addr(params.recipient),
+        recipientsVec(params.recipients),
         addr(assetContractId(params.asset)),
-        i128(params.ratePerSecondStroops),
+        ratePerSecondStroops(params),
         u64(params.startTs),
         u64(params.endTs),
       ];
@@ -50,9 +66,9 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
       if (!params.condition) {
         return [
           addr(admin),
-          addr(params.recipient),
+          recipientsVec(params.recipients),
           addr(assetContractId(params.asset)),
-          i128(params.amountStroops),
+          amountStroops(params),
           xdr.ScVal.scvVoid(),
         ];
       }
@@ -86,9 +102,9 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
       }
       return [
         addr(admin),
-        addr(params.recipient),
+        recipientsVec(params.recipients),
         addr(assetContractId(params.asset)),
-        i128(params.amountStroops),
+        amountStroops(params),
         cond,
       ];
     }

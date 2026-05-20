@@ -1,24 +1,49 @@
 "use client";
 
-import type { FlowNode } from "@/lib/flows/schema";
+import type { FlowNode, FlowGraph, Asset } from "@/lib/flows/schema";
+import {
+  isPendingAddress,
+  bpsToPct,
+  pctToBps,
+  sourceAmountStroops,
+  isTrigger,
+  TOTAL_BPS,
+  assetLabel,
+  stroopsToDisplay,
+  tokenAmountToStroops,
+} from "@/lib/flows/schema";
+import { cn, formatStroops } from "@/lib/utils";
 
 type Props = {
   node: FlowNode | null;
+  graph: FlowGraph;
   onChange: (n: FlowNode) => void;
   onDelete: (id: string) => void;
+  className?: string;
 };
 
-export default function ConfigPanel({ node, onChange, onDelete }: Props) {
+export default function ConfigPanel({ node, graph, onChange, onDelete, className }: Props) {
   if (!node) {
     return (
-      <aside className="border-l border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400">
+      <aside
+        className={cn("border-l border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400", className)}
+      >
         Select a block on the canvas to edit it.
       </aside>
     );
   }
 
+  const trigger = graph.nodes.find(isTrigger);
+  const triggerType = trigger?.type ?? null;
+  const sourceAmount = sourceAmountStroops(graph);
+
   return (
-    <aside className="space-y-4 overflow-y-auto border-l border-zinc-800 bg-zinc-950 p-4 text-sm">
+    <aside
+      className={cn(
+        "space-y-4 overflow-y-auto border-l border-zinc-800 bg-zinc-950 p-4 text-sm",
+        className,
+      )}
+    >
       <div className="flex items-center justify-between">
         <div className="text-brand-400 text-xs tracking-wider uppercase">
           {node.type.replace("_", " ")}
@@ -32,10 +57,33 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
       </div>
 
       {node.type === "on_receive" && (
-        <AssetField
-          asset={node.config.asset}
-          onChange={(asset) => onChange({ ...node, config: { asset } })}
-        />
+        <>
+          <AssetField
+            asset={node.config.asset}
+            onChange={(asset) => onChange({ ...node, config: { ...node.config, asset } })}
+          />
+          <Field label={`Minimum amount (${assetLabel(node.config.asset)}), optional`}>
+            <input
+              className="input font-mono"
+              value={
+                node.config.minAmountStroops ? formatStroops(node.config.minAmountStroops) : ""
+              }
+              placeholder="Any amount"
+              onChange={(e) => {
+                const stroops = tokenAmountToStroops(e.target.value);
+                onChange({
+                  ...node,
+                  config: { ...node.config, minAmountStroops: stroops || undefined },
+                });
+              }}
+            />
+            {node.config.minAmountStroops && (
+              <div className="mt-0.5 text-[11px] text-zinc-500">
+                ≥ {stroopsToDisplay(node.config.minAmountStroops, node.config.asset)}
+              </div>
+            )}
+          </Field>
+        </>
       )}
 
       {node.type === "on_schedule" && (
@@ -129,32 +177,44 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
 
       {node.type === "pay" && (
         <>
-          <Field label="Recipient (G…)">
-            <input
-              className="input font-mono"
-              value={node.config.recipient}
-              onChange={(e) =>
-                onChange({
-                  ...node,
-                  config: { ...node.config, recipient: e.target.value.trim() },
-                })
-              }
-            />
+          <Field label="Recipient (G… or PENDING:)">
+            <div className="relative">
+              <input
+                className={`input font-mono ${isPendingAddress(node.config.recipient) ? "ring-1 ring-amber-700" : ""}`}
+                value={node.config.recipient}
+                onChange={(e) =>
+                  onChange({
+                    ...node,
+                    config: { ...node.config, recipient: e.target.value.trim() },
+                  })
+                }
+              />
+              {isPendingAddress(node.config.recipient) && (
+                <span className="absolute -top-2 right-1 rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400">
+                  needs address
+                </span>
+              )}
+            </div>
           </Field>
-          <Field label="Amount (stroops)">
+          <Field label={`Amount (${assetLabel(node.config.asset)})`}>
             <input
               className="input"
-              value={node.config.amountStroops}
+              value={formatStroops(node.config.amountStroops)}
               onChange={(e) =>
                 onChange({
                   ...node,
                   config: {
                     ...node.config,
-                    amountStroops: e.target.value.replace(/\D/g, ""),
+                    amountStroops: tokenAmountToStroops(e.target.value),
                   },
                 })
               }
             />
+            {node.config.amountStroops && (
+              <div className="mt-0.5 text-[11px] text-zinc-500">
+                = {stroopsToDisplay(node.config.amountStroops, node.config.asset)}
+              </div>
+            )}
           </Field>
           <AssetField
             asset={node.config.asset}
@@ -169,38 +229,138 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
             asset={node.config.asset}
             onChange={(asset) => onChange({ ...node, config: { ...node.config, asset } })}
           />
-          <div className="text-xs text-zinc-400">Recipients (basis points must sum to 10000)</div>
-          {node.config.recipients.map((r, i) => (
-            <div key={i} className="grid grid-cols-[1fr_72px_28px] gap-1">
+
+          {triggerType === "on_schedule" && (
+            <Field label={`Rate (${assetLabel(node.config.asset)}/s)`}>
               <input
-                className="input font-mono text-xs"
-                value={r.address}
+                className="input"
+                value={
+                  node.config.ratePerSecondStroops
+                    ? formatStroops(node.config.ratePerSecondStroops)
+                    : ""
+                }
+                placeholder="Per-second streaming rate"
                 onChange={(e) => {
-                  const next = [...node.config.recipients];
-                  next[i] = { ...r, address: e.target.value.trim() };
-                  onChange({ ...node, config: { ...node.config, recipients: next } });
+                  const stroops = tokenAmountToStroops(e.target.value);
+                  onChange({
+                    ...node,
+                    config: { ...node.config, ratePerSecondStroops: stroops || undefined },
+                  });
                 }}
               />
-              <input
-                className="input text-right"
-                value={r.bps}
-                onChange={(e) => {
-                  const next = [...node.config.recipients];
-                  next[i] = { ...r, bps: Number(e.target.value) || 0 };
-                  onChange({ ...node, config: { ...node.config, recipients: next } });
-                }}
-              />
-              <button
-                onClick={() => {
-                  const next = node.config.recipients.filter((_, j) => j !== i);
-                  onChange({ ...node, config: { ...node.config, recipients: next } });
-                }}
-                className="rounded border border-zinc-800 text-zinc-400 hover:text-red-300"
-              >
-                ×
-              </button>
+              {node.config.ratePerSecondStroops && (
+                <div className="mt-0.5 text-[11px] text-zinc-500">
+                  = {stroopsToDisplay(node.config.ratePerSecondStroops, node.config.asset)}/s
+                </div>
+              )}
+            </Field>
+          )}
+
+          <div className="text-xs text-zinc-400">Recipients (shares must sum to 100%)</div>
+
+          <AllocationBar recipients={node.config.recipients} />
+
+          {node.config.recipients.map((r, i) => {
+            const isPending = isPendingAddress(r.address);
+            const pct = bpsToPct(r.bps);
+            const pctDisplay = pct === Math.floor(pct) ? `${pct}` : `${pct.toFixed(1)}`;
+            const totalBps = node.config.recipients.reduce((s, r2) => s + r2.bps, 0);
+            const projected =
+              sourceAmount && totalBps === TOTAL_BPS
+                ? stroopsToDisplay(
+                    ((BigInt(sourceAmount) * BigInt(r.bps)) / 10000n).toString(),
+                    node.config.asset,
+                  )
+                : null;
+
+            return (
+              <div key={i} className="space-y-1 rounded border border-zinc-800 bg-zinc-900/50 p-2">
+                <div className="grid grid-cols-[1fr_64px_28px] items-center gap-1">
+                  <div className="grid gap-0.5">
+                    <input
+                      className="input font-mono text-xs"
+                      value={r.address}
+                      placeholder="G... or PENDING:label"
+                      onChange={(e) => {
+                        const next = [...node.config.recipients];
+                        next[i] = { ...r, address: e.target.value.trim() };
+                        onChange({ ...node, config: { ...node.config, recipients: next } });
+                      }}
+                    />
+                  </div>
+                  <div className="relative">
+                    <input
+                      className="input pr-5 text-right"
+                      value={pctDisplay}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        const next = [...node.config.recipients];
+                        next[i] = {
+                          ...r,
+                          bps: isNaN(v) ? 0 : Math.min(10000, Math.max(0, pctToBps(v))),
+                        };
+                        onChange({ ...node, config: { ...node.config, recipients: next } });
+                      }}
+                    />
+                    <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[11px] text-zinc-500">
+                      %
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const next = node.config.recipients.filter((_, j) => j !== i);
+                      onChange({ ...node, config: { ...node.config, recipients: next } });
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="grid grid-cols-[1fr_auto] gap-1">
+                  <input
+                    className="input text-xs"
+                    value={r.label ?? ""}
+                    placeholder="Label (e.g. Alice)"
+                    onChange={(e) => {
+                      const next = [...node.config.recipients];
+                      next[i] = { ...r, label: e.target.value || undefined };
+                      onChange({ ...node, config: { ...node.config, recipients: next } });
+                    }}
+                  />
+                  <div className="flex items-center gap-1 text-[10px]">
+                    {isPending && (
+                      <span className="rounded bg-amber-950 px-1.5 py-0.5 text-amber-400">
+                        needs address
+                      </span>
+                    )}
+                    {projected && (
+                      <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                        {projected}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {remainingPct(node.config.recipients) > 0 && (
+            <div className="text-xs text-amber-400">
+              Remaining: {remainingPct(node.config.recipients).toFixed(1)}% unallocated
             </div>
-          ))}
+          )}
+
+          {node.config.recipients.reduce((s, r) => s + r.bps, 0) > TOTAL_BPS && (
+            <div className="text-xs text-red-400">
+              Total exceeds 100% by{" "}
+              {((node.config.recipients.reduce((s, r) => s + r.bps, 0) - TOTAL_BPS) / 100).toFixed(
+                1,
+              )}
+              %
+            </div>
+          )}
+
           <button
             className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
             onClick={() =>
@@ -211,8 +371,8 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
                   recipients: [
                     ...node.config.recipients,
                     {
-                      address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
-                      bps: 0,
+                      address: "PENDING:unnamed",
+                      bps: 1,
                     },
                   ],
                 },
@@ -257,19 +417,24 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
             </select>
           </Field>
           {(node.config.kind === "amount_gt" || node.config.kind === "amount_lt") && (
-            <Field label="Amount (stroops)">
+            <Field label="Threshold">
               <input
                 className="input"
-                value={node.config.amountStroops}
+                value={formatStroops(node.config.amountStroops)}
                 onChange={(e) => {
-                  const v = e.target.value.replace(/\D/g, "");
+                  const stroops = tokenAmountToStroops(e.target.value);
                   const next =
                     node.config.kind === "amount_gt"
-                      ? { kind: "amount_gt" as const, amountStroops: v }
-                      : { kind: "amount_lt" as const, amountStroops: v };
+                      ? { kind: "amount_gt" as const, amountStroops: stroops }
+                      : { kind: "amount_lt" as const, amountStroops: stroops };
                   onChange({ ...node, config: next });
                 }}
               />
+              {trigger?.type === "on_receive" && (
+                <div className="mt-0.5 text-[11px] text-zinc-500">
+                  = {stroopsToDisplay(node.config.amountStroops, trigger.config.asset)}
+                </div>
+              )}
             </Field>
           )}
           {node.config.kind === "oracle_gte" && (
@@ -336,6 +501,7 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
           border-radius: 0.375rem;
           font-size: 0.85rem;
           width: 100%;
+          color: #e4e4e7;
         }
       `}</style>
     </aside>
@@ -361,13 +527,11 @@ function AssetField({
     | { kind: "custom"; code: string; issuer: string };
   onChange: (a: typeof asset) => void;
 }) {
-  const selectValue = asset.kind === "known" ? `known:${asset.symbol}` : asset.kind;
-
   return (
     <Field label="Asset">
       <select
         className="input"
-        value={selectValue}
+        value={asset.kind === "known" ? `known:${asset.symbol}` : asset.kind}
         onChange={(e) => {
           const v = e.target.value;
           if (v === "native") onChange({ kind: "native" });
@@ -376,8 +540,52 @@ function AssetField({
       >
         <option value="known:USDC">USDC</option>
         <option value="native">XLM (native)</option>
-        {asset.kind === "custom" && <option value="custom">{asset.code} (custom)</option>}
       </select>
     </Field>
+  );
+}
+
+function remainingPct(recipients: Array<{ bps: number }>): number {
+  const used = recipients.reduce((s, r) => s + r.bps, 0);
+  return Math.max(0, (TOTAL_BPS - used) / 100);
+}
+
+function AllocationBar({ recipients }: { recipients: Array<{ bps: number; label?: string }> }) {
+  const total = recipients.reduce((s, r) => s + r.bps, 0);
+  const colors = [
+    "#a78bfa",
+    "#34d399",
+    "#60a5fa",
+    "#fbbf24",
+    "#f472b6",
+    "#fb923c",
+    "#22d3ee",
+    "#e879f9",
+  ];
+
+  return (
+    <div className="flex h-2 overflow-hidden rounded-full bg-zinc-800">
+      {recipients.map((r, i) => {
+        const w = total > 0 ? (r.bps / total) * 100 : 0;
+        if (w <= 0) return null;
+        return (
+          <div
+            key={i}
+            className="h-full transition-all duration-200"
+            style={{
+              width: `${w}%`,
+              backgroundColor: colors[i % colors.length]!,
+            }}
+            title={`${r.label ?? `Recipient ${i + 1}`}: ${bpsToPct(r.bps)}%`}
+          />
+        );
+      })}
+      {total < TOTAL_BPS && (
+        <div
+          className="h-full bg-zinc-700 transition-all duration-200"
+          style={{ width: `${((TOTAL_BPS - total) / TOTAL_BPS) * 100}%` }}
+        />
+      )}
+    </div>
   );
 }

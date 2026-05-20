@@ -55,9 +55,9 @@ const STREAMER_REGISTRY: EventRegistry = {
   claim: {
     kind: EventKind.CLAIM,
     decode: (topics, value) => {
-      const recipient = topics[1] ?? null;
+      const recipients = topics[1] ?? null;
       const amount = value ?? null;
-      return recipient && amount !== null ? { recipient, amount } : null;
+      return recipients && amount !== null ? { recipients, amount } : null;
     },
   },
   cancel: {
@@ -73,9 +73,9 @@ const CONDITIONAL_REGISTRY: EventRegistry = {
   release: {
     kind: EventKind.PAYOUT,
     decode: (topics, value) => {
-      const recipient = topics[1] ?? null;
+      const recipients = topics[1] ?? null;
       const amount = value ?? null;
-      return recipient && amount !== null ? { recipient, amount } : null;
+      return recipients && amount !== null ? { recipients, amount } : null;
     },
   },
   cancel: {
