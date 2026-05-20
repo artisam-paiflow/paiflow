@@ -16,17 +16,17 @@ export type PreparedInvoke = {
   xdr: string;
 };
 
-export async function prepareDistributeTx(opts: {
+export async function prepareDistributeInvocation(opts: {
   contractAddress: string;
   amount: string;
-  sourceAccount: string;
+  invokerAddress: string;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.sourceAccount);
+  const sourceAcct = await server.getAccount(opts.invokerAddress);
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
-  const fromScVal = new Address(opts.sourceAccount).toScVal();
+  const fromScVal = new Address(opts.invokerAddress).toScVal();
   const amountScVal = nativeToScVal(BigInt(opts.amount), { type: "i128" });
 
   const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
@@ -54,4 +54,16 @@ export async function prepareDistributeTx(opts: {
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
   return { xdr: assembled.toXDR() };
+}
+
+export async function prepareDistributeTx(opts: {
+  contractAddress: string;
+  amount: string;
+  sourceAccount: string;
+}): Promise<PreparedInvoke> {
+  return prepareDistributeInvocation({
+    contractAddress: opts.contractAddress,
+    amount: opts.amount,
+    invokerAddress: opts.sourceAccount,
+  });
 }
