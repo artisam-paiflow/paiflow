@@ -175,39 +175,36 @@ async function pollEventsWithStartLedger(
     })();
     const { kind, decodedData } = decodeEventByKind(topics, value, templateKind);
     try {
-      db.contractEvent
-        .create({
-          data: {
-            deploymentId,
-            kind,
-            ledger: ev.ledger,
-            txHash: ev.txHash,
-            payload: { topics, value } as object,
-            decodedData: (decodedData ?? Prisma.JsonNull) as Prisma.InputJsonValue,
-            occurredAt: new Date(ev.ledgerClosedAt),
-          },
-        })
-        .then(() => {
-          const client = redis();
-          if (client) {
-            client.publish(
-              eventChannel(deploymentId),
-              JSON.stringify({
-                kind,
-                ledger: ev.ledger,
-                txHash: ev.txHash,
-                payload: { topics, value },
-                decodedData,
-                occurredAt: ev.ledgerClosedAt,
-              }),
-            );
-          }
-        })
-        .catch((err) => {
-          const code = (err as { code?: string })?.code;
-          if (code !== "P2002") log.warn({ err, deploymentId }, "event upsert failed");
-        });
+      await db.contractEvent.create({
+        data: {
+          deploymentId,
+          kind,
+          ledger: ev.ledger,
+          txHash: ev.txHash,
+          payload: { topics, value } as object,
+          decodedData: (decodedData ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+          occurredAt: new Date(ev.ledgerClosedAt),
+        },
+      });
       written += 1;
+      const client = redis();
+      if (client) {
+        client
+          .publish(
+            eventChannel(deploymentId),
+            JSON.stringify({
+              kind,
+              ledger: ev.ledger,
+              txHash: ev.txHash,
+              payload: { topics, value },
+              decodedData,
+              occurredAt: ev.ledgerClosedAt,
+            }),
+          )
+          .catch((err) => {
+            log.warn({ err, deploymentId }, "redis publish failed");
+          });
+      }
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code !== "P2002") log.warn({ err, deploymentId }, "event upsert failed");
