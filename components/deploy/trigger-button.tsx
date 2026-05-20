@@ -11,15 +11,6 @@ type WalletKit = {
   ) => Promise<{ signedTxXdr: string }>;
 };
 
-const PASSPHRASE_BY_NETWORK: Record<string, string> = {
-  testnet: "Test SDF Network ; September 2015",
-  mainnet: "Public Global Stellar Network ; September 2015",
-};
-
-function stellarNetworkPassphrase(network: string): string {
-  return PASSPHRASE_BY_NETWORK[network] ?? "Test SDF Network ; September 2015";
-}
-
 async function connectWallet(network: "testnet" | "mainnet"): Promise<WalletKit> {
   const mod = await import("@creit.tech/stellar-wallets-kit");
   const { StellarWalletsKit, WalletNetwork, allowAllModules, FREIGHTER_ID } = mod as unknown as {
@@ -69,7 +60,7 @@ export function TriggerButton({ deploymentId, network, amount, onSuccess }: Trig
 
       const signed = await kit.signTransaction(data.data.xdr, {
         address,
-        networkPassphrase: stellarNetworkPassphrase(network),
+        networkPassphrase: data.data.networkPassphrase,
       });
 
       const submit = await fetch(`/api/deployments/${deploymentId}/submit-trigger`, {
