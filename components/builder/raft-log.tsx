@@ -785,6 +785,7 @@ export default function RaftLog({
                     disabled={loading}
                     className="p-2 text-zinc-500 transition-colors hover:text-zinc-300 disabled:opacity-40"
                     title="Record voice"
+                    aria-label="Record voice"
                   >
                     <Mic className="h-4 w-4" />
                   </button>
