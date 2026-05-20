@@ -3,30 +3,18 @@ import {
   Address,
   BASE_FEE,
   Operation,
-  StrKey,
   TransactionBuilder,
   nativeToScVal,
   rpc,
   xdr,
 } from "@stellar/stellar-sdk";
-import { sorobanRpc } from "./client";
+import { sorobanRpc, decodeContractAddress } from "./client";
 import { stellarPassphrase } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 
 export type PreparedInvoke = {
   xdr: string;
 };
-
-function decodeContractAddress(addr: string): Buffer {
-  if (StrKey.isValidContract(addr)) {
-    return StrKey.decodeContract(addr);
-  }
-  const raw = Buffer.from(addr, "base64");
-  if (raw.length === 32) {
-    return raw;
-  }
-  throw new AppError("VALIDATION", `Invalid contract address: ${addr}`);
-}
 
 export async function prepareDistributeTx(opts: {
   contractAddress: string;
