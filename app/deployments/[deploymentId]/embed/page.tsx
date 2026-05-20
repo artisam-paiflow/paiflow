@@ -21,7 +21,7 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
   const graph = graphResult.data;
 
   const qrUrl =
-    d.flow.templateKind === "SPLITTER" ? `/api/deployments/${d.id}/qr?action=invoke` : null;
+    d.flow.templateKind === "SPLITTER" ? `/api/deployments/${d.id}/qr?action=trigger` : null;
 
   return (
     <main className="px-margin py-md mx-auto max-w-4xl">
