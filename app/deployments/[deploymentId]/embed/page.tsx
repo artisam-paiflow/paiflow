@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { FlowGraphSchema } from "@/lib/flows/schema";
-import { sep7InvokeUri } from "@/lib/stellar/sep7";
 import DeploymentView from "@/components/deploy/deployment-view";
 import Logo from "@/components/app/logo";
 
@@ -21,16 +20,8 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
   if (!graphResult.success) notFound();
   const graph = graphResult.data;
 
-  const invokeUri =
-    d.flow.templateKind === "SPLITTER"
-      ? sep7InvokeUri({
-          destination: d.contractAddress,
-          function: "distribute",
-          paramName: "amount",
-          paramType: "i128",
-          message: "Trigger splitter distribution",
-        })
-      : null;
+  const qrUrl =
+    d.flow.templateKind === "SPLITTER" ? `/api/deployments/${d.id}/qr?action=trigger` : null;
 
   return (
     <main className="px-margin py-md mx-auto max-w-4xl">
@@ -43,7 +34,8 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
         deploymentId={d.id}
         contractAddress={d.contractAddress}
         status={d.status}
-        invokeUri={invokeUri}
+        qrUrl={qrUrl}
+        distributeAmountStroops={d.distributeAmountStroops}
         graph={graph}
         initialEvents={d.events.map((e) => ({
           id: e.id,

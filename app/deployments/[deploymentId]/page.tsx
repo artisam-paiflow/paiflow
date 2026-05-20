@@ -5,7 +5,6 @@ import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
 import DeploymentView from "@/components/deploy/deployment-view";
 import { FlowGraphSchema } from "@/lib/flows/schema";
-import { sep7InvokeUri } from "@/lib/stellar/sep7";
 
 export const dynamic = "force-dynamic";
 
@@ -62,15 +61,9 @@ export default async function DeploymentPage({
   if (!graphResult.success) notFound();
   const graph = graphResult.data;
 
-  const invokeUri =
+  const qrUrl =
     d.contractAddress && d.flow.templateKind === "SPLITTER"
-      ? sep7InvokeUri({
-          destination: d.contractAddress,
-          function: "distribute",
-          paramName: "amount",
-          paramType: "i128",
-          message: "Trigger splitter distribution",
-        })
+      ? `/api/deployments/${d.id}/qr?action=trigger`
       : null;
 
   const badge = statusMeta[d.status] ?? {
@@ -133,7 +126,8 @@ export default async function DeploymentPage({
           deploymentId={d.id}
           contractAddress={d.contractAddress}
           status={d.status}
-          invokeUri={invokeUri}
+          qrUrl={qrUrl}
+          distributeAmountStroops={d.distributeAmountStroops}
           graph={graph}
           initialEvents={d.events.map((e) => ({
             id: e.id,
