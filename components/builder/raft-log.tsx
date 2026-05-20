@@ -1,8 +1,20 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Ship, Send, Loader2, Wand2, CheckCircle2, X, AlertTriangle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Ship,
+  Send,
+  Loader2,
+  Wand2,
+  CheckCircle2,
+  X,
+  AlertTriangle,
+  Mic,
+  Square,
+} from "lucide-react";
 import { StrKey } from "@stellar/stellar-sdk";
+import { toast } from "sonner";
 
 export type ChatMessage =
   | { role: "user"; content: string }
@@ -19,12 +31,22 @@ interface RaftLogProps {
   onToggleCollapse?: () => void;
 }
 
-const SUGGESTIONS = [
-  "Add a recipient",
-  "Change asset to XLM",
-  "Make Alice 55%",
-  "Add a condition",
-  "Remove the last node",
+const SUGGESTIONS_ROWS = [
+  [
+    "Add a recipient",
+    "Change asset to XLM",
+    "Make Alice 55%",
+    "Set payment amount",
+    "Remove last node",
+  ],
+  [
+    "Swap to USDC",
+    "Add a condition",
+    "Change schedule to daily",
+    "Add a split",
+    "Change pay amount",
+  ],
+  ["Add a stream", "Remove a condition", "Change asset to USDC", "Make Bob 30%", "Set to hourly"],
 ];
 
 function patchSummary(patch: unknown[]): string {
@@ -156,8 +178,21 @@ export default function RaftLog({
   onToggleCollapse,
 }: RaftLogProps) {
   const [input, setInput] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [audioLevel, setAudioLevel] = useState(0);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -166,6 +201,272 @@ export default function RaftLog({
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      if (audioContextRef.current) audioContextRef.current.close();
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.code !== "Space" || collapsed || loading) return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+
+      const target = e.target as HTMLElement | null;
+      const activeElement = document.activeElement as HTMLElement | null;
+      const focusedElement = activeElement ?? target;
+
+      if (!focusedElement) return;
+      if (focusedElement === document.body) {
+        e.preventDefault();
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+          stopRecording();
+        } else {
+          startRecording();
+        }
+        return;
+      }
+
+      const tag = focusedElement.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        tag === "BUTTON" ||
+        tag === "A"
+      ) {
+        return;
+      }
+      if (focusedElement.isContentEditable) return;
+
+      const role = focusedElement.getAttribute("role");
+      if (
+        role === "button" ||
+        role === "link" ||
+        role === "checkbox" ||
+        role === "radio" ||
+        role === "switch" ||
+        role === "tab" ||
+        role === "menuitem" ||
+        role === "option"
+      ) {
+        return;
+      }
+
+      // Default: space on a non-interactive element toggles recording
+      e.preventDefault();
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        stopRecording();
+      } else {
+        startRecording();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [collapsed, loading]);
+
+  function formatTime(seconds: number): string {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  async function startRecording() {
+    try {
+      setLiveTranscript("");
+      setAudioLevel(0);
+
+      // Acquire the microphone for MediaRecorder (audio file → Groq Whisper)
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
+      streamRef.current = stream;
+
+      // Set up audio level meter using Web Audio API
+      // Provides visual feedback that the mic is live.
+      try {
+        const actx = new AudioContext();
+        const source = actx.createMediaStreamSource(stream);
+        const analyser = actx.createAnalyser();
+        analyser.fftSize = 128;
+        source.connect(analyser);
+        audioContextRef.current = actx;
+        analyserRef.current = analyser;
+
+        const buf = new Uint8Array(analyser.frequencyBinCount);
+        const meterUpdateIntervalMs = 1000 / 15;
+        let lastMeterUpdate = 0;
+        let lastRenderedLevel = 0;
+
+        function tick(now: number) {
+          if (now - lastMeterUpdate >= meterUpdateIntervalMs) {
+            analyser.getByteFrequencyData(buf);
+            const avg = buf.reduce((a, b) => a + b, 0) / buf.length;
+            const nextLevel = Math.min(avg / 128, 1);
+
+            if (Math.abs(nextLevel - lastRenderedLevel) >= 0.02) {
+              setAudioLevel(nextLevel);
+              lastRenderedLevel = nextLevel;
+            }
+
+            lastMeterUpdate = now;
+          }
+
+          animationFrameRef.current = requestAnimationFrame(tick);
+        }
+
+        animationFrameRef.current = requestAnimationFrame(tick);
+      } catch {
+        // audio level meter not available — non-critical
+      }
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : "audio/mp4";
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const rec = mediaRecorderRef.current;
+        if (!rec) return;
+
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+        if (audioContextRef.current) {
+          audioContextRef.current.close();
+          audioContextRef.current = null;
+        }
+        analyserRef.current = null;
+
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || mimeType });
+        chunksRef.current = [];
+        setIsRecording(false);
+        setRecordingSeconds(0);
+        setLiveTranscript("");
+        setAudioLevel(0);
+
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
+        }
+
+        if (blob.size === 0) return;
+
+        const ext = mimeType.startsWith("audio/mp4") ? "mp4" : "webm";
+        const formData = new FormData();
+        formData.append("file", blob, `recording.${ext}`);
+
+        abortControllerRef.current?.abort();
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+
+        fetch("/api/transcribe", { method: "POST", body: formData, signal: abortController.signal })
+          .then(async (res) => {
+            if (!isMountedRef.current) return;
+            const json = await res.json();
+            if (!res.ok) {
+              toast.error(json?.error?.message ?? "Transcription failed");
+              return;
+            }
+            onSend(json.data.text);
+            setInput("");
+          })
+          .catch(() => {
+            if (!isMountedRef.current) return;
+            toast.error("Network error while transcribing audio");
+          })
+          .finally(() => {
+            if (abortControllerRef.current === abortController) {
+              abortControllerRef.current = null;
+            }
+          });
+      };
+
+      recorder.start();
+      setIsRecording(true);
+      setRecordingSeconds(0);
+
+      let seconds = 0;
+      timerRef.current = setInterval(() => {
+        seconds++;
+        setRecordingSeconds(seconds);
+        if (seconds >= 60) {
+          stopRecording();
+        }
+      }, 1000);
+    } catch (err) {
+      console.error("startRecording error:", err);
+      if (err instanceof DOMException && err.name === "NotAllowedError") {
+        const perm = await navigator.permissions
+          .query({ name: "microphone" as PermissionName })
+          .catch(() => null);
+        if (perm?.state === "denied") {
+          toast.error(
+            "Microphone is blocked for this site. Click the lock icon left of the URL bar → Site Settings → Microphone → select Allow, then reload.",
+          );
+        } else if (perm?.state === "granted") {
+          toast.error(
+            "Browser permission is allowed, but macOS is blocking access. Go to System Settings → Privacy & Security → Microphone → toggle Google Chrome (or your browser) ON.",
+          );
+        } else {
+          toast.error(
+            "Microphone access denied. Check System Settings → Privacy & Security → Microphone and ensure your browser is allowed.",
+          );
+        }
+      } else if (err instanceof DOMException && err.name === "NotFoundError") {
+        toast.error("No microphone found on this device.");
+      } else {
+        toast.error("Failed to start recording.");
+      }
+    }
+  }
+
+  function stopRecording() {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -186,6 +487,20 @@ export default function RaftLog({
 
   return (
     <>
+      <style>{`
+        @keyframes marquee-right {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        @keyframes marquee-left {
+          0% { transform: translateX(-50%); }
+          100% { transform: translateX(0); }
+        }
+        .marquee-row { animation: marquee-right 25s linear infinite; }
+        .marquee-row:nth-child(2) { animation-name: marquee-left; animation-duration: 22s; }
+        .marquee-row:nth-child(3) { animation-name: marquee-right; animation-duration: 28s; }
+        .marquee-row:hover { animation-play-state: paused !important; }
+      `}</style>
       {/* Collapsed tab — Railway-style floating pill on right edge */}
       {collapsed && (
         <button
@@ -196,9 +511,9 @@ export default function RaftLog({
           <div className="bg-brand-500/20 flex h-6 w-6 items-center justify-center rounded-full">
             <Ship className="text-brand-400 h-3.5 w-3.5" />
           </div>
-          <span className="text-xs font-medium text-zinc-300">AI</span>
+          <span className="text-sm font-medium text-zinc-300">AI</span>
           {hasPending && (
-            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-900 text-[9px] text-amber-400">
+            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-900 text-xs text-amber-400">
               {pendingAddresses!.length}
             </span>
           )}
@@ -218,11 +533,11 @@ export default function RaftLog({
               <Ship className="text-brand-400 h-3.5 w-3.5" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-zinc-100">Raft Log</div>
-              <div className="text-[10px] text-zinc-500">Ask AI to edit your flow</div>
+              <div className="text-sm font-semibold text-zinc-100">Raft Log</div>
+              <div className="text-xs text-zinc-500">Ask AI to edit your flow</div>
             </div>
             {hasPending && (
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-900 text-[9px] text-amber-400">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-900 text-xs text-amber-400">
                 {pendingAddresses!.length}
               </span>
             )}
@@ -237,29 +552,43 @@ export default function RaftLog({
         </div>
 
         {/* Messages */}
-        <div className="h-[calc(100%-110px)] space-y-3 overflow-y-auto px-3 py-3">
+        <div className="h-[calc(100%-130px)] space-y-3 overflow-y-auto px-3 py-3">
           {isEmpty && (
             <div className="flex flex-col items-center gap-3 py-4 text-center">
               <div className="bg-brand-500/10 flex h-10 w-10 items-center justify-center rounded-full">
                 <Wand2 className="text-brand-400 h-5 w-5" />
               </div>
               <div>
-                <div className="text-sm font-medium text-zinc-200">
+                <div className="text-base font-medium text-zinc-200">
                   What would you like to change?
                 </div>
-                <div className="mt-1 max-w-[240px] text-xs leading-relaxed text-zinc-500">
+                <div className="mt-1 max-w-[240px] text-sm leading-relaxed text-zinc-500">
                   Describe edits in plain English. The AI will update your flow automatically.
                 </div>
               </div>
-              <div className="mt-1 flex flex-wrap justify-center gap-1.5">
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => handleSuggestion(s)}
-                    className="rounded-full bg-zinc-900 px-2.5 py-1 text-[11px] text-zinc-400 ring-1 ring-zinc-800 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+              <div
+                className="mt-1 w-full overflow-hidden"
+                style={{
+                  mask: "linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%)",
+                  WebkitMask:
+                    "linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%)",
+                }}
+              >
+                {SUGGESTIONS_ROWS.map((row, rowIdx) => (
+                  <div
+                    key={rowIdx}
+                    className={`marquee-row flex gap-2 ${rowIdx > 0 ? "mt-2" : ""}`}
                   >
-                    {s}
-                  </button>
+                    {[...row, ...row].map((s, i) => (
+                      <button
+                        key={`${s}-${i}`}
+                        onClick={() => handleSuggestion(s)}
+                        className="shrink-0 cursor-pointer rounded-full bg-zinc-900 px-3 py-1.5 text-sm whitespace-nowrap text-zinc-400 ring-1 ring-zinc-800 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
             </div>
@@ -268,7 +597,7 @@ export default function RaftLog({
           {messages.map((m, i) =>
             m.role === "user" ? (
               <div key={i} className="flex justify-end">
-                <div className="bg-brand-600 max-w-[85%] rounded-2xl rounded-br-sm px-3 py-2 text-sm text-white shadow-sm">
+                <div className="bg-brand-600 max-w-[85%] rounded-2xl rounded-br-sm px-3.5 py-2 text-base text-white shadow-sm">
                   {m.content}
                 </div>
               </div>
@@ -278,11 +607,11 @@ export default function RaftLog({
                   <Ship className="text-brand-400 h-2.5 w-2.5" />
                 </div>
                 <div className="max-w-[85%]">
-                  <div className="rounded-2xl rounded-tl-sm bg-zinc-900 px-3 py-2 text-sm text-zinc-200 shadow-sm">
+                  <div className="rounded-2xl rounded-tl-sm bg-zinc-900 px-3.5 py-2 text-base text-zinc-200 shadow-sm">
                     {m.content}
                   </div>
                   {m.patch && m.patch.length > 0 && (
-                    <div className="mt-1 flex items-center gap-1 text-[11px] text-emerald-400">
+                    <div className="mt-1 flex items-center gap-1 text-xs text-emerald-400">
                       <CheckCircle2 className="h-3 w-3" />
                       {patchSummary(m.patch)}
                     </div>
@@ -297,10 +626,10 @@ export default function RaftLog({
               <div className="bg-brand-500/20 mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full">
                 <Ship className="text-brand-400 h-2.5 w-2.5" />
               </div>
-              <div className="rounded-2xl rounded-tl-sm bg-zinc-900 px-3 py-2 text-sm text-zinc-400 shadow-sm">
+              <div className="rounded-2xl rounded-tl-sm bg-zinc-900 px-3.5 py-2 text-base text-zinc-400 shadow-sm">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span className="text-xs">Thinking…</span>
+                  <span className="text-sm">Thinking…</span>
                 </div>
               </div>
             </div>
@@ -321,23 +650,100 @@ export default function RaftLog({
         {/* Input */}
         <form
           onSubmit={handleSubmit}
-          className="absolute right-0 bottom-0 left-0 flex items-center gap-2 border-t border-zinc-800 bg-zinc-950 px-2.5 py-2"
+          className="absolute right-0 bottom-0 left-0 border-t border-zinc-800 bg-zinc-950 px-3 py-3"
         >
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask to edit your flow…"
-            disabled={loading}
-            className="focus:ring-brand-500 flex-1 rounded-full bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 ring-1 ring-zinc-800 transition-all outline-none placeholder:text-zinc-600 focus:ring-2"
-          />
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="bg-brand-600 hover:bg-brand-500 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white transition-colors disabled:opacity-40"
-          >
-            <Send className="h-3 w-3" />
-          </button>
+          <AnimatePresence mode="wait">
+            {isRecording ? (
+              <motion.div
+                key="recording"
+                initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="relative"
+              >
+                <div className="pointer-events-none absolute -inset-1 rounded-xl bg-red-500/10 blur-xl" />
+                <div className="relative flex flex-col rounded-xl bg-zinc-900/80 px-3.5 py-3 shadow-lg ring-1 shadow-black/30 ring-red-500/20 backdrop-blur-xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500" />
+                      <span className="text-sm font-medium text-red-400">
+                        Recording… {formatTime(recordingSeconds)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={stopRecording}
+                      className="flex h-7 w-7 items-center justify-center rounded-full bg-red-600/20 text-red-400 transition-colors hover:bg-red-600/30"
+                    >
+                      <Square className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  {liveTranscript ? (
+                    <p className="mt-1.5 line-clamp-3 text-sm leading-relaxed text-zinc-300">
+                      {liveTranscript}
+                    </p>
+                  ) : (
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      {[0.25, 0.5, 0.75, 1, 0.75, 0.5, 0.25].map((scale, i) => (
+                        <span
+                          key={i}
+                          className="w-0.5 rounded-full bg-red-400/60 transition-all duration-75"
+                          style={{
+                            height: `${Math.max(3, audioLevel * 20 * scale)}px`,
+                            opacity: Math.max(0.3, audioLevel),
+                          }}
+                        />
+                      ))}
+                      <span className="ml-1 text-sm text-zinc-500 italic">Listening…</span>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="idle"
+                initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+              >
+                <div className="group focus-within:ring-brand-500/40 focus-within:shadow-brand-500/5 relative flex items-center rounded-xl bg-zinc-900/80 shadow-lg ring-1 shadow-black/30 ring-zinc-700/50 backdrop-blur-xl transition-all duration-300">
+                  <div className="flex items-center pr-2 pl-3.5 text-zinc-500">
+                    <Ship className="h-4 w-4" />
+                  </div>
+                  <input
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Ask to edit your flow…"
+                    disabled={loading}
+                    className="min-w-0 flex-1 bg-transparent py-2.5 text-base text-zinc-100 outline-none placeholder:text-zinc-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={startRecording}
+                    disabled={loading}
+                    className="p-2 text-zinc-500 transition-colors hover:text-zinc-300 disabled:opacity-40"
+                    title="Record voice"
+                    aria-label="Record voice"
+                  >
+                    <Mic className="h-4 w-4" />
+                  </button>
+                  <div className="h-5 w-px bg-zinc-700/50" />
+                  <button
+                    type="submit"
+                    disabled={loading || !input.trim()}
+                    title="Send message"
+                    aria-label="Send message"
+                    className="text-brand-400 hover:text-brand-300 p-2 pr-3.5 transition-colors disabled:text-zinc-600"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </form>
       </div>
     </>
