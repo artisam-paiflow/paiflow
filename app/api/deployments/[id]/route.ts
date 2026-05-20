@@ -6,7 +6,7 @@ import { z } from "zod";
 import { audit } from "@/lib/audit";
 
 const PatchSchema = z.object({
-  distributeAmountStroops: z.string().regex(/^\d+$/).optional(),
+  distributeAmountStroops: z.string().regex(/^\d+$/),
 });
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -35,7 +35,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const updated = await db.deployment.update({
       where: { id },
       data: {
-        distributeAmountStroops: body.distributeAmountStroops ?? deployment.distributeAmountStroops,
+        distributeAmountStroops: body.distributeAmountStroops,
       },
     });
     await audit({
