@@ -793,6 +793,7 @@ export default function RaftLog({
                     type="submit"
                     disabled={loading || !input.trim()}
                     title="Send message"
+                    aria-label="Send message"
                     className="text-brand-400 hover:text-brand-300 p-2 pr-3.5 transition-colors disabled:text-zinc-600"
                   >
                     <Send className="h-4 w-4" />
