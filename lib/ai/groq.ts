@@ -174,7 +174,7 @@ export async function transcribeAudio(
 
   const primary = process.env.GROQ_STT_MODEL_PRIMARY ?? "whisper-large-v3";
   const fallback = process.env.GROQ_STT_MODEL_FALLBACK ?? "whisper-large-v3-turbo";
-  const models = [primary, fallback];
+  const models = Array.from(new Set([primary, fallback]));
   const rawErrors: Array<{ model: string; status: number }> = [];
 
   async function tryModel(model: string): Promise<string> {
