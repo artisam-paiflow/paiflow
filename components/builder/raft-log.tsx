@@ -342,13 +342,28 @@ export default function RaftLog({
         analyserRef.current = analyser;
 
         const buf = new Uint8Array(analyser.frequencyBinCount);
-        function tick() {
-          analyser.getByteFrequencyData(buf);
-          const avg = buf.reduce((a, b) => a + b, 0) / buf.length;
-          setAudioLevel(Math.min(avg / 128, 1));
+        const meterUpdateIntervalMs = 1000 / 15;
+        let lastMeterUpdate = 0;
+        let lastRenderedLevel = 0;
+
+        function tick(now: number) {
+          if (now - lastMeterUpdate >= meterUpdateIntervalMs) {
+            analyser.getByteFrequencyData(buf);
+            const avg = buf.reduce((a, b) => a + b, 0) / buf.length;
+            const nextLevel = Math.min(avg / 128, 1);
+
+            if (Math.abs(nextLevel - lastRenderedLevel) >= 0.02) {
+              setAudioLevel(nextLevel);
+              lastRenderedLevel = nextLevel;
+            }
+
+            lastMeterUpdate = now;
+          }
+
           animationFrameRef.current = requestAnimationFrame(tick);
         }
-        tick();
+
+        animationFrameRef.current = requestAnimationFrame(tick);
       } catch {
         // audio level meter not available — non-critical
       }
