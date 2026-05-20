@@ -3,12 +3,16 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { submitTriggerTx } from "@/lib/stellar/trigger";
+import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
+import { audit } from "@/lib/audit";
 
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
+    const ip = clientIp(req);
+    await enforceRateLimit({ key: `submit-trigger:${id}:${ip}`, limit: 20, windowSeconds: 60 });
     const body = SubmitSchema.parse(await req.json());
 
     const d = await db.deployment.findFirst({
@@ -22,6 +26,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const result = await submitTriggerTx(body.signedXdr);
     if (result.status === "SUCCESS") {
+      await audit({
+        action: "DEPLOY_TRIGGER",
+        ip,
+        metadata: { deploymentId: id, txHash: result.txHash },
+      });
       return NextResponse.json({ data: { txHash: result.txHash } });
     }
     return NextResponse.json(
