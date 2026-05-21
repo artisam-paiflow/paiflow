@@ -24,24 +24,6 @@ export default function LoginPage({
       </p>
 
       <LoginFormWrapper params={searchParams} />
-
-      <p className="mt-md text-label-sm text-on-surface-variant flex items-center justify-between font-mono">
-        <Link
-          href="/forgot-password"
-          className="text-primary hover:text-primary-fixed underline-offset-4 transition-colors hover:underline"
-        >
-          FORGOT PASSWORD?
-        </Link>
-        <span>
-          NO ACCOUNT?{" "}
-          <Link
-            href="/register"
-            className="text-primary hover:text-primary-fixed underline-offset-4 transition-colors hover:underline"
-          >
-            CREATE ONE
-          </Link>
-        </span>
-      </p>
     </main>
   );
 }

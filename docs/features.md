@@ -20,3 +20,21 @@ Network mapping is explicit: `testnet → testnet`, `mainnet → public`. If a
 deployment row has an unknown network value or no contract address yet, the
 link is omitted (the existing waiting state is unchanged) and a pino warning
 is logged.
+
+## Pre-launch landing & login prune
+
+Trimmed marketing surface to a minimal, focused funnel:
+
+- Landing nav: only logo + "Get started" CTA (removed "How it works",
+  "Contracts", "Sign in").
+- Hero eyebrow now reads `ZAP FOR PAYMENTS · POWERED BY STELLAR`.
+- Removed the hero status line (`SYSTEM STATUS / AVG DEPLOY / RPC`) and
+  the marquee `TelemetryTicker` section.
+- Footer keeps only the copyright (About / Privacy / Terms links removed;
+  underlying `app/about`, `app/privacy`, `app/terms` pages remain reachable).
+- Contract template tiles: no more fake-address line, no "audited" wording.
+- Login page: no "Forgot password?" or "Create one" links (routes still
+  reachable directly).
+- Login form: removed the "Sign in with passkey" affordance and the OR
+  divider; `components/auth/passkey-login.tsx` stays in the tree for
+  later re-wiring.
