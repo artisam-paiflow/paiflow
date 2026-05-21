@@ -46,7 +46,6 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
         network={network}
         status={d.status}
         qrUrl={qrUrl}
-        distributeAmountStroops={d.distributeAmountStroops}
         graph={graph}
         initialEvents={d.events.map((e) => ({
           id: e.id,
