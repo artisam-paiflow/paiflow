@@ -49,9 +49,16 @@ export function TriggerButton({ deploymentId, network, amount, onSuccess }: Trig
           try {
             toast.info(`Selected wallet: ${wallet.name}`);
             kit.setWallet(wallet.id);
-            toast.info("Initiating WalletConnect session...");
-            await walletConnectModule.connectWalletConnect();
-            toast.info("Session established, getting address...");
+            const isWalletConnect = wallet.id === "wallet_connect";
+
+            if (isWalletConnect) {
+              toast.info("Initiating WalletConnect session...");
+              await walletConnectModule.connectWalletConnect();
+              toast.info("Session established, getting address...");
+            } else {
+              toast.info("Connecting to Freighter extension...");
+            }
+
             const { address } = await kit.getAddress();
             toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
 
