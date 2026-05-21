@@ -17,26 +17,26 @@ You are building a **financial application that signs blockchain transactions**.
 
 Use the **latest stable** in the major lines below. Don't introduce a substitute without good reason.
 
-| Layer | Choice |
-|---|---|
-| Runtime | Node.js 22 LTS |
-| Package manager | pnpm 10 (enforced via `packageManager` field) |
-| Language | TypeScript 5.7, `strict: true`, `noUncheckedIndexedAccess: true` |
-| Framework | Next.js 15 (App Router, Server Actions, React Server Components) |
-| UI | React 19, Tailwind CSS 4, shadcn/ui (copy-in, not a dep), lucide-react, framer-motion |
-| Canvas | @xyflow/react 12 |
-| Client state | zustand (only for the builder canvas; everything else is server state) |
-| Server state | @tanstack/react-query (only where SSE/SWR not appropriate) |
-| Forms | react-hook-form + zod |
-| ORM | Prisma 6, Postgres 16 |
-| Auth | Auth.js v5 (Credentials provider + WebAuthn) |
-| Hashing | argon2 (argon2id) |
-| WebAuthn | @simplewebauthn/server + @simplewebauthn/browser |
-| Cache / pub-sub / rate-limit | ioredis (Railway Redis) |
-| Stellar | @stellar/stellar-sdk 13, @creit.tech/stellar-wallets-kit |
-| Logging | pino (+ pino-pretty in dev) |
-| Tests | vitest (unit), @playwright/test (e2e) |
-| Lint/format | eslint (next config) + prettier (+ tailwind plugin) |
+| Layer                        | Choice                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------- |
+| Runtime                      | Node.js 22 LTS                                                                        |
+| Package manager              | pnpm 10 (enforced via `packageManager` field)                                         |
+| Language                     | TypeScript 5.7, `strict: true`, `noUncheckedIndexedAccess: true`                      |
+| Framework                    | Next.js 15 (App Router, Server Actions, React Server Components)                      |
+| UI                           | React 19, Tailwind CSS 4, shadcn/ui (copy-in, not a dep), lucide-react, framer-motion |
+| Canvas                       | @xyflow/react 12                                                                      |
+| Client state                 | zustand (only for the builder canvas; everything else is server state)                |
+| Server state                 | @tanstack/react-query (only where SSE/SWR not appropriate)                            |
+| Forms                        | react-hook-form + zod                                                                 |
+| ORM                          | Prisma 6, Postgres 16                                                                 |
+| Auth                         | Auth.js v5 (Credentials provider + WebAuthn)                                          |
+| Hashing                      | argon2 (argon2id)                                                                     |
+| WebAuthn                     | @simplewebauthn/server + @simplewebauthn/browser                                      |
+| Cache / pub-sub / rate-limit | ioredis (Railway Redis)                                                               |
+| Stellar                      | @stellar/stellar-sdk 13, @creit.tech/stellar-wallets-kit                              |
+| Logging                      | pino (+ pino-pretty in dev)                                                           |
+| Tests                        | vitest (unit), @playwright/test (e2e)                                                 |
+| Lint/format                  | eslint (next config) + prettier (+ tailwind plugin)                                   |
 
 **Rule:** if a dep is not in `SPEC.md §2`, justify it in the PR description.
 
@@ -45,7 +45,9 @@ Use the **latest stable** in the major lines below. Don't introduce a substitute
 ## 2. Project Conventions
 
 ### 2.1 Directory Layout
+
 Follow the tree in `SPEC.md` Appendix A. In short:
+
 - `app/` — routes only; thin. Pages delegate to functions in `lib/`.
 - `components/` — UI; **no fetch, no DB**. Receive data via props or hooks.
 - `lib/` — domain logic. **Pure where possible.** Side effects gated by single-purpose modules (`lib/db.ts`, `lib/redis.ts`, `lib/stellar/*`).
@@ -54,6 +56,7 @@ Follow the tree in `SPEC.md` Appendix A. In short:
 - `scripts/` — operational tooling (upload WASM, backfills); never imported at runtime.
 
 ### 2.2 Naming
+
 - Files: `kebab-case.ts` for modules, `PascalCase.tsx` for React components.
 - React components: `PascalCase`; hooks: `useCamelCase`; Zod schemas: `XxxSchema` exporting both the schema and `z.infer<typeof XxxSchema>` as `Xxx`.
 - Route handlers: one `route.ts` per endpoint; export named functions (`GET`, `POST`, ...).
@@ -61,6 +64,7 @@ Follow the tree in `SPEC.md` Appendix A. In short:
 - Client components: `"use client";` only when needed (interactivity, browser APIs).
 
 ### 2.3 TypeScript
+
 - `strict: true`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: true`.
 - No `any`. Use `unknown` + narrow. Escape hatches must include a `// eslint-disable-next-line` with a one-line justification.
 - Prefer `type` over `interface` for unions; either is fine for objects.
@@ -68,11 +72,13 @@ Follow the tree in `SPEC.md` Appendix A. In short:
 - Money: `bigint` for stroops everywhere internal; strings at the wire boundary. **Never** `number`.
 
 ### 2.4 Imports
+
 - Absolute imports via `@/*` (configured in `tsconfig.json`).
 - Order: node built-ins → external → `@/lib` → `@/components` → relative. Enforced by `eslint-plugin-import` or `simple-import-sort`.
 
 ### 2.5 Comments
-- Default to none. Names should explain *what*. Comments explain *why*.
+
+- Default to none. Names should explain _what_. Comments explain _why_.
 - For non-obvious crypto / consensus / Soroban quirks: write the comment.
 
 ---
@@ -80,21 +86,25 @@ Follow the tree in `SPEC.md` Appendix A. In short:
 ## 3. Next.js Patterns
 
 ### 3.1 Server vs Client
+
 - Default to **Server Components**. Add `"use client"` only when you need state, effects, browser APIs, or third-party client-only libs (React Flow, wallet kit).
 - Fetch data in Server Components or Route Handlers. **Do not** fetch from Client Components except for SSE / streaming UX.
 - Use **Server Actions** for form submits whenever the result navigates or invalidates server data; use Route Handlers for JSON APIs consumed by the client SDK pattern (deploy flow needs JSON, not a redirect).
 
 ### 3.2 Data Access
+
 - All DB access goes through `lib/db.ts`'s singleton Prisma client. Do `import { db } from "@/lib/db"`.
 - Wrap related writes in `db.$transaction([...])` or interactive transactions when ordering matters.
 - Never accept a `where` clause from user input. Build the `where` from validated fields.
 
 ### 3.3 Caching
+
 - `fetch` with `cache: "no-store"` for anything user-specific.
 - Use `revalidateTag(...)` after mutations; tag reads with `next: { tags: ["flow:" + id] }`.
 - Soroban RPC responses are **never** cached at the framework layer.
 
 ### 3.4 Streaming / SSE
+
 - SSE handlers return a `Response` constructed from a `ReadableStream`. Always:
   - Set `Content-Type: text/event-stream; charset=utf-8`.
   - Set `Cache-Control: no-cache, no-transform`.
@@ -135,36 +145,47 @@ Follow the tree in `SPEC.md` Appendix A. In short:
 ## 6. Stellar / Soroban
 
 ### 6.1 Clients
+
 - Two singletons in `lib/stellar/client.ts`:
   - `horizon` — `new Horizon.Server(env.STELLAR_HORIZON_URL)`.
   - `rpc` — `new rpc.Server(env.STELLAR_SOROBAN_RPC_URL, { allowHttp: false })`.
 - All RPC calls live in `lib/stellar/*`. No component imports `@stellar/stellar-sdk` directly.
 
 ### 6.2 Building Transactions
+
 - Always `simulateTransaction` before returning XDR to the client; persist the simulated `minResourceFee` and use `assembleTransaction(tx, sim)`.
 - Set explicit fees and timeouts: `setTimeout(180)`, never `TimeoutInfinite`.
 - Use the user's account as `source`. Pink Raft never has its own funded operational account.
 
 ### 6.3 Submitting
+
 - After client returns signed XDR:
   - Re-parse and assert the inner operations match what we built (defense vs swapped XDR).
   - `rpc.sendTransaction(envelope)` → poll `getTransaction` until `SUCCESS|FAILED`, max 30s.
   - On `SUCCESS`, extract the new contract address from the meta and persist.
 
 ### 6.4 Reading Events
+
 - Use `rpc.getEvents({ startLedger, filters: [{ type: "contract", contractIds: [...] }] })`.
 - Decode using stored ABI; do not trust event topic order.
 - Idempotency on `(txHash, kind)` unique.
 
 ### 6.5 Networks
+
 - Never read network passphrase from runtime config of the wallet; the server is the source of truth.
-- Mainnet is gated by `ENABLE_MAINNET=true`. Default deny.
+- The active network is pinned per environment via `STELLAR_NETWORK`
+  (staging = `testnet`, production = `mainnet`). There is no per-deploy
+  picker, no `ENABLE_MAINNET` flag, and no `MAINNET_ALLOWLIST` —
+  authorization for _who can deploy_ is the auth system's job; _which
+  network_ is collapsed into the environment. See
+  `docs/mainnet-cutover.md`.
 
 ---
 
 ## 7. Smart Contract Templates (Rust)
 
 You will rarely modify these. When you do:
+
 - Treat any change as a **breaking ABI change** unless proven otherwise. Bump the in-contract `version` symbol.
 - Use `i128` and checked math. `unwrap()` is allowed only on values the contract itself produced.
 - Every state-mutating call requires `caller.require_auth()`.
@@ -217,14 +238,18 @@ Before opening a PR, **walk through this list**. The reviewer will too.
 ## 11. Testing
 
 ### 11.1 Unit (vitest)
+
 Mandatory for:
+
 - `lib/flows/validate.ts`, `lib/flows/to-params.ts`, `lib/flows/english.ts` — pure, high-leverage.
 - `lib/stellar/deploy.ts` (mock the RPC client).
 - `lib/auth.ts` helpers.
 - All Zod schemas — round-trip a few realistic and adversarial inputs.
 
 ### 11.2 E2E (Playwright)
+
 At least one happy-path scenario per network:
+
 1. Login as seeded admin.
 2. Create a Splitter flow with three recipients (test keypairs).
 3. Click Deploy; intercept the wallet sign step with a mock that returns a pre-signed XDR (test-mode injection).
@@ -232,9 +257,11 @@ At least one happy-path scenario per network:
 5. Friendbot the contract; assert event feed shows a RECEIVE then three PAYOUTs within 30s.
 
 ### 11.3 Contract Tests
+
 Soroban contracts have their own Rust tests under each contract crate (`#[test]` using `soroban-sdk`'s test env). CI runs `cargo test` for the workspace.
 
 ### 11.4 CI
+
 - Lint, typecheck, unit, contract tests on every PR.
 - E2E on PRs labeled `e2e` and on `main`.
 
@@ -272,11 +299,13 @@ Soroban contracts have their own Rust tests under each contract crate (`#[test]`
 
 ## 15. Money / Demo Safety
 
-- Default network = `testnet`. Every screen that submits a tx shows a "Testnet" badge.
-- Mainnet writes are blocked unless:
-  - `ENABLE_MAINNET=true`,
-  - the user's `User.id` is in the `MAINNET_ALLOWLIST` env (CSV),
-  - the user types "I understand" in a confirm dialog.
+- Default network = `testnet`. Every screen that submits a tx shows a network
+  chip ("TESTNET" / "MAINNET").
+- The active network is pinned per environment via `STELLAR_NETWORK`. Mainnet
+  writes happen because the production Railway service has
+  `STELLAR_NETWORK=mainnet`; there is no in-app override, no per-user
+  allowlist, and no "I understand" confirmation. To halt mainnet writes,
+  scale the prod service to zero. See `docs/mainnet-cutover.md`.
 
 ---
 
@@ -323,5 +352,4 @@ When the coding agent picks up a task:
 
 ---
 
-*If anything in this file conflicts with `SPEC.md`, `SPEC.md` wins for **what** to build; this file wins for **how** to build it. If they conflict on a security topic, the **stricter** rule wins. When in doubt: stop and ask.*
-
+_If anything in this file conflicts with `SPEC.md`, `SPEC.md` wins for **what** to build; this file wins for **how** to build it. If they conflict on a security topic, the **stricter** rule wins. When in doubt: stop and ask._
