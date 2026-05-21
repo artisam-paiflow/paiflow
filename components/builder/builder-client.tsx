@@ -372,7 +372,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
   return (
     <>
-      <div className="grid grid-cols-[220px_1fr] gap-0" style={{ height: "calc(100vh - 49px)" }}>
+      <div className="grid grid-cols-[220px_1fr] gap-0" style={{ height: "calc(100vh - 4rem)" }}>
         <Palette onAdd={addNode} flowNodes={flowNodes} />
 
         <div className="relative flex flex-col">
@@ -403,7 +403,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
               <div
                 className={cn(
                   "absolute top-3 z-20 max-h-[calc(100vh-100px)] w-80 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl transition-all duration-300 ease-in-out",
-                  !chatCollapsed ? "right-[340px]" : "right-3",
+                  !chatCollapsed ? "right-[376px]" : "right-[108px]",
                 )}
               >
                 <ConfigPanel
