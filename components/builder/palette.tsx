@@ -1,12 +1,15 @@
 "use client";
 
 import { useId } from "react";
+import type { TemplateKind } from "@prisma/client";
 import type { FlowNode } from "@/lib/flows/schema";
 import { isTrigger } from "@/lib/flows/schema";
+import { TEMPLATE_LABELS, TEMPLATE_DESCRIPTIONS } from "@/lib/flows/template-labels";
 
 type Props = {
   onAdd: (node: FlowNode) => void;
   flowNodes: FlowNode[];
+  templateKind?: TemplateKind | null;
 };
 
 function makeId(prefix: string) {
@@ -100,13 +103,34 @@ const GROUP_TONE: Record<Template["group"], { tone: string; dot: string }> = {
   Logic: { tone: "text-tertiary", dot: "bg-tertiary" },
 };
 
-export default function Palette({ onAdd, flowNodes }: Props) {
+export default function Palette({ onAdd, flowNodes, templateKind }: Props) {
   const groups: Template["group"][] = ["Triggers", "Actions", "Logic"];
   const headingId = useId();
   const hasTrigger = flowNodes.some(isTrigger);
+  const templateLabel = templateKind ? TEMPLATE_LABELS[templateKind] : null;
+  const templateDescription = templateKind ? TEMPLATE_DESCRIPTIONS[templateKind] : null;
 
   return (
     <aside aria-labelledby={headingId} className="glass-panel-sidebar p-md h-full overflow-y-auto">
+      <section aria-label="Contract template" className="mb-md">
+        <div className="text-label-sm text-on-surface-variant font-mono">/ CONTRACT TEMPLATE</div>
+        <div className="mt-2">
+          <span
+            className={`text-label-md inline-flex items-center gap-2 rounded-lg border px-2 py-1 font-mono ${
+              templateLabel
+                ? "bg-primary/10 border-primary/20 text-primary"
+                : "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant"
+            }`}
+          >
+            {templateLabel ?? "—"}
+          </span>
+        </div>
+        {templateDescription && (
+          <p className="text-body-md text-on-surface-variant mt-2 leading-snug">
+            {templateDescription}
+          </p>
+        )}
+      </section>
       <h2 id={headingId} className="text-label-sm text-on-surface-variant font-mono">
         / BLOCKS
       </h2>

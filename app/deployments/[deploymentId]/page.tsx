@@ -5,6 +5,12 @@ import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
 import DeploymentView from "@/components/deploy/deployment-view";
 import { FlowGraphSchema } from "@/lib/flows/schema";
+import {
+  isStellarNetwork,
+  stellarExpertContractUrl,
+  type StellarNetwork,
+} from "@/lib/stellar/explorer";
+import { log } from "@/lib/log";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +77,16 @@ export default async function DeploymentPage({
     tone: "border-outline-variant/40 bg-surface-container-low/60 text-on-surface-variant",
   };
 
+  const network: StellarNetwork | null = isStellarNetwork(d.network) ? d.network : null;
+  if (!network && d.network) {
+    log.warn(
+      { deploymentId: d.id, network: d.network },
+      "deployment.network is not a known StellarNetwork; explorer link disabled",
+    );
+  }
+  const explorerUrl =
+    d.contractAddress && network ? stellarExpertContractUrl(d.contractAddress, network) : null;
+
   return (
     <>
       <Topbar username={user.username} />
@@ -111,7 +127,19 @@ export default async function DeploymentPage({
               <span className="text-outline-variant">·</span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[14px]">tag</span>
-                <span className="text-on-surface">{truncateAddr(d.contractAddress)}</span>
+                {explorerUrl ? (
+                  <a
+                    href={explorerUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-on-surface hover:text-primary inline-flex items-center gap-1 transition-colors"
+                  >
+                    {truncateAddr(d.contractAddress)}
+                    <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                  </a>
+                ) : (
+                  <span className="text-on-surface">{truncateAddr(d.contractAddress)}</span>
+                )}
               </span>
               <span className="text-outline-variant">·</span>
               <span className="inline-flex items-center gap-1.5">
@@ -125,6 +153,7 @@ export default async function DeploymentPage({
         <DeploymentView
           deploymentId={d.id}
           contractAddress={d.contractAddress}
+          network={network}
           status={d.status}
           qrUrl={qrUrl}
           distributeAmountStroops={d.distributeAmountStroops}

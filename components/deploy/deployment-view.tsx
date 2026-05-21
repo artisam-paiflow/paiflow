@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import DeploymentCanvas from "./deployment-canvas";
 import type { FlowGraph } from "@/lib/flows/schema";
+import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 
 type Evt = {
   id: string;
@@ -17,6 +18,7 @@ type Evt = {
 export default function DeploymentView({
   deploymentId,
   contractAddress,
+  network,
   status,
   qrUrl,
   distributeAmountStroops,
@@ -25,12 +27,15 @@ export default function DeploymentView({
 }: {
   deploymentId: string;
   contractAddress: string | null;
+  network: StellarNetwork | null;
   status: string;
   qrUrl: string | null;
   distributeAmountStroops: string | null;
   initialEvents: Evt[];
   graph: FlowGraph | null;
 }) {
+  const explorerUrl =
+    contractAddress && network ? stellarExpertContractUrl(contractAddress, network) : null;
   const [events, setEvents] = useState<Evt[]>(initialEvents);
   const [pulse, setPulse] = useState(0);
   const [showAmountModal, setShowAmountModal] = useState(false);
@@ -128,12 +133,33 @@ export default function DeploymentView({
                     <div className="text-label-sm text-on-surface-variant font-mono uppercase">
                       Contract address
                     </div>
-                    <button
-                      onClick={() => copy(contractAddress)}
-                      className="text-on-surface hover:text-primary mt-1 text-left font-mono text-[12px] break-all transition-colors"
-                    >
-                      {contractAddress}
-                    </button>
+                    <div className="mt-1 flex items-start gap-2">
+                      {explorerUrl ? (
+                        <a
+                          href={explorerUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-on-surface hover:text-primary inline-flex items-center gap-1 text-left font-mono text-[12px] break-all transition-colors"
+                        >
+                          <span className="break-all">{contractAddress}</span>
+                          <span className="material-symbols-outlined shrink-0 text-[12px]">
+                            open_in_new
+                          </span>
+                        </a>
+                      ) : (
+                        <span className="text-on-surface font-mono text-[12px] break-all">
+                          {contractAddress}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => copy(contractAddress)}
+                        aria-label="Copy contract address"
+                        title="Copy contract address"
+                        className="text-on-surface-variant hover:text-primary shrink-0 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">content_copy</span>
+                      </button>
+                    </div>
                   </div>
                   {pendingAmount && (
                     <div>

@@ -19,29 +19,8 @@ export default function LoginPage({
       <h1 className="font-display text-on-surface mt-2 text-[40px] leading-[1.1] font-semibold tracking-[-0.02em]">
         Sign in.
       </h1>
-      <p className="text-body-md text-on-surface-variant mt-3">
-        Use the admin credentials seeded for your environment, or your own account.
-      </p>
 
       <LoginFormWrapper params={searchParams} />
-
-      <p className="mt-md text-label-sm text-on-surface-variant flex items-center justify-between font-mono">
-        <Link
-          href="/forgot-password"
-          className="text-primary hover:text-primary-fixed underline-offset-4 transition-colors hover:underline"
-        >
-          FORGOT PASSWORD?
-        </Link>
-        <span>
-          NO ACCOUNT?{" "}
-          <Link
-            href="/register"
-            className="text-primary hover:text-primary-fixed underline-offset-4 transition-colors hover:underline"
-          >
-            CREATE ONE
-          </Link>
-        </span>
-      </p>
     </main>
   );
 }
