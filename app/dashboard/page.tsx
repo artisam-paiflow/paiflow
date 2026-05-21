@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { env } from "@/lib/env";
 import Topbar from "@/components/app/topbar";
 import { isStellarNetwork, stellarExpertContractUrl } from "@/lib/stellar/explorer";
 
@@ -102,8 +103,8 @@ export default async function Dashboard() {
           />
           <MetricCard
             eyebrow="NETWORK"
-            value="TESTNET"
-            sub="stellar · 12ms"
+            value={env().STELLAR_NETWORK.toUpperCase()}
+            sub="stellar"
             icon="hub"
             accent="tertiary"
             live

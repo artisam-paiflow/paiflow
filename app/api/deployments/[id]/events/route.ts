@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError } from "@/lib/errors";
-import { redisSub, eventChannel } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -29,13 +28,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     async start(controller) {
       controller.enqueue(sseLine("hello", { id: deployment.id }));
 
-      // Replay the last 50 stored events
+      // Replay the last 50 stored events, establish cursor
       const past = await db.contractEvent.findMany({
         where: { deploymentId: deployment.id },
-        orderBy: { occurredAt: "desc" },
+        orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
         take: 50,
       });
-      for (const e of past.reverse()) {
+      for (const e of past) {
         controller.enqueue(
           sseLine("event", {
             id: e.id,
@@ -49,25 +48,55 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         );
       }
 
-      const sub = redisSub();
-      let unsubscribed = false;
-      let interval: NodeJS.Timeout | null = null;
+      // Composite cursor: (occurredAt, id) — handles same-timestamp events
+      const last = past.at(-1);
+      let lastAt: Date | null = last?.occurredAt ?? null;
+      let lastId: string = last?.id ?? "";
 
-      const onMessage = (channel: string, message: string) => {
-        if (channel !== eventChannel(deployment.id)) return;
+      const DB_POLL_INTERVAL = 5_000;
+      let dbInterval: NodeJS.Timeout | null = null;
+
+      const pollDb = async () => {
+        if (!lastAt) return;
         try {
-          controller.enqueue(sseLine("event", JSON.parse(message)));
+          const newer = await db.contractEvent.findMany({
+            where: {
+              deploymentId: deployment.id,
+              OR: [
+                { occurredAt: { gt: lastAt } },
+                {
+                  AND: [{ occurredAt: { equals: lastAt } }, { id: { gt: lastId } }],
+                },
+              ],
+            },
+            orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
+            take: 50,
+          });
+          for (const e of newer) {
+            controller.enqueue(
+              sseLine("event", {
+                id: e.id,
+                kind: e.kind,
+                ledger: e.ledger,
+                txHash: e.txHash,
+                payload: e.payload,
+                decodedData: e.decodedData,
+                occurredAt: e.occurredAt.toISOString(),
+              }),
+            );
+            lastAt = e.occurredAt;
+            lastId = e.id;
+          }
         } catch {
-          /* ignore malformed */
+          /* stream closed */
         }
       };
 
-      if (sub) {
-        await sub.subscribe(eventChannel(deployment.id));
-        sub.on("message", onMessage);
-      }
+      dbInterval = setInterval(pollDb, DB_POLL_INTERVAL);
 
-      interval = setInterval(() => {
+      // Keepalive ping every 25s (prevents proxy timeouts)
+      let pingInterval: NodeJS.Timeout | null = null;
+      pingInterval = setInterval(() => {
         try {
           controller.enqueue(sseLine("ping", { t: Date.now() }));
         } catch {
@@ -76,13 +105,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       }, 25_000);
 
       const cleanup = () => {
-        if (unsubscribed) return;
-        unsubscribed = true;
-        if (interval) clearInterval(interval);
-        if (sub) {
-          sub.off("message", onMessage);
-          sub.unsubscribe(eventChannel(deployment.id)).catch(() => undefined);
-        }
+        if (dbInterval) clearInterval(dbInterval);
+        if (pingInterval) clearInterval(pingInterval);
         try {
           controller.close();
         } catch {
