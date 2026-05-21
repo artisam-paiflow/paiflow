@@ -265,6 +265,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           missingAddresses?: string[];
           patchedGraph?: FlowGraph;
           templateKind?: string;
+          clarifyingQuestion?: string;
         };
         error?: { message: string; fields?: Record<string, string[]> };
       };
@@ -280,7 +281,14 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         setMessages((prev) => [...prev, { role: "raft", content }]);
         return;
       }
-      const { patch, explanation, applied, missingAddresses, patchedGraph } = json.data!;
+      const { patch, explanation, applied, missingAddresses, patchedGraph, clarifyingQuestion } =
+        json.data!;
+
+      if (clarifyingQuestion) {
+        setMessages((prev) => [...prev, { role: "raft", content: clarifyingQuestion }]);
+        return;
+      }
+
       setMessages((prev) => [...prev, { role: "raft", content: explanation, patch }]);
 
       if (missingAddresses && missingAddresses.length > 0) {
@@ -371,25 +379,9 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         <Palette onAdd={addNode} flowNodes={flowNodes} templateKind={templateKind} />
 
         <div className="grid min-h-0 grid-rows-[auto_auto_1fr]">
-          {/* Row 1: Deploy + Ask AI → editable title */}
+          {/* Row 1: Deploy → editable title */}
           <div className="px-md gap-md flex items-center py-3">
             <DeployButton flowId={flowId} />
-            <button
-              onClick={() => setChatCollapsed((v) => !v)}
-              aria-expanded={!chatCollapsed}
-              aria-controls="ai-panel"
-              className={cn(
-                "text-label-md inline-flex items-center gap-2 rounded-lg px-4 py-2 font-mono font-bold transition-all duration-200 active:scale-95",
-                chatCollapsed
-                  ? "bg-primary text-on-primary shadow-[0_0_18px_rgba(255,177,196,0.45)] hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.65)]"
-                  : "border-outline-variant/40 text-on-surface-variant hover:border-primary/40 hover:text-on-surface border bg-transparent",
-              )}
-            >
-              <span className="material-symbols-outlined text-[16px]">
-                {chatCollapsed ? "auto_awesome" : "close"}
-              </span>
-              {chatCollapsed ? "Ask AI" : "Close AI"}
-            </button>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -401,7 +393,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
           {/* Row 2: English Preview */}
           <div className="px-md pb-2">
-            <div className="glass-panel px-md py-sm rounded-xl">
+            <div className="glass-panel px-md py-sm max-w-2xl rounded-xl">
               <div className="flex items-center gap-2">
                 <div className="text-label-sm text-primary font-mono tracking-[0.08em] uppercase">
                   English Preview
@@ -412,7 +404,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                   </span>
                 )}
               </div>
-              <div className="text-body-md text-on-surface mt-1">{english}</div>
+              <div className="text-body-md text-on-surface mt-1 line-clamp-2">{english}</div>
               {!isValid && errors.length > 0 && (
                 <div className="mt-2 space-y-1">
                   {errors.map((e, i) => (
@@ -448,7 +440,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
             <ReactFlow
               nodes={rfNodes.map((n) => ({
                 ...n,
-                data: { ...n.data, label: nodeLabel(flowNodes.find((f) => f.id === n.id)) },
+                data: {
+                  ...n.data,
+                  label: nodeLabel(flowNodes.find((f) => f.id === n.id)),
+                  node: flowNodes.find((f) => f.id === n.id) ?? n.data.node,
+                },
                 selected: n.id === selectedId,
               }))}
               edges={rfEdges}
