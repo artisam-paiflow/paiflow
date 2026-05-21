@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { formatStroops, shortAddr } from "@/lib/utils";
+import { formatStroops, shortAddrExtraShort } from "@/lib/utils";
 import { stellarExpertTxUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import type { FlowGraph } from "@/lib/flows/schema";
 
@@ -67,7 +67,7 @@ function EventSummary({ evt }: { evt: Evt }) {
 
   switch (evt.kind) {
     case "RECEIVE": {
-      const from = d?.from ? shortAddr(String(d.from)) : "—";
+      const from = d?.from ? shortAddrExtraShort(String(d.from)) : "—";
       const amount = formatAmount(typeof d?.amount === "string" ? d.amount : undefined);
       return (
         <div className="text-body-sm text-on-surface">
@@ -77,11 +77,11 @@ function EventSummary({ evt }: { evt: Evt }) {
       );
     }
     case "PAYOUT": {
-      const from = d?.from ? shortAddr(String(d.from)) : "—";
+      const from = d?.from ? shortAddrExtraShort(String(d.from)) : "—";
       const recipients = d?.recipients as Recipient[] | undefined;
       if (recipients && recipients.length > 0) {
         const parts = recipients.slice(0, 3).map((r) => {
-          const addr = r.address ? shortAddr(r.address) : "—";
+          const addr = r.address ? shortAddrExtraShort(r.address) : "—";
           const amt = r.amount
             ? formatAmount(typeof r.amount === "string" ? r.amount : undefined)
             : "—";
@@ -107,7 +107,7 @@ function EventSummary({ evt }: { evt: Evt }) {
       if (recipients && recipients.length > 0) {
         const addrs = recipients
           .slice(0, 2)
-          .map((r) => (r.address ? shortAddr(r.address) : "—"))
+          .map((r) => (r.address ? shortAddrExtraShort(r.address) : "—"))
           .join(", ");
         const more = recipients.length > 2 ? ` +${recipients.length - 2} more` : "";
         return (
