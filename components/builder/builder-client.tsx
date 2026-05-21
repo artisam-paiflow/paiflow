@@ -30,6 +30,7 @@ import Palette from "./palette";
 import DeployButton from "./deploy-button";
 import RaftLog, { type ChatMessage } from "./raft-log";
 import type { PatchOp } from "@/lib/ai/prompts";
+import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -39,12 +40,6 @@ const nodeTypes = {
 
 const edgeTypes = {
   straight: AnimatedStraightEdge,
-};
-
-const TEMPLATE_LABELS: Record<string, string> = {
-  SPLITTER: "Splitter",
-  STREAMER: "Streamer",
-  CONDITIONAL: "Conditional",
 };
 
 type BuilderProps = {
@@ -373,36 +368,70 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   return (
     <>
       <div className="grid grid-cols-[220px_1fr] gap-0" style={{ height: "calc(100vh - 4rem)" }}>
-        <Palette onAdd={addNode} flowNodes={flowNodes} />
+        <Palette onAdd={addNode} flowNodes={flowNodes} templateKind={templateKind} />
 
-        <div className="relative flex flex-col">
-          <div className="relative flex-1">
-            {/* Top-left: name + deploy + AI toggle */}
-            <div className="absolute top-3 left-3 z-10 flex items-center gap-3">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="rounded bg-zinc-900/80 px-3 py-1.5 text-sm font-medium"
-              />
-              <DeployButton flowId={flowId} />
-              <button
-                onClick={() => setChatCollapsed((v) => !v)}
-                className={cn(
-                  "rounded-full px-3 py-1.5 text-xs font-medium transition-all",
-                  !chatCollapsed
-                    ? "bg-zinc-800 text-zinc-300 ring-1 ring-zinc-700"
-                    : "bg-brand-600 hover:bg-brand-500 text-white",
+        <div className="grid min-h-0 grid-rows-[auto_auto_1fr]">
+          {/* Row 1: Deploy → editable title → Ask AI */}
+          <div className="px-md gap-md flex items-center py-3">
+            <DeployButton flowId={flowId} />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              aria-label="Flow name"
+              className="text-headline-sm text-on-surface max-w-[40ch] min-w-[12ch] flex-1 border-0 bg-transparent px-0 py-1 font-semibold tracking-[-0.01em] outline-none focus:outline-none"
+              style={{ fieldSizing: "content" } as React.CSSProperties}
+            />
+            <button
+              onClick={() => setChatCollapsed((v) => !v)}
+              aria-expanded={!chatCollapsed}
+              aria-controls="ai-panel"
+              className={cn(
+                "text-label-md inline-flex items-center gap-2 rounded-lg px-4 py-2 font-mono font-bold transition-all duration-200 active:scale-95",
+                chatCollapsed
+                  ? "bg-primary text-on-primary shadow-[0_0_18px_rgba(255,177,196,0.45)] hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.65)]"
+                  : "border-outline-variant/40 text-on-surface-variant hover:border-primary/40 hover:text-on-surface border bg-transparent",
+              )}
+            >
+              <span className="material-symbols-outlined text-[16px]">
+                {chatCollapsed ? "auto_awesome" : "close"}
+              </span>
+              {chatCollapsed ? "Ask AI" : "Close AI"}
+            </button>
+          </div>
+
+          {/* Row 2: English Preview */}
+          <div className="px-md pb-2">
+            <div className="glass-panel px-md py-sm rounded-xl">
+              <div className="flex items-center gap-2">
+                <div className="text-label-sm text-primary font-mono tracking-[0.08em] uppercase">
+                  English Preview
+                </div>
+                {isValid && templateKind && (
+                  <span className="bg-primary/10 border-primary/20 text-primary text-label-sm inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono">
+                    valid {TEMPLATE_LABELS[templateKind]?.toLowerCase()}
+                  </span>
                 )}
-              >
-                {!chatCollapsed ? "Close AI" : "Edit with AI"}
-              </button>
+              </div>
+              <div className="text-body-md text-on-surface mt-1">{english}</div>
+              {!isValid && errors.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {errors.map((e, i) => (
+                    <div key={i} className="text-label-sm text-error font-mono">
+                      {e.friendlyMessage}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+          </div>
 
+          {/* Row 3: Canvas */}
+          <div className="relative min-h-0">
             {/* Floating ConfigPanel — shifts left when sidebar opens */}
             {selectedNode && (
               <div
                 className={cn(
-                  "absolute top-3 z-20 max-h-[calc(100vh-100px)] w-80 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl transition-all duration-300 ease-in-out",
+                  "absolute top-3 z-20 max-h-[calc(100vh-160px)] w-80 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl transition-all duration-300 ease-in-out",
                   !chatCollapsed ? "right-[376px]" : "right-[108px]",
                 )}
               >
@@ -436,41 +465,8 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
               fitView
             >
               <Background gap={16} size={1} color="#27272a" />
-              <Controls position="top-left" className="!top-14 !left-3" />
+              <Controls position="top-left" className="!top-3 !left-3" />
             </ReactFlow>
-
-            {/* Validation status badge */}
-            <div className="pointer-events-none absolute top-3 left-1/2 z-10 -translate-x-1/2">
-              {templateKind && (
-                <span className="text-brand-400 ring-brand-500/50 rounded-full bg-zinc-900/90 px-3 py-1 text-xs ring-1">
-                  {TEMPLATE_LABELS[templateKind] ?? templateKind}
-                </span>
-              )}
-            </div>
-
-            {/* English preview + validation errors */}
-            <div className="pointer-events-none absolute right-4 bottom-4 left-4 rounded-lg bg-zinc-950/90 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-800">
-              <div className="mb-1 flex items-center gap-2">
-                <div className="text-brand-400 text-[10px] tracking-wide uppercase">
-                  English preview
-                </div>
-                {isValid && templateKind && (
-                  <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                    valid {TEMPLATE_LABELS[templateKind]?.toLowerCase()}
-                  </span>
-                )}
-              </div>
-              <div className="mt-1">{english}</div>
-              {!isValid && errors.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {errors.map((e, i) => (
-                    <div key={i} className="text-[11px] text-red-400">
-                      {e.friendlyMessage}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </div>
