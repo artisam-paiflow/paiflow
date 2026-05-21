@@ -28,7 +28,7 @@ Long-term, Pink Raft is the canonical "no-code Stellar surface": the layer betwe
 
 ## 🎯 Purpose
 
-Built for the **APAC Stellar Hackathon 2026**.
+Built for the **Stellar Hackathon 2026**.
 
 We picked this problem because the Stellar Soroban toolchain is genuinely excellent for backend developers and genuinely opaque to everyone else. Three pre-audited templates (splitter, streamer, conditional) cover the long tail of real-world payment workflows — most "programmable payment" use cases reduce to one of those three. By shipping them as visual blocks instead of as Rust libraries, we put the chain's full power in the hands of the operators who have the use case but not the engineering team.
 
@@ -44,7 +44,7 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 ## ✨ Features
 
 - **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`) and actions (`Pay`, `Split`) onto a `@xyflow/react` canvas, wire them up, validate, deploy. Mobile-responsive; the hero demo runs on a phone.
-- **Three pre-audited Soroban templates** —
+- **Three Soroban templates** —
   - **Splitter** — 60/30/10-style fan-out across N recipients (BPS-weighted).
   - **Streamer** — time-based linear vesting / streaming payouts.
   - **Conditional** — release-on-condition escrow (time, amount, oracle).
@@ -114,7 +114,7 @@ Pink Raft is **non-custodial** — the backend prepares XDR, but only the user's
 
 Deployed via Railway from `staging` (auto-deploy on merge into `staging`).
 
-- **App URL**: _TODO: fill in staging Railway URL_
+- **App URL**: https://pinkraft.up.railway.app/
 - **Splitter contract template**: _TODO: paste `C…` address from latest `pnpm contracts:upload --network=testnet`_
 - **Streamer contract template**: _TODO_
 - **Conditional contract template**: _TODO_
@@ -125,7 +125,7 @@ Deployed via Railway from `staging` (auto-deploy on merge into `staging`).
 
 Cutover gated by `docs/mainnet-cutover.md`. WASM hashes uploaded via `pnpm contracts:upload --network=mainnet`.
 
-- **App URL**: _TODO: fill in production Railway URL_
+- **App URL**: https://pinkraft.xyz/
 - **Splitter contract template**: _TODO_
 - **Streamer contract template**: _TODO_
 - **Conditional contract template**: _TODO_
@@ -134,9 +134,9 @@ Cutover gated by `docs/mainnet-cutover.md`. WASM hashes uploaded via `pnpm contr
 
 ## 🎥 Demo
 
-- 🔗 **Live App**: _TODO: link production URL_
+- 🔗 **Live App**: https://pinkraft.xyz/
 - 🎬 **Demo Video**: _TODO: link YouTube / Loom_
-- 🖼️ **Pitch Deck**: [`docs/PinkRaft-PitchDeck.pdf`](./docs/PinkRaft-PitchDeck.pdf) _(also: TODO link Google Slides / Canva for the live version)_
+- 🖼️ **Pitch Deck**: https://drive.google.com/file/d/1CT2iNDgmdkfkzFDfRYTxZZYAcNdY7QP0/view
 
 ## 👨‍💻 Team
 
@@ -144,10 +144,9 @@ _The team list below reflects active contributors on GitHub. Roles are TODO — 
 
 | Name | Role | GitHub                                                     |
 | ---- | ---- | ---------------------------------------------------------- |
-| TODO | TODO | [@kimerran](https://github.com/kimerran)                   |
-| TODO | TODO | [@SaltinStillWaters](https://github.com/SaltinStillWaters) |
-| TODO | TODO | [@cemmacabales](https://github.com/cemmacabales)           |
-| TODO | TODO | [@robinmct](https://github.com/robinmct)                   |
+| Mark Hugh Neri | CTO | [@kimerran](https://github.com/kimerran)                   |
+| Mycal Pejana | Smart Contract Dev | [@SaltinStillWaters](https://github.com/SaltinStillWaters) |
+| Carl Macabales | AI Developer | [@cemmacabales](https://github.com/cemmacabales)           |               |
 
 ## 📜 License
 
