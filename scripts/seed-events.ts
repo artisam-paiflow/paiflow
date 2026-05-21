@@ -134,6 +134,8 @@ async function main() {
     },
   ];
 
+  await db.contractEvent.deleteMany({ where: { deploymentId } });
+
   for (const event of events) {
     await db.contractEvent.create({ data: event });
   }
