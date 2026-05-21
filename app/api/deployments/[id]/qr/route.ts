@@ -38,7 +38,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     }
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     uri = d.distributeAmountStroops
-      ? `${appUrl}/trigger/${d.id}?amount=${d.distributeAmountStroops}`
+      ? `${appUrl}/trigger/${d.id}?amount=${"0"}`
       : `${appUrl}/trigger/${d.id}`;
   } else if (q.action === "invoke") {
     if (d.flow.templateKind !== "SPLITTER") {

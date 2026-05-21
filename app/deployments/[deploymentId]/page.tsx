@@ -127,7 +127,6 @@ export default async function DeploymentPage({
           contractAddress={d.contractAddress}
           status={d.status}
           qrUrl={qrUrl}
-          distributeAmountStroops={d.distributeAmountStroops}
           graph={graph}
           initialEvents={d.events.map((e) => ({
             id: e.id,

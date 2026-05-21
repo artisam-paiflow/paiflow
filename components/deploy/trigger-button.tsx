@@ -15,7 +15,7 @@ export function TriggerButton({ deploymentId, network, amount, onSuccess }: Trig
 
   async function onTrigger() {
     if (!amount || !/^\d+$/.test(amount) || amount === "0") {
-      toast.error("Enter a valid stroops amount");
+      toast.error("Enter a valid XLM amount");
       return;
     }
     setBusy(true);

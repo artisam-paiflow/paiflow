@@ -18,6 +18,6 @@ export function formatStroops(stroops: bigint | string, decimals = 7): string {
   const whole = abs / divisor;
   const frac = abs % divisor;
   const fracStr = frac.toString().padStart(decimals, "0").replace(/0+$/, "");
-  const out = fracStr ? `${whole}.${fracStr}` : whole.toString();
+  const out = fracStr ? `${whole}.${fracStr}` : `${whole}.0`;
   return negative ? `-${out}` : out;
 }
