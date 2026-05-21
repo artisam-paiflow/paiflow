@@ -49,7 +49,7 @@ const symbols = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Pink Raft — Zaps for money on Stellar",
+  title: "Pink Raft — Zaps for Payments on Stellar",
   description:
     "Drag, drop, deploy. Pink Raft turns triggers and actions into real Soroban contracts on Stellar in under a minute.",
 };
