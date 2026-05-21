@@ -56,7 +56,7 @@ function getModelChain(callerModel?: string): string[] {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean)
-    : ["llama-3.1-8b-instant", "qwen/qwen3-32b"];
+    : ["meta-llama/llama-4-scout-17b-16e-instruct", "qwen/qwen3-32b"];
   return [primary, ...fallbacks];
 }
 

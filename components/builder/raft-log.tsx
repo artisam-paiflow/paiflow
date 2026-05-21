@@ -500,18 +500,23 @@ export default function RaftLog({
         .marquee-row:nth-child(2) { animation-name: marquee-left; animation-duration: 22s; }
         .marquee-row:nth-child(3) { animation-name: marquee-right; animation-duration: 28s; }
         .marquee-row:hover { animation-play-state: paused !important; }
+        @keyframes pulse-glow {
+          0%, 100% { box-shadow: 0 0 18px rgba(255, 177, 196, 0.45); }
+          50% { box-shadow: 0 0 28px rgba(255, 177, 196, 0.7); }
+        }
+        .pulse-glow { animation: pulse-glow 3s ease-in-out infinite; }
       `}</style>
       {/* Collapsed tab — Railway-style floating pill on right edge */}
       {collapsed && (
         <button
           onClick={onToggleCollapse}
-          className="fixed top-20 right-0 z-40 flex items-center gap-2 rounded-l-lg border-y border-l border-zinc-800 bg-zinc-900 px-3 py-2.5 shadow-lg transition-all hover:bg-zinc-800 hover:pr-4"
+          className="pulse-glow border-primary/50 bg-primary text-on-primary fixed top-20 right-0 z-40 flex items-center gap-2 rounded-l-lg border-y border-l px-3 py-2.5 shadow-[0_0_18px_rgba(255,177,196,0.45)] transition-all duration-200 hover:-translate-y-px hover:pr-4 hover:shadow-[0_0_24px_rgba(255,177,196,0.65)] active:scale-95"
           title="Open AI chat"
         >
-          <div className="bg-brand-500/20 flex h-6 w-6 items-center justify-center rounded-full">
-            <Ship className="text-brand-400 h-3.5 w-3.5" />
+          <div className="bg-on-primary/15 flex h-6 w-6 items-center justify-center rounded-full">
+            <Ship className="text-on-primary h-3.5 w-3.5" />
           </div>
-          <span className="text-sm font-medium text-zinc-300">Ask AI</span>
+          <span className="text-on-primary text-sm font-medium">Ask AI</span>
           {hasPending && (
             <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-900 text-xs text-amber-400">
               {pendingAddresses!.length}
