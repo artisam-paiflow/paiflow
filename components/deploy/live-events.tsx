@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { formatStroops, shortAddrExtraShort } from "@/lib/utils";
 import { stellarExpertTxUrl, type StellarNetwork } from "@/lib/stellar/explorer";
@@ -14,6 +14,7 @@ type Evt = {
   payload: unknown;
   decodedData: Record<string, unknown> | null;
   occurredAt: string;
+  _isNew?: boolean;
 };
 
 type DecodedData = Record<string, unknown>;
@@ -162,7 +163,9 @@ function EventRow({ evt, network }: { evt: Evt; network: StellarNetwork | null }
   const explorerBase = network ? stellarExpertTxUrl(evt.txHash, network) : null;
 
   return (
-    <li className="border-outline-variant/15 bg-surface-container-low/40 space-y-2 rounded-lg border p-3">
+    <li
+      className={`border-outline-variant/15 bg-surface-container-low/40 space-y-2 rounded-lg border p-3${evt._isNew ? "slide-event-in" : ""}`}
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <EventIcon kind={evt.kind} />
@@ -251,16 +254,18 @@ export function LiveEvents({
   graph,
 }: LiveEventsProps) {
   const [events, setEvents] = useState<Evt[]>(initialEvents);
+  const sseStartedRef = useRef(false);
 
   useEffect(() => {
     if (status !== "CONFIRMED") return;
+    sseStartedRef.current = true;
     const es = new EventSource(`/api/deployments/${deploymentId}/events`);
     es.addEventListener("event", (raw) => {
       try {
         const data = JSON.parse((raw as MessageEvent).data) as Evt;
         setEvents((prev) => {
           if (prev.some((p) => p.id === data.id || p.txHash === data.txHash)) return prev;
-          return [data, ...prev].slice(0, 100);
+          return [{ ...data, _isNew: true }, ...prev].slice(0, 100);
         });
       } catch {
         /* ignore */
