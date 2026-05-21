@@ -26,38 +26,61 @@ export default function ChangePassword() {
   }
 
   return (
-    <section className="mt-10 rounded-xl border border-zinc-800 p-6">
-      <h2 className="text-xl font-semibold">Change password</h2>
-      <form action={onSubmit} className="mt-4 grid max-w-md gap-3 text-sm">
-        <label className="grid gap-1">
-          <span className="text-zinc-400">Current password</span>
-          <input
-            type="password"
-            name="current"
-            required
-            autoComplete="current-password"
-            className="rounded border border-zinc-700 bg-zinc-900 px-3 py-2"
-          />
-        </label>
-        <label className="grid gap-1">
-          <span className="text-zinc-400">New password (min 12 chars)</span>
-          <input
-            type="password"
-            name="next"
-            required
-            minLength={12}
-            autoComplete="new-password"
-            className="rounded border border-zinc-700 bg-zinc-900 px-3 py-2"
-          />
-        </label>
+    <section className="glass-panel mt-md p-md rounded-xl">
+      <div className="flex items-center justify-between">
+        <h2 className="text-headline-sm text-on-surface">Change password</h2>
+        <span className="text-label-sm text-on-surface-variant font-mono">/ SECURITY</span>
+      </div>
+      <form action={onSubmit} className="mt-md gap-md grid max-w-md">
+        <Field label="Current password" name="current" autoComplete="current-password" />
+        <Field
+          label="New password"
+          name="next"
+          autoComplete="new-password"
+          minLength={12}
+          helper="Min 12 characters"
+        />
         <button
           type="submit"
           disabled={busy}
-          className="bg-brand-600 hover:bg-brand-500 rounded-md px-4 py-2 font-medium disabled:opacity-60"
+          className="bg-primary px-md py-sm text-label-md text-on-primary inline-flex items-center justify-center gap-2 rounded-lg font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_20px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
         >
-          {busy ? "Saving…" : "Save"}
+          {busy ? "SAVING…" : "SAVE"}
         </button>
       </form>
     </section>
+  );
+}
+
+function Field({
+  label,
+  name,
+  autoComplete,
+  minLength,
+  helper,
+}: {
+  label: string;
+  name: string;
+  autoComplete?: string;
+  minLength?: number;
+  helper?: string;
+}) {
+  return (
+    <label className="group grid gap-1.5">
+      <span className="text-label-sm text-on-surface-variant group-focus-within:text-primary font-mono uppercase transition-colors">
+        {label}
+      </span>
+      <input
+        type="password"
+        name={name}
+        required
+        minLength={minLength}
+        autoComplete={autoComplete}
+        className="border-outline-variant/40 bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-primary rounded border px-3 py-2 font-mono text-[14px] focus:ring-1 focus:outline-none"
+      />
+      {helper ? (
+        <span className="text-label-sm text-on-surface-variant/70 font-mono">{helper}</span>
+      ) : null}
+    </label>
   );
 }

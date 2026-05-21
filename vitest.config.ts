@@ -11,6 +11,8 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./"),
       "server-only": path.resolve(__dirname, "./tests/stubs/server-only.ts"),
+      "@/lib/env": path.resolve(__dirname, "./tests/stubs/env.ts"),
+      dotenv: path.resolve(__dirname, "./tests/stubs/dotenv.ts"),
     },
   },
 });

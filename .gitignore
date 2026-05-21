@@ -1,3 +1,4 @@
+test_snapshots/
 node_modules/
 .next/
 out/
@@ -17,3 +18,5 @@ contracts/target/
 target/
 *.tsbuildinfo
 next-env.d.ts
+.agents/
+skills-lock.json

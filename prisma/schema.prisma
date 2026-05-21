@@ -32,6 +32,7 @@ enum EventKind {
   PAYOUT
   CLAIM
   STATUS_CHANGE
+  CANCEL
 }
 
 model User {
@@ -47,12 +48,42 @@ model User {
   updatedAt    DateTime     @updatedAt
   lastLoginAt  DateTime?
 
-  flows       Flow[]
-  deployments Deployment[]
-  passkeys    Passkey[]
-  sessions    Session[]
-  auditLogs   AuditLog[]
-  files       FileAsset[]
+  flows               Flow[]
+  deployments         Deployment[]
+  passkeys            Passkey[]
+  sessions            Session[]
+  auditLogs           AuditLog[]
+  files               FileAsset[]
+  addressBookEntries  AddressBookEntry[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([expiresAt])
+}
+
+model AddressBookEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  ownerId   String   @db.Uuid
+  label     String
+  address   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, label])
+  @@index([ownerId])
 }
 
 model Session {
@@ -124,6 +155,7 @@ model Deployment {
   confirmedAt     DateTime?
   unsignedXdr     String?
   sourceAccount   String?
+  distributeAmountStroops String?
 
   flow   Flow            @relation(fields: [flowId], references: [id], onDelete: Restrict)
   owner  User            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
@@ -141,6 +173,7 @@ model ContractEvent {
   ledger       Int
   txHash       String
   payload      Json
+  decodedData  Json?
   occurredAt   DateTime
 
   deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)

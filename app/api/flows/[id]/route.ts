@@ -34,15 +34,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     let graph = flow.graph;
     if (body.graph) {
       const v = validateFlow(body.graph);
-      if (!v.ok) {
-        throw new AppError(
-          "VALIDATION",
-          "Invalid flow graph",
-          Object.fromEntries(v.errors.map((e) => [e.path, [e.message]])),
-        );
+      if (v.ok) {
+        templateKind = v.templateKind;
+        parameters = flowToParams(v.graph, v.templateKind) as object;
       }
-      templateKind = v.templateKind;
-      parameters = flowToParams(v.graph, v.templateKind) as object;
+      // Always save the graph even if flow validation fails (intermediate editing state).
       graph = body.graph;
     }
 

@@ -29,10 +29,13 @@
 ## 1. Product Overview
 
 ### 1.1 Problem
+
 Every fintech and SMB that wants **programmable payments** must hire a Rust developer or pick from off-the-shelf SaaS. There is no middle layer.
 
 ### 1.2 Solution
+
 Pink Raft is the missing middle layer:
+
 - Drag triggers (`On Receive`, `On Schedule`) onto a canvas.
 - Drop actions (`Pay`, `Split`) and optional logic (`Condition`).
 - Click **Deploy** — a pre-audited Soroban contract template is instantiated on Stellar with user parameters.
@@ -40,9 +43,11 @@ Pink Raft is the missing middle layer:
 - A live event feed animates the contract's execution in real time.
 
 ### 1.3 Hero Demo Beat
-> Presenter drags **`On Receive USDC` → `Split 60/30/10` → `[Mom, Landlord, Savings]`** on a phone. Hits **Deploy**. QR code appears. Audience member scans, sends 10 testnet USDC. Within 5 seconds, three transactions fan out on the explorer projected on screen.
+
+> Presenter drags **`On Receive USDC` → `Split 60/30/10` → `[Alice, Bob, Charlie]`** on a phone. Hits **Deploy**. QR code appears. Audience member scans, sends 10 testnet USDC. Within 5 seconds, three transactions fan out on the explorer projected on screen.
 
 ### 1.4 Non-Goals (v1)
+
 - Multi-tenant org/team management beyond admin + user accounts.
 - A general-purpose Soroban IDE (we only ship 3 templates).
 - Mainnet deployments by default (testnet only; mainnet behind feature flag).
@@ -55,68 +60,74 @@ Pink Raft is the missing middle layer:
 All versions reflect the latest stable releases as of the build date. Lock with `pnpm` and `pnpm-lock.yaml`.
 
 ### 2.1 Runtime & Tooling
-| Tool | Version | Notes |
-|---|---|---|
-| Node.js | `>=22.11 <23` LTS (Jod) | `engines` field in `package.json` |
-| pnpm | `>=10.0` | enforced via `packageManager` |
-| TypeScript | `^5.7` | `strict: true` |
-| Docker / Compose | `>=27 / v2.30` | local dev only |
+
+| Tool             | Version                 | Notes                             |
+| ---------------- | ----------------------- | --------------------------------- |
+| Node.js          | `>=22.11 <23` LTS (Jod) | `engines` field in `package.json` |
+| pnpm             | `>=10.0`                | enforced via `packageManager`     |
+| TypeScript       | `^5.7`                  | `strict: true`                    |
+| Docker / Compose | `>=27 / v2.30`          | local dev only                    |
 
 ### 2.2 Application Stack
-| Package | Version | Purpose |
-|---|---|---|
-| `next` | `^15.1` | Frontend & backend (App Router, Server Actions, Route Handlers) |
-| `react` / `react-dom` | `^19.0` | UI |
-| `tailwindcss` | `^4.0` | Styling (new CSS-first engine) |
-| `@tailwindcss/postcss` | `^4.0` | PostCSS plugin |
-| `shadcn/ui` | latest (copy-in) | Component primitives (Radix + Tailwind) |
-| `@xyflow/react` | `^12.4` | Drag-drop canvas (formerly `reactflow`) |
-| `lucide-react` | `^0.469` | Icons |
-| `framer-motion` | `^11.15` | Animated arrows on canvas |
-| `zustand` | `^5.0` | Client state for builder canvas |
-| `@tanstack/react-query` | `^5.62` | Server state / RPC polling fallback |
-| `react-hook-form` + `zod` | `^7.54` / `^3.24` | Forms & validation |
-| `qrcode.react` | `^4.2` | QR for SEP-7 payment URI |
-| `sonner` | `^1.7` | Toast notifications |
+
+| Package                   | Version           | Purpose                                                         |
+| ------------------------- | ----------------- | --------------------------------------------------------------- |
+| `next`                    | `^15.1`           | Frontend & backend (App Router, Server Actions, Route Handlers) |
+| `react` / `react-dom`     | `^19.0`           | UI                                                              |
+| `tailwindcss`             | `^4.0`            | Styling (new CSS-first engine)                                  |
+| `@tailwindcss/postcss`    | `^4.0`            | PostCSS plugin                                                  |
+| `shadcn/ui`               | latest (copy-in)  | Component primitives (Radix + Tailwind)                         |
+| `@xyflow/react`           | `^12.4`           | Drag-drop canvas (formerly `reactflow`)                         |
+| `lucide-react`            | `^0.469`          | Icons                                                           |
+| `framer-motion`           | `^11.15`          | Animated arrows on canvas                                       |
+| `zustand`                 | `^5.0`            | Client state for builder canvas                                 |
+| `@tanstack/react-query`   | `^5.62`           | Server state / RPC polling fallback                             |
+| `react-hook-form` + `zod` | `^7.54` / `^3.24` | Forms & validation                                              |
+| `qrcode.react`            | `^4.2`            | QR for SEP-7 payment URI                                        |
+| `sonner`                  | `^1.7`            | Toast notifications                                             |
 
 ### 2.3 Data & Auth
-| Package | Version | Purpose |
-|---|---|---|
-| `prisma` / `@prisma/client` | `^6.1` | ORM, migrations, seed |
-| `pg` | `^8.13` | Postgres driver (for Prisma) |
-| `next-auth` (Auth.js) | `^5.0.0-beta.25` | Session-based auth with Credentials provider |
-| `@auth/prisma-adapter` | `^2.7` | Persists Auth.js sessions in Postgres |
-| `argon2` | `^0.41` | Password hashing (preferred over bcrypt) |
-| `@simplewebauthn/server` | `^11.0` | Passkey registration & assertion (server) |
-| `@simplewebauthn/browser` | `^11.0` | Passkey ceremonies (client) |
-| `ioredis` | `^5.4` | Rate-limit & event stream cache |
+
+| Package                     | Version          | Purpose                                      |
+| --------------------------- | ---------------- | -------------------------------------------- |
+| `prisma` / `@prisma/client` | `^6.1`           | ORM, migrations, seed                        |
+| `pg`                        | `^8.13`          | Postgres driver (for Prisma)                 |
+| `next-auth` (Auth.js)       | `^5.0.0-beta.25` | Session-based auth with Credentials provider |
+| `@auth/prisma-adapter`      | `^2.7`           | Persists Auth.js sessions in Postgres        |
+| `argon2`                    | `^0.41`          | Password hashing (preferred over bcrypt)     |
+| `@simplewebauthn/server`    | `^11.0`          | Passkey registration & assertion (server)    |
+| `@simplewebauthn/browser`   | `^11.0`          | Passkey ceremonies (client)                  |
+| `ioredis`                   | `^5.4`           | Rate-limit & event stream cache              |
 
 ### 2.4 Stellar / Soroban
-| Package | Version | Purpose |
-|---|---|---|
-| `@stellar/stellar-sdk` | `^13.1` | RPC client, transaction builder, Soroban contract invocation |
-| `@stellar/freighter-api` | `^4.1` | Freighter wallet connector (easy-path) |
-| `@creit.tech/stellar-wallets-kit` | `^1.7` | Multi-wallet adapter (Freighter, xBull, Albedo, Hana, LOBSTR) |
-| `@stellar/stellar-base` | (transitive) | XDR primitives |
+
+| Package                           | Version      | Purpose                                                       |
+| --------------------------------- | ------------ | ------------------------------------------------------------- |
+| `@stellar/stellar-sdk`            | `^13.1`      | RPC client, transaction builder, Soroban contract invocation  |
+| `@stellar/freighter-api`          | `^4.1`       | Freighter wallet connector (easy-path)                        |
+| `@creit.tech/stellar-wallets-kit` | `^1.7`       | Multi-wallet adapter (Freighter, xBull, Albedo, Hana, LOBSTR) |
+| `@stellar/stellar-base`           | (transitive) | XDR primitives                                                |
 
 ### 2.5 Observability & Quality
-| Package | Version | Purpose |
-|---|---|---|
-| `pino` + `pino-pretty` | `^9.5` / `^13.0` | Structured logging |
-| `@sentry/nextjs` | `^8.47` | Error reporting (optional, gated by `SENTRY_DSN`) |
-| `eslint` + `eslint-config-next` | `^9.17` / `^15.1` | Lint |
-| `prettier` + `prettier-plugin-tailwindcss` | `^3.4` | Format |
-| `vitest` | `^2.1` | Unit tests |
-| `@playwright/test` | `^1.49` | E2E (deploy → fund → see fan-out) |
-| `husky` + `lint-staged` | `^9.1` / `^15.3` | Pre-commit hooks |
+
+| Package                                    | Version           | Purpose                                           |
+| ------------------------------------------ | ----------------- | ------------------------------------------------- |
+| `pino` + `pino-pretty`                     | `^9.5` / `^13.0`  | Structured logging                                |
+| `@sentry/nextjs`                           | `^8.47`           | Error reporting (optional, gated by `SENTRY_DSN`) |
+| `eslint` + `eslint-config-next`            | `^9.17` / `^15.1` | Lint                                              |
+| `prettier` + `prettier-plugin-tailwindcss` | `^3.4`            | Format                                            |
+| `vitest`                                   | `^2.1`            | Unit tests                                        |
+| `@playwright/test`                         | `^1.49`           | E2E (deploy → fund → see fan-out)                 |
+| `husky` + `lint-staged`                    | `^9.1` / `^15.3`  | Pre-commit hooks                                  |
 
 ### 2.6 Soroban Contract Toolchain (separate workspace, not shipped in Node app)
-| Tool | Version | Purpose |
-|---|---|---|
-| Rust (rustup) | `1.83+` stable | Compile contracts |
-| `cargo-binstall` | latest | Tool installs |
-| `stellar-cli` | `^22.0` | Build, deploy, invoke from CI |
-| `soroban-sdk` (crate) | `^22.0` | Contract SDK |
+
+| Tool                  | Version        | Purpose                       |
+| --------------------- | -------------- | ----------------------------- |
+| Rust (rustup)         | `1.83+` stable | Compile contracts             |
+| `cargo-binstall`      | latest         | Tool installs                 |
+| `stellar-cli`         | `^22.0`        | Build, deploy, invoke from CI |
+| `soroban-sdk` (crate) | `^22.0`        | Contract SDK                  |
 
 ---
 
@@ -156,6 +167,7 @@ All versions reflect the latest stable releases as of the build date. Lock with 
 ```
 
 ### 3.1 Key Architectural Decisions
+
 - **Pre-deployed WASM**: All three Soroban templates are compiled & uploaded once at bootstrap. The "Deploy" button only **instantiates** (creates a contract instance from an existing WASM hash) and **initializes** it with user parameters. This eliminates Rust-toolchain dependencies from the request path and removes a huge class of audit risk.
 - **Client-signed transactions**: Pink Raft **never** holds user private keys. The Next.js backend builds the XDR; the user signs in their wallet; the backend submits the signed envelope.
 - **SSE over WebSocket**: Server-Sent Events are simpler, work over plain HTTP/2, and survive Railway's load balancer without sticky sessions. Used for the live event feed.
@@ -356,12 +368,15 @@ model RateLimitBucket {
 ```
 
 ### 4.1 Seed Script (`prisma/seed.ts`)
+
 Seeds:
+
 1. One admin user (`admin` / password from env `ADMIN_SEED_PASSWORD`, required at seed time; refuse to seed with default in non-dev environments).
 2. Three `ContractTemplate` rows — each row is **upserted** with the WASM hash from `STELLAR_WASM_HASH_SPLITTER`, `..._STREAMER`, `..._CONDITIONAL` env vars (produced by `scripts/upload-wasm.ts`).
 3. A demo flow for the admin in development only (`NODE_ENV !== "production"`).
 
 The seed must:
+
 - Hash the admin password with argon2id (`memoryCost: 19456, timeCost: 2, parallelism: 1` — OWASP 2024 minimum).
 - Be idempotent (upsert).
 - Refuse to run twice in `production` unless `ALLOW_RESEED=true`.
@@ -373,6 +388,7 @@ The seed must:
 Three audited, parameterizable Rust contracts. Source lives under `contracts/` workspace. Pre-built WASMs are uploaded once per network; the app instantiates by `wasm_hash`.
 
 ### 5.1 `splitter` — hero contract
+
 - **Storage**:
   - `admin: Address`
   - `asset: Address` (Soroban Asset Contract address — for USDC use the SAC of the trusted asset)
@@ -386,6 +402,7 @@ Three audited, parameterizable Rust contracts. Source lives under `contracts/` w
 - **Invariant**: sum(bps) == 10_000; rounding remainder goes to the **last recipient** (documented).
 
 ### 5.2 `streamer`
+
 - **Storage**: `admin`, `recipient`, `asset`, `rate_per_second: i128`, `start_ts`, `end_ts`, `claimed: i128`.
 - **Functions**:
   - `__init(admin, recipient, asset, rate, start_ts, end_ts)`
@@ -395,17 +412,20 @@ Three audited, parameterizable Rust contracts. Source lives under `contracts/` w
   - `available()` view.
 
 ### 5.3 `conditional`
+
 - **Storage**: `admin`, `recipient`, `asset`, `amount`, `condition: ConditionKind`, `released: bool`.
 - `ConditionKind` enum: `Timeout(u64)` | `OracleGte { oracle: Address, key: Symbol, threshold: i128 }` | `Multisig { signers: Vec<Address>, threshold: u32 }`.
 - **Functions**: `__init`, `release()`, `cancel()`, `status()`.
 
 ### 5.4 Build & Upload Pipeline
+
 - `pnpm contracts:build` → `stellar contract build` → `target/wasm32v1-none/release/*.wasm`.
 - `pnpm contracts:optimize` → `stellar contract optimize`.
 - `pnpm contracts:upload --network=testnet` → uploads each WASM, writes hashes into `.env.contracts` (consumed by app and seed).
 - All three contracts must include `#[contracttype]` events so the indexer can read them.
 
 ### 5.5 Security Notes (Contracts)
+
 - All numeric arithmetic uses `i128` with checked ops (`checked_add`, `checked_mul`) — no silent overflow.
 - Reentrancy: Soroban's invocation model + single-threaded VM mitigates classical reentrancy; still, **effects-before-interactions** ordering is enforced.
 - Address authorization: every call that mutates state requires `recipient.require_auth()` or `admin.require_auth()`.
@@ -418,22 +438,26 @@ Three audited, parameterizable Rust contracts. Source lives under `contracts/` w
 Exactly five blocks. Each block has a strict TypeScript schema validated by Zod on save and again server-side at deploy time.
 
 ### 6.1 Triggers
+
 - **`on_receive`** — fires when the contract receives `asset`.
   - Config: `asset: enum("XLM","USDC","custom")`, `customAssetCode?`, `customAssetIssuer?`.
 - **`on_schedule`** — fires every `interval`.
   - Config: `interval: enum("minute","hour","day")`, `startsAt: ISODate`, `endsAt?: ISODate`.
 
 ### 6.2 Actions
+
 - **`pay`** — send fixed amount to one address.
   - Config: `recipient: StellarAddress`, `amount: stroops(i128)`, `asset` (same shape as trigger).
 - **`split`** — fan out incoming amount by percentage.
   - Config: `recipients: Array<{ address: StellarAddress, bps: 1..10_000, label?: string }>` (must sum to 10_000), `asset`.
 
 ### 6.3 Logic
+
 - **`condition`** — gates downstream blocks.
   - Config: `kind: enum("amount_gt","amount_lt","oracle_gte","time_after","time_before")` + kind-specific fields.
 
 ### 6.4 Validation Rules
+
 - Exactly one trigger (root) per flow.
 - A flow must terminate in at least one action.
 - Edges flow trigger → (condition?) → action; no cycles (Zod refine + DAG check).
@@ -443,7 +467,9 @@ Exactly five blocks. Each block has a strict TypeScript schema validated by Zod 
   - `[on_receive|on_schedule] → [condition] → [pay|split]` → **CONDITIONAL**
 
 ### 6.5 English Preview Pane
+
 A pure function `flowToEnglish(graph): string` renders the canvas into natural language for non-technical judges:
+
 > "When this contract receives **USDC**, split **60%** to `GABC…XYZ`, **30%** to `GDEF…UVW`, **10%** to `GHIJ…RST`."
 
 ---
@@ -452,33 +478,34 @@ A pure function `flowToEnglish(graph): string` renders the canvas into natural l
 
 Next.js App Router (`/app/...`). Server Components by default; mark interactive nodes `"use client"`.
 
-| Path | Description | Auth |
-|---|---|---|
-| `/` | Marketing landing — hero, three-step demo GIF, CTA → `/login`. | public |
-| `/login` | Username + password form. Includes "Sign in with Passkey" button. | public |
-| `/register` | Self-serve registration (feature-flagged via `ALLOW_PUBLIC_REGISTRATION`). Default: off; users created by admin. | public if flag |
-| `/forgot-password` | (v1.1) | public |
-| `/dashboard` | List of flows + deployments, "New flow" CTA, account balance hint. | user |
-| `/flows/new` | Empty canvas. | user |
-| `/flows/[flowId]` | Edit canvas. Auto-saves graph every 1.5s (debounced). | owner |
-| `/flows/[flowId]/deploy` | Deploy modal: review English preview, choose network, click **Deploy** → wallet signs → status stream. | owner |
-| `/deployments/[deploymentId]` | Live view: contract address, QR code, SEP-7 URI, animated event feed overlaid on the canvas. | owner |
-| `/deployments/[deploymentId]/embed` | A public read-only embed of the deployment (for demo projection). | public, but only renders status / events; no controls. |
-| `/account` | Change password, manage passkeys, sessions list, log out everywhere. | user |
-| `/admin` | Admin dashboard: users, deployments across all users, audit log. | admin |
-| `/admin/users` | CRUD users, reset passwords (one-time link). | admin |
-| `/admin/templates` | View deployed WASM hashes per network. Re-upload via signed CLI flow. | admin |
-| `/api/health` | Liveness + readiness. | public |
-| `/about`, `/privacy`, `/terms` | Static MDX. | public |
+| Path                                | Description                                                                                                      | Auth                                                   |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `/`                                 | Marketing landing — hero, three-step demo GIF, CTA → `/login`.                                                   | public                                                 |
+| `/login`                            | Username + password form. Includes "Sign in with Passkey" button.                                                | public                                                 |
+| `/register`                         | Self-serve registration (feature-flagged via `ALLOW_PUBLIC_REGISTRATION`). Default: off; users created by admin. | public if flag                                         |
+| `/forgot-password`                  | (v1.1)                                                                                                           | public                                                 |
+| `/dashboard`                        | List of flows + deployments, "New flow" CTA, account balance hint.                                               | user                                                   |
+| `/flows/new`                        | Empty canvas.                                                                                                    | user                                                   |
+| `/flows/[flowId]`                   | Edit canvas. Auto-saves graph every 1.5s (debounced).                                                            | owner                                                  |
+| `/flows/[flowId]/deploy`            | Deploy modal: review English preview, choose network, click **Deploy** → wallet signs → status stream.           | owner                                                  |
+| `/deployments/[deploymentId]`       | Live view: contract address, QR code, SEP-7 URI, animated event feed overlaid on the canvas.                     | owner                                                  |
+| `/deployments/[deploymentId]/embed` | A public read-only embed of the deployment (for demo projection).                                                | public, but only renders status / events; no controls. |
+| `/account`                          | Change password, manage passkeys, sessions list, log out everywhere.                                             | user                                                   |
+| `/admin`                            | Admin dashboard: users, deployments across all users, audit log.                                                 | admin                                                  |
+| `/admin/users`                      | CRUD users, reset passwords (one-time link).                                                                     | admin                                                  |
+| `/admin/templates`                  | View deployed WASM hashes per network. Re-upload via signed CLI flow.                                            | admin                                                  |
+| `/api/health`                       | Liveness + readiness.                                                                                            | public                                                 |
+| `/about`, `/privacy`, `/terms`      | Static MDX.                                                                                                      | public                                                 |
 
 ### 7.1 Builder Page Layout
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ Top bar:  [Pink Raft]  flow-name (editable)  [Deploy]  [Avatar] │
 ├─────────┬─────────────────────────────────────┬────────────────┤
 │ Block   │                                     │ Config panel   │
 │ palette │           React Flow canvas         │ (selected      │
-│ (drag   │  ▢ on_receive ─▶ ▢ split ─▶ {Mom,…} │  block fields) │
+│ (drag   │  ▢ on_receive ─▶ ▢ split ─▶ {Alice,…} │  block fields) │
 │  source)│                                     │                │
 │         │                                     │ ──────────────  │
 │         │                                     │ English preview│
@@ -493,51 +520,56 @@ Next.js App Router (`/app/...`). Server Components by default; mark interactive 
 All endpoints under `/api/*` are Next.js Route Handlers in `app/api/.../route.ts`. Request and response bodies are validated with Zod. All mutating endpoints require an authenticated session and a CSRF double-submit token (Auth.js provides this).
 
 ### 8.1 Auth
-| Method | Path | Body / Query | Response | Notes |
-|---|---|---|---|---|
-| POST | `/api/auth/[...nextauth]` | (Auth.js) | (Auth.js) | Credentials provider |
-| POST | `/api/auth/register` | `{ username, password }` | `201 { id }` | 422 if validation fails; rate-limited |
-| POST | `/api/auth/passkey/register/options` | — | WebAuthn options | session required |
-| POST | `/api/auth/passkey/register/verify` | `attestationResponse` | `{ ok }` | session required |
-| POST | `/api/auth/passkey/login/options` | `{ username? }` | options | public |
-| POST | `/api/auth/passkey/login/verify` | `assertion` | sets session | public |
-| POST | `/api/auth/logout` | — | `204` | clears session |
-| POST | `/api/auth/sessions/revoke-all` | — | `204` | invalidates all sessions for current user |
+
+| Method | Path                                 | Body / Query             | Response         | Notes                                     |
+| ------ | ------------------------------------ | ------------------------ | ---------------- | ----------------------------------------- |
+| POST   | `/api/auth/[...nextauth]`            | (Auth.js)                | (Auth.js)        | Credentials provider                      |
+| POST   | `/api/auth/register`                 | `{ username, password }` | `201 { id }`     | 422 if validation fails; rate-limited     |
+| POST   | `/api/auth/passkey/register/options` | —                        | WebAuthn options | session required                          |
+| POST   | `/api/auth/passkey/register/verify`  | `attestationResponse`    | `{ ok }`         | session required                          |
+| POST   | `/api/auth/passkey/login/options`    | `{ username? }`          | options          | public                                    |
+| POST   | `/api/auth/passkey/login/verify`     | `assertion`              | sets session     | public                                    |
+| POST   | `/api/auth/logout`                   | —                        | `204`            | clears session                            |
+| POST   | `/api/auth/sessions/revoke-all`      | —                        | `204`            | invalidates all sessions for current user |
 
 ### 8.2 Flows
-| Method | Path | Body | Response |
-|---|---|---|---|
-| GET | `/api/flows` | `?cursor&limit` | `{ items: Flow[], nextCursor }` |
-| POST | `/api/flows` | `{ name, graph }` | `201 Flow` |
-| GET | `/api/flows/:id` | — | `Flow` |
-| PATCH | `/api/flows/:id` | `{ name?, graph? }` | `Flow` (validates graph; computes parameters & templateKind) |
-| DELETE | `/api/flows/:id` | — | `204` |
-| POST | `/api/flows/:id/validate` | — | `{ ok, errors? }` (server-side Zod + DAG check) |
-| POST | `/api/flows/:id/preview` | — | `{ english: string }` |
+
+| Method | Path                      | Body                | Response                                                     |
+| ------ | ------------------------- | ------------------- | ------------------------------------------------------------ |
+| GET    | `/api/flows`              | `?cursor&limit`     | `{ items: Flow[], nextCursor }`                              |
+| POST   | `/api/flows`              | `{ name, graph }`   | `201 Flow`                                                   |
+| GET    | `/api/flows/:id`          | —                   | `Flow`                                                       |
+| PATCH  | `/api/flows/:id`          | `{ name?, graph? }` | `Flow` (validates graph; computes parameters & templateKind) |
+| DELETE | `/api/flows/:id`          | —                   | `204`                                                        |
+| POST   | `/api/flows/:id/validate` | —                   | `{ ok, errors? }` (server-side Zod + DAG check)              |
+| POST   | `/api/flows/:id/preview`  | —                   | `{ english: string }`                                        |
 
 ### 8.3 Deployments
-| Method | Path | Body | Response |
-|---|---|---|---|
-| GET | `/api/deployments` | `?cursor&limit&flowId&status` | paginated list |
-| POST | `/api/deployments/prepare` | `{ flowId, network, sourceAccount }` | `{ deploymentId, xdr, sorobanData, deployFootprint }` — unsigned XDR for client to sign |
-| POST | `/api/deployments/:id/submit` | `{ signedXdr }` | `{ status, txHash }` — backend submits to Soroban RPC |
-| GET | `/api/deployments/:id` | — | `Deployment` |
-| GET | `/api/deployments/:id/events` | (SSE) | text/event-stream of `ContractEvent` |
-| GET | `/api/deployments/:id/qr` | `?size&format=svg|png` | image | computes SEP-7 URI server-side; URI is also returned in JSON form for copy |
-| GET | `/api/deployments/:id/sep7` | — | `{ uri }` |
+
+| Method | Path                          | Body                                 | Response                                                                                |
+| ------ | ----------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------- | ----- | -------------------------------------------------------------------------- |
+| GET    | `/api/deployments`            | `?cursor&limit&flowId&status`        | paginated list                                                                          |
+| POST   | `/api/deployments/prepare`    | `{ flowId, network, sourceAccount }` | `{ deploymentId, xdr, sorobanData, deployFootprint }` — unsigned XDR for client to sign |
+| POST   | `/api/deployments/:id/submit` | `{ signedXdr }`                      | `{ status, txHash }` — backend submits to Soroban RPC                                   |
+| GET    | `/api/deployments/:id`        | —                                    | `Deployment`                                                                            |
+| GET    | `/api/deployments/:id/events` | (SSE)                                | text/event-stream of `ContractEvent`                                                    |
+| GET    | `/api/deployments/:id/qr`     | `?size&format=svg                    | png`                                                                                    | image | computes SEP-7 URI server-side; URI is also returned in JSON form for copy |
+| GET    | `/api/deployments/:id/sep7`   | —                                    | `{ uri }`                                                                               |
 
 ### 8.4 Internal / Operational
-| Method | Path | Auth | Notes |
-|---|---|---|---|
-| POST | `/api/cron/poll-events` | Cron secret header (`X-Cron-Secret`) | Polls Soroban RPC for new events for all `CONFIRMED` deployments, persists to `ContractEvent`, publishes to Redis. Runs every 15s via Railway cron. |
-| POST | `/api/cron/finalize-deployments` | Cron secret | For `SUBMITTED` deployments older than 30s, checks tx status, updates to `CONFIRMED` / `FAILED`. |
-| GET | `/api/health` | public | `{ status, db, redis, rpc }` |
-| GET | `/api/admin/audit-log` | admin | paginated audit entries |
-| GET | `/api/admin/users` | admin | list, search |
-| POST | `/api/admin/users` | admin | create user |
-| PATCH | `/api/admin/users/:id` | admin | activate/deactivate, role, reset password |
+
+| Method | Path                             | Auth                                 | Notes                                                                                                                                               |
+| ------ | -------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/api/cron/poll-events`          | Cron secret header (`X-Cron-Secret`) | Polls Soroban RPC for new events for all `CONFIRMED` deployments, persists to `ContractEvent`, publishes to Redis. Runs every 15s via Railway cron. |
+| POST   | `/api/cron/finalize-deployments` | Cron secret                          | For `SUBMITTED` deployments older than 30s, checks tx status, updates to `CONFIRMED` / `FAILED`.                                                    |
+| GET    | `/api/health`                    | public                               | `{ status, db, redis, rpc }`                                                                                                                        |
+| GET    | `/api/admin/audit-log`           | admin                                | paginated audit entries                                                                                                                             |
+| GET    | `/api/admin/users`               | admin                                | list, search                                                                                                                                        |
+| POST   | `/api/admin/users`               | admin                                | create user                                                                                                                                         |
+| PATCH  | `/api/admin/users/:id`           | admin                                | activate/deactivate, role, reset password                                                                                                           |
 
 ### 8.5 Response Conventions
+
 - JSON envelope: `{ data: T }` on success, `{ error: { code, message, fields? } }` on failure.
 - Error codes: `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `VALIDATION`, `CONFLICT`, `RATE_LIMITED`, `UPSTREAM_RPC`, `INTERNAL`.
 - All list endpoints use **cursor pagination** (`uuidv7` ordered).
@@ -548,6 +580,7 @@ All endpoints under `/api/*` are Next.js Route Handlers in `app/api/.../route.ts
 ## 9. Authentication & Authorization
 
 ### 9.1 Primary: username + password (required by brief)
+
 - Auth.js v5 Credentials provider.
 - Argon2id hashing (`memoryCost: 19456 KiB, timeCost: 2, parallelism: 1`).
 - Lockout: 5 failed attempts → 15-minute lock (`User.lockedUntil`). Counter resets on success.
@@ -558,21 +591,25 @@ All endpoints under `/api/*` are Next.js Route Handlers in `app/api/.../route.ts
 - Session: JWT **encrypted** (JWE) in an `__Host-pinkraft.session` cookie. `HttpOnly`, `Secure`, `SameSite=Lax`. 7-day lifetime, sliding refresh.
 
 ### 9.2 Optional: Passkey ("wow path")
+
 - WebAuthn via `@simplewebauthn/*`.
 - `rpId = process.env.AUTH_RP_ID` (e.g., `pinkraft.app`).
 - Stored per-user in `Passkey` table. Counter incremented on assertion to defeat clones.
 - Users may register additional devices. A user with **only** passkeys still has a password (the brief requires "basic username and password" baseline).
 
 ### 9.3 Authorization
+
 - Two roles: `ADMIN`, `USER`.
 - Route protection via a `requireSession(role?)` helper used in every Route Handler and Server Action.
 - Ownership checks: every flow/deployment endpoint verifies `resource.ownerId === session.user.id` unless role is `ADMIN`.
 - Admin actions are double-confirmed in UI and emit an `AuditLog` entry.
 
 ### 9.4 CSRF
+
 - Auth.js v5's built-in double-submit pattern for all `POST/PATCH/DELETE`. Server Actions are CSRF-safe by default (signed action ID).
 
 ### 9.5 Seeded Admin
+
 - Username: `admin`.
 - Password: from env `ADMIN_SEED_PASSWORD` (required; no default). Seed exits non-zero if missing.
 
@@ -581,10 +618,12 @@ All endpoints under `/api/*` are Next.js Route Handlers in `app/api/.../route.ts
 ## 10. Wallet & On-Chain Integration
 
 ### 10.1 Wallet Connection
+
 - Default connector: **Stellar Wallets Kit** (covers Freighter, xBull, Albedo, Hana, LOBSTR, WalletConnect).
 - The wallet's public key is stored only in client state, not in the DB (no custody).
 
 ### 10.2 Deploy Flow (sequence)
+
 ```
 Client                              Server                       Stellar
   │  POST /flows/:id/validate         │                            │
@@ -627,11 +666,13 @@ Client                              Server                       Stellar
 ```
 
 ### 10.3 SEP-7 Payment URI
+
 - Format: `web+stellar:pay?destination=<C-address>&asset_code=USDC&asset_issuer=<G-issuer>&amount=<optional>&memo=<optional>&msg=...`.
 - For Soroban contracts on testnet, generate a QR that opens this in any SEP-7-compatible wallet.
 - A copy button exposes the raw URI for terminals without QR.
 
 ### 10.4 RPC Endpoints (env)
+
 - `STELLAR_HORIZON_URL_TESTNET=https://horizon-testnet.stellar.org`
 - `STELLAR_SOROBAN_RPC_URL_TESTNET=https://soroban-testnet.stellar.org`
 - `STELLAR_NETWORK_PASSPHRASE_TESTNET="Test SDF Network ; September 2015"`
@@ -642,6 +683,7 @@ Client                              Server                       Stellar
 ## 11. Real-Time Event Feed
 
 ### 11.1 Polling worker (`/api/cron/poll-events`)
+
 - Runs every **15 seconds** (Railway cron).
 - For each `CONFIRMED` deployment:
   1. Read `EventCursor.lastLedger`.
@@ -652,12 +694,14 @@ Client                              Server                       Stellar
   6. Advance cursor.
 
 ### 11.2 SSE handler (`/api/deployments/:id/events`)
+
 - Subscribes to Redis channel.
 - On open, replays the last 50 events from Postgres so reloads catch up.
 - Sends `event: ping\ndata: {}` every 25s (heartbeat).
 - Closes when client disconnects; cleans up subscriber.
 
 ### 11.3 Animated canvas
+
 - The deployment view re-renders the same React Flow canvas in read-only mode.
 - Each `RECEIVE` event flashes the trigger node, then animates an arrow downstream.
 - For `split`, three child arrows fan out simultaneously with amount labels.
@@ -666,19 +710,19 @@ Client                              Server                       Stellar
 
 ## 12. Third-Party Services
 
-| Service | Use | Required | Env |
-|---|---|---|---|
-| **Railway** | Hosting (Next.js app, Postgres plugin, Redis plugin, cron, volume) | yes | (managed) |
-| **Railway Postgres** | Primary DB | yes | `DATABASE_URL` |
-| **Railway Redis** | Pub/sub + rate-limit | yes | `REDIS_URL` |
-| **Railway Volume** | File storage (avatars, exported flow JSON) mounted at `/data/files` | yes | `FILE_STORAGE_PATH=/data/files` |
-| **Stellar Horizon (testnet)** | Account info, asset queries | yes | `STELLAR_HORIZON_URL_TESTNET` |
-| **Stellar Soroban RPC (testnet)** | Contract simulate / submit / events | yes | `STELLAR_SOROBAN_RPC_URL_TESTNET` |
-| **Stellar Friendbot** | Fund testnet demo accounts in dev | dev | `STELLAR_FRIENDBOT_URL` |
-| **Stellar Wallets Kit** (client lib) | Wallet connect | yes | n/a |
-| **Have I Been Pwned API** | Optional password check | optional | (no key needed) |
-| **Sentry** | Error tracking | optional | `SENTRY_DSN`, `SENTRY_AUTH_TOKEN` |
-| **Resend** (or Postmark) | Transactional email for password reset (v1.1) | optional | `RESEND_API_KEY` |
+| Service                              | Use                                                                 | Required | Env                               |
+| ------------------------------------ | ------------------------------------------------------------------- | -------- | --------------------------------- |
+| **Railway**                          | Hosting (Next.js app, Postgres plugin, Redis plugin, cron, volume)  | yes      | (managed)                         |
+| **Railway Postgres**                 | Primary DB                                                          | yes      | `DATABASE_URL`                    |
+| **Railway Redis**                    | Pub/sub + rate-limit                                                | yes      | `REDIS_URL`                       |
+| **Railway Volume**                   | File storage (avatars, exported flow JSON) mounted at `/data/files` | yes      | `FILE_STORAGE_PATH=/data/files`   |
+| **Stellar Horizon (testnet)**        | Account info, asset queries                                         | yes      | `STELLAR_HORIZON_URL_TESTNET`     |
+| **Stellar Soroban RPC (testnet)**    | Contract simulate / submit / events                                 | yes      | `STELLAR_SOROBAN_RPC_URL_TESTNET` |
+| **Stellar Friendbot**                | Fund testnet demo accounts in dev                                   | dev      | `STELLAR_FRIENDBOT_URL`           |
+| **Stellar Wallets Kit** (client lib) | Wallet connect                                                      | yes      | n/a                               |
+| **Have I Been Pwned API**            | Optional password check                                             | optional | (no key needed)                   |
+| **Sentry**                           | Error tracking                                                      | optional | `SENTRY_DSN`, `SENTRY_AUTH_TOKEN` |
+| **Resend** (or Postmark)             | Transactional email for password reset (v1.1)                       | optional | `RESEND_API_KEY`                  |
 
 > **File service note**: The brief specifies "File services: Use Railway". We use a Railway Volume mounted into the app at `/data/files` and front it with a server-only `app/api/files/[id]/route.ts` handler that streams files with `Content-Disposition` and an auth check. Local dev uses MinIO as a drop-in replacement (S3-compatible client wrapper makes the switch trivial if Railway adds object storage later).
 
@@ -687,6 +731,7 @@ Client                              Server                       Stellar
 ## 13. Security & Application Best Practices
 
 ### 13.1 HTTP Hardening
+
 - Strict CSP (no `unsafe-inline`; nonce-based for inline scripts that Next.js emits):
   ```
   default-src 'self';
@@ -706,15 +751,18 @@ Client                              Server                       Stellar
 - Headers set via `next.config.ts` `headers()` and double-checked in `middleware.ts`.
 
 ### 13.2 Input Validation
+
 - **Every** Route Handler parses its inputs with Zod (`request.json()` → `schema.parse()`).
 - Stellar addresses validated via `StrKey.isValidEd25519PublicKey` / `StrKey.isValidContract`.
 - Numeric amounts handled as `bigint` (or string at the wire) — never `number` — to avoid precision loss.
 
 ### 13.3 Output Encoding
+
 - React escapes by default; never use `dangerouslySetInnerHTML` outside of MDX rendering with a sanitized pipeline (`rehype-sanitize`).
 - File downloads always set `Content-Type` and `Content-Disposition: attachment; filename=...` with a safe filename.
 
 ### 13.4 Authentication Hardening
+
 - Argon2id with parameters tuned to ≥ 50ms on the target hardware.
 - Generic error messages: `"Invalid username or password"` regardless of which is wrong.
 - Lockouts (see §9.1). Audit log entries for every login attempt (success and failure).
@@ -722,11 +770,13 @@ Client                              Server                       Stellar
 - "Sign out everywhere" deletes all `Session` rows for the user.
 
 ### 13.5 Authorization
+
 - Default-deny: every handler starts with `const session = await requireSession()`.
 - Ownership predicate: `await db.flow.findFirstOrThrow({ where: { id, ownerId: session.user.id } })`.
 - Admin-only endpoints check `session.user.role === 'ADMIN'`.
 
 ### 13.6 Rate Limiting
+
 - `ioredis` token bucket, applied in `middleware.ts`:
   - Per-IP global: 100 req / 10 s.
   - Per-user write: 30 req / minute on `POST|PATCH|DELETE`.
@@ -734,27 +784,32 @@ Client                              Server                       Stellar
 - Fallback to in-Postgres `RateLimitBucket` if Redis is unavailable; fail-closed on auth routes.
 
 ### 13.7 Secrets Management
+
 - All secrets via Railway env vars; never committed.
 - `.env.example` mirrors required keys with empty values.
 - `dotenv-safe`-style boot check: app refuses to start if a required env var is missing (Zod-validated `env.ts` module).
 
 ### 13.8 Logging & Audit
+
 - Pino structured logs to stdout (Railway captures).
 - Redact `password`, `passwordHash`, `signedXdr`, `cookie`, `authorization` automatically.
 - `AuditLog` rows for: login (success/fail), logout, user CRUD, flow CRUD, deploy submit, deploy confirm, deploy fail, passkey add/remove.
 
 ### 13.9 Dependency Hygiene
+
 - `pnpm audit --prod` runs in CI; non-zero fails the build.
 - Renovate config (`renovate.json`) for weekly minor/patch updates.
 - `package.json` `"engines"` enforced via `engine-strict=true` in `.npmrc`.
 
 ### 13.10 Smart Contract Safety
+
 - Three audited templates only — no user-generated Rust on the request path.
 - All `__init` arguments validated server-side **and** in-contract (defense in depth).
 - Splitter `recipients` count capped at 20 to bound transaction footprint.
 - Mainnet gated by feature flag + per-user allowlist.
 
 ### 13.11 OWASP ASVS Quick Map
+
 - A01 Broken Access Control → ownership predicates, default-deny.
 - A02 Cryptographic Failures → argon2id, JWE sessions, HTTPS only.
 - A03 Injection → Prisma parameterized queries; no raw SQL except in a single `safeRaw` helper that uses tagged templates.
@@ -769,19 +824,24 @@ Client                              Server                       Stellar
 ## 14. Local Development Configuration
 
 ### 14.1 `docker-compose.yml` (dev only)
+
 Services:
+
 - `postgres:16-alpine` → exposes 5432.
 - `redis:7-alpine` → exposes 6379.
 - `minio:latest` (file storage, S3-compatible) → exposes 9000 (API) and 9001 (console). Volume mounted at `./.docker/minio`.
-- `mailhog/mailhog:latest` (optional, email capture for password reset flow in v1.1) → exposes 8025.
+
+Email is **not** a containerized service. Transactional email goes through [Resend](https://resend.com) over HTTPS via `RESEND_API_KEY` (optional in dev — `lib/mail.ts` logs to stdout when the key is unset; required in production for password-reset and other system emails).
 
 Profiles let devs start a minimal set:
+
 ```
 docker compose --profile core up -d       # postgres + redis
-docker compose --profile full up -d       # + minio + mailhog
+docker compose --profile full up -d       # + minio
 ```
 
 ### 14.2 `.env.example`
+
 ```dotenv
 # ---- App ----
 NODE_ENV=development
@@ -833,6 +893,7 @@ HIBP_CHECK_ENABLED=true
 ```
 
 ### 14.3 Scripts (`package.json`)
+
 ```jsonc
 {
   "scripts": {
@@ -853,12 +914,13 @@ HIBP_CHECK_ENABLED=true
     "contracts:upload": "tsx scripts/upload-wasm.ts",
     "docker:up": "docker compose --profile full up -d",
     "docker:down": "docker compose down -v",
-    "prepare": "husky"
-  }
+    "prepare": "husky",
+  },
 }
 ```
 
 ### 14.4 First-time setup
+
 ```bash
 pnpm install
 cp .env.example .env.local && $EDITOR .env.local   # set AUTH_SECRET, ADMIN_SEED_PASSWORD
@@ -874,6 +936,7 @@ pnpm dev
 ## 15. Deployment (Railway)
 
 ### 15.1 Services
+
 - **`web`** — Next.js app. Build: `pnpm install --frozen-lockfile && pnpm db:generate && pnpm build`. Start: `pnpm db:migrate:deploy && pnpm start`. Health: `GET /api/health`.
 - **`postgres`** — Railway managed Postgres plugin.
 - **`redis`** — Railway managed Redis plugin.
@@ -883,15 +946,18 @@ pnpm dev
   - `*/1 * * * * curl ... /api/cron/finalize-deployments`
 
 ### 15.2 Build & Deploy
+
 - Connect GitHub repo to Railway; build uses `nixpacks` with Node 22 + pnpm.
 - Migrations run automatically on deploy (`prisma migrate deploy` before `next start`).
 - Zero-downtime: Railway's default rolling deploy.
 - Promote → production: PR merge to `main` triggers build.
 
 ### 15.3 Secrets in Railway
+
 Set all values from `.env.example` in the project's "Variables" page; mark `AUTH_SECRET`, `ADMIN_SEED_PASSWORD`, `CRON_SECRET`, `SENTRY_AUTH_TOKEN`, `MINIO_SECRET_KEY` as secrets (hidden).
 
 ### 15.4 Domain
+
 - Custom domain `pinkraft.app` → Railway-managed TLS (Let's Encrypt).
 - `AUTH_RP_ID=pinkraft.app`, `NEXT_PUBLIC_APP_URL=https://pinkraft.app`.
 
@@ -902,8 +968,8 @@ Set all values from `.env.example` in the project's "Variables" page; mark `AUTH
 1. Presenter opens `https://pinkraft.app` on a phone.
 2. Logs in with passkey (Face ID).
 3. Drags `On Receive USDC` → `Split` block.
-4. Adds three recipients: `Mom 60%`, `Landlord 30%`, `Savings 10%`.
-5. The English preview pane reads: *"When this contract receives USDC, split 60% to GABC…, 30% to GDEF…, 10% to GHIJ…."*
+4. Adds three recipients: `Alice 60%`, `Bob 30%`, `Charlie 10%`.
+5. The English preview pane reads: _"When this contract receives USDC, split 60% to GABC…, 30% to GDEF…, 10% to GHIJ…."_
 6. Hits **Deploy** → wallet pop-up → signs.
 7. QR code + contract address appears.
 8. Audience member scans QR with their wallet, sends 10 testnet USDC.
@@ -1013,4 +1079,3 @@ pinkraft/
 1. Is the seed flow allowed to grant the admin one pre-funded testnet account for the demo, or must the admin friendbot-fund themselves?
 2. For mainnet (post-hackathon), do we want a fee-bumper service so users without XLM can still deploy?
 3. Should the embed page (`/deployments/.../embed`) require a signed URL to avoid leaking contract activity?
-

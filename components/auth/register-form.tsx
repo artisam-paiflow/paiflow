@@ -26,38 +26,48 @@ export default function RegisterForm() {
   }
 
   return (
-    <form
-      action={onSubmit}
-      className="mt-6 grid gap-4 rounded-xl border border-zinc-800 bg-zinc-950 p-6"
-    >
-      <label className="grid gap-1">
-        <span className="text-sm text-zinc-400">Username</span>
+    <form action={onSubmit} className="glass-panel mt-md gap-md p-md grid rounded-xl">
+      <label className="group grid gap-1.5">
+        <span className="text-label-sm text-on-surface-variant group-focus-within:text-primary font-mono uppercase transition-colors">
+          Username
+        </span>
         <input
           name="username"
           required
           minLength={3}
           maxLength={32}
           pattern="[a-zA-Z0-9_.\-]+"
-          className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2"
+          className="border-outline-variant/40 bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-primary w-full rounded border px-3 py-2 font-mono text-[14px] focus:ring-1 focus:outline-none"
         />
+        <span className="text-label-sm text-on-surface-variant/70 font-mono">
+          3–32 chars · letters, digits, _ . -
+        </span>
       </label>
-      <label className="grid gap-1">
-        <span className="text-sm text-zinc-400">Password (min 12 chars)</span>
+      <label className="group grid gap-1.5">
+        <span className="text-label-sm text-on-surface-variant group-focus-within:text-primary font-mono uppercase transition-colors">
+          Password
+        </span>
         <input
           type="password"
           name="password"
           required
           minLength={12}
           maxLength={256}
-          className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2"
+          className="border-outline-variant/40 bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-primary w-full rounded border px-3 py-2 font-mono text-[14px] focus:ring-1 focus:outline-none"
         />
+        <span className="text-label-sm text-on-surface-variant/70 font-mono">
+          Min 12 characters
+        </span>
       </label>
       <button
         type="submit"
         disabled={submitting}
-        className="rounded-md bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-500 disabled:opacity-60"
+        className="bg-primary px-md py-sm text-label-md text-on-primary mt-2 inline-flex items-center justify-center gap-2 rounded-lg font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_20px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >
-        {submitting ? "Creating…" : "Create account"}
+        {submitting ? "CREATING…" : "CREATE ACCOUNT"}
+        {!submitting ? (
+          <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+        ) : null}
       </button>
     </form>
   );

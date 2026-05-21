@@ -2,41 +2,7 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { TemplateKind } from "@prisma/client";
-
-const STARTER_GRAPH = {
-  nodes: [
-    {
-      id: "trigger-1",
-      type: "on_receive",
-      config: { asset: { kind: "known", symbol: "USDC" } },
-    },
-    {
-      id: "action-1",
-      type: "split",
-      config: {
-        asset: { kind: "known", symbol: "USDC" },
-        recipients: [
-          {
-            address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
-            bps: 6000,
-            label: "Mom",
-          },
-          {
-            address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
-            bps: 3000,
-            label: "Landlord",
-          },
-          {
-            address: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
-            bps: 1000,
-            label: "Savings",
-          },
-        ],
-      },
-    },
-  ],
-  edges: [{ id: "e1", source: "trigger-1", target: "action-1" }],
-} as const;
+import { STARTER_GRAPH } from "@/lib/flows/starter";
 
 export default async function NewFlow() {
   const user = await requireSession();
