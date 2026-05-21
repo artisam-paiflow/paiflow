@@ -371,16 +371,9 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         <Palette onAdd={addNode} flowNodes={flowNodes} templateKind={templateKind} />
 
         <div className="grid min-h-0 grid-rows-[auto_auto_1fr]">
-          {/* Row 1: Deploy → editable title → Ask AI */}
+          {/* Row 1: Deploy + Ask AI → editable title */}
           <div className="px-md gap-md flex items-center py-3">
             <DeployButton flowId={flowId} />
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              aria-label="Flow name"
-              className="text-headline-sm text-on-surface max-w-[40ch] min-w-[12ch] flex-1 border-0 bg-transparent px-0 py-1 font-semibold tracking-[-0.01em] outline-none focus:outline-none"
-              style={{ fieldSizing: "content" } as React.CSSProperties}
-            />
             <button
               onClick={() => setChatCollapsed((v) => !v)}
               aria-expanded={!chatCollapsed}
@@ -397,6 +390,13 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
               </span>
               {chatCollapsed ? "Ask AI" : "Close AI"}
             </button>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              aria-label="Flow name"
+              className="text-headline-sm text-on-surface max-w-[40ch] min-w-[12ch] flex-1 border-0 bg-transparent px-0 py-1 font-semibold tracking-[-0.01em] outline-none focus:outline-none"
+              style={{ fieldSizing: "content" } as React.CSSProperties}
+            />
           </div>
 
           {/* Row 2: English Preview */}
