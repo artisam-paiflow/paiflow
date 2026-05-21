@@ -11,6 +11,22 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 ---
 
+## Pitch deck
+
+A 10-slide draft investor deck (MARP) lives at [`docs/pitch-deck.md`](docs/pitch-deck.md) — sized for a 3-minute pitch, themed to match [`BRAND.md`](BRAND.md).
+
+```bash
+# PDF
+npx @marp-team/marp-cli docs/pitch-deck.md -o pitch-deck.pdf
+
+# Live preview
+npx @marp-team/marp-cli --preview docs/pitch-deck.md
+```
+
+Team names, raise size, and pricing tiers are placeholders — swap before sharing externally.
+
+---
+
 ## Stack
 
 | Layer         | Tech                                                                          |
