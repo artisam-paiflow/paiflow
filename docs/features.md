@@ -2,6 +2,20 @@
 
 Running log of user-visible features.
 
+## Builder + landing/login follow-ups
+
+Small follow-up polish on top of the builder rework and the pre-launch
+landing/login trims.
+
+- Builder top strip reorders Deploy and Ask AI so they cluster on the left
+  (`Deploy → Ask AI → flow title`), making the title fill the remaining row
+  width.
+- Login page no longer renders the "Use the admin credentials seeded for
+  your environment, or your own account." instructional paragraph above the
+  form. The form itself is unchanged.
+- Landing top nav removes the `Get started` register CTA; only the logo
+  remains. The hero CTA still routes users to `/register`.
+
 ## Builder page polish
 
 Reworked the visual hierarchy of `/flows/[id]` so the workflow name is the
