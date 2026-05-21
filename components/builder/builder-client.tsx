@@ -285,7 +285,10 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         json.data!;
 
       if (clarifyingQuestion) {
-        setMessages((prev) => [...prev, { role: "raft", content: clarifyingQuestion }]);
+        const content = explanation
+          ? `${explanation}\n\n${clarifyingQuestion}`
+          : clarifyingQuestion;
+        setMessages((prev) => [...prev, { role: "raft", content }]);
         return;
       }
 
