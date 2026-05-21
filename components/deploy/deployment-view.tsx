@@ -3,20 +3,10 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import DeploymentCanvas from "./deployment-canvas";
-import { LiveEvents } from "./live-events";
+import { LiveEvents, type Evt } from "./live-events";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import { POLL_EVENTS_INTERVAL_MS } from "@/lib/deployments/constants";
-
-type Evt = {
-  id: string;
-  kind: string;
-  ledger: number;
-  txHash: string;
-  payload: unknown;
-  decodedData: Record<string, unknown> | null;
-  occurredAt: string;
-};
 
 export default function DeploymentView({
   deploymentId,
@@ -38,7 +28,10 @@ export default function DeploymentView({
   const explorerUrl =
     contractAddress && network ? stellarExpertContractUrl(contractAddress, network) : null;
   const [pulse, setPulse] = useState(0);
+  const [events, setEvents] = useState<Evt[]>(initialEvents);
 
+  // Single source of polling for the whole deployment page. Both the canvas
+  // pulse animation and the LiveEvents feed derive from this one fetch.
   useEffect(() => {
     if (status !== "CONFIRMED") return;
     let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -47,17 +40,28 @@ export default function DeploymentView({
       try {
         const res = await fetch(`/api/deployments/${deploymentId}/poll-events`);
         if (!res.ok) return;
-        const { events } = await res.json();
-        for (const data of events as Evt[]) {
-          if (data.kind === "RECEIVE" || data.kind === "PAYOUT") {
-            setPulse((p) => p + 1);
+        const { events: newEvents } = (await res.json()) as { events: Evt[] };
+
+        setEvents((prev) => {
+          const merged = [...prev];
+          let addedPulses = 0;
+          for (const data of newEvents) {
+            if (!merged.some((p) => p.id === data.id || p.txHash === data.txHash)) {
+              merged.unshift({ ...data, _isNew: true });
+              if (data.kind === "RECEIVE" || data.kind === "PAYOUT") {
+                addedPulses += 1;
+              }
+            }
           }
-        }
+          if (addedPulses > 0) setPulse((p) => p + addedPulses);
+          return merged.slice(0, 100);
+        });
       } catch {
         /* ignore */
       }
     };
 
+    poll();
     intervalId = setInterval(poll, POLL_EVENTS_INTERVAL_MS);
     return () => {
       if (intervalId) clearInterval(intervalId);
@@ -154,13 +158,7 @@ export default function DeploymentView({
           )}
         </section>
 
-        <LiveEvents
-          deploymentId={deploymentId}
-          network={network}
-          status={status}
-          initialEvents={initialEvents}
-          graph={graph}
-        />
+        <LiveEvents events={events} network={network} />
       </div>
     </div>
   );
