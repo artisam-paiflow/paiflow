@@ -513,8 +513,8 @@ export default function RaftLog({
           className="pulse-glow border-primary/50 bg-primary text-on-primary fixed top-20 right-0 z-40 flex items-center gap-2 rounded-l-lg border-y border-l px-3 py-2.5 shadow-[0_0_18px_rgba(255,177,196,0.45)] transition-all duration-200 hover:-translate-y-px hover:pr-4 hover:shadow-[0_0_24px_rgba(255,177,196,0.65)] active:scale-95"
           title="Open AI chat"
         >
-          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20">
-            <Ship className="h-3.5 w-3.5 text-white" />
+          <div className="bg-on-primary/15 flex h-6 w-6 items-center justify-center rounded-full">
+            <Ship className="text-on-primary h-3.5 w-3.5" />
           </div>
           <span className="text-on-primary text-sm font-medium">Ask AI</span>
           {hasPending && (
