@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
+import { isStellarNetwork, stellarExpertContractUrl } from "@/lib/stellar/explorer";
 
 export const dynamic = "force-dynamic";
 
@@ -184,46 +185,69 @@ export default async function Dashboard() {
               </div>
             ) : (
               <div className="divide-outline-variant/10 divide-y">
-                <div className="gap-md bg-surface-container/60 px-md text-label-sm text-on-surface-variant grid grid-cols-[2fr_1fr_1fr_1.5fr_1fr] items-center py-2.5 font-mono">
+                <div className="gap-md bg-surface-container/60 px-md text-label-sm text-on-surface-variant grid grid-cols-[2fr_1fr_1fr_1.5fr_1fr_auto] items-center py-2.5 font-mono">
                   <span>FLOW</span>
                   <span>STATUS</span>
                   <span>NETWORK</span>
                   <span>CONTRACT</span>
                   <span className="text-right">CREATED</span>
+                  <span className="sr-only">EXPLORER</span>
                 </div>
                 {deployments.map((d) => {
                   const badge = statusBadge[d.status] ?? {
                     label: d.status?.toUpperCase() ?? "—",
                     cls: "bg-surface-container-high/40 border-outline-variant/30 text-on-surface-variant",
                   };
+                  const explorerUrl =
+                    d.contractAddress && isStellarNetwork(d.network)
+                      ? stellarExpertContractUrl(d.contractAddress, d.network)
+                      : null;
                   return (
-                    <Link
+                    <div
                       key={d.id}
-                      href={`/deployments/${d.id}`}
-                      className="group gap-md px-md hover:bg-surface-container-high/40 grid grid-cols-[2fr_1fr_1fr_1.5fr_1fr] items-center py-3 transition-colors"
+                      className="group gap-md px-md hover:bg-surface-container-high/40 grid grid-cols-[2fr_1fr_1fr_1.5fr_1fr_auto] items-center transition-colors"
                     >
-                      <span className="text-body-md text-on-surface group-hover:text-primary truncate">
-                        {d.flow.name}
-                      </span>
-                      <span
-                        className={`text-label-sm inline-flex w-fit items-center gap-1.5 rounded border px-2 py-1 font-mono ${badge.cls}`}
+                      <Link
+                        href={`/deployments/${d.id}`}
+                        className="col-span-5 grid grid-cols-subgrid items-center py-3"
                       >
-                        {badge.dot ? <span className={`${badge.dot} h-1.5 w-1.5`} /> : null}
-                        {badge.label}
-                      </span>
-                      <span className="text-label-sm text-on-surface-variant font-mono">
-                        {d.network?.toUpperCase()}
-                      </span>
-                      <span className="text-label-sm text-on-surface font-mono">
-                        {truncateAddr(d.contractAddress)}
-                      </span>
-                      <span className="text-label-sm text-on-surface-variant text-right font-mono">
-                        {new Date(d.createdAt).toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </span>
-                    </Link>
+                        <span className="text-body-md text-on-surface group-hover:text-primary truncate">
+                          {d.flow.name}
+                        </span>
+                        <span
+                          className={`text-label-sm inline-flex w-fit items-center gap-1.5 rounded border px-2 py-1 font-mono ${badge.cls}`}
+                        >
+                          {badge.dot ? <span className={`${badge.dot} h-1.5 w-1.5`} /> : null}
+                          {badge.label}
+                        </span>
+                        <span className="text-label-sm text-on-surface-variant font-mono">
+                          {d.network?.toUpperCase()}
+                        </span>
+                        <span className="text-label-sm text-on-surface font-mono">
+                          {truncateAddr(d.contractAddress)}
+                        </span>
+                        <span className="text-label-sm text-on-surface-variant text-right font-mono">
+                          {new Date(d.createdAt).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
+                      </Link>
+                      {explorerUrl ? (
+                        <a
+                          href={explorerUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label="Open on stellar.expert"
+                          title="Open on stellar.expert"
+                          className="text-on-surface-variant hover:text-primary ml-1 inline-flex h-8 w-8 items-center justify-center transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                        </a>
+                      ) : (
+                        <span className="h-8 w-8" aria-hidden />
+                      )}
+                    </div>
                   );
                 })}
               </div>
