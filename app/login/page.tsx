@@ -19,9 +19,6 @@ export default function LoginPage({
       <h1 className="font-display text-on-surface mt-2 text-[40px] leading-[1.1] font-semibold tracking-[-0.02em]">
         Sign in.
       </h1>
-      <p className="text-body-md text-on-surface-variant mt-3">
-        Use the admin credentials seeded for your environment, or your own account.
-      </p>
 
       <LoginFormWrapper params={searchParams} />
     </main>
