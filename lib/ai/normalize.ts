@@ -41,7 +41,7 @@ export function applyPatch(graph: FlowGraph, patch: PatchOp[]): FlowGraph {
         break;
       }
       case "removeEdge": {
-        if (!edges.has(op.id)) throw new Error(`removeEdge: edge ${op.id} not found`);
+        if (!edges.has(op.id)) continue;
         edges.delete(op.id);
         break;
       }
@@ -142,20 +142,41 @@ function sanitizeAddress(addr: string): string {
 }
 
 function normalizeAsset(asset: unknown): Asset {
-  if (asset === "XLM" || asset === "xlm" || asset === "native") {
+  if (
+    asset === "XLM" ||
+    asset === "xlm" ||
+    asset === "native" ||
+    asset === "lumens" ||
+    asset === "lumen" ||
+    asset === "stellar"
+  ) {
     return { kind: "native" };
   }
-  if (asset === "USDC" || asset === "usdc") {
+  if (
+    asset === "USDC" ||
+    asset === "usdc" ||
+    asset === "USD" ||
+    asset === "dollars" ||
+    asset === "usd coin"
+  ) {
     return { kind: "known", symbol: "USDC" };
   }
   if (typeof asset === "string") {
     const trimmed = asset.trim();
     // Handle cases like "10usdc", "100 USDC", "10xlm" by extracting just the asset code
-    const match = trimmed.match(/^(?:\d+\s*)?(usdc|xlm|native)$/i);
+    const match = trimmed.match(/^(?:\d+\s*)?(usdc|xlm|native|lumens?|stellar|usd|dollars)$/i);
     if (match) {
       const code = match[1]!.toLowerCase();
-      if (code === "xlm" || code === "native") return { kind: "native" };
-      if (code === "usdc") return { kind: "known", symbol: "USDC" };
+      if (
+        code === "xlm" ||
+        code === "native" ||
+        code === "lumens" ||
+        code === "lumen" ||
+        code === "stellar"
+      )
+        return { kind: "native" };
+      if (code === "usdc" || code === "usd" || code === "dollars")
+        return { kind: "known", symbol: "USDC" };
     }
     // If it looks like a Stellar asset code (1-12 alphanumeric), treat as custom
     if (/^[a-zA-Z0-9]{1,12}$/.test(trimmed)) {

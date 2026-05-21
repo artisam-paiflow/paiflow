@@ -254,25 +254,35 @@ export function LiveEvents({
   graph,
 }: LiveEventsProps) {
   const [events, setEvents] = useState<Evt[]>(initialEvents);
-  const sseStartedRef = useRef(false);
 
   useEffect(() => {
     if (status !== "CONFIRMED") return;
-    sseStartedRef.current = true;
-    const es = new EventSource(`/api/deployments/${deploymentId}/events`);
-    es.addEventListener("event", (raw) => {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const poll = async () => {
       try {
-        const data = JSON.parse((raw as MessageEvent).data) as Evt;
+        const res = await fetch(`/api/deployments/${deploymentId}/poll-events`);
+        if (!res.ok) return;
+        const { events: newEvents } = await res.json();
         setEvents((prev) => {
-          if (prev.some((p) => p.id === data.id || p.txHash === data.txHash)) return prev;
-          return [{ ...data, _isNew: true }, ...prev].slice(0, 100);
+          const merged = [...prev];
+          for (const data of newEvents as Evt[]) {
+            if (!merged.some((p) => p.id === data.id || p.txHash === data.txHash)) {
+              merged.unshift({ ...data, _isNew: true });
+            }
+          }
+          return merged.slice(0, 100);
         });
       } catch {
         /* ignore */
       }
-    });
-    es.onerror = () => es.close();
-    return () => es.close();
+    };
+
+    poll();
+    intervalId = setInterval(poll, 15_000);
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [deploymentId, status]);
 
   return (
@@ -281,7 +291,7 @@ export function LiveEvents({
         <h2 className="text-headline-sm text-on-surface">Live events</h2>
         <span className="text-label-sm text-on-surface-variant inline-flex items-center gap-1.5 font-mono">
           <span className="status-dot-live h-1.5 w-1.5" />
-          SSE · ~15s
+          POLL · 15s
         </span>
       </div>
       <ul className="mt-md max-h-96 space-y-2 overflow-y-auto">

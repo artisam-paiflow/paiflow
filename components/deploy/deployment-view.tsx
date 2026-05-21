@@ -40,19 +40,27 @@ export default function DeploymentView({
 
   useEffect(() => {
     if (status !== "CONFIRMED") return;
-    const es = new EventSource(`/api/deployments/${deploymentId}/events`);
-    es.addEventListener("event", (raw) => {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const poll = async () => {
       try {
-        const data = JSON.parse((raw as MessageEvent).data) as Evt;
-        if (data.kind === "RECEIVE" || data.kind === "PAYOUT") {
-          setPulse((p) => p + 1);
+        const res = await fetch(`/api/deployments/${deploymentId}/poll-events`);
+        if (!res.ok) return;
+        const { events } = await res.json();
+        for (const data of events as Evt[]) {
+          if (data.kind === "RECEIVE" || data.kind === "PAYOUT") {
+            setPulse((p) => p + 1);
+          }
         }
       } catch {
         /* ignore */
       }
-    });
-    es.onerror = () => es.close();
-    return () => es.close();
+    };
+
+    intervalId = setInterval(poll, 15_000);
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [deploymentId, status]);
 
   async function copy(text: string) {
