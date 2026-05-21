@@ -3,33 +3,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-type WalletKit = {
-  getAddress: () => Promise<{ address: string }>;
-  signTransaction: (
-    xdr: string,
-    opts: { address?: string; networkPassphrase: string },
-  ) => Promise<{ signedTxXdr: string }>;
-};
-
-async function connectWallet(network: "testnet" | "mainnet"): Promise<WalletKit> {
-  const mod = await import("@creit.tech/stellar-wallets-kit");
-  const { StellarWalletsKit, WalletNetwork, allowAllModules, FREIGHTER_ID } = mod as unknown as {
-    StellarWalletsKit: new (opts: {
-      network: string;
-      selectedWalletId: string;
-      modules: unknown[];
-    }) => WalletKit;
-    WalletNetwork: { TESTNET: string; PUBLIC: string };
-    allowAllModules: () => unknown[];
-    FREIGHTER_ID: string;
-  };
-  return new StellarWalletsKit({
-    network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
-    selectedWalletId: FREIGHTER_ID,
-    modules: allowAllModules(),
-  });
-}
-
 type TriggerButtonProps = {
   deploymentId: string;
   network: "testnet" | "mainnet";
@@ -42,39 +15,91 @@ export function TriggerButton({ deploymentId, network, amount, onSuccess }: Trig
 
   async function onTrigger() {
     if (!amount || !/^\d+$/.test(amount) || amount === "0") {
-      toast.error("Enter a valid stroops amount");
+      toast.error("Enter a valid XLM amount");
       return;
     }
     setBusy(true);
     try {
-      const kit = await connectWallet(network);
-      const { address } = await kit.getAddress();
+      const [
+        { StellarWalletsKit, WalletNetwork, FreighterModule },
+        { WalletConnectModule, WalletConnectAllowedMethods },
+      ] = await Promise.all([
+        import("@creit.tech/stellar-wallets-kit"),
+        import("@creit.tech/stellar-wallets-kit/modules/walletconnect.module"),
+      ]);
 
-      const res = await fetch(`/api/deployments/${deploymentId}/trigger`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ amount, userAddress: address }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error?.message ?? "Failed to prepare transaction");
-
-      const signed = await kit.signTransaction(data.data.xdr, {
-        address,
-        networkPassphrase: data.data.networkPassphrase,
+      const walletConnectModule = new WalletConnectModule({
+        projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID!,
+        name: "Pinkraft",
+        description: "Trigger contract deployments",
+        url: typeof window !== "undefined" ? window.location.origin : "",
+        icons: ["https://pinkraft.xyz/logo.png"],
+        method: WalletConnectAllowedMethods.SIGN,
+        network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
       });
 
-      const submit = await fetch(`/api/deployments/${deploymentId}/submit-trigger`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
+      const kit = new StellarWalletsKit({
+        network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
+        modules: [new FreighterModule(), walletConnectModule],
       });
-      const subData = await submit.json();
-      if (!submit.ok) throw new Error(subData?.error?.message ?? "Submit failed");
-      toast.success("Distribution triggered!");
-      onSuccess?.();
+
+      await kit.openModal({
+        onWalletSelected: async (wallet) => {
+          setBusy(true);
+          try {
+            toast.info(`Selected wallet: ${wallet.name}`);
+            kit.setWallet(wallet.id);
+            const isWalletConnect = wallet.id === "wallet_connect";
+
+            if (isWalletConnect) {
+              toast.info("Initiating WalletConnect session...");
+              await walletConnectModule.connectWalletConnect();
+              toast.info("Session established, getting address...");
+            } else {
+              toast.info("Connecting to Freighter extension...");
+            }
+
+            const { address } = await kit.getAddress();
+            toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
+
+            toast.info("Preparing transaction...");
+            const res = await fetch(`/api/deployments/${deploymentId}/trigger`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ amount, userAddress: address }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data?.error?.message ?? "Failed to prepare transaction");
+
+            toast.info("Awaiting signature from Freighter Mobile...");
+            const signed = await kit.signTransaction(data.data.xdr, {
+              address,
+              networkPassphrase: data.data.networkPassphrase,
+            });
+
+            toast.info("Submitting transaction...");
+            const submit = await fetch(`/api/deployments/${deploymentId}/submit-trigger`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
+            });
+            const subData = await submit.json();
+            if (!submit.ok) throw new Error(subData?.error?.message ?? "Submit failed");
+            toast.success("Distribution triggered!");
+            onSuccess?.();
+          } catch (err) {
+            toast.error((err as Error).message ?? "Connection failed");
+          } finally {
+            setBusy(false);
+          }
+        },
+        onClosed: () => {
+          toast.warning("Connection cancelled");
+          setBusy(false);
+        },
+      });
     } catch (err) {
       toast.error((err as Error).message ?? "Trigger failed");
-    } finally {
       setBusy(false);
     }
   }
@@ -101,5 +126,3 @@ export function TriggerButton({ deploymentId, network, amount, onSuccess }: Trig
     </button>
   );
 }
-
-export type { WalletKit };

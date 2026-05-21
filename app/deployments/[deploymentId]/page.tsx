@@ -156,7 +156,6 @@ export default async function DeploymentPage({
           network={network}
           status={d.status}
           qrUrl={qrUrl}
-          distributeAmountStroops={d.distributeAmountStroops}
           graph={graph}
           initialEvents={d.events.map((e) => ({
             id: e.id,
@@ -164,6 +163,7 @@ export default async function DeploymentPage({
             ledger: e.ledger,
             txHash: e.txHash,
             payload: e.payload,
+            decodedData: e.decodedData as Record<string, unknown> | null,
             occurredAt: e.occurredAt.toISOString(),
           }))}
         />

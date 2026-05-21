@@ -43,10 +43,11 @@ async function main() {
     console.log(`[seed] Admin user '${username}' ready.`);
   }
 
+  const networkSuffix = network.toUpperCase();
   const templates: Array<{ kind: TemplateKind; envKey: string; abi: object }> = [
     {
       kind: TemplateKind.SPLITTER,
-      envKey: "STELLAR_WASM_HASH_SPLITTER",
+      envKey: `STELLAR_WASM_HASH_SPLITTER_${networkSuffix}`,
       abi: {
         functions: ["__init", "distribute", "pause", "unpause", "recipients"],
         events: ["Distributed"],
@@ -54,7 +55,7 @@ async function main() {
     },
     {
       kind: TemplateKind.STREAMER,
-      envKey: "STELLAR_WASM_HASH_STREAMER",
+      envKey: `STELLAR_WASM_HASH_STREAMER_${networkSuffix}`,
       abi: {
         functions: ["__init", "claim", "top_up", "cancel", "available"],
         events: ["Claimed", "Cancelled"],
@@ -62,7 +63,7 @@ async function main() {
     },
     {
       kind: TemplateKind.CONDITIONAL,
-      envKey: "STELLAR_WASM_HASH_CONDITIONAL",
+      envKey: `STELLAR_WASM_HASH_CONDITIONAL_${networkSuffix}`,
       abi: {
         functions: ["__init", "release", "cancel", "status"],
         events: ["Released", "Cancelled"],
@@ -74,7 +75,7 @@ async function main() {
     const hash = process.env[t.envKey];
     if (!hash) {
       console.log(
-        `[seed] ${t.envKey} not set; skipping ContractTemplate(${t.kind}). Run pnpm contracts:upload.`,
+        `[seed] ${t.envKey} not set; skipping ContractTemplate(${t.kind}@${network}). Run pnpm contracts:upload --network=${network}.`,
       );
       continue;
     }

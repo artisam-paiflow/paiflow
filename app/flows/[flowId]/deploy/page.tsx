@@ -84,7 +84,7 @@ export default async function DeployReviewPage({
           Review &amp; deploy.
         </h1>
         <p className="text-body-md text-on-surface-variant mt-3">
-          Confirm the English summary below, choose a network, and sign with your wallet.
+          Confirm the English summary below and sign with your wallet.
         </p>
 
         <section className="glass-panel mt-md p-md rounded-xl">
@@ -158,7 +158,7 @@ export default async function DeployReviewPage({
           </div>
         )}
 
-        {validation?.ok && <DeployReview flowId={flow.id} enableMainnet={env().ENABLE_MAINNET} />}
+        {validation?.ok && <DeployReview flowId={flow.id} network={env().STELLAR_NETWORK} />}
       </main>
     </>
   );
