@@ -64,6 +64,7 @@ async function tryEdit(
   explanation: string;
   patchedGraph: FlowGraph;
   missingAddresses: string[];
+  clarifyingQuestion?: string;
 }> {
   const system = buildSystemPrompt();
   const userMsg = buildUserMessage(graph, instruction, addressBook);
@@ -84,10 +85,33 @@ async function tryEdit(
     });
   }
 
-  const { patch, explanation, missingAddresses } = parsed.data;
+  const {
+    mode,
+    patch: rawPatch,
+    explanation,
+    missingAddresses: rawMissing,
+    clarifyingQuestion,
+  } = parsed.data;
 
+  if (mode === "chat") {
+    return {
+      patch: [],
+      explanation,
+      patchedGraph: graph,
+      missingAddresses: [],
+      clarifyingQuestion,
+    };
+  }
+
+  const patch = rawPatch ?? [];
   if (!patch.length) {
-    return { patch: [], explanation, patchedGraph: graph, missingAddresses: [] };
+    return {
+      patch: [],
+      explanation,
+      patchedGraph: graph,
+      missingAddresses: [],
+      clarifyingQuestion,
+    };
   }
 
   let patchedGraph: FlowGraph;
@@ -116,12 +140,12 @@ async function tryEdit(
   }
 
   // Filter missingAddresses to only include labels still pending (not auto-resolved)
-  const stillPending = (missingAddresses ?? []).filter((label) => {
+  const stillPending = (rawMissing ?? []).filter((label) => {
     const resolved = addressBook.some((e) => e.label.toLowerCase() === label.toLowerCase());
     return !resolved;
   });
 
-  return { patch, explanation, patchedGraph, missingAddresses: stillPending };
+  return { patch, explanation, patchedGraph, missingAddresses: stillPending, clarifyingQuestion };
 }
 
 async function retryEdit(
@@ -135,6 +159,7 @@ async function retryEdit(
   explanation: string;
   patchedGraph: FlowGraph;
   missingAddresses: string[];
+  clarifyingQuestion?: string;
 }> {
   const system = buildSystemPrompt();
   const userMsg = buildCorrectionPrompt(
@@ -161,10 +186,33 @@ async function retryEdit(
     });
   }
 
-  const { patch, explanation, missingAddresses } = parsed.data;
+  const {
+    mode,
+    patch: rawPatch,
+    explanation,
+    missingAddresses: rawMissing,
+    clarifyingQuestion,
+  } = parsed.data;
 
+  if (mode === "chat") {
+    return {
+      patch: [],
+      explanation,
+      patchedGraph: graph,
+      missingAddresses: [],
+      clarifyingQuestion,
+    };
+  }
+
+  const patch = rawPatch ?? [];
   if (!patch.length) {
-    return { patch: [], explanation, patchedGraph: graph, missingAddresses: [] };
+    return {
+      patch: [],
+      explanation,
+      patchedGraph: graph,
+      missingAddresses: [],
+      clarifyingQuestion,
+    };
   }
 
   let patchedGraph: FlowGraph;
@@ -194,12 +242,12 @@ async function retryEdit(
     );
   }
 
-  const stillPending = (missingAddresses ?? []).filter((label) => {
+  const stillPending = (rawMissing ?? []).filter((label) => {
     const resolved = addressBook.some((e) => e.label.toLowerCase() === label.toLowerCase());
     return !resolved;
   });
 
-  return { patch, explanation, patchedGraph, missingAddresses: stillPending };
+  return { patch, explanation, patchedGraph, missingAddresses: stillPending, clarifyingQuestion };
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -246,7 +294,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
     }
 
-    const { patch, explanation, missingAddresses } = result;
+    const { patch, explanation, missingAddresses, clarifyingQuestion } = result;
+
+    if (clarifyingQuestion) {
+      return NextResponse.json({
+        data: { patch: [], explanation, applied: false, missingAddresses, clarifyingQuestion },
+      });
+    }
 
     if (!patch.length) {
       return NextResponse.json({
