@@ -163,6 +163,7 @@ export default async function DeploymentPage({
             ledger: e.ledger,
             txHash: e.txHash,
             payload: e.payload,
+            decodedData: e.decodedData as Record<string, unknown> | null,
             occurredAt: e.occurredAt.toISOString(),
           }))}
         />

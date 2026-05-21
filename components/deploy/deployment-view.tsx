@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import DeploymentCanvas from "./deployment-canvas";
+import { LiveEvents } from "./live-events";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 
@@ -12,6 +13,7 @@ type Evt = {
   ledger: number;
   txHash: string;
   payload: unknown;
+  decodedData: Record<string, unknown> | null;
   occurredAt: string;
 };
 
@@ -34,7 +36,6 @@ export default function DeploymentView({
 }) {
   const explorerUrl =
     contractAddress && network ? stellarExpertContractUrl(contractAddress, network) : null;
-  const [events, setEvents] = useState<Evt[]>(initialEvents);
   const [pulse, setPulse] = useState(0);
 
   useEffect(() => {
@@ -43,10 +44,6 @@ export default function DeploymentView({
     es.addEventListener("event", (raw) => {
       try {
         const data = JSON.parse((raw as MessageEvent).data) as Evt;
-        setEvents((prev) => {
-          if (prev.some((p) => p.id === data.id || p.txHash === data.txHash)) return prev;
-          return [data, ...prev].slice(0, 100);
-        });
         if (data.kind === "RECEIVE" || data.kind === "PAYOUT") {
           setPulse((p) => p + 1);
         }
@@ -148,43 +145,13 @@ export default function DeploymentView({
           )}
         </section>
 
-        <section className="glass-panel p-md rounded-xl">
-          <div className="flex items-center justify-between">
-            <h2 className="text-headline-sm text-on-surface">Live events</h2>
-            <span className="text-label-sm text-on-surface-variant inline-flex items-center gap-1.5 font-mono">
-              <span className="status-dot-live h-1.5 w-1.5" />
-              SSE · ~15s
-            </span>
-          </div>
-          <ul className="mt-md max-h-96 space-y-2 overflow-y-auto">
-            {events.length === 0 && (
-              <li className="border-outline-variant/30 text-label-sm text-on-surface-variant rounded border border-dashed p-3 font-mono">
-                NO EVENTS YET. TRIGGER DISTRIBUTE TO SEE THEM HERE.
-              </li>
-            )}
-            {events.map((e) => (
-              <li
-                key={e.id}
-                className="border-outline-variant/15 bg-surface-container-low/40 rounded-lg border p-3"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="border-primary/30 bg-primary/10 text-label-sm text-primary inline-flex items-center gap-1.5 rounded border px-2 py-0.5 font-mono">
-                    {e.kind}
-                  </span>
-                  <span className="text-label-sm text-on-surface-variant font-mono">
-                    {new Date(e.occurredAt).toLocaleString()}
-                  </span>
-                </div>
-                <div className="text-on-surface-variant mt-2 font-mono text-[11px] break-all">
-                  {e.txHash}
-                </div>
-                <pre className="border-outline-variant/15 bg-surface-container-lowest/60 text-on-surface mt-2 overflow-x-auto rounded border p-2 font-mono text-[11px]">
-                  {JSON.stringify(e.payload, null, 2)}
-                </pre>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <LiveEvents
+          deploymentId={deploymentId}
+          network={network}
+          status={status}
+          initialEvents={initialEvents}
+          graph={graph}
+        />
       </div>
     </div>
   );

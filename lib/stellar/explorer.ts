@@ -12,3 +12,7 @@ export function isStellarNetwork(value: unknown): value is StellarNetwork {
 export function stellarExpertContractUrl(contractAddress: string, network: StellarNetwork): string {
   return `https://stellar.expert/explorer/${NETWORK_SEGMENT[network]}/contract/${contractAddress}`;
 }
+
+export function stellarExpertTxUrl(txHash: string, network: StellarNetwork): string {
+  return `https://stellar.expert/explorer/${NETWORK_SEGMENT[network]}/tx/${txHash}`;
+}
