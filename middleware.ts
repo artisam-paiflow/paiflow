@@ -20,6 +20,8 @@ const PUBLIC_PATHS = [
   /^\/api\/files\/.*/,
   /^\/deployments\/[^/]+\/embed$/,
   /^\/trigger\/[^/]+$/,
+  /^\/api\/deployments\/[^/]+\/trigger$/,
+  /^\/api\/deployments\/[^/]+\/submit-trigger$/,
 ];
 
 function isPublic(pathname: string): boolean {
