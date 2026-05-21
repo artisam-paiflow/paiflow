@@ -6,8 +6,6 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 |                 |                                                                   |
 | --------------- | ----------------------------------------------------------------- |
-| **Spec**        | [`SPEC.md`](./SPEC.md) — product + architecture (1k lines)        |
-| **Agent guide** | [`AGENT.md`](./AGENT.md) — how this codebase is meant to be built |
 | **Status**      | v0.2 — foundation + audit fixes landed, see PR #1                 |
 | **License**     | MIT                                                               |
 
@@ -193,7 +191,7 @@ Both lanes must be green before merge.
 - **Cron** — `CRON_SECRET`
 - **Optional** — `SENTRY_DSN`, `HIBP_CHECK_ENABLED`
 
-> **Never** put a Stellar secret key in `.env`. Pink Raft is non-custodial — the backend builds and submits transactions, but only the user's wallet signs them. See `AGENT.md` §0.
+> **Never** put a Stellar secret key in `.env`. Pink Raft is non-custodial — the backend builds and submits transactions, but only the user's wallet signs them.
 
 ---
 
@@ -205,13 +203,3 @@ Configured for **Railway** (`railway.toml`, `nixpacks.toml`):
 - `pnpm start` runs `prisma migrate deploy` before booting `next start`.
 - File storage swaps from MinIO to a Railway Volume via `FILE_STORAGE_DRIVER`.
 
-For full details see `SPEC.md` §15.
-
----
-
-## Contributing
-
-1. Read `AGENT.md` first — it's short and load-bearing.
-2. Branch from `develop` for features, `main` for hot-fixes.
-3. Keep PRs scoped; CI must be green; types and tests are not optional.
-4. Conventional-ish commits (`ci:`, `contracts:`, `feat:`, `fix:` …).
