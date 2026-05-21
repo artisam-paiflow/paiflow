@@ -2,6 +2,32 @@
 
 Running log of user-visible features.
 
+## Builder page polish
+
+Reworked the visual hierarchy of `/flows/[id]` so the workflow name is the
+page's primary anchor and the AI assistant is more obviously available.
+
+- Global topbar no longer shows the fake `RPC 12MS` chip (account + sign-out
+  controls are unchanged). A real RPC health probe is tracked separately.
+- Builder top strip now reads, left-to-right: **Deploy** → editable **flow
+  title** (24px Space Grotesk headline, borderless, autosaves) → primary pink
+  **Ask AI** button (`auto_awesome` icon when collapsed, `close` icon + outline
+  treatment when the panel is open). The button carries
+  `aria-expanded` / `aria-controls="ai-panel"`.
+- The center-top template badge is gone. Contract template (Splitter /
+  Streamer / Conditional, or `—` when undetermined) now lives in a
+  `/ CONTRACT TEMPLATE` section at the top of the Palette sidebar, with a
+  one-line description.
+- The English Preview is no longer a floating overlay at the bottom of the
+  canvas — it renders as a glass-panel row directly under the title strip,
+  reading as narration of the title rather than a canvas footer. Error lines
+  use the error token; the preview text is selectable.
+- AI panel header collapses to a single headline ("Ask AI to edit your flow")
+  — the redundant "Raft Log" line was removed. The collapsed-edge pill on the
+  right edge now reads "Ask AI" (was "AI") to match the in-canvas toggle.
+- `TEMPLATE_LABELS` plus a new `TEMPLATE_DESCRIPTIONS` map live in
+  `lib/flows/template-labels.ts` so the Palette and builder share copy.
+
 ## Stellar.expert explorer links
 
 Contract addresses across the UI now link to the corresponding
