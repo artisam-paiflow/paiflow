@@ -673,10 +673,23 @@ Client                              Server                       Stellar
 
 ### 10.4 RPC Endpoints (env)
 
+The active network is pinned by `STELLAR_NETWORK` (`testnet` or `mainnet`).
+There is **no per-deploy network picker** and no `ENABLE_MAINNET` kill
+switch — environments select their network at boot.
+
+Testnet:
+
 - `STELLAR_HORIZON_URL_TESTNET=https://horizon-testnet.stellar.org`
 - `STELLAR_SOROBAN_RPC_URL_TESTNET=https://soroban-testnet.stellar.org`
 - `STELLAR_NETWORK_PASSPHRASE_TESTNET="Test SDF Network ; September 2015"`
-- Mainnet equivalents behind feature flag `ENABLE_MAINNET=false` by default.
+- `STELLAR_FRIENDBOT_URL=https://friendbot.stellar.org` (testnet-only)
+
+Mainnet:
+
+- `STELLAR_HORIZON_URL_MAINNET=https://horizon.stellar.org`
+- `STELLAR_SOROBAN_RPC_URL_MAINNET=https://mainnet.sorobanrpc.com`
+- `STELLAR_NETWORK_PASSPHRASE_MAINNET="Public Global Stellar Network ; September 2015"`
+- Friendbot is unavailable; `STELLAR_FRIENDBOT_URL` must be unset.
 
 ---
 
@@ -806,7 +819,11 @@ Client                              Server                       Stellar
 - Three audited templates only — no user-generated Rust on the request path.
 - All `__init` arguments validated server-side **and** in-contract (defense in depth).
 - Splitter `recipients` count capped at 20 to bound transaction footprint.
-- Mainnet gated by feature flag + per-user allowlist.
+- Mainnet is pinned by environment (`STELLAR_NETWORK=mainnet` only on the
+  production Railway service). There is no in-app picker, no `"I understand"`
+  confirmation textbox, and no per-user allowlist — those gates collapse into
+  the deploy-time env. Authorization for _who can deploy at all_ is enforced
+  by the standard auth/session stack.
 
 ### 13.11 OWASP ASVS Quick Map
 
@@ -871,17 +888,24 @@ MINIO_SECRET_KEY=pinkraft-dev-secret
 MINIO_BUCKET=pinkraft-dev
 
 # ---- Stellar ----
+# Pin the network per environment: dev/staging=testnet, prod=mainnet.
 STELLAR_NETWORK=testnet
 STELLAR_NETWORK_PASSPHRASE_TESTNET="Test SDF Network ; September 2015"
 STELLAR_HORIZON_URL_TESTNET=https://horizon-testnet.stellar.org
 STELLAR_SOROBAN_RPC_URL_TESTNET=https://soroban-testnet.stellar.org
-STELLAR_FRIENDBOT_URL=https://friendbot.stellar.org
-ENABLE_MAINNET=false
+STELLAR_FRIENDBOT_URL=https://friendbot.stellar.org      # testnet-only; unset on mainnet
+# Mainnet endpoints (only consumed when STELLAR_NETWORK=mainnet)
+STELLAR_NETWORK_PASSPHRASE_MAINNET="Public Global Stellar Network ; September 2015"
+STELLAR_HORIZON_URL_MAINNET=https://horizon.stellar.org
+STELLAR_SOROBAN_RPC_URL_MAINNET=https://mainnet.sorobanrpc.com
 
-# WASM hashes — populated by `pnpm contracts:upload` and committed to env (not source)
-STELLAR_WASM_HASH_SPLITTER=
-STELLAR_WASM_HASH_STREAMER=
-STELLAR_WASM_HASH_CONDITIONAL=
+# WASM hashes — populated by `pnpm contracts:upload --network=<net>` and stored per environment
+STELLAR_WASM_HASH_SPLITTER_TESTNET=
+STELLAR_WASM_HASH_STREAMER_TESTNET=
+STELLAR_WASM_HASH_CONDITIONAL_TESTNET=
+STELLAR_WASM_HASH_SPLITTER_MAINNET=
+STELLAR_WASM_HASH_STREAMER_MAINNET=
+STELLAR_WASM_HASH_CONDITIONAL_MAINNET=
 
 # ---- Cron ----
 CRON_SECRET=                           # required header for /api/cron/* in prod
@@ -956,7 +980,19 @@ pnpm dev
 
 Set all values from `.env.example` in the project's "Variables" page; mark `AUTH_SECRET`, `ADMIN_SEED_PASSWORD`, `CRON_SECRET`, `SENTRY_AUTH_TOKEN`, `MINIO_SECRET_KEY` as secrets (hidden).
 
-### 15.4 Domain
+### 15.4 Per-environment network pinning
+
+Each Railway service hosts a single network. The network is set once via
+`STELLAR_NETWORK` and never changed at runtime.
+
+| Service            | `STELLAR_NETWORK` | Friendbot URL set? | WASM-hash vars seeded         |
+| ------------------ | ----------------- | ------------------ | ----------------------------- |
+| `pinkraft-staging` | `testnet`         | yes                | `STELLAR_WASM_HASH_*_TESTNET` |
+| `pinkraft-prod`    | `mainnet`         | **no** (unset)     | `STELLAR_WASM_HASH_*_MAINNET` |
+
+See `docs/mainnet-cutover.md` for the production cutover runbook.
+
+### 15.5 Domain
 
 - Custom domain `pinkraft.app` → Railway-managed TLS (Let's Encrypt).
 - `AUTH_RP_ID=pinkraft.app`, `NEXT_PUBLIC_APP_URL=https://pinkraft.app`.

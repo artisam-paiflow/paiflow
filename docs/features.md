@@ -2,6 +2,27 @@
 
 Running log of user-visible features.
 
+## Mainnet transition: network pinned per environment
+
+The deploy review page no longer asks the user to pick testnet vs mainnet,
+type an `"I understand"` confirmation, or wait on an
+`ENABLE_MAINNET` flag. Instead, the network is pinned at the environment
+level via the `STELLAR_NETWORK` env var (staging = `testnet`, production =
+`mainnet`).
+
+- Deploy review shows a read-only **Network** chip ("TESTNET" or "MAINNET")
+  next to the Deploy button — derived from `env().STELLAR_NETWORK`. There is
+  no longer a radio picker, an `"I understand"` textbox, or a mainnet
+  disable.
+- The prepare endpoint (`POST /api/deployments/prepare`) no longer accepts a
+  `network` body field; it always uses the env-pinned network when looking
+  up the matching `ContractTemplate`.
+- WASM hashes are stored under per-network env-var names
+  (`STELLAR_WASM_HASH_<KIND>_<TESTNET|MAINNET>`); `scripts/upload-wasm.ts`
+  takes a `--network=` flag and the seed script reads the row that matches
+  the env.
+- Operator runbook: `docs/mainnet-cutover.md`.
+
 ## Builder + landing/login follow-ups
 
 Small follow-up polish on top of the builder rework and the pre-launch

@@ -11,15 +11,12 @@ import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToParams } from "@/lib/flows/to-params";
 import { prepareDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
-import { assertMainnetAllowed } from "@/lib/mainnet";
 
 const PrepareSchema = z.object({
   flowId: z.string().uuid(),
-  network: z.enum(["testnet", "mainnet"]).default("testnet"),
   sourceAccount: z
     .string()
     .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar account"),
-  confirmation: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -29,11 +26,7 @@ export async function POST(req: NextRequest) {
     if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many deploys");
 
     const body = PrepareSchema.parse(await req.json());
-    assertMainnetAllowed({
-      network: body.network,
-      userId: user.id,
-      confirmation: body.confirmation,
-    });
+    const network = env().STELLAR_NETWORK;
 
     const flow = await db.flow.findFirst({
       where: { id: body.flowId, ownerId: user.id },
@@ -63,22 +56,20 @@ export async function POST(req: NextRequest) {
     await checkAccountFunding(body.sourceAccount);
 
     const template = await db.contractTemplate.findFirst({
-      where: { kind: v.templateKind, network: body.network },
+      where: { kind: v.templateKind, network },
     });
     if (!template) {
       throw new AppError(
         "VALIDATION",
-        `No WASM uploaded for ${v.templateKind} on ${body.network}. Run pnpm contracts:upload.`,
+        `No WASM uploaded for ${v.templateKind} on ${network}. Run pnpm contracts:upload --network=${network}.`,
       );
     }
-
-    await checkAccountFunding(body.sourceAccount);
 
     const deployment = await db.deployment.create({
       data: {
         flowId: flow.id,
         ownerId: user.id,
-        network: body.network,
+        network,
         status: "BUILDING",
         graphSnapshot: graph as object,
         paramsSnapshot: params as object,
@@ -99,7 +90,7 @@ export async function POST(req: NextRequest) {
       await audit({
         action: "DEPLOY_PREPARE",
         userId: user.id,
-        metadata: { deploymentId: deployment.id, network: body.network },
+        metadata: { deploymentId: deployment.id, network },
       });
       return NextResponse.json({
         data: {

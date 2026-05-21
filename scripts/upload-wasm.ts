@@ -1,9 +1,16 @@
 #!/usr/bin/env tsx
 /**
- * Uploads the three Soroban WASM artifacts to the configured network and
- * appends their hashes to .env.local. Run after `pnpm contracts:build`.
+ * Uploads the three Soroban WASM artifacts to a specific network and
+ * appends their hashes to .env.local under per-network env-var names
+ * (STELLAR_WASM_HASH_<KIND>_<TESTNET|MAINNET>). Run after
+ * `pnpm contracts:build`.
  *
- * Usage: tsx scripts/upload-wasm.ts
+ * Usage:
+ *   tsx scripts/upload-wasm.ts --network=testnet
+ *   tsx scripts/upload-wasm.ts --network=mainnet
+ *
+ * Falls back to process.env.STELLAR_NETWORK when --network is omitted, for
+ * backwards compatibility with single-network dev workflows.
  */
 import "dotenv/config";
 import { readFileSync, existsSync, appendFileSync } from "node:fs";
@@ -27,22 +34,37 @@ const CONTRACTS = [
   },
 ];
 
+function parseNetworkFlag(): "testnet" | "mainnet" {
+  const fromFlag = process.argv
+    .slice(2)
+    .find((arg) => arg.startsWith("--network="))
+    ?.slice("--network=".length);
+  const value = fromFlag ?? process.env.STELLAR_NETWORK ?? "testnet";
+  if (value !== "testnet" && value !== "mainnet") {
+    throw new Error(`Invalid --network=${value}. Must be 'testnet' or 'mainnet'.`);
+  }
+  return value;
+}
+
 async function main() {
-  const network = process.env.STELLAR_NETWORK ?? "testnet";
+  const network = parseNetworkFlag();
   const rpcUrl =
     network === "mainnet"
-      ? process.env.STELLAR_SOROBAN_RPC_URL_MAINNET
+      ? (process.env.STELLAR_SOROBAN_RPC_URL_MAINNET ?? "https://mainnet.sorobanrpc.com")
       : (process.env.STELLAR_SOROBAN_RPC_URL_TESTNET ?? "https://soroban-testnet.stellar.org");
   const passphrase =
     network === "mainnet"
-      ? Networks.PUBLIC
+      ? (process.env.STELLAR_NETWORK_PASSPHRASE_MAINNET ?? Networks.PUBLIC)
       : (process.env.STELLAR_NETWORK_PASSPHRASE_TESTNET ?? Networks.TESTNET);
   const uploaderSecret = process.env.UPLOADER_SECRET;
   if (!uploaderSecret) throw new Error("UPLOADER_SECRET env var is required");
 
-  const server = new rpc.Server(rpcUrl!, { allowHttp: false });
+  console.log(`[upload] network=${network} rpc=${rpcUrl}`);
+
+  const server = new rpc.Server(rpcUrl, { allowHttp: false });
   const kp = Keypair.fromSecret(uploaderSecret);
   const lines: string[] = [];
+  const suffix = network.toUpperCase();
 
   for (const c of CONTRACTS) {
     const path = resolve(c.wasm);
@@ -94,12 +116,15 @@ async function main() {
       throw new Error(`transaction polling timed out for ${c.kind} after 20 attempts`);
 
     const wasmHash = hash(wasm).toString("hex");
-    console.log(`[upload] ${c.kind} uploaded, hash=${wasmHash}`);
-    lines.push(`STELLAR_WASM_HASH_${c.kind}=${wasmHash}`);
+    console.log(`[upload] ${c.kind}@${network} uploaded, hash=${wasmHash}`);
+    lines.push(`STELLAR_WASM_HASH_${c.kind}_${suffix}=${wasmHash}`);
   }
 
-  appendFileSync(".env.local", `\n# uploaded ${new Date().toISOString()}\n${lines.join("\n")}\n`);
-  console.log("[upload] done — hashes written to .env.local");
+  appendFileSync(
+    ".env.local",
+    `\n# uploaded ${network} ${new Date().toISOString()}\n${lines.join("\n")}\n`,
+  );
+  console.log(`[upload] done — ${network} hashes written to .env.local`);
 }
 
 main().catch((err) => {
