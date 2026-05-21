@@ -46,7 +46,6 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
         network={network}
         status={d.status}
         qrUrl={qrUrl}
-        distributeAmountStroops={d.distributeAmountStroops}
         graph={graph}
         initialEvents={d.events.map((e) => ({
           id: e.id,
@@ -54,6 +53,7 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
           ledger: e.ledger,
           txHash: e.txHash,
           payload: e.payload,
+          decodedData: e.decodedData as Record<string, unknown> | null,
           occurredAt: e.occurredAt.toISOString(),
         }))}
       />

@@ -43,6 +43,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
             ledger: e.ledger,
             txHash: e.txHash,
             payload: e.payload,
+            decodedData: e.decodedData,
             occurredAt: e.occurredAt.toISOString(),
           }),
         );

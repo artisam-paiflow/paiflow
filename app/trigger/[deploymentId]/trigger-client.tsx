@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { TriggerButton } from "@/components/deploy/trigger-button";
+import { tokenAmountToStroops } from "@/lib/flows/schema";
 import type { FlowGraph } from "@/lib/flows/schema";
 
 export default function TriggerClient({
@@ -25,7 +26,7 @@ export default function TriggerClient({
   const [amountSet, setAmountSet] = useState(false);
 
   useEffect(() => {
-    if (urlAmount && /^\d+$/.test(urlAmount) && urlAmount !== "0") {
+    if (urlAmount && /^\d+(\.\d+)?$/.test(urlAmount) && urlAmount !== "0") {
       setAmount(urlAmount);
       setAmountSet(true);
     }
@@ -62,16 +63,16 @@ export default function TriggerClient({
 
           <div>
             <div className="text-label-sm text-on-surface-variant font-mono uppercase">
-              Amount (stroops)
+              Amount (XLM)
             </div>
             <input
               className="input mt-1 w-full"
               type="text"
-              inputMode="numeric"
-              placeholder="e.g. 5000000"
+              inputMode="decimal"
+              placeholder="e.g. 5.0"
               value={amount}
               onChange={(e) => {
-                setAmount(e.target.value.replace(/\D/g, ""));
+                setAmount(e.target.value.replace(/[^0-9.]/g, ""));
                 setAmountSet(false);
               }}
               disabled={amountSet}
@@ -89,7 +90,7 @@ export default function TriggerClient({
             )}
           </div>
 
-          {!amountSet && amount && /^\d+$/.test(amount) && amount !== "0" && (
+          {!amountSet && amount && /^\d+(\.\d+)?$/.test(amount) && amount !== "0" && (
             <button
               onClick={() => setAmountSet(true)}
               className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 w-full rounded border px-3 py-1.5 font-mono text-xs transition-colors"
@@ -101,7 +102,7 @@ export default function TriggerClient({
           <TriggerButton
             deploymentId={deploymentId}
             network={network}
-            amount={amountSet ? amount : ""}
+            amount={amountSet ? tokenAmountToStroops(amount) : ""}
             onSuccess={() => setAmountSet(true)}
           />
         </div>

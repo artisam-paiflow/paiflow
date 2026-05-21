@@ -10,6 +10,10 @@ export function shortAddr(addr: string, head = 6, tail = 6): string {
   return `${addr.slice(0, head)}…${addr.slice(-tail)}`;
 }
 
+export function shortAddrExtraShort(addr: string): string {
+  return shortAddr(addr, 3, 3);
+}
+
 export function formatStroops(stroops: bigint | string, decimals = 7): string {
   const n = typeof stroops === "bigint" ? stroops : BigInt(stroops);
   const negative = n < 0n;
