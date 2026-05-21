@@ -298,7 +298,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     if (clarifyingQuestion) {
       return NextResponse.json({
-        data: { patch: [], explanation, applied: false, missingAddresses: [], clarifyingQuestion },
+        data: { patch: [], explanation, applied: false, missingAddresses, clarifyingQuestion },
       });
     }
 
