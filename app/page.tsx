@@ -20,8 +20,8 @@ const features = [
     eyebrow: "Deploy",
     icon: "rocket_launch",
     accent: "tertiary",
-    title: "Audited contracts. 1.2s.",
-    body: "Splitter, Streamer, and Conditional templates ship to Stellar in under two seconds.",
+    title: "Soroban contracts.",
+    body: "Splitter, Streamer, and Conditional templates ship to Stellar.",
   },
 ] as const;
 
@@ -54,38 +54,10 @@ export default function Landing() {
     <div className="relative min-h-screen overflow-hidden">
       {/* Fixed translucent top nav */}
       <header className="glass-panel-nav fixed inset-x-0 top-0 z-50 h-16">
-        <div className="px-margin mx-auto flex h-full max-w-7xl items-center justify-between">
+        <div className="px-margin mx-auto flex h-full max-w-7xl items-center">
           <Link href="/" className="group flex items-center" aria-label="Pink Raft home">
             <Logo size={24} />
           </Link>
-          <nav className="hidden items-center gap-8 md:flex">
-            <Link
-              href="#how"
-              className="text-label-md text-on-surface-variant hover:text-on-surface font-mono transition-colors"
-            >
-              How it works
-            </Link>
-            <Link
-              href="#contracts"
-              className="text-label-md text-on-surface-variant hover:text-on-surface font-mono transition-colors"
-            >
-              Contracts
-            </Link>
-            <Link
-              href="/login"
-              className="text-label-md text-on-surface-variant hover:text-on-surface font-mono transition-colors"
-            >
-              Sign in
-            </Link>
-          </nav>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/register"
-              className="bg-primary text-label-md text-on-primary rounded-lg px-4 py-2 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_20px_rgba(255,177,196,0.6)] active:scale-95"
-            >
-              Get started
-            </Link>
-          </div>
         </div>
       </header>
 
@@ -98,7 +70,7 @@ export default function Landing() {
               style={{ ["--reveal-delay" as string]: "60ms" }}
             >
               <span className="material-symbols-outlined text-primary text-[14px]">bolt</span>
-              <span>ZAPS FOR MONEY · STELLAR SOROBAN</span>
+              <span>ZAP FOR PAYMENTS · POWERED BY STELLAR</span>
             </div>
 
             <h1
@@ -117,28 +89,8 @@ export default function Landing() {
               style={{ ["--reveal-delay" as string]: "240ms" }}
             >
               Pink Raft turns triggers and actions into real Soroban contracts on Stellar.
-              Non-custodial. Audited templates. Real money, real chain, ninety seconds end-to-end.
+              Non-custodial. Real money, real chain, ninety seconds end-to-end.
             </p>
-
-            {/* Status line */}
-            <div
-              className="reveal text-label-sm mt-6 flex flex-wrap items-center gap-3 font-mono"
-              style={{ ["--reveal-delay" as string]: "320ms" }}
-            >
-              <span className="text-on-surface-variant inline-flex items-center gap-2">
-                <span className="status-dot-live" />
-                <span>SYSTEM STATUS:</span>
-                <span className="text-on-surface">STELLAR TESTNET ONLINE</span>
-              </span>
-              <span className="text-outline-variant">·</span>
-              <span className="text-on-surface-variant">
-                AVG DEPLOY: <span className="font-bold text-[color:var(--color-hot)]">1.2s</span>
-              </span>
-              <span className="text-outline-variant">·</span>
-              <span className="text-on-surface-variant">
-                RPC: <span className="text-secondary">12ms</span>
-              </span>
-            </div>
 
             {/* CTAs */}
             <div
@@ -188,9 +140,6 @@ export default function Landing() {
           </div>
         </div>
       </section>
-
-      {/* Live telemetry ticker */}
-      <TelemetryTicker />
 
       {/* Feature bento */}
       <section id="how" className="px-margin pb-xl relative">
@@ -250,16 +199,16 @@ export default function Landing() {
               <div>
                 <p className="text-label-sm text-on-surface-variant font-mono">§ 02 · CONTRACTS</p>
                 <h2 className="font-display text-on-surface mt-2 text-[32px] font-semibold tracking-[-0.01em]">
-                  Three audited templates.
+                  Three templates.
                 </h2>
               </div>
             </div>
 
             <div className="mt-md border-outline-variant/20 grid grid-cols-1 gap-px overflow-hidden rounded-xl border md:grid-cols-3">
               {[
-                { name: "Splitter", addr: "C ABC1...XYZ4", tag: "DISTRIBUTE" },
-                { name: "Streamer", addr: "C DEF2...UVW8", tag: "SCHEDULE" },
-                { name: "Conditional", addr: "C GHI3...RST6", tag: "GATE" },
+                { name: "Splitter", tag: "DISTRIBUTE" },
+                { name: "Streamer", tag: "SCHEDULE" },
+                { name: "Conditional", tag: "GATE" },
               ].map((c) => (
                 <div
                   key={c.name}
@@ -272,7 +221,6 @@ export default function Landing() {
                     </span>
                   </div>
                   <h3 className="text-headline-sm text-on-surface mt-3">{c.name}</h3>
-                  <p className="text-label-sm text-on-surface-variant mt-2 font-mono">{c.addr}</p>
                 </div>
               ))}
             </div>
@@ -314,17 +262,6 @@ export default function Landing() {
       <footer className="border-outline-variant/15 px-margin py-md border-t">
         <div className="text-label-sm text-on-surface-variant mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 font-mono">
           <span>© PINK RAFT · BUILT FOR ANYONE</span>
-          <div className="flex items-center gap-4">
-            <Link href="/about" className="hover:text-on-surface transition-colors">
-              ABOUT
-            </Link>
-            <Link href="/privacy" className="hover:text-on-surface transition-colors">
-              PRIVACY
-            </Link>
-            <Link href="/terms" className="hover:text-on-surface transition-colors">
-              TERMS
-            </Link>
-          </div>
         </div>
       </footer>
     </div>
@@ -495,54 +432,5 @@ function CanvasPreview() {
         </div>
       </div>
     </div>
-  );
-}
-
-const TICKER_ENTRIES = [
-  { tone: "primary", label: "DEPLOY", value: "1.2s" },
-  { tone: "secondary", label: "RPC", value: "12ms" },
-  { tone: "muted", label: "LEDGER", value: "#58_192_004" },
-  { tone: "tertiary", label: "TPS", value: "24.7" },
-  { tone: "primary", label: "ACTIVE PIPELINES", value: "1,284" },
-  { tone: "secondary", label: "STELLAR", value: "TESTNET" },
-  { tone: "muted", label: "BLOCK TIME", value: "5.2s" },
-  { tone: "tertiary", label: "GAS EST", value: "0.0001 XLM" },
-  { tone: "primary", label: "RAFTS DEPLOYED", value: "9,412" },
-  { tone: "secondary", label: "NETWORK", value: "PUBKEY OK" },
-] as const;
-
-const TONE_TO_CLASS: Record<(typeof TICKER_ENTRIES)[number]["tone"], string> = {
-  primary: "text-primary",
-  secondary: "text-secondary",
-  tertiary: "text-tertiary",
-  muted: "text-on-surface-variant",
-};
-
-function TelemetryTicker() {
-  return (
-    <section
-      aria-hidden="true"
-      className="border-outline-variant/15 bg-surface-container-lowest/40 relative border-y py-3"
-    >
-      <div className="marquee">
-        <div className="marquee-track">
-          {[0, 1].map((dup) => (
-            <div
-              key={dup}
-              className="gap-md pr-md text-label-sm flex shrink-0 items-center font-mono"
-            >
-              {TICKER_ENTRIES.map((e, i) => (
-                <span key={`${dup}-${i}`} className="flex items-center gap-2 whitespace-nowrap">
-                  <span className={`h-1 w-1 rounded-full bg-current ${TONE_TO_CLASS[e.tone]}`} />
-                  <span className="text-on-surface-variant">{e.label}</span>
-                  <span className={TONE_TO_CLASS[e.tone]}>{e.value}</span>
-                  <span className="text-outline-variant">·</span>
-                </span>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
   );
 }

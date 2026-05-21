@@ -511,7 +511,7 @@ export default function RaftLog({
           <div className="bg-brand-500/20 flex h-6 w-6 items-center justify-center rounded-full">
             <Ship className="text-brand-400 h-3.5 w-3.5" />
           </div>
-          <span className="text-sm font-medium text-zinc-300">AI</span>
+          <span className="text-sm font-medium text-zinc-300">Ask AI</span>
           {hasPending && (
             <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-900 text-xs text-amber-400">
               {pendingAddresses!.length}
@@ -522,7 +522,8 @@ export default function RaftLog({
 
       {/* Expanded slide-in panel */}
       <div
-        className={`fixed top-[49px] right-0 z-40 h-[calc(100vh-49px)] w-[360px] transform border-l border-zinc-800 bg-zinc-950 shadow-2xl transition-transform duration-300 ease-out ${
+        id="ai-panel"
+        className={`fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-[360px] transform border-l border-zinc-800 bg-zinc-950 shadow-2xl transition-transform duration-300 ease-out ${
           collapsed ? "translate-x-full" : "translate-x-0"
         }`}
       >
@@ -533,8 +534,7 @@ export default function RaftLog({
               <Ship className="text-brand-400 h-3.5 w-3.5" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-zinc-100">Raft Log</div>
-              <div className="text-xs text-zinc-500">Ask AI to edit your flow</div>
+              <div className="text-sm font-semibold text-zinc-100">Ask AI to edit your flow</div>
             </div>
             {hasPending && (
               <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-900 text-xs text-amber-400">
@@ -695,7 +695,12 @@ export default function RaftLog({
                           }}
                         />
                       ))}
-                      <span className="ml-1 text-sm text-zinc-500 italic">Listening…</span>
+                      <span className="ml-1 text-sm text-zinc-500 italic">
+                        Listening…
+                        <span className="ml-2 text-xs text-zinc-600 not-italic">
+                          · Space to send
+                        </span>
+                      </span>
                     </div>
                   )}
                 </div>

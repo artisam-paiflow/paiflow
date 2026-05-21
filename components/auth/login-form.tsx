@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { toast } from "sonner";
-import PasskeyLogin from "./passkey-login";
 
 export default function LoginForm({ from, error }: { from?: string; error?: string }) {
   const [submitting, setSubmitting] = useState(false);
@@ -54,14 +53,6 @@ export default function LoginForm({ from, error }: { from?: string; error?: stri
           <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
         ) : null}
       </button>
-
-      <div className="text-label-sm text-outline-variant flex items-center gap-3 font-mono">
-        <span className="bg-outline-variant/30 h-px flex-1" />
-        OR
-        <span className="bg-outline-variant/30 h-px flex-1" />
-      </div>
-
-      <PasskeyLogin from={from} />
     </form>
   );
 }
