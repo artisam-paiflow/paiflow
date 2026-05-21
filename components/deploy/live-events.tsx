@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { formatStroops, shortAddrExtraShort } from "@/lib/utils";
 import { stellarExpertTxUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import type { FlowGraph } from "@/lib/flows/schema";
+import { POLL_EVENTS_INTERVAL_MS } from "@/lib/deployments/constants";
 
 type Evt = {
   id: string;
@@ -279,7 +280,7 @@ export function LiveEvents({
     };
 
     poll();
-    intervalId = setInterval(poll, 15_000);
+    intervalId = setInterval(poll, POLL_EVENTS_INTERVAL_MS);
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
