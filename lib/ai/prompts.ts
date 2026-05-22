@@ -128,7 +128,7 @@ You MUST respond with a JSON object containing exactly these fields:
 - "explanation": a short human-readable description of what changed
 - "patch": an array of patch operations (can be empty if no changes are needed)
 - "missingAddresses": an array of label strings for recipients that need Stellar addresses (can be empty)
-- "clarifyingQuestion": a question string when you need to disambiguate (if applicable)
+- "clarifyingQuestion": a question string when you need to disambiguate, or when the user's request conflicts with a flow constraint (if applicable)
 
 Supported patch operations:
 - { "op": "updateNode", "id": "node-id", "config": { ...partial config... } }
@@ -276,6 +276,16 @@ CRITICAL SAFETY RULES:
 - A condition node must sit between a trigger and an action. Condition nodes cannot be leaf nodes.
 - Split recipients sum to 10000 bps (100%). Each recipient's bps must be ≥ 1. Never set bps to 0. To remove a recipient, omit them from the array entirely.
 - WHEN THE USER SAYS "CHANGE" — always use updateNode, never addNode. Updating a node's config is always preferred over adding a duplicate.
+
+CONSTRAINT CONFLICTS — when the user's request cannot fit in one flow:
+- If the user asks for something that would inherently require more than one trigger (e.g. "add a schedule" to a flow that already has "when I receive"), do NOT produce a patch. Instead, return mode "patch" with an EMPTY patch array and set "clarifyingQuestion" to explain the conflict and ask what they'd prefer.
+- Examples:
+  • Flow has "when I receive", user says "add a schedule" →
+    clarifyingQuestion: "This flow already has a 'when I receive' trigger. A flow can only have one trigger. Would you like me to replace it with a schedule, or keep the current trigger?"
+  • Flow has "on schedule", user says "also when I receive USDC" →
+    clarifyingQuestion: "This flow already has a schedule trigger. A flow can only have one trigger. Would you like me to replace the schedule with a receive trigger, or keep the schedule?"
+  • User says "remove the trigger" and there is only one →
+    clarifyingQuestion: "Every flow needs at least one trigger. Would you like to change it to a different type instead?"
 
 CANVAS CRUD OPERATIONS — adding/deleting/changing blocks or connections:
 
@@ -456,6 +466,7 @@ export function buildCorrectionPrompt(
   sections += `\n\nOriginal instruction: ${instruction}`;
   sections += `\n\nThe previous patch was invalid:\n${JSON.stringify(previousPatch, null, 2)}`;
   sections += `\n\nValidation errors:\n${errors.map((e) => `- ${e}`).join("\n")}`;
-  sections += `\n\nPlease provide a corrected patch that fixes these errors. For new recipients without a known address, use "PENDING:<label>" and add the label to missingAddresses.`;
+  sections += `\n\nThis is a RETRY — your previous attempt was rejected. If the errors above indicate a fundamental constraint (e.g. too many triggers, unreachable nodes, missing trigger), do NOT try to produce another patch. Instead, return mode "patch" with an EMPTY patch array and set "clarifyingQuestion" to explain the issue and ask the user what they'd prefer. Only produce corrected patch operations if you can fix the errors by adjusting node configs (e.g. fixing bps totals, correcting addresses, using updateNode instead of addNode).`;
+  sections += `\n\nFor new recipients without a known address, use "PENDING:<label>" and add the label to missingAddresses.`;
   return sections;
 }

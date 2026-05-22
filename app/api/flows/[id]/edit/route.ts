@@ -288,7 +288,36 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         if (allErrors.length === 0) {
           allErrors.push(firstErr.message);
         }
-        result = await retryEdit(graph, body.message, firstPatch, allErrors, addressBook);
+        try {
+          result = await retryEdit(graph, body.message, firstPatch, allErrors, addressBook);
+        } catch (secondErr) {
+          if (secondErr instanceof AppError && secondErr.code === "VALIDATION") {
+            const friendlyMessages: string[] = [];
+            if (secondErr.fields) {
+              for (const val of Object.values(secondErr.fields)) {
+                if (Array.isArray(val)) {
+                  for (const msg of val) {
+                    if (typeof msg === "string" && msg.includes("\n  → ")) {
+                      const part = msg.split("\n  → ")[1]?.trim();
+                      if (part) friendlyMessages.push(part);
+                    }
+                  }
+                }
+              }
+            }
+            return NextResponse.json({
+              data: {
+                patch: [],
+                explanation: "I couldn't apply that change automatically.",
+                applied: false,
+                missingAddresses: [],
+                clarifyingQuestion:
+                  friendlyMessages.length > 0 ? friendlyMessages.join(" ") : secondErr.message,
+              },
+            });
+          }
+          throw secondErr;
+        }
       } else {
         throw firstErr;
       }
