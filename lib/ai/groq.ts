@@ -47,10 +47,10 @@ function extractJson(text: string): string | null {
   return null;
 }
 
-function stripNulls(obj: unknown): unknown {
+export function stripNulls(obj: unknown): unknown {
   if (obj === null) return undefined;
   if (Array.isArray(obj)) {
-    return obj.map(stripNulls).filter((v) => v !== undefined);
+    return obj.map(stripNulls);
   }
   if (typeof obj === "object" && obj !== null) {
     const result: Record<string, unknown> = {};
