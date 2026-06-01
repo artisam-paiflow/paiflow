@@ -69,7 +69,7 @@ export default function TriggerClient({
               className="input mt-1 w-full"
               type="text"
               inputMode="decimal"
-              placeholder="e.g. 5.0"
+              placeholder="e.g. 5"
               value={amount}
               onChange={(e) => {
                 setAmount(e.target.value.replace(/[^0-9.]/g, ""));

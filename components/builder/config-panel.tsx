@@ -372,7 +372,7 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                     ...node.config.recipients,
                     {
                       address: "PENDING:unnamed",
-                      bps: 1,
+                      bps: 100,
                     },
                   ],
                 },

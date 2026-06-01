@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { formatStroops, shortAddrExtraShort } from "@/lib/utils";
+import { formatAmount, shortAddrExtraShort } from "@/lib/utils";
 import { stellarExpertTxUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import { POLL_EVENTS_INTERVAL_MS } from "@/lib/deployments/constants";
 
@@ -53,18 +53,13 @@ const KIND_META: Record<string, { label: string; color: string; icon: string }> 
   },
 };
 
-function formatAmount(raw: string | undefined, decimals = 7): string {
-  if (!raw) return "—";
-  return formatStroops(raw, decimals);
-}
-
 function EventSummary({ evt }: { evt: Evt }) {
   const d = evt.decodedData as Record<string, unknown> | null;
 
   switch (evt.kind) {
     case "RECEIVE": {
       const from = d?.from ? shortAddrExtraShort(String(d.from)) : "—";
-      const amount = formatAmount(typeof d?.amount === "string" ? d.amount : undefined);
+      const amount = typeof d?.amount === "string" ? formatAmount(d.amount) : "—";
       return (
         <div className="text-body-sm text-on-surface">
           Received <span className="font-medium">{amount} XLM</span> from{" "}
@@ -78,9 +73,7 @@ function EventSummary({ evt }: { evt: Evt }) {
       if (recipients && recipients.length > 0) {
         const parts = recipients.slice(0, 3).map((r) => {
           const addr = r.address ? shortAddrExtraShort(r.address) : "—";
-          const amt = r.amount
-            ? formatAmount(typeof r.amount === "string" ? r.amount : undefined)
-            : "—";
+          const amt = r.amount ? formatAmount(typeof r.amount === "string" ? r.amount : "0") : "—";
           return `${amt} → ${addr}`;
         });
         const more = recipients.length > 3 ? ` +${recipients.length - 3} more` : "";
@@ -99,7 +92,7 @@ function EventSummary({ evt }: { evt: Evt }) {
     }
     case "CLAIM": {
       const recipients = d?.recipients as Recipient[] | undefined;
-      const amount = formatAmount(typeof d?.amount === "string" ? d.amount : undefined);
+      const amount = typeof d?.amount === "string" ? formatAmount(d.amount) : "—";
       if (recipients && recipients.length > 0) {
         const addrs = recipients
           .slice(0, 2)
@@ -120,7 +113,7 @@ function EventSummary({ evt }: { evt: Evt }) {
       );
     }
     case "CANCEL": {
-      const balance = formatAmount(typeof d?.balance === "string" ? d.balance : undefined);
+      const balance = typeof d?.balance === "string" ? formatAmount(d.balance) : "—";
       return (
         <div className="text-body-sm text-on-surface">
           Stream cancelled · remaining <span className="font-medium">{balance} XLM</span>
@@ -190,8 +183,21 @@ function EventRow({ evt, network }: { evt: Evt; network: StellarNetwork | null }
           )}
           <button
             onClick={() => {
-              navigator.clipboard.writeText(evt.txHash);
-              toast.success("Tx hash copied");
+              try {
+                navigator.clipboard.writeText(evt.txHash).then(() => {
+                  toast.success("Tx hash copied");
+                });
+              } catch {
+                const ta = document.createElement("textarea");
+                ta.value = evt.txHash;
+                ta.style.position = "fixed";
+                ta.style.opacity = "0";
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand("copy");
+                document.body.removeChild(ta);
+                toast.success("Tx hash copied");
+              }
             }}
             className="text-on-surface-variant hover:text-primary transition-colors"
             title="Copy tx hash"

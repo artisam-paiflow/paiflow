@@ -4,7 +4,7 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { FlowNode } from "@/lib/flows/schema";
 import { isAction } from "@/lib/flows/schema";
-import { formatStroops } from "@/lib/utils";
+import { formatAmount } from "@/lib/utils";
 
 type ActionNodeData = {
   node: FlowNode;
@@ -27,7 +27,7 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
         : n.config.asset.code;
 
   const detail = isPay
-    ? `${formatStroops(n.config.amountStroops)} ${assetLabel}`
+    ? `${formatAmount(n.config.amountStroops)} ${assetLabel}`
     : `${n.config.recipients.length} recipients`;
 
   return (
