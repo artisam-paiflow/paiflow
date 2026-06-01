@@ -14,6 +14,18 @@ Several client-side fetch calls that previously swallowed or silently ignored
 - Builder autosave now surfaces 4xx errors (e.g., validation or auth failures)
   with a toast instead of only logging 5xx errors.
 
+## Whole-number-friendly amounts and shares
+
+Amounts and recipient shares are now displayed with non-technical users in
+mind.
+
+- New `formatAmount()` helper caps displayed decimal places at 4 so tiny
+  sub-XLM values don’t overwhelm the UI with 7-digit decimals.
+- Live events and canvas node labels now use `formatAmount()` for cleaner
+  reading.
+- Trigger page placeholder changed from "e.g. 5.0" to "e.g. 5".
+- Adding a new recipient in a Split node now defaults to 1% (was 0.01%).
+
 ## Mainnet transition: network pinned per environment
 
 The deploy review page no longer asks the user to pick testnet vs mainnet,
