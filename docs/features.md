@@ -26,6 +26,21 @@ mind.
 - Trigger page placeholder changed from "e.g. 5.0" to "e.g. 5".
 - Adding a new recipient in a Split node now defaults to 1% (was 0.01%).
 
+## Event polling robustness fixes
+
+Follow-ups to the live-events polling implementation (`lib/stellar/events.ts`).
+
+- Cursor check tightened from `cursor?.lastLedger` to `cursor` so a cursor row
+  with `lastLedger: 0` no longer falls through into the `deployTxHash` branch.
+- The `-200` first-poll ledger buffer is now a named constant
+  (`FIRST_POLL_LEDGER_BUFFER`) with a one-line rationale comment.
+- Added a load-bearing comment explaining why `maxLedger = startLedger - 1`
+  is the correct empty-set sentinel and how the caller’s guard prevents stale
+  cursor writes.
+- Added unit tests (`tests/unit/stellar/events.test.ts`) covering the
+  cursor-exists, no-cursor + deployTxHash, no-cursor + no-deployTxHash, and
+  getDeploymentLedger failure paths.
+
 ## Mainnet transition: network pinned per environment
 
 The deploy review page no longer asks the user to pick testnet vs mainnet,
