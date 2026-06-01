@@ -6,7 +6,6 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { prepareTriggerTx } from "@/lib/stellar/trigger";
 import { stellarPassphrase } from "@/lib/env";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
-import { audit } from "@/lib/audit";
 
 const PostSchema = z.object({
   amount: z.string().regex(/^\d+$/, "Must be a positive integer"),
@@ -36,12 +35,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       contractAddress: d.contractAddress,
       amount: body.amount,
       fromAddress: body.userAddress,
-    });
-
-    await audit({
-      action: "DEPLOY_TRIGGER",
-      ip,
-      metadata: { deploymentId: id, amount: body.amount },
     });
 
     return NextResponse.json({

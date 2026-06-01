@@ -33,7 +33,19 @@ export default function TriggerClient({
   }, [urlAmount]);
 
   async function copy(text: string) {
-    await navigator.clipboard.writeText(text);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Fallback for iOS Safari < 16.4 and insecure contexts
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
   }
 
   return (
@@ -103,7 +115,6 @@ export default function TriggerClient({
             deploymentId={deploymentId}
             network={network}
             amount={amountSet ? tokenAmountToStroops(amount) : ""}
-            onSuccess={() => setAmountSet(true)}
           />
         </div>
 

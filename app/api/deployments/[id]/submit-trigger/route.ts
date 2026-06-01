@@ -25,17 +25,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
 
     const result = await submitTriggerTx(body.signedXdr);
-    if (result.status === "SUCCESS") {
-      await audit({
-        action: "DEPLOY_TRIGGER",
-        ip,
-        metadata: { deploymentId: id, txHash: result.txHash },
-      });
-      return NextResponse.json({ data: { txHash: result.txHash } });
+    if (result.status === "PENDING") {
+      return NextResponse.json({ data: { txHash: result.txHash, status: "PENDING" } });
     }
-    return NextResponse.json(
-      { error: { code: "UPSTREAM_RPC", message: result.errorMessage ?? "Submission failed" } },
-      { status: 502 },
-    );
+    if (result.status === "FAILED") {
+      return NextResponse.json(
+        { error: { code: "UPSTREAM_RPC", message: result.errorMessage ?? "Submission failed" } },
+        { status: 502 },
+      );
+    }
+    return NextResponse.json({ data: { txHash: result.txHash } });
   });
 }

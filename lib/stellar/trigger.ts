@@ -18,7 +18,7 @@ export async function prepareTriggerTx(opts: {
 }
 
 export type SubmitTriggerResult = {
-  status: "SUCCESS" | "FAILED";
+  status: "SUCCESS" | "FAILED" | "PENDING";
   txHash: string;
   errorMessage?: string;
 };
@@ -36,20 +36,5 @@ export async function submitTriggerTx(signedXdr: string): Promise<SubmitTriggerR
     };
   }
 
-  const deadline = Date.now() + 60_000;
-  while (Date.now() < deadline) {
-    const got = await server.getTransaction(send.hash);
-    if (got.status === "SUCCESS") {
-      return { status: "SUCCESS", txHash: send.hash };
-    }
-    if (got.status === "FAILED") {
-      return {
-        status: "FAILED",
-        txHash: send.hash,
-        errorMessage: "Transaction failed on the network",
-      };
-    }
-    await new Promise((r) => setTimeout(r, 1500));
-  }
-  return { status: "FAILED", txHash: send.hash, errorMessage: "Timed out waiting for finality" };
+  return { status: "PENDING", txHash: send.hash };
 }
