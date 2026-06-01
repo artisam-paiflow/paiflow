@@ -161,9 +161,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        if (res.status >= 500) {
-          toast.error(`Save failed: ${body?.error?.message ?? res.status}`);
-        }
+        toast.error(`Save failed: ${body?.error?.message ?? res.status}`);
       }
     }, 800);
   }

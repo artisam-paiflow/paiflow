@@ -11,19 +11,21 @@ export default function PasskeyLogin({ from }: { from?: string }) {
     setBusy(true);
     try {
       const { startAuthentication } = await import("@simplewebauthn/browser");
-      const opts = await fetch("/api/auth/passkey/login/options", {
+      const optsRes = await fetch("/api/auth/passkey/login/options", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({}),
-      }).then((r) => r.json());
-      if (!opts?.data) throw new Error("Failed to get options");
+      });
+      const opts = await optsRes.json();
+      if (!optsRes.ok) throw new Error(opts?.error?.message ?? "Failed to get options");
       const assertion = await startAuthentication({ optionsJSON: opts.data });
-      const verify = await fetch("/api/auth/passkey/login/verify", {
+      const verifyRes = await fetch("/api/auth/passkey/login/verify", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ...assertion, _scope: opts.data._scope }),
-      }).then((r) => r.json());
-      if (!verify?.data?.ticket) throw new Error(verify?.error?.message ?? "Verify failed");
+      });
+      const verify = await verifyRes.json();
+      if (!verifyRes.ok) throw new Error(verify?.error?.message ?? "Verify failed");
       const res = await signIn("credentials", {
         passkeyTicket: verify.data.ticket,
         redirect: false,

@@ -2,6 +2,18 @@
 
 Running log of user-visible features.
 
+## Client-side 4xx error toasts
+
+Several client-side fetch calls that previously swallowed or silently ignored
+4xx responses now surface them as toast messages.
+
+- Passkey manager load failure now shows a toast instead of silently rendering
+  an empty list.
+- Passkey login options/verify fetches now check `response.ok` before parsing
+  so 4xx responses produce meaningful error toasts.
+- Builder autosave now surfaces 4xx errors (e.g., validation or auth failures)
+  with a toast instead of only logging 5xx errors.
+
 ## Mainnet transition: network pinned per environment
 
 The deploy review page no longer asks the user to pick testnet vs mainnet,
