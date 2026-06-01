@@ -182,11 +182,10 @@ function EventRow({ evt, network }: { evt: Evt; network: StellarNetwork | null }
             </a>
           )}
           <button
-            onClick={() => {
+            onClick={async () => {
               try {
-                navigator.clipboard.writeText(evt.txHash).then(() => {
-                  toast.success("Tx hash copied");
-                });
+                await navigator.clipboard.writeText(evt.txHash);
+                toast.success("Tx hash copied");
               } catch {
                 const ta = document.createElement("textarea");
                 ta.value = evt.txHash;
