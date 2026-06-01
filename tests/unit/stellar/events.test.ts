@@ -62,7 +62,7 @@ function mockServer(opts: {
         events: [],
         latestLedger: 1000,
       })),
-  } as ReturnType<typeof sorobanRpc>);
+  } as unknown as ReturnType<typeof sorobanRpc>);
 }
 
 describe("pollEventsFor", () => {
