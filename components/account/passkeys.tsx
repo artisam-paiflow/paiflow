@@ -19,8 +19,14 @@ export default function PasskeyManager() {
   const [loaded, setLoaded] = useState(false);
 
   async function refresh() {
-    const r = await fetch("/api/account/passkeys").then((r) => r.json());
-    setItems(r?.data ?? []);
+    const r = await fetch("/api/account/passkeys");
+    if (!r.ok) {
+      toast.error("Failed to load passkeys");
+      setLoaded(true);
+      return;
+    }
+    const json = await r.json();
+    setItems(json?.data ?? []);
     setLoaded(true);
   }
 
