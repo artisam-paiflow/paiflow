@@ -1,23 +1,70 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 type TriggerButtonProps = {
   deploymentId: string;
   network: "testnet" | "mainnet";
   amount: string;
-  onSuccess?: () => void;
 };
 
-export function TriggerButton({ deploymentId, network, amount, onSuccess }: TriggerButtonProps) {
+function pollTxStatus(
+  deploymentId: string,
+  txHash: string,
+  signal: AbortSignal,
+): Promise<{ status: string; errorMessage?: string }> {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + 60_000;
+    const interval = 2_000;
+
+    const check = async () => {
+      if (signal.aborted) {
+        reject(new Error("Polling aborted"));
+        return;
+      }
+      if (Date.now() > deadline) {
+        reject(new Error("Timed out waiting for finality"));
+        return;
+      }
+      try {
+        const res = await fetch(`/api/deployments/${deploymentId}/tx-status?txHash=${txHash}`);
+        if (!res.ok) {
+          reject(new Error("Failed to check transaction status"));
+          return;
+        }
+        const json = (await res.json()) as {
+          data: { status: string; errorMessage?: string };
+        };
+        if (json.data.status === "SUCCESS") {
+          resolve({ status: "SUCCESS" });
+          return;
+        }
+        if (json.data.status === "FAILED") {
+          resolve({ status: "FAILED", errorMessage: json.data.errorMessage });
+          return;
+        }
+        setTimeout(check, interval);
+      } catch {
+        reject(new Error("Network error while polling status"));
+      }
+    };
+
+    setTimeout(check, interval);
+  });
+}
+
+export function TriggerButton({ deploymentId, network, amount }: TriggerButtonProps) {
   const [busy, setBusy] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   async function onTrigger() {
     if (!amount || !/^\d+$/.test(amount) || amount === "0") {
       toast.error("Enter a valid XLM amount");
       return;
     }
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
     setBusy(true);
     try {
       const [
@@ -85,8 +132,16 @@ export function TriggerButton({ deploymentId, network, amount, onSuccess }: Trig
             });
             const subData = await submit.json();
             if (!submit.ok) throw new Error(subData?.error?.message ?? "Submit failed");
-            toast.success("Distribution triggered!");
-            onSuccess?.();
+
+            const txHash = subData.data.txHash as string;
+            toast.info("Transaction submitted. Waiting for confirmation...");
+
+            const outcome = await pollTxStatus(deploymentId, txHash, abortRef.current!.signal);
+            if (outcome.status === "SUCCESS") {
+              toast.success("Distribution triggered!");
+            } else {
+              throw new Error(outcome.errorMessage ?? "Transaction failed on the network");
+            }
           } catch (err) {
             toast.error((err as Error).message ?? "Connection failed");
           } finally {
@@ -95,6 +150,7 @@ export function TriggerButton({ deploymentId, network, amount, onSuccess }: Trig
         },
         onClosed: () => {
           toast.warning("Connection cancelled");
+          abortRef.current?.abort();
           setBusy(false);
         },
       });

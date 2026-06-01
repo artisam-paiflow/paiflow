@@ -41,6 +41,26 @@ Follow-ups to the live-events polling implementation (`lib/stellar/events.ts`).
   cursor-exists, no-cursor + deployTxHash, no-cursor + no-deployTxHash, and
   getDeploymentLedger failure paths.
 
+## Trigger flow follow-ups
+
+Architectural improvements to the public trigger (QR → wallet → distribute)
+flow.
+
+- `DEPLOY_TRIGGER` audit is no longer written at prepare time (when the
+  unsigned XDR is returned). Instead, `DEPLOY_TRIGGER_CONFIRMED` is written
+  by the new `tx-status` endpoint only after the transaction succeeds on-chain.
+  This eliminates false audit records for abandoned triggers.
+- `submitTriggerTx` no longer blocks the HTTP response for up to 60 seconds
+  while polling `getTransaction`. It returns `PENDING` immediately after
+  `sendTransaction` succeeds.
+- New `GET /api/deployments/[id]/tx-status?txHash=...` endpoint lets the
+  client poll for finality. Rate-limited at 60 req/min per IP.
+- `TriggerButton` now polls `tx-status` client-side with a 60-second timeout
+  and abort-on-cancel support. Users see "Waiting for confirmation..." instead
+  of a hung HTTP request.
+- Clipboard copy in trigger and deployment pages now falls back to
+  `document.execCommand("copy")` for iOS Safari \< 16.4 and insecure contexts.
+
 ## Mainnet transition: network pinned per environment
 
 The deploy review page no longer asks the user to pick testnet vs mainnet,
