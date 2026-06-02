@@ -160,6 +160,26 @@ export function pipelineNodeConstructorArgs(
   }
 }
 
+/** Encode a factory NodeBlueprint as an SCVal map. */
+export function nodeBlueprint(
+  wasmHashHex: string,
+  salt: Buffer,
+  constructorArgs: xdr.ScVal[],
+): xdr.ScVal {
+  const wasmHashBuf = Buffer.from(wasmHashHex, "hex");
+  if (wasmHashBuf.length !== 32) {
+    throw new Error("wasmHash must be 32 bytes");
+  }
+  return xdr.ScVal.scvMap([
+    new xdr.ScMapEntry({ key: symbol("wasm_hash"), val: xdr.ScVal.scvBytes(wasmHashBuf) }),
+    new xdr.ScMapEntry({ key: symbol("salt"), val: xdr.ScVal.scvBytes(salt) }),
+    new xdr.ScMapEntry({
+      key: symbol("constructor_args"),
+      val: xdr.ScVal.scvVec(constructorArgs),
+    }),
+  ]);
+}
+
 /** @deprecated Use {@link pipelineNodeConstructorArgs} for new code. */
 export function constructorArgs(params: ContractParams, admin: string): xdr.ScVal[] {
   switch (params.kind) {

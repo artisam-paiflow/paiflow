@@ -19,6 +19,7 @@ enum TemplateKind {
   DEPOSIT_TRIGGER
   ROUTER
   TIMELOCK
+  FACTORY
 }
 
 enum DeploymentStatus {

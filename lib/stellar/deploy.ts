@@ -10,11 +10,11 @@ import {
 } from "@stellar/stellar-sdk";
 import { randomBytes } from "node:crypto";
 import { sorobanRpc, horizon } from "./client";
-import { stellarPassphrase } from "@/lib/env";
+import { stellarFactoryAddress, stellarPassphrase } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import type { ContractParams, PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
 import type { FlowGraph } from "@/lib/flows/schema";
-import { constructorArgs, pipelineNodeConstructorArgs } from "./scval";
+import { constructorArgs, nodeBlueprint, pipelineNodeConstructorArgs } from "./scval";
 
 // 2 XLM covers: 1 XLM base reserve + ~0.5 XLM Soroban storage entries + ~0.5 XLM tx fee buffer
 const MIN_DEPLOYMENT_XLM_STROOPS = 20_000_000n;
@@ -112,13 +112,21 @@ export type PreparedPipelineDeploy = {
   }>;
 };
 
-/** Build & simulate a multi-contract pipeline deployment tx. */
+/** Build & simulate a pipeline deployment tx via the on-chain factory. */
 export async function preparePipelineDeployTx(opts: {
   sourceAccount: string;
   graph: FlowGraph;
   nodes: PipelineDeployNode[];
 }): Promise<PreparedPipelineDeploy> {
   const server = sorobanRpc();
+  const factoryAddress = stellarFactoryAddress();
+  if (!factoryAddress) {
+    throw new AppError(
+      "INTERNAL",
+      "Pipeline factory address is not configured. Set STELLAR_FACTORY_ADDRESS_<NETWORK> in your environment.",
+    );
+  }
+
   const sourceAcct = await server.getAccount(opts.sourceAccount);
 
   // 1. Generate salts & compute deterministic addresses for every node.
@@ -139,18 +147,9 @@ export async function preparePipelineDeployTx(opts: {
     parentByNode.set(e.target, e.source);
   }
 
-  // 3. Build one createCustomContract op per node.
-  const txBuilder = new TransactionBuilder(sourceAcct, {
-    fee: BASE_FEE,
-    networkPassphrase: stellarPassphrase(),
-  });
-
+  // 3. Build NodeBlueprint SCVals for each node.
+  const blueprintVals: xdr.ScVal[] = [];
   for (const p of pipeline) {
-    const wasmHashBuf = Buffer.from(p.wasmHash, "hex");
-    if (wasmHashBuf.length !== 32) {
-      throw new AppError("VALIDATION", `wasmHash must be 32 bytes for node ${p.nodeId}`);
-    }
-
     const parentNodeId = parentByNode.get(p.nodeId);
     let parentAddress: string | undefined;
     if (parentNodeId) {
@@ -170,19 +169,25 @@ export async function preparePipelineDeployTx(opts: {
       nodeAddresses,
     );
 
-    txBuilder.addOperation(
-      Operation.createCustomContract({
-        address: new Address(opts.sourceAccount),
-        wasmHash: wasmHashBuf,
-        salt: p.salt,
-        constructorArgs: args,
-      }),
-    );
+    blueprintVals.push(nodeBlueprint(p.wasmHash, p.salt, args));
   }
 
-  const tx = txBuilder.setTimeout(180).build();
+  // 4. Build a single factory invocation.
+  const op = Operation.invokeContractFunction({
+    contract: factoryAddress,
+    function: "deploy_pipeline",
+    args: [new Address(opts.sourceAccount).toScVal(), xdr.ScVal.scvVec(blueprintVals)],
+  });
 
-  // 4. Simulate the bundled transaction.
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(180)
+    .build();
+
+  // 5. Simulate the single-op transaction.
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
     throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);

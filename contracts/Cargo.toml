@@ -7,6 +7,7 @@ members = [
   "conditions/timelock",
   "actions/splitter",
   "actions/streamer",
+  "factory",
 ]
 
 [workspace.package]
