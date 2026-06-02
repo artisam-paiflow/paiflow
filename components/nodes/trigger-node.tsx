@@ -28,11 +28,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`glass-panel relative min-w-[200px] rounded-xl ${
-        selected
-          ? "border-secondary shadow-[0_0_15px_rgba(152,203,255,0.3)]"
-          : "border-secondary/30"
-      }`}
+      className={`glass-panel relative min-w-[200px] rounded-xl ${selected ? "neon-glow-secondary" : ""}`}
       style={{ borderColor: selected ? undefined : "rgba(152, 203, 255, 0.3)" }}
     >
       <Handle
