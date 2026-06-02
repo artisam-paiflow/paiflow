@@ -28,7 +28,13 @@ export function cspHeader(nonce: string, isDev: boolean): string {
       ...(isDev ? ["'unsafe-eval'"] : []),
     ],
     "style-src": ["'self'", "'unsafe-inline'"],
-    "img-src": ["'self'", "data:", "blob:"],
+    "img-src": [
+      "'self'",
+      "data:",
+      "blob:",
+      "https://stellar.creit.tech",
+      "https://explorer-api.walletconnect.com",
+    ],
     "font-src": ["'self'", "data:"],
     "connect-src": [
       "'self'",

@@ -2,6 +2,29 @@
 
 Running log of user-visible features.
 
+## Mobile wallet support on trigger page
+
+The trigger page (`/trigger/[deploymentId]`) supports mobile wallets through
+WalletConnect. On mobile browsers, tapping "Connect Wallet & Trigger" opens the
+WalletConnect modal directly (bypassing the Stellar Wallets Kit modal) so users
+can pick Freighter, LOBSTR, or xBull and establish a session in one flow.
+
+- On **mobile**, the flow bypasses the WalletConnect modal (which on Android
+  ignores custom `mobileWallets` and relies on an explorer fetch that often
+  fails). Instead, a native wallet picker overlay is shown with Freighter,
+  LOBSTR, and xBull. Tapping a wallet constructs the correct WalletConnect deep
+  link and opens the app directly. After the user approves the connection, the
+  transaction is prepared and signed automatically.
+- On **desktop**, the Stellar Wallets Kit modal is used, offering Freighter
+  extension and WalletConnect.
+- Existing WalletConnect sessions are reused when available, avoiding redundant
+  connection prompts.
+- `@walletconnect/sign-client` is an explicit dependency so the flow can create
+  a `SignClient`, obtain the WalletConnect URI, and sign transactions.
+- CSP `img-src` now allows `https://stellar.creit.tech` and
+  `https://explorer-api.walletconnect.com` so wallet icons render in the
+  Stellar Wallets Kit modal.
+
 ## Client-side 4xx error toasts
 
 Several client-side fetch calls that previously swallowed or silently ignored
