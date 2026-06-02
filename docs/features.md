@@ -2,6 +2,24 @@
 
 Running log of user-visible features.
 
+## Builder node visual sync + deploy state preservation
+
+Fixes for two builder UX issues where canvas nodes did not reflect edits and
+unsaved changes could be lost when navigating to deploy.
+
+- `updateNode` in `builder-client.tsx` now updates both `flowNodes` and
+  `rfNodes` so React Flow canvas nodes re-render immediately when config values
+  (e.g., asset symbol, amount, recipient count) change. Previously only
+  `flowNodes` was updated, so the canvas stayed stale even though the config
+  panel showed the new values.
+- `saveGraph` now returns a `Promise<void>` and supports an `immediate` flag
+  that bypasses the 800ms debounce.
+- `DeployButton` accepts an `onClick` handler; the builder flushes the pending
+  autosave immediately before navigating to `/flows/[flowId]/deploy`. This
+  prevents the scenario where a user edits a flow, clicks Deploy before the
+  debounce fires, and sees stale data on the deploy review page or after a
+  failed deployment.
+
 ## Mobile wallet support on trigger page
 
 The trigger page (`/trigger/[deploymentId]`) supports mobile wallets through

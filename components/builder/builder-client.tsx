@@ -151,9 +151,15 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
   // Autosave with 800ms debounce (from develop)
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
-  async function saveGraph(currentGraph: FlowGraph, currentName: string) {
+  const pendingSave = useRef<Promise<void> | null>(null);
+  function saveGraph(
+    currentGraph: FlowGraph,
+    currentName: string,
+    immediate = false,
+  ): Promise<void> {
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
+
+    const doSave = async () => {
       const res = await fetch(`/api/flows/${flowId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -163,7 +169,20 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         const body = await res.json().catch(() => ({}));
         toast.error(`Save failed: ${body?.error?.message ?? res.status}`);
       }
-    }, 800);
+    };
+
+    if (immediate) {
+      pendingSave.current = doSave();
+      return pendingSave.current;
+    }
+
+    pendingSave.current = new Promise((resolve) => {
+      saveTimer.current = setTimeout(async () => {
+        await doSave();
+        resolve();
+      }, 800);
+    });
+    return pendingSave.current;
   }
 
   useEffect(() => {
@@ -237,6 +256,13 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
   function updateNode(updated: FlowNode) {
     setFlowNodes((arr) => arr.map((n) => (n.id === updated.id ? updated : n)));
+    setRfNodes((arr) =>
+      arr.map((n) =>
+        n.id === updated.id
+          ? { ...n, data: { ...n.data, node: updated, label: nodeLabel(updated) } }
+          : n,
+      ),
+    );
   }
 
   function deleteNode(id: string) {
@@ -382,7 +408,14 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         <div className="grid min-h-0 grid-rows-[auto_auto_1fr]">
           {/* Row 1: Deploy → editable title */}
           <div className="px-md gap-md flex items-center py-3">
-            <DeployButton flowId={flowId} />
+            <DeployButton
+              flowId={flowId}
+              onClick={async (e) => {
+                e.preventDefault();
+                await saveGraph(graph, name, true);
+                window.location.href = `/flows/${flowId}/deploy`;
+              }}
+            />
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
