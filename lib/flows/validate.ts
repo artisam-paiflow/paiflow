@@ -8,11 +8,18 @@ import {
   isTrigger,
   isPendingAddress,
 } from "./schema";
+import { flowToPipeline } from "./to-params";
 
 export type ValidationIssue = { path: string; message: string; friendlyMessage: string };
 
 export type ValidationResult =
-  | { ok: true; templateKind: TemplateKind; graph: FlowGraph; pendingLabels: string[] }
+  | {
+      ok: true;
+      templateKind: TemplateKind;
+      pipeline: TemplateKind[];
+      graph: FlowGraph;
+      pendingLabels: string[];
+    }
   | { ok: false; errors: ValidationIssue[] };
 
 const FRIENDLY = {
@@ -219,5 +226,36 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     };
   }
 
-  return { ok: true, templateKind, graph, pendingLabels: [...pendingLabels] };
+  // Compute pipeline mapping
+  let pipeline: TemplateKind[];
+  try {
+    pipeline = flowToPipeline(graph).map((n) => n.templateKind);
+    if (pipeline.length === 0) {
+      return {
+        ok: false,
+        errors: [
+          {
+            path: "nodes",
+            message: "Flow could not be mapped to a contract pipeline",
+            friendlyMessage:
+              "This flow shape isn't supported by the current contract architecture. Try a simpler trigger → action chain.",
+          },
+        ],
+      };
+    }
+  } catch {
+    return {
+      ok: false,
+      errors: [
+        {
+          path: "nodes",
+          message: "Flow could not be mapped to a contract pipeline",
+          friendlyMessage:
+            "This flow shape isn't supported by the current contract architecture. Try a simpler trigger → action chain.",
+        },
+      ],
+    };
+  }
+
+  return { ok: true, templateKind, pipeline, graph, pendingLabels: [...pendingLabels] };
 }

@@ -372,12 +372,18 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
   const isValid = validation.ok;
   const templateKind = validation.ok ? validation.templateKind : null;
+  const pipeline = validation.ok ? validation.pipeline : undefined;
   const errors = validation.ok ? [] : validation.errors;
 
   return (
     <>
       <div className="grid grid-cols-[220px_1fr] gap-0" style={{ height: "calc(100vh - 4rem)" }}>
-        <Palette onAdd={addNode} flowNodes={flowNodes} templateKind={templateKind} />
+        <Palette
+          onAdd={addNode}
+          flowNodes={flowNodes}
+          templateKind={templateKind}
+          pipeline={pipeline}
+        />
 
         <div className="grid min-h-0 grid-rows-[auto_auto_1fr]">
           {/* Row 1: Deploy → editable title */}
@@ -399,9 +405,9 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                 <div className="text-label-sm text-primary font-mono tracking-[0.08em] uppercase">
                   English Preview
                 </div>
-                {isValid && templateKind && (
+                {isValid && pipeline && pipeline.length > 0 && (
                   <span className="bg-primary/10 border-primary/20 text-primary text-label-sm inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono">
-                    valid {TEMPLATE_LABELS[templateKind]?.toLowerCase()}
+                    valid pipeline
                   </span>
                 )}
               </div>

@@ -234,6 +234,15 @@ export function flowToPipeline(graph: FlowGraph): PipelineNode[] {
   return pipeline;
 }
 
+export function getStreamerPreviewFromPipeline(pipeline: PipelineNode[]) {
+  const streamer = pipeline.find((n) => n.templateKind === TemplateKind.STREAMER);
+  if (!streamer || streamer.params.kind !== "streamer") return null;
+  const { ratePerSecondStroops, startTs, endTs } = streamer.params;
+  const durationSecs = endTs - startTs;
+  const totalStroops = (BigInt(ratePerSecondStroops) * BigInt(durationSecs)).toString();
+  return { ratePerSecondStroops, startTs, endTs, durationSecs, totalStroops };
+}
+
 /**
  * @deprecated Use {@link flowToPipeline} for new code.  This helper is kept
  * for the streamer preview page and existing tests that assert on monolithic

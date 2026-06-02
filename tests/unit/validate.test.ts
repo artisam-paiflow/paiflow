@@ -29,7 +29,10 @@ describe("validateFlow", () => {
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.templateKind).toBe(TemplateKind.SPLITTER);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.SPLITTER);
+      expect(r.pipeline).toEqual([TemplateKind.DEPOSIT_TRIGGER, TemplateKind.SPLITTER]);
+    }
   });
 
   it("rejects bps that don't sum to 10000", () => {
@@ -159,7 +162,10 @@ describe("validateFlow", () => {
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.templateKind).toBe(TemplateKind.STREAMER);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.STREAMER);
+      expect(r.pipeline).toEqual([TemplateKind.STREAMER]);
+    }
   });
 
   it("infers STREAMER from on_schedule → split", () => {
@@ -188,7 +194,10 @@ describe("validateFlow", () => {
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.templateKind).toBe(TemplateKind.STREAMER);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.STREAMER);
+      expect(r.pipeline).toEqual([TemplateKind.STREAMER]);
+    }
   });
 
   it("infers CONDITIONAL from on_receive + split + condition", () => {
@@ -222,7 +231,14 @@ describe("validateFlow", () => {
       ],
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.templateKind).toBe(TemplateKind.CONDITIONAL);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.CONDITIONAL);
+      expect(r.pipeline).toEqual([
+        TemplateKind.DEPOSIT_TRIGGER,
+        TemplateKind.ROUTER,
+        TemplateKind.SPLITTER,
+      ]);
+    }
   });
 
   it("infers CONDITIONAL from on_schedule + split + condition", () => {
@@ -259,6 +275,9 @@ describe("validateFlow", () => {
       ],
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.templateKind).toBe(TemplateKind.CONDITIONAL);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.CONDITIONAL);
+      expect(r.pipeline).toEqual([TemplateKind.STREAMER]);
+    }
   });
 });
