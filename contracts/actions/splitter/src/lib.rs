@@ -212,6 +212,8 @@ impl Splitter {
             .instance()
             .get(&Key::NextSteps)
             .unwrap_or_else(|| Vec::new(&env));
+        // All funds were distributed to recipients above; forward execution
+        // control to next_steps with amount=0 since no funds remain.
         for step in next_steps.iter() {
             invoke_receive_and_forward(
                 &env,

@@ -29,6 +29,7 @@ pub enum Error {
     Unauthorized = 2,
     ConditionNotMet = 3,
     NothingToRelease = 4,
+    Overflow = 5,
 }
 
 const VERSION: u32 = 1;
@@ -70,7 +71,9 @@ impl Timelock {
         let current: i128 = env.storage().instance().get(&Key::Balance).unwrap_or(0);
         env.storage().instance().set(
             &Key::Balance,
-            &(current.checked_add(amount).unwrap_or(current)),
+            &(current
+                .checked_add(amount)
+                .unwrap_or_else(|| panic_with_error!(&env, Error::Overflow))),
         );
 
         #[allow(deprecated)]

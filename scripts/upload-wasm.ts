@@ -78,9 +78,7 @@ async function main() {
 
   const contracts = files.map((file) => {
     const baseName = file.replace(".wasm", "");
-    const kind = baseName.includes("_")
-      ? baseName.split("_").pop()!.toUpperCase()
-      : baseName.toUpperCase();
+    const kind = baseName.replace(/^pinkraft_/, "").toUpperCase();
     return { kind, path: resolve(WASM_DIR, file) };
   });
 
