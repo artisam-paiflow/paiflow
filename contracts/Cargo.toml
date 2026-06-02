@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["splitter", "streamer", "conditional"]
+members = ["splitter", "streamer", "conditional", "trigger", "timelock", "router"]
 
 [workspace.package]
 version = "0.1.0"
