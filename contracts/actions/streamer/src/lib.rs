@@ -46,6 +46,7 @@ pub struct Streamer;
 
 #[contractimpl]
 impl Streamer {
+    #[allow(clippy::too_many_arguments)]
     pub fn __constructor(
         env: Env,
         admin: Address,

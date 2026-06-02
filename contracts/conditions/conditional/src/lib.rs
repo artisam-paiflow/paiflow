@@ -62,6 +62,7 @@ pub struct Conditional;
 
 #[contractimpl]
 impl Conditional {
+    #[allow(clippy::too_many_arguments)]
     pub fn __constructor(
         env: Env,
         admin: Address,
