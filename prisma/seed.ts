@@ -79,11 +79,11 @@ async function main() {
       },
     },
     {
-      kind: TemplateKind.TRIGGER,
-      envKey: `STELLAR_WASM_HASH_TRIGGER_${networkSuffix}`,
+      kind: TemplateKind.DEPOSIT_TRIGGER,
+      envKey: `STELLAR_WASM_HASH_DEPOSIT_TRIGGER_${networkSuffix}`,
       abi: {
-        functions: ["__init", "trigger", "next_steps", "asset"],
-        events: ["Trigger"],
+        functions: ["__init", "deposit", "next_steps", "asset"],
+        events: ["Deposit"],
       },
     },
     {

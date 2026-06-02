@@ -76,7 +76,9 @@ impl Splitter {
         env.storage().instance().set(&Key::Recipients, &recipients);
         env.storage().instance().set(&Key::MinAmount, &min_amount);
         env.storage().instance().set(&Key::Paused, &false);
-        env.storage().instance().set(&Key::NextSteps, &Vec::<WorkflowTarget>::new(&env));
+        env.storage()
+            .instance()
+            .set(&Key::NextSteps, &Vec::<WorkflowTarget>::new(&env));
         env.storage().instance().set(&Key::Version, &VERSION);
     }
 
@@ -153,7 +155,10 @@ impl Splitter {
     }
 
     pub fn next_steps(env: Env) -> Vec<WorkflowTarget> {
-        env.storage().instance().get(&Key::NextSteps).unwrap_or_else(|| Vec::new(&env))
+        env.storage()
+            .instance()
+            .get(&Key::NextSteps)
+            .unwrap_or_else(|| Vec::new(&env))
     }
 
     pub fn receive_and_forward(
@@ -334,12 +339,7 @@ mod test {
         let client = SplitterClient::new(&env, &contract_id);
 
         tok.transfer(&predecessor, &contract_id, &10_000_000);
-        client.receive_and_forward(
-            &predecessor,
-            &asset.address(),
-            &10_000_000,
-            &vec![&env],
-        );
+        client.receive_and_forward(&predecessor, &asset.address(), &10_000_000, &vec![&env]);
 
         assert_eq!(tok.balance(&a), 6_000_000);
         assert_eq!(tok.balance(&b), 3_000_000);

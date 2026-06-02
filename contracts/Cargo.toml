@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-  "triggers/trigger",
+  "triggers/deposit_trigger",
   "conditions/conditional",
   "conditions/router",
   "conditions/timelock",

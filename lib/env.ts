@@ -41,13 +41,13 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_SPLITTER_TESTNET: optionalString,
   STELLAR_WASM_HASH_STREAMER_TESTNET: optionalString,
   STELLAR_WASM_HASH_CONDITIONAL_TESTNET: optionalString,
-  STELLAR_WASM_HASH_TRIGGER_TESTNET: optionalString,
+  STELLAR_WASM_HASH_DEPOSIT_TRIGGER_TESTNET: optionalString,
   STELLAR_WASM_HASH_ROUTER_TESTNET: optionalString,
   STELLAR_WASM_HASH_TIMELOCK_TESTNET: optionalString,
   STELLAR_WASM_HASH_SPLITTER_MAINNET: optionalString,
   STELLAR_WASM_HASH_STREAMER_MAINNET: optionalString,
   STELLAR_WASM_HASH_CONDITIONAL_MAINNET: optionalString,
-  STELLAR_WASM_HASH_TRIGGER_MAINNET: optionalString,
+  STELLAR_WASM_HASH_DEPOSIT_TRIGGER_MAINNET: optionalString,
   STELLAR_WASM_HASH_ROUTER_MAINNET: optionalString,
   STELLAR_WASM_HASH_TIMELOCK_MAINNET: optionalString,
 
@@ -143,7 +143,7 @@ export function stellarFriendbotUrl(): string {
 }
 
 export function stellarWasmHash(
-  kind: "SPLITTER" | "STREAMER" | "CONDITIONAL" | "TRIGGER" | "ROUTER" | "TIMELOCK",
+  kind: "SPLITTER" | "STREAMER" | "CONDITIONAL" | "DEPOSIT_TRIGGER" | "ROUTER" | "TIMELOCK",
 ): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";

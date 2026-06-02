@@ -68,9 +68,10 @@ impl Timelock {
             panic_with_error!(&env, Error::Unauthorized);
         }
         let current: i128 = env.storage().instance().get(&Key::Balance).unwrap_or(0);
-        env.storage()
-            .instance()
-            .set(&Key::Balance, &(current.checked_add(amount).unwrap_or(current)));
+        env.storage().instance().set(
+            &Key::Balance,
+            &(current.checked_add(amount).unwrap_or(current)),
+        );
 
         #[allow(deprecated)]
         env.events()
@@ -93,7 +94,8 @@ impl Timelock {
         }
 
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-        let next_steps: Vec<WorkflowTarget> = env.storage().instance().get(&Key::NextSteps).unwrap();
+        let next_steps: Vec<WorkflowTarget> =
+            env.storage().instance().get(&Key::NextSteps).unwrap();
 
         for step in next_steps.iter() {
             token::Client::new(&env, &asset).transfer(
@@ -192,7 +194,10 @@ mod test {
             },
         ];
 
-        let contract_id = env.register(Timelock, (admin.clone(), asset.address(), 1000_u64, next_steps));
+        let contract_id = env.register(
+            Timelock,
+            (admin.clone(), asset.address(), 1000_u64, next_steps),
+        );
         let client = TimelockClient::new(&env, &contract_id);
 
         // Simulate predecessor sending funds

@@ -181,20 +181,13 @@ mod test {
         let path_a = vec![&env, path_a_target.clone()];
         let path_b = vec![&env, path_b_target.clone()];
 
-        let contract_id = env.register(
-            Router,
-            (admin, asset.address(), 1_000_i128, path_a, path_b),
-        );
+        let contract_id =
+            env.register(Router, (admin, asset.address(), 1_000_i128, path_a, path_b));
         let client = RouterClient::new(&env, &contract_id);
 
         // Pre-fund the router
         tok.transfer(&predecessor, &contract_id, &1_500);
-        client.receive_and_forward(
-            &predecessor,
-            &asset.address(),
-            &1_500,
-            &vec![&env],
-        );
+        client.receive_and_forward(&predecessor, &asset.address(), &1_500, &vec![&env]);
 
         assert_eq!(tok.balance(&path_a_target.address), 1_500);
         assert_eq!(tok.balance(&path_b_target.address), 0);
@@ -218,19 +211,12 @@ mod test {
         let path_a = vec![&env, path_a_target.clone()];
         let path_b = vec![&env, path_b_target.clone()];
 
-        let contract_id = env.register(
-            Router,
-            (admin, asset.address(), 1_000_i128, path_a, path_b),
-        );
+        let contract_id =
+            env.register(Router, (admin, asset.address(), 1_000_i128, path_a, path_b));
         let client = RouterClient::new(&env, &contract_id);
 
         tok.transfer(&predecessor, &contract_id, &500);
-        client.receive_and_forward(
-            &predecessor,
-            &asset.address(),
-            &500,
-            &vec![&env],
-        );
+        client.receive_and_forward(&predecessor, &asset.address(), &500, &vec![&env]);
 
         assert_eq!(tok.balance(&path_a_target.address), 0);
         assert_eq!(tok.balance(&path_b_target.address), 500);

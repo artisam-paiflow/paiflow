@@ -30,10 +30,10 @@ pub enum Error {
 const VERSION: u32 = 1;
 
 #[contract]
-pub struct Trigger;
+pub struct DepositTrigger;
 
 #[contractimpl]
-impl Trigger {
+impl DepositTrigger {
     pub fn __constructor(
         env: Env,
         admin: Address,
@@ -49,15 +49,16 @@ impl Trigger {
         env.storage().instance().set(&Key::Version, &VERSION);
     }
 
-    pub fn trigger(env: Env, from: Address, amount: i128) {
+    pub fn deposit(env: Env, from: Address, amount: i128) {
         from.require_auth();
         if amount <= 0 {
             panic_with_error!(&env, Error::InvalidAmount);
         }
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-        let next_steps: Vec<WorkflowTarget> = env.storage().instance().get(&Key::NextSteps).unwrap();
+        let next_steps: Vec<WorkflowTarget> =
+            env.storage().instance().get(&Key::NextSteps).unwrap();
 
-        token::Client::new(&env, &asset).transfer(&from, &env.current_contract_address(), &amount);
+        token::Client::new(&env, &asset).transfer(&from, env.current_contract_address(), &amount);
 
         for step in next_steps.iter() {
             token::Client::new(&env, &asset).transfer(
@@ -75,7 +76,8 @@ impl Trigger {
         }
 
         #[allow(deprecated)]
-        env.events().publish((symbol_short!("trigger"), from), amount);
+        env.events()
+            .publish((symbol_short!("deposit"), from), amount);
     }
 
     pub fn next_steps(env: Env) -> Vec<WorkflowTarget> {
@@ -132,7 +134,7 @@ mod test {
     }
 
     #[test]
-    fn trigger_forwards_to_next() {
+    fn deposit_forwards_to_next() {
         let env = Env::default();
         env.mock_all_auths();
 
@@ -153,10 +155,10 @@ mod test {
             },
         ];
 
-        let contract_id = env.register(Trigger, (admin, asset.address(), next_steps));
-        let client = TriggerClient::new(&env, &contract_id);
+        let contract_id = env.register(DepositTrigger, (admin, asset.address(), next_steps));
+        let client = DepositTriggerClient::new(&env, &contract_id);
 
-        client.trigger(&user, &500);
+        client.deposit(&user, &500);
 
         assert_eq!(tok.balance(&user), 500);
         assert_eq!(tok.balance(&contract_id), 0);
