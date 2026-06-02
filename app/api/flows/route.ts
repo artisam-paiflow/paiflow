@@ -7,7 +7,7 @@ import { audit } from "@/lib/audit";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { FlowSaveSchema } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
-import { flowToParams } from "@/lib/flows/to-params";
+import { flowToPipeline } from "@/lib/flows/to-params";
 
 const ListQuerySchema = z.object({
   cursor: z.string().optional(),
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
         Object.fromEntries(v.errors.map((e) => [e.path, [e.message]])),
       );
     }
-    const params = flowToParams(v.graph, v.templateKind);
+    const pipeline = flowToPipeline(v.graph);
 
     const flow = await db.flow.create({
       data: {
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
         description: body.description,
         templateKind: v.templateKind,
         graph: body.graph,
-        parameters: params as object,
+        parameters: pipeline as object,
       },
     });
     await audit({

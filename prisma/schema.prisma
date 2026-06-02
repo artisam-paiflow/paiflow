@@ -154,6 +154,7 @@ model Deployment {
   errorMessage    String?
   graphSnapshot   Json
   paramsSnapshot  Json
+  pipelineSnapshot Json?
   createdAt       DateTime         @default(now())
   confirmedAt     DateTime?
   unsignedXdr     String?
