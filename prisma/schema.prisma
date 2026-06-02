@@ -16,6 +16,9 @@ enum TemplateKind {
   SPLITTER
   STREAMER
   CONDITIONAL
+  DEPOSIT_TRIGGER
+  ROUTER
+  TIMELOCK
 }
 
 enum DeploymentStatus {

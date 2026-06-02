@@ -2,6 +2,40 @@
 
 Running log of user-visible features.
 
+## Decoupled contracts base
+
+First iteration of the new decoupled architecture where contracts chain together
+via a standard `receive_and_forward` interface instead of relying on a single
+orchestrator.
+
+New crates:
+
+- **`contracts/trigger`** — entry-point contract that receives an external call
+  (`trigger(from, amount)`), pulls funds from the caller, and pushes them to its
+  configured `next_steps` via `receive_and_forward`.
+- **`contracts/timelock`** — conditional gate that accumulates funds in
+  `receive_and_forward` and holds them until `unlock_time`. Admin calls
+  `release()` to forward the stored balance to `next_steps`.
+- **`contracts/router`** — threshold router that immediately routes incoming
+  funds to `path_a` (amount ≥ threshold) or `path_b` (amount < threshold).
+- **`contracts/splitter`** — updated with `receive_and_forward` and
+  `set_next_steps` so it can participate in chains. It distributes funds to
+  recipients by BPS and then passes execution control to `next_steps`.
+
+Shared interface:
+
+```rust
+fn receive_and_forward(env: Env, from: Address, asset: Address, amount: i128, next_steps: Vec<WorkflowTarget>)
+```
+
+`WorkflowTarget` is a richer struct containing `address: Address` and
+`data: String` for extensible payload usage.
+
+All contracts use a **push-based** fund flow: the predecessor transfers funds to
+the current contract before calling `receive_and_forward`; the current contract
+does its logic and then transfers from itself to the next target before invoking
+the next `receive_and_forward`.
+
 ## Mobile wallet support on trigger page
 
 The trigger page (`/trigger/[deploymentId]`) supports mobile wallets through
