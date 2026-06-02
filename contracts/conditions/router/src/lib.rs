@@ -87,12 +87,7 @@ impl Router {
                 &step.address,
                 &amount,
             );
-            invoke_execute_step(
-                &env,
-                &step.address,
-                &asset,
-                &amount,
-            );
+            invoke_execute_step(&env, &step.address, &asset, &amount);
         }
 
         #[allow(deprecated)]
@@ -169,8 +164,17 @@ mod test {
         let path_a = vec![&env, path_a_target.clone()];
         let path_b = vec![&env, path_b_target.clone()];
 
-        let contract_id =
-            env.register(Router, (admin, asset.address(), 1_000_i128, path_a, path_b, predecessor.clone()));
+        let contract_id = env.register(
+            Router,
+            (
+                admin,
+                asset.address(),
+                1_000_i128,
+                path_a,
+                path_b,
+                predecessor.clone(),
+            ),
+        );
         let client = RouterClient::new(&env, &contract_id);
 
         // Pre-fund the router
@@ -199,8 +203,17 @@ mod test {
         let path_a = vec![&env, path_a_target.clone()];
         let path_b = vec![&env, path_b_target.clone()];
 
-        let contract_id =
-            env.register(Router, (admin, asset.address(), 1_000_i128, path_a, path_b, predecessor.clone()));
+        let contract_id = env.register(
+            Router,
+            (
+                admin,
+                asset.address(),
+                1_000_i128,
+                path_a,
+                path_b,
+                predecessor.clone(),
+            ),
+        );
         let client = RouterClient::new(&env, &contract_id);
 
         tok.transfer(&predecessor, &contract_id, &500);

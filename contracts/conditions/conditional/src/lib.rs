@@ -368,11 +368,12 @@ mod test {
         let client = ConditionalClient::new(&env, &contract_id);
 
         // Parent sends funds and calls execute_step
-        token::Client::new(&env, &asset.address()).transfer(
-            &parent, &contract_id, &1_000,
-        );
+        token::Client::new(&env, &asset.address()).transfer(&parent, &contract_id, &1_000);
         client.execute_step(&asset.address(), &1_000);
-        assert_eq!(token::Client::new(&env, &asset.address()).balance(&contract_id), 1_000);
+        assert_eq!(
+            token::Client::new(&env, &asset.address()).balance(&contract_id),
+            1_000
+        );
     }
 
     #[test]

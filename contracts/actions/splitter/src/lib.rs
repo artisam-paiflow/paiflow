@@ -180,12 +180,7 @@ impl Splitter {
         // All funds were distributed to recipients above; forward execution
         // control to next_steps with amount=0 since no funds remain.
         for step in next_steps.iter() {
-            invoke_execute_step(
-                &env,
-                &step.address,
-                &asset,
-                &0,
-            );
+            invoke_execute_step(&env, &step.address, &asset, &0);
         }
 
         #[allow(deprecated)]

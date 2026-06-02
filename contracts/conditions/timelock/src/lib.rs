@@ -110,12 +110,7 @@ impl Timelock {
                 &step.address,
                 &balance,
             );
-            invoke_execute_step(
-                &env,
-                &step.address,
-                &asset,
-                &balance,
-            );
+            invoke_execute_step(&env, &step.address, &asset, &balance);
         }
 
         env.storage().instance().set(&Key::Balance, &0i128);
@@ -188,7 +183,13 @@ mod test {
 
         let contract_id = env.register(
             Timelock,
-            (admin.clone(), asset.address(), 1000_u64, next_steps, predecessor.clone()),
+            (
+                admin.clone(),
+                asset.address(),
+                1000_u64,
+                next_steps,
+                predecessor.clone(),
+            ),
         );
         let client = TimelockClient::new(&env, &contract_id);
 

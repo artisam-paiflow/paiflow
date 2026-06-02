@@ -296,10 +296,12 @@ mod test {
         let client = StreamerClient::new(&env, &contract_id);
 
         // Parent sends funds and calls execute_step
-        token::Client::new(&env, &asset.address()).transfer(
-            &parent, &contract_id, &10_000);
+        token::Client::new(&env, &asset.address()).transfer(&parent, &contract_id, &10_000);
         client.execute_step(&asset.address(), &10_000);
-        assert_eq!(token::Client::new(&env, &asset.address()).balance(&contract_id), 10_000);
+        assert_eq!(
+            token::Client::new(&env, &asset.address()).balance(&contract_id),
+            10_000
+        );
     }
 
     #[test]
@@ -320,7 +322,15 @@ mod test {
         let parent = Address::generate(&env);
         env.register(
             Streamer,
-            (admin, bad, asset.address(), 10_i128, 1000_u64, 2000_u64, parent),
+            (
+                admin,
+                bad,
+                asset.address(),
+                10_i128,
+                1000_u64,
+                2000_u64,
+                parent,
+            ),
         );
     }
 }
