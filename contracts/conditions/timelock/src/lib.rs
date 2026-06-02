@@ -18,6 +18,7 @@ pub enum Key {
     UnlockTime,
     NextSteps,
     Balance,
+    ParentNode,
     Version,
 }
 
@@ -33,6 +34,8 @@ pub enum Error {
 }
 
 const VERSION: u32 = 1;
+const TTL_THRESHOLD: u32 = 50_000;
+const TTL_EXTEND_TO: u32 = 500_000;
 
 #[contract]
 pub struct Timelock;
@@ -45,6 +48,7 @@ impl Timelock {
         asset: Address,
         unlock_time: u64,
         next_steps: Vec<WorkflowTarget>,
+        parent: Address,
     ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
@@ -54,16 +58,15 @@ impl Timelock {
         env.storage().instance().set(&Key::UnlockTime, &unlock_time);
         env.storage().instance().set(&Key::NextSteps, &next_steps);
         env.storage().instance().set(&Key::Balance, &0i128);
+        env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
     }
 
-    pub fn receive_and_forward(
-        env: Env,
-        _from: Address,
-        asset: Address,
-        amount: i128,
-        _next_steps: Vec<WorkflowTarget>,
-    ) {
+    pub fn execute_step(env: Env, asset: Address, amount: i128) {
+        bump_ttl(&env);
+        let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
+        parent.require_auth();
+
         let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         if asset != stored_asset {
             panic_with_error!(&env, Error::Unauthorized);
@@ -84,6 +87,7 @@ impl Timelock {
     pub fn release(env: Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
+        bump_ttl(&env);
 
         let now = env.ledger().timestamp();
         let unlock_time: u64 = env.storage().instance().get(&Key::UnlockTime).unwrap();
@@ -106,10 +110,9 @@ impl Timelock {
                 &step.address,
                 &balance,
             );
-            invoke_receive_and_forward(
+            invoke_execute_step(
                 &env,
                 &step.address,
-                &env.current_contract_address(),
                 &asset,
                 &balance,
             );
@@ -131,25 +134,18 @@ impl Timelock {
     }
 }
 
-fn invoke_receive_and_forward(
-    env: &Env,
-    target: &Address,
-    from: &Address,
-    asset: &Address,
-    amount: &i128,
-) {
-    let func = soroban_sdk::Symbol::new(env, "receive_and_forward");
-    let empty_steps = Vec::<WorkflowTarget>::new(env);
+fn bump_ttl(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+}
+
+fn invoke_execute_step(env: &Env, target: &Address, asset: &Address, amount: &i128) {
+    let func = soroban_sdk::Symbol::new(env, "execute_step");
     env.invoke_contract::<()>(
         target,
         &func,
-        vec![
-            env,
-            from.into_val(env),
-            asset.into_val(env),
-            amount.into_val(env),
-            empty_steps.into_val(env),
-        ],
+        vec![env, asset.into_val(env), amount.into_val(env)],
     );
 }
 
@@ -165,14 +161,7 @@ mod test {
     #[contractimpl]
     impl Dummy {
         pub fn __constructor(_env: Env) {}
-        pub fn receive_and_forward(
-            _env: Env,
-            _from: Address,
-            _asset: Address,
-            _amount: i128,
-            _next_steps: Vec<WorkflowTarget>,
-        ) {
-        }
+        pub fn execute_step(_env: Env, _asset: Address, _amount: i128) {}
     }
 
     #[test]
@@ -199,13 +188,13 @@ mod test {
 
         let contract_id = env.register(
             Timelock,
-            (admin.clone(), asset.address(), 1000_u64, next_steps),
+            (admin.clone(), asset.address(), 1000_u64, next_steps, predecessor.clone()),
         );
         let client = TimelockClient::new(&env, &contract_id);
 
         // Simulate predecessor sending funds
         tok.transfer(&predecessor, &contract_id, &500);
-        client.receive_and_forward(&predecessor, &asset.address(), &500, &vec![&env]);
+        client.execute_step(&asset.address(), &500);
 
         assert_eq!(client.balance(), 500);
 

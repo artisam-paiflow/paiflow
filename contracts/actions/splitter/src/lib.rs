@@ -26,6 +26,7 @@ pub enum Key {
     MinAmount,
     Paused,
     NextSteps,
+    ParentNode,
     Version,
 }
 
@@ -43,6 +44,8 @@ pub enum Error {
 
 const VERSION: u32 = 1;
 const TOTAL_BPS: u32 = 10_000;
+const TTL_THRESHOLD: u32 = 50_000;
+const TTL_EXTEND_TO: u32 = 500_000;
 
 #[contract]
 pub struct Splitter;
@@ -55,6 +58,7 @@ impl Splitter {
         asset: Address,
         recipients: Vec<Recipient>,
         min_amount: i128,
+        parent: Address,
     ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
@@ -79,11 +83,13 @@ impl Splitter {
         env.storage()
             .instance()
             .set(&Key::NextSteps, &Vec::<WorkflowTarget>::new(&env));
+        env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
     }
 
     pub fn distribute(env: Env, from: Address, amount: i128) {
         from.require_auth();
+        bump_ttl(&env);
         if amount <= 0 {
             panic_with_error!(&env, Error::InvalidAmount);
         }
@@ -105,26 +111,7 @@ impl Splitter {
         let client = token::Client::new(&env, &asset);
         client.transfer(&from, env.current_contract_address(), &amount);
 
-        let len = recipients.len();
-        let last_idx = len - 1;
-        let mut distributed: i128 = 0;
-        let mut i: u32 = 0;
-        while i < len {
-            let r = recipients.get(i).unwrap();
-            let share: i128 = if i == last_idx {
-                amount.checked_sub(distributed).unwrap_or(0)
-            } else {
-                amount
-                    .checked_mul(r.bps as i128)
-                    .and_then(|v| v.checked_div(TOTAL_BPS as i128))
-                    .unwrap_or(0)
-            };
-            if share > 0 {
-                client.transfer(&env.current_contract_address(), &r.address, &share);
-                distributed = distributed.checked_add(share).unwrap_or(distributed);
-            }
-            i += 1;
-        }
+        do_split(&env, &asset, &recipients, amount);
 
         let topic: Symbol = symbol_short!("distrib");
         #[allow(deprecated)]
@@ -161,13 +148,11 @@ impl Splitter {
             .unwrap_or_else(|| Vec::new(&env))
     }
 
-    pub fn receive_and_forward(
-        env: Env,
-        _from: Address,
-        asset: Address,
-        amount: i128,
-        _next_steps: Vec<WorkflowTarget>,
-    ) {
+    pub fn execute_step(env: Env, asset: Address, amount: i128) {
+        bump_ttl(&env);
+        let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
+        parent.require_auth();
+
         let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         if asset != stored_asset {
             panic_with_error!(&env, Error::Unauthorized);
@@ -184,28 +169,8 @@ impl Splitter {
             panic_with_error!(&env, Error::Paused);
         }
         let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
-        let client = token::Client::new(&env, &asset);
 
-        let len = recipients.len();
-        let last_idx = len - 1;
-        let mut distributed: i128 = 0;
-        let mut i: u32 = 0;
-        while i < len {
-            let r = recipients.get(i).unwrap();
-            let share: i128 = if i == last_idx {
-                amount.checked_sub(distributed).unwrap_or(0)
-            } else {
-                amount
-                    .checked_mul(r.bps as i128)
-                    .and_then(|v| v.checked_div(TOTAL_BPS as i128))
-                    .unwrap_or(0)
-            };
-            if share > 0 {
-                client.transfer(&env.current_contract_address(), &r.address, &share);
-                distributed = distributed.checked_add(share).unwrap_or(distributed);
-            }
-            i += 1;
-        }
+        do_split(&env, &asset, &recipients, amount);
 
         let next_steps: Vec<WorkflowTarget> = env
             .storage()
@@ -215,10 +180,9 @@ impl Splitter {
         // All funds were distributed to recipients above; forward execution
         // control to next_steps with amount=0 since no funds remain.
         for step in next_steps.iter() {
-            invoke_receive_and_forward(
+            invoke_execute_step(
                 &env,
                 &step.address,
-                &env.current_contract_address(),
                 &asset,
                 &0,
             );
@@ -235,25 +199,42 @@ impl Splitter {
     }
 }
 
-fn invoke_receive_and_forward(
-    env: &Env,
-    target: &Address,
-    from: &Address,
-    asset: &Address,
-    amount: &i128,
-) {
-    let func = soroban_sdk::Symbol::new(env, "receive_and_forward");
-    let empty_steps = Vec::<WorkflowTarget>::new(env);
+fn do_split(env: &Env, asset: &Address, recipients: &Vec<Recipient>, amount: i128) {
+    let client = token::Client::new(env, asset);
+    let len = recipients.len();
+    let last_idx = len - 1;
+    let mut distributed: i128 = 0;
+    let mut i: u32 = 0;
+    while i < len {
+        let r = recipients.get(i).unwrap();
+        let share: i128 = if i == last_idx {
+            amount.checked_sub(distributed).unwrap_or(0)
+        } else {
+            amount
+                .checked_mul(r.bps as i128)
+                .and_then(|v| v.checked_div(TOTAL_BPS as i128))
+                .unwrap_or(0)
+        };
+        if share > 0 {
+            client.transfer(&env.current_contract_address(), &r.address, &share);
+            distributed = distributed.checked_add(share).unwrap_or(distributed);
+        }
+        i += 1;
+    }
+}
+
+fn bump_ttl(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+}
+
+fn invoke_execute_step(env: &Env, target: &Address, asset: &Address, amount: &i128) {
+    let func = soroban_sdk::Symbol::new(env, "execute_step");
     env.invoke_contract::<()>(
         target,
         &func,
-        vec![
-            env,
-            from.into_val(env),
-            asset.into_val(env),
-            amount.into_val(env),
-            empty_steps.into_val(env),
-        ],
+        vec![env, asset.into_val(env), amount.into_val(env)],
     );
 }
 
@@ -296,6 +277,8 @@ mod test {
         let payer = Address::generate(&env);
         sac.mint(&payer, &10_000_000);
 
+        let parent = Address::generate(&env);
+
         let contract_id = env.register(
             Splitter,
             (
@@ -303,6 +286,7 @@ mod test {
                 asset.address(),
                 make_recipients(&env, &a, &b, &c),
                 0_i128,
+                parent.clone(),
             ),
         );
         let client = SplitterClient::new(&env, &contract_id);
@@ -315,7 +299,7 @@ mod test {
     }
 
     #[test]
-    fn receive_and_forward_splits_and_passes_control() {
+    fn execute_step_splits_and_passes_control() {
         let env = Env::default();
         env.mock_all_auths();
         let admin = Address::generate(&env);
@@ -326,8 +310,8 @@ mod test {
         let a = Address::generate(&env);
         let b = Address::generate(&env);
         let c = Address::generate(&env);
-        let predecessor = Address::generate(&env);
-        sac.mint(&predecessor, &10_000_000);
+        let parent = Address::generate(&env);
+        sac.mint(&parent, &10_000_000);
 
         let contract_id = env.register(
             Splitter,
@@ -336,12 +320,13 @@ mod test {
                 asset.address(),
                 make_recipients(&env, &a, &b, &c),
                 0_i128,
+                parent.clone(),
             ),
         );
         let client = SplitterClient::new(&env, &contract_id);
 
-        tok.transfer(&predecessor, &contract_id, &10_000_000);
-        client.receive_and_forward(&predecessor, &asset.address(), &10_000_000, &vec![&env]);
+        tok.transfer(&parent, &contract_id, &10_000_000);
+        client.execute_step(&asset.address(), &10_000_000);
 
         assert_eq!(tok.balance(&a), 6_000_000);
         assert_eq!(tok.balance(&b), 3_000_000);
@@ -368,6 +353,7 @@ mod test {
                 bps: 3000,
             },
         ];
-        env.register(Splitter, (admin, asset.address(), bad, 0_i128));
+        let parent = Address::generate(&env);
+        env.register(Splitter, (admin, asset.address(), bad, 0_i128, parent));
     }
 }

@@ -20,6 +20,7 @@ pub enum Key {
     StartTs,
     EndTs,
     Claimed,
+    ParentNode,
     Version,
 }
 
@@ -37,6 +38,8 @@ pub enum Error {
 
 const VERSION: u32 = 2;
 const TOTAL_BPS: u32 = 10_000;
+const TTL_THRESHOLD: u32 = 50_000;
+const TTL_EXTEND_TO: u32 = 500_000;
 
 #[contract]
 pub struct Streamer;
@@ -51,6 +54,7 @@ impl Streamer {
         rate_per_second: i128,
         start_ts: u64,
         end_ts: u64,
+        parent: Address,
     ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
@@ -77,10 +81,27 @@ impl Streamer {
         env.storage().instance().set(&Key::StartTs, &start_ts);
         env.storage().instance().set(&Key::EndTs, &end_ts);
         env.storage().instance().set(&Key::Claimed, &0i128);
+        env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
     }
 
+    pub fn execute_step(env: Env, asset: Address, amount: i128) {
+        bump_ttl(&env);
+        let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
+        parent.require_auth();
+
+        let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+        if asset != stored_asset {
+            panic_with_error!(&env, Error::Unauthorized);
+        }
+
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("receive"), asset), amount);
+    }
+
     pub fn claim(env: Env) -> i128 {
+        bump_ttl(&env);
         let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
         let rate: i128 = env.storage().instance().get(&Key::Rate).unwrap();
         let start: u64 = env.storage().instance().get(&Key::StartTs).unwrap();
@@ -166,6 +187,12 @@ impl Streamer {
     }
 }
 
+fn bump_ttl(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -202,6 +229,7 @@ mod test {
         let a = Address::generate(&env);
         let b = Address::generate(&env);
         let c = Address::generate(&env);
+        let parent = Address::generate(&env);
 
         let contract_id = env.register(
             Streamer,
@@ -212,6 +240,7 @@ mod test {
                 10_i128,
                 1000_u64,
                 2000_u64,
+                parent.clone(),
             ),
         );
         let client = StreamerClient::new(&env, &contract_id);
@@ -237,6 +266,43 @@ mod test {
     }
 
     #[test]
+    fn execute_step_accepts_pipeline_funds() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                    },
+                ],
+                asset.address(),
+                10_i128,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+            ),
+        );
+        sac.mint(&parent, &10_000);
+        let client = StreamerClient::new(&env, &contract_id);
+
+        // Parent sends funds and calls execute_step
+        token::Client::new(&env, &asset.address()).transfer(
+            &parent, &contract_id, &10_000);
+        client.execute_step(&asset.address(), &10_000);
+        assert_eq!(token::Client::new(&env, &asset.address()).balance(&contract_id), 10_000);
+    }
+
+    #[test]
     #[should_panic]
     fn bad_bps_panics() {
         let env = Env::default();
@@ -251,9 +317,10 @@ mod test {
                 bps: 6000,
             },
         ];
+        let parent = Address::generate(&env);
         env.register(
             Streamer,
-            (admin, bad, asset.address(), 10_i128, 1000_u64, 2000_u64),
+            (admin, bad, asset.address(), 10_i128, 1000_u64, 2000_u64, parent),
         );
     }
 }

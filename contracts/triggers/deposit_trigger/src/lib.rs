@@ -28,6 +28,8 @@ pub enum Error {
 }
 
 const VERSION: u32 = 1;
+const TTL_THRESHOLD: u32 = 50_000;
+const TTL_EXTEND_TO: u32 = 500_000;
 
 #[contract]
 pub struct DepositTrigger;
@@ -54,6 +56,8 @@ impl DepositTrigger {
         if amount <= 0 {
             panic_with_error!(&env, Error::InvalidAmount);
         }
+        bump_ttl(&env);
+
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         let next_steps: Vec<WorkflowTarget> =
             env.storage().instance().get(&Key::NextSteps).unwrap();
@@ -66,13 +70,7 @@ impl DepositTrigger {
                 &step.address,
                 &amount,
             );
-            invoke_receive_and_forward(
-                &env,
-                &step.address,
-                &env.current_contract_address(),
-                &asset,
-                &amount,
-            );
+            invoke_execute_step(&env, &step.address, &asset, &amount);
         }
 
         #[allow(deprecated)]
@@ -89,25 +87,18 @@ impl DepositTrigger {
     }
 }
 
-fn invoke_receive_and_forward(
-    env: &Env,
-    target: &Address,
-    from: &Address,
-    asset: &Address,
-    amount: &i128,
-) {
-    let func = soroban_sdk::Symbol::new(env, "receive_and_forward");
-    let empty_steps = Vec::<WorkflowTarget>::new(env);
+fn bump_ttl(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+}
+
+fn invoke_execute_step(env: &Env, target: &Address, asset: &Address, amount: &i128) {
+    let func = soroban_sdk::Symbol::new(env, "execute_step");
     env.invoke_contract::<()>(
         target,
         &func,
-        vec![
-            env,
-            from.into_val(env),
-            asset.into_val(env),
-            amount.into_val(env),
-            empty_steps.into_val(env),
-        ],
+        vec![env, asset.into_val(env), amount.into_val(env)],
     );
 }
 
@@ -123,14 +114,7 @@ mod test {
     #[contractimpl]
     impl Dummy {
         pub fn __constructor(_env: Env) {}
-        pub fn receive_and_forward(
-            _env: Env,
-            _from: Address,
-            _asset: Address,
-            _amount: i128,
-            _next_steps: Vec<WorkflowTarget>,
-        ) {
-        }
+        pub fn execute_step(_env: Env, _asset: Address, _amount: i128) {}
     }
 
     #[test]

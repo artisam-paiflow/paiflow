@@ -18,6 +18,7 @@ pub enum Key {
     Threshold,
     PathA,
     PathB,
+    ParentNode,
     Version,
 }
 
@@ -31,6 +32,8 @@ pub enum Error {
 }
 
 const VERSION: u32 = 1;
+const TTL_THRESHOLD: u32 = 50_000;
+const TTL_EXTEND_TO: u32 = 500_000;
 
 #[contract]
 pub struct Router;
@@ -44,6 +47,7 @@ impl Router {
         threshold: i128,
         path_a: Vec<WorkflowTarget>,
         path_b: Vec<WorkflowTarget>,
+        parent: Address,
     ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
@@ -53,16 +57,15 @@ impl Router {
         env.storage().instance().set(&Key::Threshold, &threshold);
         env.storage().instance().set(&Key::PathA, &path_a);
         env.storage().instance().set(&Key::PathB, &path_b);
+        env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
     }
 
-    pub fn receive_and_forward(
-        env: Env,
-        _from: Address,
-        asset: Address,
-        amount: i128,
-        _next_steps: Vec<WorkflowTarget>,
-    ) {
+    pub fn execute_step(env: Env, asset: Address, amount: i128) {
+        bump_ttl(&env);
+        let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
+        parent.require_auth();
+
         let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         if asset != stored_asset {
             panic_with_error!(&env, Error::Unauthorized);
@@ -84,10 +87,9 @@ impl Router {
                 &step.address,
                 &amount,
             );
-            invoke_receive_and_forward(
+            invoke_execute_step(
                 &env,
                 &step.address,
-                &env.current_contract_address(),
                 &asset,
                 &amount,
             );
@@ -111,25 +113,18 @@ impl Router {
     }
 }
 
-fn invoke_receive_and_forward(
-    env: &Env,
-    target: &Address,
-    from: &Address,
-    asset: &Address,
-    amount: &i128,
-) {
-    let func = soroban_sdk::Symbol::new(env, "receive_and_forward");
-    let empty_steps = Vec::<WorkflowTarget>::new(env);
+fn bump_ttl(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+}
+
+fn invoke_execute_step(env: &Env, target: &Address, asset: &Address, amount: &i128) {
+    let func = soroban_sdk::Symbol::new(env, "execute_step");
     env.invoke_contract::<()>(
         target,
         &func,
-        vec![
-            env,
-            from.into_val(env),
-            asset.into_val(env),
-            amount.into_val(env),
-            empty_steps.into_val(env),
-        ],
+        vec![env, asset.into_val(env), amount.into_val(env)],
     );
 }
 
@@ -145,14 +140,7 @@ mod test {
     #[contractimpl]
     impl Dummy {
         pub fn __constructor(_env: Env) {}
-        pub fn receive_and_forward(
-            _env: Env,
-            _from: Address,
-            _asset: Address,
-            _amount: i128,
-            _next_steps: Vec<WorkflowTarget>,
-        ) {
-        }
+        pub fn execute_step(_env: Env, _asset: Address, _amount: i128) {}
     }
 
     fn make_dummy_target(env: &Env) -> WorkflowTarget {
@@ -182,12 +170,12 @@ mod test {
         let path_b = vec![&env, path_b_target.clone()];
 
         let contract_id =
-            env.register(Router, (admin, asset.address(), 1_000_i128, path_a, path_b));
+            env.register(Router, (admin, asset.address(), 1_000_i128, path_a, path_b, predecessor.clone()));
         let client = RouterClient::new(&env, &contract_id);
 
         // Pre-fund the router
         tok.transfer(&predecessor, &contract_id, &1_500);
-        client.receive_and_forward(&predecessor, &asset.address(), &1_500, &vec![&env]);
+        client.execute_step(&asset.address(), &1_500);
 
         assert_eq!(tok.balance(&path_a_target.address), 1_500);
         assert_eq!(tok.balance(&path_b_target.address), 0);
@@ -212,11 +200,11 @@ mod test {
         let path_b = vec![&env, path_b_target.clone()];
 
         let contract_id =
-            env.register(Router, (admin, asset.address(), 1_000_i128, path_a, path_b));
+            env.register(Router, (admin, asset.address(), 1_000_i128, path_a, path_b, predecessor.clone()));
         let client = RouterClient::new(&env, &contract_id);
 
         tok.transfer(&predecessor, &contract_id, &500);
-        client.receive_and_forward(&predecessor, &asset.address(), &500, &vec![&env]);
+        client.execute_step(&asset.address(), &500);
 
         assert_eq!(tok.balance(&path_a_target.address), 0);
         assert_eq!(tok.balance(&path_b_target.address), 500);
