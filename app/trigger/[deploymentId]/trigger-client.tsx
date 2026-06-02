@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { TriggerButton } from "@/components/deploy/trigger-button";
 import { tokenAmountToStroops } from "@/lib/flows/schema";
 import type { FlowGraph } from "@/lib/flows/schema";
@@ -20,17 +19,17 @@ export default function TriggerClient({
   network: "testnet" | "mainnet";
   graph: FlowGraph | null;
 }) {
-  const searchParams = useSearchParams();
-  const urlAmount = searchParams.get("amount");
   const [amount, setAmount] = useState("");
   const [amountSet, setAmountSet] = useState(false);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlAmount = params.get("amount");
     if (urlAmount && /^\d+(\.\d+)?$/.test(urlAmount) && urlAmount !== "0") {
       setAmount(urlAmount);
       setAmountSet(true);
     }
-  }, [urlAmount]);
+  }, []);
 
   async function copy(text: string) {
     try {
@@ -84,6 +83,10 @@ export default function TriggerClient({
               placeholder="e.g. 5"
               value={amount}
               onChange={(e) => {
+                setAmount(e.target.value.replace(/[^0-9.]/g, ""));
+                setAmountSet(false);
+              }}
+              onBlur={(e) => {
                 setAmount(e.target.value.replace(/[^0-9.]/g, ""));
                 setAmountSet(false);
               }}

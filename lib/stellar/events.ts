@@ -142,6 +142,18 @@ async function getDeploymentLedger(txHash: string): Promise<number> {
   return tx.ledger;
 }
 
+/** Recursively convert bigint values to strings so they survive JSON.stringify. */
+function convertBigInts<T>(value: T): T {
+  if (typeof value === "bigint") return value.toString() as unknown as T;
+  if (Array.isArray(value)) return value.map(convertBigInts) as unknown as T;
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, convertBigInts(v)]),
+    ) as unknown as T;
+  }
+  return value;
+}
+
 async function pollEventsWithStartLedger(
   deploymentId: string,
   contractAddress: string,
@@ -183,6 +195,9 @@ async function pollEventsWithStartLedger(
       }
     })();
     const { kind, decodedData } = decodeEventByKind(topics, value, templateKind);
+    const safePayload = convertBigInts({ topics, value }) as object;
+    const safeDecodedData = convertBigInts(decodedData) as Prisma.InputJsonValue | null;
+
     try {
       await db.contractEvent.create({
         data: {
@@ -190,8 +205,8 @@ async function pollEventsWithStartLedger(
           kind,
           ledger: ev.ledger,
           txHash: ev.txHash,
-          payload: { topics, value } as object,
-          decodedData: (decodedData ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+          payload: safePayload,
+          decodedData: (safeDecodedData ?? Prisma.JsonNull) as Prisma.InputJsonValue,
           occurredAt: new Date(ev.ledgerClosedAt),
         },
       });
@@ -201,14 +216,16 @@ async function pollEventsWithStartLedger(
         client
           .publish(
             eventChannel(deploymentId),
-            JSON.stringify({
-              kind,
-              ledger: ev.ledger,
-              txHash: ev.txHash,
-              payload: { topics, value },
-              decodedData,
-              occurredAt: ev.ledgerClosedAt,
-            }),
+            JSON.stringify(
+              convertBigInts({
+                kind,
+                ledger: ev.ledger,
+                txHash: ev.txHash,
+                payload: { topics, value },
+                decodedData,
+                occurredAt: ev.ledgerClosedAt,
+              }),
+            ),
           )
           .catch((err) => {
             log.warn({ err, deploymentId }, "redis publish failed");

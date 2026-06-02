@@ -4,20 +4,23 @@ Running log of user-visible features.
 
 ## Mobile wallet support on trigger page
 
-The trigger page (`/trigger/[deploymentId]`) now supports mobile wallets
-through a custom picker on mobile browsers, bypassing the WalletConnect modal
-which on Android only opens `wc:` URIs and cannot surface Stellar wallets like
-Freighter.
+The trigger page (`/trigger/[deploymentId]`) supports mobile wallets through
+WalletConnect. On mobile browsers, tapping "Connect Wallet & Trigger" opens the
+WalletConnect modal directly (bypassing the Stellar Wallets Kit modal) so users
+can pick Freighter, LOBSTR, or xBull and establish a session in one flow.
 
-- On **mobile**, tapping "Connect Wallet & Trigger" opens a native-style picker
-  with Freighter, LOBSTR, xBull, and an "Other Wallet" fallback.
-- Selecting a wallet initiates a WalletConnect session, constructs the wallet's
-  deep-link (`freighterwallet://wc?uri=...`, `lobstr://wc?uri=...`,
-  `xbull://wc?uri=...`), and opens it so the wallet app handles the session.
-- On **desktop**, the existing Stellar Wallets Kit modal is used.
-- `@walletconnect/sign-client` is an explicit dependency so the trigger flow
-  can create a `SignClient`, obtain the WalletConnect URI, and sign transactions
-  directly without relying on the modal.
+- On **mobile**, the flow bypasses the WalletConnect modal (which on Android
+  ignores custom `mobileWallets` and relies on an explorer fetch that often
+  fails). Instead, a native wallet picker overlay is shown with Freighter,
+  LOBSTR, and xBull. Tapping a wallet constructs the correct WalletConnect deep
+  link and opens the app directly. After the user approves the connection, the
+  transaction is prepared and signed automatically.
+- On **desktop**, the Stellar Wallets Kit modal is used, offering Freighter
+  extension and WalletConnect.
+- Existing WalletConnect sessions are reused when available, avoiding redundant
+  connection prompts.
+- `@walletconnect/sign-client` is an explicit dependency so the flow can create
+  a `SignClient`, obtain the WalletConnect URI, and sign transactions.
 - CSP `img-src` now allows `https://stellar.creit.tech` and
   `https://explorer-api.walletconnect.com` so wallet icons render in the
   Stellar Wallets Kit modal.

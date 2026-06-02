@@ -19,8 +19,6 @@ function isMobile() {
   );
 }
 
-const PENDING_KEY = "pinkraft_pending_wallet_connect";
-
 function pollTxStatus(
   deploymentId: string,
   txHash: string,
@@ -69,260 +67,171 @@ function pollTxStatus(
   });
 }
 
-type MobileWallet = {
-  id: string;
-  name: string;
-  scheme: string;
-  icon: string;
-};
-
-const MOBILE_WALLETS: MobileWallet[] = [
-  {
-    id: "freighter",
-    name: "Freighter",
-    scheme: "freighterwallet",
-    icon: "account_balance_wallet",
-  },
-  { id: "lobstr", name: "LOBSTR", scheme: "lobstr", icon: "toll" },
-  { id: "xbull", name: "xBull", scheme: "xbull", icon: "rocket_launch" },
-];
-
-async function initWalletConnectClient() {
-  const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID!;
-  return SignClient.init({
-    projectId,
-    metadata: {
-      name: "Pinkraft",
-      description: "Trigger contract deployments",
-      url: typeof window !== "undefined" ? window.location.origin : "",
-      icons: ["https://pinkraft.xyz/logo.png"],
-    },
-  });
-}
-
-async function findSession(
-  signClient: InstanceType<typeof SignClient>,
-  network: "testnet" | "mainnet",
-) {
-  const chain = network === "mainnet" ? "stellar:pubnet" : "stellar:testnet";
-  const sessions = signClient.session.getAll();
-  return sessions.find((s) => s.namespaces.stellar?.chains?.includes(chain));
-}
-
-async function waitForMobileSession(
-  signClient: InstanceType<typeof SignClient>,
-  network: "testnet" | "mainnet",
-  signal: AbortSignal,
-) {
-  const deadline = Date.now() + 60_000;
-  const interval = 2_000;
-
-  while (Date.now() < deadline) {
-    if (signal.aborted) {
-      throw new Error("Session polling aborted");
-    }
-    const session = await findSession(signClient, network);
-    if (session) {
-      const account = session.namespaces.stellar?.accounts[0];
-      if (!account) throw new Error("No Stellar account in session");
-      const address = account.split(":")[2];
-      if (!address) throw new Error("Invalid Stellar account format in session");
-      return { session, address };
-    }
-    await new Promise((r) => setTimeout(r, interval));
-  }
-  throw new Error(
-    "Session approval timed out. Copy the WalletConnect URI and paste it into your wallet manually.",
-  );
-}
-
-async function startMobileWalletConnection(
-  signClient: InstanceType<typeof SignClient>,
-  scheme: string,
-  network: "testnet" | "mainnet",
-) {
-  const chain = network === "mainnet" ? "stellar:pubnet" : "stellar:testnet";
-
-  const { uri } = await signClient.connect({
-    requiredNamespaces: {
-      stellar: {
-        methods: ["stellar_signXDR"],
-        chains: [chain],
-        events: [],
-      },
-    },
-  });
-
-  if (!uri) {
-    throw new Error("No WalletConnect URI generated");
-  }
-
-  const deepLink = `${scheme}://wc?uri=${encodeURIComponent(uri)}`;
-  window.open(deepLink, "_self", "noreferrer noopener");
-
-  return uri;
-}
-
-async function finishMobileWalletConnection(
-  signClient: InstanceType<typeof SignClient>,
-  network: "testnet" | "mainnet",
-  signal: AbortSignal,
-) {
-  const { session, address } = await waitForMobileSession(signClient, network, signal);
-  return { session, address };
-}
-
-async function signWithMobileWallet(
-  signClient: InstanceType<typeof SignClient>,
-  session: { topic: string },
-  xdr: string,
-  networkPassphrase: string,
-  network: "testnet" | "mainnet",
-) {
-  const chain = network === "mainnet" ? "stellar:pubnet" : "stellar:testnet";
-  const result = (await signClient.request({
-    topic: session.topic,
-    chainId: chain,
-    request: {
-      method: "stellar_signXDR",
-      params: {
-        xdr,
-        networkPassphrase,
-      },
-    },
-  })) as { signedXDR: string; signerAddress?: string };
-
-  return { signedTxXdr: result.signedXDR, signerAddress: result.signerAddress };
-}
-
 export function TriggerButton({ deploymentId, network, amount }: TriggerButtonProps) {
   const [busy, setBusy] = useState(false);
-  const [showMobilePicker, setShowMobilePicker] = useState(false);
-  const [waitingUri, setWaitingUri] = useState<string | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  const [pendingWallet, setPendingWallet] = useState<string | null>(null);
+  const [showOpenWallet, setShowOpenWallet] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-
+  const selectedWalletRef = useRef<string | null>(null);
+  // Pre-warm WalletConnect init on page load so the user doesn't wait
+  // when tapping a wallet in the mobile picker.
   useEffect(() => {
-    const raw = sessionStorage.getItem(PENDING_KEY);
-    if (!raw) return;
-    try {
-      const data = JSON.parse(raw) as {
-        scheme: string;
-        network: string;
-        timestamp: number;
-      };
-      if (Date.now() - data.timestamp > 120_000) {
-        sessionStorage.removeItem(PENDING_KEY);
-        return;
-      }
-      if (data.network !== network) return;
-      // Resume polling
-      setBusy(true);
-      setWaitingUri("Resuming…");
-      initWalletConnectClient()
-        .then(async (signClient) => {
-          const controller = new AbortController();
-          abortRef.current = controller;
-          const { session, address } = await finishMobileWalletConnection(
-            signClient,
-            network,
-            controller.signal,
-          );
-          sessionStorage.removeItem(PENDING_KEY);
-          setWaitingUri(null);
-          toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
-          await submitTrigger(address, undefined, signClient, session);
-        })
-        .catch((err) => {
-          sessionStorage.removeItem(PENDING_KEY);
-          setWaitingUri(null);
-          toast.error((err as Error).message ?? "Connection failed");
-        })
-        .finally(() => {
-          setBusy(false);
-        });
-    } catch {
-      sessionStorage.removeItem(PENDING_KEY);
+    if (isMobile()) {
+      ensureWalletConnect().catch(() => {});
     }
-  }, [network]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const initLockRef = useRef<Promise<any> | null>(null);
+  const wcRef = useRef<{
+    client: InstanceType<typeof SignClient>;
+    modal: WalletConnectModal;
+    module: any;
+    kit: any;
+    method: string;
+  } | null>(null);
+
+  async function ensureWalletConnect() {
+    if (wcRef.current) {
+      return wcRef.current;
+    }
+
+    if (!initLockRef.current) {
+      initLockRef.current = (async () => {
+        const [
+          { StellarWalletsKit, WalletNetwork, FreighterModule },
+          { WalletConnectModule, WalletConnectAllowedMethods },
+        ] = await Promise.all([
+          import("@creit.tech/stellar-wallets-kit"),
+          import("@creit.tech/stellar-wallets-kit/modules/walletconnect.module"),
+        ]);
+
+        const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID!;
+        const chain = network === "mainnet" ? "stellar:pubnet" : "stellar:testnet";
+
+        // WalletConnect v2 emits harmless "No matching key. expirer" noise when
+        // restoring from localStorage with orphaned topics. Patch it out for init.
+        const originalConsoleError = console.error;
+        console.error = (...args: any[]) => {
+          const msg = args.map(String).join(" ");
+          if (msg.includes("No matching key. expirer")) return;
+          originalConsoleError.apply(console, args);
+        };
+
+        let walletConnectClient;
+        try {
+          walletConnectClient = await SignClient.init({
+            projectId,
+            metadata: {
+              name: "Pinkraft",
+              description: "Trigger contract deployments",
+              url: typeof window !== "undefined" ? window.location.origin : "",
+              icons: ["https://pinkraft.xyz/logo.png"],
+            },
+          });
+        } finally {
+          console.error = originalConsoleError;
+        }
+
+        // Remove stale modal elements so we don't accumulate DOM nodes
+        document.querySelectorAll("wcm-modal").forEach((el) => el.remove());
+
+        const walletConnectModal = new WalletConnectModal({
+          projectId,
+          chains: [chain],
+          mobileWallets: [
+            {
+              id: "lobstr",
+              name: "LOBSTR",
+              links: {
+                native: "lobstr",
+                universal: "https://lobstr.co/uni/wc",
+              },
+            },
+            {
+              id: "xbull",
+              name: "xBull",
+              links: {
+                native: "xbull",
+                universal: "https://xbull.app",
+              },
+            },
+            {
+              id: "freighter",
+              name: "Freighter",
+              links: {
+                native: "freighterwallet://wc-redirect",
+                universal: "",
+              },
+            },
+          ],
+          walletImages: {
+            lobstr: "https://stellar.creit.tech/wallet-icons/lobstr.png",
+            xbull: "https://stellar.creit.tech/wallet-icons/xbull.png",
+            freighter: "https://stellar.creit.tech/wallet-icons/freighter.png",
+          },
+          enableExplorer: true,
+        });
+
+        const walletConnectModule = new WalletConnectModule({
+          projectId,
+          name: "Pinkraft",
+          description: "Trigger contract deployments",
+          url: typeof window !== "undefined" ? window.location.origin : "",
+          icons: ["https://pinkraft.xyz/logo.png"],
+          method: WalletConnectAllowedMethods.SIGN,
+          network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
+          client:
+            walletConnectClient as unknown as typeof import("@walletconnect/sign-client").SignClient,
+          modal: walletConnectModal,
+        });
+
+        const modules = isMobile()
+          ? [walletConnectModule]
+          : [new FreighterModule(), walletConnectModule];
+
+        const kit = new StellarWalletsKit({
+          network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
+          modules,
+        });
+
+        wcRef.current = {
+          client: walletConnectClient,
+          modal: walletConnectModal,
+          module: walletConnectModule,
+          kit,
+          method: WalletConnectAllowedMethods.SIGN,
+        };
+
+        return wcRef.current;
+      })();
+
+      initLockRef.current.catch(() => {
+        initLockRef.current = null;
+      });
+    }
+
+    return initLockRef.current;
+  }
+
+  async function prepareWalletConnectSession(walletConnectModule: any) {
+    const sessions = await walletConnectModule.getSessions();
+    if (sessions.length === 0) {
+      toast.info("Initiating WalletConnect session...");
+      await walletConnectModule.connectWalletConnect();
+      toast.info("Session established, getting address...");
+    } else {
+      walletConnectModule.setSession(sessions[0].id);
+      toast.info("Reusing existing session...");
+    }
+  }
 
   async function runDesktopFlow() {
-    const [
-      { StellarWalletsKit, WalletNetwork, FreighterModule },
-      { WalletConnectModule, WalletConnectAllowedMethods },
-    ] = await Promise.all([
-      import("@creit.tech/stellar-wallets-kit"),
-      import("@creit.tech/stellar-wallets-kit/modules/walletconnect.module"),
-    ]);
-
-    const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID!;
-    const chain = network === "mainnet" ? "stellar:pubnet" : "stellar:testnet";
-
-    const walletConnectClient = await SignClient.init({
-      projectId,
-      metadata: {
-        name: "Pinkraft",
-        description: "Trigger contract deployments",
-        url: typeof window !== "undefined" ? window.location.origin : "",
-        icons: ["https://pinkraft.xyz/logo.png"],
-      },
-    });
-
-    const walletConnectModal = new WalletConnectModal({
-      projectId,
-      chains: [chain],
-      mobileWallets: [
-        {
-          id: "lobstr",
-          name: "LOBSTR",
-          links: {
-            native: "lobstr",
-            universal: "https://lobstr.co/uni/wc",
-          },
-        },
-        {
-          id: "xbull",
-          name: "xBull",
-          links: {
-            native: "xbull",
-            universal: "https://xbull.app",
-          },
-        },
-        {
-          id: "freighter",
-          name: "Freighter",
-          links: {
-            native: "freighterwallet",
-          },
-        },
-      ],
-      walletImages: {
-        lobstr: "https://stellar.creit.tech/wallet-icons/lobstr.png",
-        xbull: "https://stellar.creit.tech/wallet-icons/xbull.png",
-        freighter: "https://stellar.creit.tech/wallet-icons/freighter.png",
-      },
-      enableExplorer: true,
-    });
-
-    const walletConnectModule = new WalletConnectModule({
-      projectId,
-      name: "Pinkraft",
-      description: "Trigger contract deployments",
-      url: typeof window !== "undefined" ? window.location.origin : "",
-      icons: ["https://pinkraft.xyz/logo.png"],
-      method: WalletConnectAllowedMethods.SIGN,
-      network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
-      client:
-        walletConnectClient as unknown as typeof import("@walletconnect/sign-client").SignClient,
-      modal: walletConnectModal,
-    });
-
-    const kit = new StellarWalletsKit({
-      network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
-      modules: [new FreighterModule(), walletConnectModule],
-    });
+    const { kit, module: walletConnectModule } = await ensureWalletConnect();
 
     await kit.openModal({
-      onWalletSelected: async (wallet) => {
+      onWalletSelected: async (wallet: { id: string; name: string }) => {
         setBusy(true);
         try {
           toast.info(`Selected wallet: ${wallet.name}`);
@@ -330,9 +239,7 @@ export function TriggerButton({ deploymentId, network, amount }: TriggerButtonPr
           const isWalletConnect = wallet.id === "wallet_connect";
 
           if (isWalletConnect) {
-            toast.info("Initiating WalletConnect session...");
-            await walletConnectModule.connectWalletConnect();
-            toast.info("Session established, getting address...");
+            await prepareWalletConnectSession(walletConnectModule);
           } else {
             toast.info("Connecting to Freighter extension...");
           }
@@ -355,55 +262,119 @@ export function TriggerButton({ deploymentId, network, amount }: TriggerButtonPr
     });
   }
 
-  async function runMobileFlow(scheme: string) {
-    setShowMobilePicker(false);
-    setBusy(true);
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-
+  useEffect(() => {
+    const raw = sessionStorage.getItem("pinkraft_pending_wc");
+    if (!raw) return;
     try {
-      const signClient = await initWalletConnectClient();
+      const data = JSON.parse(raw) as { network: string; timestamp: number; walletId?: string };
+      if (Date.now() - data.timestamp > 120_000) {
+        sessionStorage.removeItem("pinkraft_pending_wc");
+        return;
+      }
+      if (data.network !== network) return;
+      if (data.walletId) selectedWalletRef.current = data.walletId;
 
-      sessionStorage.setItem(
-        PENDING_KEY,
-        JSON.stringify({ scheme, network, timestamp: Date.now() }),
-      );
+      setBusy(true);
+      ensureWalletConnect()
+        .then(async ({ kit, module: walletConnectModule }) => {
+          kit.setWallet("wallet_connect");
+          const sessions = await walletConnectModule.getSessions();
+          if (sessions.length === 0) {
+            throw new Error("No session found after returning from wallet");
+          }
+          walletConnectModule.setSession(sessions[0].id);
+          sessionStorage.removeItem("pinkraft_pending_wc");
+          const { address } = await kit.getAddress();
+          toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
+          await submitTrigger(address, kit, () => setShowOpenWallet(true));
+        })
+        .catch((err) => {
+          sessionStorage.removeItem("pinkraft_pending_wc");
+          toast.error((err as Error).message ?? "Connection failed");
+        })
+        .finally(() => {
+          setBusy(false);
+          setShowPicker(false);
+          setShowOpenWallet(false);
+        });
+    } catch {
+      sessionStorage.removeItem("pinkraft_pending_wc");
+    }
+  }, [network]);
 
-      const uri = await startMobileWalletConnection(signClient, scheme, network);
-      setWaitingUri(uri);
+  async function openMobileWallet(walletId: string) {
+    selectedWalletRef.current = walletId;
+    setPendingWallet(walletId);
+    setBusy(true);
+    try {
+      const { kit, module: walletConnectModule, client, method } = await ensureWalletConnect();
+      kit.setWallet("wallet_connect");
 
-      const { session, address } = await finishMobileWalletConnection(
-        signClient,
-        network,
-        controller.signal,
-      );
+      const sessions = await walletConnectModule.getSessions();
+      if (sessions.length > 0) {
+        walletConnectModule.setSession(sessions[0].id);
+      } else {
+        toast.info("Preparing connection...");
+        const { uri, approval } = await client.connect({
+          requiredNamespaces: {
+            stellar: {
+              methods: [method],
+              chains: [network === "mainnet" ? "stellar:pubnet" : "stellar:testnet"],
+              events: [],
+            },
+          },
+        });
 
-      sessionStorage.removeItem(PENDING_KEY);
-      setWaitingUri(null);
+        const links: Record<string, string> = {
+          freighter: `freighterwallet://wc?uri=${encodeURIComponent(uri)}`,
+          lobstr: `lobstr://wc?uri=${encodeURIComponent(uri)}`,
+          xbull: `xbull://wc?uri=${encodeURIComponent(uri)}`,
+        };
+
+        sessionStorage.setItem(
+          "pinkraft_pending_wc",
+          JSON.stringify({ network, timestamp: Date.now(), walletId }),
+        );
+
+        const link = links[walletId];
+        if (!link) throw new Error("Unknown wallet");
+        window.open(link, "_self", "noreferrer noopener");
+
+        const session = await Promise.race([
+          approval(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Wallet connection timed out")), 60_000),
+          ),
+        ]);
+        walletConnectModule.setSession(session.topic);
+        sessionStorage.removeItem("pinkraft_pending_wc");
+      }
+
+      setShowPicker(false);
+      const { address } = await kit.getAddress();
       toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
-
-      await submitTrigger(address, undefined, signClient, session);
+      await submitTrigger(address, kit, () => setShowOpenWallet(true));
     } catch (err) {
-      sessionStorage.removeItem(PENDING_KEY);
-      setWaitingUri(null);
       toast.error((err as Error).message ?? "Connection failed");
+      sessionStorage.removeItem("pinkraft_pending_wc");
     } finally {
       setBusy(false);
+      setPendingWallet(null);
+      setShowPicker(false);
+      setShowOpenWallet(false);
     }
   }
 
   async function submitTrigger(
     address: string,
-    kit?: {
+    kit: {
       getAddress: () => Promise<{ address: string }>;
       signTransaction: (
         xdr: string,
         opts: { address?: string; networkPassphrase: string },
       ) => Promise<{ signedTxXdr: string }>;
     },
-    signClient?: InstanceType<typeof SignClient>,
-    session?: { topic: string },
+    onAwaitingSignature?: () => void,
   ) {
     toast.info("Preparing transaction...");
     const res = await fetch(`/api/deployments/${deploymentId}/trigger`, {
@@ -414,24 +385,20 @@ export function TriggerButton({ deploymentId, network, amount }: TriggerButtonPr
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error?.message ?? "Failed to prepare transaction");
 
-    toast.info("Awaiting signature...");
-    let signed: { signedTxXdr: string };
-    if (kit) {
-      signed = await kit.signTransaction(data.data.xdr, {
-        address,
-        networkPassphrase: data.data.networkPassphrase,
-      });
-    } else if (signClient && session) {
-      signed = await signWithMobileWallet(
-        signClient,
-        session,
-        data.data.xdr,
-        data.data.networkPassphrase,
-        network,
-      );
-    } else {
-      throw new Error("No signing mechanism available");
+    // Prevent WalletConnect from auto-redirecting to a stale wallet choice
+    // (e.g. MetaMask) during signing, which causes an Android intent chooser.
+    try {
+      localStorage.removeItem("WALLETCONNECT_DEEPLINK_CHOICE");
+    } catch {
+      /* ignore */
     }
+
+    onAwaitingSignature?.();
+    toast.info("Awaiting signature...");
+    const signed = await kit.signTransaction(data.data.xdr, {
+      address,
+      networkPassphrase: data.data.networkPassphrase,
+    });
 
     toast.info("Submitting transaction...");
     const submit = await fetch(`/api/deployments/${deploymentId}/submit-trigger`, {
@@ -454,15 +421,17 @@ export function TriggerButton({ deploymentId, network, amount }: TriggerButtonPr
   }
 
   async function onTrigger() {
+    if (showPicker) return;
     if (!amount || !/^\d+$/.test(amount) || amount === "0") {
       toast.error("Enter a valid XLM amount");
       return;
     }
     abortRef.current?.abort();
     abortRef.current = new AbortController();
+    setShowOpenWallet(false);
 
     if (isMobile()) {
-      setShowMobilePicker(true);
+      setShowPicker(true);
     } else {
       setBusy(true);
       try {
@@ -477,9 +446,80 @@ export function TriggerButton({ deploymentId, network, amount }: TriggerButtonPr
 
   return (
     <>
+      {showPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-background-1 relative w-full max-w-xs rounded-2xl p-6 shadow-2xl">
+            {busy && (
+              <div className="bg-background-1/90 absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl backdrop-blur-sm">
+                <span className="material-symbols-outlined text-primary animate-spin text-2xl">
+                  progress_activity
+                </span>
+                <p className="text-label-sm text-on-background mt-2 font-medium">
+                  {pendingWallet ? `Opening ${pendingWallet}…` : "Connecting…"}
+                </p>
+              </div>
+            )}
+            <h3 className="text-label-lg text-on-background mb-1 text-center font-bold">
+              Select Wallet
+            </h3>
+            <p className="text-body-sm text-on-background/60 mb-5 text-center">
+              Choose a wallet to connect
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => openMobileWallet("freighter")}
+                disabled={busy}
+                className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
+              >
+                <img
+                  src="https://stellar.creit.tech/wallet-icons/freighter.png"
+                  alt=""
+                  className="h-10 w-10 rounded-lg"
+                />
+                <span className="text-label-sm text-on-background font-medium">Freighter</span>
+              </button>
+              <button
+                onClick={() => openMobileWallet("lobstr")}
+                disabled={busy}
+                className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
+              >
+                <img
+                  src="https://stellar.creit.tech/wallet-icons/lobstr.png"
+                  alt=""
+                  className="h-10 w-10 rounded-lg"
+                />
+                <span className="text-label-sm text-on-background font-medium">LOBSTR</span>
+              </button>
+              <button
+                onClick={() => openMobileWallet("xbull")}
+                disabled={busy}
+                className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
+              >
+                <img
+                  src="https://stellar.creit.tech/wallet-icons/xbull.png"
+                  alt=""
+                  className="h-10 w-10 rounded-lg"
+                />
+                <span className="text-label-sm text-on-background font-medium">xBull</span>
+              </button>
+            </div>
+            <button
+              onClick={() => {
+                if (busy) return;
+                setShowPicker(false);
+                abortRef.current?.abort();
+              }}
+              disabled={busy}
+              className="hover:bg-background-2 text-label-sm text-on-background/80 mt-4 w-full rounded-xl py-3 font-medium transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       <button
         onClick={onTrigger}
-        disabled={busy}
+        disabled={busy || showPicker}
         className="bg-primary px-md text-label-md text-on-primary inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >
         {busy ? (
@@ -497,110 +537,22 @@ export function TriggerButton({ deploymentId, network, amount }: TriggerButtonPr
         )}
       </button>
 
-      {showMobilePicker && (
-        <div className="p-md fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="glass-panel space-y-md p-md w-full max-w-xs rounded-xl">
-            <div className="space-y-1 text-center">
-              <p className="text-label-sm text-primary font-mono">/ MOBILE WALLET</p>
-              <h2 className="font-display text-headline-sm">Choose Wallet</h2>
-            </div>
-
-            <div className="space-y-sm">
-              {MOBILE_WALLETS.map((wallet) => (
-                <button
-                  key={wallet.id}
-                  onClick={() => runMobileFlow(wallet.scheme)}
-                  className="bg-surface-container-high hover:border-primary/50 hover:bg-surface-container-highest gap-sm px-md py-sm inline-flex w-full items-center rounded-lg border border-transparent transition-all"
-                >
-                  <span className="material-symbols-outlined text-primary text-[20px]">
-                    {wallet.icon}
-                  </span>
-                  <span className="text-label-md text-on-surface font-mono">{wallet.name}</span>
-                </button>
-              ))}
-
-              <button
-                onClick={() => {
-                  setShowMobilePicker(false);
-                  setBusy(true);
-                  runDesktopFlow()
-                    .catch((err) => {
-                      toast.error((err as Error).message ?? "Trigger failed");
-                    })
-                    .finally(() => setBusy(false));
-                }}
-                className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 gap-sm px-md py-sm inline-flex w-full items-center rounded-lg border transition-colors"
-              >
-                <span className="material-symbols-outlined text-[20px]">qr_code_scanner</span>
-                <span className="text-label-md font-mono">Other Wallet</span>
-              </button>
-            </div>
-
-            <button
-              onClick={() => {
-                setShowMobilePicker(false);
-                abortRef.current?.abort();
-              }}
-              className="text-label-sm text-on-surface-variant hover:text-primary w-full font-mono transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {waitingUri && (
-        <div className="p-md fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="glass-panel space-y-md p-md w-full max-w-xs rounded-xl">
-            <div className="space-y-1 text-center">
-              <p className="text-label-sm text-primary font-mono">/ WAITING FOR WALLET</p>
-              <h2 className="font-display text-headline-sm">Open your wallet</h2>
-            </div>
-
-            <div className="flex justify-center py-2">
-              <span className="material-symbols-outlined text-primary animate-spin text-[32px]">
-                progress_activity
-              </span>
-            </div>
-
-            <p className="text-body-md text-on-surface-variant text-center">
-              If the wallet didn&apos;t open automatically, copy the URI below and paste it into
-              your wallet app.
-            </p>
-
-            <div className="space-y-2">
-              <div className="bg-surface-container-lowest border-outline-variant/50 text-on-surface p-xs rounded border font-mono text-xs break-all">
-                {waitingUri}
-              </div>
-              <button
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(waitingUri);
-                    toast.success("URI copied");
-                  } catch {
-                    toast.error("Failed to copy");
-                  }
-                }}
-                className="bg-primary px-md text-label-md text-on-primary inline-flex w-full items-center justify-center gap-2 rounded-lg py-2 font-mono font-bold transition-all duration-200 hover:-translate-y-px active:scale-95"
-              >
-                <span className="material-symbols-outlined text-[16px]">content_copy</span>
-                COPY URI
-              </button>
-            </div>
-
-            <button
-              onClick={() => {
-                abortRef.current?.abort();
-                sessionStorage.removeItem(PENDING_KEY);
-                setWaitingUri(null);
-                setBusy(false);
-              }}
-              className="text-label-sm text-on-surface-variant hover:text-primary w-full font-mono transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+      {isMobile() && showOpenWallet && selectedWalletRef.current && (
+        <button
+          onClick={() => {
+            const schemes: Record<string, string> = {
+              freighter: "freighterwallet://",
+              lobstr: "lobstr://",
+              xbull: "xbull://",
+            };
+            const scheme = schemes[selectedWalletRef.current!];
+            if (scheme) window.open(scheme, "_self");
+          }}
+          className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-3 font-mono text-xs font-bold transition-colors"
+        >
+          <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+          OPEN {selectedWalletRef.current.toUpperCase()}
+        </button>
       )}
     </>
   );
