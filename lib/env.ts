@@ -41,9 +41,15 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_SPLITTER_TESTNET: optionalString,
   STELLAR_WASM_HASH_STREAMER_TESTNET: optionalString,
   STELLAR_WASM_HASH_CONDITIONAL_TESTNET: optionalString,
+  STELLAR_WASM_HASH_TRIGGER_TESTNET: optionalString,
+  STELLAR_WASM_HASH_ROUTER_TESTNET: optionalString,
+  STELLAR_WASM_HASH_TIMELOCK_TESTNET: optionalString,
   STELLAR_WASM_HASH_SPLITTER_MAINNET: optionalString,
   STELLAR_WASM_HASH_STREAMER_MAINNET: optionalString,
   STELLAR_WASM_HASH_CONDITIONAL_MAINNET: optionalString,
+  STELLAR_WASM_HASH_TRIGGER_MAINNET: optionalString,
+  STELLAR_WASM_HASH_ROUTER_MAINNET: optionalString,
+  STELLAR_WASM_HASH_TIMELOCK_MAINNET: optionalString,
 
   CRON_SECRET: optionalString,
   SENTRY_DSN: optionalString,
@@ -136,7 +142,9 @@ export function stellarFriendbotUrl(): string {
   return e.STELLAR_FRIENDBOT_URL;
 }
 
-export function stellarWasmHash(kind: "SPLITTER" | "STREAMER" | "CONDITIONAL"): string | undefined {
+export function stellarWasmHash(
+  kind: "SPLITTER" | "STREAMER" | "CONDITIONAL" | "TRIGGER" | "ROUTER" | "TIMELOCK",
+): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
   const key = `STELLAR_WASM_HASH_${kind}_${suffix}` as keyof EnvShape;

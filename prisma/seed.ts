@@ -49,7 +49,16 @@ async function main() {
       kind: TemplateKind.SPLITTER,
       envKey: `STELLAR_WASM_HASH_SPLITTER_${networkSuffix}`,
       abi: {
-        functions: ["__init", "distribute", "pause", "unpause", "recipients"],
+        functions: [
+          "__init",
+          "distribute",
+          "pause",
+          "unpause",
+          "recipients",
+          "receive_and_forward",
+          "set_next_steps",
+          "next_steps",
+        ],
         events: ["Distributed"],
       },
     },
@@ -67,6 +76,30 @@ async function main() {
       abi: {
         functions: ["__init", "release", "cancel", "status"],
         events: ["Released", "Cancelled"],
+      },
+    },
+    {
+      kind: TemplateKind.TRIGGER,
+      envKey: `STELLAR_WASM_HASH_TRIGGER_${networkSuffix}`,
+      abi: {
+        functions: ["__init", "trigger", "next_steps", "asset"],
+        events: ["Trigger"],
+      },
+    },
+    {
+      kind: TemplateKind.ROUTER,
+      envKey: `STELLAR_WASM_HASH_ROUTER_${networkSuffix}`,
+      abi: {
+        functions: ["__init", "receive_and_forward", "threshold", "path_a", "path_b"],
+        events: ["Route"],
+      },
+    },
+    {
+      kind: TemplateKind.TIMELOCK,
+      envKey: `STELLAR_WASM_HASH_TIMELOCK_${networkSuffix}`,
+      abi: {
+        functions: ["__init", "receive_and_forward", "release", "balance", "unlock_time"],
+        events: ["Receive", "Release"],
       },
     },
   ];
