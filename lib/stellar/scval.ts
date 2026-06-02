@@ -171,12 +171,12 @@ export function nodeBlueprint(
     throw new Error("wasmHash must be 32 bytes");
   }
   return xdr.ScVal.scvMap([
-    new xdr.ScMapEntry({ key: symbol("wasm_hash"), val: xdr.ScVal.scvBytes(wasmHashBuf) }),
-    new xdr.ScMapEntry({ key: symbol("salt"), val: xdr.ScVal.scvBytes(salt) }),
     new xdr.ScMapEntry({
       key: symbol("constructor_args"),
       val: xdr.ScVal.scvVec(constructorArgs),
     }),
+    new xdr.ScMapEntry({ key: symbol("salt"), val: xdr.ScVal.scvBytes(salt) }),
+    new xdr.ScMapEntry({ key: symbol("wasm_hash"), val: xdr.ScVal.scvBytes(wasmHashBuf) }),
   ]);
 }
 
