@@ -602,7 +602,7 @@ export default function RaftLog({
           {messages.map((m, i) =>
             m.role === "user" ? (
               <div key={i} className="flex justify-end">
-                <div className="bg-brand-600 max-w-[85%] rounded-2xl rounded-br-sm px-3.5 py-2 text-base text-white shadow-sm">
+                <div className="bg-brand-600 max-w-[85%] rounded-2xl rounded-br-sm px-3.5 py-2 text-base break-words text-white shadow-sm">
                   {m.content}
                 </div>
               </div>
@@ -612,7 +612,7 @@ export default function RaftLog({
                   <Ship className="text-brand-400 h-2.5 w-2.5" />
                 </div>
                 <div className="max-w-[85%]">
-                  <div className="rounded-2xl rounded-tl-sm bg-zinc-900 px-3.5 py-2 text-base text-zinc-200 shadow-sm">
+                  <div className="rounded-2xl rounded-tl-sm bg-zinc-900 px-3.5 py-2 text-base break-words text-zinc-200 shadow-sm">
                     {m.content}
                   </div>
                   {m.patch && m.patch.length > 0 && (
