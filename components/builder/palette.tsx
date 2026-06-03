@@ -49,6 +49,40 @@ const TEMPLATES: Template[] = [
     }),
   },
   {
+    group: "Triggers",
+    label: "Webhook",
+    icon: "webhook",
+    make: () => ({
+      id: makeId("webhook"),
+      type: "webhook",
+      config: { asset: { kind: "known", symbol: "USDC" }, relayer: "PENDING:relayer" },
+    }),
+  },
+  {
+    group: "Triggers",
+    label: "Subscription",
+    icon: "repeat",
+    make: () => ({
+      id: makeId("sub"),
+      type: "subscription",
+      config: {
+        asset: { kind: "known", symbol: "USDC" },
+        subscriber: "PENDING:subscriber",
+        amountPerPeriodStroops: "10000000",
+      },
+    }),
+  },
+  {
+    group: "Triggers",
+    label: "Oracle",
+    icon: "online_prediction",
+    make: () => ({
+      id: makeId("oracle"),
+      type: "oracle",
+      config: { asset: { kind: "known", symbol: "USDC" }, threshold: "100" },
+    }),
+  },
+  {
     group: "Actions",
     label: "Pay",
     icon: "payments",
@@ -83,6 +117,33 @@ const TEMPLATES: Template[] = [
             label: "B",
           },
         ],
+      },
+    }),
+  },
+  {
+    group: "Actions",
+    label: "Swap",
+    icon: "swap_horiz",
+    make: () => ({
+      id: makeId("swap"),
+      type: "swap",
+      config: {
+        assetIn: { kind: "native" },
+        assetOut: { kind: "known", symbol: "USDC" },
+        rateBps: 9500,
+      },
+    }),
+  },
+  {
+    group: "Actions",
+    label: "Yield",
+    icon: "savings",
+    make: () => ({
+      id: makeId("yield"),
+      type: "yield",
+      config: {
+        asset: { kind: "known", symbol: "USDC" },
+        vault: "PENDING:vault",
       },
     }),
   },

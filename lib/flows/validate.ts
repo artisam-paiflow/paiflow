@@ -127,6 +127,22 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     if (a.type === "pay" && isPendingAddress(a.config.recipient)) {
       pendingLabels.add(a.config.recipient.slice(8) || "unnamed");
     }
+    if (a.type === "yield" && isPendingAddress(a.config.vault)) {
+      pendingLabels.add(a.config.vault.slice(8) || "unnamed");
+    }
+  }
+
+  // Validate multisig thresholds
+  for (const n of graph.nodes) {
+    if (n.type === "condition" && n.config.kind === "multisig") {
+      if (n.config.threshold > n.config.signers.length) {
+        errors.push({
+          path: `nodes.${n.id}.config.threshold`,
+          message: `Threshold (${n.config.threshold}) cannot exceed number of signers (${n.config.signers.length})`,
+          friendlyMessage: `Multisig threshold cannot be larger than the number of signers (${n.config.signers.length}).`,
+        });
+      }
+    }
   }
 
   // Detect cycles via DFS
@@ -200,18 +216,21 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   // Infer template kind
   const action = actions[0]!;
   const hasCondition = graph.nodes.some(isLogic);
+  const isScheduleLike = trigger!.type === "on_schedule" || trigger!.type === "subscription";
+  const isReceiveLike =
+    trigger!.type === "on_receive" || trigger!.type === "webhook" || trigger!.type === "oracle";
+  const isPayOrSplit = action.type === "pay" || action.type === "split";
   let templateKind: TemplateKind;
   if (hasCondition) {
     templateKind = TemplateKind.CONDITIONAL;
-  } else if (
-    trigger!.type === "on_schedule" &&
-    (action.type === "pay" || action.type === "split")
-  ) {
+  } else if (isScheduleLike && isPayOrSplit) {
     templateKind = TemplateKind.STREAMER;
-  } else if (trigger!.type === "on_receive" && action.type === "split") {
+  } else if (isReceiveLike && isPayOrSplit) {
     templateKind = TemplateKind.SPLITTER;
-  } else if (trigger!.type === "on_receive" && action.type === "pay") {
-    templateKind = TemplateKind.SPLITTER; // a 1-recipient split = pay-through
+  } else if (isReceiveLike && (action.type === "swap" || action.type === "yield")) {
+    templateKind = TemplateKind.SPLITTER;
+  } else if (trigger!.type === "oracle") {
+    templateKind = TemplateKind.CONDITIONAL;
   } else {
     return {
       ok: false,
@@ -219,7 +238,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         {
           path: "nodes",
           message:
-            "Unsupported trigger/action combination. Supported: on_receive→split, on_receive→pay, on_schedule→pay, on_schedule→split, any trigger+condition→pay, any trigger+condition→split",
+            "Unsupported trigger/action combination. Supported: receive-like triggers (on_receive, webhook, oracle) with pay/split/swap/yield, schedule-like triggers (on_schedule, subscription) with pay/split, or any with a condition.",
           friendlyMessage: FRIENDLY.UNSUPPORTED_COMBO,
         },
       ],

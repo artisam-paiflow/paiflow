@@ -37,6 +37,44 @@ Six new contract templates implementing the full architecture from issue #132.
 All new contracts follow the same `receive_and_forward` interface and error/event
 patterns as the existing base contracts.
 
+## Builder integration for new contract types
+
+The builder palette, config panel, validation pipeline, and deploy layer now
+support the six new decoupled contract types.
+
+**New palette blocks:**
+
+| Group    | Block                | Config fields                                |
+| -------- | -------------------- | -------------------------------------------- |
+| Triggers | Webhook              | asset, relayer address                       |
+| Triggers | Subscription         | asset, subscriber address, amount per period |
+| Triggers | Oracle               | asset, price threshold                       |
+| Actions  | Swap                 | asset in, asset out, rate (basis points)     |
+| Actions  | Yield                | asset, vault address                         |
+| Logic    | Condition → multisig | signer list, threshold                       |
+
+**Validation updates:**
+
+- `validateFlow` accepts receive-like triggers (`on_receive`, `webhook`, `oracle`)
+  and schedule-like triggers (`on_schedule`, `subscription`) with any action.
+- New action types (`swap`, `yield`) are validated for reachability and DAG rules.
+- Multisig conditions validate that `threshold <= signers.length`.
+- `templateKind` inference maps new triggers to `SPLITTER` / `STREAMER` /
+  `CONDITIONAL` as appropriate.
+
+**Pipeline mapping:**
+
+- `flowToPipeline` emits `WEBHOOK`, `SUBSCRIPTION`, `ORACLE`, `MULTISIG`,
+  `SWAPPER`, and `YIELD` pipeline nodes with correct constructor params.
+- `scval.ts` serializes constructor args for all new contract kinds.
+
+**Prisma / env:**
+
+- `TemplateKind` enum expanded with `WEBHOOK`, `SUBSCRIPTION`, `ORACLE`,
+  `MULTISIG`, `SWAPPER`, `YIELD`.
+- New per-network WASM hash env vars added (e.g.
+  `STELLAR_WASM_HASH_WEBHOOK_TESTNET`).
+
 ## Builder node visual sync + deploy state preservation
 
 Fixes for two builder UX issues where canvas nodes did not reflect edits and

@@ -16,6 +16,7 @@ const KIND_LABELS: Record<string, string> = {
   oracle_gte: "oracle ≥",
   time_after: "time after",
   time_before: "time before",
+  multisig: "multisig",
 };
 
 function LogicNodeComponent({ data, selected }: NodeProps) {

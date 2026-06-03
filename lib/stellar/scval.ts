@@ -157,6 +157,63 @@ export function pipelineNodeConstructorArgs(
         addr(parentAddress),
       ];
     }
+    case "webhook_trigger": {
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        addr(admin), // relayer defaults to admin for now
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+      ];
+    }
+    case "subscription_trigger": {
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        addr(params.subscriber),
+        i128(params.amountPerPeriodStroops),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+      ];
+    }
+    case "oracle_trigger": {
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        i128(params.threshold),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+      ];
+    }
+    case "multisig": {
+      if (!parentAddress) throw new Error("Multisig requires a parent address");
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        recipientsVec(params.signers),
+        u32(params.threshold),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        addr(parentAddress),
+      ];
+    }
+    case "swapper": {
+      if (!parentAddress) throw new Error("Swapper requires a parent address");
+      return [
+        addr(admin),
+        addr(assetContractId(params.assetIn)),
+        addr(assetContractId(params.assetOut)),
+        u32(params.rateBps),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        addr(parentAddress),
+      ];
+    }
+    case "yield": {
+      if (!parentAddress) throw new Error("Yield requires a parent address");
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        addr(params.vault),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        addr(parentAddress),
+      ];
+    }
   }
 }
 

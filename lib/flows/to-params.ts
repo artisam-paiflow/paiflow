@@ -74,13 +74,63 @@ export type TimelockNodeParams = {
   nextStepNodeIds: string[];
 };
 
+export type WebhookTriggerNodeParams = {
+  kind: "webhook_trigger";
+  asset: Asset;
+  nextStepNodeIds: string[];
+};
+
+export type SubscriptionTriggerNodeParams = {
+  kind: "subscription_trigger";
+  asset: Asset;
+  subscriber: string;
+  amountPerPeriodStroops: string;
+  nextStepNodeIds: string[];
+};
+
+export type OracleTriggerNodeParams = {
+  kind: "oracle_trigger";
+  asset: Asset;
+  threshold: string;
+  nextStepNodeIds: string[];
+};
+
+export type MultisigNodeParams = {
+  kind: "multisig";
+  asset: Asset;
+  signers: Array<{ address: string; bps: number }>;
+  threshold: number;
+  nextStepNodeIds: string[];
+};
+
+export type SwapperNodeParams = {
+  kind: "swapper";
+  assetIn: Asset;
+  assetOut: Asset;
+  rateBps: number;
+  nextStepNodeIds: string[];
+};
+
+export type YieldNodeParams = {
+  kind: "yield";
+  asset: Asset;
+  vault: string;
+  nextStepNodeIds: string[];
+};
+
 export type PipelineNodeParams =
   | DepositTriggerNodeParams
   | SplitterNodeParams
   | StreamerNodeParams
   | ConditionalNodeParams
   | RouterNodeParams
-  | TimelockNodeParams;
+  | TimelockNodeParams
+  | WebhookTriggerNodeParams
+  | SubscriptionTriggerNodeParams
+  | OracleTriggerNodeParams
+  | MultisigNodeParams
+  | SwapperNodeParams
+  | YieldNodeParams;
 
 export type PipelineNode = {
   nodeId: string;
@@ -89,6 +139,8 @@ export type PipelineNode = {
 };
 
 function getAsset(action: ActionNode): Asset {
+  if (action.type === "swap") return action.config.assetIn;
+  if (action.type === "yield") return action.config.asset;
   return action.config.asset;
 }
 
@@ -96,7 +148,10 @@ function toRecipients(action: ActionNode): Array<{ address: string; bps: number 
   if (action.type === "split") {
     return action.config.recipients.map((r) => ({ address: r.address, bps: r.bps }));
   }
-  return [{ address: action.config.recipient, bps: TOTAL_BPS }];
+  if (action.type === "pay") {
+    return [{ address: action.config.recipient, bps: TOTAL_BPS }];
+  }
+  return [];
 }
 
 function getChildren(graph: FlowGraph): Map<string, string[]> {
@@ -121,23 +176,42 @@ export function flowToPipeline(graph: FlowGraph): PipelineNode[] {
   const children = getChildren(graph);
   const pipeline: PipelineNode[] = [];
 
-  // ── on_schedule flows ────────────────────────────────────────────────
-  // There is no schedule-trigger contract yet; the streamer acts as the
-  // entire standalone workflow.
-  if (trigger.type === "on_schedule") {
+  // ── schedule-like flows (on_schedule, subscription) ──────────────────
+  if (trigger.type === "on_schedule" || trigger.type === "subscription") {
     const action = actions[0]!;
     const recipients = toRecipients(action);
     const asset = getAsset(action);
-    const start = Math.floor(new Date(trigger.config.startsAt).getTime() / 1000);
-    const end = trigger.config.endsAt
-      ? Math.floor(new Date(trigger.config.endsAt).getTime() / 1000)
-      : start + 60 * 60 * 24 * 30;
+
+    if (trigger.type === "subscription") {
+      pipeline.push({
+        nodeId: trigger.id,
+        templateKind: TemplateKind.SUBSCRIPTION,
+        params: {
+          kind: "subscription_trigger",
+          asset: trigger.config.asset,
+          subscriber: trigger.config.subscriber,
+          amountPerPeriodStroops: trigger.config.amountPerPeriodStroops,
+          nextStepNodeIds: children.get(trigger.id) ?? [],
+        },
+      });
+    }
+
+    const start =
+      trigger.type === "on_schedule"
+        ? Math.floor(new Date(trigger.config.startsAt).getTime() / 1000)
+        : Math.floor(Date.now() / 1000);
+    const end =
+      trigger.type === "on_schedule" && trigger.config.endsAt
+        ? Math.floor(new Date(trigger.config.endsAt).getTime() / 1000)
+        : start + 60 * 60 * 24 * 30;
     const rate =
       action.type === "pay"
         ? action.config.amountStroops
-        : (action.config.ratePerSecondStroops ?? "1");
+        : action.type === "split"
+          ? (action.config.ratePerSecondStroops ?? "1")
+          : "1";
     pipeline.push({
-      nodeId: trigger.id,
+      nodeId: action.id,
       templateKind: TemplateKind.STREAMER,
       params: {
         kind: "streamer",
@@ -151,26 +225,49 @@ export function flowToPipeline(graph: FlowGraph): PipelineNode[] {
     return pipeline;
   }
 
-  // ── on_receive flows ─────────────────────────────────────────────────
+  // ── receive-like flows (on_receive, webhook, oracle) ─────────────────
   const action = actions[0]!;
-  const asset = getAsset(action);
+  const asset = action.type === "swap" ? action.config.assetIn : getAsset(action);
   const recipients = toRecipients(action);
 
   // Trigger
-  pipeline.push({
-    nodeId: trigger.id,
-    templateKind: TemplateKind.DEPOSIT_TRIGGER,
-    params: {
-      kind: "deposit_trigger",
-      asset,
-      nextStepNodeIds: children.get(trigger.id) ?? [],
-    },
-  });
+  if (trigger.type === "webhook") {
+    pipeline.push({
+      nodeId: trigger.id,
+      templateKind: TemplateKind.WEBHOOK,
+      params: {
+        kind: "webhook_trigger",
+        asset: trigger.config.asset,
+        nextStepNodeIds: children.get(trigger.id) ?? [],
+      },
+    });
+  } else if (trigger.type === "oracle") {
+    pipeline.push({
+      nodeId: trigger.id,
+      templateKind: TemplateKind.ORACLE,
+      params: {
+        kind: "oracle_trigger",
+        asset: trigger.config.asset,
+        threshold: trigger.config.threshold,
+        nextStepNodeIds: children.get(trigger.id) ?? [],
+      },
+    });
+  } else {
+    pipeline.push({
+      nodeId: trigger.id,
+      templateKind: TemplateKind.DEPOSIT_TRIGGER,
+      params: {
+        kind: "deposit_trigger",
+        asset,
+        nextStepNodeIds: children.get(trigger.id) ?? [],
+      },
+    });
+  }
 
-  // Conditions (0 or 1 in current builder)
+  // Conditions
   let terminal = false;
   for (const cond of conditions) {
-    if (cond.config.kind === "time_after") {
+    if (cond.config.kind === "time_after" || cond.config.kind === "time_before") {
       const ts = Math.floor(new Date(cond.config.at).getTime() / 1000);
       pipeline.push({
         nodeId: cond.id,
@@ -212,23 +309,61 @@ export function flowToPipeline(graph: FlowGraph): PipelineNode[] {
           nextStepNodeIds: children.get(cond.id) ?? [],
         },
       });
-      terminal = true; // Conditional pays out directly; no splitter needed
+      terminal = true;
+    } else if (cond.config.kind === "multisig") {
+      pipeline.push({
+        nodeId: cond.id,
+        templateKind: TemplateKind.MULTISIG,
+        params: {
+          kind: "multisig",
+          asset,
+          signers: cond.config.signers.map((s) => ({ address: s, bps: 0 })),
+          threshold: cond.config.threshold,
+          nextStepNodeIds: children.get(cond.id) ?? [],
+        },
+      });
     }
   }
 
-  // Action (only when the last condition is not a terminal conditional)
+  // Action
   if (!terminal) {
-    const minAmountStroops = trigger.config.minAmountStroops ?? "0";
-    pipeline.push({
-      nodeId: action.id,
-      templateKind: TemplateKind.SPLITTER,
-      params: {
-        kind: "splitter",
-        asset,
-        recipients,
-        minAmountStroops,
-      },
-    });
+    if (action.type === "swap") {
+      pipeline.push({
+        nodeId: action.id,
+        templateKind: TemplateKind.SWAPPER,
+        params: {
+          kind: "swapper",
+          assetIn: action.config.assetIn,
+          assetOut: action.config.assetOut,
+          rateBps: action.config.rateBps,
+          nextStepNodeIds: children.get(action.id) ?? [],
+        },
+      });
+    } else if (action.type === "yield") {
+      pipeline.push({
+        nodeId: action.id,
+        templateKind: TemplateKind.YIELD,
+        params: {
+          kind: "yield",
+          asset: action.config.asset,
+          vault: action.config.vault,
+          nextStepNodeIds: children.get(action.id) ?? [],
+        },
+      });
+    } else {
+      const minAmountStroops =
+        trigger.type === "on_receive" ? (trigger.config.minAmountStroops ?? "0") : "0";
+      pipeline.push({
+        nodeId: action.id,
+        templateKind: TemplateKind.SPLITTER,
+        params: {
+          kind: "splitter",
+          asset: getAsset(action),
+          recipients,
+          minAmountStroops,
+        },
+      });
+    }
   }
 
   return pipeline;
@@ -276,7 +411,9 @@ export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): Cont
     const rate =
       action.type === "pay"
         ? action.config.amountStroops
-        : (action.config.ratePerSecondStroops ?? "1");
+        : action.type === "split"
+          ? (action.config.ratePerSecondStroops ?? "1")
+          : "1";
     return {
       kind: "streamer",
       asset: getAsset(action),

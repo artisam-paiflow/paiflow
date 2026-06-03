@@ -53,10 +53,15 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
   switch (n.type) {
     case "on_receive":
     case "on_schedule":
+    case "webhook":
+    case "subscription":
+    case "oracle":
       type = "trigger";
       break;
     case "pay":
     case "split":
+    case "swap":
+    case "yield":
       type = "action";
       break;
     case "condition":
@@ -80,9 +85,14 @@ function nodeBorderColor(n: FlowNode | undefined): string {
   switch (n.type) {
     case "on_receive":
     case "on_schedule":
+    case "webhook":
+    case "subscription":
+    case "oracle":
       return "#98cbff";
     case "pay":
     case "split":
+    case "swap":
+    case "yield":
       return "#ffb1c4";
     case "condition":
       return "#ffba20";
@@ -529,10 +539,20 @@ function nodeLabel(n: FlowNode | undefined): string {
       return `On Receive (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "on_schedule":
       return `On Schedule (${n.config.interval})`;
+    case "webhook":
+      return `Webhook (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+    case "subscription":
+      return `Subscription (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+    case "oracle":
+      return `Oracle (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "pay":
       return `Pay`;
     case "split":
       return `Split (${n.config.recipients.length})`;
+    case "swap":
+      return `Swap`;
+    case "yield":
+      return `Yield`;
     case "condition":
       return `Condition (${n.config.kind})`;
   }

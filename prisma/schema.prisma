@@ -20,6 +20,12 @@ enum TemplateKind {
   ROUTER
   TIMELOCK
   FACTORY
+  WEBHOOK
+  SUBSCRIPTION
+  ORACLE
+  MULTISIG
+  SWAPPER
+  YIELD
 }
 
 enum DeploymentStatus {

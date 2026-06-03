@@ -52,6 +52,18 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_TIMELOCK_MAINNET: optionalString,
   STELLAR_WASM_HASH_FACTORY_TESTNET: optionalString,
   STELLAR_WASM_HASH_FACTORY_MAINNET: optionalString,
+  STELLAR_WASM_HASH_WEBHOOK_TESTNET: optionalString,
+  STELLAR_WASM_HASH_WEBHOOK_MAINNET: optionalString,
+  STELLAR_WASM_HASH_SUBSCRIPTION_TESTNET: optionalString,
+  STELLAR_WASM_HASH_SUBSCRIPTION_MAINNET: optionalString,
+  STELLAR_WASM_HASH_ORACLE_TESTNET: optionalString,
+  STELLAR_WASM_HASH_ORACLE_MAINNET: optionalString,
+  STELLAR_WASM_HASH_MULTISIG_TESTNET: optionalString,
+  STELLAR_WASM_HASH_MULTISIG_MAINNET: optionalString,
+  STELLAR_WASM_HASH_SWAPPER_TESTNET: optionalString,
+  STELLAR_WASM_HASH_SWAPPER_MAINNET: optionalString,
+  STELLAR_WASM_HASH_YIELD_TESTNET: optionalString,
+  STELLAR_WASM_HASH_YIELD_MAINNET: optionalString,
   STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
   STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
 
@@ -154,7 +166,13 @@ export function stellarWasmHash(
     | "DEPOSIT_TRIGGER"
     | "ROUTER"
     | "TIMELOCK"
-    | "FACTORY",
+    | "FACTORY"
+    | "WEBHOOK"
+    | "SUBSCRIPTION"
+    | "ORACLE"
+    | "MULTISIG"
+    | "SWAPPER"
+    | "YIELD",
 ): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";

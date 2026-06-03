@@ -16,19 +16,51 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
   const n = d.node;
   if (!isAction(n)) return null;
 
-  const isPay = n.type === "pay";
-  const icon = isPay ? "payments" : "call_split";
+  let icon: string;
+  let title: string;
+  let detail: string;
 
-  const assetLabel =
-    n.config.asset.kind === "known"
-      ? n.config.asset.symbol
-      : n.config.asset.kind === "native"
-        ? "XLM"
-        : n.config.asset.code;
-
-  const detail = isPay
-    ? `${formatAmount(n.config.amountStroops)} ${assetLabel}`
-    : `${n.config.recipients.length} recipients`;
+  if (n.type === "pay") {
+    icon = "payments";
+    title = "Pay";
+    const assetLabel =
+      n.config.asset.kind === "known"
+        ? n.config.asset.symbol
+        : n.config.asset.kind === "native"
+          ? "XLM"
+          : n.config.asset.code;
+    detail = `${formatAmount(n.config.amountStroops)} ${assetLabel}`;
+  } else if (n.type === "swap") {
+    icon = "swap_horiz";
+    title = "Swap";
+    const inLabel =
+      n.config.assetIn.kind === "known"
+        ? n.config.assetIn.symbol
+        : n.config.assetIn.kind === "native"
+          ? "XLM"
+          : n.config.assetIn.code;
+    const outLabel =
+      n.config.assetOut.kind === "known"
+        ? n.config.assetOut.symbol
+        : n.config.assetOut.kind === "native"
+          ? "XLM"
+          : n.config.assetOut.code;
+    detail = `${inLabel} → ${outLabel} @ ${(n.config.rateBps / 100).toFixed(0)}%`;
+  } else if (n.type === "yield") {
+    icon = "savings";
+    title = "Yield";
+    const assetLabel =
+      n.config.asset.kind === "known"
+        ? n.config.asset.symbol
+        : n.config.asset.kind === "native"
+          ? "XLM"
+          : n.config.asset.code;
+    detail = `deposit ${assetLabel}`;
+  } else {
+    icon = "call_split";
+    title = "Split";
+    detail = `${n.config.recipients.length} recipients`;
+  }
 
   return (
     <div
@@ -51,7 +83,7 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
 
       <div className="px-3 py-2.5">
         <div className="font-display text-on-surface text-[14px] leading-tight font-semibold">
-          {isPay ? "Pay" : "Split"}
+          {title}
         </div>
         <div className="text-on-surface-variant mt-1 font-mono text-[11px]">{detail}</div>
       </div>
