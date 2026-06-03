@@ -112,7 +112,8 @@ impl Multisig {
             panic_with_error!(&env, Error::NotASigner);
         }
 
-        let mut approvals: Map<Address, bool> = env.storage().instance().get(&Key::Approvals).unwrap();
+        let mut approvals: Map<Address, bool> =
+            env.storage().instance().get(&Key::Approvals).unwrap();
         if approvals.get(signer.clone()).unwrap_or(false) {
             panic_with_error!(&env, Error::AlreadyApproved);
         }
@@ -267,7 +268,7 @@ mod test {
 
         // One approval is not enough
         client.approve_by(&alice);
-        assert_eq!(client.approvals().get(alice.clone()).unwrap(), true);
+        assert!(client.approvals().get(alice.clone()).unwrap());
 
         // release should panic
         // We can't easily test panics in the middle of a test without splitting,

@@ -54,7 +54,9 @@ impl SubscriptionTrigger {
         env.storage().instance().set(&Key::Admin, &admin);
         env.storage().instance().set(&Key::Asset, &asset);
         env.storage().instance().set(&Key::Subscriber, &subscriber);
-        env.storage().instance().set(&Key::AmountPerPeriod, &amount_per_period);
+        env.storage()
+            .instance()
+            .set(&Key::AmountPerPeriod, &amount_per_period);
         env.storage().instance().set(&Key::NextSteps, &next_steps);
         env.storage().instance().set(&Key::Version, &VERSION);
     }

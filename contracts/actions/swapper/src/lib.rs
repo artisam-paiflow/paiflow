@@ -73,8 +73,7 @@ impl Swapper {
         );
 
         #[allow(deprecated)]
-        env.events()
-            .publish((symbol_short!("topup"), from), amount);
+        env.events().publish((symbol_short!("topup"), from), amount);
     }
 
     pub fn receive_and_forward(
@@ -116,11 +115,7 @@ impl Swapper {
         }
 
         for step in next_steps.iter() {
-            out_client.transfer(
-                &env.current_contract_address(),
-                &step.address,
-                &amount_out,
-            );
+            out_client.transfer(&env.current_contract_address(), &step.address, &amount_out);
             invoke_receive_and_forward(
                 &env,
                 &step.address,
@@ -131,8 +126,10 @@ impl Swapper {
         }
 
         #[allow(deprecated)]
-        env.events()
-            .publish((symbol_short!("swap"), asset, asset_out), (amount, amount_out));
+        env.events().publish(
+            (symbol_short!("swap"), asset, asset_out),
+            (amount, amount_out),
+        );
     }
 
     pub fn asset_in(env: Env) -> Address {
@@ -236,12 +233,7 @@ mod test {
         // Predecessor sends asset_in to contract
         let tok_in = token::TokenClient::new(&env, &asset_in.address());
         tok_in.transfer(&predecessor, &contract_id, &1_000);
-        client.receive_and_forward(
-            &predecessor,
-            &asset_in.address(),
-            &1_000,
-            &vec![&env],
-        );
+        client.receive_and_forward(&predecessor, &asset_in.address(), &1_000, &vec![&env]);
 
         // 1000 * 9500 / 10000 = 950
         assert_eq!(tok_out.balance(&next), 950);
@@ -276,11 +268,6 @@ mod test {
         let tok_in = token::TokenClient::new(&env, &asset_in.address());
         tok_in.transfer(&predecessor, &contract_id, &1_000);
         // Contract has no asset_out, so it should panic
-        client.receive_and_forward(
-            &predecessor,
-            &asset_in.address(),
-            &1_000,
-            &vec![&env],
-        );
+        client.receive_and_forward(&predecessor, &asset_in.address(), &1_000, &vec![&env]);
     }
 }

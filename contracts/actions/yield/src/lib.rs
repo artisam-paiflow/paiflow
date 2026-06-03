@@ -76,13 +76,13 @@ impl Yield {
 
         // Deposit the incoming tokens into the vault.
         // In a real integration this might call a specific deposit function on the vault.
-        token::Client::new(&env, &asset).transfer(
-            &env.current_contract_address(),
-            &vault,
-            &amount,
-        );
+        token::Client::new(&env, &asset).transfer(&env.current_contract_address(), &vault, &amount);
 
-        let total: i128 = env.storage().instance().get(&Key::TotalDeposited).unwrap_or(0);
+        let total: i128 = env
+            .storage()
+            .instance()
+            .get(&Key::TotalDeposited)
+            .unwrap_or(0);
         env.storage().instance().set(
             &Key::TotalDeposited,
             &total.checked_add(amount).unwrap_or(total),
@@ -106,7 +106,10 @@ impl Yield {
     }
 
     pub fn total_deposited(env: Env) -> i128 {
-        env.storage().instance().get(&Key::TotalDeposited).unwrap_or(0)
+        env.storage()
+            .instance()
+            .get(&Key::TotalDeposited)
+            .unwrap_or(0)
     }
 
     pub fn vault(env: Env) -> Address {
@@ -195,12 +198,7 @@ mod test {
         let client = YieldClient::new(&env, &contract_id);
 
         tok.transfer(&predecessor, &contract_id, &500);
-        client.receive_and_forward(
-            &predecessor,
-            &asset.address(),
-            &500,
-            &vec![&env],
-        );
+        client.receive_and_forward(&predecessor, &asset.address(), &500, &vec![&env]);
 
         assert_eq!(client.total_deposited(), 500);
         assert_eq!(tok.balance(&contract_id), 0);

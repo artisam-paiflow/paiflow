@@ -173,10 +173,8 @@ mod test {
             },
         ];
 
-        let contract_id = env.register(
-            OracleTrigger,
-            (admin, asset.address(), 50_i128, next_steps),
-        );
+        let contract_id =
+            env.register(OracleTrigger, (admin, asset.address(), 50_i128, next_steps));
         let client = OracleTriggerClient::new(&env, &contract_id);
 
         client.execute(&user, &500, &100);
