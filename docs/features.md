@@ -2,6 +2,41 @@
 
 Running log of user-visible features.
 
+## Additional decoupled contracts
+
+Six new contract templates implementing the full architecture from issue #132.
+
+### Triggers
+
+- **`contracts/triggers/webhook`** — relayer-authorized trigger for off-chain events
+  (e.g., Shopify order). An authorized relayer calls `execute(from, amount)` to pull
+  funds and push them to `next_steps`.
+- **`contracts/triggers/subscription`** — recurring billing puller. Stores a
+  subscriber address and `amount_per_period`. Anyone (cron relayer) can call `charge()`
+  to pull authorized funds via `transfer_from` and forward downstream.
+- **`contracts/triggers/oracle`** — price-conditioned trigger. An off-chain relayer
+  passes a price; if it meets or exceeds the stored threshold, funds are pulled from
+  the caller and forwarded.
+
+### Conditions
+
+- **`contracts/conditions/multisig`** — true N-of-M human-in-the-loop gate.
+  `receive_and_forward` locks incoming funds. Signers call `approve_by(signer)`.
+  Once the approval count hits the threshold, anyone can call `release()` to forward
+  the balance and reset approvals.
+
+### Actions
+
+- **`contracts/actions/swapper`** — fixed-rate token swapper. Receives `asset_in`,
+  computes `asset_out = amount * rate_bps / 10_000` from the contract's topped-up
+  balance, and forwards `asset_out` to `next_steps`.
+- **`contracts/actions/yield`** — vault depositor. Receives funds and transfers them
+  into a configured `vault` address (e.g., a lending pool), tracking `total_deposited`.
+  Forwards execution control with amount=0 since funds have moved.
+
+All new contracts follow the same `receive_and_forward` interface and error/event
+patterns as the existing base contracts.
+
 ## Builder node visual sync + deploy state preservation
 
 Fixes for two builder UX issues where canvas nodes did not reflect edits and
