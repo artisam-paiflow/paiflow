@@ -24,7 +24,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
-    if (d.flow.templateKind !== "SPLITTER") {
+
+    const pipeline = d.pipelineSnapshot as Array<{
+      nodeId: string;
+      contractAddress: string;
+      templateKind: string;
+    }> | null;
+    const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
+
+    if (!isPipeline && d.flow.templateKind !== "SPLITTER") {
       throw new AppError("VALIDATION", "Only splitter deployments support trigger");
     }
     if (!d.contractAddress) {
@@ -35,6 +43,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       contractAddress: d.contractAddress,
       amount: body.amount,
       fromAddress: body.userAddress,
+      isPipeline,
     });
 
     return NextResponse.json({

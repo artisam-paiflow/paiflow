@@ -19,6 +19,7 @@ enum TemplateKind {
   DEPOSIT_TRIGGER
   ROUTER
   TIMELOCK
+  FACTORY
 }
 
 enum DeploymentStatus {
@@ -154,6 +155,7 @@ model Deployment {
   errorMessage    String?
   graphSnapshot   Json
   paramsSnapshot  Json
+  pipelineSnapshot Json?
   createdAt       DateTime         @default(now())
   confirmedAt     DateTime?
   unsignedXdr     String?

@@ -1,19 +1,26 @@
 import "server-only";
-import { TransactionBuilder, rpc, xdr } from "@stellar/stellar-sdk";
+import { TransactionBuilder, rpc } from "@stellar/stellar-sdk";
 import { sorobanRpc } from "./client";
 import { stellarPassphrase } from "@/lib/env";
-import { prepareDistributeInvocation } from "./invoke";
+import { prepareDistributeInvocation, prepareDepositInvocation } from "./invoke";
 
 export async function prepareTriggerTx(opts: {
   contractAddress: string;
   amount: string;
   fromAddress: string;
+  isPipeline?: boolean;
 }): Promise<{ xdr: string }> {
-  const result = await prepareDistributeInvocation({
-    contractAddress: opts.contractAddress,
-    amount: opts.amount,
-    invokerAddress: opts.fromAddress,
-  });
+  const result = opts.isPipeline
+    ? await prepareDepositInvocation({
+        contractAddress: opts.contractAddress,
+        amount: opts.amount,
+        invokerAddress: opts.fromAddress,
+      })
+    : await prepareDistributeInvocation({
+        contractAddress: opts.contractAddress,
+        amount: opts.amount,
+        invokerAddress: opts.fromAddress,
+      });
   return { xdr: result.xdr };
 }
 

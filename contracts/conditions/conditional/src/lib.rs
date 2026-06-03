@@ -13,6 +13,13 @@ pub struct Recipient {
 
 #[contracttype]
 #[derive(Clone)]
+pub struct WorkflowTarget {
+    pub address: Address,
+    pub data: String,
+}
+
+#[contracttype]
+#[derive(Clone)]
 pub enum ConditionKind {
     Timeout(u64),
     OracleGte(String),
@@ -27,6 +34,8 @@ pub enum Key {
     Amount,
     Condition,
     Released,
+    NextSteps,
+    ParentNode,
     Version,
 }
 
@@ -45,12 +54,15 @@ pub enum Error {
 
 const VERSION: u32 = 2;
 const TOTAL_BPS: u32 = 10_000;
+const TTL_THRESHOLD: u32 = 50_000;
+const TTL_EXTEND_TO: u32 = 500_000;
 
 #[contract]
 pub struct Conditional;
 
 #[contractimpl]
 impl Conditional {
+    #[allow(clippy::too_many_arguments)]
     pub fn __constructor(
         env: Env,
         admin: Address,
@@ -58,6 +70,8 @@ impl Conditional {
         asset: Address,
         amount: i128,
         condition: ConditionKind,
+        next_steps: Vec<WorkflowTarget>,
+        parent: Address,
     ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
@@ -80,12 +94,30 @@ impl Conditional {
         env.storage().instance().set(&Key::Amount, &amount);
         env.storage().instance().set(&Key::Condition, &condition);
         env.storage().instance().set(&Key::Released, &false);
+        env.storage().instance().set(&Key::NextSteps, &next_steps);
+        env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
+    }
+
+    pub fn execute_step(env: Env, asset: Address, amount: i128) {
+        bump_ttl(&env);
+        let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
+        parent.require_auth();
+
+        let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+        if asset != stored_asset {
+            panic_with_error!(&env, Error::Unauthorized);
+        }
+
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("receive"), asset), amount);
     }
 
     pub fn release(env: Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
+        bump_ttl(&env);
         if env
             .storage()
             .instance()
@@ -159,6 +191,12 @@ impl Conditional {
     }
 }
 
+fn bump_ttl(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -190,6 +228,7 @@ mod test {
         let a = Address::generate(&env);
         let b = Address::generate(&env);
         let condition = ConditionKind::Timeout(1000);
+        let parent = Address::generate(&env);
 
         let contract_id = env.register(
             Conditional,
@@ -199,6 +238,8 @@ mod test {
                 asset.address(),
                 1_000_i128,
                 condition,
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
             ),
         );
         sac.mint(&contract_id, &1_000);
@@ -226,6 +267,7 @@ mod test {
         let tok = token::TokenClient::new(&env, &asset.address());
         let recipient = Address::generate(&env);
         let condition = ConditionKind::Timeout(1000);
+        let parent = Address::generate(&env);
 
         let contract_id = env.register(
             Conditional,
@@ -241,6 +283,8 @@ mod test {
                 asset.address(),
                 1_000_i128,
                 condition,
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
             ),
         );
         sac.mint(&contract_id, &1_000);
@@ -266,6 +310,7 @@ mod test {
         let tok = token::TokenClient::new(&env, &asset.address());
         let recipient = Address::generate(&env);
         let condition = ConditionKind::Multisig(1);
+        let parent = Address::generate(&env);
 
         let contract_id = env.register(
             Conditional,
@@ -281,6 +326,8 @@ mod test {
                 asset.address(),
                 1_000_i128,
                 condition,
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
             ),
         );
         sac.mint(&contract_id, &1_000);
@@ -289,6 +336,45 @@ mod test {
         client.release();
         assert_eq!(tok.balance(&recipient), 1_000);
         assert!(client.status());
+    }
+
+    #[test]
+    fn execute_step_accepts_pipeline_funds() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Conditional,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                    },
+                ],
+                asset.address(),
+                1_000_i128,
+                ConditionKind::Timeout(1000),
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
+            ),
+        );
+        sac.mint(&parent, &1_000);
+        let client = ConditionalClient::new(&env, &contract_id);
+
+        // Parent sends funds and calls execute_step
+        token::Client::new(&env, &asset.address()).transfer(&parent, &contract_id, &1_000);
+        client.execute_step(&asset.address(), &1_000);
+        assert_eq!(
+            token::Client::new(&env, &asset.address()).balance(&contract_id),
+            1_000
+        );
     }
 
     #[test]
@@ -301,6 +387,7 @@ mod test {
         let sac = token::StellarAssetClient::new(&env, &asset.address());
         let recipient = Address::generate(&env);
         let condition = ConditionKind::Timeout(1000);
+        let parent = Address::generate(&env);
 
         let contract_id = env.register(
             Conditional,
@@ -316,6 +403,8 @@ mod test {
                 asset.address(),
                 100_i128,
                 condition,
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
             ),
         );
         sac.mint(&contract_id, &100);
@@ -335,6 +424,7 @@ mod test {
         let sac = token::StellarAssetClient::new(&env, &asset.address());
         let recipient = Address::generate(&env);
         let condition = ConditionKind::Timeout(2000);
+        let parent = Address::generate(&env);
 
         let contract_id = env.register(
             Conditional,
@@ -350,6 +440,8 @@ mod test {
                 asset.address(),
                 1_000_i128,
                 condition,
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
             ),
         );
         sac.mint(&contract_id, &1_000);
@@ -370,6 +462,7 @@ mod test {
         let recipient = Address::generate(&env);
         let _oracle = Address::generate(&env);
         let condition = ConditionKind::OracleGte(String::from_str(&env, "BTC/USD"));
+        let parent = Address::generate(&env);
 
         let contract_id = env.register(
             Conditional,
@@ -385,6 +478,8 @@ mod test {
                 asset.address(),
                 1_000_i128,
                 condition,
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
             ),
         );
         sac.mint(&contract_id, &1_000);

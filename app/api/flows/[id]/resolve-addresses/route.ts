@@ -7,7 +7,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { FlowGraphSchema, isPendingAddress } from "@/lib/flows/schema";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
-import { flowToParams } from "@/lib/flows/to-params";
+import { flowToPipeline } from "@/lib/flows/to-params";
 import { upsertAddress } from "@/lib/address-book";
 
 const ResolveSchema = z.object({
@@ -78,13 +78,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     // Save the flow
     const templateKind = v.templateKind;
-    const parameters = flowToParams(v.graph, templateKind) as object;
+    const pipeline = flowToPipeline(v.graph);
 
     await db.flow.update({
       where: { id },
       data: {
         graph: updatedGraph as object,
-        parameters: parameters as object,
+        parameters: pipeline as object,
         templateKind,
         version: { increment: 1 },
       },

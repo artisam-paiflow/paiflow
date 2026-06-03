@@ -1,6 +1,6 @@
 import "server-only";
 import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
-import type { ContractParams } from "@/lib/flows/to-params";
+import type { ContractParams, PipelineNodeParams } from "@/lib/flows/to-params";
 import { assetContractId } from "./assets";
 
 function addr(a: string): xdr.ScVal {
@@ -19,17 +19,38 @@ function u64(n: number | bigint): xdr.ScVal {
   return nativeToScVal(typeof n === "bigint" ? n : BigInt(n), { type: "u64" });
 }
 
+function string(s: string): xdr.ScVal {
+  return nativeToScVal(s, { type: "string" });
+}
+
+function symbol(s: string): xdr.ScVal {
+  return nativeToScVal(s, { type: "symbol" });
+}
+
 function recipientsVec(recipients: Array<{ address: string; bps: number }>): xdr.ScVal {
   return xdr.ScVal.scvVec(
     recipients.map((r) =>
       xdr.ScVal.scvMap([
         new xdr.ScMapEntry({
-          key: nativeToScVal("address", { type: "symbol" }),
+          key: symbol("address"),
           val: addr(r.address),
         }),
-        new xdr.ScMapEntry({ key: nativeToScVal("bps", { type: "symbol" }), val: u32(r.bps) }),
+        new xdr.ScMapEntry({ key: symbol("bps"), val: u32(r.bps) }),
       ]),
     ),
+  );
+}
+
+function workflowTargets(nodeIds: string[], addresses: Record<string, string>): xdr.ScVal {
+  return xdr.ScVal.scvVec(
+    nodeIds.map((id) => {
+      const address = addresses[id];
+      if (!address) throw new Error(`Missing computed address for node ${id}`);
+      return xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({ key: symbol("address"), val: addr(address) }),
+        new xdr.ScMapEntry({ key: symbol("data"), val: string("") }),
+      ]);
+    }),
   );
 }
 
@@ -41,6 +62,125 @@ function amountStroops(params: { amountStroops: string }): xdr.ScVal {
   return i128(params.amountStroops);
 }
 
+function conditionKind(cond: { kind: string; [key: string]: unknown }): xdr.ScVal {
+  switch (cond.kind) {
+    case "time_after": {
+      const ts = BigInt(Math.floor(new Date(cond.at as string).getTime() / 1000));
+      return xdr.ScVal.scvVec([symbol("Timeout"), u64(ts)]);
+    }
+    case "time_before": {
+      const ts = BigInt(Math.floor(new Date(cond.at as string).getTime() / 1000));
+      return xdr.ScVal.scvVec([symbol("Timeout"), u64(ts)]);
+    }
+    case "oracle_gte": {
+      return xdr.ScVal.scvVec([symbol("OracleGte"), string(cond.oracle as string)]);
+    }
+    case "amount_gt":
+    case "amount_lt": {
+      throw new Error(
+        "amount_gt/amount_lt conditions are not supported in conditional constructor",
+      );
+    }
+    default:
+      return xdr.ScVal.scvVec([symbol("Multisig"), u32(1)]);
+  }
+}
+
+/** Build constructor SCVals for a pipeline node. */
+export function pipelineNodeConstructorArgs(
+  params: PipelineNodeParams,
+  admin: string,
+  parentAddress: string | undefined,
+  nodeAddresses: Record<string, string>,
+): xdr.ScVal[] {
+  switch (params.kind) {
+    case "deposit_trigger": {
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+      ];
+    }
+    case "splitter": {
+      if (!parentAddress) throw new Error("Splitter requires a parent address");
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        recipientsVec(params.recipients),
+        i128(params.minAmountStroops),
+        addr(parentAddress),
+      ];
+    }
+    case "streamer": {
+      if (!parentAddress) throw new Error("Streamer requires a parent address");
+      return [
+        addr(admin),
+        recipientsVec(params.recipients),
+        addr(assetContractId(params.asset)),
+        ratePerSecondStroops(params),
+        u64(params.startTs),
+        u64(params.endTs),
+        addr(parentAddress),
+      ];
+    }
+    case "conditional": {
+      if (!parentAddress) throw new Error("Conditional requires a parent address");
+      const cond = params.condition as { kind: string; [key: string]: unknown } | null;
+      return [
+        addr(admin),
+        recipientsVec(params.recipients),
+        addr(assetContractId(params.asset)),
+        amountStroops(params),
+        cond ? conditionKind(cond) : xdr.ScVal.scvVoid(),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        addr(parentAddress),
+      ];
+    }
+    case "router": {
+      if (!parentAddress) throw new Error("Router requires a parent address");
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        i128(params.threshold),
+        workflowTargets(params.pathANodeIds, nodeAddresses),
+        workflowTargets(params.pathBNodeIds, nodeAddresses),
+        addr(parentAddress),
+      ];
+    }
+    case "timelock": {
+      if (!parentAddress) throw new Error("Timelock requires a parent address");
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        u64(params.unlockTime),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        addr(parentAddress),
+      ];
+    }
+  }
+}
+
+/** Encode a factory NodeBlueprint as an SCVal map. */
+export function nodeBlueprint(
+  wasmHashHex: string,
+  salt: Buffer,
+  constructorArgs: xdr.ScVal[],
+): xdr.ScVal {
+  const wasmHashBuf = Buffer.from(wasmHashHex, "hex");
+  if (wasmHashBuf.length !== 32) {
+    throw new Error("wasmHash must be 32 bytes");
+  }
+  return xdr.ScVal.scvMap([
+    new xdr.ScMapEntry({
+      key: symbol("constructor_args"),
+      val: xdr.ScVal.scvVec(constructorArgs),
+    }),
+    new xdr.ScMapEntry({ key: symbol("salt"), val: xdr.ScVal.scvBytes(salt) }),
+    new xdr.ScMapEntry({ key: symbol("wasm_hash"), val: xdr.ScVal.scvBytes(wasmHashBuf) }),
+  ]);
+}
+
+/** @deprecated Use {@link pipelineNodeConstructorArgs} for new code. */
 export function constructorArgs(params: ContractParams, admin: string): xdr.ScVal[] {
   switch (params.kind) {
     case "splitter": {
@@ -77,17 +217,14 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
       switch (c.kind) {
         case "time_after": {
           const ts = BigInt(Math.floor(new Date(c.at as string).getTime() / 1000));
-          cond = xdr.ScVal.scvVec([nativeToScVal("Timeout", { type: "symbol" }), u64(ts)]);
+          cond = xdr.ScVal.scvVec([symbol("Timeout"), u64(ts)]);
           break;
         }
         case "time_before": {
           throw new Error("time_before condition is not yet supported — use time_after");
         }
         case "oracle_gte": {
-          cond = xdr.ScVal.scvVec([
-            nativeToScVal("OracleGte", { type: "symbol" }),
-            nativeToScVal(c.oracle as string, { type: "string" }),
-          ]);
+          cond = xdr.ScVal.scvVec([symbol("OracleGte"), string(c.oracle as string)]);
           break;
         }
         case "amount_gt":
@@ -95,10 +232,7 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
           throw new Error("amount_gt/amount_lt conditions are not yet supported");
         }
         default:
-          cond = xdr.ScVal.scvVec([
-            nativeToScVal("Multisig", { type: "symbol" }),
-            xdr.ScVal.scvU32(1),
-          ]);
+          cond = xdr.ScVal.scvVec([symbol("Multisig"), u32(1)]);
       }
       return [
         addr(admin),

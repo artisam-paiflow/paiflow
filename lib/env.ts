@@ -50,6 +50,10 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_DEPOSIT_TRIGGER_MAINNET: optionalString,
   STELLAR_WASM_HASH_ROUTER_MAINNET: optionalString,
   STELLAR_WASM_HASH_TIMELOCK_MAINNET: optionalString,
+  STELLAR_WASM_HASH_FACTORY_TESTNET: optionalString,
+  STELLAR_WASM_HASH_FACTORY_MAINNET: optionalString,
+  STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
+  STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
 
   CRON_SECRET: optionalString,
   SENTRY_DSN: optionalString,
@@ -143,10 +147,24 @@ export function stellarFriendbotUrl(): string {
 }
 
 export function stellarWasmHash(
-  kind: "SPLITTER" | "STREAMER" | "CONDITIONAL" | "DEPOSIT_TRIGGER" | "ROUTER" | "TIMELOCK",
+  kind:
+    | "SPLITTER"
+    | "STREAMER"
+    | "CONDITIONAL"
+    | "DEPOSIT_TRIGGER"
+    | "ROUTER"
+    | "TIMELOCK"
+    | "FACTORY",
 ): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
   const key = `STELLAR_WASM_HASH_${kind}_${suffix}` as keyof EnvShape;
+  return e[key] as string | undefined;
+}
+
+export function stellarFactoryAddress(): string | undefined {
+  const e = env();
+  const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
+  const key = `STELLAR_FACTORY_ADDRESS_${suffix}` as keyof EnvShape;
   return e[key] as string | undefined;
 }

@@ -67,8 +67,15 @@ export default async function DeploymentPage({
   if (!graphResult.success) notFound();
   const graph = graphResult.data;
 
+  const pipeline = d.pipelineSnapshot as Array<{
+    nodeId: string;
+    contractAddress: string;
+    templateKind: string;
+  }> | null;
+  const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
+
   const qrUrl =
-    d.contractAddress && d.flow.templateKind === "SPLITTER"
+    d.contractAddress && (isPipeline || d.flow.templateKind === "SPLITTER")
       ? `/api/deployments/${d.id}/qr?action=trigger`
       : null;
 

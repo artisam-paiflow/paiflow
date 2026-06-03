@@ -1028,6 +1028,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "pinkraft-factory"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "pinkraft-splitter"
 version = "0.1.0"
 dependencies = [

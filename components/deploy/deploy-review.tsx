@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
+import type { TemplateKind } from "@prisma/client";
 
 type WalletKit = {
   getAddress: () => Promise<{ address: string }>;
@@ -45,6 +47,9 @@ export default function DeployReview({
   network: StellarNetwork;
 }) {
   const [busy, setBusy] = useState(false);
+  const [pipeline, setPipeline] = useState<
+    Array<{ nodeId: string; contractAddress: string; templateKind: TemplateKind }>
+  >([]);
   const isMainnet = network === "mainnet";
 
   async function onDeploy() {
@@ -59,6 +64,7 @@ export default function DeployReview({
       });
       const prepData = await prep.json();
       if (!prep.ok) throw new Error(prepData?.error?.message ?? "Prepare failed");
+      setPipeline(prepData.data.pipeline ?? []);
 
       const signed = await kit.signTransaction(prepData.data.xdr, {
         address,
@@ -103,6 +109,30 @@ export default function DeployReview({
           </span>
         </div>
       </div>
+      {pipeline.length > 0 && (
+        <div className="grid gap-2">
+          <span className="text-label-sm text-on-surface-variant font-mono uppercase">
+            Pipeline
+          </span>
+          <ul className="space-y-2">
+            {pipeline.map((node, i) => (
+              <li key={node.nodeId} className="flex items-start gap-2">
+                <span className="text-label-sm text-on-surface-variant mt-0.5 font-mono">
+                  {i + 1}.
+                </span>
+                <div className="min-w-0">
+                  <span className="text-label-md text-on-surface font-mono">
+                    {TEMPLATE_LABELS[node.templateKind]}
+                  </span>
+                  <div className="text-label-sm text-on-surface-variant truncate font-mono">
+                    {node.contractAddress}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <button
         onClick={onDeploy}
         disabled={busy}

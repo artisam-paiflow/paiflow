@@ -20,12 +20,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
-    if (d.flow.templateKind !== "SPLITTER") {
+
+    const pipeline = d.pipelineSnapshot as Array<{
+      nodeId: string;
+      contractAddress: string;
+      templateKind: string;
+    }> | null;
+    const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
+
+    if (!isPipeline && d.flow.templateKind !== "SPLITTER") {
       throw new AppError("VALIDATION", "Only splitter deployments support trigger submit");
     }
 
     const result = await submitTriggerTx(body.signedXdr);
     if (result.status === "PENDING") {
+      await audit({
+        action: "DEPLOY_TRIGGER",
+        userId: d.ownerId,
+        metadata: { deploymentId: id, txHash: result.txHash },
+      });
       return NextResponse.json({ data: { txHash: result.txHash, status: "PENDING" } });
     }
     if (result.status === "FAILED") {
