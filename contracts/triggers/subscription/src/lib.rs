@@ -62,8 +62,11 @@ impl SubscriptionTrigger {
     }
 
     /// Pulls the pre-authorized subscription amount from the subscriber and
-    /// forwards it downstream. Can be called by anyone (e.g., a cron relayer).
+    /// forwards it downstream. Only the admin may call this.
     pub fn charge(env: Env) {
+        let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
+        admin.require_auth();
+
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         let subscriber: Address = env.storage().instance().get(&Key::Subscriber).unwrap();
         let amount: i128 = env.storage().instance().get(&Key::AmountPerPeriod).unwrap();

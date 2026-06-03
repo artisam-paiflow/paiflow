@@ -77,6 +77,7 @@ export type TimelockNodeParams = {
 export type WebhookTriggerNodeParams = {
   kind: "webhook_trigger";
   asset: Asset;
+  relayer: string;
   nextStepNodeIds: string[];
 };
 
@@ -238,6 +239,7 @@ export function flowToPipeline(graph: FlowGraph): PipelineNode[] {
       params: {
         kind: "webhook_trigger",
         asset: trigger.config.asset,
+        relayer: trigger.config.relayer,
         nextStepNodeIds: children.get(trigger.id) ?? [],
       },
     });

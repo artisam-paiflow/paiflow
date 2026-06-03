@@ -161,7 +161,7 @@ export function pipelineNodeConstructorArgs(
       return [
         addr(admin),
         addr(assetContractId(params.asset)),
-        addr(admin), // relayer defaults to admin for now
+        addr(params.relayer),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
       ];
     }
