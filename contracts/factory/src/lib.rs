@@ -21,11 +21,7 @@ impl PipelineFactory {
     /// the JS `computeContractAddress` helper.
     ///
     /// `source` must authorize this call.
-    pub fn deploy_pipeline(
-        env: Env,
-        source: Address,
-        nodes: Vec<NodeBlueprint>,
-    ) -> Vec<Address> {
+    pub fn deploy_pipeline(env: Env, source: Address, nodes: Vec<NodeBlueprint>) -> Vec<Address> {
         source.require_auth();
 
         let mut addresses = Vec::new(&env);
@@ -33,10 +29,7 @@ impl PipelineFactory {
             let deployer = env
                 .deployer()
                 .with_address(source.clone(), node.salt.clone());
-            let address = deployer.deploy_v2(
-                node.wasm_hash.clone(),
-                node.constructor_args.clone(),
-            );
+            let address = deployer.deploy_v2(node.wasm_hash.clone(), node.constructor_args.clone());
             addresses.push_back(address);
         }
         addresses
