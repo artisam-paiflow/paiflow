@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
-    Address, Env, Symbol, Vec,
+    vec, Address, Env, IntoVal, String, Symbol, Vec,
 };
 
 #[contracttype]
@@ -12,12 +12,20 @@ pub struct Recipient {
 }
 
 #[contracttype]
+#[derive(Clone)]
+pub struct WorkflowTarget {
+    pub address: Address,
+    pub data: String,
+}
+
+#[contracttype]
 pub enum Key {
     Admin,
     Asset,
     Recipients,
     MinAmount,
     Paused,
+    NextSteps,
     Version,
 }
 
@@ -68,6 +76,9 @@ impl Splitter {
         env.storage().instance().set(&Key::Recipients, &recipients);
         env.storage().instance().set(&Key::MinAmount, &min_amount);
         env.storage().instance().set(&Key::Paused, &false);
+        env.storage()
+            .instance()
+            .set(&Key::NextSteps, &Vec::<WorkflowTarget>::new(&env));
         env.storage().instance().set(&Key::Version, &VERSION);
     }
 
@@ -138,10 +149,112 @@ impl Splitter {
         env.storage().instance().get(&Key::Recipients).unwrap()
     }
 
+    pub fn set_next_steps(env: Env, next_steps: Vec<WorkflowTarget>) {
+        Self::require_admin(&env);
+        env.storage().instance().set(&Key::NextSteps, &next_steps);
+    }
+
+    pub fn next_steps(env: Env) -> Vec<WorkflowTarget> {
+        env.storage()
+            .instance()
+            .get(&Key::NextSteps)
+            .unwrap_or_else(|| Vec::new(&env))
+    }
+
+    pub fn receive_and_forward(
+        env: Env,
+        _from: Address,
+        asset: Address,
+        amount: i128,
+        _next_steps: Vec<WorkflowTarget>,
+    ) {
+        let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+        if asset != stored_asset {
+            panic_with_error!(&env, Error::Unauthorized);
+        }
+        if amount <= 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
+        if env
+            .storage()
+            .instance()
+            .get::<_, bool>(&Key::Paused)
+            .unwrap_or(false)
+        {
+            panic_with_error!(&env, Error::Paused);
+        }
+        let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
+        let client = token::Client::new(&env, &asset);
+
+        let len = recipients.len();
+        let last_idx = len - 1;
+        let mut distributed: i128 = 0;
+        let mut i: u32 = 0;
+        while i < len {
+            let r = recipients.get(i).unwrap();
+            let share: i128 = if i == last_idx {
+                amount.checked_sub(distributed).unwrap_or(0)
+            } else {
+                amount
+                    .checked_mul(r.bps as i128)
+                    .and_then(|v| v.checked_div(TOTAL_BPS as i128))
+                    .unwrap_or(0)
+            };
+            if share > 0 {
+                client.transfer(&env.current_contract_address(), &r.address, &share);
+                distributed = distributed.checked_add(share).unwrap_or(distributed);
+            }
+            i += 1;
+        }
+
+        let next_steps: Vec<WorkflowTarget> = env
+            .storage()
+            .instance()
+            .get(&Key::NextSteps)
+            .unwrap_or_else(|| Vec::new(&env));
+        // All funds were distributed to recipients above; forward execution
+        // control to next_steps with amount=0 since no funds remain.
+        for step in next_steps.iter() {
+            invoke_receive_and_forward(
+                &env,
+                &step.address,
+                &env.current_contract_address(),
+                &asset,
+                &0,
+            );
+        }
+
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("distrib"), asset), amount);
+    }
+
     fn require_admin(env: &Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
     }
+}
+
+fn invoke_receive_and_forward(
+    env: &Env,
+    target: &Address,
+    from: &Address,
+    asset: &Address,
+    amount: &i128,
+) {
+    let func = soroban_sdk::Symbol::new(env, "receive_and_forward");
+    let empty_steps = Vec::<WorkflowTarget>::new(env);
+    env.invoke_contract::<()>(
+        target,
+        &func,
+        vec![
+            env,
+            from.into_val(env),
+            asset.into_val(env),
+            amount.into_val(env),
+            empty_steps.into_val(env),
+        ],
+    );
 }
 
 #[cfg(test)]
@@ -199,6 +312,40 @@ mod test {
         assert_eq!(tok.balance(&b), 3_000_000);
         assert_eq!(tok.balance(&c), 1_000_000);
         assert_eq!(tok.balance(&payer), 0);
+    }
+
+    #[test]
+    fn receive_and_forward_splits_and_passes_control() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let a = Address::generate(&env);
+        let b = Address::generate(&env);
+        let c = Address::generate(&env);
+        let predecessor = Address::generate(&env);
+        sac.mint(&predecessor, &10_000_000);
+
+        let contract_id = env.register(
+            Splitter,
+            (
+                admin.clone(),
+                asset.address(),
+                make_recipients(&env, &a, &b, &c),
+                0_i128,
+            ),
+        );
+        let client = SplitterClient::new(&env, &contract_id);
+
+        tok.transfer(&predecessor, &contract_id, &10_000_000);
+        client.receive_and_forward(&predecessor, &asset.address(), &10_000_000, &vec![&env]);
+
+        assert_eq!(tok.balance(&a), 6_000_000);
+        assert_eq!(tok.balance(&b), 3_000_000);
+        assert_eq!(tok.balance(&c), 1_000_000);
     }
 
     #[test]

@@ -13,6 +13,9 @@ async function update() {
     { kind: TemplateKind.SPLITTER, envKey: "STELLAR_WASM_HASH_SPLITTER" },
     { kind: TemplateKind.STREAMER, envKey: "STELLAR_WASM_HASH_STREAMER" },
     { kind: TemplateKind.CONDITIONAL, envKey: "STELLAR_WASM_HASH_CONDITIONAL" },
+    { kind: TemplateKind.DEPOSIT_TRIGGER, envKey: "STELLAR_WASM_HASH_DEPOSIT_TRIGGER" },
+    { kind: TemplateKind.ROUTER, envKey: "STELLAR_WASM_HASH_ROUTER" },
+    { kind: TemplateKind.TIMELOCK, envKey: "STELLAR_WASM_HASH_TIMELOCK" },
   ];
 
   for (const t of templates) {
