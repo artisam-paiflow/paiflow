@@ -6,6 +6,14 @@ const optionalString = z
   .optional()
   .transform((v) => (v && v.length > 0 ? v : undefined));
 
+const optionalWasmHash = z
+  .string()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined))
+  .refine((v) => v === undefined || /^[0-9a-f]{64}$/i.test(v), {
+    message: "WASM hash must be a 64-character hex string",
+  });
+
 const boolish = z
   .union([z.boolean(), z.string()])
   .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
@@ -38,20 +46,32 @@ const EnvSchema = z.object({
   // Friendbot is testnet-only; undefined on mainnet.
   STELLAR_FRIENDBOT_URL: optionalString,
 
-  STELLAR_WASM_HASH_SPLITTER_TESTNET: optionalString,
-  STELLAR_WASM_HASH_STREAMER_TESTNET: optionalString,
-  STELLAR_WASM_HASH_CONDITIONAL_TESTNET: optionalString,
-  STELLAR_WASM_HASH_DEPOSIT_TRIGGER_TESTNET: optionalString,
-  STELLAR_WASM_HASH_ROUTER_TESTNET: optionalString,
-  STELLAR_WASM_HASH_TIMELOCK_TESTNET: optionalString,
-  STELLAR_WASM_HASH_SPLITTER_MAINNET: optionalString,
-  STELLAR_WASM_HASH_STREAMER_MAINNET: optionalString,
-  STELLAR_WASM_HASH_CONDITIONAL_MAINNET: optionalString,
-  STELLAR_WASM_HASH_DEPOSIT_TRIGGER_MAINNET: optionalString,
-  STELLAR_WASM_HASH_ROUTER_MAINNET: optionalString,
-  STELLAR_WASM_HASH_TIMELOCK_MAINNET: optionalString,
-  STELLAR_WASM_HASH_FACTORY_TESTNET: optionalString,
-  STELLAR_WASM_HASH_FACTORY_MAINNET: optionalString,
+  STELLAR_WASM_HASH_SPLITTER_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_STREAMER_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_CONDITIONAL_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_DEPOSIT_TRIGGER_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_ROUTER_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_TIMELOCK_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SPLITTER_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_STREAMER_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_CONDITIONAL_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_DEPOSIT_TRIGGER_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_ROUTER_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_TIMELOCK_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_FACTORY_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_FACTORY_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_WEBHOOK_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_WEBHOOK_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SUBSCRIPTION_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SUBSCRIPTION_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_ORACLE_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_ORACLE_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_MULTISIG_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_MULTISIG_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SWAPPER_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SWAPPER_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_YIELD_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_YIELD_MAINNET: optionalWasmHash,
   STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
   STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
 
@@ -154,7 +174,13 @@ export function stellarWasmHash(
     | "DEPOSIT_TRIGGER"
     | "ROUTER"
     | "TIMELOCK"
-    | "FACTORY",
+    | "FACTORY"
+    | "WEBHOOK"
+    | "SUBSCRIPTION"
+    | "ORACLE"
+    | "MULTISIG"
+    | "SWAPPER"
+    | "YIELD",
 ): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";

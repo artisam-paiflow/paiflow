@@ -2,6 +2,79 @@
 
 Running log of user-visible features.
 
+## Additional decoupled contracts
+
+Six new contract templates implementing the full architecture from issue #132.
+
+### Triggers
+
+- **`contracts/triggers/webhook`** — relayer-authorized trigger for off-chain events
+  (e.g., Shopify order). An authorized relayer calls `execute(from, amount)` to pull
+  funds and push them to `next_steps`.
+- **`contracts/triggers/subscription`** — recurring billing puller. Stores a
+  subscriber address and `amount_per_period`. Anyone (cron relayer) can call `charge()`
+  to pull authorized funds via `transfer_from` and forward downstream.
+- **`contracts/triggers/oracle`** — price-conditioned trigger. An off-chain relayer
+  passes a price; if it meets or exceeds the stored threshold, funds are pulled from
+  the caller and forwarded.
+
+### Conditions
+
+- **`contracts/conditions/multisig`** — true N-of-M human-in-the-loop gate.
+  `receive_and_forward` locks incoming funds. Signers call `approve_by(signer)`.
+  Once the approval count hits the threshold, anyone can call `release()` to forward
+  the balance and reset approvals.
+
+### Actions
+
+- **`contracts/actions/swapper`** — fixed-rate token swapper. Receives `asset_in`,
+  computes `asset_out = amount * rate_bps / 10_000` from the contract's topped-up
+  balance, and forwards `asset_out` to `next_steps`.
+- **`contracts/actions/yield`** — vault depositor. Receives funds and transfers them
+  into a configured `vault` address (e.g., a lending pool), tracking `total_deposited`.
+  Forwards execution control with amount=0 since funds have moved.
+
+All new contracts follow the same `receive_and_forward` interface and error/event
+patterns as the existing base contracts.
+
+## Builder integration for new contract types
+
+The builder palette, config panel, validation pipeline, and deploy layer now
+support the six new decoupled contract types.
+
+**New palette blocks:**
+
+| Group    | Block                | Config fields                                |
+| -------- | -------------------- | -------------------------------------------- |
+| Triggers | Webhook              | asset, relayer address                       |
+| Triggers | Subscription         | asset, subscriber address, amount per period |
+| Triggers | Oracle               | asset, price threshold                       |
+| Actions  | Swap                 | asset in, asset out, rate (basis points)     |
+| Actions  | Yield                | asset, vault address                         |
+| Logic    | Condition → multisig | signer list, threshold                       |
+
+**Validation updates:**
+
+- `validateFlow` accepts receive-like triggers (`on_receive`, `webhook`, `oracle`)
+  and schedule-like triggers (`on_schedule`, `subscription`) with any action.
+- New action types (`swap`, `yield`) are validated for reachability and DAG rules.
+- Multisig conditions validate that `threshold <= signers.length`.
+- `templateKind` inference maps new triggers to `SPLITTER` / `STREAMER` /
+  `CONDITIONAL` as appropriate.
+
+**Pipeline mapping:**
+
+- `flowToPipeline` emits `WEBHOOK`, `SUBSCRIPTION`, `ORACLE`, `MULTISIG`,
+  `SWAPPER`, and `YIELD` pipeline nodes with correct constructor params.
+- `scval.ts` serializes constructor args for all new contract kinds.
+
+**Prisma / env:**
+
+- `TemplateKind` enum expanded with `WEBHOOK`, `SUBSCRIPTION`, `ORACLE`,
+  `MULTISIG`, `SWAPPER`, `YIELD`.
+- New per-network WASM hash env vars added (e.g.
+  `STELLAR_WASM_HASH_WEBHOOK_TESTNET`).
+
 ## Builder node visual sync + deploy state preservation
 
 Fixes for two builder UX issues where canvas nodes did not reflect edits and
