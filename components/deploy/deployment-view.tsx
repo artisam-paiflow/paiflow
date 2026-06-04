@@ -46,8 +46,18 @@ export default function DeploymentView({
           const merged = [...prev];
           let addedPulses = 0;
           for (const data of newEvents) {
-            if (!merged.some((p) => p.id === data.id || p.txHash === data.txHash)) {
+            const isDuplicate = merged.some(
+              (p) => p.txHash === data.txHash && p.kind === data.kind,
+            );
+            if (!isDuplicate) {
               merged.unshift({ ...data, _isNew: true });
+              setTimeout(() => {
+                setEvents((curr) =>
+                  curr.map((e) =>
+                    e.txHash === data.txHash && e.kind === data.kind ? { ...e, _isNew: false } : e,
+                  ),
+                );
+              }, 250);
               if (data.kind === "RECEIVE" || data.kind === "PAYOUT") {
                 addedPulses += 1;
               }

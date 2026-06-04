@@ -197,7 +197,6 @@ model ContractEvent {
 model EventCursor {
   deploymentId    String     @id @db.Uuid
   lastLedger      Int
-  lastPagingToken String?
   updatedAt       DateTime   @updatedAt
   deployment      Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
 }
