@@ -300,7 +300,9 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
           break;
         }
         case "time_before": {
-          throw new Error("time_before condition is not yet supported — use time_after");
+          const ts = BigInt(Math.floor(new Date(c.at as string).getTime() / 1000));
+          cond = xdr.ScVal.scvVec([symbol("Timeout"), u64(ts)]);
+          break;
         }
         case "oracle_gte": {
           const oracleConfig = xdr.ScVal.scvMap([
