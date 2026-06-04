@@ -2,6 +2,21 @@
 
 Running log of user-visible features.
 
+## Conditional contract improvements
+
+- **`contracts/conditions/timelock`** now supports both `time_after` and
+  `time_before` via a `Mode` enum (`After` / `Before`).
+  - `After`: holds funds until the deadline, then releases (existing behavior).
+  - `Before`: releases funds only before the deadline; after expiry admin must
+    `cancel()` to recover.
+- **`contracts/conditions/conditional`** `OracleGte` is now a real oracle query
+  instead of a panic placeholder.
+  - `OracleConfig` stores the oracle contract address, query key, and threshold.
+  - `release()` invokes `oracle.get(key)` and compares the returned `i128`
+    price against the threshold.
+  - Works with any oracle implementing the generic `get(String) -> i128`
+    interface.
+
 ## Additional decoupled contracts
 
 Six new contract templates implementing the full architecture from issue #132.
