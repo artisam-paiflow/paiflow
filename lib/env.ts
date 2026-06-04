@@ -180,7 +180,8 @@ export function stellarWasmHash(
     | "ORACLE"
     | "MULTISIG"
     | "SWAPPER"
-    | "YIELD",
+    | "YIELD"
+    | "PAYER",
 ): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";

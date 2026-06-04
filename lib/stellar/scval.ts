@@ -19,6 +19,13 @@ function u64(n: number | bigint): xdr.ScVal {
   return nativeToScVal(typeof n === "bigint" ? n : BigInt(n), { type: "u64" });
 }
 
+function enumVariant(name: string): xdr.ScVal {
+  const variants = ["After", "Before"];
+  const index = variants.indexOf(name);
+  if (index < 0) throw new Error(`Unknown enum variant: ${name}`);
+  return xdr.ScVal.scvU32(index);
+}
+
 function string(s: string): xdr.ScVal {
   return nativeToScVal(s, { type: "string" });
 }
@@ -73,7 +80,21 @@ function conditionKind(cond: { kind: string; [key: string]: unknown }): xdr.ScVa
       return xdr.ScVal.scvVec([symbol("Timeout"), u64(ts)]);
     }
     case "oracle_gte": {
-      return xdr.ScVal.scvVec([symbol("OracleGte"), string(cond.oracle as string)]);
+      const oracleConfig = xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({
+          key: symbol("oracle"),
+          val: addr(cond.oracle as string),
+        }),
+        new xdr.ScMapEntry({
+          key: symbol("key"),
+          val: string(cond.key as string),
+        }),
+        new xdr.ScMapEntry({
+          key: symbol("threshold"),
+          val: i128(cond.threshold as string),
+        }),
+      ]);
+      return xdr.ScVal.scvVec([symbol("OracleGte"), oracleConfig]);
     }
     case "amount_gt":
     case "amount_lt": {
@@ -153,6 +174,7 @@ export function pipelineNodeConstructorArgs(
         addr(admin),
         addr(assetContractId(params.asset)),
         u64(params.unlockTime),
+        enumVariant(params.mode === "after" ? "After" : "Before"),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
         addr(parentAddress),
       ];
@@ -281,7 +303,21 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
           throw new Error("time_before condition is not yet supported — use time_after");
         }
         case "oracle_gte": {
-          cond = xdr.ScVal.scvVec([symbol("OracleGte"), string(c.oracle as string)]);
+          const oracleConfig = xdr.ScVal.scvMap([
+            new xdr.ScMapEntry({
+              key: symbol("oracle"),
+              val: addr(c.oracle as string),
+            }),
+            new xdr.ScMapEntry({
+              key: symbol("key"),
+              val: string(c.key as string),
+            }),
+            new xdr.ScMapEntry({
+              key: symbol("threshold"),
+              val: i128(c.threshold as string),
+            }),
+          ]);
+          cond = xdr.ScVal.scvVec([symbol("OracleGte"), oracleConfig]);
           break;
         }
         case "amount_gt":

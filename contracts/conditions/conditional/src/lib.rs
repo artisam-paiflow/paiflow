@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
-    Address, Env, String, Vec,
+    vec, Address, Env, IntoVal, String, Symbol, Val, Vec,
 };
 
 #[contracttype]
@@ -20,9 +20,17 @@ pub struct WorkflowTarget {
 
 #[contracttype]
 #[derive(Clone)]
+pub struct OracleConfig {
+    pub oracle: Address,
+    pub key: String,
+    pub threshold: i128,
+}
+
+#[contracttype]
+#[derive(Clone)]
 pub enum ConditionKind {
     Timeout(u64),
-    OracleGte(String),
+    OracleGte(OracleConfig),
     Multisig(u32),
 }
 
@@ -49,10 +57,10 @@ pub enum Error {
     Unauthorized = 4,
     BpsSumInvalid = 5,
     NoRecipients = 6,
-    OracleNotSupported = 7,
+    OracleCallFailed = 7,
 }
 
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 const TOTAL_BPS: u32 = 10_000;
 const TTL_THRESHOLD: u32 = 50_000;
 const TTL_EXTEND_TO: u32 = 500_000;
@@ -127,13 +135,20 @@ impl Conditional {
             panic_with_error!(&env, Error::AlreadyReleased);
         }
         let condition: ConditionKind = env.storage().instance().get(&Key::Condition).unwrap();
-        let now = env.ledger().timestamp();
         let can_release = match condition {
-            ConditionKind::Timeout(ts) => now >= ts,
-            ConditionKind::OracleGte(_) => {
-                panic_with_error!(&env, Error::OracleNotSupported);
+            ConditionKind::Timeout(ts) => {
+                let now = env.ledger().timestamp();
+                now >= ts
             }
-            ConditionKind::Multisig(_threshold) => true,
+            ConditionKind::OracleGte(config) => {
+                let price = query_oracle(&env, &config.oracle, &config.key);
+                price >= config.threshold
+            }
+            ConditionKind::Multisig(_threshold) => {
+                // Admin can always release for multisig in this contract;
+                // true N-of-M is handled by the dedicated multisig contract.
+                true
+            }
         };
         if !can_release {
             panic_with_error!(&env, Error::ConditionNotMet);
@@ -191,6 +206,16 @@ impl Conditional {
     }
 }
 
+fn query_oracle(env: &Env, oracle: &Address, key: &String) -> i128 {
+    let func = Symbol::new(env, "get");
+    let args: Vec<Val> = vec![env, key.into_val(env)];
+    let result = env.try_invoke_contract::<i128, soroban_sdk::Error>(oracle, &func, args);
+    match result {
+        Ok(Ok(price)) => price,
+        _ => panic_with_error!(env, Error::OracleCallFailed),
+    }
+}
+
 fn bump_ttl(env: &Env) {
     env.storage()
         .instance()
@@ -201,7 +226,7 @@ fn bump_ttl(env: &Env) {
 mod test {
     use super::*;
     use soroban_sdk::testutils::{Address as _, Ledger};
-    use soroban_sdk::{token, vec, Env};
+    use soroban_sdk::{contract, contractimpl, token, vec, Env};
 
     fn make_recipients(env: &Env, a: &Address, b: &Address) -> Vec<Recipient> {
         vec![
@@ -377,6 +402,118 @@ mod test {
         );
     }
 
+    #[contract]
+    pub struct MockOracle;
+
+    #[contractimpl]
+    impl MockOracle {
+        pub fn __constructor(_env: Env) {}
+        pub fn get(_env: Env, _key: String) -> i128 {
+            100_000_i128
+        }
+    }
+
+    #[test]
+    fn oracle_gte_releases_when_price_met() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+        let recipient = Address::generate(&env);
+        let parent = Address::generate(&env);
+
+        let oracle_id = env.register(MockOracle, ());
+
+        let condition = ConditionKind::OracleGte(OracleConfig {
+            oracle: oracle_id.clone(),
+            key: String::from_str(&env, "BTC/USD"),
+            threshold: 50_000_i128,
+        });
+
+        let contract_id = env.register(
+            Conditional,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: recipient.clone(),
+                        bps: 10_000,
+                    },
+                ],
+                asset.address(),
+                1_000_i128,
+                condition,
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
+            ),
+        );
+        sac.mint(&contract_id, &1_000);
+        let client = ConditionalClient::new(&env, &contract_id);
+
+        client.release();
+        assert_eq!(tok.balance(&recipient), 1_000);
+        assert!(client.status());
+    }
+
+    #[contract]
+    pub struct MockOracleLow;
+
+    #[contractimpl]
+    impl MockOracleLow {
+        pub fn __constructor(_env: Env) {}
+        pub fn get(_env: Env, _key: String) -> i128 {
+            10_000_i128
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #3)")]
+    fn oracle_gte_panics_when_price_not_met() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let recipient = Address::generate(&env);
+        let parent = Address::generate(&env);
+
+        let oracle_id = env.register(MockOracleLow, ());
+
+        let condition = ConditionKind::OracleGte(OracleConfig {
+            oracle: oracle_id.clone(),
+            key: String::from_str(&env, "BTC/USD"),
+            threshold: 50_000_i128,
+        });
+
+        let contract_id = env.register(
+            Conditional,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: recipient.clone(),
+                        bps: 10_000,
+                    },
+                ],
+                asset.address(),
+                1_000_i128,
+                condition,
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
+            ),
+        );
+        sac.mint(&contract_id, &1_000);
+        let client = ConditionalClient::new(&env, &contract_id);
+
+        client.release();
+    }
+
     #[test]
     #[should_panic(expected = "Error(Contract, #2)")]
     fn double_release_panics() {
@@ -448,44 +585,6 @@ mod test {
         let client = ConditionalClient::new(&env, &contract_id);
 
         env.ledger().set_timestamp(500);
-        client.release();
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #7)")]
-    fn oracle_gte_panics() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let admin = Address::generate(&env);
-        let asset = env.register_stellar_asset_contract_v2(admin.clone());
-        let sac = token::StellarAssetClient::new(&env, &asset.address());
-        let recipient = Address::generate(&env);
-        let _oracle = Address::generate(&env);
-        let condition = ConditionKind::OracleGte(String::from_str(&env, "BTC/USD"));
-        let parent = Address::generate(&env);
-
-        let contract_id = env.register(
-            Conditional,
-            (
-                admin.clone(),
-                vec![
-                    &env,
-                    Recipient {
-                        address: recipient.clone(),
-                        bps: 10_000,
-                    },
-                ],
-                asset.address(),
-                1_000_i128,
-                condition,
-                Vec::<WorkflowTarget>::new(&env),
-                parent.clone(),
-            ),
-        );
-        sac.mint(&contract_id, &1_000);
-        let client = ConditionalClient::new(&env, &contract_id);
-
-        env.ledger().set_timestamp(1000);
         client.release();
     }
 }
