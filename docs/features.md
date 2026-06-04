@@ -2,6 +2,17 @@
 
 Running log of user-visible features.
 
+## Payer action contract
+
+New `contracts/actions/payer` fixes the bug where **pay** nodes in receive-like
+flows forwarded 100% of incoming funds instead of the configured amount.
+
+- `execute_step` sends `min(incoming_amount, configured_amount)` to the
+  configured recipient.
+- Excess funds remain in the contract; admin can `cancel()` to recover.
+- Pipeline mapping: receive-like trigger → **pay** now emits a `PAYER` node
+  instead of a single-recipient `SPLITTER`.
+
 ## Additional decoupled contracts
 
 Six new contract templates implementing the full architecture from issue #132.
