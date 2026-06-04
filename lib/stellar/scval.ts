@@ -214,6 +214,17 @@ export function pipelineNodeConstructorArgs(
         addr(parentAddress),
       ];
     }
+    case "payer": {
+      if (!parentAddress) throw new Error("Payer requires a parent address");
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        addr(params.recipient),
+        i128(params.amountStroops),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        addr(parentAddress),
+      ];
+    }
   }
 }
 

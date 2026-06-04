@@ -102,6 +102,21 @@ async function main() {
         events: ["receive", "release"],
       },
     },
+    {
+      kind: TemplateKind.PAYER,
+      envKey: `STELLAR_WASM_HASH_PAYER_${networkSuffix}`,
+      abi: {
+        functions: [
+          "__constructor",
+          "execute_step",
+          "cancel",
+          "balance",
+          "configured_amount",
+          "recipient",
+        ],
+        events: ["pay", "cancel"],
+      },
+    },
   ];
 
   for (const t of templates) {

@@ -119,6 +119,14 @@ export type YieldNodeParams = {
   nextStepNodeIds: string[];
 };
 
+export type PayerNodeParams = {
+  kind: "payer";
+  asset: Asset;
+  recipient: string;
+  amountStroops: string;
+  nextStepNodeIds: string[];
+};
+
 export type PipelineNodeParams =
   | DepositTriggerNodeParams
   | SplitterNodeParams
@@ -131,7 +139,8 @@ export type PipelineNodeParams =
   | OracleTriggerNodeParams
   | MultisigNodeParams
   | SwapperNodeParams
-  | YieldNodeParams;
+  | YieldNodeParams
+  | PayerNodeParams;
 
 export type PipelineNode = {
   nodeId: string;
@@ -349,6 +358,18 @@ export function flowToPipeline(graph: FlowGraph): PipelineNode[] {
           kind: "yield",
           asset: action.config.asset,
           vault: action.config.vault,
+          nextStepNodeIds: children.get(action.id) ?? [],
+        },
+      });
+    } else if (action.type === "pay") {
+      pipeline.push({
+        nodeId: action.id,
+        templateKind: TemplateKind.PAYER,
+        params: {
+          kind: "payer",
+          asset: getAsset(action),
+          recipient: action.config.recipient,
+          amountStroops: action.config.amountStroops,
           nextStepNodeIds: children.get(action.id) ?? [],
         },
       });

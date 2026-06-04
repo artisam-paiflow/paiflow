@@ -72,6 +72,8 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_SWAPPER_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_YIELD_TESTNET: optionalWasmHash,
   STELLAR_WASM_HASH_YIELD_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_PAYER_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_PAYER_MAINNET: optionalWasmHash,
   STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
   STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
 
@@ -180,7 +182,8 @@ export function stellarWasmHash(
     | "ORACLE"
     | "MULTISIG"
     | "SWAPPER"
-    | "YIELD",
+    | "YIELD"
+    | "PAYER",
 ): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
