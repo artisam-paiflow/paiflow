@@ -41,6 +41,7 @@ pub struct Payer;
 
 #[contractimpl]
 impl Payer {
+    #[allow(clippy::too_many_arguments)]
     pub fn __constructor(
         env: Env,
         admin: Address,
