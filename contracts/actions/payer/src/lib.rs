@@ -61,7 +61,9 @@ impl Payer {
         env.storage().instance().set(&Key::Asset, &asset);
         env.storage().instance().set(&Key::Recipient, &recipient);
         env.storage().instance().set(&Key::Amount, &amount);
-        env.storage().instance().set(&Key::PercentageBps, &percentage_bps);
+        env.storage()
+            .instance()
+            .set(&Key::PercentageBps, &percentage_bps);
         env.storage().instance().set(&Key::NextSteps, &next_steps);
         env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
@@ -140,7 +142,10 @@ impl Payer {
     }
 
     pub fn percentage_bps(env: Env) -> u32 {
-        env.storage().instance().get(&Key::PercentageBps).unwrap_or(0)
+        env.storage()
+            .instance()
+            .get(&Key::PercentageBps)
+            .unwrap_or(0)
     }
 
     pub fn recipient(env: Env) -> Address {
