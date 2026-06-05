@@ -93,6 +93,8 @@ const TEMPLATES: Template[] = [
         recipient: "PENDING:unnamed",
         amountStroops: "10000000",
         asset: { kind: "known", symbol: "USDC" },
+        mode: "fixed",
+        fullAmount: false,
       },
     }),
   },

@@ -115,11 +115,27 @@ export const OracleTrigger = z.object({
 export const PayAction = z.object({
   id: z.string().min(1),
   type: z.literal("pay"),
-  config: z.object({
-    recipient: stellarAccount,
-    amountStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
-    asset: AssetSchema,
-  }),
+  config: z
+    .object({
+      recipient: stellarAccount,
+      asset: AssetSchema,
+      mode: z.enum(["fixed", "percentage"]).default("fixed"),
+      amountStroops: z
+        .string()
+        .regex(/^\d+$/, "Amount must be a positive integer string")
+        .optional(),
+      percentage: z.number().min(0).max(100).optional(),
+      fullAmount: z.boolean().default(false),
+    })
+    .refine(
+      (c) => {
+        if (c.fullAmount) return true;
+        if (c.mode === "fixed") return !!c.amountStroops && c.amountStroops !== "0";
+        if (c.mode === "percentage") return c.percentage !== undefined && c.percentage > 0;
+        return false;
+      },
+      { message: "Invalid pay configuration for the selected mode" },
+    ),
 });
 
 export const SplitRecipient = z.object({

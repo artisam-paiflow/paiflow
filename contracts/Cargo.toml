@@ -13,6 +13,7 @@ members = [
   "actions/streamer",
   "actions/swapper",
   "actions/yield",
+  "actions/payer",
   "factory",
 ]
 
