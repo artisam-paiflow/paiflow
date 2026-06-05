@@ -11,6 +11,22 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 ---
 
+## Pitch deck
+
+A 10-slide draft investor deck (MARP) lives at [`docs/pitch-deck.md`](docs/pitch-deck.md) — sized for a 3-minute pitch, themed to match [`BRAND.md`](BRAND.md).
+
+```bash
+# PDF
+npx @marp-team/marp-cli docs/pitch-deck.md -o pitch-deck.pdf
+
+# Live preview
+npx @marp-team/marp-cli --preview docs/pitch-deck.md
+```
+
+Team names, raise size, and pricing tiers are placeholders — swap before sharing externally.
+
+---
+
 ## 🧩 Problem
 
 Every fintech, MSME, and SMB that wants **programmable payments** today has two options:
@@ -116,8 +132,7 @@ Deployed via Railway from `staging` (auto-deploy on merge into `staging`).
 
 - **App URL**: https://pinkraft.up.railway.app/
 - **📸 Stellar Expert (testnet)**:
-<img width="1251" height="891" alt="image" src="https://github.com/user-attachments/assets/e93400b1-82d5-45ec-b3ea-1af2bdb2b68e" />
-
+  <img width="1251" height="891" alt="image" src="https://github.com/user-attachments/assets/e93400b1-82d5-45ec-b3ea-1af2bdb2b68e" />
 
 ### Mainnet
 
@@ -125,24 +140,23 @@ Cutover gated by `docs/mainnet-cutover.md`. WASM hashes uploaded via `pnpm contr
 
 - **App URL**: https://pinkraft.xyz/
 - **📸 Stellar Expert (mainnet)**:
-<img width="1259" height="887" alt="image" src="https://github.com/user-attachments/assets/be166d1c-93eb-4cef-b6f7-a8d75e15241c" />
-
+  <img width="1259" height="887" alt="image" src="https://github.com/user-attachments/assets/be166d1c-93eb-4cef-b6f7-a8d75e15241c" />
 
 ## 🎥 Demo
 
 - 🔗 **Live App**: https://pinkraft.xyz/
 - 🎬 **Demo Video**: https://www.youtube.com/watch?v=VkOgegleb9A
-[![Pink Raft Demo Video](https://img.youtube.com/vi/VkOgegleb9A/0.jpg)](https://www.youtube.com/watch?v=VkOgegleb9A)
+  [![Pink Raft Demo Video](https://img.youtube.com/vi/VkOgegleb9A/0.jpg)](https://www.youtube.com/watch?v=VkOgegleb9A)
 
 - 🖼️ **Pitch Deck**: https://drive.google.com/file/d/1CT2iNDgmdkfkzFDfRYTxZZYAcNdY7QP0/view
 
 ## 👨‍💻 Team
 
-| Name | Role | GitHub                                                     |
-| ---- | ---- | ---------------------------------------------------------- |
-| Mark Hugh Neri | CTO | [@kimerran](https://github.com/kimerran)                   |
-| Mycal Pejana | Smart Contract Dev | [@SaltinStillWaters](https://github.com/SaltinStillWaters) |
-| Carl Macabales | AI Developer | [@cemmacabales](https://github.com/cemmacabales)           |               |
+| Name           | Role               | GitHub                                                     |
+| -------------- | ------------------ | ---------------------------------------------------------- | --- |
+| Mark Hugh Neri | CTO                | [@kimerran](https://github.com/kimerran)                   |
+| Mycal Pejana   | Smart Contract Dev | [@SaltinStillWaters](https://github.com/SaltinStillWaters) |
+| Carl Macabales | AI Developer       | [@cemmacabales](https://github.com/cemmacabales)           |     |
 
 ## 📜 License
 
@@ -151,7 +165,6 @@ MIT
 ---
 
 ## Developer reference
-
 
 ### Stack at a glance
 
