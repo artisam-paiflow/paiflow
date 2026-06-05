@@ -76,7 +76,11 @@ test("deploy flow: builder → review → submit (mocked wallet)", async ({ page
   //    "Sign in your wallet" prompt blocks — bail out by checking for the
   //    toast and treating that as expected for the local-without-Freighter
   //    case. CI uses the mock; interactive runs may pop the wallet.
-  const deployBtn = page.locator('button:has-text("Deploy to testnet")');
+  // The deploy button copy is derived from `env().STELLAR_NETWORK` (the deploy
+  // modal no longer renders a picker — the network is pinned per env). Also
+  // assert the read-only network chip renders.
+  await expect(page.getByTestId("network-chip")).toBeVisible();
+  const deployBtn = page.locator('button:has-text("DEPLOY TO")');
   await deployBtn.click();
 
   try {

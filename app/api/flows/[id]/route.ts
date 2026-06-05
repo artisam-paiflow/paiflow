@@ -5,7 +5,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { FlowPatchSchema } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
-import { flowToParams } from "@/lib/flows/to-params";
+import { flowToPipeline } from "@/lib/flows/to-params";
 
 async function getOwned(id: string, userId: string) {
   const flow = await db.flow.findFirst({ where: { id, ownerId: userId } });
@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       const v = validateFlow(body.graph);
       if (v.ok) {
         templateKind = v.templateKind;
-        parameters = flowToParams(v.graph, v.templateKind) as object;
+        parameters = flowToPipeline(v.graph) as object;
       }
       // Always save the graph even if flow validation fails (intermediate editing state).
       graph = body.graph;

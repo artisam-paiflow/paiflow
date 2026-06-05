@@ -557,6 +557,21 @@ h4 {
   }
 }
 
+@keyframes slide-event-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-event-in {
+  animation: slide-event-in 0.25s ease-out;
+}
+
 .reveal {
   opacity: 0;
   animation: fade-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;

@@ -20,22 +20,33 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
-    if (d.flow.templateKind !== "SPLITTER") {
+
+    const pipeline = d.pipelineSnapshot as Array<{
+      nodeId: string;
+      contractAddress: string;
+      templateKind: string;
+    }> | null;
+    const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
+
+    if (!isPipeline && d.flow.templateKind !== "SPLITTER") {
       throw new AppError("VALIDATION", "Only splitter deployments support trigger submit");
     }
 
     const result = await submitTriggerTx(body.signedXdr);
-    if (result.status === "SUCCESS") {
+    if (result.status === "PENDING") {
       await audit({
         action: "DEPLOY_TRIGGER",
-        ip,
+        userId: d.ownerId,
         metadata: { deploymentId: id, txHash: result.txHash },
       });
-      return NextResponse.json({ data: { txHash: result.txHash } });
+      return NextResponse.json({ data: { txHash: result.txHash, status: "PENDING" } });
     }
-    return NextResponse.json(
-      { error: { code: "UPSTREAM_RPC", message: result.errorMessage ?? "Submission failed" } },
-      { status: 502 },
-    );
+    if (result.status === "FAILED") {
+      return NextResponse.json(
+        { error: { code: "UPSTREAM_RPC", message: result.errorMessage ?? "Submission failed" } },
+        { status: 502 },
+      );
+    }
+    return NextResponse.json({ data: { txHash: result.txHash } });
   });
 }

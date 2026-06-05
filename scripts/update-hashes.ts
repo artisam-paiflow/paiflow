@@ -9,10 +9,15 @@ config({ path: resolve(".env.local") });
 
 async function update() {
   const network = process.env.STELLAR_NETWORK ?? "testnet";
+  const suffix = network.toUpperCase();
   const templates = [
-    { kind: TemplateKind.SPLITTER, envKey: "STELLAR_WASM_HASH_SPLITTER" },
-    { kind: TemplateKind.STREAMER, envKey: "STELLAR_WASM_HASH_STREAMER" },
-    { kind: TemplateKind.CONDITIONAL, envKey: "STELLAR_WASM_HASH_CONDITIONAL" },
+    { kind: TemplateKind.SPLITTER, envKey: `STELLAR_WASM_HASH_SPLITTER_${suffix}` },
+    { kind: TemplateKind.STREAMER, envKey: `STELLAR_WASM_HASH_STREAMER_${suffix}` },
+    { kind: TemplateKind.CONDITIONAL, envKey: `STELLAR_WASM_HASH_CONDITIONAL_${suffix}` },
+    { kind: TemplateKind.DEPOSIT_TRIGGER, envKey: `STELLAR_WASM_HASH_DEPOSIT_TRIGGER_${suffix}` },
+    { kind: TemplateKind.ROUTER, envKey: `STELLAR_WASM_HASH_ROUTER_${suffix}` },
+    { kind: TemplateKind.TIMELOCK, envKey: `STELLAR_WASM_HASH_TIMELOCK_${suffix}` },
+    { kind: TemplateKind.FACTORY, envKey: `STELLAR_WASM_HASH_FACTORY_${suffix}` },
   ];
 
   for (const t of templates) {

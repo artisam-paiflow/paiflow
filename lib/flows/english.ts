@@ -20,6 +20,8 @@ function describeCondition(c: Extract<FlowNode, { type: "condition" }>, asset?: 
       return `only after ${cfg.at}`;
     case "time_before":
       return `only before ${cfg.at}`;
+    case "multisig":
+      return `only after ${cfg.threshold} of ${cfg.signers.length} signers approve`;
   }
 }
 
@@ -35,6 +37,12 @@ export function flowToEnglish(graph: FlowGraph): string {
     triggerText = min
       ? `When this contract receives ≥ ${formatStroops(min)} ${assetLabel(trigger.config.asset)}`
       : `When this contract receives ${assetLabel(trigger.config.asset)}`;
+  } else if (trigger.type === "webhook") {
+    triggerText = `When webhook trigger fires for ${assetLabel(trigger.config.asset)}`;
+  } else if (trigger.type === "subscription") {
+    triggerText = `When subscription pulls ${formatStroops(trigger.config.amountPerPeriodStroops)} ${assetLabel(trigger.config.asset)}`;
+  } else if (trigger.type === "oracle") {
+    triggerText = `When oracle price meets threshold (${trigger.config.threshold}) for ${assetLabel(trigger.config.asset)}`;
   } else {
     triggerText = `${intervalLabel(trigger.config.interval)} starting ${trigger.config.startsAt}`;
   }
@@ -47,6 +55,13 @@ export function flowToEnglish(graph: FlowGraph): string {
     actionText = `pay ${formatStroops(action.config.amountStroops)} ${assetLabel(
       action.config.asset,
     )} to ${who}`;
+  } else if (action.type === "swap") {
+    actionText = `swap ${assetLabel(action.config.assetIn)} to ${assetLabel(action.config.assetOut)} at ${(action.config.rateBps / 100).toFixed(0)}% rate`;
+  } else if (action.type === "yield") {
+    const vault = isPendingAddress(action.config.vault)
+      ? "(needs address)"
+      : shortAddr(action.config.vault);
+    actionText = `deposit ${assetLabel(action.config.asset)} into yield vault ${vault}`;
   } else {
     const totalBps = action.config.recipients.reduce((s, r) => s + r.bps, 0);
     const sourceAmount =
@@ -71,7 +86,16 @@ export function flowToEnglish(graph: FlowGraph): string {
     }
   }
 
-  const conditionAsset = trigger.type === "on_receive" ? trigger.config.asset : action.config.asset;
+  const conditionAsset =
+    trigger.type === "on_receive"
+      ? trigger.config.asset
+      : trigger.type === "webhook" || trigger.type === "oracle" || trigger.type === "subscription"
+        ? trigger.config.asset
+        : action.type === "swap"
+          ? action.config.assetIn
+          : action.type === "yield"
+            ? action.config.asset
+            : action.config.asset;
   const tail = condition ? `, ${describeCondition(condition, conditionAsset)}` : "";
   return `${triggerText}, ${actionText}${tail}.`;
 }

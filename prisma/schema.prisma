@@ -16,6 +16,16 @@ enum TemplateKind {
   SPLITTER
   STREAMER
   CONDITIONAL
+  DEPOSIT_TRIGGER
+  ROUTER
+  TIMELOCK
+  FACTORY
+  WEBHOOK
+  SUBSCRIPTION
+  ORACLE
+  MULTISIG
+  SWAPPER
+  YIELD
 }
 
 enum DeploymentStatus {
@@ -151,6 +161,7 @@ model Deployment {
   errorMessage    String?
   graphSnapshot   Json
   paramsSnapshot  Json
+  pipelineSnapshot Json?
   createdAt       DateTime         @default(now())
   confirmedAt     DateTime?
   unsignedXdr     String?

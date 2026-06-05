@@ -7,6 +7,11 @@ import { db } from "@/lib/db";
 import { redis, eventChannel } from "@/lib/redis";
 import { log } from "@/lib/log";
 
+// Paranoia buffer: when polling events for the first time we start a few
+// ledgers before the deployment transaction to avoid missing events emitted
+// at the exact ledger of deployment finalization.
+const FIRST_POLL_LEDGER_BUFFER = 200;
+
 type ScValNative = ReturnType<typeof scValToNative>;
 
 type DecodedData = Record<string, ScValNative> | null;
@@ -137,6 +142,18 @@ async function getDeploymentLedger(txHash: string): Promise<number> {
   return tx.ledger;
 }
 
+/** Recursively convert bigint values to strings so they survive JSON.stringify. */
+function convertBigInts<T>(value: T): T {
+  if (typeof value === "bigint") return value.toString() as unknown as T;
+  if (Array.isArray(value)) return value.map(convertBigInts) as unknown as T;
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, convertBigInts(v)]),
+    ) as unknown as T;
+  }
+  return value;
+}
+
 async function pollEventsWithStartLedger(
   deploymentId: string,
   contractAddress: string,
@@ -157,6 +174,10 @@ async function pollEventsWithStartLedger(
   }
 
   let written = 0;
+  // startLedger - 1 is the correct empty-set sentinel: if no events are found,
+  // maxLedger stays below startLedger and the caller's > (startLedger - 1) guard
+  // prevents writing a stale cursor. This is load-bearing but safe because
+  // Soroban ledgers start well above 0 and the caller validates maxLedger > 0.
   let maxLedger = startLedger - 1;
   for (const ev of resp.events ?? []) {
     const topics: EventTopics = (ev.topic ?? []).map((t) => {
@@ -174,6 +195,9 @@ async function pollEventsWithStartLedger(
       }
     })();
     const { kind, decodedData } = decodeEventByKind(topics, value, templateKind);
+    const safePayload = convertBigInts({ topics, value }) as object;
+    const safeDecodedData = convertBigInts(decodedData) as Prisma.InputJsonValue | null;
+
     try {
       await db.contractEvent.create({
         data: {
@@ -181,8 +205,8 @@ async function pollEventsWithStartLedger(
           kind,
           ledger: ev.ledger,
           txHash: ev.txHash,
-          payload: { topics, value } as object,
-          decodedData: (decodedData ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+          payload: safePayload,
+          decodedData: (safeDecodedData ?? Prisma.JsonNull) as Prisma.InputJsonValue,
           occurredAt: new Date(ev.ledgerClosedAt),
         },
       });
@@ -192,14 +216,16 @@ async function pollEventsWithStartLedger(
         client
           .publish(
             eventChannel(deploymentId),
-            JSON.stringify({
-              kind,
-              ledger: ev.ledger,
-              txHash: ev.txHash,
-              payload: { topics, value },
-              decodedData,
-              occurredAt: ev.ledgerClosedAt,
-            }),
+            JSON.stringify(
+              convertBigInts({
+                kind,
+                ledger: ev.ledger,
+                txHash: ev.txHash,
+                payload: { topics, value },
+                decodedData,
+                occurredAt: ev.ledgerClosedAt,
+              }),
+            ),
           )
           .catch((err) => {
             log.warn({ err, deploymentId }, "redis publish failed");
@@ -230,7 +256,7 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
     return 0;
   }
 
-  if (deployment.cursor?.lastLedger) {
+  if (deployment.cursor) {
     const startLedger = deployment.cursor.lastLedger + 1;
     const result = await pollEventsWithStartLedger(
       deploymentId,
@@ -251,7 +277,7 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
   if (deployment.deployTxHash) {
     try {
       const deployLedger = await getDeploymentLedger(deployment.deployTxHash);
-      const startLedger = Math.max(deployLedger - 200, 0);
+      const startLedger = Math.max(deployLedger - FIRST_POLL_LEDGER_BUFFER, 0);
       const result = await pollEventsWithStartLedger(
         deploymentId,
         deployment.contractAddress,
@@ -267,6 +293,8 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
       }
       return result.written;
     } catch (err) {
+      // TODO: add exponential backoff / retry counter so a stuck deploy
+      // doesn't hammer the RPC on every cron tick.
       log.warn({ err, deploymentId }, "getDeploymentLedger failed, skipping");
       return 0;
     }

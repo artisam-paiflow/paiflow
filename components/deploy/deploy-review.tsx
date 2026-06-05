@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
+import type { TemplateKind } from "@prisma/client";
 
 type WalletKit = {
   getAddress: () => Promise<{ address: string }>;
@@ -11,12 +13,14 @@ type WalletKit = {
   ) => Promise<{ signedTxXdr: string }>;
 };
 
-const PASSPHRASE_BY_NETWORK = {
+type StellarNetwork = "testnet" | "mainnet";
+
+const PASSPHRASE_BY_NETWORK: Record<StellarNetwork, string> = {
   testnet: "Test SDF Network ; September 2015",
   mainnet: "Public Global Stellar Network ; September 2015",
-} as const;
+};
 
-async function connectWallet(network: "testnet" | "mainnet"): Promise<WalletKit> {
+async function connectWallet(network: StellarNetwork): Promise<WalletKit> {
   const mod = await import("@creit.tech/stellar-wallets-kit");
   const { StellarWalletsKit, WalletNetwork, allowAllModules, FREIGHTER_ID } = mod as unknown as {
     StellarWalletsKit: new (opts: {
@@ -37,33 +41,30 @@ async function connectWallet(network: "testnet" | "mainnet"): Promise<WalletKit>
 
 export default function DeployReview({
   flowId,
-  enableMainnet,
+  network,
 }: {
   flowId: string;
-  enableMainnet: boolean;
+  network: StellarNetwork;
 }) {
-  const [network, setNetwork] = useState<"testnet" | "mainnet">("testnet");
-  const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pipeline, setPipeline] = useState<
+    Array<{ nodeId: string; contractAddress: string; templateKind: TemplateKind }>
+  >([]);
+  const isMainnet = network === "mainnet";
 
   async function onDeploy() {
     setBusy(true);
     try {
       const kit = await connectWallet(network);
       const { address } = await kit.getAddress();
-      const prepBody: Record<string, unknown> = {
-        flowId,
-        network,
-        sourceAccount: address,
-      };
-      if (network === "mainnet") prepBody.confirmation = confirmation;
       const prep = await fetch("/api/deployments/prepare", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(prepBody),
+        body: JSON.stringify({ flowId, sourceAccount: address }),
       });
       const prepData = await prep.json();
       if (!prep.ok) throw new Error(prepData?.error?.message ?? "Prepare failed");
+      setPipeline(prepData.data.pipeline ?? []);
 
       const signed = await kit.signTransaction(prepData.data.xdr, {
         address,
@@ -86,56 +87,55 @@ export default function DeployReview({
     }
   }
 
+  const chipClass = isMainnet
+    ? "border-error/40 bg-error-container/30 text-error"
+    : "border-secondary/30 bg-secondary/10 text-secondary";
+
   return (
     <section className="glass-panel mt-md space-y-md p-md rounded-xl">
       <div className="grid gap-2">
         <span className="text-label-sm text-on-surface-variant font-mono uppercase">Network</span>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setNetwork("testnet")}
-            className={`text-label-md inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors ${
-              network === "testnet"
-                ? "border-secondary bg-secondary/10 text-secondary"
-                : "border-outline-variant/40 text-on-surface-variant hover:border-outline hover:text-on-surface"
-            }`}
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-label-md inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono ${chipClass}`}
+            aria-label={`Deploying to ${network}`}
+            data-testid="network-chip"
           >
-            {network === "testnet" ? (
-              <span className="status-dot-deploy h-1.5 w-1.5" />
-            ) : (
-              <span className="bg-outline-variant h-1.5 w-1.5 rounded-full" />
-            )}
-            TESTNET
-          </button>
-          <button
-            onClick={() => setNetwork("mainnet")}
-            disabled={!enableMainnet}
-            className={`text-label-md inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-              network === "mainnet"
-                ? "border-error bg-error-container/30 text-error"
-                : "border-outline-variant/40 text-on-surface-variant hover:border-outline hover:text-on-surface"
-            }`}
-          >
-            <span className="material-symbols-outlined text-[14px]">warning</span>
-            MAINNET{!enableMainnet && " · DISABLED"}
-          </button>
+            <span className="status-dot-deploy h-1.5 w-1.5" />
+            {network.toUpperCase()}
+          </span>
+          <span className="text-label-sm text-on-surface-variant font-mono">
+            PINNED BY ENVIRONMENT
+          </span>
         </div>
       </div>
-      {network === "mainnet" && (
-        <label className="grid gap-1.5">
-          <span className="text-label-sm text-error font-mono uppercase">
-            Type “I understand” to confirm mainnet
+      {pipeline.length > 0 && (
+        <div className="grid gap-2">
+          <span className="text-label-sm text-on-surface-variant font-mono uppercase">
+            Pipeline
           </span>
-          <input
-            value={confirmation}
-            onChange={(e) => setConfirmation(e.target.value)}
-            className="border-error/60 bg-surface-container-lowest text-on-surface focus:border-error focus:ring-error rounded border px-3 py-2 font-mono text-[14px] focus:ring-1 focus:outline-none"
-            placeholder="I understand"
-          />
-        </label>
+          <ul className="space-y-2">
+            {pipeline.map((node, i) => (
+              <li key={node.nodeId} className="flex items-start gap-2">
+                <span className="text-label-sm text-on-surface-variant mt-0.5 font-mono">
+                  {i + 1}.
+                </span>
+                <div className="min-w-0">
+                  <span className="text-label-md text-on-surface font-mono">
+                    {TEMPLATE_LABELS[node.templateKind]}
+                  </span>
+                  <div className="text-label-sm text-on-surface-variant truncate font-mono">
+                    {node.contractAddress}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       <button
         onClick={onDeploy}
-        disabled={busy || (network === "mainnet" && confirmation !== "I understand")}
+        disabled={busy}
         className="bg-primary px-md text-label-md text-on-primary inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >
         {busy ? (

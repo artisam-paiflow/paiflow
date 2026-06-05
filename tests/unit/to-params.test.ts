@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TemplateKind } from "@prisma/client";
-import { flowToParams } from "@/lib/flows/to-params";
+import { flowToParams, flowToPipeline } from "@/lib/flows/to-params";
 import { sourceAmountStroops, bpsToPct, pctToBps } from "@/lib/flows/schema";
 
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
@@ -406,5 +406,138 @@ describe("sourceAmountStroops", () => {
       edges: [],
     });
     expect(out).toBeUndefined();
+  });
+});
+
+describe("flowToPipeline", () => {
+  it("produces deposit_trigger → splitter for on_receive → split", () => {
+    const pipeline = flowToPipeline(splitGraph() as Parameters<typeof flowToPipeline>[0]);
+    expect(pipeline).toHaveLength(2);
+    expect(pipeline[0]!.templateKind).toBe("DEPOSIT_TRIGGER");
+    expect(pipeline[0]!.params.kind).toBe("deposit_trigger");
+    expect(pipeline[1]!.templateKind).toBe("SPLITTER");
+    expect(pipeline[1]!.params.kind).toBe("splitter");
+    expect(pipeline[1]!.params).toMatchObject({
+      asset: { kind: "known", symbol: "USDC" },
+      recipients: [
+        { address: ADDR_A, bps: 6000 },
+        { address: ADDR_B, bps: 4000 },
+      ],
+      minAmountStroops: "0",
+    });
+  });
+
+  it("produces deposit_trigger → timelock → splitter for time_after condition", () => {
+    const graph = splitGraph() as Parameters<typeof flowToPipeline>[0];
+    graph.nodes.push({
+      id: "c",
+      type: "condition",
+      config: { kind: "time_after", at: "2030-06-01T00:00:00.000Z" },
+    });
+    graph.edges.push({ id: "e0", source: "t", target: "c" });
+    graph.edges.push({ id: "e1", source: "c", target: "a" });
+    // Remove direct edge from trigger to action
+    graph.edges = graph.edges.filter((e) => !(e.source === "t" && e.target === "a"));
+
+    const pipeline = flowToPipeline(graph);
+    expect(pipeline).toHaveLength(3);
+    expect(pipeline[0]!.templateKind).toBe("DEPOSIT_TRIGGER");
+    expect(pipeline[1]!.templateKind).toBe("TIMELOCK");
+    expect(pipeline[1]!.params.kind).toBe("timelock");
+    expect(pipeline[2]!.templateKind).toBe("SPLITTER");
+  });
+
+  it("produces deposit_trigger → router → splitter for amount_gt condition", () => {
+    const graph = splitGraph({ condition: true }) as Parameters<typeof flowToPipeline>[0];
+    // Override condition to amount_gt
+    (graph.nodes[1] as Record<string, unknown>).config = {
+      kind: "amount_gt",
+      amountStroops: "50000000",
+    };
+    const pipeline = flowToPipeline(graph);
+    expect(pipeline).toHaveLength(3);
+    expect(pipeline[0]!.templateKind).toBe("DEPOSIT_TRIGGER");
+    expect(pipeline[1]!.templateKind).toBe("ROUTER");
+    expect(pipeline[1]!.params.kind).toBe("router");
+    expect(pipeline[1]!.params).toMatchObject({
+      threshold: "50000000",
+      pathANodeIds: ["a"],
+      pathBNodeIds: [],
+    });
+    expect(pipeline[2]!.templateKind).toBe("SPLITTER");
+  });
+
+  it("produces deposit_trigger → conditional for oracle_gte condition", () => {
+    const graph = {
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "native" } },
+        },
+        {
+          id: "c",
+          type: "condition",
+          config: { kind: "oracle_gte", oracle: ADDR_A, key: "price", threshold: "100" },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "500",
+            asset: { kind: "native" },
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "c" },
+        { id: "e2", source: "c", target: "a" },
+      ],
+    } as Parameters<typeof flowToPipeline>[0];
+
+    const pipeline = flowToPipeline(graph);
+    expect(pipeline).toHaveLength(2);
+    expect(pipeline[0]!.templateKind).toBe("DEPOSIT_TRIGGER");
+    expect(pipeline[1]!.templateKind).toBe("CONDITIONAL");
+    expect(pipeline[1]!.params.kind).toBe("conditional");
+    expect(pipeline[1]!.params).toMatchObject({
+      amountStroops: "500",
+      nextStepNodeIds: ["a"],
+    });
+  });
+
+  it("produces standalone streamer for on_schedule → pay", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: { interval: "hour", startsAt: "2030-01-01T00:00:00.000Z" },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "1000",
+            asset: { kind: "native" },
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(1);
+    expect(pipeline[0]!.templateKind).toBe("STREAMER");
+    expect(pipeline[0]!.params.kind).toBe("streamer");
+  });
+
+  it("wires nextStepNodeIds from graph edges", () => {
+    const pipeline = flowToPipeline(splitGraph() as Parameters<typeof flowToPipeline>[0]);
+    const trigger = pipeline.find((n) => n.params.kind === "deposit_trigger");
+    expect(trigger!.params).toMatchObject({
+      kind: "deposit_trigger",
+      nextStepNodeIds: ["a"],
+    });
   });
 });

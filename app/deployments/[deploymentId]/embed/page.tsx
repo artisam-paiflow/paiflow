@@ -30,8 +30,17 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
     );
   }
 
+  const pipeline = d.pipelineSnapshot as Array<{
+    nodeId: string;
+    contractAddress: string;
+    templateKind: string;
+  }> | null;
+  const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
+
   const qrUrl =
-    d.flow.templateKind === "SPLITTER" ? `/api/deployments/${d.id}/qr?action=trigger` : null;
+    isPipeline || d.flow.templateKind === "SPLITTER"
+      ? `/api/deployments/${d.id}/qr?action=trigger`
+      : null;
 
   return (
     <main className="px-margin py-md mx-auto max-w-4xl">
@@ -46,7 +55,6 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
         network={network}
         status={d.status}
         qrUrl={qrUrl}
-        distributeAmountStroops={d.distributeAmountStroops}
         graph={graph}
         initialEvents={d.events.map((e) => ({
           id: e.id,
@@ -54,6 +62,7 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
           ledger: e.ledger,
           txHash: e.txHash,
           payload: e.payload,
+          decodedData: e.decodedData as Record<string, unknown> | null,
           occurredAt: e.occurredAt.toISOString(),
         }))}
       />

@@ -43,29 +43,63 @@ async function main() {
     console.log(`[seed] Admin user '${username}' ready.`);
   }
 
+  const networkSuffix = network.toUpperCase();
   const templates: Array<{ kind: TemplateKind; envKey: string; abi: object }> = [
     {
       kind: TemplateKind.SPLITTER,
-      envKey: "STELLAR_WASM_HASH_SPLITTER",
+      envKey: `STELLAR_WASM_HASH_SPLITTER_${networkSuffix}`,
       abi: {
-        functions: ["__init", "distribute", "pause", "unpause", "recipients"],
-        events: ["Distributed"],
+        functions: [
+          "__constructor",
+          "distribute",
+          "pause",
+          "unpause",
+          "recipients",
+          "execute_step",
+          "set_next_steps",
+          "next_steps",
+        ],
+        events: ["distrib", "payout"],
       },
     },
     {
       kind: TemplateKind.STREAMER,
-      envKey: "STELLAR_WASM_HASH_STREAMER",
+      envKey: `STELLAR_WASM_HASH_STREAMER_${networkSuffix}`,
       abi: {
-        functions: ["__init", "claim", "top_up", "cancel", "available"],
-        events: ["Claimed", "Cancelled"],
+        functions: ["__constructor", "execute_step", "claim", "top_up", "cancel", "available"],
+        events: ["receive", "claim", "cancel"],
       },
     },
     {
       kind: TemplateKind.CONDITIONAL,
-      envKey: "STELLAR_WASM_HASH_CONDITIONAL",
+      envKey: `STELLAR_WASM_HASH_CONDITIONAL_${networkSuffix}`,
       abi: {
-        functions: ["__init", "release", "cancel", "status"],
-        events: ["Released", "Cancelled"],
+        functions: ["__constructor", "execute_step", "release", "cancel", "status"],
+        events: ["receive", "release", "cancel"],
+      },
+    },
+    {
+      kind: TemplateKind.DEPOSIT_TRIGGER,
+      envKey: `STELLAR_WASM_HASH_DEPOSIT_TRIGGER_${networkSuffix}`,
+      abi: {
+        functions: ["__constructor", "deposit", "next_steps", "asset"],
+        events: ["deposit"],
+      },
+    },
+    {
+      kind: TemplateKind.ROUTER,
+      envKey: `STELLAR_WASM_HASH_ROUTER_${networkSuffix}`,
+      abi: {
+        functions: ["__constructor", "execute_step", "threshold", "path_a", "path_b"],
+        events: ["route"],
+      },
+    },
+    {
+      kind: TemplateKind.TIMELOCK,
+      envKey: `STELLAR_WASM_HASH_TIMELOCK_${networkSuffix}`,
+      abi: {
+        functions: ["__constructor", "execute_step", "release", "balance", "unlock_time"],
+        events: ["receive", "release"],
       },
     },
   ];
@@ -74,7 +108,7 @@ async function main() {
     const hash = process.env[t.envKey];
     if (!hash) {
       console.log(
-        `[seed] ${t.envKey} not set; skipping ContractTemplate(${t.kind}). Run pnpm contracts:upload.`,
+        `[seed] ${t.envKey} not set; skipping ContractTemplate(${t.kind}@${network}). Run pnpm contracts:upload --network=${network}.`,
       );
       continue;
     }

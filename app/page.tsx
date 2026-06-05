@@ -54,18 +54,10 @@ export default function Landing() {
     <div className="relative min-h-screen overflow-hidden">
       {/* Fixed translucent top nav */}
       <header className="glass-panel-nav fixed inset-x-0 top-0 z-50 h-16">
-        <div className="px-margin mx-auto flex h-full max-w-7xl items-center justify-between">
+        <div className="px-margin mx-auto flex h-full max-w-7xl items-center">
           <Link href="/" className="group flex items-center" aria-label="Pink Raft home">
             <Logo size={24} />
           </Link>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/register"
-              className="bg-primary text-label-md text-on-primary rounded-lg px-4 py-2 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_20px_rgba(255,177,196,0.6)] active:scale-95"
-            >
-              Get started
-            </Link>
-          </div>
         </div>
       </header>
 

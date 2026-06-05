@@ -135,23 +135,67 @@ describe("prompts", () => {
     expect(msg).toContain('"t"');
     expect(msg).toContain("Current flow:");
   });
+
+  it("buildUserMessage includes empty flow hint for empty graph", () => {
+    const emptyGraph: FlowGraph = { nodes: [], edges: [] };
+    const msg = buildUserMessage(emptyGraph, "Make me a splitter");
+    expect(msg).toContain("BRAND NEW EMPTY FLOW");
+    expect(msg).toContain("addNode and addEdge operations");
+    expect(msg).toContain("Do not use updateNode or removeNode");
+  });
+
+  it("buildSystemPrompt mentions building from scratch", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("BUILDING A FLOW FROM SCRATCH");
+    expect(prompt).toContain("REQUIRED STRUCTURE FOR A VALID FLOW");
+    expect(prompt).toContain("INFERENCE RULES");
+  });
 });
 
 describe("EditResponseSchema", () => {
   it("accepts a valid patch response", () => {
     const result = EditResponseSchema.safeParse({
+      mode: "patch",
       explanation: "Changed Alice to 55%",
       patch: [{ op: "updateNode", id: "a", config: { recipients: [] } }],
     });
     expect(result.success).toBe(true);
     if (result.success) {
+      expect(result.data.mode).toBe("patch");
       expect(result.data.explanation).toBe("Changed Alice to 55%");
       expect(result.data.patch).toHaveLength(1);
     }
   });
 
+  it("accepts a chat mode response without patch", () => {
+    const result = EditResponseSchema.safeParse({
+      mode: "chat",
+      explanation: "Sure! I can help with that. A splitter distributes funds proportionally.",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.mode).toBe("chat");
+      expect(result.data.patch).toBeUndefined();
+      expect(result.data.clarifyingQuestion).toBeUndefined();
+    }
+  });
+
+  it("accepts a chat mode response with clarifying question", () => {
+    const result = EditResponseSchema.safeParse({
+      mode: "chat",
+      explanation: "I need more info.",
+      clarifyingQuestion: "How much should Alice receive?",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.mode).toBe("chat");
+      expect(result.data.clarifyingQuestion).toBe("How much should Alice receive?");
+    }
+  });
+
   it("rejects an unknown op", () => {
     const result = EditResponseSchema.safeParse({
+      mode: "patch",
       explanation: "Bad",
       patch: [{ op: "rotateNode", id: "a" }],
     });

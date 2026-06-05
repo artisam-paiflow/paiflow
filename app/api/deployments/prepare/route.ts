@@ -9,17 +9,15 @@ import { rateLimit } from "@/lib/rate-limit";
 import { env } from "@/lib/env";
 import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
-import { flowToParams } from "@/lib/flows/to-params";
-import { prepareDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
-import { assertMainnetAllowed } from "@/lib/mainnet";
+import { flowToPipeline } from "@/lib/flows/to-params";
+import { preparePipelineDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
+import { stellarWasmHash } from "@/lib/env";
 
 const PrepareSchema = z.object({
   flowId: z.string().uuid(),
-  network: z.enum(["testnet", "mainnet"]).default("testnet"),
   sourceAccount: z
     .string()
     .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar account"),
-  confirmation: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -29,11 +27,7 @@ export async function POST(req: NextRequest) {
     if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many deploys");
 
     const body = PrepareSchema.parse(await req.json());
-    assertMainnetAllowed({
-      network: body.network,
-      userId: user.id,
-      confirmation: body.confirmation,
-    });
+    const network = env().STELLAR_NETWORK;
 
     const flow = await db.flow.findFirst({
       where: { id: body.flowId, ownerId: user.id },
@@ -58,19 +52,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const params = flowToParams(v.graph, v.templateKind);
+    const pipeline = flowToPipeline(v.graph);
 
-    await checkAccountFunding(body.sourceAccount);
-
-    const template = await db.contractTemplate.findFirst({
-      where: { kind: v.templateKind, network: body.network },
-    });
-    if (!template) {
-      throw new AppError(
-        "VALIDATION",
-        `No WASM uploaded for ${v.templateKind} on ${body.network}. Run pnpm contracts:upload.`,
-      );
-    }
+    // Ensure every pipeline node has a corresponding WASM template on-chain.
+    const deployNodes = await Promise.all(
+      pipeline.map(async (node) => {
+        const hash = stellarWasmHash(node.templateKind);
+        if (!hash) {
+          throw new AppError(
+            "VALIDATION",
+            `No WASM uploaded for ${node.templateKind} on ${network}. Run pnpm contracts:upload --network=${network}.`,
+          );
+        }
+        return {
+          nodeId: node.nodeId,
+          templateKind: node.templateKind,
+          wasmHash: hash,
+          params: node.params,
+        };
+      }),
+    );
 
     await checkAccountFunding(body.sourceAccount);
 
@@ -78,34 +79,44 @@ export async function POST(req: NextRequest) {
       data: {
         flowId: flow.id,
         ownerId: user.id,
-        network: body.network,
+        network,
         status: "BUILDING",
         graphSnapshot: graph as object,
-        paramsSnapshot: params as object,
+        paramsSnapshot: pipeline as object,
         sourceAccount: body.sourceAccount,
       },
     });
 
     try {
-      const prepared = await prepareDeployTx({
-        wasmHash: template.wasmHash,
+      const prepared = await preparePipelineDeployTx({
         sourceAccount: body.sourceAccount,
-        params,
+        graph,
+        nodes: deployNodes,
       });
+
+      // Use the trigger contract (first node) as the primary contract address.
+      const triggerNode = prepared.pipeline[0];
+
       await db.deployment.update({
         where: { id: deployment.id },
-        data: { status: "PENDING_SIGNATURE", unsignedXdr: prepared.xdr },
+        data: {
+          status: "PENDING_SIGNATURE",
+          unsignedXdr: prepared.xdr,
+          contractAddress: triggerNode?.contractAddress ?? null,
+          pipelineSnapshot: prepared.pipeline as object,
+        },
       });
       await audit({
         action: "DEPLOY_PREPARE",
         userId: user.id,
-        metadata: { deploymentId: deployment.id, network: body.network },
+        metadata: { deploymentId: deployment.id, network },
       });
       return NextResponse.json({
         data: {
           deploymentId: deployment.id,
           xdr: prepared.xdr,
-          expectedContractAddress: prepared.contractAddress,
+          expectedContractAddress: triggerNode?.contractAddress ?? null,
+          pipeline: prepared.pipeline,
         },
       });
     } catch (err) {

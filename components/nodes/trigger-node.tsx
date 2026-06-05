@@ -15,24 +15,44 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
   const n = d.node;
   if (!isTrigger(n)) return null;
 
-  const isReceive = n.type === "on_receive";
-  const icon = isReceive ? "toll" : "schedule";
-  const title = isReceive ? "On Receive" : "On Schedule";
-  const detail = isReceive
-    ? n.config.asset.kind === "known"
-      ? n.config.asset.symbol
-      : n.config.asset.kind === "native"
-        ? "XLM"
-        : n.config.asset.code
-    : n.config.interval;
+  let icon: string;
+  let title: string;
+  let detail: string;
+  if (n.type === "on_receive") {
+    icon = "toll";
+    title = "On Receive";
+    detail =
+      n.config.asset.kind === "known"
+        ? n.config.asset.symbol
+        : n.config.asset.kind === "native"
+          ? "XLM"
+          : n.config.asset.code;
+  } else if (n.type === "webhook") {
+    icon = "webhook";
+    title = "Webhook";
+    detail =
+      n.config.asset.kind === "known"
+        ? n.config.asset.symbol
+        : n.config.asset.kind === "native"
+          ? "XLM"
+          : n.config.asset.code;
+  } else if (n.type === "subscription") {
+    icon = "repeat";
+    title = "Subscription";
+    detail = `${n.config.amountPerPeriodStroops} stroops`;
+  } else if (n.type === "oracle") {
+    icon = "online_prediction";
+    title = "Oracle";
+    detail = `threshold ${n.config.threshold}`;
+  } else {
+    icon = "schedule";
+    title = "On Schedule";
+    detail = n.config.interval;
+  }
 
   return (
     <div
-      className={`glass-panel relative min-w-[200px] rounded-xl ${
-        selected
-          ? "border-secondary shadow-[0_0_15px_rgba(152,203,255,0.3)]"
-          : "border-secondary/30"
-      }`}
+      className={`glass-panel relative min-w-[200px] rounded-xl ${selected ? "neon-glow-secondary" : ""}`}
       style={{ borderColor: selected ? undefined : "rgba(152, 203, 255, 0.3)" }}
     >
       <Handle

@@ -6,10 +6,10 @@ import Topbar from "@/components/app/topbar";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToEnglish } from "@/lib/flows/english";
-import { flowToParams } from "@/lib/flows/to-params";
+import { flowToPipeline, getStreamerPreviewFromPipeline } from "@/lib/flows/to-params";
+import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
 import DeployReview from "@/components/deploy/deploy-review";
 import { env } from "@/lib/env";
-import { TemplateKind } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +26,7 @@ export default async function DeployReviewPage({
   const graph = FlowGraphSchema.safeParse(flow.graph);
   const validation = graph.success ? validateFlow(graph.data) : null;
   const english = graph.success ? flowToEnglish(graph.data) : "(invalid graph)";
+  const pipeline = validation?.ok ? validation.pipeline : null;
 
   let streamerPreview: {
     totalStroops: string;
@@ -34,11 +35,10 @@ export default async function DeployReviewPage({
     startDate: string;
     endDate: string;
   } | null = null;
-  if (graph.success && validation?.ok && validation.templateKind === TemplateKind.STREAMER) {
-    const params = flowToParams(graph.data, validation.templateKind);
-    if (params.kind === "streamer") {
-      const durationSecs = params.endTs - params.startTs;
-      const triggerNode = graph.data.nodes.find((n) => n.type === "on_schedule") as
+  if (pipeline) {
+    const sp = getStreamerPreviewFromPipeline(flowToPipeline(graph.data!));
+    if (sp) {
+      const triggerNode = graph.data!.nodes.find((n) => n.type === "on_schedule") as
         | {
             type: "on_schedule";
             config: { interval: string };
@@ -56,13 +56,12 @@ export default async function DeployReviewPage({
           : intervalSeconds === 3600
             ? "every hour"
             : "every day";
-      const totalStroops = (BigInt(params.ratePerSecondStroops) * BigInt(durationSecs)).toString();
       streamerPreview = {
-        totalStroops,
-        durationSecs,
+        totalStroops: sp.totalStroops,
+        durationSecs: sp.durationSecs,
         intervalLabel,
-        startDate: new Date(params.startTs * 1000).toISOString(),
-        endDate: new Date(params.endTs * 1000).toISOString(),
+        startDate: new Date(sp.startTs * 1000).toISOString(),
+        endDate: new Date(sp.endTs * 1000).toISOString(),
       };
     }
   }
@@ -84,7 +83,7 @@ export default async function DeployReviewPage({
           Review &amp; deploy.
         </h1>
         <p className="text-body-md text-on-surface-variant mt-3">
-          Confirm the English summary below, choose a network, and sign with your wallet.
+          Confirm the English summary below and sign with your wallet.
         </p>
 
         <section className="glass-panel mt-md p-md rounded-xl">
@@ -93,10 +92,56 @@ export default async function DeployReviewPage({
             ENGLISH PREVIEW
           </div>
           <p className="text-body-md text-on-surface mt-2">{english}</p>
-          <div className="mt-md text-label-sm text-on-surface-variant flex items-center gap-2 font-mono">
-            TEMPLATE: <span className="text-on-surface">{flow.templateKind}</span>
-          </div>
+          {pipeline && pipeline.length > 0 && (
+            <div className="mt-md">
+              <div className="text-label-sm text-on-surface-variant font-mono">
+                PIPELINE ARCHITECTURE
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {pipeline.map((kind, i) => (
+                  <span key={`${kind}-${i}`} className="inline-flex items-center gap-1.5">
+                    <span className="text-label-sm border-primary/20 bg-primary/10 text-primary inline-flex items-center rounded-md border px-2 py-1 font-mono">
+                      {TEMPLATE_LABELS[kind]}
+                    </span>
+                    {i < pipeline.length - 1 && (
+                      <span className="material-symbols-outlined text-on-surface-variant text-[14px]">
+                        arrow_forward
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
+
+        {pipeline && pipeline.length > 1 && (
+          <section className="glass-panel mt-md p-md rounded-xl">
+            <div className="text-label-sm text-primary flex items-center gap-2 font-mono">
+              <span className="material-symbols-outlined text-[14px]">dataset</span>
+              PIPELINE PREVIEW
+            </div>
+            <p className="text-body-md text-on-surface-variant mt-2">
+              This deployment will create{" "}
+              <strong className="text-on-surface">{pipeline.length} contracts</strong> in a single
+              transaction:
+            </p>
+            <ul className="mt-3 space-y-2">
+              {pipeline.map((kind, i) => (
+                <li key={`${kind}-${i}`} className="flex items-start gap-2">
+                  <span className="text-label-sm text-on-surface-variant mt-0.5 font-mono">
+                    {i + 1}.
+                  </span>
+                  <div>
+                    <span className="text-label-md text-on-surface font-mono">
+                      {TEMPLATE_LABELS[kind]}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {streamerPreview && (
           <section className="mt-4 rounded-xl border border-amber-900 bg-amber-950/20 p-4">
@@ -158,7 +203,7 @@ export default async function DeployReviewPage({
           </div>
         )}
 
-        {validation?.ok && <DeployReview flowId={flow.id} enableMainnet={env().ENABLE_MAINNET} />}
+        {validation?.ok && <DeployReview flowId={flow.id} network={env().STELLAR_NETWORK} />}
       </main>
     </>
   );

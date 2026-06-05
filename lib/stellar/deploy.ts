@@ -10,10 +10,11 @@ import {
 } from "@stellar/stellar-sdk";
 import { randomBytes } from "node:crypto";
 import { sorobanRpc, horizon } from "./client";
-import { stellarPassphrase } from "@/lib/env";
+import { stellarFactoryAddress, stellarPassphrase } from "@/lib/env";
 import { AppError } from "@/lib/errors";
-import type { ContractParams } from "@/lib/flows/to-params";
-import { constructorArgs } from "./scval";
+import type { ContractParams, PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
+import type { FlowGraph } from "@/lib/flows/schema";
+import { constructorArgs, nodeBlueprint, pipelineNodeConstructorArgs } from "./scval";
 
 // 2 XLM covers: 1 XLM base reserve + ~0.5 XLM Soroban storage entries + ~0.5 XLM tx fee buffer
 const MIN_DEPLOYMENT_XLM_STROOPS = 20_000_000n;
@@ -92,6 +93,116 @@ export async function prepareDeployTx(opts: {
   const contractAddress = computeContractAddress(opts.sourceAccount, salt);
 
   return { xdr: assembled.toXDR(), contractAddress, salt };
+}
+
+export type PipelineDeployNode = {
+  nodeId: string;
+  templateKind: string;
+  wasmHash: string;
+  params: PipelineNodeParams;
+};
+
+export type PreparedPipelineDeploy = {
+  xdr: string;
+  pipeline: Array<{
+    nodeId: string;
+    contractAddress: string;
+    salt: Buffer;
+    templateKind: string;
+  }>;
+};
+
+/** Build & simulate a pipeline deployment tx via the on-chain factory. */
+export async function preparePipelineDeployTx(opts: {
+  sourceAccount: string;
+  graph: FlowGraph;
+  nodes: PipelineDeployNode[];
+}): Promise<PreparedPipelineDeploy> {
+  const server = sorobanRpc();
+  const factoryAddress = stellarFactoryAddress();
+  if (!factoryAddress) {
+    throw new AppError(
+      "INTERNAL",
+      "Pipeline factory address is not configured. Set STELLAR_FACTORY_ADDRESS_<NETWORK> in your environment.",
+    );
+  }
+
+  const sourceAcct = await server.getAccount(opts.sourceAccount);
+
+  // 1. Generate salts & compute deterministic addresses for every node.
+  const pipeline = opts.nodes.map((n) => {
+    const salt = randomBytes(32);
+    const contractAddress = computeContractAddress(opts.sourceAccount, salt);
+    return { ...n, salt, contractAddress };
+  });
+
+  const nodeAddresses: Record<string, string> = {};
+  for (const p of pipeline) {
+    nodeAddresses[p.nodeId] = p.contractAddress;
+  }
+
+  // 2. Determine parent relationships from the graph edges.
+  const parentByNode = new Map<string, string>();
+  for (const e of opts.graph.edges) {
+    parentByNode.set(e.target, e.source);
+  }
+
+  // 3. Build NodeBlueprint SCVals for each node.
+  const blueprintVals: xdr.ScVal[] = [];
+  for (const p of pipeline) {
+    const parentNodeId = parentByNode.get(p.nodeId);
+    let parentAddress: string | undefined;
+    if (parentNodeId) {
+      parentAddress = nodeAddresses[parentNodeId];
+      if (!parentAddress) {
+        throw new AppError("VALIDATION", `Parent address not found for node ${p.nodeId}`);
+      }
+    } else if (p.params.kind !== "deposit_trigger") {
+      // Standalone contracts (e.g. streamer with on_schedule) use admin as parent.
+      parentAddress = opts.sourceAccount;
+    }
+
+    const args = pipelineNodeConstructorArgs(
+      p.params,
+      opts.sourceAccount,
+      parentAddress,
+      nodeAddresses,
+    );
+
+    blueprintVals.push(nodeBlueprint(p.wasmHash, p.salt, args));
+  }
+
+  // 4. Build a single factory invocation.
+  const op = Operation.invokeContractFunction({
+    contract: factoryAddress,
+    function: "deploy_pipeline",
+    args: [new Address(opts.sourceAccount).toScVal(), xdr.ScVal.scvVec(blueprintVals)],
+  });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(180)
+    .build();
+
+  // 5. Simulate the single-op transaction.
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+  }
+  const assembled = rpc.assembleTransaction(tx, sim).build();
+
+  return {
+    xdr: assembled.toXDR(),
+    pipeline: pipeline.map((p) => ({
+      nodeId: p.nodeId,
+      contractAddress: p.contractAddress,
+      salt: p.salt,
+      templateKind: p.templateKind,
+    })),
+  };
 }
 
 function computeContractAddress(sourceAccount: string, salt: Buffer): string {

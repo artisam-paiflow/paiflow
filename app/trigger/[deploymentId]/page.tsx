@@ -17,7 +17,14 @@ export default async function TriggerPage({
       flow: { select: { name: true, templateKind: true } },
     },
   });
-  if (!d || d.flow.templateKind !== "SPLITTER" || !d.contractAddress) notFound();
+  const pipeline = d?.pipelineSnapshot as Array<{
+    nodeId: string;
+    contractAddress: string;
+    templateKind: string;
+  }> | null;
+  const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
+
+  if (!d || (!isPipeline && d.flow.templateKind !== "SPLITTER") || !d.contractAddress) notFound();
 
   const graphResult = FlowGraphSchema.safeParse(d.graphSnapshot);
   const graph = graphResult.success ? graphResult.data : null;

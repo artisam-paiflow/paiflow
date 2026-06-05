@@ -30,12 +30,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const result = await submitDeployTx(body.signedXdr);
     if (result.status === "SUCCESS") {
+      // For pipeline deployments we trust the deterministic pre-computed
+      // addresses stored in pipelineSnapshot.  For legacy single-contract
+      // deployments we fall back to the address returned by the RPC.
+      const pipeline = deployment.pipelineSnapshot as Array<{
+        nodeId: string;
+        contractAddress: string;
+        templateKind: string;
+      }> | null;
+      const contractAddress = pipeline?.[0]?.contractAddress ?? result.contractAddress ?? null;
+
       await db.deployment.update({
         where: { id },
         data: {
           status: "CONFIRMED",
           deployTxHash: result.txHash,
-          contractAddress: result.contractAddress ?? null,
+          contractAddress,
           confirmedAt: new Date(),
         },
       });
@@ -48,7 +58,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         data: {
           status: "CONFIRMED",
           txHash: result.txHash,
-          contractAddress: result.contractAddress,
+          contractAddress,
+          pipeline: pipeline ?? undefined,
         },
       });
     }

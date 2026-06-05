@@ -67,8 +67,15 @@ export default async function DeploymentPage({
   if (!graphResult.success) notFound();
   const graph = graphResult.data;
 
+  const pipeline = d.pipelineSnapshot as Array<{
+    nodeId: string;
+    contractAddress: string;
+    templateKind: string;
+  }> | null;
+  const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
+
   const qrUrl =
-    d.contractAddress && d.flow.templateKind === "SPLITTER"
+    d.contractAddress && (isPipeline || d.flow.templateKind === "SPLITTER")
       ? `/api/deployments/${d.id}/qr?action=trigger`
       : null;
 
@@ -156,7 +163,6 @@ export default async function DeploymentPage({
           network={network}
           status={d.status}
           qrUrl={qrUrl}
-          distributeAmountStroops={d.distributeAmountStroops}
           graph={graph}
           initialEvents={d.events.map((e) => ({
             id: e.id,
@@ -164,6 +170,7 @@ export default async function DeploymentPage({
             ledger: e.ledger,
             txHash: e.txHash,
             payload: e.payload,
+            decodedData: e.decodedData as Record<string, unknown> | null,
             occurredAt: e.occurredAt.toISOString(),
           }))}
         />

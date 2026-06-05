@@ -45,10 +45,6 @@ export default function Topbar({ username }: { username: string }) {
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="border-secondary/30 bg-secondary/10 text-label-sm text-secondary hidden items-center gap-2 rounded border px-3 py-1.5 font-mono sm:inline-flex">
-            <span className="status-dot-deploy h-1.5 w-1.5" />
-            RPC 12MS
-          </span>
           <Link
             href="/account"
             className="border-outline-variant/30 bg-surface-container-low/60 text-label-sm text-on-surface-variant hover:border-primary/40 hover:text-on-surface hidden items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors sm:inline-flex"

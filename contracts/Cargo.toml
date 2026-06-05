@@ -1,6 +1,20 @@
 [workspace]
 resolver = "2"
-members = ["splitter", "streamer", "conditional"]
+members = [
+  "triggers/deposit_trigger",
+  "triggers/webhook",
+  "triggers/subscription",
+  "triggers/oracle",
+  "conditions/conditional",
+  "conditions/router",
+  "conditions/timelock",
+  "conditions/multisig",
+  "actions/splitter",
+  "actions/streamer",
+  "actions/swapper",
+  "actions/yield",
+  "factory",
+]
 
 [workspace.package]
 version = "0.1.0"

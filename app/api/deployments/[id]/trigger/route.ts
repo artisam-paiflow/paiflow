@@ -6,7 +6,6 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { prepareTriggerTx } from "@/lib/stellar/trigger";
 import { stellarPassphrase } from "@/lib/env";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
-import { audit } from "@/lib/audit";
 
 const PostSchema = z.object({
   amount: z.string().regex(/^\d+$/, "Must be a positive integer"),
@@ -25,7 +24,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
-    if (d.flow.templateKind !== "SPLITTER") {
+
+    const pipeline = d.pipelineSnapshot as Array<{
+      nodeId: string;
+      contractAddress: string;
+      templateKind: string;
+    }> | null;
+    const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
+
+    if (!isPipeline && d.flow.templateKind !== "SPLITTER") {
       throw new AppError("VALIDATION", "Only splitter deployments support trigger");
     }
     if (!d.contractAddress) {
@@ -36,12 +43,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       contractAddress: d.contractAddress,
       amount: body.amount,
       fromAddress: body.userAddress,
-    });
-
-    await audit({
-      action: "DEPLOY_TRIGGER",
-      ip,
-      metadata: { deploymentId: id, amount: body.amount },
+      isPipeline,
     });
 
     return NextResponse.json({

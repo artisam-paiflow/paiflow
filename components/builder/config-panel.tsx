@@ -60,7 +60,9 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
         <>
           <AssetField
             asset={node.config.asset}
-            onChange={(asset) => onChange({ ...node, config: { ...node.config, asset } })}
+            onChange={(asset) =>
+              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
+            }
           />
           <Field label={`Minimum amount (${assetLabel(node.config.asset)}), optional`}>
             <input
@@ -218,7 +220,9 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
           </Field>
           <AssetField
             asset={node.config.asset}
-            onChange={(asset) => onChange({ ...node, config: { ...node.config, asset } })}
+            onChange={(asset) =>
+              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
+            }
           />
         </>
       )}
@@ -227,7 +231,9 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
         <>
           <AssetField
             asset={node.config.asset}
-            onChange={(asset) => onChange({ ...node, config: { ...node.config, asset } })}
+            onChange={(asset) =>
+              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
+            }
           />
 
           {triggerType === "on_schedule" && (
@@ -284,7 +290,10 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                       onChange={(e) => {
                         const next = [...node.config.recipients];
                         next[i] = { ...r, address: e.target.value.trim() };
-                        onChange({ ...node, config: { ...node.config, recipients: next } });
+                        onChange({
+                          ...node,
+                          config: { ...node.config, recipients: next },
+                        } as FlowNode);
                       }}
                     />
                   </div>
@@ -300,7 +309,10 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                           ...r,
                           bps: isNaN(v) ? 0 : Math.min(10000, Math.max(0, pctToBps(v))),
                         };
-                        onChange({ ...node, config: { ...node.config, recipients: next } });
+                        onChange({
+                          ...node,
+                          config: { ...node.config, recipients: next },
+                        } as FlowNode);
                       }}
                     />
                     <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[11px] text-zinc-500">
@@ -310,7 +322,10 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                   <button
                     onClick={() => {
                       const next = node.config.recipients.filter((_, j) => j !== i);
-                      onChange({ ...node, config: { ...node.config, recipients: next } });
+                      onChange({
+                        ...node,
+                        config: { ...node.config, recipients: next },
+                      } as FlowNode);
                     }}
                     className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
                   >
@@ -325,7 +340,10 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                     onChange={(e) => {
                       const next = [...node.config.recipients];
                       next[i] = { ...r, label: e.target.value || undefined };
-                      onChange({ ...node, config: { ...node.config, recipients: next } });
+                      onChange({
+                        ...node,
+                        config: { ...node.config, recipients: next },
+                      } as FlowNode);
                     }}
                   />
                   <div className="flex items-center gap-1 text-[10px]">
@@ -372,7 +390,7 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                     ...node.config.recipients,
                     {
                       address: "PENDING:unnamed",
-                      bps: 1,
+                      bps: 100,
                     },
                   ],
                 },
@@ -381,6 +399,180 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
           >
             + Add recipient
           </button>
+        </>
+      )}
+
+      {node.type === "webhook" && (
+        <>
+          <AssetField
+            asset={node.config.asset}
+            onChange={(asset) =>
+              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
+            }
+          />
+          <Field label="Relayer address (G… or PENDING:)">
+            <div className="relative">
+              <input
+                className={`input font-mono ${isPendingAddress(node.config.relayer) ? "ring-1 ring-amber-700" : ""}`}
+                value={node.config.relayer}
+                onChange={(e) =>
+                  onChange({
+                    ...node,
+                    config: { ...node.config, relayer: e.target.value.trim() },
+                  })
+                }
+              />
+              {isPendingAddress(node.config.relayer) && (
+                <span className="absolute -top-2 right-1 rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400">
+                  needs address
+                </span>
+              )}
+            </div>
+          </Field>
+        </>
+      )}
+
+      {node.type === "subscription" && (
+        <>
+          <AssetField
+            asset={node.config.asset}
+            onChange={(asset) =>
+              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
+            }
+          />
+          <Field label="Subscriber address (G… or PENDING:)">
+            <div className="relative">
+              <input
+                className={`input font-mono ${isPendingAddress(node.config.subscriber) ? "ring-1 ring-amber-700" : ""}`}
+                value={node.config.subscriber}
+                onChange={(e) =>
+                  onChange({
+                    ...node,
+                    config: { ...node.config, subscriber: e.target.value.trim() },
+                  })
+                }
+              />
+              {isPendingAddress(node.config.subscriber) && (
+                <span className="absolute -top-2 right-1 rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400">
+                  needs address
+                </span>
+              )}
+            </div>
+          </Field>
+          <Field label={`Amount per period (${assetLabel(node.config.asset)})`}>
+            <input
+              className="input"
+              value={formatStroops(node.config.amountPerPeriodStroops)}
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: {
+                    ...node.config,
+                    amountPerPeriodStroops: tokenAmountToStroops(e.target.value),
+                  },
+                })
+              }
+            />
+          </Field>
+        </>
+      )}
+
+      {node.type === "oracle" && (
+        <>
+          <AssetField
+            asset={node.config.asset}
+            onChange={(asset) =>
+              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
+            }
+          />
+          <Field label="Price threshold">
+            <input
+              className="input"
+              value={node.config.threshold}
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: {
+                    ...node.config,
+                    threshold: e.target.value.replace(/\D/g, ""),
+                  },
+                })
+              }
+            />
+          </Field>
+        </>
+      )}
+
+      {node.type === "swap" && (
+        <>
+          <Field label="Asset In">
+            <AssetSimpleSelect
+              asset={node.config.assetIn}
+              onChange={(assetIn) =>
+                onChange({ ...node, config: { ...node.config, assetIn } } as FlowNode)
+              }
+            />
+          </Field>
+          <Field label="Asset Out">
+            <AssetSimpleSelect
+              asset={node.config.assetOut}
+              onChange={(assetOut) =>
+                onChange({ ...node, config: { ...node.config, assetOut } } as FlowNode)
+              }
+            />
+          </Field>
+          <Field label="Rate (basis points, 1–10000)">
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={10000}
+              value={node.config.rateBps}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                onChange({
+                  ...node,
+                  config: {
+                    ...node.config,
+                    rateBps: isNaN(v) ? 1 : Math.min(10000, Math.max(1, v)),
+                  },
+                });
+              }}
+            />
+            <div className="mt-0.5 text-[11px] text-zinc-500">
+              = {(node.config.rateBps / 100).toFixed(0)}%
+            </div>
+          </Field>
+        </>
+      )}
+
+      {node.type === "yield" && (
+        <>
+          <AssetField
+            asset={node.config.asset}
+            onChange={(asset) =>
+              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
+            }
+          />
+          <Field label="Vault address (G… or PENDING:)">
+            <div className="relative">
+              <input
+                className={`input font-mono ${isPendingAddress(node.config.vault) ? "ring-1 ring-amber-700" : ""}`}
+                value={node.config.vault}
+                onChange={(e) =>
+                  onChange({
+                    ...node,
+                    config: { ...node.config, vault: e.target.value.trim() },
+                  })
+                }
+              />
+              {isPendingAddress(node.config.vault) && (
+                <span className="absolute -top-2 right-1 rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400">
+                  needs address
+                </span>
+              )}
+            </div>
+          </Field>
         </>
       )}
 
@@ -393,7 +585,7 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
               onChange={(e) => {
                 const k = e.target.value;
                 if (k === "amount_gt" || k === "amount_lt") {
-                  onChange({ ...node, config: { kind: k, amountStroops: "10000000" } });
+                  onChange({ ...node, config: { kind: k, amountStroops: "10000000" } } as FlowNode);
                 } else if (k === "oracle_gte") {
                   onChange({
                     ...node,
@@ -405,7 +597,19 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                     },
                   });
                 } else if (k === "time_after" || k === "time_before") {
-                  onChange({ ...node, config: { kind: k, at: new Date().toISOString() } });
+                  onChange({
+                    ...node,
+                    config: { kind: k, at: new Date().toISOString() },
+                  } as FlowNode);
+                } else if (k === "multisig") {
+                  onChange({
+                    ...node,
+                    config: {
+                      kind: "multisig",
+                      signers: ["PENDING:signer1"],
+                      threshold: 1,
+                    },
+                  });
                 }
               }}
             >
@@ -414,6 +618,7 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
               <option value="oracle_gte">oracle ≥ threshold</option>
               <option value="time_after">time after</option>
               <option value="time_before">time before</option>
+              <option value="multisig">multisig</option>
             </select>
           </Field>
           {(node.config.kind === "amount_gt" || node.config.kind === "amount_lt") && (
@@ -427,7 +632,7 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                     node.config.kind === "amount_gt"
                       ? { kind: "amount_gt" as const, amountStroops: stroops }
                       : { kind: "amount_lt" as const, amountStroops: stroops };
-                  onChange({ ...node, config: next });
+                  onChange({ ...node, config: next } as FlowNode);
                 }}
               />
               {trigger?.type === "on_receive" && (
@@ -445,7 +650,7 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                   value={node.config.oracle}
                   onChange={(e) => {
                     const cfg = { ...node.config, oracle: e.target.value.trim() };
-                    onChange({ ...node, config: cfg });
+                    onChange({ ...node, config: cfg } as FlowNode);
                   }}
                 />
               </Field>
@@ -455,7 +660,7 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                   value={node.config.key}
                   onChange={(e) => {
                     const cfg = { ...node.config, key: e.target.value };
-                    onChange({ ...node, config: cfg });
+                    onChange({ ...node, config: cfg } as FlowNode);
                   }}
                 />
               </Field>
@@ -464,11 +669,8 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                   className="input"
                   value={node.config.threshold}
                   onChange={(e) => {
-                    const cfg = {
-                      ...node.config,
-                      threshold: e.target.value.replace(/\D/g, ""),
-                    };
-                    onChange({ ...node, config: cfg });
+                    const cfg = { ...node.config, threshold: e.target.value.replace(/\D/g, "") };
+                    onChange({ ...node, config: cfg } as FlowNode);
                   }}
                 />
               </Field>
@@ -485,11 +687,74 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                     node.config.kind === "time_after"
                       ? { kind: "time_after" as const, at }
                       : { kind: "time_before" as const, at };
-                  onChange({ ...node, config: next });
+                  onChange({ ...node, config: next } as FlowNode);
                 }}
               />
             </Field>
           )}
+          {node.config.kind === "multisig" &&
+            (() => {
+              const cfg = node.config as Extract<typeof node.config, { kind: "multisig" }>;
+              return (
+                <>
+                  <Field label="Signers">
+                    {cfg.signers.map((s, i) => (
+                      <div key={i} className="mb-1 flex gap-1">
+                        <input
+                          className={`input font-mono text-xs ${isPendingAddress(s) ? "ring-1 ring-amber-700" : ""}`}
+                          value={s}
+                          placeholder="G... or PENDING:label"
+                          onChange={(e) => {
+                            const next = [...cfg.signers];
+                            next[i] = e.target.value.trim();
+                            onChange({ ...node, config: { ...cfg, signers: next } } as FlowNode);
+                          }}
+                        />
+                        <button
+                          onClick={() => {
+                            const next = cfg.signers.filter((_, j) => j !== i);
+                            onChange({ ...node, config: { ...cfg, signers: next } } as FlowNode);
+                          }}
+                          className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
+                      onClick={() =>
+                        onChange({
+                          ...node,
+                          config: { ...cfg, signers: [...cfg.signers, "PENDING:signer"] },
+                        } as FlowNode)
+                      }
+                    >
+                      + Add signer
+                    </button>
+                  </Field>
+                  <Field label="Threshold (min signers)">
+                    <input
+                      className="input"
+                      type="number"
+                      min={1}
+                      max={cfg.signers.length}
+                      value={cfg.threshold}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        onChange({
+                          ...node,
+                          config: {
+                            ...cfg,
+                            threshold: isNaN(v) ? 1 : Math.min(cfg.signers.length, Math.max(1, v)),
+                          },
+                        } as FlowNode);
+                      }}
+                    />
+                  </Field>
+                </>
+              );
+            })()}
         </>
       )}
 
@@ -542,6 +807,32 @@ function AssetField({
         <option value="native">XLM (native)</option>
       </select>
     </Field>
+  );
+}
+
+function AssetSimpleSelect({
+  asset,
+  onChange,
+}: {
+  asset:
+    | { kind: "native" }
+    | { kind: "known"; symbol: "USDC" }
+    | { kind: "custom"; code: string; issuer: string };
+  onChange: (a: typeof asset) => void;
+}) {
+  return (
+    <select
+      className="input"
+      value={asset.kind === "known" ? `known:${asset.symbol}` : asset.kind}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (v === "native") onChange({ kind: "native" });
+        else if (v === "known:USDC") onChange({ kind: "known", symbol: "USDC" });
+      }}
+    >
+      <option value="known:USDC">USDC</option>
+      <option value="native">XLM (native)</option>
+    </select>
   );
 }
 

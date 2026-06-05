@@ -21,6 +21,22 @@ export function getPendingLabels(graph: FlowGraph): string[] {
     if (n.type === "pay" && isPendingAddress(n.config.recipient)) {
       labels.add(n.config.recipient.slice(PENDING_PREFIX.length) || "unnamed");
     }
+    if (n.type === "webhook" && isPendingAddress(n.config.relayer)) {
+      labels.add(n.config.relayer.slice(PENDING_PREFIX.length) || "unnamed");
+    }
+    if (n.type === "subscription" && isPendingAddress(n.config.subscriber)) {
+      labels.add(n.config.subscriber.slice(PENDING_PREFIX.length) || "unnamed");
+    }
+    if (n.type === "yield" && isPendingAddress(n.config.vault)) {
+      labels.add(n.config.vault.slice(PENDING_PREFIX.length) || "unnamed");
+    }
+    if (n.type === "condition" && n.config.kind === "multisig") {
+      for (const s of n.config.signers) {
+        if (isPendingAddress(s)) {
+          labels.add(s.slice(PENDING_PREFIX.length) || "unnamed");
+        }
+      }
+    }
   }
   return [...labels];
 }
@@ -68,6 +84,34 @@ export const OnScheduleTrigger = z.object({
   }),
 });
 
+export const WebhookTrigger = z.object({
+  id: z.string().min(1),
+  type: z.literal("webhook"),
+  config: z.object({
+    asset: AssetSchema,
+    relayer: stellarAccount,
+  }),
+});
+
+export const SubscriptionTrigger = z.object({
+  id: z.string().min(1),
+  type: z.literal("subscription"),
+  config: z.object({
+    asset: AssetSchema,
+    subscriber: stellarAccount,
+    amountPerPeriodStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
+  }),
+});
+
+export const OracleTrigger = z.object({
+  id: z.string().min(1),
+  type: z.literal("oracle"),
+  config: z.object({
+    asset: AssetSchema,
+    threshold: z.string().regex(/^\d+$/, "Threshold must be a positive integer string"),
+  }),
+});
+
 export const PayAction = z.object({
   id: z.string().min(1),
   type: z.literal("pay"),
@@ -97,6 +141,25 @@ export const SplitAction = z.object({
   }),
 });
 
+export const SwapAction = z.object({
+  id: z.string().min(1),
+  type: z.literal("swap"),
+  config: z.object({
+    assetIn: AssetSchema,
+    assetOut: AssetSchema,
+    rateBps: z.number().int().min(1).max(10_000),
+  }),
+});
+
+export const YieldAction = z.object({
+  id: z.string().min(1),
+  type: z.literal("yield"),
+  config: z.object({
+    asset: AssetSchema,
+    vault: stellarAccount,
+  }),
+});
+
 export const ConditionLogic = z.object({
   id: z.string().min(1),
   type: z.literal("condition"),
@@ -111,14 +174,24 @@ export const ConditionLogic = z.object({
     }),
     z.object({ kind: z.literal("time_after"), at: z.string().datetime() }),
     z.object({ kind: z.literal("time_before"), at: z.string().datetime() }),
+    z.object({
+      kind: z.literal("multisig"),
+      signers: z.array(stellarAccount).min(1).max(20),
+      threshold: z.number().int().min(1),
+    }),
   ]),
 });
 
 export const FlowNodeSchema = z.discriminatedUnion("type", [
   OnReceiveTrigger,
   OnScheduleTrigger,
+  WebhookTrigger,
+  SubscriptionTrigger,
+  OracleTrigger,
   PayAction,
   SplitAction,
+  SwapAction,
+  YieldAction,
   ConditionLogic,
 ]);
 export type FlowNode = z.infer<typeof FlowNodeSchema>;
@@ -146,15 +219,30 @@ export type FlowSaveInput = z.infer<typeof FlowSaveSchema>;
 export const FlowPatchSchema = FlowSaveSchema.partial();
 export type FlowPatchInput = z.infer<typeof FlowPatchSchema>;
 
-export type TriggerNode = z.infer<typeof OnReceiveTrigger> | z.infer<typeof OnScheduleTrigger>;
-export type ActionNode = z.infer<typeof PayAction> | z.infer<typeof SplitAction>;
+export type TriggerNode =
+  | z.infer<typeof OnReceiveTrigger>
+  | z.infer<typeof OnScheduleTrigger>
+  | z.infer<typeof WebhookTrigger>
+  | z.infer<typeof SubscriptionTrigger>
+  | z.infer<typeof OracleTrigger>;
+export type ActionNode =
+  | z.infer<typeof PayAction>
+  | z.infer<typeof SplitAction>
+  | z.infer<typeof SwapAction>
+  | z.infer<typeof YieldAction>;
 export type LogicNode = z.infer<typeof ConditionLogic>;
 
 export function isTrigger(n: FlowNode): n is TriggerNode {
-  return n.type === "on_receive" || n.type === "on_schedule";
+  return (
+    n.type === "on_receive" ||
+    n.type === "on_schedule" ||
+    n.type === "webhook" ||
+    n.type === "subscription" ||
+    n.type === "oracle"
+  );
 }
 export function isAction(n: FlowNode): n is ActionNode {
-  return n.type === "pay" || n.type === "split";
+  return n.type === "pay" || n.type === "split" || n.type === "swap" || n.type === "yield";
 }
 export function isLogic(n: FlowNode): n is LogicNode {
   return n.type === "condition";
@@ -193,6 +281,12 @@ export function sourceAmountStroops(graph: FlowGraph): string | undefined {
   const trigger = graph.nodes.find(isTrigger);
   if (trigger?.type === "on_receive" && trigger.config.minAmountStroops) {
     return trigger.config.minAmountStroops;
+  }
+  if (trigger?.type === "oracle" && trigger.config.threshold) {
+    return trigger.config.threshold;
+  }
+  if (trigger?.type === "subscription" && trigger.config.amountPerPeriodStroops) {
+    return trigger.config.amountPerPeriodStroops;
   }
   const condition = graph.nodes.find(isLogic);
   if (condition?.type === "condition") {
