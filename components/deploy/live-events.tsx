@@ -152,7 +152,7 @@ function EventRow({ evt, network }: { evt: Evt; network: StellarNetwork | null }
 
   return (
     <li
-      className={`border-outline-variant/15 bg-surface-container-low/40 group relative flex flex-col gap-2 rounded-lg border p-3 transition-colors hover:bg-surface-container-low/60${evt._isNew ? "slide-event-in" : ""}`}
+className={`border-outline-variant/15 bg-surface-container-low/40 group relative flex flex-col gap-2 rounded-lg border p-3 transition-colors hover:bg-surface-container-low/60${evt._isNew ? " slide-event-in" : ""}`}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
