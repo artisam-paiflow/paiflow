@@ -17,6 +17,7 @@ pub enum Key {
     Asset,
     Recipient,
     Amount,
+    PercentageBps,
     NextSteps,
     ParentNode,
     Version,
@@ -46,19 +47,21 @@ impl Payer {
         asset: Address,
         recipient: Address,
         amount: i128,
+        percentage_bps: u32,
         next_steps: Vec<WorkflowTarget>,
         parent: Address,
     ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
         }
-        if amount <= 0 {
+        if amount <= 0 && percentage_bps == 0 {
             panic_with_error!(&env, Error::InvalidAmount);
         }
         env.storage().instance().set(&Key::Admin, &admin);
         env.storage().instance().set(&Key::Asset, &asset);
         env.storage().instance().set(&Key::Recipient, &recipient);
         env.storage().instance().set(&Key::Amount, &amount);
+        env.storage().instance().set(&Key::PercentageBps, &percentage_bps);
         env.storage().instance().set(&Key::NextSteps, &next_steps);
         env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
@@ -77,12 +80,21 @@ impl Payer {
             panic_with_error!(&env, Error::InvalidAmount);
         }
 
-        let configured_amount: i128 = env.storage().instance().get(&Key::Amount).unwrap();
+        let percentage_bps: u32 = env
+            .storage()
+            .instance()
+            .get(&Key::PercentageBps)
+            .unwrap_or(0);
         let recipient: Address = env.storage().instance().get(&Key::Recipient).unwrap();
-        let payment = if amount > configured_amount {
-            configured_amount
+        let payment = if percentage_bps > 0 {
+            (amount * i128::from(percentage_bps)) / 10_000
         } else {
-            amount
+            let configured_amount: i128 = env.storage().instance().get(&Key::Amount).unwrap();
+            if amount > configured_amount {
+                configured_amount
+            } else {
+                amount
+            }
         };
 
         token::Client::new(&env, &asset).transfer(
@@ -125,6 +137,10 @@ impl Payer {
 
     pub fn configured_amount(env: Env) -> i128 {
         env.storage().instance().get(&Key::Amount).unwrap()
+    }
+
+    pub fn percentage_bps(env: Env) -> u32 {
+        env.storage().instance().get(&Key::PercentageBps).unwrap_or(0)
     }
 
     pub fn recipient(env: Env) -> Address {
@@ -196,6 +212,7 @@ mod test {
                 asset.address(),
                 recipient.clone(),
                 100_i128,
+                0_u32,
                 make_next_steps(&env, &next),
                 parent.clone(),
             ),
@@ -233,6 +250,7 @@ mod test {
                 asset.address(),
                 recipient.clone(),
                 100_i128,
+                0_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 parent.clone(),
             ),
@@ -269,6 +287,7 @@ mod test {
                 asset.address(),
                 recipient.clone(),
                 100_i128,
+                0_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 parent.clone(),
             ),
@@ -282,5 +301,117 @@ mod test {
         client.cancel();
         assert_eq!(tok.balance(&admin), 900);
         assert_eq!(tok.balance(&contract_id), 0);
+    }
+
+    #[test]
+    fn pays_percentage_of_incoming_amount() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let predecessor = Address::generate(&env);
+        let recipient = Address::generate(&env);
+        sac.mint(&predecessor, &1_000);
+
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Payer,
+            (
+                admin.clone(),
+                asset.address(),
+                recipient.clone(),
+                0_i128,
+                5_000_u32,
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
+            ),
+        );
+        let client = PayerClient::new(&env, &contract_id);
+
+        tok.transfer(&predecessor, &contract_id, &1_000);
+        client.execute_step(&asset.address(), &1_000);
+
+        assert_eq!(tok.balance(&recipient), 500);
+        assert_eq!(tok.balance(&contract_id), 500);
+        assert_eq!(client.percentage_bps(), 5_000);
+    }
+
+    #[test]
+    fn pays_full_amount_via_10000_bps() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let predecessor = Address::generate(&env);
+        let recipient = Address::generate(&env);
+        sac.mint(&predecessor, &1_000);
+
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Payer,
+            (
+                admin.clone(),
+                asset.address(),
+                recipient.clone(),
+                0_i128,
+                10_000_u32,
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
+            ),
+        );
+        let client = PayerClient::new(&env, &contract_id);
+
+        tok.transfer(&predecessor, &contract_id, &1_000);
+        client.execute_step(&asset.address(), &1_000);
+
+        assert_eq!(tok.balance(&recipient), 1_000);
+        assert_eq!(tok.balance(&contract_id), 0);
+    }
+
+    #[test]
+    fn percentage_zero_falls_back_to_fixed_amount() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let predecessor = Address::generate(&env);
+        let recipient = Address::generate(&env);
+        sac.mint(&predecessor, &1_000);
+
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Payer,
+            (
+                admin.clone(),
+                asset.address(),
+                recipient.clone(),
+                100_i128,
+                0_u32,
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
+            ),
+        );
+        let client = PayerClient::new(&env, &contract_id);
+
+        tok.transfer(&predecessor, &contract_id, &1_000);
+        client.execute_step(&asset.address(), &1_000);
+
+        assert_eq!(tok.balance(&recipient), 100);
+        assert_eq!(tok.balance(&contract_id), 900);
     }
 }

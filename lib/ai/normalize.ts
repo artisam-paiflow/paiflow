@@ -316,6 +316,11 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
           break;
         }
         case "pay": {
+          const mode = (data.mode === "percentage" ? "percentage" : "fixed") as
+            | "fixed"
+            | "percentage";
+          const fullAmount = Boolean(data.fullAmount);
+          const percentage = typeof data.percentage === "number" ? data.percentage : undefined;
           nodes.push({
             id,
             type: "pay",
@@ -323,6 +328,9 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
               recipient: sanitizeAddress(String(data.recipient ?? "")),
               amountStroops: String(data.amountStroops ?? data.amount ?? "0"),
               asset: normalizeAsset(data.asset),
+              mode,
+              ...(percentage !== undefined ? { percentage } : {}),
+              fullAmount,
             },
           } as FlowNode);
           break;

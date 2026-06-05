@@ -221,6 +221,7 @@ export function pipelineNodeConstructorArgs(
         addr(assetContractId(params.asset)),
         addr(params.recipient),
         i128(params.amountStroops),
+        u32(params.percentageBps ?? 0),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
         addr(parentAddress),
       ];

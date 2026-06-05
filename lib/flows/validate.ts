@@ -124,8 +124,32 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         }
       }
     }
-    if (a.type === "pay" && isPendingAddress(a.config.recipient)) {
-      pendingLabels.add(a.config.recipient.slice(8) || "unnamed");
+    if (a.type === "pay") {
+      if (isPendingAddress(a.config.recipient)) {
+        pendingLabels.add(a.config.recipient.slice(8) || "unnamed");
+      }
+      if (!a.config.fullAmount) {
+        if (
+          a.config.mode === "fixed" &&
+          (!a.config.amountStroops || a.config.amountStroops === "0")
+        ) {
+          errors.push({
+            path: `nodes.${a.id}.config.amountStroops`,
+            message: "Pay node in fixed mode requires a positive amount",
+            friendlyMessage: "Please enter a positive amount for the pay node.",
+          });
+        }
+        if (
+          a.config.mode === "percentage" &&
+          (a.config.percentage === undefined || a.config.percentage <= 0)
+        ) {
+          errors.push({
+            path: `nodes.${a.id}.config.percentage`,
+            message: "Pay node in percentage mode requires a positive percentage",
+            friendlyMessage: "Please enter a positive percentage for the pay node.",
+          });
+        }
+      }
     }
     if (a.type === "yield" && isPendingAddress(a.config.vault)) {
       pendingLabels.add(a.config.vault.slice(8) || "unnamed");

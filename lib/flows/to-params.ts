@@ -1,6 +1,6 @@
 import { TemplateKind } from "@prisma/client";
 import type { Asset, ActionNode, FlowGraph, FlowNode, LogicNode } from "./schema";
-import { isAction, isLogic, isTrigger, sourceAmountStroops, TOTAL_BPS } from "./schema";
+import { isAction, isLogic, isTrigger, pctToBps, sourceAmountStroops, TOTAL_BPS } from "./schema";
 
 export type SplitterParams = {
   kind: "splitter";
@@ -124,6 +124,8 @@ export type PayerNodeParams = {
   asset: Asset;
   recipient: string;
   amountStroops: string;
+  mode: "fixed" | "percentage";
+  percentageBps?: number;
   nextStepNodeIds: string[];
 };
 
@@ -216,7 +218,7 @@ export function flowToPipeline(graph: FlowGraph): PipelineNode[] {
         : start + 60 * 60 * 24 * 30;
     const rate =
       action.type === "pay"
-        ? action.config.amountStroops
+        ? (action.config.amountStroops ?? "1")
         : action.type === "split"
           ? (action.config.ratePerSecondStroops ?? "1")
           : "1";
@@ -307,7 +309,9 @@ export function flowToPipeline(graph: FlowGraph): PipelineNode[] {
       });
     } else if (cond.config.kind === "oracle_gte") {
       const amount =
-        action.type === "pay" ? action.config.amountStroops : (sourceAmountStroops(graph) ?? "0");
+        action.type === "pay"
+          ? (action.config.amountStroops ?? "0")
+          : (sourceAmountStroops(graph) ?? "0");
       pipeline.push({
         nodeId: cond.id,
         templateKind: TemplateKind.CONDITIONAL,
@@ -362,17 +366,48 @@ export function flowToPipeline(graph: FlowGraph): PipelineNode[] {
         },
       });
     } else if (action.type === "pay") {
-      pipeline.push({
-        nodeId: action.id,
-        templateKind: TemplateKind.PAYER,
-        params: {
-          kind: "payer",
-          asset: getAsset(action),
-          recipient: action.config.recipient,
-          amountStroops: action.config.amountStroops,
-          nextStepNodeIds: children.get(action.id) ?? [],
-        },
-      });
+      if (action.config.fullAmount) {
+        pipeline.push({
+          nodeId: action.id,
+          templateKind: TemplateKind.PAYER,
+          params: {
+            kind: "payer",
+            asset: getAsset(action),
+            recipient: action.config.recipient,
+            amountStroops: "0",
+            mode: "percentage",
+            percentageBps: 10_000,
+            nextStepNodeIds: children.get(action.id) ?? [],
+          },
+        });
+      } else if (action.config.mode === "percentage") {
+        pipeline.push({
+          nodeId: action.id,
+          templateKind: TemplateKind.PAYER,
+          params: {
+            kind: "payer",
+            asset: getAsset(action),
+            recipient: action.config.recipient,
+            amountStroops: "0",
+            mode: "percentage",
+            percentageBps: pctToBps(action.config.percentage ?? 0),
+            nextStepNodeIds: children.get(action.id) ?? [],
+          },
+        });
+      } else {
+        pipeline.push({
+          nodeId: action.id,
+          templateKind: TemplateKind.PAYER,
+          params: {
+            kind: "payer",
+            asset: getAsset(action),
+            recipient: action.config.recipient,
+            amountStroops: action.config.amountStroops ?? "0",
+            mode: "fixed",
+            nextStepNodeIds: children.get(action.id) ?? [],
+          },
+        });
+      }
     } else {
       const minAmountStroops =
         trigger.type === "on_receive" ? (trigger.config.minAmountStroops ?? "0") : "0";
@@ -433,7 +468,7 @@ export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): Cont
       : start + 60 * 60 * 24 * 30;
     const rate =
       action.type === "pay"
-        ? action.config.amountStroops
+        ? (action.config.amountStroops ?? "1")
         : action.type === "split"
           ? (action.config.ratePerSecondStroops ?? "1")
           : "1";
@@ -449,7 +484,9 @@ export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): Cont
 
   if (templateKind === TemplateKind.CONDITIONAL) {
     const amount =
-      action.type === "pay" ? action.config.amountStroops : (sourceAmountStroops(graph) ?? "0");
+      action.type === "pay"
+        ? (action.config.amountStroops ?? "0")
+        : (sourceAmountStroops(graph) ?? "0");
     return {
       kind: "conditional",
       asset: getAsset(action),

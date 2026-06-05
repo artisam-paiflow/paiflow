@@ -198,26 +198,102 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
               )}
             </div>
           </Field>
-          <Field label={`Amount (${assetLabel(node.config.asset)})`}>
+
+          <label className="flex items-center gap-2">
             <input
-              className="input"
-              value={formatStroops(node.config.amountStroops)}
-              onChange={(e) =>
+              type="checkbox"
+              checked={node.config.fullAmount}
+              onChange={(e) => {
+                const fullAmount = e.target.checked;
                 onChange({
                   ...node,
                   config: {
                     ...node.config,
-                    amountStroops: tokenAmountToStroops(e.target.value),
+                    fullAmount,
+                    mode: fullAmount ? "percentage" : (node.config.mode ?? "fixed"),
+                    percentage: fullAmount ? 100 : node.config.percentage,
                   },
-                })
-              }
+                } as FlowNode);
+              }}
             />
-            {node.config.amountStroops && (
-              <div className="mt-0.5 text-[11px] text-zinc-500">
-                = {stroopsToDisplay(node.config.amountStroops, node.config.asset)}
-              </div>
-            )}
-          </Field>
+            <span className="text-xs text-zinc-400">Send full amount</span>
+          </label>
+
+          {!node.config.fullAmount && (
+            <>
+              <Field label="Mode">
+                <select
+                  className="input"
+                  value={node.config.mode}
+                  onChange={(e) =>
+                    onChange({
+                      ...node,
+                      config: {
+                        ...node.config,
+                        mode: e.target.value as "fixed" | "percentage",
+                      },
+                    } as FlowNode)
+                  }
+                >
+                  <option value="fixed">Fixed amount</option>
+                  <option value="percentage">Percentage</option>
+                </select>
+              </Field>
+
+              {node.config.mode === "fixed" && (
+                <Field label={`Amount (${assetLabel(node.config.asset)})`}>
+                  <input
+                    className="input"
+                    value={
+                      node.config.amountStroops ? formatStroops(node.config.amountStroops) : ""
+                    }
+                    onChange={(e) =>
+                      onChange({
+                        ...node,
+                        config: {
+                          ...node.config,
+                          amountStroops: tokenAmountToStroops(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                  {node.config.amountStroops && (
+                    <div className="mt-0.5 text-[11px] text-zinc-500">
+                      = {stroopsToDisplay(node.config.amountStroops, node.config.asset)}
+                    </div>
+                  )}
+                </Field>
+              )}
+
+              {node.config.mode === "percentage" && (
+                <Field label="Percentage">
+                  <div className="relative">
+                    <input
+                      className="input pr-6"
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={node.config.percentage ?? ""}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        onChange({
+                          ...node,
+                          config: {
+                            ...node.config,
+                            percentage: isNaN(v) ? 0 : Math.min(100, Math.max(0, v)),
+                          },
+                        });
+                      }}
+                    />
+                    <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[11px] text-zinc-500">
+                      %
+                    </span>
+                  </div>
+                </Field>
+              )}
+            </>
+          )}
+
           <AssetField
             asset={node.config.asset}
             onChange={(asset) =>
