@@ -29,7 +29,13 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
         : n.config.asset.kind === "native"
           ? "XLM"
           : n.config.asset.code;
-    detail = `${formatAmount(n.config.amountStroops)} ${assetLabel}`;
+    if (n.config.fullAmount) {
+      detail = `Full amount ${assetLabel}`;
+    } else if (n.config.mode === "percentage" && n.config.percentage !== undefined) {
+      detail = `${n.config.percentage}% ${assetLabel}`;
+    } else {
+      detail = `${formatAmount(n.config.amountStroops || "0")} ${assetLabel}`;
+    }
   } else if (n.type === "swap") {
     icon = "swap_horiz";
     title = "Swap";

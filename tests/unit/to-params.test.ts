@@ -130,6 +130,8 @@ describe("flowToParams", () => {
               recipient: ADDR_A,
               amountStroops: "1000",
               asset: { kind: "native" },
+              mode: "fixed",
+              fullAmount: false,
             },
           },
         ],
@@ -161,6 +163,8 @@ describe("flowToParams", () => {
               recipient: ADDR_A,
               amountStroops: "1000",
               asset: { kind: "native" },
+              mode: "fixed",
+              fullAmount: false,
             },
           },
         ],
@@ -215,6 +219,8 @@ describe("flowToParams", () => {
               recipient: ADDR_A,
               amountStroops: "10000000",
               asset: { kind: "known", symbol: "USDC" },
+              mode: "fixed",
+              fullAmount: false,
             },
           },
         ],
@@ -286,6 +292,8 @@ describe("flowToParams", () => {
               recipient: ADDR_B,
               amountStroops: "500",
               asset: { kind: "native" },
+              mode: "fixed",
+              fullAmount: false,
             },
           },
         ],
@@ -522,6 +530,8 @@ describe("flowToPipeline", () => {
             recipient: ADDR_A,
             amountStroops: "1000",
             asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
           },
         },
       ],
@@ -538,6 +548,73 @@ describe("flowToPipeline", () => {
     expect(trigger!.params).toMatchObject({
       kind: "deposit_trigger",
       nextStepNodeIds: ["a"],
+    });
+  });
+
+  it("maps pay node with percentage mode", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "native" } },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            asset: { kind: "native" },
+            mode: "percentage",
+            percentage: 50,
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(2);
+    const payer = pipeline.find((n) => n.params.kind === "payer");
+    expect(payer).toBeDefined();
+    expect(payer!.params).toMatchObject({
+      kind: "payer",
+      mode: "percentage",
+      percentageBps: 5000,
+      amountStroops: "0",
+      recipient: ADDR_A,
+    });
+  });
+
+  it("maps pay node with fullAmount", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "native" } },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: true,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(2);
+    const payer = pipeline.find((n) => n.params.kind === "payer");
+    expect(payer).toBeDefined();
+    expect(payer!.params).toMatchObject({
+      kind: "payer",
+      mode: "percentage",
+      percentageBps: 10000,
+      amountStroops: "0",
+      recipient: ADDR_A,
     });
   });
 });

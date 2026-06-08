@@ -14,6 +14,7 @@ export const TEMPLATE_LABELS: Record<TemplateKind, string> = {
   MULTISIG: "Multisig",
   SWAPPER: "Swapper",
   YIELD: "Yield",
+  PAYER: "Payer",
 };
 
 export const TEMPLATE_DESCRIPTIONS: Record<TemplateKind, string> = {
@@ -30,4 +31,5 @@ export const TEMPLATE_DESCRIPTIONS: Record<TemplateKind, string> = {
   MULTISIG: "N-of-M human approval gate before funds are released.",
   SWAPPER: "Fixed-rate token swap from asset_in to asset_out.",
   YIELD: "Deposits incoming funds into a vault or lending pool.",
+  PAYER: "Sends a fixed amount to a single recipient.",
 };

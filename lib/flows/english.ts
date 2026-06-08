@@ -52,9 +52,17 @@ export function flowToEnglish(graph: FlowGraph): string {
     const who = isPendingAddress(action.config.recipient)
       ? "(needs address)"
       : shortAddr(action.config.recipient);
-    actionText = `pay ${formatStroops(action.config.amountStroops)} ${assetLabel(
-      action.config.asset,
-    )} to ${who}`;
+    if (action.config.fullAmount) {
+      actionText = `pay full incoming ${assetLabel(action.config.asset)} to ${who}`;
+    } else if (action.config.mode === "percentage") {
+      actionText = `pay ${action.config.percentage}% of incoming ${assetLabel(
+        action.config.asset,
+      )} to ${who}`;
+    } else {
+      actionText = `pay ${formatStroops(action.config.amountStroops || "0")} ${assetLabel(
+        action.config.asset,
+      )} to ${who}`;
+    }
   } else if (action.type === "swap") {
     actionText = `swap ${assetLabel(action.config.assetIn)} to ${assetLabel(action.config.assetOut)} at ${(action.config.rateBps / 100).toFixed(0)}% rate`;
   } else if (action.type === "yield") {
