@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
+import { timingSafeEqual as cryptoTimingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { submitWebhookExecuteTx } from "@/lib/stellar/trigger";
@@ -13,12 +14,9 @@ const PostSchema = z.object({
 });
 
 function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
+  const bufA = Buffer.from(a.padEnd(65));
+  const bufB = Buffer.from(b.padEnd(65));
+  return cryptoTimingSafeEqual(bufA, bufB) && a.length === b.length;
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
