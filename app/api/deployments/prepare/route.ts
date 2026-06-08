@@ -52,7 +52,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const pipeline = flowToPipeline(v.graph);
+    const trigger = v.graph.nodes.find((n) => n.type === "web2_webhook");
+    if (trigger && !env().STELLAR_RELAYER_ADDRESS) {
+      throw new AppError(
+        "VALIDATION",
+        "STELLAR_RELAYER_ADDRESS is required to deploy an HTTP Webhook flow. Set it in your environment.",
+      );
+    }
+
+    const pipeline = flowToPipeline(v.graph, env().STELLAR_RELAYER_ADDRESS);
 
     // Ensure every pipeline node has a corresponding WASM template on-chain.
     const deployNodes = await Promise.all(

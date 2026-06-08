@@ -181,7 +181,7 @@ function getChildren(graph: FlowGraph): Map<string, string[]> {
  * relationships are expressed as nodeId references so the deploy layer can
  * wire deterministic addresses later.
  */
-export function flowToPipeline(graph: FlowGraph): PipelineNode[] {
+export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): PipelineNode[] {
   const trigger = graph.nodes.find(isTrigger)!;
   const actions = graph.nodes.filter(isAction);
   const conditions = graph.nodes.filter(isLogic);
@@ -251,6 +251,17 @@ export function flowToPipeline(graph: FlowGraph): PipelineNode[] {
         kind: "webhook_trigger",
         asset: trigger.config.asset,
         relayer: trigger.config.relayer,
+        nextStepNodeIds: children.get(trigger.id) ?? [],
+      },
+    });
+  } else if (trigger.type === "web2_webhook") {
+    pipeline.push({
+      nodeId: trigger.id,
+      templateKind: TemplateKind.WEBHOOK,
+      params: {
+        kind: "webhook_trigger",
+        asset: trigger.config.asset,
+        relayer: relayerAddress ?? "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWH2",
         nextStepNodeIds: children.get(trigger.id) ?? [],
       },
     });

@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { StrKey } from "@stellar/stellar-sdk";
 
 const optionalString = z
   .string()
@@ -76,6 +77,15 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_PAYER_MAINNET: optionalWasmHash,
   STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
   STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
+
+  // ---- Web2 Webhook Relayer ----
+  STELLAR_RELAYER_ADDRESS: z
+    .string()
+    .optional()
+    .refine((v) => !v || StrKey.isValidEd25519PublicKey(v), {
+      message: "STELLAR_RELAYER_ADDRESS must be a valid Stellar public key",
+    }),
+  STELLAR_RELAYER_SECRET: optionalString,
 
   CRON_SECRET: optionalString,
   SENTRY_DSN: optionalString,

@@ -168,6 +168,7 @@ model Deployment {
   unsignedXdr     String?
   sourceAccount   String?
   distributeAmountStroops String?
+  webhookSecret   String?
 
   flow   Flow            @relation(fields: [flowId], references: [id], onDelete: Restrict)
   owner  User            @relation(fields: [ownerId], references: [id], onDelete: Restrict)

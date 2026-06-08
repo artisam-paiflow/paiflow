@@ -280,4 +280,131 @@ describe("validateFlow", () => {
       expect(r.pipeline).toEqual([TemplateKind.STREAMER]);
     }
   });
+
+  // ── web2_webhook compatibility ──
+  it("accepts web2_webhook → swap", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "web2_webhook",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "swap",
+          config: {
+            assetIn: { kind: "native" },
+            assetOut: { kind: "known", symbol: "USDC" },
+            rateBps: 9500,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.pipeline).toEqual([TemplateKind.WEBHOOK, TemplateKind.SWAPPER]);
+    }
+  });
+
+  it("accepts web2_webhook → yield", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "web2_webhook",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "yield",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            vault: ADDR_A,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.pipeline).toEqual([TemplateKind.WEBHOOK, TemplateKind.YIELD]);
+    }
+  });
+
+  it("rejects web2_webhook → pay", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "web2_webhook",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "10000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects web2_webhook → split", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "web2_webhook",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, bps: 5000 },
+              { address: ADDR_B, bps: 5000 },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects webhook → pay (receive_and_forward / execute_step mismatch)", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "webhook",
+          config: { asset: { kind: "known", symbol: "USDC" }, relayer: ADDR_A },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "10000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+  });
 });

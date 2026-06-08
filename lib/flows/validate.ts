@@ -239,19 +239,56 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   // Infer template kind
   const action = actions[0]!;
-  const hasCondition = graph.nodes.some(isLogic);
+  const condition = graph.nodes.find(isLogic);
+  const hasCondition = condition != null;
   const isScheduleLike = trigger!.type === "on_schedule" || trigger!.type === "subscription";
-  const isReceiveLike =
-    trigger!.type === "on_receive" || trigger!.type === "webhook" || trigger!.type === "oracle";
+  const isOnReceive = trigger!.type === "on_receive";
+  const isWebhookLike =
+    trigger!.type === "webhook" || trigger!.type === "web2_webhook" || trigger!.type === "oracle";
+  const isReceiveLike = isOnReceive || isWebhookLike;
   const isPayOrSplit = action.type === "pay" || action.type === "split";
+  const isSwapOrYield = action.type === "swap" || action.type === "yield";
+
+  // Webhook-like triggers (webhook, web2_webhook, oracle) use receive_and_forward
+  // on-chain, which is only compatible with swap, yield, and multisig.
+  if (isWebhookLike && isPayOrSplit) {
+    return {
+      ok: false,
+      errors: [
+        {
+          path: "nodes",
+          message:
+            "Webhook and oracle triggers are not compatible with pay or split actions. Use swap or yield instead.",
+          friendlyMessage:
+            "This trigger type can only be paired with swap or yield actions. Try changing your action block.",
+        },
+      ],
+    };
+  }
+  if (isWebhookLike && hasCondition && condition.config.kind !== "multisig") {
+    return {
+      ok: false,
+      errors: [
+        {
+          path: "nodes",
+          message: "Webhook and oracle triggers are only compatible with multisig conditions.",
+          friendlyMessage:
+            "This trigger type only supports multisig conditions. Try removing the condition or changing it to multisig.",
+        },
+      ],
+    };
+  }
+
   let templateKind: TemplateKind;
   if (hasCondition) {
     templateKind = TemplateKind.CONDITIONAL;
   } else if (isScheduleLike && isPayOrSplit) {
     templateKind = TemplateKind.STREAMER;
-  } else if (isReceiveLike && isPayOrSplit) {
+  } else if (isOnReceive && isPayOrSplit) {
     templateKind = TemplateKind.SPLITTER;
-  } else if (isReceiveLike && (action.type === "swap" || action.type === "yield")) {
+  } else if (isOnReceive && isSwapOrYield) {
+    templateKind = TemplateKind.SPLITTER;
+  } else if (isWebhookLike && isSwapOrYield) {
     templateKind = TemplateKind.SPLITTER;
   } else if (trigger!.type === "oracle") {
     templateKind = TemplateKind.CONDITIONAL;
@@ -262,7 +299,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         {
           path: "nodes",
           message:
-            "Unsupported trigger/action combination. Supported: receive-like triggers (on_receive, webhook, oracle) with pay/split/swap/yield, schedule-like triggers (on_schedule, subscription) with pay/split, or any with a condition.",
+            "Unsupported trigger/action combination. Supported: on_receive with pay/split/swap/yield, webhook/web2_webhook/oracle with swap/yield/multisig, schedule-like triggers (on_schedule, subscription) with pay/split, or any with a compatible condition.",
           friendlyMessage: FRIENDLY.UNSUPPORTED_COMBO,
         },
       ],
