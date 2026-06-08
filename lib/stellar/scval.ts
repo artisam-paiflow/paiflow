@@ -19,12 +19,12 @@ function u64(n: number | bigint): xdr.ScVal {
   return nativeToScVal(typeof n === "bigint" ? n : BigInt(n), { type: "u64" });
 }
 
-// Must stay in sync with contracts/conditions/timelock/src/lib.rs Mode enum ordering.
+// Mode is a #[contracttype] enum; in Soroban SDK v26 it serializes as
+// ScVal::Vec([ScVal::Symbol(variant_name)]) for fieldless variants.
 function enumVariant(name: string): xdr.ScVal {
   const variants = ["After", "Before"];
-  const index = variants.indexOf(name);
-  if (index < 0) throw new Error(`Unknown enum variant: ${name}`);
-  return xdr.ScVal.scvU32(index);
+  if (!variants.includes(name)) throw new Error(`Unknown enum variant: ${name}`);
+  return xdr.ScVal.scvVec([symbol(name)]);
 }
 
 function string(s: string): xdr.ScVal {
