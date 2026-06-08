@@ -19,6 +19,7 @@ function u64(n: number | bigint): xdr.ScVal {
   return nativeToScVal(typeof n === "bigint" ? n : BigInt(n), { type: "u64" });
 }
 
+// Must stay in sync with contracts/conditions/timelock/src/lib.rs Mode enum ordering.
 function enumVariant(name: string): xdr.ScVal {
   const variants = ["After", "Before"];
   const index = variants.indexOf(name);
