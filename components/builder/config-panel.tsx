@@ -689,7 +689,7 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                 }
               }}
             >
-              <option value="amount_gt">amount &gt;</option>
+              <option value="amount_gt">amount ≥</option>
               <option value="amount_lt">amount &lt;</option>
               <option value="oracle_gte">oracle ≥ threshold</option>
               <option value="time_after">time after</option>
