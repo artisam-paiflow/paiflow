@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { formatAmount, shortAddrExtraShort } from "@/lib/utils";
+import { cn, formatAmount, shortAddrExtraShort } from "@/lib/utils";
 import { stellarExpertTxUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 
 export type Evt = {
@@ -152,7 +152,10 @@ function EventRow({ evt, network }: { evt: Evt; network: StellarNetwork | null }
 
   return (
     <li
-className={`border-outline-variant/15 bg-surface-container-low/40 group relative flex flex-col gap-2 rounded-lg border p-3 transition-colors hover:bg-surface-container-low/60${evt._isNew ? " slide-event-in" : ""}`}
+      className={cn(
+        "border-outline-variant/15 bg-surface-container-low/40 group hover:bg-surface-container-low/60 relative flex flex-col gap-2 rounded-lg border p-3 transition-colors",
+        evt._isNew && "slide-event-in",
+      )}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
