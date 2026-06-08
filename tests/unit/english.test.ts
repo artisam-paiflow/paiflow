@@ -108,6 +108,8 @@ describe("flowToEnglish", () => {
             recipient: ADDR,
             amountStroops: "20000000",
             asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
           },
         },
       ],
@@ -174,5 +176,54 @@ describe("flowToEnglish", () => {
       ],
     });
     expect(out).toContain("only if amount > 5 XLM");
+  });
+
+  it("describes a pay node with percentage mode", () => {
+    const out = flowToEnglish({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR,
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "percentage",
+            percentage: 25,
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("pay 25% of incoming USDC");
+  });
+
+  it("describes a pay node with fullAmount", () => {
+    const out = flowToEnglish({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "native" } },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR,
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: true,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("pay full incoming XLM");
   });
 });

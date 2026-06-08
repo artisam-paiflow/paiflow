@@ -29,25 +29,53 @@ export default function DeploymentView({
     contractAddress && network ? stellarExpertContractUrl(contractAddress, network) : null;
   const [pulse, setPulse] = useState(0);
   const [events, setEvents] = useState<Evt[]>(initialEvents);
+  const [connectionStatus, setConnectionStatus] = useState<
+    "live" | "reconnecting" | "disconnected"
+  >("live");
 
   // Single source of polling for the whole deployment page. Both the canvas
   // pulse animation and the LiveEvents feed derive from this one fetch.
   useEffect(() => {
     if (status !== "CONFIRMED") return;
     let intervalId: ReturnType<typeof setInterval> | null = null;
+    let failures = 0;
+
+    const updateStatus = () => {
+      setConnectionStatus(
+        failures === 0 ? "live" : failures >= 2 ? "disconnected" : "reconnecting",
+      );
+    };
 
     const poll = async () => {
       try {
         const res = await fetch(`/api/deployments/${deploymentId}/poll-events`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          failures += 1;
+          updateStatus();
+          return;
+        }
         const { events: newEvents } = (await res.json()) as { events: Evt[] };
+        if (failures > 0) {
+          failures = 0;
+          updateStatus();
+        }
 
         setEvents((prev) => {
           const merged = [...prev];
           let addedPulses = 0;
           for (const data of newEvents) {
-            if (!merged.some((p) => p.id === data.id || p.txHash === data.txHash)) {
+            const isDuplicate = merged.some(
+              (p) => p.txHash === data.txHash && p.kind === data.kind,
+            );
+            if (!isDuplicate) {
               merged.unshift({ ...data, _isNew: true });
+              setTimeout(() => {
+                setEvents((curr) =>
+                  curr.map((e) =>
+                    e.txHash === data.txHash && e.kind === data.kind ? { ...e, _isNew: false } : e,
+                  ),
+                );
+              }, 250);
               if (data.kind === "RECEIVE" || data.kind === "PAYOUT") {
                 addedPulses += 1;
               }
@@ -57,7 +85,8 @@ export default function DeploymentView({
           return merged.slice(0, 100);
         });
       } catch {
-        /* ignore */
+        failures += 1;
+        updateStatus();
       }
     };
 
@@ -169,7 +198,7 @@ export default function DeploymentView({
           )}
         </section>
 
-        <LiveEvents events={events} network={network} />
+        <LiveEvents events={events} network={network} connectionStatus={connectionStatus} />
       </div>
     </div>
   );

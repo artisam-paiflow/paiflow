@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { formatAmount, shortAddrExtraShort } from "@/lib/utils";
+import { cn, formatAmount, shortAddrExtraShort } from "@/lib/utils";
 import { stellarExpertTxUrl, type StellarNetwork } from "@/lib/stellar/explorer";
-import { POLL_EVENTS_INTERVAL_MS } from "@/lib/deployments/constants";
 
 export type Evt = {
   id: string;
@@ -27,6 +26,7 @@ type Recipient = {
 type LiveEventsProps = {
   events: Evt[];
   network: StellarNetwork | null;
+  connectionStatus?: "live" | "reconnecting" | "disconnected";
 };
 
 const KIND_META: Record<string, { label: string; color: string; icon: string }> = {
@@ -152,7 +152,10 @@ function EventRow({ evt, network }: { evt: Evt; network: StellarNetwork | null }
 
   return (
     <li
-      className={`border-outline-variant/15 bg-surface-container-low/40 space-y-2 rounded-lg border p-3${evt._isNew ? "slide-event-in" : ""}`}
+      className={cn(
+        "border-outline-variant/15 bg-surface-container-low/40 group hover:bg-surface-container-low/60 relative flex flex-col gap-2 rounded-lg border p-3 transition-colors",
+        evt._isNew && "slide-event-in",
+      )}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -246,25 +249,41 @@ function EventRow({ evt, network }: { evt: Evt; network: StellarNetwork | null }
   );
 }
 
-export function LiveEvents({ events, network }: LiveEventsProps) {
-  const pollLabel =
-    POLL_EVENTS_INTERVAL_MS >= 1000
-      ? `${POLL_EVENTS_INTERVAL_MS / 1000}s`
-      : `${POLL_EVENTS_INTERVAL_MS}ms`;
+export function LiveEvents({ events, network, connectionStatus = "live" }: LiveEventsProps) {
+  const statusLabel =
+    connectionStatus === "reconnecting"
+      ? "RECONNECTING"
+      : connectionStatus === "disconnected"
+        ? "OFFLINE"
+        : "LIVE";
+  const dotClass =
+    connectionStatus === "reconnecting"
+      ? "status-dot-warn"
+      : connectionStatus === "disconnected"
+        ? "status-dot-error"
+        : "status-dot-live";
 
   return (
     <section className="glass-panel p-md rounded-xl">
       <div className="flex items-center justify-between">
         <h2 className="text-headline-sm text-on-surface">Live events</h2>
         <span className="text-label-sm text-on-surface-variant inline-flex items-center gap-1.5 font-mono">
-          <span className="status-dot-live h-1.5 w-1.5" />
-          POLL · {pollLabel}
+          <span className={`${dotClass} h-1.5 w-1.5`} />
+          {statusLabel}
         </span>
       </div>
       <ul className="mt-md max-h-96 space-y-2 overflow-y-auto">
         {events.length === 0 && (
-          <li className="border-outline-variant/30 text-label-sm text-on-surface-variant rounded border border-dashed p-3 font-mono">
-            NO EVENTS YET. TRIGGER DISTRIBUTE TO SEE THEM HERE.
+          <li className="border-outline-variant/30 flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-8 text-center">
+            <span className="material-symbols-outlined text-on-surface-variant text-3xl">
+              hourglass_empty
+            </span>
+            <span className="text-label-sm text-on-surface-variant font-mono">
+              Waiting for on-chain activity…
+            </span>
+            <span className="text-label-xs text-on-surface-variant/60">
+              Events will appear here once detected
+            </span>
           </li>
         )}
         {events.map((e) => (
