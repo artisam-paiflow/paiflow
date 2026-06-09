@@ -71,7 +71,9 @@ export type TimelockNodeParams = {
   kind: "timelock";
   asset: Asset;
   unlockTime: number;
+  mode: "after" | "before";
   nextStepNodeIds: string[];
+  relayer?: string;
 };
 
 export type WebhookTriggerNodeParams = {
@@ -300,6 +302,7 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
           kind: "timelock",
           asset,
           unlockTime: ts,
+          mode: cond.config.kind === "time_after" ? "after" : "before",
           nextStepNodeIds: children.get(cond.id) ?? [],
         },
       });

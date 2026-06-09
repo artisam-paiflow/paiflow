@@ -74,19 +74,22 @@ describe("pipelineNodeConstructorArgs", () => {
     expect(args[4]!).toEqual(new Address(ADDR2).toScVal());
   });
 
-  it("encodes timelock with unlock time and next steps", () => {
+  it("encodes timelock with unlock time, mode, next steps, and relayer", () => {
     const args = pipelineNodeConstructorArgs(
       {
         kind: "timelock",
         asset: { kind: "native" },
         unlockTime: 1_000_000,
+        mode: "after",
         nextStepNodeIds: ["splitter"],
       },
       ADDR,
       ADDR2,
       { splitter: ADDR },
     );
-    expect(args).toHaveLength(5);
+    expect(args).toHaveLength(7);
+    // When relayer is omitted it falls back to admin.
+    expect(args[6]!).toEqual(new Address(ADDR).toScVal());
   });
 
   it("encodes router with threshold and paths", () => {

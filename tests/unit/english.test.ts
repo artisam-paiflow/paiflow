@@ -175,7 +175,7 @@ describe("flowToEnglish", () => {
         { id: "e2", source: "c", target: "a" },
       ],
     });
-    expect(out).toContain("only if amount > 5 XLM");
+    expect(out).toContain("only if amount ≥ 5 XLM");
   });
 
   it("describes a pay node with percentage mode", () => {
