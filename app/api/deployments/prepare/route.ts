@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     if (trigger && !relayerAddress) {
       throw new AppError(
         "VALIDATION",
-        "STELLAR_RELAYER_SECRET_KEY is required to deploy an HTTP Webhook flow. Set it in your environment.",
+        "STELLAR_RELAYER_ADDRESS is required to deploy an HTTP Webhook flow. Set it in your environment.",
       );
     }
 

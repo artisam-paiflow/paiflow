@@ -62,7 +62,7 @@ export async function submitWebhookExecuteTx(opts: {
 
   const relayerAddress = stellarRelayerAddress();
   if (!relayerAddress) {
-    throw new Error("STELLAR_RELAYER_SECRET_KEY is not a valid Stellar secret key");
+    throw new Error("STELLAR_RELAYER_ADDRESS is not configured");
   }
 
   const { tx } = await prepareWebhookExecuteInvocation({
