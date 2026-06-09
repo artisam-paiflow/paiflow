@@ -1,7 +1,7 @@
 import "server-only";
 import { Keypair, TransactionBuilder, rpc } from "@stellar/stellar-sdk";
 import { sorobanRpc } from "./client";
-import { stellarPassphrase, env } from "@/lib/env";
+import { stellarPassphrase, stellarRelayerSecretKey, stellarRelayerAddress } from "@/lib/env";
 import {
   prepareDistributeInvocation,
   prepareDepositInvocation,
@@ -55,14 +55,14 @@ export async function submitWebhookExecuteTx(opts: {
   from: string;
   amount: string;
 }): Promise<SubmitTriggerResult> {
-  const relayerSecret = env().STELLAR_RELAYER_SECRET;
+  const relayerSecret = stellarRelayerSecretKey();
   if (!relayerSecret) {
-    throw new Error("STELLAR_RELAYER_SECRET is not configured");
+    throw new Error("STELLAR_RELAYER_SECRET_KEY is not configured");
   }
 
-  const relayerAddress = env().STELLAR_RELAYER_ADDRESS;
+  const relayerAddress = stellarRelayerAddress();
   if (!relayerAddress) {
-    throw new Error("STELLAR_RELAYER_ADDRESS is not configured");
+    throw new Error("STELLAR_RELAYER_SECRET_KEY is not a valid Stellar secret key");
   }
 
   const { tx } = await prepareWebhookExecuteInvocation({
