@@ -102,6 +102,20 @@ const CONDITIONAL_REGISTRY: EventRegistry = {
   },
 };
 
+const PAYER_REGISTRY: EventRegistry = {
+  pay: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      if (!value || typeof value !== "object") return null;
+      const v = value as { 0?: ScValNative; 1?: ScValNative };
+      const recipient = topics[1] ?? null;
+      const asset = v[0] ?? null;
+      const payment = v[1] ?? null;
+      return recipient && asset && payment ? { recipient, asset, payment } : null;
+    },
+  },
+};
+
 const SWAPPER_REGISTRY: EventRegistry = {
   topup: {
     kind: EventKind.RECEIVE,
@@ -248,6 +262,8 @@ function getRegistry(templateKind: TemplateKind): EventRegistry {
       return STREAMER_REGISTRY;
     case TemplateKind.CONDITIONAL:
       return CONDITIONAL_REGISTRY;
+    case TemplateKind.PAYER:
+      return PAYER_REGISTRY;
     case TemplateKind.SWAPPER:
       return SWAPPER_REGISTRY;
     case TemplateKind.YIELD:

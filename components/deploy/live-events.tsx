@@ -83,7 +83,7 @@ function EventSummary({ evt }: { evt: Evt }) {
       if (price !== undefined && price !== null) {
         return (
           <div className="text-body-sm text-on-surface">
-            Oracle executed: <span className="font-medium">{price}</span> price,{" "}
+            Oracle executed: <span className="font-medium">{String(price)}</span> price,{" "}
             <span className="font-medium">{amount} XLM</span> from{" "}
             <span className="font-mono text-[11px]">
               {from ? shortAddrExtraShort(String(from)) : "—"}
