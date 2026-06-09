@@ -51,6 +51,7 @@ pub struct Timelock;
 
 #[contractimpl]
 impl Timelock {
+    #[allow(clippy::too_many_arguments)]
     pub fn __constructor(
         env: Env,
         admin: Address,
@@ -153,8 +154,7 @@ fn perform_release(env: &Env, event_source: &Address) {
     }
 
     let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-    let next_steps: Vec<WorkflowTarget> =
-        env.storage().instance().get(&Key::NextSteps).unwrap();
+    let next_steps: Vec<WorkflowTarget> = env.storage().instance().get(&Key::NextSteps).unwrap();
 
     for step in next_steps.iter() {
         token::Client::new(env, &asset).transfer(
@@ -489,5 +489,4 @@ mod test {
         env.ledger().set_timestamp(1000);
         client.release_by_relayer();
     }
-
 }
