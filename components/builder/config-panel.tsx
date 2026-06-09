@@ -14,6 +14,67 @@ import {
 } from "@/lib/flows/schema";
 import { cn, formatStroops } from "@/lib/utils";
 
+const TIMEZONES = [
+  "UTC",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Anchorage",
+  "America/Honolulu",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Moscow",
+  "Asia/Dubai",
+  "Asia/Kolkata",
+  "Asia/Shanghai",
+  "Asia/Hong_Kong",
+  "Asia/Tokyo",
+  "Asia/Seoul",
+  "Australia/Sydney",
+  "Pacific/Auckland",
+];
+
+function getTimezoneOffsetMinutes(timeZone: string, date: Date): number {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "shortOffset",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(date);
+  const offsetPart = parts.find((p) => p.type === "timeZoneName")?.value ?? "";
+  const match = offsetPart.match(/GMT([+-]?\d+)(?::(\d+))?/);
+  if (!match || match[1] == null) return 0;
+  const hours = parseInt(match[1], 10);
+  const mins = match[2] ? parseInt(match[2], 10) : 0;
+  return hours * 60 + Math.sign(hours) * mins;
+}
+
+function formatIsoForTimezone(iso: string, timeZone: string): string {
+  const d = new Date(iso);
+  const offset = getTimezoneOffsetMinutes(timeZone, d);
+  const adjusted = new Date(d.getTime() + offset * 60000);
+  return adjusted.toISOString().slice(0, 16);
+}
+
+function isoFromLocalAndTimezone(local: string, timeZone: string): string {
+  const [datePart, timePart] = local.split("T");
+  if (!datePart || !timePart) return new Date().toISOString();
+  const [yStr, moStr, dStr] = datePart.split("-");
+  const [hStr, miStr] = timePart.split(":");
+  const y = parseInt(yStr ?? "0", 10);
+  const mo = parseInt(moStr ?? "0", 10);
+  const d = parseInt(dStr ?? "0", 10);
+  const h = parseInt(hStr ?? "0", 10);
+  const mi = parseInt(miStr ?? "0", 10);
+  const browserDate = new Date(y, mo - 1, d, h, mi);
+  const targetOffset = getTimezoneOffsetMinutes(timeZone, browserDate);
+  const browserOffset = -browserDate.getTimezoneOffset();
+  const diff = (browserOffset - targetOffset) * 60000;
+  return new Date(browserDate.getTime() + diff).toISOString();
+}
+
 type Props = {
   node: FlowNode | null;
   graph: FlowGraph;
@@ -675,7 +736,11 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                 } else if (k === "time_after" || k === "time_before") {
                   onChange({
                     ...node,
-                    config: { kind: k, at: new Date().toISOString() },
+                    config: {
+                      kind: k,
+                      at: new Date().toISOString(),
+                      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    },
                   } as FlowNode);
                 } else if (k === "multisig") {
                   onChange({
@@ -689,7 +754,7 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                 }
               }}
             >
-              <option value="amount_gt">amount &gt;</option>
+              <option value="amount_gt">amount ≥</option>
               <option value="amount_lt">amount &lt;</option>
               <option value="oracle_gte">oracle ≥ threshold</option>
               <option value="time_after">time after</option>
@@ -752,22 +817,57 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
               </Field>
             </>
           )}
-          {(node.config.kind === "time_after" || node.config.kind === "time_before") && (
-            <Field label="At (ISO)">
-              <input
-                className="input"
-                value={node.config.at}
-                onChange={(e) => {
-                  const at = e.target.value;
-                  const next =
-                    node.config.kind === "time_after"
-                      ? { kind: "time_after" as const, at }
-                      : { kind: "time_before" as const, at };
-                  onChange({ ...node, config: next } as FlowNode);
-                }}
-              />
-            </Field>
-          )}
+          {(node.config.kind === "time_after" || node.config.kind === "time_before") &&
+            (() => {
+              const cfg = node.config as {
+                kind: "time_after" | "time_before";
+                at: string;
+                timeZone?: string;
+              };
+              const tz = cfg.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+              return (
+                <>
+                  <Field label="Date &amp; time">
+                    <input
+                      className="input"
+                      type="datetime-local"
+                      value={formatIsoForTimezone(cfg.at, tz)}
+                      onChange={(e) => {
+                        const local = e.target.value;
+                        const at = isoFromLocalAndTimezone(local, tz);
+                        const next =
+                          cfg.kind === "time_after"
+                            ? { kind: "time_after" as const, at, timeZone: tz }
+                            : { kind: "time_before" as const, at, timeZone: tz };
+                        onChange({ ...node, config: next } as FlowNode);
+                      }}
+                    />
+                  </Field>
+                  <Field label="Timezone">
+                    <select
+                      className="input"
+                      value={tz}
+                      onChange={(e) => {
+                        const newTz = e.target.value;
+                        const local = formatIsoForTimezone(cfg.at, tz);
+                        const at = isoFromLocalAndTimezone(local, newTz);
+                        const next =
+                          cfg.kind === "time_after"
+                            ? { kind: "time_after" as const, at, timeZone: newTz }
+                            : { kind: "time_before" as const, at, timeZone: newTz };
+                        onChange({ ...node, config: next } as FlowNode);
+                      }}
+                    >
+                      {TIMEZONES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </>
+              );
+            })()}
           {node.config.kind === "multisig" &&
             (() => {
               const cfg = node.config as Extract<typeof node.config, { kind: "multisig" }>;

@@ -18,6 +18,12 @@ async function update() {
     { kind: TemplateKind.ROUTER, envKey: `STELLAR_WASM_HASH_ROUTER_${suffix}` },
     { kind: TemplateKind.TIMELOCK, envKey: `STELLAR_WASM_HASH_TIMELOCK_${suffix}` },
     { kind: TemplateKind.FACTORY, envKey: `STELLAR_WASM_HASH_FACTORY_${suffix}` },
+    { kind: TemplateKind.WEBHOOK, envKey: `STELLAR_WASM_HASH_WEBHOOK_${suffix}` },
+    { kind: TemplateKind.SUBSCRIPTION, envKey: `STELLAR_WASM_HASH_SUBSCRIPTION_${suffix}` },
+    { kind: TemplateKind.ORACLE, envKey: `STELLAR_WASM_HASH_ORACLE_${suffix}` },
+    { kind: TemplateKind.MULTISIG, envKey: `STELLAR_WASM_HASH_MULTISIG_${suffix}` },
+    { kind: TemplateKind.SWAPPER, envKey: `STELLAR_WASM_HASH_SWAPPER_${suffix}` },
+    { kind: TemplateKind.YIELD, envKey: `STELLAR_WASM_HASH_YIELD_${suffix}` },
     { kind: TemplateKind.PAYER, envKey: `STELLAR_WASM_HASH_PAYER_${suffix}` },
   ];
 

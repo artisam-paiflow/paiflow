@@ -188,8 +188,16 @@ export const ConditionLogic = z.object({
       key: z.string().min(1).max(32),
       threshold: z.string().regex(/^\d+$/),
     }),
-    z.object({ kind: z.literal("time_after"), at: z.string().datetime() }),
-    z.object({ kind: z.literal("time_before"), at: z.string().datetime() }),
+    z.object({
+      kind: z.literal("time_after"),
+      at: z.string().datetime(),
+      timeZone: z.string().optional(),
+    }),
+    z.object({
+      kind: z.literal("time_before"),
+      at: z.string().datetime(),
+      timeZone: z.string().optional(),
+    }),
     z.object({
       kind: z.literal("multisig"),
       signers: z.array(stellarAccount).min(1).max(20),

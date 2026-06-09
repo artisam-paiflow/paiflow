@@ -19,6 +19,14 @@ function u64(n: number | bigint): xdr.ScVal {
   return nativeToScVal(typeof n === "bigint" ? n : BigInt(n), { type: "u64" });
 }
 
+// Mode is a #[contracttype] enum; in Soroban SDK v26 it serializes as
+// ScVal::Vec([ScVal::Symbol(variant_name)]) for fieldless variants.
+function enumVariant(name: string): xdr.ScVal {
+  const variants = ["After", "Before"];
+  if (!variants.includes(name)) throw new Error(`Unknown enum variant: ${name}`);
+  return xdr.ScVal.scvVec([symbol(name)]);
+}
+
 function string(s: string): xdr.ScVal {
   return nativeToScVal(s, { type: "string" });
 }
@@ -73,7 +81,21 @@ function conditionKind(cond: { kind: string; [key: string]: unknown }): xdr.ScVa
       return xdr.ScVal.scvVec([symbol("Timeout"), u64(ts)]);
     }
     case "oracle_gte": {
-      return xdr.ScVal.scvVec([symbol("OracleGte"), string(cond.oracle as string)]);
+      const oracleConfig = xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({
+          key: symbol("oracle"),
+          val: addr(cond.oracle as string),
+        }),
+        new xdr.ScMapEntry({
+          key: symbol("key"),
+          val: string(cond.key as string),
+        }),
+        new xdr.ScMapEntry({
+          key: symbol("threshold"),
+          val: i128(cond.threshold as string),
+        }),
+      ]);
+      return xdr.ScVal.scvVec([symbol("OracleGte"), oracleConfig]);
     }
     case "amount_gt":
     case "amount_lt": {
@@ -153,8 +175,10 @@ export function pipelineNodeConstructorArgs(
         addr(admin),
         addr(assetContractId(params.asset)),
         u64(params.unlockTime),
+        enumVariant(params.mode === "after" ? "After" : "Before"),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
         addr(parentAddress),
+        addr(params.relayer ?? admin),
       ];
     }
     case "webhook_trigger": {
@@ -290,10 +314,26 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
           break;
         }
         case "time_before": {
-          throw new Error("time_before condition is not yet supported — use time_after");
+          const ts = BigInt(Math.floor(new Date(c.at as string).getTime() / 1000));
+          cond = xdr.ScVal.scvVec([symbol("Timeout"), u64(ts)]);
+          break;
         }
         case "oracle_gte": {
-          cond = xdr.ScVal.scvVec([symbol("OracleGte"), string(c.oracle as string)]);
+          const oracleConfig = xdr.ScVal.scvMap([
+            new xdr.ScMapEntry({
+              key: symbol("oracle"),
+              val: addr(c.oracle as string),
+            }),
+            new xdr.ScMapEntry({
+              key: symbol("key"),
+              val: string(c.key as string),
+            }),
+            new xdr.ScMapEntry({
+              key: symbol("threshold"),
+              val: i128(c.threshold as string),
+            }),
+          ]);
+          cond = xdr.ScVal.scvVec([symbol("OracleGte"), oracleConfig]);
           break;
         }
         case "amount_gt":
