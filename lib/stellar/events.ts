@@ -53,6 +53,17 @@ const SPLITTER_REGISTRY: EventRegistry = {
       return from && recipients ? { from, recipients } : null;
     },
   },
+  pay: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      if (!value || typeof value !== "object") return null;
+      const v = value as { 0?: ScValNative; 1?: ScValNative };
+      const recipient = topics[1] ?? null;
+      const asset = v[0] ?? null;
+      const payment = v[1] ?? null;
+      return recipient && asset && payment ? { recipient, asset, payment } : null;
+    },
+  },
 };
 
 const STREAMER_REGISTRY: EventRegistry = {
@@ -91,6 +102,144 @@ const CONDITIONAL_REGISTRY: EventRegistry = {
   },
 };
 
+const SWAPPER_REGISTRY: EventRegistry = {
+  topup: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const from = topics[1] ?? null;
+      const amount = value ?? null;
+      return from && amount !== null ? { from, amount } : null;
+    },
+  },
+  swap: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      if (!value || !Array.isArray(value)) return null;
+      const v = value as ScValNative[];
+      const assetIn = topics[1] ?? null;
+      const assetOut = topics[2] ?? null;
+      const amountIn = v[0] ?? null;
+      const amountOut = v[1] ?? null;
+      return assetIn && assetOut && amountIn && amountOut
+        ? { assetIn, assetOut, amountIn, amountOut }
+        : null;
+    },
+  },
+};
+
+const YIELD_REGISTRY: EventRegistry = {
+  deposit: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const vault = topics[1] ?? null;
+      const amount = value ?? null;
+      return vault && amount !== null ? { vault, amount } : null;
+    },
+  },
+};
+
+const DEPOSIT_TRIGGER_REGISTRY: EventRegistry = {
+  deposit: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const from = topics[1] ?? null;
+      const amount = value ?? null;
+      return from && amount !== null ? { from, amount } : null;
+    },
+  },
+};
+
+const WEBHOOK_REGISTRY: EventRegistry = {
+  execute: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const from = topics[1] ?? null;
+      const amount = value ?? null;
+      return from && amount !== null ? { from, amount } : null;
+    },
+  },
+};
+
+const SUBSCRIPTION_REGISTRY: EventRegistry = {
+  charge: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const subscriber = topics[1] ?? null;
+      const amount = value ?? null;
+      return subscriber && amount !== null ? { subscriber, amount } : null;
+    },
+  },
+};
+
+const ORACLE_REGISTRY: EventRegistry = {
+  execute: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      if (!value || !Array.isArray(value)) return null;
+      const v = value as ScValNative[];
+      const from = topics[1] ?? null;
+      const price = v[0] ?? null;
+      const amount = v[1] ?? null;
+      return from && price && amount ? { from, price, amount } : null;
+    },
+  },
+};
+
+const ROUTER_REGISTRY: EventRegistry = {
+  route: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      const tookPathA = topics[1] ?? null;
+      const amount = value ?? null;
+      return tookPathA && amount !== null ? { tookPathA, amount } : null;
+    },
+  },
+};
+
+const TIMELOCK_REGISTRY: EventRegistry = {
+  receive: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const asset = topics[1] ?? null;
+      const amount = value ?? null;
+      return asset && amount !== null ? { asset, amount } : null;
+    },
+  },
+  release: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      const balance = value ?? null;
+      return admin && balance !== null ? { admin, balance } : null;
+    },
+  },
+};
+
+const MULTISIG_REGISTRY: EventRegistry = {
+  receive: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const asset = topics[1] ?? null;
+      const amount = value ?? null;
+      return asset && amount !== null ? { asset, amount } : null;
+    },
+  },
+  approve: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics) => {
+      const signer = topics[1] ?? null;
+      return signer ? { signer } : null;
+    },
+  },
+  release: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      const balance = value ?? null;
+      return balance !== null ? { balance } : null;
+    },
+  },
+};
+
 function getRegistry(templateKind: TemplateKind): EventRegistry {
   switch (templateKind) {
     case TemplateKind.SPLITTER:
@@ -99,6 +248,24 @@ function getRegistry(templateKind: TemplateKind): EventRegistry {
       return STREAMER_REGISTRY;
     case TemplateKind.CONDITIONAL:
       return CONDITIONAL_REGISTRY;
+    case TemplateKind.SWAPPER:
+      return SWAPPER_REGISTRY;
+    case TemplateKind.YIELD:
+      return YIELD_REGISTRY;
+    case TemplateKind.DEPOSIT_TRIGGER:
+      return DEPOSIT_TRIGGER_REGISTRY;
+    case TemplateKind.WEBHOOK:
+      return WEBHOOK_REGISTRY;
+    case TemplateKind.SUBSCRIPTION:
+      return SUBSCRIPTION_REGISTRY;
+    case TemplateKind.ORACLE:
+      return ORACLE_REGISTRY;
+    case TemplateKind.ROUTER:
+      return ROUTER_REGISTRY;
+    case TemplateKind.TIMELOCK:
+      return TIMELOCK_REGISTRY;
+    case TemplateKind.MULTISIG:
+      return MULTISIG_REGISTRY;
     default:
       return {};
   }
@@ -126,9 +293,24 @@ function decodeEventByKind(
 
 function classifyEvent(topics: EventTopics): EventKind {
   const first = typeof topics[0] === "string" ? (topics[0] as string).toLowerCase() : "";
-  if (first.includes("distrib") || first.includes("payout") || first.includes("transfer"))
+  if (
+    first.includes("distrib") ||
+    first.includes("payout") ||
+    first.includes("transfer") ||
+    first.includes("pay") ||
+    first.includes("swap") ||
+    first.includes("route") ||
+    first.includes("release")
+  )
     return EventKind.PAYOUT;
-  if (first.includes("receive") || first.includes("deposit")) return EventKind.RECEIVE;
+  if (
+    first.includes("receive") ||
+    first.includes("deposit") ||
+    first.includes("topup") ||
+    first.includes("charge") ||
+    first.includes("execute")
+  )
+    return EventKind.RECEIVE;
   if (first.includes("claim")) return EventKind.CLAIM;
   return EventKind.STATUS_CHANGE;
 }

@@ -58,18 +58,85 @@ function EventSummary({ evt }: { evt: Evt }) {
 
   switch (evt.kind) {
     case "RECEIVE": {
-      const from = d?.from ? shortAddrExtraShort(String(d.from)) : "—";
+      const from = d?.from ? shortAddrExtraShort(String(d.from)) : null;
+      const vault = d?.vault ? shortAddrExtraShort(String(d.vault)) : null;
+      const subscriber = d?.subscriber ? shortAddrExtraShort(String(d.subscriber)) : null;
+      const price = d?.price;
       const amount = typeof d?.amount === "string" ? formatAmount(d.amount) : "—";
+
+      if (vault) {
+        return (
+          <div className="text-body-sm text-on-surface">
+            Deposited <span className="font-medium">{amount} XLM</span> to vault{" "}
+            <span className="font-mono text-[11px]">{vault}</span>
+          </div>
+        );
+      }
+      if (subscriber) {
+        return (
+          <div className="text-body-sm text-on-surface">
+            Charged <span className="font-mono text-[11px]">{subscriber}</span>:{" "}
+            <span className="font-medium">{amount} XLM</span>
+          </div>
+        );
+      }
+      if (price !== undefined && price !== null) {
+        return (
+          <div className="text-body-sm text-on-surface">
+            Oracle executed: <span className="font-medium">{price}</span> price,{" "}
+            <span className="font-medium">{amount} XLM</span> from{" "}
+            <span className="font-mono text-[11px]">
+              {from ? shortAddrExtraShort(String(from)) : "—"}
+            </span>
+          </div>
+        );
+      }
       return (
         <div className="text-body-sm text-on-surface">
-          Received <span className="font-medium">{amount} XLM</span> from{" "}
-          <span className="font-mono text-[11px]">{from}</span>
+          Received <span className="font-medium">{amount} XLM</span>
+          {from && (
+            <>
+              {" "}
+              from{" "}
+              <span className="font-mono text-[11px]">{shortAddrExtraShort(String(from))}</span>
+            </>
+          )}
         </div>
       );
     }
     case "PAYOUT": {
-      const from = d?.from ? shortAddrExtraShort(String(d.from)) : "—";
+      const from = d?.from ? shortAddrExtraShort(String(d.from)) : null;
       const recipients = d?.recipients as Recipient[] | undefined;
+      const to = d?.tookPathA ? shortAddrExtraShort(String(d.tookPathA)) : null;
+      const admin = d?.admin ? shortAddrExtraShort(String(d.admin)) : null;
+      const assetIn = d?.assetIn;
+      const assetOut = d?.assetOut;
+      const amountIn = typeof d?.amountIn === "string" ? formatAmount(d.amountIn) : null;
+      const amountOut = typeof d?.amountOut === "string" ? formatAmount(d.amountOut) : null;
+
+      if (to) {
+        return (
+          <div className="text-body-sm text-on-surface">
+            Routed <span className="font-medium">{amountOut ?? "?"} XLM</span> via path A
+          </div>
+        );
+      }
+      if (admin && d?.balance !== undefined) {
+        return (
+          <div className="text-body-sm text-on-surface">
+            Released <span className="font-medium">{formatAmount(String(d.balance))} XLM</span> to
+            admin <span className="font-mono text-[11px]">{admin}</span>
+          </div>
+        );
+      }
+      if (assetIn && assetOut && amountIn && amountOut) {
+        return (
+          <div className="text-body-sm text-on-surface">
+            Swapped <span className="font-medium">{amountIn}</span> →{" "}
+            <span className="font-medium">{amountOut}</span>
+          </div>
+        );
+      }
       if (recipients && recipients.length > 0) {
         const parts = recipients.slice(0, 3).map((r) => {
           const addr = r.address ? shortAddrExtraShort(r.address) : "—";
@@ -79,14 +146,14 @@ function EventSummary({ evt }: { evt: Evt }) {
         const more = recipients.length > 3 ? ` +${recipients.length - 3} more` : "";
         return (
           <div className="text-body-sm text-on-surface">
-            Paid out from <span className="font-mono text-[11px]">{from}</span>: {parts.join(", ")}
+            Paid out{from ? ` from ${shortAddrExtraShort(String(from))}` : ""}: {parts.join(", ")}
             {more}
           </div>
         );
       }
       return (
         <div className="text-body-sm text-on-surface">
-          Payout from <span className="font-mono text-[11px]">{from}</span>
+          Payout{from ? ` from ${shortAddrExtraShort(String(from))}` : ""}
         </div>
       );
     }
@@ -121,6 +188,14 @@ function EventSummary({ evt }: { evt: Evt }) {
       );
     }
     case "STATUS_CHANGE": {
+      const signer = d?.signer ? shortAddrExtraShort(String(d.signer)) : null;
+      if (signer) {
+        return (
+          <div className="text-body-sm text-on-surface">
+            Multisig approved: signer <span className="font-mono text-[11px]">{signer}</span>
+          </div>
+        );
+      }
       return <div className="text-body-sm text-on-surface">Status changed</div>;
     }
     default: {
