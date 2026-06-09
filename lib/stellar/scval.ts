@@ -178,6 +178,7 @@ export function pipelineNodeConstructorArgs(
         enumVariant(params.mode === "after" ? "After" : "Before"),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
         addr(parentAddress),
+        addr(params.relayer ?? admin),
       ];
     }
     case "webhook_trigger": {

@@ -10,7 +10,7 @@ import {
 } from "@stellar/stellar-sdk";
 import { randomBytes } from "node:crypto";
 import { sorobanRpc, horizon } from "./client";
-import { stellarFactoryAddress, stellarPassphrase } from "@/lib/env";
+import { stellarFactoryAddress, stellarPassphrase, stellarRelayerAddress } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import type { ContractParams, PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
 import type { FlowGraph } from "@/lib/flows/schema";
@@ -162,8 +162,19 @@ export async function preparePipelineDeployTx(opts: {
       parentAddress = opts.sourceAccount;
     }
 
+    // Inject the global relayer address into timelock nodes so the backend
+    // cron can auto-release them. When no relayer is configured we fall back
+    // to the admin (sourceAccount) which disables the relayer path.
+    let params = p.params;
+    if (params.kind === "timelock") {
+      params = {
+        ...params,
+        relayer: stellarRelayerAddress() ?? opts.sourceAccount,
+      };
+    }
+
     const args = pipelineNodeConstructorArgs(
-      p.params,
+      params,
       opts.sourceAccount,
       parentAddress,
       nodeAddresses,

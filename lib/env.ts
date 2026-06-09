@@ -1,4 +1,5 @@
 import "server-only";
+import { Keypair } from "@stellar/stellar-sdk";
 import { z } from "zod";
 
 const optionalString = z
@@ -76,6 +77,10 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_PAYER_MAINNET: optionalWasmHash,
   STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
   STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
+
+  // Relayer used for auto-releasing timelock contracts. Optional; when unset
+  // the admin address is used as the relayer, disabling the relayer path.
+  STELLAR_RELAYER_SECRET_KEY: optionalString,
 
   CRON_SECRET: optionalString,
   SENTRY_DSN: optionalString,
@@ -196,4 +201,18 @@ export function stellarFactoryAddress(): string | undefined {
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
   const key = `STELLAR_FACTORY_ADDRESS_${suffix}` as keyof EnvShape;
   return e[key] as string | undefined;
+}
+
+export function stellarRelayerSecretKey(): string | undefined {
+  return env().STELLAR_RELAYER_SECRET_KEY;
+}
+
+export function stellarRelayerAddress(): string | undefined {
+  const secret = env().STELLAR_RELAYER_SECRET_KEY;
+  if (!secret) return undefined;
+  try {
+    return Keypair.fromSecret(secret).publicKey();
+  } catch {
+    return undefined;
+  }
 }

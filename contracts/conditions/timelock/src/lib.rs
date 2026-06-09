@@ -28,6 +28,7 @@ pub enum Key {
     Balance,
     ParentNode,
     Version,
+    Relayer,
 }
 
 #[contracterror]
@@ -58,6 +59,7 @@ impl Timelock {
         mode: Mode,
         next_steps: Vec<WorkflowTarget>,
         parent: Address,
+        relayer: Address,
     ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
@@ -69,6 +71,7 @@ impl Timelock {
         env.storage().instance().set(&Key::NextSteps, &next_steps);
         env.storage().instance().set(&Key::Balance, &0i128);
         env.storage().instance().set(&Key::ParentNode, &parent);
+        env.storage().instance().set(&Key::Relayer, &relayer);
         env.storage().instance().set(&Key::Version, &VERSION);
     }
 
@@ -97,43 +100,23 @@ impl Timelock {
     pub fn release(env: Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
-        bump_ttl(&env);
+        perform_release(&env, &admin);
+    }
 
-        let now = env.ledger().timestamp();
-        let unlock_time: u64 = env.storage().instance().get(&Key::UnlockTime).unwrap();
-        let mode: Mode = env.storage().instance().get(&Key::Mode).unwrap();
-
-        let can_release = match mode {
-            Mode::After => now >= unlock_time,
-            Mode::Before => now <= unlock_time,
-        };
-        if !can_release {
-            panic_with_error!(&env, Error::ConditionNotMet);
+    pub fn release_by_relayer(env: Env) {
+        let relayer: Address = env.storage().instance().get(&Key::Relayer).unwrap();
+        let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
+        // When relayer == admin there is no dedicated relayer; only the admin
+        // release path is available.
+        if relayer == admin {
+            panic_with_error!(&env, Error::Unauthorized);
         }
+        relayer.require_auth();
+        perform_release(&env, &admin);
+    }
 
-        let balance: i128 = env.storage().instance().get(&Key::Balance).unwrap_or(0);
-        if balance <= 0 {
-            panic_with_error!(&env, Error::NothingToRelease);
-        }
-
-        let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-        let next_steps: Vec<WorkflowTarget> =
-            env.storage().instance().get(&Key::NextSteps).unwrap();
-
-        for step in next_steps.iter() {
-            token::Client::new(&env, &asset).transfer(
-                &env.current_contract_address(),
-                &step.address,
-                &balance,
-            );
-            invoke_execute_step(&env, &step.address, &asset, &balance);
-        }
-
-        env.storage().instance().set(&Key::Balance, &0i128);
-
-        #[allow(deprecated)]
-        env.events()
-            .publish((symbol_short!("release"), admin), balance);
+    pub fn relayer(env: Env) -> Address {
+        env.storage().instance().get(&Key::Relayer).unwrap()
     }
 
     pub fn balance(env: Env) -> i128 {
@@ -147,6 +130,46 @@ impl Timelock {
     pub fn mode(env: Env) -> Mode {
         env.storage().instance().get(&Key::Mode).unwrap()
     }
+}
+
+fn perform_release(env: &Env, event_source: &Address) {
+    bump_ttl(env);
+
+    let now = env.ledger().timestamp();
+    let unlock_time: u64 = env.storage().instance().get(&Key::UnlockTime).unwrap();
+    let mode: Mode = env.storage().instance().get(&Key::Mode).unwrap();
+
+    let can_release = match mode {
+        Mode::After => now >= unlock_time,
+        Mode::Before => now <= unlock_time,
+    };
+    if !can_release {
+        panic_with_error!(env, Error::ConditionNotMet);
+    }
+
+    let balance: i128 = env.storage().instance().get(&Key::Balance).unwrap_or(0);
+    if balance <= 0 {
+        panic_with_error!(env, Error::NothingToRelease);
+    }
+
+    let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+    let next_steps: Vec<WorkflowTarget> =
+        env.storage().instance().get(&Key::NextSteps).unwrap();
+
+    for step in next_steps.iter() {
+        token::Client::new(env, &asset).transfer(
+            &env.current_contract_address(),
+            &step.address,
+            &balance,
+        );
+        invoke_execute_step(env, &step.address, &asset, &balance);
+    }
+
+    env.storage().instance().set(&Key::Balance, &0i128);
+
+    #[allow(deprecated)]
+    env.events()
+        .publish((symbol_short!("release"), event_source.clone()), balance);
 }
 
 fn bump_ttl(env: &Env) {
@@ -210,6 +233,7 @@ mod test {
                 Mode::After,
                 next_steps,
                 predecessor.clone(),
+                admin.clone(),
             ),
         );
         let client = TimelockClient::new(&env, &contract_id);
@@ -260,6 +284,7 @@ mod test {
                 Mode::Before,
                 next_steps,
                 predecessor.clone(),
+                admin.clone(),
             ),
         );
         let client = TimelockClient::new(&env, &contract_id);
@@ -309,6 +334,7 @@ mod test {
                 Mode::Before,
                 next_steps,
                 predecessor.clone(),
+                admin.clone(),
             ),
         );
         let client = TimelockClient::new(&env, &contract_id);
@@ -353,6 +379,7 @@ mod test {
                 Mode::After,
                 next_steps,
                 predecessor.clone(),
+                admin.clone(),
             ),
         );
         let client = TimelockClient::new(&env, &contract_id);
@@ -364,6 +391,103 @@ mod test {
         // Before unlock — release should panic
         env.ledger().set_timestamp(999);
         client.release();
+    }
+
+    #[test]
+    fn relayer_releases_funds_after_unlock() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let relayer = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let predecessor = Address::generate(&env);
+        sac.mint(&predecessor, &1_000);
+
+        let next = env.register(Dummy, ());
+        let next_steps = vec![
+            &env,
+            WorkflowTarget {
+                address: next.clone(),
+                data: String::from_str(&env, ""),
+            },
+        ];
+
+        let contract_id = env.register(
+            Timelock,
+            (
+                admin.clone(),
+                asset.address(),
+                1000_u64,
+                Mode::After,
+                next_steps,
+                predecessor.clone(),
+                relayer.clone(),
+            ),
+        );
+        let client = TimelockClient::new(&env, &contract_id);
+
+        tok.transfer(&predecessor, &contract_id, &500);
+        client.execute_step(&asset.address(), &500);
+
+        assert_eq!(client.balance(), 500);
+        assert_eq!(client.relayer(), relayer.clone());
+
+        env.ledger().set_timestamp(999);
+        assert_eq!(client.unlock_time(), 1000);
+
+        env.ledger().set_timestamp(1000);
+        client.release_by_relayer();
+
+        assert_eq!(client.balance(), 0);
+        assert_eq!(tok.balance(&next), 500);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #2)")]
+    fn release_by_relayer_panics_without_relayer() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+
+        let predecessor = Address::generate(&env);
+        sac.mint(&predecessor, &1_000);
+
+        let next = env.register(Dummy, ());
+        let next_steps = vec![
+            &env,
+            WorkflowTarget {
+                address: next.clone(),
+                data: String::from_str(&env, ""),
+            },
+        ];
+
+        let contract_id = env.register(
+            Timelock,
+            (
+                admin.clone(),
+                asset.address(),
+                1000_u64,
+                Mode::After,
+                next_steps,
+                predecessor.clone(),
+                admin.clone(),
+            ),
+        );
+        let client = TimelockClient::new(&env, &contract_id);
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        tok.transfer(&predecessor, &contract_id, &500);
+        client.execute_step(&asset.address(), &500);
+
+        env.ledger().set_timestamp(1000);
+        client.release_by_relayer();
     }
 
 }

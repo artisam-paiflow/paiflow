@@ -73,6 +73,7 @@ export type TimelockNodeParams = {
   unlockTime: number;
   mode: "after" | "before";
   nextStepNodeIds: string[];
+  relayer?: string;
 };
 
 export type WebhookTriggerNodeParams = {
