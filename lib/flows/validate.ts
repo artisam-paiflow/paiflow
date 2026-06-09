@@ -249,22 +249,6 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   const isPayOrSplit = action.type === "pay" || action.type === "split";
   const isSwapOrYield = action.type === "swap" || action.type === "yield";
 
-  // Webhook-like triggers (webhook, web2_webhook, oracle) use receive_and_forward
-  // on-chain, which is only compatible with swap, yield, and multisig.
-  if (isWebhookLike && isPayOrSplit) {
-    return {
-      ok: false,
-      errors: [
-        {
-          path: "nodes",
-          message:
-            "Webhook and oracle triggers are not compatible with pay or split actions. Use swap or yield instead.",
-          friendlyMessage:
-            "This trigger type can only be paired with swap or yield actions. Try changing your action block.",
-        },
-      ],
-    };
-  }
   if (isWebhookLike && hasCondition && condition.config.kind !== "multisig") {
     return {
       ok: false,
@@ -288,6 +272,8 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     templateKind = TemplateKind.SPLITTER;
   } else if (isOnReceive && isSwapOrYield) {
     templateKind = TemplateKind.SPLITTER;
+  } else if (isWebhookLike && isPayOrSplit) {
+    templateKind = TemplateKind.SPLITTER;
   } else if (isWebhookLike && isSwapOrYield) {
     templateKind = TemplateKind.SPLITTER;
   } else if (trigger!.type === "oracle") {
@@ -299,7 +285,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         {
           path: "nodes",
           message:
-            "Unsupported trigger/action combination. Supported: on_receive with pay/split/swap/yield, webhook/web2_webhook/oracle with swap/yield/multisig, schedule-like triggers (on_schedule, subscription) with pay/split, or any with a compatible condition.",
+            "Unsupported trigger/action combination. Supported: on_receive with pay/split/swap/yield, webhook/web2_webhook/oracle with pay/split/swap/yield/multisig, schedule-like triggers (on_schedule, subscription) with pay/split, or any with a compatible condition.",
           friendlyMessage: FRIENDLY.UNSUPPORTED_COMBO,
         },
       ],

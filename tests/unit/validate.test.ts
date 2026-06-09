@@ -355,10 +355,10 @@ describe("validateFlow", () => {
       ],
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
-    expect(r.ok).toBe(false);
+    expect(r.ok).toBe(true);
   });
 
-  it("rejects web2_webhook → split", () => {
+  it("accepts web2_webhook → split", () => {
     const r = validateFlow({
       nodes: [
         {
@@ -380,10 +380,10 @@ describe("validateFlow", () => {
       ],
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
-    expect(r.ok).toBe(false);
+    expect(r.ok).toBe(true);
   });
 
-  it("rejects webhook → pay (receive_and_forward / execute_step mismatch)", () => {
+  it("accepts webhook → pay", () => {
     const r = validateFlow({
       nodes: [
         {
@@ -405,6 +405,6 @@ describe("validateFlow", () => {
       ],
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
-    expect(r.ok).toBe(false);
+    expect(r.ok).toBe(true);
   });
 });

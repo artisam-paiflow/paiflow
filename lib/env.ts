@@ -20,98 +20,116 @@ const boolish = z
   .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
   .default(false);
 
-const EnvSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
-  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
+const EnvSchema = z
+  .object({
+    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+    LOG_LEVEL: z
+      .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
+      .default("info"),
 
-  AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 chars"),
-  AUTH_URL: z.string().url().default("http://localhost:3000"),
-  AUTH_RP_ID: z.string().default("localhost"),
-  AUTH_RP_NAME: z.string().default("Pink Raft"),
-  ALLOW_PUBLIC_REGISTRATION: boolish,
+    AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 chars"),
+    AUTH_URL: z.string().url().default("http://localhost:3000"),
+    AUTH_RP_ID: z.string().default("localhost"),
+    AUTH_RP_NAME: z.string().default("Pink Raft"),
+    ALLOW_PUBLIC_REGISTRATION: boolish,
 
-  DATABASE_URL: z.string().url(),
-  REDIS_URL: z.string().url().optional(),
+    DATABASE_URL: z.string().url(),
+    REDIS_URL: z.string().url().optional(),
 
-  // Network is pinned per environment: staging/dev = testnet, prod = mainnet.
-  STELLAR_NETWORK: z.enum(["testnet", "mainnet"]).default("testnet"),
-  STELLAR_NETWORK_PASSPHRASE_TESTNET: z.string().default("Test SDF Network ; September 2015"),
-  STELLAR_HORIZON_URL_TESTNET: z.string().url().default("https://horizon-testnet.stellar.org"),
-  STELLAR_SOROBAN_RPC_URL_TESTNET: z.string().url().default("https://soroban-testnet.stellar.org"),
-  STELLAR_NETWORK_PASSPHRASE_MAINNET: z
-    .string()
-    .default("Public Global Stellar Network ; September 2015"),
-  STELLAR_HORIZON_URL_MAINNET: z.string().url().default("https://horizon.stellar.org"),
-  STELLAR_SOROBAN_RPC_URL_MAINNET: z.string().url().default("https://mainnet.sorobanrpc.com"),
-  // Friendbot is testnet-only; undefined on mainnet.
-  STELLAR_FRIENDBOT_URL: optionalString,
+    // Network is pinned per environment: staging/dev = testnet, prod = mainnet.
+    STELLAR_NETWORK: z.enum(["testnet", "mainnet"]).default("testnet"),
+    STELLAR_NETWORK_PASSPHRASE_TESTNET: z.string().default("Test SDF Network ; September 2015"),
+    STELLAR_HORIZON_URL_TESTNET: z.string().url().default("https://horizon-testnet.stellar.org"),
+    STELLAR_SOROBAN_RPC_URL_TESTNET: z
+      .string()
+      .url()
+      .default("https://soroban-testnet.stellar.org"),
+    STELLAR_NETWORK_PASSPHRASE_MAINNET: z
+      .string()
+      .default("Public Global Stellar Network ; September 2015"),
+    STELLAR_HORIZON_URL_MAINNET: z.string().url().default("https://horizon.stellar.org"),
+    STELLAR_SOROBAN_RPC_URL_MAINNET: z.string().url().default("https://mainnet.sorobanrpc.com"),
+    // Friendbot is testnet-only; undefined on mainnet.
+    STELLAR_FRIENDBOT_URL: optionalString,
 
-  STELLAR_WASM_HASH_SPLITTER_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_STREAMER_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_CONDITIONAL_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_DEPOSIT_TRIGGER_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_ROUTER_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_TIMELOCK_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_SPLITTER_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_STREAMER_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_CONDITIONAL_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_DEPOSIT_TRIGGER_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_ROUTER_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_TIMELOCK_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_FACTORY_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_FACTORY_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_WEBHOOK_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_WEBHOOK_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_SUBSCRIPTION_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_SUBSCRIPTION_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_ORACLE_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_ORACLE_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_MULTISIG_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_MULTISIG_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_SWAPPER_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_SWAPPER_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_YIELD_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_YIELD_MAINNET: optionalWasmHash,
-  STELLAR_WASM_HASH_PAYER_TESTNET: optionalWasmHash,
-  STELLAR_WASM_HASH_PAYER_MAINNET: optionalWasmHash,
-  STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
-  STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
+    STELLAR_WASM_HASH_SPLITTER_TESTNET: optionalWasmHash,
+    STELLAR_WASM_HASH_STREAMER_TESTNET: optionalWasmHash,
+    STELLAR_WASM_HASH_CONDITIONAL_TESTNET: optionalWasmHash,
+    STELLAR_WASM_HASH_DEPOSIT_TRIGGER_TESTNET: optionalWasmHash,
+    STELLAR_WASM_HASH_ROUTER_TESTNET: optionalWasmHash,
+    STELLAR_WASM_HASH_TIMELOCK_TESTNET: optionalWasmHash,
+    STELLAR_WASM_HASH_SPLITTER_MAINNET: optionalWasmHash,
+    STELLAR_WASM_HASH_STREAMER_MAINNET: optionalWasmHash,
+    STELLAR_WASM_HASH_CONDITIONAL_MAINNET: optionalWasmHash,
+    STELLAR_WASM_HASH_DEPOSIT_TRIGGER_MAINNET: optionalWasmHash,
+    STELLAR_WASM_HASH_ROUTER_MAINNET: optionalWasmHash,
+    STELLAR_WASM_HASH_TIMELOCK_MAINNET: optionalWasmHash,
+    STELLAR_WASM_HASH_FACTORY_TESTNET: optionalWasmHash,
+    STELLAR_WASM_HASH_FACTORY_MAINNET: optionalWasmHash,
+    STELLAR_WASM_HASH_WEBHOOK_TESTNET: optionalWasmHash,
+    STELLAR_WASM_HASH_WEBHOOK_MAINNET: optionalWasmHash,
+    STELLAR_WASM_HASH_SUBSCRIPTION_TESTNET: optionalWasmHash,
+    STELLAR_WASM_HASH_SUBSCRIPTION_MAINNET: optionalWasmHash,
+    STELLAR_WASM_HASH_ORACLE_TESTNET: optionalWasmHash,
+    STELLAR_WASM_HASH_ORACLE_MAINNET: optionalWasmHash,
+    STELLAR_WASM_HASH_MULTISIG_TESTNET: optionalWasmHash,
+    STELLAR_WASM_HASH_MULTISIG_MAINNET: optionalWasmHash,
+    STELLAR_WASM_HASH_SWAPPER_TESTNET: optionalWasmHash,
+    STELLAR_WASM_HASH_SWAPPER_MAINNET: optionalWasmHash,
+    STELLAR_WASM_HASH_YIELD_TESTNET: optionalWasmHash,
+    STELLAR_WASM_HASH_YIELD_MAINNET: optionalWasmHash,
+    STELLAR_WASM_HASH_PAYER_TESTNET: optionalWasmHash,
+    STELLAR_WASM_HASH_PAYER_MAINNET: optionalWasmHash,
+    STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
+    STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
 
-  // ---- Web2 Webhook Relayer ----
-  STELLAR_RELAYER_ADDRESS: z
-    .string()
-    .optional()
-    .refine((v) => !v || StrKey.isValidEd25519PublicKey(v), {
-      message: "STELLAR_RELAYER_ADDRESS must be a valid Stellar public key",
-    }),
-  STELLAR_RELAYER_SECRET: optionalString,
+    // ---- Web2 Webhook Relayer ----
+    STELLAR_RELAYER_ADDRESS: z
+      .string()
+      .optional()
+      .refine((v) => !v || StrKey.isValidEd25519PublicKey(v), {
+        message: "STELLAR_RELAYER_ADDRESS must be a valid Stellar public key",
+      }),
+    STELLAR_RELAYER_SECRET: optionalString,
 
-  CRON_SECRET: optionalString,
-  SENTRY_DSN: optionalString,
-  HIBP_CHECK_ENABLED: boolish,
+    CRON_SECRET: optionalString,
+    SENTRY_DSN: optionalString,
+    HIBP_CHECK_ENABLED: boolish,
 
-  AI_API_KEY: optionalString,
-  AI_BASE_URL: optionalString,
-  AI_MODEL: optionalString,
+    AI_API_KEY: optionalString,
+    AI_BASE_URL: optionalString,
+    AI_MODEL: optionalString,
 
-  GROQ_API_KEY: optionalString,
-  GROQ_MODEL: optionalString,
-  GROQ_STT_MODEL_PRIMARY: optionalString,
-  GROQ_STT_MODEL_FALLBACK: optionalString,
+    GROQ_API_KEY: optionalString,
+    GROQ_MODEL: optionalString,
+    GROQ_STT_MODEL_PRIMARY: optionalString,
+    GROQ_STT_MODEL_FALLBACK: optionalString,
 
-  // ---- Email (Resend) ----
-  // Optional in dev — when RESEND_API_KEY is unset, `lib/mail.ts` logs the
-  // payload to stdout instead of delivering. Required in prod.
-  RESEND_API_KEY: optionalString,
-  // Default kicks in when unset OR empty (.env.example ships `EMAIL_FROM=`).
-  // Don't add `.min(3)` here — that runs before the transform and crashes
-  // env() on the empty-string case the default is meant to catch.
-  EMAIL_FROM: z
-    .string()
-    .optional()
-    .transform((v) => (v && v.length > 0 ? v : "Pink Raft <onboarding@resend.dev>")),
-});
+    // ---- Email (Resend) ----
+    // Optional in dev — when RESEND_API_KEY is unset, `lib/mail.ts` logs the
+    // payload to stdout instead of delivering. Required in prod.
+    RESEND_API_KEY: optionalString,
+    // Default kicks in when unset OR empty (.env.example ships `EMAIL_FROM=`).
+    // Don't add `.min(3)` here — that runs before the transform and crashes
+    // env() on the empty-string case the default is meant to catch.
+    EMAIL_FROM: z
+      .string()
+      .optional()
+      .transform((v) => (v && v.length > 0 ? v : "Pink Raft <onboarding@resend.dev>")),
+  })
+  .refine(
+    (data) => {
+      const hasAddress = !!data.STELLAR_RELAYER_ADDRESS;
+      const hasSecret = !!data.STELLAR_RELAYER_SECRET;
+      return hasAddress === hasSecret;
+    },
+    {
+      message:
+        "STELLAR_RELAYER_ADDRESS and STELLAR_RELAYER_SECRET must both be set or both be unset",
+      path: ["STELLAR_RELAYER_SECRET"],
+    },
+  );
 
 type EnvShape = z.infer<typeof EnvSchema>;
 

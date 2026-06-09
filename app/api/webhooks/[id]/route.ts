@@ -14,8 +14,11 @@ const PostSchema = z.object({
 });
 
 function timingSafeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a.padEnd(65));
-  const bufB = Buffer.from(b.padEnd(65));
+  const MAX = 128;
+  const bufA = Buffer.alloc(MAX, 0);
+  const bufB = Buffer.alloc(MAX, 0);
+  bufA.write(a, 0, "utf8");
+  bufB.write(b, 0, "utf8");
   return cryptoTimingSafeEqual(bufA, bufB) && a.length === b.length;
 }
 
