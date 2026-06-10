@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import DeploymentCanvas from "./deployment-canvas";
 import { LiveEvents, type Evt } from "./live-events";
+import ContractCallButton from "./contract-call-button";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { isTrigger } from "@/lib/flows/schema";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
@@ -18,6 +19,7 @@ export default function DeploymentView({
   initialEvents,
   graph,
   webhookSecret,
+  pipeline,
 }: {
   deploymentId: string;
   contractAddress: string | null;
@@ -27,6 +29,7 @@ export default function DeploymentView({
   initialEvents: Evt[];
   graph: FlowGraph | null;
   webhookSecret: string | null;
+  pipeline?: Array<{ nodeId: string; contractAddress: string; templateKind: string }> | null;
 }) {
   const explorerUrl =
     contractAddress && network ? stellarExpertContractUrl(contractAddress, network) : null;
@@ -118,6 +121,10 @@ export default function DeploymentView({
 
   const isWeb2Webhook = graph?.nodes.find(isTrigger)?.type === "web2_webhook";
   const appUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const streamerNode = pipeline?.find((n) => n.templateKind === "STREAMER");
+  const isStreamer = !!streamerNode;
+
+  const [isPaused, setIsPaused] = useState(false);
 
   return (
     <div className="mt-md space-y-md">
@@ -136,7 +143,12 @@ export default function DeploymentView({
         <section className="glass-panel p-md rounded-xl">
           <div className="flex items-center justify-between">
             <h2 className="text-headline-sm text-on-surface">Trigger</h2>
-            {isWeb2Webhook ? (
+            {isStreamer ? (
+              <span className="border-primary/30 bg-primary/10 text-label-sm text-primary inline-flex items-center gap-1.5 rounded border px-2 py-1 font-mono">
+                <span className="material-symbols-outlined text-[12px]">schedule</span>
+                SCHEDULED
+              </span>
+            ) : isWeb2Webhook ? (
               <span className="border-primary/30 bg-primary/10 text-label-sm text-primary inline-flex items-center gap-1.5 rounded border px-2 py-1 font-mono">
                 <span className="material-symbols-outlined text-[12px]">http</span>
                 HTTP WEBHOOK
@@ -148,6 +160,91 @@ export default function DeploymentView({
               </span>
             )}
           </div>
+          {isStreamer && streamerNode.contractAddress && network && (
+            <div className="mt-md flex items-center gap-3">
+              {isPaused ? (
+                <ContractCallButton
+                  deploymentId={deploymentId}
+                  network={network}
+                  label="RESUME"
+                  busyLabel="RESUMING…"
+                  icon="play_arrow"
+                  variant="secondary"
+                  prepare={async (address) => {
+                    const res = await fetch(`/api/deployments/${deploymentId}/invoke`, {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({
+                        method: "unpause",
+                        contractAddress: streamerNode.contractAddress,
+                        userAddress: address,
+                      }),
+                    });
+                    const json = (await res.json()) as {
+                      data: { xdr: string; networkPassphrase: string };
+                    };
+                    if (!res.ok)
+                      throw new Error(json.data?.xdr ? "Prepare failed" : "Unknown error");
+                    return {
+                      xdr: json.data.xdr,
+                      networkPassphrase: json.data.networkPassphrase,
+                    };
+                  }}
+                  submit={async (signedXdr) => {
+                    const res = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ signedXdr }),
+                    });
+                    const json = (await res.json()) as { data: { txHash: string } };
+                    if (!res.ok) throw new Error("Submit failed");
+                    return { txHash: json.data.txHash };
+                  }}
+                  onSuccess={() => setIsPaused(false)}
+                />
+              ) : (
+                <ContractCallButton
+                  deploymentId={deploymentId}
+                  network={network}
+                  label="PAUSE"
+                  busyLabel="PAUSING…"
+                  icon="pause"
+                  variant="danger"
+                  prepare={async (address) => {
+                    const res = await fetch(`/api/deployments/${deploymentId}/invoke`, {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({
+                        method: "pause",
+                        contractAddress: streamerNode.contractAddress,
+                        userAddress: address,
+                      }),
+                    });
+                    const json = (await res.json()) as {
+                      data: { xdr: string; networkPassphrase: string };
+                    };
+                    if (!res.ok)
+                      throw new Error(json.data?.xdr ? "Prepare failed" : "Unknown error");
+                    return {
+                      xdr: json.data.xdr,
+                      networkPassphrase: json.data.networkPassphrase,
+                    };
+                  }}
+                  submit={async (signedXdr) => {
+                    const res = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ signedXdr }),
+                    });
+                    const json = (await res.json()) as { data: { txHash: string } };
+                    if (!res.ok) throw new Error("Submit failed");
+                    return { txHash: json.data.txHash };
+                  }}
+                  onSuccess={() => setIsPaused(true)}
+                />
+              )}
+            </div>
+          )}
           {contractAddress ? (
             isWeb2Webhook ? (
               <>

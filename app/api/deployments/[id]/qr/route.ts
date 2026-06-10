@@ -38,10 +38,18 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   let uri: string;
   if (q.action === "trigger") {
-    if (!isPipeline && !isWebhookLike && d.flow.templateKind !== "SPLITTER") {
-      return new Response("Trigger QR only available for splitter or webhook deployments", {
-        status: 400,
-      });
+    if (
+      !isPipeline &&
+      !isWebhookLike &&
+      d.flow.templateKind !== "SPLITTER" &&
+      d.flow.templateKind !== "STREAMER"
+    ) {
+      return new Response(
+        "Trigger QR only available for splitter, webhook, or streamer deployments",
+        {
+          status: 400,
+        },
+      );
     }
     if (d.status !== "CONFIRMED") {
       return new Response("Contract not yet confirmed", { status: 400 });

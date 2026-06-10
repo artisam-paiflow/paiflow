@@ -22,6 +22,7 @@ pub enum Key {
     Claimed,
     ParentNode,
     Version,
+    Paused,
 }
 
 #[contracterror]
@@ -34,6 +35,7 @@ pub enum Error {
     BadWindow = 4,
     BpsSumInvalid = 5,
     NoRecipients = 6,
+    Paused = 7,
 }
 
 const VERSION: u32 = 2;
@@ -84,6 +86,7 @@ impl Streamer {
         env.storage().instance().set(&Key::Claimed, &0i128);
         env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
+        env.storage().instance().set(&Key::Paused, &false);
     }
 
     pub fn execute_step(env: Env, asset: Address, amount: i128) {
@@ -103,6 +106,14 @@ impl Streamer {
 
     pub fn claim(env: Env) -> i128 {
         bump_ttl(&env);
+        if env
+            .storage()
+            .instance()
+            .get::<_, bool>(&Key::Paused)
+            .unwrap_or(false)
+        {
+            panic_with_error!(&env, Error::Paused);
+        }
         let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
         let rate: i128 = env.storage().instance().get(&Key::Rate).unwrap();
         let start: u64 = env.storage().instance().get(&Key::StartTs).unwrap();
@@ -154,6 +165,14 @@ impl Streamer {
     }
 
     pub fn available(env: Env) -> i128 {
+        if env
+            .storage()
+            .instance()
+            .get::<_, bool>(&Key::Paused)
+            .unwrap_or(false)
+        {
+            return 0;
+        }
         let rate: i128 = env.storage().instance().get(&Key::Rate).unwrap();
         let start: u64 = env.storage().instance().get(&Key::StartTs).unwrap();
         let end: u64 = env.storage().instance().get(&Key::EndTs).unwrap();
@@ -185,6 +204,22 @@ impl Streamer {
         }
         #[allow(deprecated)]
         env.events().publish((symbol_short!("cancel"),), balance);
+    }
+
+    pub fn pause(env: Env) {
+        let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
+        admin.require_auth();
+        env.storage().instance().set(&Key::Paused, &true);
+    }
+
+    pub fn unpause(env: Env) {
+        let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
+        admin.require_auth();
+        env.storage().instance().set(&Key::Paused, &false);
+    }
+
+    pub fn is_paused(env: Env) -> bool {
+        env.storage().instance().get(&Key::Paused).unwrap_or(false)
     }
 }
 
@@ -333,5 +368,120 @@ mod test {
                 parent,
             ),
         );
+    }
+
+    #[test]
+    fn pause_and_unpause() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                    },
+                ],
+                asset.address(),
+                10_i128,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+
+        assert!(!client.is_paused());
+        client.pause();
+        assert!(client.is_paused());
+        client.unpause();
+        assert!(!client.is_paused());
+    }
+
+    #[test]
+    #[should_panic]
+    fn claim_rejects_when_paused() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                    },
+                ],
+                asset.address(),
+                10_i128,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+
+        let funder = Address::generate(&env);
+        sac.mint(&funder, &10_000);
+        client.top_up(&funder, &10_000);
+
+        env.ledger().set_timestamp(1500);
+        client.pause();
+        client.claim();
+    }
+
+    #[test]
+    fn available_is_zero_when_paused() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                    },
+                ],
+                asset.address(),
+                10_i128,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+
+        let funder = Address::generate(&env);
+        sac.mint(&funder, &10_000);
+        client.top_up(&funder, &10_000);
+
+        env.ledger().set_timestamp(1500);
+        assert!(client.available() > 0);
+        client.pause();
+        assert_eq!(client.available(), 0);
+        client.unpause();
+        assert!(client.available() > 0);
     }
 }

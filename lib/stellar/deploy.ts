@@ -152,11 +152,8 @@ export async function preparePipelineDeployTx(opts: {
   for (const p of pipeline) {
     const parentNodeId = parentByNode.get(p.nodeId);
     let parentAddress: string | undefined;
-    if (parentNodeId) {
+    if (parentNodeId && nodeAddresses[parentNodeId]) {
       parentAddress = nodeAddresses[parentNodeId];
-      if (!parentAddress) {
-        throw new AppError("VALIDATION", `Parent address not found for node ${p.nodeId}`);
-      }
     } else if (p.params.kind !== "deposit_trigger") {
       // Standalone contracts (e.g. streamer with on_schedule) use admin as parent.
       parentAddress = opts.sourceAccount;

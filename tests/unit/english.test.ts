@@ -99,7 +99,7 @@ describe("flowToEnglish", () => {
         {
           id: "t",
           type: "on_schedule",
-          config: { interval: "hour", startsAt: "2030-01-01T00:00:00.000Z" },
+          config: { intervalAmount: 1, intervalUnit: "hour", startsAt: "2030-01-01T00:00:00.000Z" },
         },
         {
           id: "a",
@@ -125,7 +125,7 @@ describe("flowToEnglish", () => {
         {
           id: "t",
           type: "on_schedule",
-          config: { interval: "day", startsAt: "2030-01-01T00:00:00.000Z" },
+          config: { intervalAmount: 1, intervalUnit: "day", startsAt: "2030-01-01T00:00:00.000Z" },
         },
         {
           id: "a",

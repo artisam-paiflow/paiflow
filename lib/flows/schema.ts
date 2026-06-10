@@ -77,10 +77,12 @@ export const OnScheduleTrigger = z.object({
   id: z.string().min(1),
   type: z.literal("on_schedule"),
   config: z.object({
-    interval: z.enum(["minute", "hour", "day"]),
+    intervalAmount: z.number().int().positive().default(1),
+    intervalUnit: z.enum(["minute", "hour", "day", "week", "month"]),
     startsAt: z.string().datetime(),
     endsAt: z.string().datetime().optional(),
     occurrences: z.number().int().positive().optional(),
+    timeZone: z.string().optional(),
   }),
 });
 

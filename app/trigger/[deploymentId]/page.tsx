@@ -25,8 +25,13 @@ export default async function TriggerPage({
   const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
   const triggerKind = pipeline?.[0]?.templateKind;
   const isWebhook = triggerKind === "WEBHOOK";
+  const isStreamer = d?.flow.templateKind === "STREAMER";
 
-  if (!d || (!isPipeline && !isWebhook && d.flow.templateKind !== "SPLITTER") || !d.contractAddress)
+  if (
+    !d ||
+    (!isPipeline && !isWebhook && d.flow.templateKind !== "SPLITTER" && !isStreamer) ||
+    !d.contractAddress
+  )
     notFound();
 
   const graphResult = FlowGraphSchema.safeParse(d.graphSnapshot);
@@ -41,7 +46,7 @@ export default async function TriggerPage({
       flowName={d.flow.name}
       network={d.network as "testnet" | "mainnet"}
       graph={graph}
-      isDeposit={isWeb2Webhook}
+      isDeposit={isWeb2Webhook || isStreamer}
     />
   );
 }

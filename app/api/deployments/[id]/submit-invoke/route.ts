@@ -12,7 +12,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     const ip = clientIp(req);
-    await enforceRateLimit({ key: `submit-trigger:${id}:${ip}`, limit: 20, windowSeconds: 60 });
+    await enforceRateLimit({ key: `submit-invoke:${id}:${ip}`, limit: 20, windowSeconds: 60 });
     const body = SubmitSchema.parse(await req.json());
 
     const d = await db.deployment.findFirst({
@@ -21,27 +21,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
 
-    const pipeline = d.pipelineSnapshot as Array<{
-      nodeId: string;
-      contractAddress: string;
-      templateKind: string;
-    }> | null;
-    const isPipeline = pipeline != null && pipeline.length > 0;
-    const triggerKind = pipeline?.[0]?.templateKind;
-    const isWebhook = triggerKind === "WEBHOOK";
-    const isStreamer = d.flow.templateKind === "STREAMER";
-
-    if (!isPipeline && !isWebhook && d.flow.templateKind !== "SPLITTER" && !isStreamer) {
-      throw new AppError(
-        "VALIDATION",
-        "Only splitter, webhook, or streamer deployments support trigger submit",
-      );
-    }
-
     const result = await submitTriggerTx(body.signedXdr);
     if (result.status === "PENDING") {
       await audit({
-        action: "DEPLOY_TRIGGER",
+        action: "DEPLOY_INVOKE",
         userId: d.ownerId,
         metadata: { deploymentId: id, txHash: result.txHash },
       });

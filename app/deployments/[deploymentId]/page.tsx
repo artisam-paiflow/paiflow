@@ -77,8 +77,11 @@ export default async function DeploymentPage({
   const triggerNode = graph.nodes.find(isTrigger);
   const isWebhookLike = triggerNode?.type === "webhook" || triggerNode?.type === "web2_webhook";
 
+  const isStreamerLike = d.flow.templateKind === "STREAMER";
+
   const qrUrl =
-    d.contractAddress && (isPipeline || isWebhookLike || d.flow.templateKind === "SPLITTER")
+    d.contractAddress &&
+    (isPipeline || isWebhookLike || d.flow.templateKind === "SPLITTER" || isStreamerLike)
       ? `/api/deployments/${d.id}/qr?action=trigger`
       : null;
 
@@ -168,6 +171,7 @@ export default async function DeploymentPage({
           qrUrl={qrUrl}
           graph={graph}
           webhookSecret={d.webhookSecret}
+          pipeline={pipeline}
           initialEvents={d.events.map((e) => ({
             id: e.id,
             kind: e.kind,

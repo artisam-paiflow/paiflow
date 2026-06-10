@@ -149,94 +149,161 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
         </>
       )}
 
-      {node.type === "on_schedule" && (
-        <>
-          <Field label="Interval">
-            <select
-              value={node.config.interval}
-              onChange={(e) =>
-                onChange({
-                  ...node,
-                  config: {
-                    ...node.config,
-                    interval: e.target.value as "minute" | "hour" | "day",
-                  },
-                })
-              }
-              className="input"
-            >
-              <option value="minute">Every minute</option>
-              <option value="hour">Every hour</option>
-              <option value="day">Every day</option>
-            </select>
-          </Field>
-          <Field label="Starts at (ISO)">
-            <input
-              className="input"
-              type="datetime-local"
-              value={node.config.startsAt.slice(0, 16)}
-              onChange={(e) =>
-                onChange({
-                  ...node,
-                  config: { ...node.config, startsAt: new Date(e.target.value).toISOString() },
-                })
-              }
-            />
-          </Field>
-          <Field label="Ends at — optional">
-            <div className="flex gap-1">
-              <input
-                className="input"
-                type="datetime-local"
-                value={node.config.endsAt?.slice(0, 16) ?? ""}
-                onChange={(e) =>
-                  onChange({
-                    ...node,
-                    config: {
-                      ...node.config,
-                      endsAt: e.target.value ? new Date(e.target.value).toISOString() : undefined,
-                      occurrences: undefined,
-                    },
-                  })
-                }
-              />
-              {node.config.endsAt && (
-                <button
-                  type="button"
-                  onClick={() =>
+      {node.type === "on_schedule" &&
+        (() => {
+          const cfg = node.config as {
+            intervalAmount?: number;
+            intervalUnit?: "minute" | "hour" | "day" | "week" | "month";
+            interval?: "minute" | "hour" | "day";
+            startsAt: string;
+            endsAt?: string;
+            occurrences?: number;
+            timeZone?: string;
+          };
+          // Backward-compat: old flows used `interval` string
+          const amount = cfg.intervalAmount ?? 1;
+          const unit = cfg.intervalUnit ?? cfg.interval ?? "hour";
+          const tz = cfg.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+          return (
+            <>
+              <Field label="Interval">
+                <div className="flex gap-2">
+                  <input
+                    className="input w-20 text-right"
+                    type="number"
+                    min={1}
+                    value={amount}
+                    onChange={(e) => {
+                      const v = Math.max(1, Math.floor(Number(e.target.value) || 1));
+                      onChange({
+                        ...node,
+                        config: { ...cfg, intervalAmount: v, intervalUnit: unit, timeZone: tz },
+                      } as FlowNode);
+                    }}
+                  />
+                  <select
+                    className="input flex-1"
+                    value={unit}
+                    onChange={(e) => {
+                      const newUnit = e.target.value as typeof unit;
+                      onChange({
+                        ...node,
+                        config: {
+                          ...cfg,
+                          intervalAmount: amount,
+                          intervalUnit: newUnit,
+                          timeZone: tz,
+                        },
+                      } as FlowNode);
+                    }}
+                  >
+                    <option value="minute">Minute(s)</option>
+                    <option value="hour">Hour(s)</option>
+                    <option value="day">Day(s)</option>
+                    <option value="week">Week(s)</option>
+                    <option value="month">Month(s)</option>
+                  </select>
+                </div>
+              </Field>
+              <Field label="Timezone">
+                <select
+                  className="input"
+                  value={tz}
+                  onChange={(e) => {
+                    const newTz = e.target.value;
+                    const localStart = formatIsoForTimezone(cfg.startsAt, tz);
+                    const atStart = isoFromLocalAndTimezone(localStart, newTz);
+                    const next: typeof cfg = {
+                      ...cfg,
+                      startsAt: atStart,
+                      timeZone: newTz,
+                    };
+                    if (cfg.endsAt) {
+                      const localEnd = formatIsoForTimezone(cfg.endsAt, tz);
+                      next.endsAt = isoFromLocalAndTimezone(localEnd, newTz);
+                    }
+                    onChange({ ...node, config: next } as FlowNode);
+                  }}
+                >
+                  {TIMEZONES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Starts at">
+                <input
+                  className="input"
+                  type="datetime-local"
+                  value={formatIsoForTimezone(cfg.startsAt, tz)}
+                  onChange={(e) => {
+                    const at = isoFromLocalAndTimezone(e.target.value, tz);
                     onChange({
                       ...node,
-                      config: { ...node.config, endsAt: undefined },
-                    })
+                      config: { ...cfg, startsAt: at, timeZone: tz },
+                    } as FlowNode);
+                  }}
+                />
+              </Field>
+              <Field label="Ends at — optional">
+                <div className="flex gap-1">
+                  <input
+                    className="input"
+                    type="datetime-local"
+                    value={cfg.endsAt ? formatIsoForTimezone(cfg.endsAt, tz) : ""}
+                    onChange={(e) => {
+                      const local = e.target.value;
+                      onChange({
+                        ...node,
+                        config: {
+                          ...cfg,
+                          endsAt: local ? isoFromLocalAndTimezone(local, tz) : undefined,
+                          occurrences: undefined,
+                          timeZone: tz,
+                        },
+                      } as FlowNode);
+                    }}
+                  />
+                  {cfg.endsAt && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onChange({
+                          ...node,
+                          config: { ...cfg, endsAt: undefined, timeZone: tz },
+                        } as FlowNode)
+                      }
+                      className="rounded border border-zinc-700 px-2 text-zinc-400 hover:text-red-300"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </Field>
+              <Field label="Occurrences — optional">
+                <input
+                  className="input"
+                  type="number"
+                  min="1"
+                  placeholder="e.g. 5"
+                  value={cfg.occurrences ?? ""}
+                  onChange={(e) =>
+                    onChange({
+                      ...node,
+                      config: {
+                        ...cfg,
+                        endsAt: undefined,
+                        occurrences: e.target.value ? Number(e.target.value) : undefined,
+                        timeZone: tz,
+                      },
+                    } as FlowNode)
                   }
-                  className="rounded border border-zinc-700 px-2 text-zinc-400 hover:text-red-300"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          </Field>
-          <Field label="Occurrences — optional">
-            <input
-              className="input"
-              type="number"
-              min="1"
-              placeholder="e.g. 5"
-              value={node.config.occurrences ?? ""}
-              onChange={(e) =>
-                onChange({
-                  ...node,
-                  config: {
-                    ...node.config,
-                    endsAt: undefined,
-                    occurrences: e.target.value ? Number(e.target.value) : undefined,
-                  },
-                })
-              }
-            />
-          </Field>
-        </>
-      )}
+                />
+              </Field>
+            </>
+          );
+        })()}
 
       {node.type === "pay" && (
         <>

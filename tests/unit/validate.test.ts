@@ -145,7 +145,8 @@ describe("validateFlow", () => {
           id: "t",
           type: "on_schedule",
           config: {
-            interval: "hour",
+            intervalAmount: 1,
+            intervalUnit: "hour",
             startsAt: "2030-01-01T00:00:00.000Z",
           },
         },
@@ -175,7 +176,8 @@ describe("validateFlow", () => {
           id: "t",
           type: "on_schedule",
           config: {
-            interval: "day",
+            intervalAmount: 1,
+            intervalUnit: "day",
             startsAt: "2030-01-01T00:00:00.000Z",
           },
         },
@@ -248,7 +250,8 @@ describe("validateFlow", () => {
           id: "t",
           type: "on_schedule",
           config: {
-            interval: "hour",
+            intervalAmount: 1,
+            intervalUnit: "hour",
             startsAt: "2030-01-01T00:00:00.000Z",
           },
         },

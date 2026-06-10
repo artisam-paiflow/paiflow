@@ -540,7 +540,7 @@ function nodeLabel(n: FlowNode | undefined): string {
     case "on_receive":
       return `On Receive (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "on_schedule":
-      return `On Schedule (${n.config.interval})`;
+      return `On Schedule (${(n.config as { intervalAmount?: number; intervalUnit?: string; interval?: string }).intervalAmount ?? 1} ${(n.config as { intervalAmount?: number; intervalUnit?: string; interval?: string }).intervalUnit ?? (n.config as { interval?: string }).interval ?? "hour"})`;
     case "webhook":
       return `Webhook (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "web2_webhook":
