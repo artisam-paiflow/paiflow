@@ -398,11 +398,11 @@ mod test {
         );
         let client = StreamerClient::new(&env, &contract_id);
 
-        assert_eq!(client.is_paused(), false);
+        assert!(!client.is_paused());
         client.pause();
-        assert_eq!(client.is_paused(), true);
+        assert!(client.is_paused());
         client.unpause();
-        assert_eq!(client.is_paused(), false);
+        assert!(!client.is_paused());
     }
 
     #[test]
