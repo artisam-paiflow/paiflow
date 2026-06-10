@@ -149,11 +149,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const [hasAnimated, setHasAnimated] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("sidebarCollapsed", String(sidebarCollapsed));
@@ -432,7 +428,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     <>
       <div
         className={
-          mounted
+          hasAnimated
             ? "grid gap-0 transition-[grid-template-columns] duration-300 ease-in-out"
             : "grid gap-0"
         }
@@ -447,7 +443,10 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           templateKind={templateKind}
           pipeline={pipeline}
           collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+          onToggleCollapse={() => {
+            setSidebarCollapsed((v) => !v);
+            setHasAnimated(true);
+          }}
         />
 
         <div className="grid min-h-0 grid-rows-[auto_auto_1fr]">
