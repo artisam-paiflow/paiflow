@@ -168,6 +168,7 @@ export default async function DeploymentPage({
           qrUrl={qrUrl}
           graph={graph}
           webhookSecret={d.webhookSecret}
+          pipeline={pipeline}
           initialEvents={d.events.map((e) => ({
             id: e.id,
             kind: e.kind,

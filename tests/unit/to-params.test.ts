@@ -53,7 +53,8 @@ function scheduleSplitGraph(opts?: { condition?: boolean; rate?: string }) {
       id: "t",
       type: "on_schedule",
       config: {
-        interval: "hour" as const,
+        intervalAmount: 1,
+        intervalUnit: "hour" as const,
         startsAt: "2030-01-01T00:00:00.000Z",
       },
     },
@@ -154,7 +155,11 @@ describe("flowToParams", () => {
           {
             id: "t",
             type: "on_schedule",
-            config: { interval: "hour", startsAt: "2030-01-01T00:00:00.000Z" },
+            config: {
+              intervalAmount: 1,
+              intervalUnit: "hour",
+              startsAt: "2030-01-01T00:00:00.000Z",
+            },
           },
           {
             id: "a",
@@ -278,7 +283,11 @@ describe("flowToParams", () => {
           {
             id: "t",
             type: "on_schedule",
-            config: { interval: "day", startsAt: "2030-01-01T00:00:00.000Z" },
+            config: {
+              intervalAmount: 1,
+              intervalUnit: "day",
+              startsAt: "2030-01-01T00:00:00.000Z",
+            },
           },
           {
             id: "c",
@@ -521,7 +530,7 @@ describe("flowToPipeline", () => {
         {
           id: "t",
           type: "on_schedule",
-          config: { interval: "hour", startsAt: "2030-01-01T00:00:00.000Z" },
+          config: { intervalAmount: 1, intervalUnit: "hour", startsAt: "2030-01-01T00:00:00.000Z" },
         },
         {
           id: "a",
@@ -678,5 +687,101 @@ describe("flowToPipeline", () => {
     const triggerParams = pipeline[0]!.params as { kind: string; relayer: string };
     expect(triggerParams.kind).toBe("webhook_trigger");
     expect(triggerParams.relayer).toBe("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWH2");
+  });
+
+  it("computes endTs from occurrences and intervalAmount/intervalUnit", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 2,
+            intervalUnit: "hour",
+            startsAt: "2030-01-01T00:00:00.000Z",
+            occurrences: 5,
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "1000",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(1);
+    const streamer = pipeline[0]!.params as { kind: string; startTs: number; endTs: number };
+    expect(streamer.kind).toBe("streamer");
+    expect(streamer.endTs - streamer.startTs).toBe(5 * 2 * 3600);
+  });
+
+  it("computes endTs from occurrences with legacy interval field", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "day",
+            startsAt: "2030-01-01T00:00:00.000Z",
+            occurrences: 3,
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "1000",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    const streamer = pipeline[0]!.params as { kind: string; startTs: number; endTs: number };
+    expect(streamer.endTs - streamer.startTs).toBe(3 * 86400);
+  });
+
+  it("prefers endsAt over occurrences", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "hour",
+            startsAt: "2030-01-01T00:00:00.000Z",
+            endsAt: "2030-01-15T00:00:00.000Z",
+            occurrences: 5,
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "1000",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    const streamer = pipeline[0]!.params as { kind: string; startTs: number; endTs: number };
+    expect(streamer.endTs - streamer.startTs).toBe(14 * 86400);
   });
 });

@@ -43,8 +43,10 @@ const TEMPLATES: Template[] = [
       id: makeId("sched"),
       type: "on_schedule",
       config: {
-        interval: "hour",
+        intervalAmount: 1,
+        intervalUnit: "hour",
         startsAt: new Date().toISOString(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       },
     }),
   },

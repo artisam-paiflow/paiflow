@@ -177,6 +177,43 @@ function getChildren(graph: FlowGraph): Map<string, string[]> {
   return children;
 }
 
+function intervalToSeconds(
+  amount: number,
+  unit: "minute" | "hour" | "day" | "week" | "month",
+): number {
+  const base =
+    unit === "minute"
+      ? 60
+      : unit === "hour"
+        ? 60 * 60
+        : unit === "day"
+          ? 60 * 60 * 24
+          : unit === "week"
+            ? 60 * 60 * 24 * 7
+            : 60 * 60 * 24 * 30; // month ≈ 30 days
+  return amount * base;
+}
+
+function computeStreamerEndTs(
+  trigger: Extract<FlowNode, { type: "on_schedule" }>,
+  startTs: number,
+): number {
+  // Backward compat: old flows used `interval` string with implicit amount of 1
+  const amount =
+    (trigger.config as { intervalAmount?: number; interval?: string }).intervalAmount ?? 1;
+  const unit = ((trigger.config as { intervalUnit?: string; interval?: string }).intervalUnit ??
+    (trigger.config as { interval?: string }).interval ??
+    "hour") as "minute" | "hour" | "day" | "week" | "month";
+
+  if (trigger.config.endsAt) {
+    return Math.floor(new Date(trigger.config.endsAt).getTime() / 1000);
+  }
+  if (trigger.config.occurrences) {
+    return startTs + trigger.config.occurrences * intervalToSeconds(amount, unit);
+  }
+  return startTs + 60 * 60 * 24 * 30; // 30-day default
+}
+
 /**
  * Convert a validated flow graph into a pipeline of decoupled contract
  * deployments.  Each graph node becomes one on-chain contract.  Parent / child
@@ -215,8 +252,8 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
         ? Math.floor(new Date(trigger.config.startsAt).getTime() / 1000)
         : Math.floor(Date.now() / 1000);
     const end =
-      trigger.type === "on_schedule" && trigger.config.endsAt
-        ? Math.floor(new Date(trigger.config.endsAt).getTime() / 1000)
+      trigger.type === "on_schedule"
+        ? computeStreamerEndTs(trigger, start)
         : start + 60 * 60 * 24 * 30;
     const rate =
       action.type === "pay"
@@ -477,9 +514,7 @@ export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): Cont
       throw new Error("Streamer requires an on_schedule trigger");
     }
     const start = Math.floor(new Date(trigger.config.startsAt).getTime() / 1000);
-    const end = trigger.config.endsAt
-      ? Math.floor(new Date(trigger.config.endsAt).getTime() / 1000)
-      : start + 60 * 60 * 24 * 30;
+    const end = computeStreamerEndTs(trigger, start);
     const rate =
       action.type === "pay"
         ? (action.config.amountStroops ?? "1")

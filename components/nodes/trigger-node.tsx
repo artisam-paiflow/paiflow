@@ -56,7 +56,8 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
   } else {
     icon = "schedule";
     title = "On Schedule";
-    detail = n.config.interval;
+    const cfg = n.config as { intervalAmount?: number; intervalUnit?: string; interval?: string };
+    detail = `${cfg.intervalAmount ?? 1} ${cfg.intervalUnit ?? cfg.interval ?? "hour"}`;
   }
 
   return (

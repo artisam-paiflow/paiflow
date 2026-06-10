@@ -2,8 +2,11 @@ import { shortAddr, formatStroops } from "@/lib/utils";
 import type { Asset, FlowGraph, FlowNode } from "./schema";
 import { isAction, isLogic, isTrigger, isPendingAddress, bpsToPct, assetLabel } from "./schema";
 
-function intervalLabel(i: "minute" | "hour" | "day"): string {
-  return i === "minute" ? "every minute" : i === "hour" ? "every hour" : "every day";
+function intervalLabel(amount: number, unit: string): string {
+  if (amount === 1) {
+    return `every ${unit}`;
+  }
+  return `every ${amount} ${unit}s`;
 }
 
 function describeCondition(c: Extract<FlowNode, { type: "condition" }>, asset?: Asset): string {
@@ -46,7 +49,12 @@ export function flowToEnglish(graph: FlowGraph): string {
   } else if (trigger.type === "oracle") {
     triggerText = `When oracle price meets threshold (${trigger.config.threshold}) for ${assetLabel(trigger.config.asset)}`;
   } else {
-    triggerText = `${intervalLabel(trigger.config.interval)} starting ${trigger.config.startsAt}`;
+    const sched = trigger.config as {
+      intervalAmount?: number;
+      intervalUnit?: string;
+      interval?: string;
+    };
+    triggerText = `${intervalLabel(sched.intervalAmount ?? 1, sched.intervalUnit ?? sched.interval ?? "hour")} starting ${trigger.config.startsAt}`;
   }
 
   let actionText: string;

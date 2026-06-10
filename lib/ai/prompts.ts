@@ -102,7 +102,7 @@ A Stellar wallet (like Freighter or xBull) is like a bank account you control. I
 ABOUT BLOCKS (node types in Pink Raft):
   TRIGGER blocks — when something happens:
     - "When I receive payment" (on_receive) — fires when XLM/USDC is sent to the contract
-    - "On a schedule" (on_schedule) — fires automatically every minute/hour/day
+    - "On a schedule" (on_schedule) — fires automatically on a recurring interval (e.g. every 15 minutes, every 3 days)
     - "Webhook" (webhook) — relayer-authorized on-chain trigger for off-chain events
     - "HTTP Webhook" (web2_webhook) — fires when an external system sends an HTTP POST to the deployment's webhook URL. Config: asset only (the app backend acts as relayer)
     - "Subscription" (subscription) — recurring billing puller
@@ -271,7 +271,7 @@ GENERAL RULES:
 
 Node config schemas:
 - on_receive config: { asset: Asset, minAmountStroops?: string }
-- on_schedule config: { interval: "minute"|"hour"|"day", startsAt: ISO datetime, endsAt?: ISO datetime }
+- on_schedule config: { intervalAmount: positive integer, intervalUnit: "minute"|"hour"|"day"|"week"|"month", startsAt: ISO datetime, endsAt?: ISO datetime, occurrences?: positive integer, timeZone?: string }
 - pay config: { recipient: stellarAddress, amountStroops: string, asset: Asset }
 - split config: { asset: Asset, recipients: [{ address, bps: number, label?: string }], ratePerSecondStroops?: string }
 - condition config: { kind: "amount_gt"|"amount_lt", amountStroops: string } | { kind: "oracle_gte", oracle: string, key: string, threshold: string } | { kind: "time_after"|"time_before", at: ISO datetime }
@@ -300,7 +300,7 @@ Templates (XXXX = random 4-digit number):
   PAY: {"id":"node-pay-XXXX","type":"pay","config":{"recipient":"PENDING:<label>","amountStroops":"10000000","asset":{"kind":"native"}}}
   SPLIT: {"id":"node-split-XXXX","type":"split","config":{"asset":{"kind":"native"},"recipients":[{"address":"PENDING:Recipient1","bps":5000,"label":"Recipient 1"},{"address":"PENDING:Recipient2","bps":5000,"label":"Recipient 2"}]}}
   ON_RECEIVE: {"id":"node-trigger-XXXX","type":"on_receive","config":{"asset":{"kind":"native"}}}
-  ON_SCHEDULE: {"id":"node-trigger-XXXX","type":"on_schedule","config":{"interval":"day","startsAt":"<ISO 24h from now>"}}
+  ON_SCHEDULE: {"id":"node-trigger-XXXX","type":"on_schedule","config":{"intervalAmount":1,"intervalUnit":"day","startsAt":"<ISO 24h from now>","timeZone":"UTC"}}
   CONDITION: {"id":"node-condition-XXXX","type":"condition","config":{"kind":"amount_gt","amountStroops":"10000000"}}
 
 DELETING BLOCKS ("remove [block]"/"delete [block]"):
@@ -343,7 +343,7 @@ INFERENCE RULES for incomplete descriptions:
   - No trigger mentioned → default to on_receive with native XLM asset
   - No asset mentioned → default to native XLM
   - No amount mentioned for pay → default to "10000000" (1 XLM), note in explanation
-  - No schedule interval mentioned → default to "day"
+  - No schedule interval mentioned → default to intervalAmount 1, intervalUnit "day"
   - No recipients mentioned for split → use PENDING:Recipient1, PENDING:Recipient2
   - "50/50", "equally", "half" between 2 people → bps [5000, 5000]
 
