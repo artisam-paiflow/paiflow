@@ -106,7 +106,12 @@ impl Streamer {
 
     pub fn claim(env: Env) -> i128 {
         bump_ttl(&env);
-        if env.storage().instance().get::<_, bool>(&Key::Paused).unwrap_or(false) {
+        if env
+            .storage()
+            .instance()
+            .get::<_, bool>(&Key::Paused)
+            .unwrap_or(false)
+        {
             panic_with_error!(&env, Error::Paused);
         }
         let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
@@ -160,7 +165,12 @@ impl Streamer {
     }
 
     pub fn available(env: Env) -> i128 {
-        if env.storage().instance().get::<_, bool>(&Key::Paused).unwrap_or(false) {
+        if env
+            .storage()
+            .instance()
+            .get::<_, bool>(&Key::Paused)
+            .unwrap_or(false)
+        {
             return 0;
         }
         let rate: i128 = env.storage().instance().get(&Key::Rate).unwrap();
