@@ -214,6 +214,21 @@ h4 {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-right: 1px solid rgba(92, 63, 70, 0.2);
+  overflow-x: hidden;
+}
+
+.glass-panel-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.glass-panel-sidebar::-webkit-scrollbar-track {
+  background: rgba(28, 27, 27, 0.5);
+}
+.glass-panel-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+.glass-panel-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .glass-panel-nav {

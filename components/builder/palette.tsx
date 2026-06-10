@@ -11,6 +11,8 @@ type Props = {
   flowNodes: FlowNode[];
   templateKind?: TemplateKind | null;
   pipeline?: TemplateKind[];
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 };
 
 function makeId(prefix: string) {
@@ -179,15 +181,46 @@ const GROUP_TONE: Record<Template["group"], { tone: string; dot: string }> = {
   Logic: { tone: "text-tertiary", dot: "bg-tertiary" },
 };
 
-export default function Palette({ onAdd, flowNodes, templateKind, pipeline }: Props) {
+export default function Palette({
+  onAdd,
+  flowNodes,
+  templateKind,
+  pipeline,
+  collapsed,
+  onToggleCollapse,
+}: Props) {
   const groups: Template["group"][] = ["Triggers", "Actions", "Logic"];
   const headingId = useId();
   const hasTrigger = flowNodes.some(isTrigger);
   const templateLabel = templateKind ? TEMPLATE_LABELS[templateKind] : null;
   const templateDescription = templateKind ? TEMPLATE_DESCRIPTIONS[templateKind] : null;
 
+  if (collapsed) {
+    return (
+      <aside className="glass-panel-sidebar pt-md relative flex h-full flex-col items-center">
+        <button
+          onClick={onToggleCollapse}
+          className="text-on-surface-variant hover:bg-surface-container-high/50 hover:text-on-surface flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
+          title="Expand sidebar"
+        >
+          <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+        </button>
+      </aside>
+    );
+  }
+
   return (
-    <aside aria-labelledby={headingId} className="glass-panel-sidebar p-md h-full overflow-y-auto">
+    <aside
+      aria-labelledby={headingId}
+      className="glass-panel-sidebar p-md relative h-full overflow-y-auto"
+    >
+      <button
+        onClick={onToggleCollapse}
+        className="text-on-surface-variant hover:bg-surface-container-high/50 hover:text-on-surface absolute top-3 right-2 flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
+        title="Collapse sidebar"
+      >
+        <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+      </button>
       <section aria-label="Pipeline architecture" className="mb-md">
         <div className="text-label-sm text-on-surface-variant font-mono">
           / PIPELINE ARCHITECTURE
