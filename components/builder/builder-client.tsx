@@ -54,6 +54,7 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
     case "on_receive":
     case "on_schedule":
     case "webhook":
+    case "web2_webhook":
     case "subscription":
     case "oracle":
       type = "trigger";
@@ -86,6 +87,7 @@ function nodeBorderColor(n: FlowNode | undefined): string {
     case "on_receive":
     case "on_schedule":
     case "webhook":
+    case "web2_webhook":
     case "subscription":
     case "oracle":
       return "#98cbff";
@@ -541,6 +543,8 @@ function nodeLabel(n: FlowNode | undefined): string {
       return `On Schedule (${n.config.interval})`;
     case "webhook":
       return `Webhook (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+    case "web2_webhook":
+      return `HTTP Webhook (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "subscription":
       return `Subscription (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "oracle":

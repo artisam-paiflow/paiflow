@@ -93,6 +93,14 @@ export const WebhookTrigger = z.object({
   }),
 });
 
+export const Web2WebhookTrigger = z.object({
+  id: z.string().min(1),
+  type: z.literal("web2_webhook"),
+  config: z.object({
+    asset: AssetSchema,
+  }),
+});
+
 export const SubscriptionTrigger = z.object({
   id: z.string().min(1),
   type: z.literal("subscription"),
@@ -210,6 +218,7 @@ export const FlowNodeSchema = z.discriminatedUnion("type", [
   OnReceiveTrigger,
   OnScheduleTrigger,
   WebhookTrigger,
+  Web2WebhookTrigger,
   SubscriptionTrigger,
   OracleTrigger,
   PayAction,
@@ -247,6 +256,7 @@ export type TriggerNode =
   | z.infer<typeof OnReceiveTrigger>
   | z.infer<typeof OnScheduleTrigger>
   | z.infer<typeof WebhookTrigger>
+  | z.infer<typeof Web2WebhookTrigger>
   | z.infer<typeof SubscriptionTrigger>
   | z.infer<typeof OracleTrigger>;
 export type ActionNode =
@@ -261,6 +271,7 @@ export function isTrigger(n: FlowNode): n is TriggerNode {
     n.type === "on_receive" ||
     n.type === "on_schedule" ||
     n.type === "webhook" ||
+    n.type === "web2_webhook" ||
     n.type === "subscription" ||
     n.type === "oracle"
   );

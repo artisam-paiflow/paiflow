@@ -152,6 +152,61 @@ impl Payer {
     pub fn recipient(env: Env) -> Address {
         env.storage().instance().get(&Key::Recipient).unwrap()
     }
+
+    /// Called by receive_and_forward triggers (webhook, oracle, subscription).
+    /// Funds are expected to already be held by this contract.
+    pub fn receive_and_forward(
+        env: Env,
+        _from: Address,
+        asset: Address,
+        amount: i128,
+        _next_steps: Vec<WorkflowTarget>,
+    ) {
+        bump_ttl(&env);
+        let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+        if asset != stored_asset {
+            panic_with_error!(&env, Error::Unauthorized);
+        }
+        if amount <= 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
+
+        let percentage_bps: u32 = env
+            .storage()
+            .instance()
+            .get(&Key::PercentageBps)
+            .unwrap_or(0);
+        let recipient: Address = env.storage().instance().get(&Key::Recipient).unwrap();
+        let payment = if percentage_bps > 0 {
+            (amount * i128::from(percentage_bps)) / 10_000
+        } else {
+            let configured_amount: i128 = env.storage().instance().get(&Key::Amount).unwrap();
+            if amount > configured_amount {
+                configured_amount
+            } else {
+                amount
+            }
+        };
+
+        token::Client::new(&env, &asset).transfer(
+            &env.current_contract_address(),
+            &recipient,
+            &payment,
+        );
+
+        let next_steps: Vec<WorkflowTarget> = env
+            .storage()
+            .instance()
+            .get(&Key::NextSteps)
+            .unwrap_or_else(|| Vec::new(&env));
+        for step in next_steps.iter() {
+            invoke_execute_step(&env, &step.address, &asset, &0);
+        }
+
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("pay"), recipient), (asset, payment));
+    }
 }
 
 fn bump_ttl(env: &Env) {
@@ -416,6 +471,141 @@ mod test {
 
         tok.transfer(&predecessor, &contract_id, &1_000);
         client.execute_step(&asset.address(), &1_000);
+
+        assert_eq!(tok.balance(&recipient), 100);
+        assert_eq!(tok.balance(&contract_id), 900);
+    }
+
+    #[test]
+    fn receive_and_forward_pays_configured_amount() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let predecessor = Address::generate(&env);
+        let recipient = Address::generate(&env);
+        sac.mint(&predecessor, &1_000);
+
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Payer,
+            (
+                admin.clone(),
+                asset.address(),
+                recipient.clone(),
+                100_i128,
+                0_u32,
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
+            ),
+        );
+        let client = PayerClient::new(&env, &contract_id);
+
+        tok.transfer(&predecessor, &contract_id, &1_000);
+        client.receive_and_forward(
+            &predecessor,
+            &asset.address(),
+            &1_000,
+            &Vec::<WorkflowTarget>::new(&env),
+        );
+
+        assert_eq!(tok.balance(&recipient), 100);
+        assert_eq!(tok.balance(&contract_id), 900);
+    }
+
+    #[test]
+    fn receive_and_forward_pays_percentage() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let predecessor = Address::generate(&env);
+        let recipient = Address::generate(&env);
+        sac.mint(&predecessor, &1_000);
+
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Payer,
+            (
+                admin.clone(),
+                asset.address(),
+                recipient.clone(),
+                0_i128,
+                5_000_u32,
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
+            ),
+        );
+        let client = PayerClient::new(&env, &contract_id);
+
+        tok.transfer(&predecessor, &contract_id, &1_000);
+        client.receive_and_forward(
+            &predecessor,
+            &asset.address(),
+            &1_000,
+            &Vec::<WorkflowTarget>::new(&env),
+        );
+
+        assert_eq!(tok.balance(&recipient), 500);
+        assert_eq!(tok.balance(&contract_id), 500);
+        assert_eq!(client.percentage_bps(), 5_000);
+    }
+
+    #[test]
+    fn receive_and_forward_forwards_to_next_steps() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let predecessor = Address::generate(&env);
+        let recipient = Address::generate(&env);
+        sac.mint(&predecessor, &1_000);
+
+        let parent = Address::generate(&env);
+        let next = env.register(Dummy, ());
+        let next_steps = vec![
+            &env,
+            WorkflowTarget {
+                address: next.clone(),
+                data: String::from_str(&env, ""),
+            },
+        ];
+
+        let contract_id = env.register(
+            Payer,
+            (
+                admin.clone(),
+                asset.address(),
+                recipient.clone(),
+                100_i128,
+                0_u32,
+                next_steps,
+                parent.clone(),
+            ),
+        );
+        let client = PayerClient::new(&env, &contract_id);
+
+        tok.transfer(&predecessor, &contract_id, &1_000);
+        client.receive_and_forward(
+            &predecessor,
+            &asset.address(),
+            &1_000,
+            &Vec::<WorkflowTarget>::new(&env),
+        );
 
         assert_eq!(tok.balance(&recipient), 100);
         assert_eq!(tok.balance(&contract_id), 900);

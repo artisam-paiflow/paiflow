@@ -36,6 +36,15 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
         : n.config.asset.kind === "native"
           ? "XLM"
           : n.config.asset.code;
+  } else if (n.type === "web2_webhook") {
+    icon = "http";
+    title = "HTTP Webhook";
+    detail =
+      n.config.asset.kind === "known"
+        ? n.config.asset.symbol
+        : n.config.asset.kind === "native"
+          ? "XLM"
+          : n.config.asset.code;
   } else if (n.type === "subscription") {
     icon = "repeat";
     title = "Subscription";

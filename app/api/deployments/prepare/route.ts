@@ -11,7 +11,7 @@ import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { preparePipelineDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
-import { stellarWasmHash } from "@/lib/env";
+import { stellarWasmHash, stellarRelayerAddress } from "@/lib/env";
 
 const PrepareSchema = z.object({
   flowId: z.string().uuid(),
@@ -52,7 +52,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const pipeline = flowToPipeline(v.graph);
+    const trigger = v.graph.nodes.find((n) => n.type === "web2_webhook");
+    const relayerAddress = stellarRelayerAddress();
+    if (trigger && !relayerAddress) {
+      throw new AppError(
+        "VALIDATION",
+        "STELLAR_RELAYER_ADDRESS is required to deploy an HTTP Webhook flow. Set it in your environment.",
+      );
+    }
+
+    const pipeline = flowToPipeline(v.graph, relayerAddress);
 
     // Ensure every pipeline node has a corresponding WASM template on-chain.
     const deployNodes = await Promise.all(

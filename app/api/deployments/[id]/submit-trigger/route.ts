@@ -26,10 +26,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       contractAddress: string;
       templateKind: string;
     }> | null;
-    const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
+    const isPipeline = pipeline != null && pipeline.length > 0;
+    const triggerKind = pipeline?.[0]?.templateKind;
+    const isWebhook = triggerKind === "WEBHOOK";
 
-    if (!isPipeline && d.flow.templateKind !== "SPLITTER") {
-      throw new AppError("VALIDATION", "Only splitter deployments support trigger submit");
+    if (!isPipeline && !isWebhook && d.flow.templateKind !== "SPLITTER") {
+      throw new AppError(
+        "VALIDATION",
+        "Only splitter or webhook deployments support trigger submit",
+      );
     }
 
     const result = await submitTriggerTx(body.signedXdr);

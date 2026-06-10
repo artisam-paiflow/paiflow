@@ -32,10 +32,16 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   }> | null;
   const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
 
+  const graph = FlowGraphSchema.safeParse(d.graphSnapshot);
+  const trigger = graph.success ? graph.data.nodes.find(isTrigger) : null;
+  const isWebhookLike = trigger?.type === "webhook" || trigger?.type === "web2_webhook";
+
   let uri: string;
   if (q.action === "trigger") {
-    if (!isPipeline && d.flow.templateKind !== "SPLITTER") {
-      return new Response("Trigger QR only available for splitter deployments", { status: 400 });
+    if (!isPipeline && !isWebhookLike && d.flow.templateKind !== "SPLITTER") {
+      return new Response("Trigger QR only available for splitter or webhook deployments", {
+        status: 400,
+      });
     }
     if (d.status !== "CONFIRMED") {
       return new Response("Contract not yet confirmed", { status: 400 });

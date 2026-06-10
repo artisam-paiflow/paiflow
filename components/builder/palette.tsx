@@ -60,6 +60,16 @@ const TEMPLATES: Template[] = [
   },
   {
     group: "Triggers",
+    label: "HTTP Webhook",
+    icon: "http",
+    make: () => ({
+      id: makeId("web2"),
+      type: "web2_webhook",
+      config: { asset: { kind: "known", symbol: "USDC" } },
+    }),
+  },
+  {
+    group: "Triggers",
     label: "Subscription",
     icon: "repeat",
     make: () => ({
