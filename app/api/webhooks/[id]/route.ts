@@ -8,10 +8,31 @@ import { submitWebhookExecuteTx } from "@/lib/stellar/trigger";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
 
-const PostSchema = z.object({
-  from: z.string().refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar address"),
-  amount: z.string().regex(/^\d+$/, "Must be a positive integer"),
-});
+const PostSchema = z
+  .object({
+    escrow: z.boolean().optional().default(false),
+    from: z.string().optional(),
+    amount: z.string().regex(/^\d+$/, "Must be a positive integer").optional(),
+    auth: z.array(z.string()).optional(),
+  })
+  .refine(
+    (data) => {
+      if (!data.escrow) {
+        return data.from ? StrKey.isValidEd25519PublicKey(data.from) : false;
+      }
+      return true;
+    },
+    { message: "Invalid or missing Stellar address", path: ["from"] },
+  )
+  .refine(
+    (data) => {
+      if (data.escrow) {
+        return true; // amount optional for escrow
+      }
+      return !!data.amount;
+    },
+    { message: "Amount is required for non-escrow triggers", path: ["amount"] },
+  );
 
 function timingSafeEqual(a: string, b: string): boolean {
   const MAX = 128;
@@ -59,13 +80,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       contractAddress: triggerNode.contractAddress,
       from: body.from,
       amount: body.amount,
+      auth: body.auth,
+      escrow: body.escrow,
     });
 
     if (result.status === "PENDING") {
       await audit({
         action: "DEPLOY_TRIGGER",
         userId: deployment.flow.ownerId,
-        metadata: { deploymentId: id, txHash: result.txHash, from: body.from, amount: body.amount },
+        metadata: {
+          deploymentId: id,
+          txHash: result.txHash,
+          from: body.from,
+          amount: body.amount,
+          escrow: body.escrow,
+        },
       });
       return NextResponse.json({
         data: { txHash: result.txHash, status: "PENDING" },

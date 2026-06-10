@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { FlowGraphSchema } from "@/lib/flows/schema";
+import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
 import TriggerClient from "./trigger-client";
 
 export const dynamic = "force-dynamic";
@@ -23,11 +23,16 @@ export default async function TriggerPage({
     templateKind: string;
   }> | null;
   const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
+  const triggerKind = pipeline?.[0]?.templateKind;
+  const isWebhook = triggerKind === "WEBHOOK";
 
-  if (!d || (!isPipeline && d.flow.templateKind !== "SPLITTER") || !d.contractAddress) notFound();
+  if (!d || (!isPipeline && !isWebhook && d.flow.templateKind !== "SPLITTER") || !d.contractAddress)
+    notFound();
 
   const graphResult = FlowGraphSchema.safeParse(d.graphSnapshot);
   const graph = graphResult.success ? graphResult.data : null;
+  const triggerNode = graph?.nodes.find(isTrigger);
+  const isWeb2Webhook = triggerNode?.type === "web2_webhook";
 
   return (
     <TriggerClient
@@ -36,6 +41,7 @@ export default async function TriggerPage({
       flowName={d.flow.name}
       network={d.network as "testnet" | "mainnet"}
       graph={graph}
+      isDeposit={isWeb2Webhook}
     />
   );
 }

@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
 import DeploymentView from "@/components/deploy/deployment-view";
-import { FlowGraphSchema } from "@/lib/flows/schema";
+import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
 import {
   isStellarNetwork,
   stellarExpertContractUrl,
@@ -74,8 +74,11 @@ export default async function DeploymentPage({
   }> | null;
   const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
 
+  const triggerNode = graph.nodes.find(isTrigger);
+  const isWebhookLike = triggerNode?.type === "webhook" || triggerNode?.type === "web2_webhook";
+
   const qrUrl =
-    d.contractAddress && (isPipeline || d.flow.templateKind === "SPLITTER")
+    d.contractAddress && (isPipeline || isWebhookLike || d.flow.templateKind === "SPLITTER")
       ? `/api/deployments/${d.id}/qr?action=trigger`
       : null;
 

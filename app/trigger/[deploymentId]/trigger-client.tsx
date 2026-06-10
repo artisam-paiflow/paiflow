@@ -12,12 +12,14 @@ export default function TriggerClient({
   flowName,
   network,
   graph,
+  isDeposit,
 }: {
   deploymentId: string;
   contractAddress: string;
   flowName: string;
   network: "testnet" | "mainnet";
   graph: FlowGraph | null;
+  isDeposit?: boolean;
 }) {
   const [amount, setAmount] = useState("");
   const [amountSet, setAmountSet] = useState(false);
@@ -52,7 +54,7 @@ export default function TriggerClient({
       <div className="space-y-md w-full max-w-sm">
         <div className="space-y-1 text-center">
           <p className="text-label-sm text-primary font-mono">
-            / TRIGGER · {network.toUpperCase()}
+            / {isDeposit ? "DEPOSIT" : "TRIGGER"} · {network.toUpperCase()}
           </p>
           <h1 className="font-display text-[32px] leading-[1.1] font-semibold tracking-[-0.02em]">
             {flowName}
@@ -118,6 +120,7 @@ export default function TriggerClient({
             deploymentId={deploymentId}
             network={network}
             amount={amountSet ? tokenAmountToStroops(amount) : ""}
+            isDeposit={isDeposit}
           />
         </div>
 

@@ -28,14 +28,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }> | null;
     const isPipeline = pipeline != null && pipeline.length > 0;
     const triggerKind = pipeline?.[0]?.templateKind;
+    const isWebhook = triggerKind === "WEBHOOK";
 
-    if (!isPipeline && d.flow.templateKind !== "SPLITTER") {
-      throw new AppError("VALIDATION", "Only splitter deployments support trigger submit");
-    }
-    if (isPipeline && triggerKind === "WEBHOOK") {
+    if (!isPipeline && !isWebhook && d.flow.templateKind !== "SPLITTER") {
       throw new AppError(
         "VALIDATION",
-        "Webhook deployments are triggered via the HTTP webhook endpoint, not this API. Use POST /api/webhooks/{deploymentId} instead.",
+        "Only splitter or webhook deployments support trigger submit",
       );
     }
 

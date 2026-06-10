@@ -3,7 +3,7 @@ import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import { prepareTriggerTx } from "@/lib/stellar/trigger";
+import { prepareTriggerTx, prepareWebhookDepositTx } from "@/lib/stellar/trigger";
 import { stellarPassphrase } from "@/lib/env";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 
@@ -32,26 +32,27 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }> | null;
     const isPipeline = pipeline != null && pipeline.length > 0;
     const triggerKind = pipeline?.[0]?.templateKind;
+    const isWebhook = triggerKind === "WEBHOOK";
 
-    if (!isPipeline && d.flow.templateKind !== "SPLITTER") {
-      throw new AppError("VALIDATION", "Only splitter deployments support trigger");
-    }
-    if (isPipeline && triggerKind === "WEBHOOK") {
-      throw new AppError(
-        "VALIDATION",
-        "Webhook deployments are triggered via the HTTP webhook endpoint, not this API. Use POST /api/webhooks/{deploymentId} instead.",
-      );
+    if (!isPipeline && !isWebhook && d.flow.templateKind !== "SPLITTER") {
+      throw new AppError("VALIDATION", "Only splitter or webhook deployments support trigger");
     }
     if (!d.contractAddress) {
       throw new AppError("VALIDATION", "Contract address not available");
     }
 
-    const { xdr } = await prepareTriggerTx({
-      contractAddress: d.contractAddress,
-      amount: body.amount,
-      fromAddress: body.userAddress,
-      isPipeline,
-    });
+    const { xdr } = isWebhook
+      ? await prepareWebhookDepositTx({
+          contractAddress: d.contractAddress,
+          amount: body.amount,
+          fromAddress: body.userAddress,
+        })
+      : await prepareTriggerTx({
+          contractAddress: d.contractAddress,
+          amount: body.amount,
+          fromAddress: body.userAddress,
+          isPipeline,
+        });
 
     return NextResponse.json({
       data: {
