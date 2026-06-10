@@ -145,19 +145,19 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
   const [hasAnimated, setHasAnimated] = useState(false);
-  const [initialized, setInitialized] = useState(false);
-
-  useEffect(() => {
-    localStorage.setItem("sidebarCollapsed", String(sidebarCollapsed));
-  }, [sidebarCollapsed]);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("sidebarCollapsed");
     if (stored === "true") {
       setSidebarCollapsed(true);
     }
-    setInitialized(true);
+    setReady(true);
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem("sidebarCollapsed", String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
 
   const graph: FlowGraph = useMemo(
     () => ({
@@ -433,7 +433,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       <div
         suppressHydrationWarning
         className={
-          initialized && hasAnimated
+          ready && hasAnimated
             ? "grid gap-0 transition-[grid-template-columns] duration-300 ease-in-out"
             : "grid gap-0"
         }
