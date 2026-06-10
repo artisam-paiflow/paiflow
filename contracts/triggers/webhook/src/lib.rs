@@ -114,18 +114,8 @@ impl WebhookTrigger {
             env.storage().instance().get(&Key::NextSteps).unwrap();
 
         for step in next_steps.iter() {
-            token::Client::new(&env, &asset).transfer(
-                &contract,
-                &step.address,
-                &send_amount,
-            );
-            invoke_receive_and_forward(
-                &env,
-                &step.address,
-                &contract,
-                &asset,
-                &send_amount,
-            );
+            token::Client::new(&env, &asset).transfer(&contract, &step.address, &send_amount);
+            invoke_receive_and_forward(&env, &step.address, &contract, &asset, &send_amount);
         }
 
         #[allow(deprecated)]
