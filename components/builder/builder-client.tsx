@@ -140,14 +140,19 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [chatCollapsed, setChatCollapsed] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("sidebarCollapsed") === "true";
+    }
+    return false;
+  });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem("sidebarCollapsed");
-    if (stored !== null) setSidebarCollapsed(stored === "true");
+    setMounted(true);
   }, []);
 
   useEffect(() => {
@@ -426,7 +431,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   return (
     <>
       <div
-        className="grid gap-0 transition-[grid-template-columns] duration-300 ease-in-out"
+        className={
+          mounted
+            ? "grid gap-0 transition-[grid-template-columns] duration-300 ease-in-out"
+            : "grid gap-0"
+        }
         style={{
           height: "calc(100vh - 4rem)",
           gridTemplateColumns: sidebarCollapsed ? "40px 1fr" : "260px 1fr",
