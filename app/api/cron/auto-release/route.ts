@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { log } from "@/lib/log";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { prepareReleaseByRelayerTx, submitReleaseByRelayerTx } from "@/lib/stellar/relayer";
+import { withRelayerLock } from "@/lib/stellar/client";
 
 export const dynamic = "force-dynamic";
 
@@ -38,12 +39,14 @@ export async function POST(req: NextRequest) {
 
         const contractAddress = node.contractAddress;
         try {
-          const { xdr, txHash } = await prepareReleaseByRelayerTx(contractAddress);
-          const submit = await submitReleaseByRelayerTx(xdr);
+          const submit = await withRelayerLock(async () => {
+            const { xdr } = await prepareReleaseByRelayerTx(contractAddress);
+            return submitReleaseByRelayerTx(xdr);
+          });
 
           if (submit.status === "SUCCESS") {
             log.info(
-              { deploymentId: d.id, contractAddress, txHash },
+              { deploymentId: d.id, contractAddress, txHash: submit.txHash },
               "Auto-released timelock contract",
             );
             results.push({ contractAddress, status: "released" });
