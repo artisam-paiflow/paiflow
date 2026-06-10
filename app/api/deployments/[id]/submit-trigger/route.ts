@@ -29,11 +29,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const isPipeline = pipeline != null && pipeline.length > 0;
     const triggerKind = pipeline?.[0]?.templateKind;
     const isWebhook = triggerKind === "WEBHOOK";
+    const isStreamer = d.flow.templateKind === "STREAMER";
 
-    if (!isPipeline && !isWebhook && d.flow.templateKind !== "SPLITTER") {
+    if (!isPipeline && !isWebhook && d.flow.templateKind !== "SPLITTER" && !isStreamer) {
       throw new AppError(
         "VALIDATION",
-        "Only splitter or webhook deployments support trigger submit",
+        "Only splitter, webhook, or streamer deployments support trigger submit",
       );
     }
 

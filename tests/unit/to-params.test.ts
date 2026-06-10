@@ -166,7 +166,7 @@ describe("flowToParams", () => {
             type: "pay",
             config: {
               recipient: ADDR_A,
-              amountStroops: "1000",
+              amountStroops: "3600000",
               asset: { kind: "native" },
               mode: "fixed",
               fullAmount: false,
@@ -537,7 +537,7 @@ describe("flowToPipeline", () => {
           type: "pay",
           config: {
             recipient: ADDR_A,
-            amountStroops: "1000",
+            amountStroops: "3600000",
             asset: { kind: "native" },
             mode: "fixed",
             fullAmount: false,
@@ -549,6 +549,41 @@ describe("flowToPipeline", () => {
     expect(pipeline).toHaveLength(1);
     expect(pipeline[0]!.templateKind).toBe("STREAMER");
     expect(pipeline[0]!.params.kind).toBe("streamer");
+  });
+
+  it("converts pay amount to per-second rate for on_schedule streamer", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "minute",
+            startsAt: "2030-01-01T00:00:00.000Z",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "60000",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(1);
+    const streamer = pipeline[0]!.params as {
+      kind: string;
+      ratePerSecondStroops: string;
+    };
+    expect(streamer.kind).toBe("streamer");
+    expect(streamer.ratePerSecondStroops).toBe("1000");
   });
 
   it("wires nextStepNodeIds from graph edges", () => {

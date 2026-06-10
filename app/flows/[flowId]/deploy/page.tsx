@@ -41,21 +41,14 @@ export default async function DeployReviewPage({
       const triggerNode = graph.data!.nodes.find((n) => n.type === "on_schedule") as
         | {
             type: "on_schedule";
-            config: { interval: string };
+            config: { intervalAmount?: number; intervalUnit?: string; interval?: string };
           }
         | undefined;
-      const intervalSeconds =
-        triggerNode?.config.interval === "minute"
-          ? 60
-          : triggerNode?.config.interval === "hour"
-            ? 3600
-            : 86400;
+      const intervalAmount = triggerNode?.config.intervalAmount ?? 1;
+      const intervalUnit =
+        triggerNode?.config.intervalUnit ?? triggerNode?.config.interval ?? "hour";
       const intervalLabel =
-        intervalSeconds === 60
-          ? "every minute"
-          : intervalSeconds === 3600
-            ? "every hour"
-            : "every day";
+        intervalAmount === 1 ? `every ${intervalUnit}` : `every ${intervalAmount} ${intervalUnit}s`;
       streamerPreview = {
         totalStroops: sp.totalStroops,
         durationSecs: sp.durationSecs,
