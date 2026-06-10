@@ -39,6 +39,8 @@ export function flowToEnglish(graph: FlowGraph): string {
       : `When this contract receives ${assetLabel(trigger.config.asset)}`;
   } else if (trigger.type === "webhook") {
     triggerText = `When webhook trigger fires for ${assetLabel(trigger.config.asset)}`;
+  } else if (trigger.type === "web2_webhook") {
+    triggerText = `When HTTP webhook fires for ${assetLabel(trigger.config.asset)}`;
   } else if (trigger.type === "subscription") {
     triggerText = `When subscription pulls ${formatStroops(trigger.config.amountPerPeriodStroops)} ${assetLabel(trigger.config.asset)}`;
   } else if (trigger.type === "oracle") {
@@ -97,7 +99,10 @@ export function flowToEnglish(graph: FlowGraph): string {
   const conditionAsset =
     trigger.type === "on_receive"
       ? trigger.config.asset
-      : trigger.type === "webhook" || trigger.type === "oracle" || trigger.type === "subscription"
+      : trigger.type === "webhook" ||
+          trigger.type === "web2_webhook" ||
+          trigger.type === "oracle" ||
+          trigger.type === "subscription"
         ? trigger.config.asset
         : action.type === "swap"
           ? action.config.assetIn

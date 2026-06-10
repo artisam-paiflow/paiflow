@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import crypto from "crypto";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -40,6 +41,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }> | null;
       const contractAddress = pipeline?.[0]?.contractAddress ?? result.contractAddress ?? null;
 
+      const graph = deployment.graphSnapshot as {
+        nodes: Array<{ type: string; config?: Record<string, unknown> }>;
+      } | null;
+      const hasWeb2Webhook = graph?.nodes.some((n) => n.type === "web2_webhook") ?? false;
+      const webhookSecret = hasWeb2Webhook
+        ? `whsec_${crypto.randomBytes(32).toString("hex")}`
+        : null;
+
       await db.deployment.update({
         where: { id },
         data: {
@@ -47,6 +56,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           deployTxHash: result.txHash,
           contractAddress,
           confirmedAt: new Date(),
+          ...(webhookSecret ? { webhookSecret } : {}),
         },
       });
       await audit({

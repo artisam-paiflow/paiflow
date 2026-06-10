@@ -16,6 +16,8 @@ function nodeLabel(n: FlowNode): string {
       return `On Schedule (${n.config.interval})`;
     case "webhook":
       return `Webhook (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+    case "web2_webhook":
+      return `HTTP Webhook (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "subscription":
       return `Subscription (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "oracle":
@@ -30,6 +32,8 @@ function nodeLabel(n: FlowNode): string {
       return `Yield (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "condition":
       return `Condition (${n.config.kind})`;
+    default:
+      return "Unknown";
   }
 }
 

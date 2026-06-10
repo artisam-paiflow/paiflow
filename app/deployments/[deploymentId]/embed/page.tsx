@@ -56,6 +56,7 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
         status={d.status}
         qrUrl={qrUrl}
         graph={graph}
+        webhookSecret={d.webhookSecret}
         initialEvents={d.events.map((e) => ({
           id: e.id,
           kind: e.kind,

@@ -9,6 +9,7 @@ type TriggerButtonProps = {
   deploymentId: string;
   network: "testnet" | "mainnet";
   amount: string;
+  isDeposit?: boolean;
 };
 
 function isMobile() {
@@ -67,7 +68,7 @@ function pollTxStatus(
   });
 }
 
-export function TriggerButton({ deploymentId, network, amount }: TriggerButtonProps) {
+export function TriggerButton({ deploymentId, network, amount, isDeposit }: TriggerButtonProps) {
   const [busy, setBusy] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [pendingWallet, setPendingWallet] = useState<string | null>(null);
@@ -262,6 +263,61 @@ export function TriggerButton({ deploymentId, network, amount }: TriggerButtonPr
     });
   }
 
+  async function submitTrigger(
+    address: string,
+    kit: {
+      getAddress: () => Promise<{ address: string }>;
+      signTransaction: (
+        xdr: string,
+        opts: { address?: string; networkPassphrase: string },
+      ) => Promise<{ signedTxXdr: string }>;
+    },
+    onAwaitingSignature?: () => void,
+  ) {
+    toast.info("Preparing transaction...");
+    const res = await fetch(`/api/deployments/${deploymentId}/trigger`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ amount, userAddress: address }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message ?? "Failed to prepare transaction");
+
+    // Prevent WalletConnect from auto-redirecting to a stale wallet choice
+    // (e.g. MetaMask) during signing, which causes an Android intent chooser.
+    try {
+      localStorage.removeItem("WALLETCONNECT_DEEPLINK_CHOICE");
+    } catch {
+      /* ignore */
+    }
+
+    onAwaitingSignature?.();
+    toast.info("Awaiting signature...");
+    const signed = await kit.signTransaction(data.data.xdr, {
+      address,
+      networkPassphrase: data.data.networkPassphrase,
+    });
+
+    toast.info("Submitting transaction...");
+    const submit = await fetch(`/api/deployments/${deploymentId}/submit-trigger`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
+    });
+    const subData = await submit.json();
+    if (!submit.ok) throw new Error(subData?.error?.message ?? "Submit failed");
+
+    const txHash = subData.data.txHash as string;
+    toast.info("Transaction submitted. Waiting for confirmation...");
+
+    const outcome = await pollTxStatus(deploymentId, txHash, abortRef.current!.signal);
+    if (outcome.status === "SUCCESS") {
+      toast.success(isDeposit ? "Deposited!" : "Distribution triggered!");
+    } else {
+      throw new Error(outcome.errorMessage ?? "Transaction failed on the network");
+    }
+  }
+
   useEffect(() => {
     const raw = sessionStorage.getItem("pinkraft_pending_wc");
     if (!raw) return;
@@ -365,65 +421,10 @@ export function TriggerButton({ deploymentId, network, amount }: TriggerButtonPr
     }
   }
 
-  async function submitTrigger(
-    address: string,
-    kit: {
-      getAddress: () => Promise<{ address: string }>;
-      signTransaction: (
-        xdr: string,
-        opts: { address?: string; networkPassphrase: string },
-      ) => Promise<{ signedTxXdr: string }>;
-    },
-    onAwaitingSignature?: () => void,
-  ) {
-    toast.info("Preparing transaction...");
-    const res = await fetch(`/api/deployments/${deploymentId}/trigger`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ amount, userAddress: address }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.error?.message ?? "Failed to prepare transaction");
-
-    // Prevent WalletConnect from auto-redirecting to a stale wallet choice
-    // (e.g. MetaMask) during signing, which causes an Android intent chooser.
-    try {
-      localStorage.removeItem("WALLETCONNECT_DEEPLINK_CHOICE");
-    } catch {
-      /* ignore */
-    }
-
-    onAwaitingSignature?.();
-    toast.info("Awaiting signature...");
-    const signed = await kit.signTransaction(data.data.xdr, {
-      address,
-      networkPassphrase: data.data.networkPassphrase,
-    });
-
-    toast.info("Submitting transaction...");
-    const submit = await fetch(`/api/deployments/${deploymentId}/submit-trigger`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
-    });
-    const subData = await submit.json();
-    if (!submit.ok) throw new Error(subData?.error?.message ?? "Submit failed");
-
-    const txHash = subData.data.txHash as string;
-    toast.info("Transaction submitted. Waiting for confirmation...");
-
-    const outcome = await pollTxStatus(deploymentId, txHash, abortRef.current!.signal);
-    if (outcome.status === "SUCCESS") {
-      toast.success("Distribution triggered!");
-    } else {
-      throw new Error(outcome.errorMessage ?? "Transaction failed on the network");
-    }
-  }
-
   async function onTrigger() {
     if (showPicker) return;
     if (!amount || !/^\d+$/.test(amount) || amount === "0") {
-      toast.error("Enter a valid XLM amount");
+      toast.error("Enter a valid amount");
       return;
     }
     abortRef.current?.abort();
@@ -437,7 +438,7 @@ export function TriggerButton({ deploymentId, network, amount }: TriggerButtonPr
       try {
         await runDesktopFlow();
       } catch (err) {
-        toast.error((err as Error).message ?? "Trigger failed");
+        toast.error((err as Error).message ?? (isDeposit ? "Deposit failed" : "Trigger failed"));
       } finally {
         setBusy(false);
       }
@@ -532,7 +533,7 @@ export function TriggerButton({ deploymentId, network, amount }: TriggerButtonPr
         ) : (
           <>
             <span className="material-symbols-outlined text-[16px]">send</span>
-            CONNECT WALLET &amp; TRIGGER
+            {isDeposit ? "CONNECT WALLET & DEPOSIT" : "CONNECT WALLET & TRIGGER"}
           </>
         )}
       </button>

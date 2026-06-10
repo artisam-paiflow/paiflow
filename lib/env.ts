@@ -78,9 +78,12 @@ const EnvSchema = z.object({
   STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
   STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
 
-  // Relayer used for auto-releasing timelock contracts. Optional; when unset
-  // the admin address is used as the relayer, disabling the relayer path.
+  // ---- Relayer ----
+  // Used for auto-releasing timelock contracts and for signing webhook
+  // trigger transactions. Optional; when unset the admin address is used
+  // as the relayer, disabling the relayer path.
   STELLAR_RELAYER_SECRET_KEY: optionalString,
+  STELLAR_RELAYER_ADDRESS: optionalString,
 
   CRON_SECRET: optionalString,
   SENTRY_DSN: optionalString,
@@ -208,11 +211,5 @@ export function stellarRelayerSecretKey(): string | undefined {
 }
 
 export function stellarRelayerAddress(): string | undefined {
-  const secret = env().STELLAR_RELAYER_SECRET_KEY;
-  if (!secret) return undefined;
-  try {
-    return Keypair.fromSecret(secret).publicKey();
-  } catch {
-    return undefined;
-  }
+  return env().STELLAR_RELAYER_ADDRESS;
 }

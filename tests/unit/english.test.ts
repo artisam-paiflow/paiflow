@@ -226,4 +226,28 @@ describe("flowToEnglish", () => {
     });
     expect(out).toContain("pay full incoming XLM");
   });
+
+  it("describes a web2_webhook → swap flow", () => {
+    const out = flowToEnglish({
+      nodes: [
+        {
+          id: "t",
+          type: "web2_webhook",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "swap",
+          config: {
+            assetIn: { kind: "native" },
+            assetOut: { kind: "known", symbol: "USDC" },
+            rateBps: 9500,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("When HTTP webhook fires for USDC");
+    expect(out).toContain("swap XLM to USDC at 95% rate");
+  });
 });

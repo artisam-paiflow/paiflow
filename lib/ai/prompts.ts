@@ -103,13 +103,19 @@ ABOUT BLOCKS (node types in Pink Raft):
   TRIGGER blocks — when something happens:
     - "When I receive payment" (on_receive) — fires when XLM/USDC is sent to the contract
     - "On a schedule" (on_schedule) — fires automatically every minute/hour/day
+    - "Webhook" (webhook) — relayer-authorized on-chain trigger for off-chain events
+    - "HTTP Webhook" (web2_webhook) — fires when an external system sends an HTTP POST to the deployment's webhook URL. Config: asset only (the app backend acts as relayer)
+    - "Subscription" (subscription) — recurring billing puller
+    - "Oracle" (oracle) — price-conditioned trigger
 
   ACTION blocks — what to do when triggered:
     - "Pay" — sends a fixed amount to one recipient
     - "Split" — distributes funds to multiple recipients by percentage
+    - "Swap" — fixed-rate token swap
+    - "Yield" — deposits into a vault or lending pool
 
   LOGIC blocks — add conditions:
-    - "Condition" — only proceed if a rule is met (e.g., amount > 100 XLM)
+    - "Condition" — only proceed if a rule is met (e.g., amount > 100 XLM, time after, multisig)
 
 ABOUT PERCENTAGES AND SHARES:
 Split shares are stored as BPS (basis points). 100% = 10000 BPS. 50% = 5000, 25% = 2500. Users can just say "50/50" or "60 percent to Alice" — you handle the conversion.

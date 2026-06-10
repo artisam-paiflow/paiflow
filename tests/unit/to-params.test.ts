@@ -617,4 +617,66 @@ describe("flowToPipeline", () => {
       recipient: ADDR_A,
     });
   });
+
+  it("maps web2_webhook to WEBHOOK with app relayer address", () => {
+    const RELAYER = "GAPPG3VDBPONOHRYQL6D7XIVZFDZDXCC2QE3CBTN2GDRBMOBMSAT6TQK";
+    const pipeline = flowToPipeline(
+      {
+        nodes: [
+          {
+            id: "t",
+            type: "web2_webhook",
+            config: { asset: { kind: "known", symbol: "USDC" } },
+          },
+          {
+            id: "a",
+            type: "swap",
+            config: {
+              assetIn: { kind: "native" },
+              assetOut: { kind: "known", symbol: "USDC" },
+              rateBps: 9500,
+            },
+          },
+        ],
+        edges: [{ id: "e", source: "t", target: "a" }],
+      },
+      RELAYER,
+    );
+    expect(pipeline).toHaveLength(2);
+    expect(pipeline[0]!.templateKind).toBe("WEBHOOK");
+    expect(pipeline[0]!.params.kind).toBe("webhook_trigger");
+    expect(pipeline[0]!.params).toMatchObject({
+      relayer: RELAYER,
+      asset: { kind: "known", symbol: "USDC" },
+      nextStepNodeIds: ["a"],
+    });
+    expect(pipeline[1]!.templateKind).toBe("SWAPPER");
+  });
+
+  it("uses placeholder relayer when web2_webhook is mapped without relayerAddress", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "web2_webhook",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "swap",
+          config: {
+            assetIn: { kind: "native" },
+            assetOut: { kind: "known", symbol: "USDC" },
+            rateBps: 9500,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(2);
+    expect(pipeline[0]!.templateKind).toBe("WEBHOOK");
+    const triggerParams = pipeline[0]!.params as { kind: string; relayer: string };
+    expect(triggerParams.kind).toBe("webhook_trigger");
+    expect(triggerParams.relayer).toBe("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWH2");
+  });
 });

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import DeploymentCanvas from "./deployment-canvas";
 import { LiveEvents, type Evt } from "./live-events";
 import type { FlowGraph } from "@/lib/flows/schema";
+import { isTrigger } from "@/lib/flows/schema";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import { POLL_EVENTS_INTERVAL_MS } from "@/lib/deployments/constants";
 
@@ -16,6 +17,7 @@ export default function DeploymentView({
   qrUrl,
   initialEvents,
   graph,
+  webhookSecret,
 }: {
   deploymentId: string;
   contractAddress: string | null;
@@ -24,6 +26,7 @@ export default function DeploymentView({
   qrUrl: string | null;
   initialEvents: Evt[];
   graph: FlowGraph | null;
+  webhookSecret: string | null;
 }) {
   const explorerUrl =
     contractAddress && network ? stellarExpertContractUrl(contractAddress, network) : null;
@@ -113,6 +116,9 @@ export default function DeploymentView({
     toast.success("Copied to clipboard.");
   }
 
+  const isWeb2Webhook = graph?.nodes.find(isTrigger)?.type === "web2_webhook";
+  const appUrl = typeof window !== "undefined" ? window.location.origin : "";
+
   return (
     <div className="mt-md space-y-md">
       {graph && (
@@ -130,66 +136,176 @@ export default function DeploymentView({
         <section className="glass-panel p-md rounded-xl">
           <div className="flex items-center justify-between">
             <h2 className="text-headline-sm text-on-surface">Trigger</h2>
-            <span className="border-secondary/30 bg-secondary/10 text-label-sm text-secondary inline-flex items-center gap-1.5 rounded border px-2 py-1 font-mono">
-              <span className="material-symbols-outlined text-[12px]">qr_code_2</span>
-              FREIGHTER
-            </span>
+            {isWeb2Webhook ? (
+              <span className="border-primary/30 bg-primary/10 text-label-sm text-primary inline-flex items-center gap-1.5 rounded border px-2 py-1 font-mono">
+                <span className="material-symbols-outlined text-[12px]">http</span>
+                HTTP WEBHOOK
+              </span>
+            ) : (
+              <span className="border-secondary/30 bg-secondary/10 text-label-sm text-secondary inline-flex items-center gap-1.5 rounded border px-2 py-1 font-mono">
+                <span className="material-symbols-outlined text-[12px]">qr_code_2</span>
+                FREIGHTER
+              </span>
+            )}
           </div>
           {contractAddress ? (
-            <>
-              <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
-                SCAN WITH FREIGHTER WALLET · SET AMOUNT IN TRIGGER PAGE.
-              </p>
-              <div className="mt-md gap-md grid grid-cols-[160px_1fr]">
-                <div className="flex min-h-[160px] items-center justify-center rounded-lg bg-white p-3">
-                  {qrUrl ? (
-                    <img src={qrUrl} width={140} height={140} alt="QR code" />
-                  ) : (
-                    <span className="font-mono text-xs text-zinc-400">NO QR YET</span>
-                  )}
-                </div>
-                <div className="text-body-md space-y-3">
-                  <div>
-                    <div className="text-label-sm text-on-surface-variant font-mono uppercase">
-                      Contract address
-                    </div>
-                    <div className="mt-1 flex items-start gap-2">
-                      {explorerUrl ? (
-                        <a
-                          href={explorerUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-on-surface hover:text-primary inline-flex items-center gap-1 text-left font-mono text-[12px] break-all transition-colors"
-                        >
-                          <span className="break-all">{contractAddress}</span>
-                          <span className="material-symbols-outlined shrink-0 text-[12px]">
-                            open_in_new
-                          </span>
-                        </a>
-                      ) : (
-                        <span className="text-on-surface font-mono text-[12px] break-all">
-                          {contractAddress}
-                        </span>
-                      )}
-                      <button
-                        onClick={() => copy(contractAddress)}
-                        aria-label="Copy contract address"
-                        title="Copy contract address"
-                        className="text-on-surface-variant hover:text-primary shrink-0 transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-[14px]">content_copy</span>
-                      </button>
-                    </div>
+            isWeb2Webhook ? (
+              <>
+                <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
+                  SCAN WITH FREIGHTER WALLET · SET AMOUNT IN TRIGGER PAGE.
+                </p>
+                <div className="mt-md gap-md grid grid-cols-[160px_1fr]">
+                  <div className="flex min-h-[160px] items-center justify-center rounded-lg bg-white p-3">
+                    {qrUrl ? (
+                      <img src={qrUrl} width={140} height={140} alt="QR code" />
+                    ) : (
+                      <span className="font-mono text-xs text-zinc-400">NO QR YET</span>
+                    )}
                   </div>
-                  <a
-                    href={`/trigger/${deploymentId}`}
-                    className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 inline-block rounded border px-3 py-1.5 font-mono text-xs transition-colors"
-                  >
-                    OPEN TRIGGER PAGE
-                  </a>
+                  <div className="text-body-md space-y-3">
+                    <div>
+                      <div className="text-label-sm text-on-surface-variant font-mono uppercase">
+                        Contract address
+                      </div>
+                      <div className="mt-1 flex items-start gap-2">
+                        {explorerUrl ? (
+                          <a
+                            href={explorerUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-on-surface hover:text-primary inline-flex items-center gap-1 text-left font-mono text-[12px] break-all transition-colors"
+                          >
+                            <span className="break-all">{contractAddress}</span>
+                            <span className="material-symbols-outlined shrink-0 text-[12px]">
+                              open_in_new
+                            </span>
+                          </a>
+                        ) : (
+                          <span className="text-on-surface font-mono text-[12px] break-all">
+                            {contractAddress}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => copy(contractAddress)}
+                          aria-label="Copy contract address"
+                          title="Copy contract address"
+                          className="text-on-surface-variant hover:text-primary shrink-0 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">
+                            content_copy
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-label-sm text-on-surface-variant font-mono uppercase">
+                        Webhook URL
+                      </div>
+                      <div className="mt-1 flex items-start gap-2">
+                        <span className="text-on-surface font-mono text-[12px] break-all">
+                          {appUrl}/api/webhooks/{deploymentId}
+                        </span>
+                        <button
+                          onClick={() => copy(`${appUrl}/api/webhooks/${deploymentId}`)}
+                          aria-label="Copy webhook URL"
+                          title="Copy webhook URL"
+                          className="text-on-surface-variant hover:text-primary shrink-0 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">
+                            content_copy
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                    {webhookSecret && (
+                      <div>
+                        <div className="text-label-sm text-on-surface-variant font-mono uppercase">
+                          Secret token
+                        </div>
+                        <div className="mt-1 flex items-start gap-2">
+                          <span className="text-on-surface font-mono text-[12px] break-all">
+                            {webhookSecret}
+                          </span>
+                          <button
+                            onClick={() => copy(webhookSecret)}
+                            aria-label="Copy webhook secret"
+                            title="Copy webhook secret"
+                            className="text-on-surface-variant hover:text-primary shrink-0 transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">
+                              content_copy
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <a
+                      href={`/trigger/${deploymentId}`}
+                      className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 inline-block rounded border px-3 py-1.5 font-mono text-xs transition-colors"
+                    >
+                      OPEN TRIGGER PAGE
+                    </a>
+                  </div>
                 </div>
-              </div>
-            </>
+              </>
+            ) : (
+              <>
+                <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
+                  SCAN WITH FREIGHTER WALLET · SET AMOUNT IN TRIGGER PAGE.
+                </p>
+                <div className="mt-md gap-md grid grid-cols-[160px_1fr]">
+                  <div className="flex min-h-[160px] items-center justify-center rounded-lg bg-white p-3">
+                    {qrUrl ? (
+                      <img src={qrUrl} width={140} height={140} alt="QR code" />
+                    ) : (
+                      <span className="font-mono text-xs text-zinc-400">NO QR YET</span>
+                    )}
+                  </div>
+                  <div className="text-body-md space-y-3">
+                    <div>
+                      <div className="text-label-sm text-on-surface-variant font-mono uppercase">
+                        Contract address
+                      </div>
+                      <div className="mt-1 flex items-start gap-2">
+                        {explorerUrl ? (
+                          <a
+                            href={explorerUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-on-surface hover:text-primary inline-flex items-center gap-1 text-left font-mono text-[12px] break-all transition-colors"
+                          >
+                            <span className="break-all">{contractAddress}</span>
+                            <span className="material-symbols-outlined shrink-0 text-[12px]">
+                              open_in_new
+                            </span>
+                          </a>
+                        ) : (
+                          <span className="text-on-surface font-mono text-[12px] break-all">
+                            {contractAddress}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => copy(contractAddress)}
+                          aria-label="Copy contract address"
+                          title="Copy contract address"
+                          className="text-on-surface-variant hover:text-primary shrink-0 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">
+                            content_copy
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                    <a
+                      href={`/trigger/${deploymentId}`}
+                      className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 inline-block rounded border px-3 py-1.5 font-mono text-xs transition-colors"
+                    >
+                      OPEN TRIGGER PAGE
+                    </a>
+                  </div>
+                </div>
+              </>
+            )
           ) : (
             <div className="mt-md text-label-sm text-on-surface-variant flex items-center gap-2 font-mono">
               <span className="status-dot-deploy h-1.5 w-1.5" />

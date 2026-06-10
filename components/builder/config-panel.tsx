@@ -569,6 +569,21 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
         </>
       )}
 
+      {node.type === "web2_webhook" && (
+        <>
+          <AssetField
+            asset={node.config.asset}
+            onChange={(asset) =>
+              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
+            }
+          />
+          <div className="rounded border border-zinc-800 bg-zinc-900/50 p-2 text-xs text-zinc-400">
+            The app backend will act as the relayer. After deployment, you will receive a webhook
+            URL and secret token.
+          </div>
+        </>
+      )}
+
       {node.type === "subscription" && (
         <>
           <AssetField
