@@ -204,8 +204,8 @@ const ROUTER_REGISTRY: EventRegistry = {
     kind: EventKind.PAYOUT,
     decode: (topics, value) => {
       const tookPathA = topics[1] ?? null;
-      const amount = value ?? null;
-      return tookPathA && amount !== null ? { tookPathA, amount } : null;
+      const amountOut = value ?? null;
+      return tookPathA && amountOut !== null ? { tookPathA, amountOut } : null;
     },
   },
 };

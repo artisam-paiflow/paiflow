@@ -85,9 +85,7 @@ function EventSummary({ evt }: { evt: Evt }) {
           <div className="text-body-sm text-on-surface">
             Oracle executed: <span className="font-medium">{String(price)}</span> price,{" "}
             <span className="font-medium">{amount} XLM</span> from{" "}
-            <span className="font-mono text-[11px]">
-              {from ? shortAddrExtraShort(String(from)) : "—"}
-            </span>
+            <span className="font-mono text-[11px]">{from ?? "—"}</span>
           </div>
         );
       }
@@ -97,8 +95,7 @@ function EventSummary({ evt }: { evt: Evt }) {
           {from && (
             <>
               {" "}
-              from{" "}
-              <span className="font-mono text-[11px]">{shortAddrExtraShort(String(from))}</span>
+              from <span className="font-mono text-[11px]">{from}</span>
             </>
           )}
         </div>
@@ -107,14 +104,13 @@ function EventSummary({ evt }: { evt: Evt }) {
     case "PAYOUT": {
       const from = d?.from ? shortAddrExtraShort(String(d.from)) : null;
       const recipients = d?.recipients as Recipient[] | undefined;
-      const to = d?.tookPathA ? shortAddrExtraShort(String(d.tookPathA)) : null;
       const admin = d?.admin ? shortAddrExtraShort(String(d.admin)) : null;
       const assetIn = d?.assetIn;
       const assetOut = d?.assetOut;
       const amountIn = typeof d?.amountIn === "string" ? formatAmount(d.amountIn) : null;
       const amountOut = typeof d?.amountOut === "string" ? formatAmount(d.amountOut) : null;
 
-      if (to) {
+      if (d?.tookPathA) {
         return (
           <div className="text-body-sm text-on-surface">
             Routed <span className="font-medium">{amountOut ?? "?"} XLM</span> via path A
@@ -146,15 +142,13 @@ function EventSummary({ evt }: { evt: Evt }) {
         const more = recipients.length > 3 ? ` +${recipients.length - 3} more` : "";
         return (
           <div className="text-body-sm text-on-surface">
-            Paid out{from ? ` from ${shortAddrExtraShort(String(from))}` : ""}: {parts.join(", ")}
+            Paid out{from ? ` from ${from}` : ""}: {parts.join(", ")}
             {more}
           </div>
         );
       }
       return (
-        <div className="text-body-sm text-on-surface">
-          Payout{from ? ` from ${shortAddrExtraShort(String(from))}` : ""}
-        </div>
+        <div className="text-body-sm text-on-surface">Payout{from ? ` from ${from}` : ""}</div>
       );
     }
     case "CLAIM": {
