@@ -247,6 +247,7 @@ function EventDetails({ evt }: { evt: Evt }) {
     case "PAYOUT": {
       const from = d?.from;
       const admin = d?.admin;
+      const contract = d?.contract;
       const asset = d?.asset;
       const amount = d?.amount ?? d?.amountOut ?? d?.balance ?? d?.payment;
       const assetIn = d?.assetIn;
@@ -366,6 +367,12 @@ function EventDetails({ evt }: { evt: Evt }) {
                 Released <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
                 to admin <AddressValue addr={admin} />
               </>
+            ) : contract ? (
+              <>
+                Forwarded{" "}
+                <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span> from
+                contract <AddressValue addr={contract} />
+              </>
             ) : from ? (
               <>
                 Paid out <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
@@ -386,6 +393,11 @@ function EventDetails({ evt }: { evt: Evt }) {
             {isNonEmptyString(admin) && (
               <DetailField label="Admin">
                 <AddressValue addr={admin} />
+              </DetailField>
+            )}
+            {isNonEmptyString(contract) && (
+              <DetailField label="Contract">
+                <AddressValue addr={contract} />
               </DetailField>
             )}
             <DetailField label="Amount">{formatAmountWithAsset(amount, asset)}</DetailField>

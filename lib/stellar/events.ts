@@ -36,12 +36,20 @@ const SPLITTER_REGISTRY: EventRegistry = {
   distrib: {
     kind: EventKind.PAYOUT,
     decode: (topics, value) => {
-      if (!value || typeof value !== "object") return null;
-      const v = value as { 0?: ScValNative; 1?: ScValNative };
-      const from = topics[1] ?? null;
-      const asset = v[0] ?? null;
-      const amount = v[1] ?? null;
-      return from && asset && amount ? { from, asset, amount } : null;
+      const topic1 = topics[1] ?? null;
+      // Two shapes are emitted:
+      // 1. distribute(): ("distrib", from), (asset, amount) — value is an object.
+      // 2. execute_step()/receive_and_forward(): ("distrib", asset), amount — value is a scalar.
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        const v = value as { 0?: ScValNative; 1?: ScValNative };
+        const from = topic1;
+        const asset = v[0] ?? null;
+        const amount = v[1] ?? null;
+        return from && asset && amount ? { from, asset, amount } : null;
+      }
+      const asset = topic1;
+      const amount = value ?? null;
+      return asset && amount !== null ? { asset, amount } : null;
     },
   },
   payout: {
@@ -67,6 +75,14 @@ const SPLITTER_REGISTRY: EventRegistry = {
 };
 
 const STREAMER_REGISTRY: EventRegistry = {
+  receive: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const asset = topics[1] ?? null;
+      const amount = value ?? null;
+      return asset && amount !== null ? { asset, amount } : null;
+    },
+  },
   claim: {
     kind: EventKind.CLAIM,
     decode: (topics, value) => {
@@ -112,6 +128,13 @@ const PAYER_REGISTRY: EventRegistry = {
       const asset = v[0] ?? null;
       const payment = v[1] ?? null;
       return recipient && asset && payment ? { recipient, asset, payment } : null;
+    },
+  },
+  cancel: {
+    kind: EventKind.CANCEL,
+    decode: (_topics, value) => {
+      const balance = value ?? null;
+      return balance !== null ? { balance } : null;
     },
   },
 };
@@ -170,6 +193,14 @@ const WEBHOOK_REGISTRY: EventRegistry = {
       const from = topics[1] ?? null;
       const amount = value ?? null;
       return from && amount !== null ? { from, amount } : null;
+    },
+  },
+  escrow: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      const contract = topics[1] ?? null;
+      const amount = value ?? null;
+      return contract && amount !== null ? { contract, amount } : null;
     },
   },
 };
