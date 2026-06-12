@@ -170,6 +170,7 @@ export default async function DeploymentPage({
           webhookSecret={d.webhookSecret}
           initialEvents={d.events.map((e) => ({
             id: e.id,
+            eventId: e.eventId,
             kind: e.kind,
             ledger: e.ledger,
             txHash: e.txHash,

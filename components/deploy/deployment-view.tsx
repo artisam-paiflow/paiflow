@@ -68,14 +68,19 @@ export default function DeploymentView({
           let addedPulses = 0;
           for (const data of newEvents) {
             const isDuplicate = merged.some(
-              (p) => p.txHash === data.txHash && p.kind === data.kind,
+              (p) =>
+                (p.eventId && data.eventId && p.eventId === data.eventId) ||
+                (p.txHash === data.txHash && p.kind === data.kind),
             );
             if (!isDuplicate) {
               merged.unshift({ ...data, _isNew: true });
               setTimeout(() => {
                 setEvents((curr) =>
                   curr.map((e) =>
-                    e.txHash === data.txHash && e.kind === data.kind ? { ...e, _isNew: false } : e,
+                    (e.eventId && data.eventId && e.eventId === data.eventId) ||
+                    (e.txHash === data.txHash && e.kind === data.kind)
+                      ? { ...e, _isNew: false }
+                      : e,
                   ),
                 );
               }, 250);

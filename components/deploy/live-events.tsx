@@ -7,6 +7,7 @@ import { stellarExpertTxUrl, type StellarNetwork } from "@/lib/stellar/explorer"
 
 export type Evt = {
   id: string;
+  eventId?: string;
   kind: string;
   ledger: number;
   txHash: string;
@@ -57,6 +58,38 @@ const TOTAL_BPS = 10000n;
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
+}
+
+function getEventTopic(evt: Evt): string | null {
+  const payload = evt.payload as { topics?: unknown[] } | null;
+  if (!payload || !Array.isArray(payload.topics)) return null;
+  const first = payload.topics[0];
+  return typeof first === "string" ? first : null;
+}
+
+function hasDecodedData(d: Record<string, unknown> | null): boolean {
+  if (!d) return false;
+  return Object.values(d).some((v) => v !== undefined && v !== null);
+}
+
+function UndecodedFallback({ evt }: { evt: Evt }) {
+  const topic = getEventTopic(evt);
+  return (
+    <div className="space-y-2">
+      <div className="text-body-sm text-on-surface">
+        {topic ? (
+          <>
+            Event <span className="font-mono text-[11px]">{topic}</span>
+          </>
+        ) : (
+          "Event detected"
+        )}
+      </div>
+      <div className="text-label-xs text-on-surface-variant font-mono uppercase">
+        Could not decode details
+      </div>
+    </div>
+  );
 }
 
 function normalizeRecipients(value: unknown): Recipient[] {
@@ -188,6 +221,10 @@ function RecipientList({
 
 function EventDetails({ evt }: { evt: Evt }) {
   const d = evt.decodedData as Record<string, unknown> | null;
+
+  if (!hasDecodedData(d)) {
+    return <UndecodedFallback evt={evt} />;
+  }
 
   switch (evt.kind) {
     case "RECEIVE": {

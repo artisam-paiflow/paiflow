@@ -32,6 +32,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     polled: written,
     events: latestEvents.map((e) => ({
       id: e.id,
+      eventId: e.eventId,
       kind: e.kind,
       ledger: e.ledger,
       txHash: e.txHash,

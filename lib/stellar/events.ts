@@ -340,25 +340,20 @@ function decodeEventByKind(
 
 function classifyEvent(topics: EventTopics): EventKind {
   const first = typeof topics[0] === "string" ? (topics[0] as string).toLowerCase() : "";
-  if (
-    first.includes("distrib") ||
-    first.includes("payout") ||
-    first.includes("transfer") ||
-    first.includes("pay") ||
-    first.includes("swap") ||
-    first.includes("route") ||
-    first.includes("release")
-  )
-    return EventKind.PAYOUT;
-  if (
-    first.includes("receive") ||
-    first.includes("deposit") ||
-    first.includes("topup") ||
-    first.includes("charge") ||
-    first.includes("execute")
-  )
-    return EventKind.RECEIVE;
-  if (first.includes("claim")) return EventKind.CLAIM;
+  const payoutTopics = new Set([
+    "distrib",
+    "payout",
+    "transfer",
+    "pay",
+    "swap",
+    "route",
+    "release",
+    "escrow",
+  ]);
+  const receiveTopics = new Set(["receive", "deposit", "topup", "charge", "execute"]);
+  if (payoutTopics.has(first)) return EventKind.PAYOUT;
+  if (receiveTopics.has(first)) return EventKind.RECEIVE;
+  if (first === "claim") return EventKind.CLAIM;
   return EventKind.STATUS_CHANGE;
 }
 
@@ -431,6 +426,7 @@ async function pollEventsWithStartLedger(
       await db.contractEvent.create({
         data: {
           deploymentId,
+          eventId: ev.id,
           kind,
           ledger: ev.ledger,
           txHash: ev.txHash,
@@ -447,6 +443,7 @@ async function pollEventsWithStartLedger(
             eventChannel(deploymentId),
             JSON.stringify(
               convertBigInts({
+                eventId: ev.id,
                 kind,
                 ledger: ev.ledger,
                 txHash: ev.txHash,

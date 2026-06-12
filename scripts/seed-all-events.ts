@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { config } from "dotenv";
 import { PrismaClient, EventKind, TemplateKind, type Prisma } from "@prisma/client";
@@ -247,6 +248,7 @@ function makeEvents(kind: TemplateKind, deploymentId: string) {
   const now = Date.now();
   const base = (ledger: number, minutesAgo: number) => ({
     deploymentId,
+    eventId: randomUUID(),
     ledger,
     txHash: txHash(),
     payload: { topics: [], value: null },
