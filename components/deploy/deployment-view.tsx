@@ -319,7 +319,12 @@ export default function DeploymentView({
           )}
         </section>
 
-        <LiveEvents events={events} network={network} connectionStatus={connectionStatus} />
+        <LiveEvents
+          events={events}
+          network={network}
+          connectionStatus={connectionStatus}
+          graph={graph}
+        />
       </div>
     </div>
   );

@@ -123,6 +123,21 @@ impl WebhookTrigger {
             .publish((symbol_short!("escrow"), contract), send_amount);
     }
 
+    /// Deposit funds into this contract so they can be released later via `execute_escrow`.
+    pub fn deposit(env: Env, from: Address, amount: i128) {
+        from.require_auth();
+        if amount <= 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
+
+        let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+        token::Client::new(&env, &asset).transfer(&from, env.current_contract_address(), &amount);
+
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("deposit"), from), amount);
+    }
+
     pub fn next_steps(env: Env) -> Vec<WorkflowTarget> {
         env.storage().instance().get(&Key::NextSteps).unwrap()
     }
@@ -318,5 +333,45 @@ mod test {
 
         // Contract has no funds — should fail with InsufficientBalance
         client.execute_escrow(&0);
+    }
+
+    #[test]
+    fn deposit_holds_funds_and_emits_event() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let relayer = Address::generate(&env);
+        let user = Address::generate(&env);
+        sac.mint(&user, &1_000);
+
+        let next = env.register(Dummy, ());
+        let next_steps = vec![
+            &env,
+            WorkflowTarget {
+                address: next.clone(),
+                data: String::from_str(&env, ""),
+            },
+        ];
+
+        let contract_id = env.register(
+            WebhookTrigger,
+            (admin, asset.address(), relayer.clone(), next_steps),
+        );
+        let client = WebhookTriggerClient::new(&env, &contract_id);
+
+        client.deposit(&user, &300);
+
+        assert_eq!(tok.balance(&user), 700);
+        assert_eq!(tok.balance(&contract_id), 300);
+
+        // Later the relayer can release the escrowed funds
+        client.execute_escrow(&0);
+        assert_eq!(tok.balance(&contract_id), 0);
+        assert_eq!(tok.balance(&next), 300);
     }
 }

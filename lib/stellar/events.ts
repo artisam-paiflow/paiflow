@@ -6,6 +6,8 @@ import { sorobanRpc } from "./client";
 import { db } from "@/lib/db";
 import { redis, eventChannel } from "@/lib/redis";
 import { log } from "@/lib/log";
+import { assetContractId } from "@/lib/stellar/assets";
+import { assetLabel, type FlowGraph } from "@/lib/flows/schema";
 
 // Paranoia buffer: when polling events for the first time we start a few
 // ledgers before the deployment transaction to avoid missing events emitted
@@ -187,6 +189,14 @@ const DEPOSIT_TRIGGER_REGISTRY: EventRegistry = {
 };
 
 const WEBHOOK_REGISTRY: EventRegistry = {
+  deposit: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const from = topics[1] ?? null;
+      const amount = value ?? null;
+      return from && amount !== null ? { from, amount } : null;
+    },
+  },
   execute: {
     kind: EventKind.RECEIVE,
     decode: (topics, value) => {
@@ -459,11 +469,58 @@ function convertBigInts<T>(value: T): T {
   return value;
 }
 
+function extractAssetsFromGraph(
+  graph: FlowGraph,
+): Array<{ kind: string; symbol?: string; code?: string; issuer?: string }> {
+  const assets: Array<{ kind: string; symbol?: string; code?: string; issuer?: string }> = [];
+  for (const node of graph.nodes) {
+    if (!("config" in node)) continue;
+    const config = node.config as Record<string, unknown>;
+    if (config.asset) assets.push(config.asset as { kind: string });
+    if (config.assetIn) assets.push(config.assetIn as { kind: string });
+    if (config.assetOut) assets.push(config.assetOut as { kind: string });
+  }
+  return assets;
+}
+
+function buildAssetSymbolMap(graph: FlowGraph | null): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!graph) return map;
+
+  for (const asset of extractAssetsFromGraph(graph)) {
+    try {
+      const id = assetContractId(asset as Parameters<typeof assetContractId>[0]);
+      const symbol = assetLabel(asset as Parameters<typeof assetLabel>[0]);
+      map.set(id, symbol);
+    } catch {
+      // Skip assets that cannot be resolved (e.g., unknown symbol on this network).
+    }
+  }
+  return map;
+}
+
+function resolveAssetSymbols(
+  decodedData: DecodedData,
+  symbolMap: Map<string, string>,
+): DecodedData {
+  if (!decodedData) return null;
+  const next: Record<string, ScValNative> = { ...decodedData };
+  for (const key of ["asset", "assetIn", "assetOut"]) {
+    const value = next[key];
+    if (typeof value === "string") {
+      const symbol = symbolMap.get(value);
+      if (symbol) next[key] = symbol;
+    }
+  }
+  return next;
+}
+
 async function pollEventsWithStartLedger(
   deploymentId: string,
   contractAddress: string,
   templateKind: TemplateKind,
   startLedger: number,
+  symbolMap: Map<string, string>,
 ): Promise<{ written: number; maxLedger: number }> {
   const server = sorobanRpc();
   let resp: rpc.Api.GetEventsResponse;
@@ -500,8 +557,9 @@ async function pollEventsWithStartLedger(
       }
     })();
     const { kind, decodedData } = decodeEventByKind(topics, value, templateKind);
+    const resolvedData = resolveAssetSymbols(decodedData, symbolMap);
     const safePayload = convertBigInts({ topics, value }) as object;
-    const safeDecodedData = convertBigInts(decodedData) as Prisma.InputJsonValue | null;
+    const safeDecodedData = convertBigInts(resolvedData) as Prisma.InputJsonValue | null;
 
     try {
       await db.contractEvent.create({
@@ -529,7 +587,7 @@ async function pollEventsWithStartLedger(
                 ledger: ev.ledger,
                 txHash: ev.txHash,
                 payload: { topics, value },
-                decodedData,
+                decodedData: resolvedData,
                 occurredAt: ev.ledgerClosedAt,
               }),
             ),
@@ -547,6 +605,12 @@ async function pollEventsWithStartLedger(
   return { written, maxLedger };
 }
 
+type PipelineNode = {
+  nodeId: string;
+  contractAddress: string;
+  templateKind: TemplateKind;
+};
+
 export async function pollEventsFor(deploymentId: string): Promise<number> {
   const deployment = await db.deployment.findUnique({
     where: { id: deploymentId },
@@ -557,56 +621,81 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
   });
   if (!deployment?.contractAddress || deployment.status !== "CONFIRMED") return 0;
 
-  const templateKind = deployment.flow?.templateKind;
-  if (!templateKind) {
+  const flowTemplateKind = deployment.flow?.templateKind;
+  if (!flowTemplateKind) {
     log.warn({ deploymentId }, "pollEventsFor: flow templateKind not found, skipping");
     return 0;
   }
 
-  if (deployment.cursor) {
-    const startLedger = deployment.cursor.lastLedger + 1;
-    const result = await pollEventsWithStartLedger(
-      deploymentId,
-      deployment.contractAddress,
-      templateKind,
-      startLedger,
-    );
-    if (result.maxLedger > startLedger - 1) {
-      await db.eventCursor.upsert({
-        where: { deploymentId },
-        update: { lastLedger: result.maxLedger },
-        create: { deploymentId, lastLedger: result.maxLedger },
-      });
+  const symbolMap = buildAssetSymbolMap(deployment.graphSnapshot as FlowGraph | null);
+
+  const contracts: PipelineNode[] = [];
+  const seen = new Set<string>();
+
+  contracts.push({
+    nodeId: "trigger",
+    contractAddress: deployment.contractAddress,
+    templateKind: flowTemplateKind,
+  });
+  seen.add(deployment.contractAddress);
+
+  const pipeline = deployment.pipelineSnapshot as PipelineNode[] | null;
+  if (Array.isArray(pipeline)) {
+    for (const node of pipeline) {
+      if (node?.contractAddress && node?.templateKind && !seen.has(node.contractAddress)) {
+        contracts.push(node);
+        seen.add(node.contractAddress);
+      }
     }
-    return result.written;
   }
 
-  if (deployment.deployTxHash) {
+  if (contracts.length === 0) {
+    log.warn({ deploymentId }, "pollEventsFor: no contracts to poll, skipping");
+    return 0;
+  }
+
+  let startLedger: number;
+  let emptySetSentinel: number;
+
+  if (deployment.cursor) {
+    startLedger = deployment.cursor.lastLedger + 1;
+    emptySetSentinel = startLedger - 1;
+  } else if (deployment.deployTxHash) {
     try {
       const deployLedger = await getDeploymentLedger(deployment.deployTxHash);
-      const startLedger = Math.max(deployLedger - FIRST_POLL_LEDGER_BUFFER, 0);
-      const result = await pollEventsWithStartLedger(
-        deploymentId,
-        deployment.contractAddress,
-        templateKind,
-        startLedger,
-      );
-      if (result.maxLedger > 0) {
-        await db.eventCursor.upsert({
-          where: { deploymentId },
-          update: { lastLedger: result.maxLedger },
-          create: { deploymentId, lastLedger: result.maxLedger },
-        });
-      }
-      return result.written;
+      startLedger = Math.max(deployLedger - FIRST_POLL_LEDGER_BUFFER, 0);
+      emptySetSentinel = 0;
     } catch (err) {
-      // TODO: add exponential backoff / retry counter so a stuck deploy
-      // doesn't hammer the RPC on every cron tick.
       log.warn({ err, deploymentId }, "getDeploymentLedger failed, skipping");
       return 0;
     }
+  } else {
+    log.warn({ deploymentId }, "pollEventsFor: no cursor and no deployTxHash, skipping");
+    return 0;
   }
 
-  log.warn({ deploymentId }, "pollEventsFor: no cursor and no deployTxHash, skipping");
-  return 0;
+  let totalWritten = 0;
+  let maxLedger = emptySetSentinel;
+
+  for (const node of contracts) {
+    const result = await pollEventsWithStartLedger(
+      deploymentId,
+      node.contractAddress,
+      node.templateKind,
+      startLedger,
+      symbolMap,
+    );
+    totalWritten += result.written;
+    if (result.maxLedger > maxLedger) maxLedger = result.maxLedger;
+  }
+
+  if (maxLedger > emptySetSentinel) {
+    await db.eventCursor.upsert({
+      where: { deploymentId },
+      update: { lastLedger: maxLedger },
+      create: { deploymentId, lastLedger: maxLedger },
+    });
+  }
+
+  return totalWritten;
 }

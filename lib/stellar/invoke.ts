@@ -118,6 +118,46 @@ export async function prepareWebhookExecuteInvocation(opts: {
   return { xdr: assembled.toXDR(), tx: assembled };
 }
 
+export async function prepareWebhookDepositInvocation(opts: {
+  contractAddress: string;
+  from: string;
+  amount: string;
+}): Promise<PreparedInvokeTx> {
+  const server = sorobanRpc();
+  const sourceAcct = await server.getAccount(opts.from);
+
+  const contractIdBytes = decodeContractAddress(opts.contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+  const fromScVal = new Address(opts.from).toScVal();
+  const amountScVal = nativeToScVal(BigInt(opts.amount), { type: "i128" });
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName: "deposit",
+      args: [fromScVal, amountScVal],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(180)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+  }
+  const assembled = rpc.assembleTransaction(tx, sim).build();
+
+  return { xdr: assembled.toXDR(), tx: assembled };
+}
+
 export async function prepareWebhookEscrowInvocation(opts: {
   contractAddress: string;
   amount?: string;

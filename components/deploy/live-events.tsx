@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { cn, formatAmount, shortAddr, shortAddrExtraShort } from "@/lib/utils";
 import { stellarExpertTxUrl, type StellarNetwork } from "@/lib/stellar/explorer";
+import type { FlowGraph } from "@/lib/flows/schema";
 
 export type Evt = {
   id: string;
@@ -28,6 +29,7 @@ type LiveEventsProps = {
   events: Evt[];
   network: StellarNetwork | null;
   connectionStatus?: "live" | "reconnecting" | "disconnected";
+  graph?: FlowGraph | null;
 };
 
 const KIND_META: Record<string, { label: string; color: string; icon: string }> = {
@@ -58,6 +60,37 @@ const TOTAL_BPS = 10000n;
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
+}
+
+function getGraphSplitRecipients(
+  graph: FlowGraph | null | undefined,
+  totalAmount?: string,
+): Recipient[] {
+  if (!graph) return [];
+  const splitNode = graph.nodes.find((n) => n.type === "split");
+  if (!splitNode || splitNode.type !== "split") return [];
+
+  const recipients = (
+    splitNode.config as { recipients: Array<{ address: string; bps: number; label?: string }> }
+  ).recipients;
+  if (!Array.isArray(recipients)) return [];
+
+  if (!totalAmount)
+    return recipients.map((r) => ({ address: r.address, bps: r.bps, label: r.label }));
+
+  const total = BigInt(totalAmount);
+  let distributed = 0n;
+  return recipients.map((r, index) => {
+    const isLast = index === recipients.length - 1;
+    const share = isLast ? total - distributed : (total * BigInt(r.bps)) / TOTAL_BPS;
+    distributed += share;
+    return {
+      address: r.address,
+      bps: r.bps,
+      label: r.label,
+      amount: share.toString(),
+    };
+  });
 }
 
 function getEventTopic(evt: Evt): string | null {
@@ -184,7 +217,7 @@ function AddressValue({ addr }: { addr: unknown }) {
   const full = isNonEmptyString(addr) ? addr : "—";
   const short = full.length > 14 ? shortAddr(full, 6, 6) : full;
   return (
-    <span className="font-mono text-[11px]" title={full}>
+    <span className="text-secondary font-mono text-[11px]" title={full}>
       {short}
     </span>
   );
@@ -210,11 +243,9 @@ function DetailField({
 function RecipientList({
   recipients,
   totalAmount,
-  asset,
 }: {
   recipients: Recipient[];
   totalAmount?: string;
-  asset?: unknown;
 }) {
   const shares = useMemo(() => {
     if (!totalAmount) return recipients;
@@ -237,8 +268,8 @@ function RecipientList({
             <span className="text-label-xs text-on-surface-variant font-mono">{r.bps / 100}%</span>
           )}
           {isNonEmptyString(r.amount) && (
-            <span className="text-body-sm text-on-surface ml-auto font-medium">
-              {formatAmountWithAsset(r.amount, asset)}
+            <span className="text-body-sm text-on-surface font-medium">
+              {formatAmount(r.amount)}
             </span>
           )}
         </div>
@@ -252,7 +283,7 @@ function RecipientList({
   );
 }
 
-function EventDetails({ evt }: { evt: Evt }) {
+function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
   const d = evt.decodedData as Record<string, unknown> | null;
 
   if (!hasMeaningfulEventData(d)) {
@@ -273,32 +304,35 @@ function EventDetails({ evt }: { evt: Evt }) {
             {vault ? (
               <>
                 Deposited{" "}
-                <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span> to vault{" "}
-                <AddressValue addr={vault} />
+                <span className="text-primary font-medium">
+                  {formatAmountWithAsset(amount, asset)}
+                </span>{" "}
+                to vault <AddressValue addr={vault} />
               </>
             ) : from ? (
               <>
-                Received <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
+                Received{" "}
+                <span className="text-primary font-medium">
+                  {formatAmountWithAsset(amount, asset)}
+                </span>{" "}
                 from <AddressValue addr={from} />
               </>
             ) : (
               <>
-                Received <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span>
+                Received{" "}
+                <span className="text-primary font-medium">
+                  {formatAmountWithAsset(amount, asset)}
+                </span>
               </>
             )}
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
-            {isNonEmptyString(from) && (
-              <DetailField label="From">
-                <AddressValue addr={from} />
-              </DetailField>
-            )}
             {isNonEmptyString(d?.address) && !isNonEmptyString(from) && (
               <DetailField label="Address">
                 <AddressValue addr={d.address} />
               </DetailField>
             )}
-            {isNonEmptyString(d?.subscriber) && (
+            {isNonEmptyString(d?.subscriber) && isNonEmptyString(from) && d.subscriber !== from && (
               <DetailField label="Subscriber">
                 <AddressValue addr={d.subscriber} />
               </DetailField>
@@ -308,7 +342,6 @@ function EventDetails({ evt }: { evt: Evt }) {
                 <AddressValue addr={vault} />
               </DetailField>
             )}
-            <DetailField label="Amount">{formatAmountWithAsset(amount, asset)}</DetailField>
             {asset !== undefined && asset !== null && (
               <DetailField label="Asset">{formatAsset(asset)}</DetailField>
             )}
@@ -330,7 +363,12 @@ function EventDetails({ evt }: { evt: Evt }) {
       const amountIn = d?.amountIn;
       const amountOut = d?.amountOut;
       const recipient = d?.recipient;
-      const recipients = normalizeRecipients(d?.recipients ?? d?.addresses);
+      const decodedRecipients = normalizeRecipients(d?.recipients ?? d?.addresses);
+      const graphRecipients =
+        decodedRecipients.length > 0
+          ? []
+          : getGraphSplitRecipients(graph, isNonEmptyString(amount) ? amount : undefined);
+      const recipients = decodedRecipients.length > 0 ? decodedRecipients : graphRecipients;
       const tookPathA = d?.tookPathA;
 
       if (assetIn && assetOut && amountIn !== undefined && amountOut !== undefined) {
@@ -338,17 +376,26 @@ function EventDetails({ evt }: { evt: Evt }) {
           <div className="space-y-2">
             <div className="text-body-sm text-on-surface">
               Swapped{" "}
-              <span className="font-medium">{formatAmountWithAsset(amountIn, assetIn)}</span> →{" "}
-              <span className="font-medium">{formatAmountWithAsset(amountOut, assetOut)}</span>
+              <span className="text-primary font-medium">
+                {formatAmountWithAsset(amountIn, assetIn)}
+              </span>{" "}
+              →{" "}
+              <span className="text-primary font-medium">
+                {formatAmountWithAsset(amountOut, assetOut)}
+              </span>
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
               <DetailField label="From">{formatAsset(assetIn)}</DetailField>
               <DetailField label="To">{formatAsset(assetOut)}</DetailField>
               <DetailField label="Amount in">
-                {formatAmountWithAsset(amountIn, assetIn)}
+                <span className="text-primary font-medium">
+                  {formatAmountWithAsset(amountIn, assetIn)}
+                </span>
               </DetailField>
               <DetailField label="Amount out">
-                {formatAmountWithAsset(amountOut, assetOut)}
+                <span className="text-primary font-medium">
+                  {formatAmountWithAsset(amountOut, assetOut)}
+                </span>
               </DetailField>
             </div>
           </div>
@@ -360,8 +407,10 @@ function EventDetails({ evt }: { evt: Evt }) {
           <div className="space-y-2">
             <div className="text-body-sm text-on-surface">
               Routed{" "}
-              <span className="font-medium">{formatAmountWithAsset(amountOut, assetOut)}</span> via
-              path{" "}
+              <span className="text-primary font-medium">
+                {formatAmountWithAsset(amountOut, assetOut)}
+              </span>{" "}
+              via path{" "}
               <span className="font-medium">
                 {tookPathA === true || tookPathA === "true" ? "A" : "B"}
               </span>
@@ -371,7 +420,9 @@ function EventDetails({ evt }: { evt: Evt }) {
                 {tookPathA === true || tookPathA === "true" ? "A" : "B"}
               </DetailField>
               <DetailField label="Amount out">
-                {formatAmountWithAsset(amountOut, assetOut)}
+                <span className="text-primary font-medium">
+                  {formatAmountWithAsset(amountOut, assetOut)}
+                </span>
               </DetailField>
             </div>
           </div>
@@ -382,14 +433,21 @@ function EventDetails({ evt }: { evt: Evt }) {
         return (
           <div className="space-y-2">
             <div className="text-body-sm text-on-surface">
-              Paid <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span> to{" "}
-              <AddressValue addr={recipient} />
+              Paid{" "}
+              <span className="text-primary font-medium">
+                {formatAmountWithAsset(amount, asset)}
+              </span>{" "}
+              to <AddressValue addr={recipient} />
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
               <DetailField label="To">
                 <AddressValue addr={recipient} />
               </DetailField>
-              <DetailField label="Amount">{formatAmountWithAsset(amount, asset)}</DetailField>
+              <DetailField label="Amount">
+                <span className="text-primary font-medium">
+                  {formatAmountWithAsset(amount, asset)}
+                </span>
+              </DetailField>
               {asset !== undefined && asset !== null && (
                 <DetailField label="Asset">{formatAsset(asset)}</DetailField>
               )}
@@ -402,7 +460,10 @@ function EventDetails({ evt }: { evt: Evt }) {
         return (
           <div className="space-y-2">
             <div className="text-body-sm text-on-surface">
-              Paid out <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
+              Paid out{" "}
+              <span className="text-primary font-medium">
+                {formatAmountWithAsset(amount, asset)}
+              </span>{" "}
               to <span className="font-medium">{recipients.length}</span> recipient
               {recipients.length === 1 ? "" : "s"}
             </div>
@@ -417,16 +478,10 @@ function EventDetails({ evt }: { evt: Evt }) {
                   <AddressValue addr={admin} />
                 </DetailField>
               )}
-              {amount !== undefined && amount !== null && (
-                <DetailField label="Total amount">
-                  {formatAmountWithAsset(amount, asset)}
-                </DetailField>
-              )}
               <DetailField label="Recipients" fullWidth>
                 <RecipientList
                   recipients={recipients}
                   totalAmount={isNonEmptyString(amount) ? amount : undefined}
-                  asset={asset}
                 />
               </DetailField>
             </div>
@@ -439,23 +494,34 @@ function EventDetails({ evt }: { evt: Evt }) {
           <div className="text-body-sm text-on-surface">
             {admin ? (
               <>
-                Released <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
+                Released{" "}
+                <span className="text-primary font-medium">
+                  {formatAmountWithAsset(amount, asset)}
+                </span>{" "}
                 to admin <AddressValue addr={admin} />
               </>
             ) : contract ? (
               <>
                 Forwarded{" "}
-                <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span> from
-                contract <AddressValue addr={contract} />
+                <span className="text-primary font-medium">
+                  {formatAmountWithAsset(amount, asset)}
+                </span>{" "}
+                from contract <AddressValue addr={contract} />
               </>
             ) : from ? (
               <>
-                Paid out <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
+                Paid out{" "}
+                <span className="text-primary font-medium">
+                  {formatAmountWithAsset(amount, asset)}
+                </span>{" "}
                 from <AddressValue addr={from} />
               </>
             ) : (
               <>
-                Paid out <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span>
+                Paid out{" "}
+                <span className="text-primary font-medium">
+                  {formatAmountWithAsset(amount, asset)}
+                </span>
               </>
             )}
           </div>
@@ -475,7 +541,11 @@ function EventDetails({ evt }: { evt: Evt }) {
                 <AddressValue addr={contract} />
               </DetailField>
             )}
-            <DetailField label="Amount">{formatAmountWithAsset(amount, asset)}</DetailField>
+            <DetailField label="Amount">
+              <span className="text-primary font-medium">
+                {formatAmountWithAsset(amount, asset)}
+              </span>
+            </DetailField>
             {asset !== undefined && asset !== null && (
               <DetailField label="Asset">{formatAsset(asset)}</DetailField>
             )}
@@ -490,11 +560,14 @@ function EventDetails({ evt }: { evt: Evt }) {
       return (
         <div className="space-y-2">
           <div className="text-body-sm text-on-surface">
-            Claimed <span className="font-medium">{formatAmountWithAsset(amount)}</span>
+            Claimed{" "}
+            <span className="text-primary font-medium">{formatAmountWithAsset(amount)}</span>
           </div>
           <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
             {amount !== undefined && amount !== null && (
-              <DetailField label="Amount">{formatAmountWithAsset(amount)}</DetailField>
+              <DetailField label="Amount">
+                <span className="text-primary font-medium">{formatAmountWithAsset(amount)}</span>
+              </DetailField>
             )}
             {recipients.length > 0 && (
               <DetailField label="Recipients" fullWidth>
@@ -514,10 +587,12 @@ function EventDetails({ evt }: { evt: Evt }) {
         <div className="space-y-2">
           <div className="text-body-sm text-on-surface">
             Cancelled · remaining{" "}
-            <span className="font-medium">{formatAmountWithAsset(balance)}</span>
+            <span className="text-primary font-medium">{formatAmountWithAsset(balance)}</span>
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
-            <DetailField label="Remaining balance">{formatAmountWithAsset(balance)}</DetailField>
+            <DetailField label="Remaining balance">
+              <span className="text-primary font-medium">{formatAmountWithAsset(balance)}</span>
+            </DetailField>
           </div>
         </div>
       );
@@ -561,7 +636,15 @@ function EventIcon({ kind }: { kind: string }) {
   );
 }
 
-function EventRow({ evt, network }: { evt: Evt; network: StellarNetwork | null }) {
+function EventRow({
+  evt,
+  network,
+  graph,
+}: {
+  evt: Evt;
+  network: StellarNetwork | null;
+  graph?: FlowGraph | null;
+}) {
   const [expanded, setExpanded] = useState(false);
   const meta = KIND_META[evt.kind] ?? KIND_META["STATUS_CHANGE"]!;
   const explorerBase = network ? stellarExpertTxUrl(evt.txHash, network) : null;
@@ -634,7 +717,7 @@ function EventRow({ evt, network }: { evt: Evt; network: StellarNetwork | null }
         </div>
       </div>
 
-      <EventDetails evt={evt} />
+      <EventDetails evt={evt} graph={graph} />
 
       {expanded && (
         <div className="border-outline-variant/15 space-y-2 border-t pt-2">
@@ -671,7 +754,7 @@ function EventRow({ evt, network }: { evt: Evt; network: StellarNetwork | null }
   );
 }
 
-export function LiveEvents({ events, network, connectionStatus = "live" }: LiveEventsProps) {
+export function LiveEvents({ events, network, connectionStatus = "live", graph }: LiveEventsProps) {
   const statusLabel =
     connectionStatus === "reconnecting"
       ? "RECONNECTING"
@@ -709,7 +792,7 @@ export function LiveEvents({ events, network, connectionStatus = "live" }: LiveE
           </li>
         )}
         {events.map((e) => (
-          <EventRow key={e.id} evt={e} network={network} />
+          <EventRow key={e.id} evt={e} network={network} graph={graph} />
         ))}
       </ul>
     </section>
