@@ -335,7 +335,88 @@ function decodeEventByKind(
   }
 
   const fallback = classifyEvent(topics);
-  return { kind: fallback, decodedData: null };
+  const generic = genericDecode(topics, value);
+  return { kind: fallback, decodedData: generic };
+}
+
+function isStellarAddress(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  return (value.startsWith("G") || value.startsWith("C")) && value.length === 56;
+}
+
+function isAmountLike(value: unknown): boolean {
+  if (typeof value === "bigint") return true;
+  if (typeof value !== "string") return false;
+  return /^\d+$/.test(value) && value.length > 0;
+}
+
+function isAssetLike(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  return value.length > 0 && value.length <= 12 && !isStellarAddress(value) && !/^\d+$/.test(value);
+}
+
+function genericDecode(topics: EventTopics, value: ScValNative | null): DecodedData {
+  const result: Record<string, ScValNative> = {};
+
+  const topic1 = topics[1];
+  if (topic1 !== undefined && topic1 !== null) {
+    if (isStellarAddress(topic1)) {
+      result.address = topic1;
+    } else if (isAssetLike(topic1)) {
+      result.asset = topic1;
+    } else {
+      result.topic1 = topic1;
+    }
+  }
+
+  if (value === null || value === undefined) {
+    return Object.keys(result).length > 0 ? result : null;
+  }
+
+  if (isAmountLike(value)) {
+    result.amount = value;
+  } else if (Array.isArray(value)) {
+    const addresses: string[] = [];
+    value.forEach((item, index) => {
+      if (isStellarAddress(item)) {
+        addresses.push(item);
+      } else if (isAmountLike(item)) {
+        // If we already have an amount, treat second numeric as price/secondary.
+        if (result.amount === undefined) {
+          result.amount = item;
+        } else if (result.price === undefined) {
+          result.price = item;
+        } else {
+          result[`value${index}`] = item;
+        }
+      } else if (isAssetLike(item) && result.asset === undefined) {
+        result.asset = item;
+      } else if (item !== null && item !== undefined) {
+        result[`value${index}`] = item;
+      }
+    });
+    if (addresses.length === 1) {
+      result.address = addresses[0];
+    } else if (addresses.length > 1) {
+      result.addresses = addresses;
+    }
+  } else if (typeof value === "object") {
+    // Value emitted as a tuple/object with numeric keys.
+    const entries = Object.entries(value);
+    for (const [key, val] of entries) {
+      if (isStellarAddress(val)) {
+        result[key] = val;
+      } else if (isAmountLike(val) && result.amount === undefined) {
+        result.amount = val;
+      } else if (isAssetLike(val) && result.asset === undefined) {
+        result.asset = val;
+      } else {
+        result[key] = val;
+      }
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
 }
 
 function classifyEvent(topics: EventTopics): EventKind {

@@ -72,7 +72,35 @@ function hasDecodedData(d: Record<string, unknown> | null): boolean {
   return Object.values(d).some((v) => v !== undefined && v !== null);
 }
 
-function UndecodedFallback({ evt }: { evt: Evt }) {
+const MEANINGFUL_EVENT_KEYS = new Set([
+  "from",
+  "subscriber",
+  "admin",
+  "contract",
+  "recipient",
+  "recipients",
+  "addresses",
+  "vault",
+  "signer",
+  "address",
+  "amount",
+  "amountIn",
+  "amountOut",
+  "balance",
+  "payment",
+  "asset",
+  "assetIn",
+  "assetOut",
+  "price",
+  "tookPathA",
+]);
+
+function hasMeaningfulEventData(d: Record<string, unknown> | null): boolean {
+  if (!hasDecodedData(d)) return false;
+  return Object.keys(d!).some((k) => MEANINGFUL_EVENT_KEYS.has(k));
+}
+
+function UndecodedFallback({ evt, d }: { evt: Evt; d: Record<string, unknown> | null }) {
   const topic = getEventTopic(evt);
   return (
     <div className="space-y-2">
@@ -88,6 +116,11 @@ function UndecodedFallback({ evt }: { evt: Evt }) {
       <div className="text-label-xs text-on-surface-variant font-mono uppercase">
         Could not decode details
       </div>
+      {d && Object.keys(d).length > 0 && (
+        <pre className="text-on-surface-variant font-mono text-[10px] break-all whitespace-pre-wrap">
+          {JSON.stringify(d, null, 2)}
+        </pre>
+      )}
     </div>
   );
 }
@@ -222,13 +255,13 @@ function RecipientList({
 function EventDetails({ evt }: { evt: Evt }) {
   const d = evt.decodedData as Record<string, unknown> | null;
 
-  if (!hasDecodedData(d)) {
-    return <UndecodedFallback evt={evt} />;
+  if (!hasMeaningfulEventData(d)) {
+    return <UndecodedFallback evt={evt} d={d} />;
   }
 
   switch (evt.kind) {
     case "RECEIVE": {
-      const from = d?.from ?? d?.subscriber;
+      const from = d?.from ?? d?.subscriber ?? d?.address;
       const amount = d?.amount;
       const asset = d?.asset;
       const vault = d?.vault;
@@ -260,6 +293,11 @@ function EventDetails({ evt }: { evt: Evt }) {
                 <AddressValue addr={from} />
               </DetailField>
             )}
+            {isNonEmptyString(d?.address) && !isNonEmptyString(from) && (
+              <DetailField label="Address">
+                <AddressValue addr={d.address} />
+              </DetailField>
+            )}
             {isNonEmptyString(d?.subscriber) && (
               <DetailField label="Subscriber">
                 <AddressValue addr={d.subscriber} />
@@ -282,7 +320,7 @@ function EventDetails({ evt }: { evt: Evt }) {
       );
     }
     case "PAYOUT": {
-      const from = d?.from;
+      const from = d?.from ?? d?.address;
       const admin = d?.admin;
       const contract = d?.contract;
       const asset = d?.asset;
@@ -292,7 +330,7 @@ function EventDetails({ evt }: { evt: Evt }) {
       const amountIn = d?.amountIn;
       const amountOut = d?.amountOut;
       const recipient = d?.recipient;
-      const recipients = normalizeRecipients(d?.recipients);
+      const recipients = normalizeRecipients(d?.recipients ?? d?.addresses);
       const tookPathA = d?.tookPathA;
 
       if (assetIn && assetOut && amountIn !== undefined && amountOut !== undefined) {
@@ -447,7 +485,7 @@ function EventDetails({ evt }: { evt: Evt }) {
     }
     case "CLAIM": {
       const amount = d?.amount;
-      const recipients = normalizeRecipients(d?.recipients);
+      const recipients = normalizeRecipients(d?.recipients ?? d?.addresses);
 
       return (
         <div className="space-y-2">
@@ -471,7 +509,7 @@ function EventDetails({ evt }: { evt: Evt }) {
       );
     }
     case "CANCEL": {
-      const balance = d?.balance;
+      const balance = d?.balance ?? d?.amount;
       return (
         <div className="space-y-2">
           <div className="text-body-sm text-on-surface">
@@ -485,7 +523,7 @@ function EventDetails({ evt }: { evt: Evt }) {
       );
     }
     case "STATUS_CHANGE": {
-      const signer = d?.signer;
+      const signer = d?.signer ?? d?.address;
       return (
         <div className="space-y-2">
           <div className="text-body-sm text-on-surface">
