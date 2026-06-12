@@ -140,9 +140,24 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
+  const [hasAnimated, setHasAnimated] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("sidebarCollapsed");
+    if (stored === "true") {
+      setSidebarCollapsed(true);
+    }
+    setReady(true);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("sidebarCollapsed", String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
 
   const graph: FlowGraph = useMemo(
     () => ({
@@ -415,12 +430,28 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
   return (
     <>
-      <div className="grid grid-cols-[220px_1fr] gap-0" style={{ height: "calc(100vh - 4rem)" }}>
+      <div
+        suppressHydrationWarning
+        className={
+          ready && hasAnimated
+            ? "grid gap-0 transition-[grid-template-columns] duration-300 ease-in-out"
+            : "grid gap-0"
+        }
+        style={{
+          height: "calc(100vh - 4rem)",
+          gridTemplateColumns: sidebarCollapsed ? "40px 1fr" : "260px 1fr",
+        }}
+      >
         <Palette
           onAdd={addNode}
           flowNodes={flowNodes}
           templateKind={templateKind}
           pipeline={pipeline}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => {
+            setSidebarCollapsed((v) => !v);
+            setHasAnimated(true);
+          }}
         />
 
         <div className="grid min-h-0 grid-rows-[auto_auto_1fr]">
