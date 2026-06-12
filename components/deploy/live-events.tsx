@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { cn, formatAmount, shortAddrExtraShort } from "@/lib/utils";
+import { cn, formatAmount, shortAddr, shortAddrExtraShort } from "@/lib/utils";
 import { stellarExpertTxUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 
 export type Evt = {
@@ -53,144 +53,404 @@ const KIND_META: Record<string, { label: string; color: string; icon: string }> 
   },
 };
 
-function EventSummary({ evt }: { evt: Evt }) {
+const TOTAL_BPS = 10000n;
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function normalizeRecipients(value: unknown): Recipient[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item): Recipient | null => {
+      if (typeof item === "string") return { address: item };
+      if (item && typeof item === "object") {
+        const address = (item as Record<string, unknown>).address;
+        if (typeof address === "string") {
+          return {
+            address,
+            amount:
+              typeof (item as Record<string, unknown>).amount === "string"
+                ? ((item as Record<string, unknown>).amount as string)
+                : undefined,
+            label:
+              typeof (item as Record<string, unknown>).label === "string"
+                ? ((item as Record<string, unknown>).label as string)
+                : undefined,
+            bps:
+              typeof (item as Record<string, unknown>).bps === "number"
+                ? ((item as Record<string, unknown>).bps as number)
+                : undefined,
+          };
+        }
+      }
+      return null;
+    })
+    .filter((r): r is Recipient => r !== null);
+}
+
+function computeRecipientShares(totalAmount: string, recipients: Recipient[]): Recipient[] {
+  const total = BigInt(totalAmount);
+  let distributed = 0n;
+  return recipients.map((r, index) => {
+    if (isNonEmptyString(r.amount)) return r;
+    if (typeof r.bps !== "number") return r;
+    const isLast = index === recipients.length - 1;
+    const share = isLast ? total - distributed : (total * BigInt(r.bps)) / TOTAL_BPS;
+    distributed += share;
+    return { ...r, amount: share.toString() };
+  });
+}
+
+function formatAsset(asset: unknown): string {
+  if (!asset) return "XLM";
+  const str = String(asset);
+  if (str.length > 20) return shortAddrExtraShort(str);
+  return str;
+}
+
+function formatAmountWithAsset(amount: unknown, asset?: unknown): string {
+  if (amount === undefined || amount === null) return "—";
+  return `${formatAmount(String(amount))} ${formatAsset(asset)}`;
+}
+
+function AddressValue({ addr }: { addr: unknown }) {
+  const full = isNonEmptyString(addr) ? addr : "—";
+  const short = full.length > 14 ? shortAddr(full, 6, 6) : full;
+  return (
+    <span className="font-mono text-[11px]" title={full}>
+      {short}
+    </span>
+  );
+}
+
+function DetailField({
+  label,
+  children,
+  fullWidth,
+}: {
+  label: string;
+  children: React.ReactNode;
+  fullWidth?: boolean;
+}) {
+  return (
+    <div className={cn("min-w-0", fullWidth && "col-span-full")}>
+      <div className="text-label-xs text-on-surface-variant font-mono uppercase">{label}</div>
+      <div className="text-body-sm text-on-surface mt-0.5">{children}</div>
+    </div>
+  );
+}
+
+function RecipientList({
+  recipients,
+  totalAmount,
+  asset,
+}: {
+  recipients: Recipient[];
+  totalAmount?: string;
+  asset?: unknown;
+}) {
+  const shares = useMemo(() => {
+    if (!totalAmount) return recipients;
+    try {
+      return computeRecipientShares(totalAmount, recipients);
+    } catch {
+      return recipients;
+    }
+  }, [recipients, totalAmount]);
+
+  if (shares.length === 0) return null;
+
+  return (
+    <div className="space-y-1">
+      {shares.slice(0, 4).map((r, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <AddressValue addr={r.address} />
+          {r.label && <span className="text-label-xs text-on-surface-variant">({r.label})</span>}
+          {typeof r.bps === "number" && (
+            <span className="text-label-xs text-on-surface-variant font-mono">{r.bps / 100}%</span>
+          )}
+          {isNonEmptyString(r.amount) && (
+            <span className="text-body-sm text-on-surface ml-auto font-medium">
+              {formatAmountWithAsset(r.amount, asset)}
+            </span>
+          )}
+        </div>
+      ))}
+      {shares.length > 4 && (
+        <div className="text-label-xs text-on-surface-variant font-mono">
+          +{shares.length - 4} more
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EventDetails({ evt }: { evt: Evt }) {
   const d = evt.decodedData as Record<string, unknown> | null;
 
   switch (evt.kind) {
     case "RECEIVE": {
-      const from = d?.from ? shortAddrExtraShort(String(d.from)) : null;
-      const vault = d?.vault ? shortAddrExtraShort(String(d.vault)) : null;
-      const subscriber = d?.subscriber ? shortAddrExtraShort(String(d.subscriber)) : null;
+      const from = d?.from ?? d?.subscriber;
+      const amount = d?.amount;
+      const asset = d?.asset;
+      const vault = d?.vault;
       const price = d?.price;
-      const amount = typeof d?.amount === "string" ? formatAmount(d.amount) : "—";
 
-      if (vault) {
-        return (
-          <div className="text-body-sm text-on-surface">
-            Deposited <span className="font-medium">{amount} XLM</span> to vault{" "}
-            <span className="font-mono text-[11px]">{vault}</span>
-          </div>
-        );
-      }
-      if (subscriber) {
-        return (
-          <div className="text-body-sm text-on-surface">
-            Charged <span className="font-mono text-[11px]">{subscriber}</span>:{" "}
-            <span className="font-medium">{amount} XLM</span>
-          </div>
-        );
-      }
-      if (price !== undefined && price !== null) {
-        return (
-          <div className="text-body-sm text-on-surface">
-            Oracle executed: <span className="font-medium">{String(price)}</span> price,{" "}
-            <span className="font-medium">{amount} XLM</span> from{" "}
-            <span className="font-mono text-[11px]">{from ?? "—"}</span>
-          </div>
-        );
-      }
       return (
-        <div className="text-body-sm text-on-surface">
-          Received <span className="font-medium">{amount} XLM</span>
-          {from && (
-            <>
-              {" "}
-              from <span className="font-mono text-[11px]">{from}</span>
-            </>
-          )}
+        <div className="space-y-2">
+          <div className="text-body-sm text-on-surface">
+            {vault ? (
+              <>
+                Deposited{" "}
+                <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span> to vault{" "}
+                <AddressValue addr={vault} />
+              </>
+            ) : from ? (
+              <>
+                Received <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
+                from <AddressValue addr={from} />
+              </>
+            ) : (
+              <>
+                Received <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span>
+              </>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+            {isNonEmptyString(from) && (
+              <DetailField label="From">
+                <AddressValue addr={from} />
+              </DetailField>
+            )}
+            {isNonEmptyString(d?.subscriber) && (
+              <DetailField label="Subscriber">
+                <AddressValue addr={d.subscriber} />
+              </DetailField>
+            )}
+            {isNonEmptyString(vault) && (
+              <DetailField label="Vault">
+                <AddressValue addr={vault} />
+              </DetailField>
+            )}
+            <DetailField label="Amount">{formatAmountWithAsset(amount, asset)}</DetailField>
+            {asset !== undefined && asset !== null && (
+              <DetailField label="Asset">{formatAsset(asset)}</DetailField>
+            )}
+            {price !== undefined && price !== null && (
+              <DetailField label="Price">{String(price)}</DetailField>
+            )}
+          </div>
         </div>
       );
     }
     case "PAYOUT": {
-      const from = d?.from ? shortAddrExtraShort(String(d.from)) : null;
-      const recipients = d?.recipients as Recipient[] | undefined;
-      const admin = d?.admin ? shortAddrExtraShort(String(d.admin)) : null;
+      const from = d?.from;
+      const admin = d?.admin;
+      const asset = d?.asset;
+      const amount = d?.amount ?? d?.amountOut ?? d?.balance ?? d?.payment;
       const assetIn = d?.assetIn;
       const assetOut = d?.assetOut;
-      const amountIn = typeof d?.amountIn === "string" ? formatAmount(d.amountIn) : null;
-      const amountOut = typeof d?.amountOut === "string" ? formatAmount(d.amountOut) : null;
+      const amountIn = d?.amountIn;
+      const amountOut = d?.amountOut;
+      const recipient = d?.recipient;
+      const recipients = normalizeRecipients(d?.recipients);
+      const tookPathA = d?.tookPathA;
 
-      if (d?.tookPathA) {
+      if (assetIn && assetOut && amountIn !== undefined && amountOut !== undefined) {
         return (
-          <div className="text-body-sm text-on-surface">
-            Routed <span className="font-medium">{amountOut ?? "?"} XLM</span> via path A
+          <div className="space-y-2">
+            <div className="text-body-sm text-on-surface">
+              Swapped{" "}
+              <span className="font-medium">{formatAmountWithAsset(amountIn, assetIn)}</span> →{" "}
+              <span className="font-medium">{formatAmountWithAsset(amountOut, assetOut)}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+              <DetailField label="From">{formatAsset(assetIn)}</DetailField>
+              <DetailField label="To">{formatAsset(assetOut)}</DetailField>
+              <DetailField label="Amount in">
+                {formatAmountWithAsset(amountIn, assetIn)}
+              </DetailField>
+              <DetailField label="Amount out">
+                {formatAmountWithAsset(amountOut, assetOut)}
+              </DetailField>
+            </div>
           </div>
         );
       }
-      if (admin && d?.balance !== undefined) {
+
+      if (tookPathA !== undefined && tookPathA !== null) {
         return (
-          <div className="text-body-sm text-on-surface">
-            Released <span className="font-medium">{formatAmount(String(d.balance))} XLM</span> to
-            admin <span className="font-mono text-[11px]">{admin}</span>
+          <div className="space-y-2">
+            <div className="text-body-sm text-on-surface">
+              Routed{" "}
+              <span className="font-medium">{formatAmountWithAsset(amountOut, assetOut)}</span> via
+              path{" "}
+              <span className="font-medium">
+                {tookPathA === true || tookPathA === "true" ? "A" : "B"}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+              <DetailField label="Path">
+                {tookPathA === true || tookPathA === "true" ? "A" : "B"}
+              </DetailField>
+              <DetailField label="Amount out">
+                {formatAmountWithAsset(amountOut, assetOut)}
+              </DetailField>
+            </div>
           </div>
         );
       }
-      if (assetIn && assetOut && amountIn && amountOut) {
+
+      if (isNonEmptyString(recipient)) {
         return (
-          <div className="text-body-sm text-on-surface">
-            Swapped <span className="font-medium">{amountIn}</span> →{" "}
-            <span className="font-medium">{amountOut}</span>
+          <div className="space-y-2">
+            <div className="text-body-sm text-on-surface">
+              Paid <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span> to{" "}
+              <AddressValue addr={recipient} />
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+              <DetailField label="To">
+                <AddressValue addr={recipient} />
+              </DetailField>
+              <DetailField label="Amount">{formatAmountWithAsset(amount, asset)}</DetailField>
+              {asset !== undefined && asset !== null && (
+                <DetailField label="Asset">{formatAsset(asset)}</DetailField>
+              )}
+            </div>
           </div>
         );
       }
-      if (recipients && recipients.length > 0) {
-        const parts = recipients.slice(0, 3).map((r) => {
-          const addr = r.address ? shortAddrExtraShort(r.address) : "—";
-          const amt = r.amount ? formatAmount(typeof r.amount === "string" ? r.amount : "0") : "—";
-          return `${amt} → ${addr}`;
-        });
-        const more = recipients.length > 3 ? ` +${recipients.length - 3} more` : "";
+
+      if (recipients.length > 0) {
         return (
-          <div className="text-body-sm text-on-surface">
-            Paid out{from ? ` from ${from}` : ""}: {parts.join(", ")}
-            {more}
+          <div className="space-y-2">
+            <div className="text-body-sm text-on-surface">
+              Paid out <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
+              to <span className="font-medium">{recipients.length}</span> recipient
+              {recipients.length === 1 ? "" : "s"}
+            </div>
+            <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+              {isNonEmptyString(from) && (
+                <DetailField label="From">
+                  <AddressValue addr={from} />
+                </DetailField>
+              )}
+              {isNonEmptyString(admin) && (
+                <DetailField label="Admin">
+                  <AddressValue addr={admin} />
+                </DetailField>
+              )}
+              {amount !== undefined && amount !== null && (
+                <DetailField label="Total amount">
+                  {formatAmountWithAsset(amount, asset)}
+                </DetailField>
+              )}
+              <DetailField label="Recipients" fullWidth>
+                <RecipientList
+                  recipients={recipients}
+                  totalAmount={isNonEmptyString(amount) ? amount : undefined}
+                  asset={asset}
+                />
+              </DetailField>
+            </div>
           </div>
         );
       }
+
       return (
-        <div className="text-body-sm text-on-surface">Payout{from ? ` from ${from}` : ""}</div>
+        <div className="space-y-2">
+          <div className="text-body-sm text-on-surface">
+            {admin ? (
+              <>
+                Released <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
+                to admin <AddressValue addr={admin} />
+              </>
+            ) : from ? (
+              <>
+                Paid out <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
+                from <AddressValue addr={from} />
+              </>
+            ) : (
+              <>
+                Paid out <span className="font-medium">{formatAmountWithAsset(amount, asset)}</span>
+              </>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+            {isNonEmptyString(from) && (
+              <DetailField label="From">
+                <AddressValue addr={from} />
+              </DetailField>
+            )}
+            {isNonEmptyString(admin) && (
+              <DetailField label="Admin">
+                <AddressValue addr={admin} />
+              </DetailField>
+            )}
+            <DetailField label="Amount">{formatAmountWithAsset(amount, asset)}</DetailField>
+            {asset !== undefined && asset !== null && (
+              <DetailField label="Asset">{formatAsset(asset)}</DetailField>
+            )}
+          </div>
+        </div>
       );
     }
     case "CLAIM": {
-      const recipients = d?.recipients as Recipient[] | undefined;
-      const amount = typeof d?.amount === "string" ? formatAmount(d.amount) : "—";
-      if (recipients && recipients.length > 0) {
-        const addrs = recipients
-          .slice(0, 2)
-          .map((r) => (r.address ? shortAddrExtraShort(r.address) : "—"))
-          .join(", ");
-        const more = recipients.length > 2 ? ` +${recipients.length - 2} more` : "";
-        return (
-          <div className="text-body-sm text-on-surface">
-            Claimed <span className="font-medium">{amount} XLM</span> → {addrs}
-            {more}
-          </div>
-        );
-      }
+      const amount = d?.amount;
+      const recipients = normalizeRecipients(d?.recipients);
+
       return (
-        <div className="text-body-sm text-on-surface">
-          Claimed <span className="font-medium">{amount} XLM</span>
+        <div className="space-y-2">
+          <div className="text-body-sm text-on-surface">
+            Claimed <span className="font-medium">{formatAmountWithAsset(amount)}</span>
+          </div>
+          <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+            {amount !== undefined && amount !== null && (
+              <DetailField label="Amount">{formatAmountWithAsset(amount)}</DetailField>
+            )}
+            {recipients.length > 0 && (
+              <DetailField label="Recipients" fullWidth>
+                <RecipientList
+                  recipients={recipients}
+                  totalAmount={isNonEmptyString(amount) ? amount : undefined}
+                />
+              </DetailField>
+            )}
+          </div>
         </div>
       );
     }
     case "CANCEL": {
-      const balance = typeof d?.balance === "string" ? formatAmount(d.balance) : "—";
+      const balance = d?.balance;
       return (
-        <div className="text-body-sm text-on-surface">
-          Stream cancelled · remaining <span className="font-medium">{balance} XLM</span>
+        <div className="space-y-2">
+          <div className="text-body-sm text-on-surface">
+            Cancelled · remaining{" "}
+            <span className="font-medium">{formatAmountWithAsset(balance)}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+            <DetailField label="Remaining balance">{formatAmountWithAsset(balance)}</DetailField>
+          </div>
         </div>
       );
     }
     case "STATUS_CHANGE": {
-      const signer = d?.signer ? shortAddrExtraShort(String(d.signer)) : null;
-      if (signer) {
-        return (
+      const signer = d?.signer;
+      return (
+        <div className="space-y-2">
           <div className="text-body-sm text-on-surface">
-            Multisig approved: signer <span className="font-mono text-[11px]">{signer}</span>
+            {isNonEmptyString(signer) ? "Multisig approved" : "Status changed"}
           </div>
-        );
-      }
-      return <div className="text-body-sm text-on-surface">Status changed</div>;
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+            {isNonEmptyString(signer) && (
+              <DetailField label="Signer">
+                <AddressValue addr={signer} />
+              </DetailField>
+            )}
+          </div>
+        </div>
+      );
     }
     default: {
       if (d) {
@@ -287,20 +547,26 @@ function EventRow({ evt, network }: { evt: Evt; network: StellarNetwork | null }
         </div>
       </div>
 
-      <EventSummary evt={evt} />
+      <EventDetails evt={evt} />
 
       {expanded && (
         <div className="border-outline-variant/15 space-y-2 border-t pt-2">
-          <div className="text-label-sm text-on-surface-variant font-mono">
-            <span className="text-on-surface">Tx:</span>{" "}
-            <a
-              href={explorerBase ?? "#"}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-primary break-all"
-            >
-              {evt.txHash}
-            </a>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="text-label-sm text-on-surface-variant font-mono">
+              <span className="text-on-surface">Tx:</span>{" "}
+              <a
+                href={explorerBase ?? "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-primary break-all"
+              >
+                {evt.txHash}
+              </a>
+            </div>
+            <div className="text-label-sm text-on-surface-variant font-mono">
+              <span className="text-on-surface">Occurred:</span>{" "}
+              {new Date(evt.occurredAt).toLocaleString()}
+            </div>
           </div>
           {evt.decodedData && (
             <div>
