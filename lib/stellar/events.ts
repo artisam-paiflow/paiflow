@@ -6,6 +6,8 @@ import { sorobanRpc } from "./client";
 import { db } from "@/lib/db";
 import { redis, eventChannel } from "@/lib/redis";
 import { log } from "@/lib/log";
+import { assetContractId } from "@/lib/stellar/assets";
+import { assetLabel, type FlowGraph } from "@/lib/flows/schema";
 
 // Paranoia buffer: when polling events for the first time we start a few
 // ledgers before the deployment transaction to avoid missing events emitted
@@ -36,12 +38,20 @@ const SPLITTER_REGISTRY: EventRegistry = {
   distrib: {
     kind: EventKind.PAYOUT,
     decode: (topics, value) => {
-      if (!value || typeof value !== "object") return null;
-      const v = value as { 0?: ScValNative; 1?: ScValNative };
-      const from = topics[1] ?? null;
-      const asset = v[0] ?? null;
-      const amount = v[1] ?? null;
-      return from && asset && amount ? { from, asset, amount } : null;
+      const topic1 = topics[1] ?? null;
+      // Two shapes are emitted:
+      // 1. distribute(): ("distrib", from), (asset, amount) — value is an object.
+      // 2. execute_step()/receive_and_forward(): ("distrib", asset), amount — value is a scalar.
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        const v = value as { 0?: ScValNative; 1?: ScValNative };
+        const from = topic1;
+        const asset = v[0] ?? null;
+        const amount = v[1] ?? null;
+        return from && asset && amount ? { from, asset, amount } : null;
+      }
+      const asset = topic1;
+      const amount = value ?? null;
+      return asset && amount !== null ? { asset, amount } : null;
     },
   },
   payout: {
@@ -53,9 +63,28 @@ const SPLITTER_REGISTRY: EventRegistry = {
       return from && recipients ? { from, recipients } : null;
     },
   },
+  pay: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      if (!value || typeof value !== "object") return null;
+      const v = value as { 0?: ScValNative; 1?: ScValNative };
+      const recipient = topics[1] ?? null;
+      const asset = v[0] ?? null;
+      const payment = v[1] ?? null;
+      return recipient && asset && payment ? { recipient, asset, payment } : null;
+    },
+  },
 };
 
 const STREAMER_REGISTRY: EventRegistry = {
+  receive: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const asset = topics[1] ?? null;
+      const amount = value ?? null;
+      return asset && amount !== null ? { asset, amount } : null;
+    },
+  },
   claim: {
     kind: EventKind.CLAIM,
     decode: (topics, value) => {
@@ -91,6 +120,181 @@ const CONDITIONAL_REGISTRY: EventRegistry = {
   },
 };
 
+const PAYER_REGISTRY: EventRegistry = {
+  pay: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      if (!value || typeof value !== "object") return null;
+      const v = value as { 0?: ScValNative; 1?: ScValNative };
+      const recipient = topics[1] ?? null;
+      const asset = v[0] ?? null;
+      const payment = v[1] ?? null;
+      return recipient && asset && payment ? { recipient, asset, payment } : null;
+    },
+  },
+  cancel: {
+    kind: EventKind.CANCEL,
+    decode: (_topics, value) => {
+      const balance = value ?? null;
+      return balance !== null ? { balance } : null;
+    },
+  },
+};
+
+const SWAPPER_REGISTRY: EventRegistry = {
+  topup: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const from = topics[1] ?? null;
+      const amount = value ?? null;
+      return from && amount !== null ? { from, amount } : null;
+    },
+  },
+  swap: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      if (!value || !Array.isArray(value)) return null;
+      const v = value as ScValNative[];
+      const assetIn = topics[1] ?? null;
+      const assetOut = topics[2] ?? null;
+      const amountIn = v[0] ?? null;
+      const amountOut = v[1] ?? null;
+      return assetIn && assetOut && amountIn && amountOut
+        ? { assetIn, assetOut, amountIn, amountOut }
+        : null;
+    },
+  },
+};
+
+const YIELD_REGISTRY: EventRegistry = {
+  deposit: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const vault = topics[1] ?? null;
+      const amount = value ?? null;
+      return vault && amount !== null ? { vault, amount } : null;
+    },
+  },
+};
+
+const DEPOSIT_TRIGGER_REGISTRY: EventRegistry = {
+  deposit: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const from = topics[1] ?? null;
+      const amount = value ?? null;
+      return from && amount !== null ? { from, amount } : null;
+    },
+  },
+};
+
+const WEBHOOK_REGISTRY: EventRegistry = {
+  deposit: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const from = topics[1] ?? null;
+      const amount = value ?? null;
+      return from && amount !== null ? { from, amount } : null;
+    },
+  },
+  execute: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const from = topics[1] ?? null;
+      const amount = value ?? null;
+      return from && amount !== null ? { from, amount } : null;
+    },
+  },
+  escrow: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      const contract = topics[1] ?? null;
+      const amount = value ?? null;
+      return contract && amount !== null ? { contract, amount } : null;
+    },
+  },
+};
+
+const SUBSCRIPTION_REGISTRY: EventRegistry = {
+  charge: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const subscriber = topics[1] ?? null;
+      const amount = value ?? null;
+      return subscriber && amount !== null ? { subscriber, amount } : null;
+    },
+  },
+};
+
+const ORACLE_REGISTRY: EventRegistry = {
+  execute: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      if (!value || !Array.isArray(value)) return null;
+      const v = value as ScValNative[];
+      const from = topics[1] ?? null;
+      const price = v[0] ?? null;
+      const amount = v[1] ?? null;
+      return from && price && amount ? { from, price, amount } : null;
+    },
+  },
+};
+
+const ROUTER_REGISTRY: EventRegistry = {
+  route: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      const tookPathA = topics[1] ?? null;
+      const amountOut = value ?? null;
+      return tookPathA && amountOut !== null ? { tookPathA, amountOut } : null;
+    },
+  },
+};
+
+const TIMELOCK_REGISTRY: EventRegistry = {
+  receive: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const asset = topics[1] ?? null;
+      const amount = value ?? null;
+      return asset && amount !== null ? { asset, amount } : null;
+    },
+  },
+  release: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      const balance = value ?? null;
+      return admin && balance !== null ? { admin, balance } : null;
+    },
+  },
+};
+
+const MULTISIG_REGISTRY: EventRegistry = {
+  receive: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const asset = topics[1] ?? null;
+      const amount = value ?? null;
+      return asset && amount !== null ? { asset, amount } : null;
+    },
+  },
+  approve: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics) => {
+      const signer = topics[1] ?? null;
+      return signer ? { signer } : null;
+    },
+  },
+  release: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      const balance = value ?? null;
+      return balance !== null ? { balance } : null;
+    },
+  },
+};
+
 function getRegistry(templateKind: TemplateKind): EventRegistry {
   switch (templateKind) {
     case TemplateKind.SPLITTER:
@@ -99,6 +303,26 @@ function getRegistry(templateKind: TemplateKind): EventRegistry {
       return STREAMER_REGISTRY;
     case TemplateKind.CONDITIONAL:
       return CONDITIONAL_REGISTRY;
+    case TemplateKind.PAYER:
+      return PAYER_REGISTRY;
+    case TemplateKind.SWAPPER:
+      return SWAPPER_REGISTRY;
+    case TemplateKind.YIELD:
+      return YIELD_REGISTRY;
+    case TemplateKind.DEPOSIT_TRIGGER:
+      return DEPOSIT_TRIGGER_REGISTRY;
+    case TemplateKind.WEBHOOK:
+      return WEBHOOK_REGISTRY;
+    case TemplateKind.SUBSCRIPTION:
+      return SUBSCRIPTION_REGISTRY;
+    case TemplateKind.ORACLE:
+      return ORACLE_REGISTRY;
+    case TemplateKind.ROUTER:
+      return ROUTER_REGISTRY;
+    case TemplateKind.TIMELOCK:
+      return TIMELOCK_REGISTRY;
+    case TemplateKind.MULTISIG:
+      return MULTISIG_REGISTRY;
     default:
       return {};
   }
@@ -121,15 +345,106 @@ function decodeEventByKind(
   }
 
   const fallback = classifyEvent(topics);
-  return { kind: fallback, decodedData: null };
+  const generic = genericDecode(topics, value);
+  return { kind: fallback, decodedData: generic };
+}
+
+function isStellarAddress(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  return (value.startsWith("G") || value.startsWith("C")) && value.length === 56;
+}
+
+function isAmountLike(value: unknown): boolean {
+  if (typeof value === "bigint") return true;
+  if (typeof value !== "string") return false;
+  return /^\d+$/.test(value) && value.length > 0;
+}
+
+function isAssetLike(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  return value.length > 0 && value.length <= 12 && !isStellarAddress(value) && !/^\d+$/.test(value);
+}
+
+function genericDecode(topics: EventTopics, value: ScValNative | null): DecodedData {
+  const result: Record<string, ScValNative> = {};
+
+  const topic1 = topics[1];
+  if (topic1 !== undefined && topic1 !== null) {
+    if (isStellarAddress(topic1)) {
+      result.address = topic1;
+    } else if (isAssetLike(topic1)) {
+      result.asset = topic1;
+    } else {
+      result.topic1 = topic1;
+    }
+  }
+
+  if (value === null || value === undefined) {
+    return Object.keys(result).length > 0 ? result : null;
+  }
+
+  if (isAmountLike(value)) {
+    result.amount = value;
+  } else if (Array.isArray(value)) {
+    const addresses: string[] = [];
+    value.forEach((item, index) => {
+      if (isStellarAddress(item)) {
+        addresses.push(item);
+      } else if (isAmountLike(item)) {
+        // If we already have an amount, treat second numeric as price/secondary.
+        if (result.amount === undefined) {
+          result.amount = item;
+        } else if (result.price === undefined) {
+          result.price = item;
+        } else {
+          result[`value${index}`] = item;
+        }
+      } else if (isAssetLike(item) && result.asset === undefined) {
+        result.asset = item;
+      } else if (item !== null && item !== undefined) {
+        result[`value${index}`] = item;
+      }
+    });
+    if (addresses.length === 1) {
+      result.address = addresses[0];
+    } else if (addresses.length > 1) {
+      result.addresses = addresses;
+    }
+  } else if (typeof value === "object") {
+    // Value emitted as a tuple/object with numeric keys.
+    const entries = Object.entries(value);
+    for (const [key, val] of entries) {
+      if (isStellarAddress(val)) {
+        result[key] = val;
+      } else if (isAmountLike(val) && result.amount === undefined) {
+        result.amount = val;
+      } else if (isAssetLike(val) && result.asset === undefined) {
+        result.asset = val;
+      } else {
+        result[key] = val;
+      }
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
 }
 
 function classifyEvent(topics: EventTopics): EventKind {
   const first = typeof topics[0] === "string" ? (topics[0] as string).toLowerCase() : "";
-  if (first.includes("distrib") || first.includes("payout") || first.includes("transfer"))
-    return EventKind.PAYOUT;
-  if (first.includes("receive") || first.includes("deposit")) return EventKind.RECEIVE;
-  if (first.includes("claim")) return EventKind.CLAIM;
+  const payoutTopics = new Set([
+    "distrib",
+    "payout",
+    "transfer",
+    "pay",
+    "swap",
+    "route",
+    "release",
+    "escrow",
+  ]);
+  const receiveTopics = new Set(["receive", "deposit", "topup", "charge", "execute"]);
+  if (payoutTopics.has(first)) return EventKind.PAYOUT;
+  if (receiveTopics.has(first)) return EventKind.RECEIVE;
+  if (first === "claim") return EventKind.CLAIM;
   return EventKind.STATUS_CHANGE;
 }
 
@@ -154,11 +469,58 @@ function convertBigInts<T>(value: T): T {
   return value;
 }
 
+function extractAssetsFromGraph(
+  graph: FlowGraph,
+): Array<{ kind: string; symbol?: string; code?: string; issuer?: string }> {
+  const assets: Array<{ kind: string; symbol?: string; code?: string; issuer?: string }> = [];
+  for (const node of graph.nodes) {
+    if (!("config" in node)) continue;
+    const config = node.config as Record<string, unknown>;
+    if (config.asset) assets.push(config.asset as { kind: string });
+    if (config.assetIn) assets.push(config.assetIn as { kind: string });
+    if (config.assetOut) assets.push(config.assetOut as { kind: string });
+  }
+  return assets;
+}
+
+function buildAssetSymbolMap(graph: FlowGraph | null): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!graph) return map;
+
+  for (const asset of extractAssetsFromGraph(graph)) {
+    try {
+      const id = assetContractId(asset as Parameters<typeof assetContractId>[0]);
+      const symbol = assetLabel(asset as Parameters<typeof assetLabel>[0]);
+      map.set(id, symbol);
+    } catch {
+      // Skip assets that cannot be resolved (e.g., unknown symbol on this network).
+    }
+  }
+  return map;
+}
+
+function resolveAssetSymbols(
+  decodedData: DecodedData,
+  symbolMap: Map<string, string>,
+): DecodedData {
+  if (!decodedData) return null;
+  const next: Record<string, ScValNative> = { ...decodedData };
+  for (const key of ["asset", "assetIn", "assetOut"]) {
+    const value = next[key];
+    if (typeof value === "string") {
+      const symbol = symbolMap.get(value);
+      if (symbol) next[key] = symbol;
+    }
+  }
+  return next;
+}
+
 async function pollEventsWithStartLedger(
   deploymentId: string,
   contractAddress: string,
   templateKind: TemplateKind,
   startLedger: number,
+  symbolMap: Map<string, string>,
 ): Promise<{ written: number; maxLedger: number }> {
   const server = sorobanRpc();
   let resp: rpc.Api.GetEventsResponse;
@@ -195,13 +557,15 @@ async function pollEventsWithStartLedger(
       }
     })();
     const { kind, decodedData } = decodeEventByKind(topics, value, templateKind);
+    const resolvedData = resolveAssetSymbols(decodedData, symbolMap);
     const safePayload = convertBigInts({ topics, value }) as object;
-    const safeDecodedData = convertBigInts(decodedData) as Prisma.InputJsonValue | null;
+    const safeDecodedData = convertBigInts(resolvedData) as Prisma.InputJsonValue | null;
 
     try {
       await db.contractEvent.create({
         data: {
           deploymentId,
+          eventId: ev.id,
           kind,
           ledger: ev.ledger,
           txHash: ev.txHash,
@@ -218,11 +582,12 @@ async function pollEventsWithStartLedger(
             eventChannel(deploymentId),
             JSON.stringify(
               convertBigInts({
+                eventId: ev.id,
                 kind,
                 ledger: ev.ledger,
                 txHash: ev.txHash,
                 payload: { topics, value },
-                decodedData,
+                decodedData: resolvedData,
                 occurredAt: ev.ledgerClosedAt,
               }),
             ),
@@ -240,6 +605,12 @@ async function pollEventsWithStartLedger(
   return { written, maxLedger };
 }
 
+type PipelineNode = {
+  nodeId: string;
+  contractAddress: string;
+  templateKind: TemplateKind;
+};
+
 export async function pollEventsFor(deploymentId: string): Promise<number> {
   const deployment = await db.deployment.findUnique({
     where: { id: deploymentId },
@@ -250,56 +621,81 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
   });
   if (!deployment?.contractAddress || deployment.status !== "CONFIRMED") return 0;
 
-  const templateKind = deployment.flow?.templateKind;
-  if (!templateKind) {
+  const flowTemplateKind = deployment.flow?.templateKind;
+  if (!flowTemplateKind) {
     log.warn({ deploymentId }, "pollEventsFor: flow templateKind not found, skipping");
     return 0;
   }
 
-  if (deployment.cursor) {
-    const startLedger = deployment.cursor.lastLedger + 1;
-    const result = await pollEventsWithStartLedger(
-      deploymentId,
-      deployment.contractAddress,
-      templateKind,
-      startLedger,
-    );
-    if (result.maxLedger > startLedger - 1) {
-      await db.eventCursor.upsert({
-        where: { deploymentId },
-        update: { lastLedger: result.maxLedger },
-        create: { deploymentId, lastLedger: result.maxLedger },
-      });
+  const symbolMap = buildAssetSymbolMap(deployment.graphSnapshot as FlowGraph | null);
+
+  const contracts: PipelineNode[] = [];
+  const seen = new Set<string>();
+
+  contracts.push({
+    nodeId: "trigger",
+    contractAddress: deployment.contractAddress,
+    templateKind: flowTemplateKind,
+  });
+  seen.add(deployment.contractAddress);
+
+  const pipeline = deployment.pipelineSnapshot as PipelineNode[] | null;
+  if (Array.isArray(pipeline)) {
+    for (const node of pipeline) {
+      if (node?.contractAddress && node?.templateKind && !seen.has(node.contractAddress)) {
+        contracts.push(node);
+        seen.add(node.contractAddress);
+      }
     }
-    return result.written;
   }
 
-  if (deployment.deployTxHash) {
+  if (contracts.length === 0) {
+    log.warn({ deploymentId }, "pollEventsFor: no contracts to poll, skipping");
+    return 0;
+  }
+
+  let startLedger: number;
+  let emptySetSentinel: number;
+
+  if (deployment.cursor) {
+    startLedger = deployment.cursor.lastLedger + 1;
+    emptySetSentinel = startLedger - 1;
+  } else if (deployment.deployTxHash) {
     try {
       const deployLedger = await getDeploymentLedger(deployment.deployTxHash);
-      const startLedger = Math.max(deployLedger - FIRST_POLL_LEDGER_BUFFER, 0);
-      const result = await pollEventsWithStartLedger(
-        deploymentId,
-        deployment.contractAddress,
-        templateKind,
-        startLedger,
-      );
-      if (result.maxLedger > 0) {
-        await db.eventCursor.upsert({
-          where: { deploymentId },
-          update: { lastLedger: result.maxLedger },
-          create: { deploymentId, lastLedger: result.maxLedger },
-        });
-      }
-      return result.written;
+      startLedger = Math.max(deployLedger - FIRST_POLL_LEDGER_BUFFER, 0);
+      emptySetSentinel = 0;
     } catch (err) {
-      // TODO: add exponential backoff / retry counter so a stuck deploy
-      // doesn't hammer the RPC on every cron tick.
       log.warn({ err, deploymentId }, "getDeploymentLedger failed, skipping");
       return 0;
     }
+  } else {
+    log.warn({ deploymentId }, "pollEventsFor: no cursor and no deployTxHash, skipping");
+    return 0;
   }
 
-  log.warn({ deploymentId }, "pollEventsFor: no cursor and no deployTxHash, skipping");
-  return 0;
+  let totalWritten = 0;
+  let maxLedger = emptySetSentinel;
+
+  for (const node of contracts) {
+    const result = await pollEventsWithStartLedger(
+      deploymentId,
+      node.contractAddress,
+      node.templateKind,
+      startLedger,
+      symbolMap,
+    );
+    totalWritten += result.written;
+    if (result.maxLedger > maxLedger) maxLedger = result.maxLedger;
+  }
+
+  if (maxLedger > emptySetSentinel) {
+    await db.eventCursor.upsert({
+      where: { deploymentId },
+      update: { lastLedger: maxLedger },
+      create: { deploymentId, lastLedger: maxLedger },
+    });
+  }
+
+  return totalWritten;
 }

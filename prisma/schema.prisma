@@ -182,6 +182,7 @@ model Deployment {
 model ContractEvent {
   id           String     @id @default(uuid()) @db.Uuid
   deploymentId String     @db.Uuid
+  eventId      String     @unique
   kind         EventKind
   ledger       Int
   txHash       String
@@ -191,7 +192,6 @@ model ContractEvent {
 
   deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
 
-  @@unique([txHash, kind])
   @@index([deploymentId, occurredAt(sort: Desc)])
 }
 

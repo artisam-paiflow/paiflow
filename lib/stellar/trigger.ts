@@ -1,21 +1,13 @@
 import "server-only";
-import {
-  Keypair,
-  TransactionBuilder,
-  rpc,
-  Address,
-  Operation,
-  xdr,
-  BASE_FEE,
-} from "@stellar/stellar-sdk";
-import { sorobanRpc, decodeContractAddress, withRelayerLock } from "./client";
+import { Keypair, TransactionBuilder } from "@stellar/stellar-sdk";
+import { sorobanRpc, withRelayerLock } from "./client";
 import { stellarPassphrase, stellarRelayerSecretKey, stellarRelayerAddress } from "@/lib/env";
 import {
   prepareDistributeInvocation,
   prepareDepositInvocation,
   prepareWebhookExecuteInvocation,
+  prepareWebhookDepositInvocation,
   prepareWebhookEscrowInvocation,
-  prepareTokenTransferInvocation,
 } from "./invoke";
 
 export async function prepareTriggerTx(opts: {
@@ -43,47 +35,11 @@ export async function prepareWebhookDepositTx(opts: {
   amount: string;
   fromAddress: string;
 }): Promise<{ xdr: string }> {
-  const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.fromAddress);
-
-  const contractIdBytes = decodeContractAddress(opts.contractAddress);
-  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
-
-  const assetHostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
-    new xdr.InvokeContractArgs({
-      contractAddress: scAddress,
-      functionName: "asset",
-      args: [],
-    }),
-  );
-
-  const assetTx = new TransactionBuilder(sourceAcct, {
-    fee: BASE_FEE,
-    networkPassphrase: stellarPassphrase(),
-  })
-    .addOperation(Operation.invokeHostFunction({ func: assetHostFunction }))
-    .setTimeout(180)
-    .build();
-
-  const assetSim = await server.simulateTransaction(assetTx);
-  if (rpc.Api.isSimulationError(assetSim)) {
-    throw new Error(`Failed to query contract asset: ${assetSim.error}`);
-  }
-
-  const assetScVal = (assetSim as any).result?.retval;
-  if (!assetScVal) {
-    throw new Error("Contract returned no asset");
-  }
-
-  const assetAddress = Address.fromScVal(assetScVal).toString();
-
-  const result = await prepareTokenTransferInvocation({
-    tokenContractAddress: assetAddress,
-    from: opts.fromAddress,
-    to: opts.contractAddress,
+  const result = await prepareWebhookDepositInvocation({
+    contractAddress: opts.contractAddress,
     amount: opts.amount,
+    from: opts.fromAddress,
   });
-
   return { xdr: result.xdr };
 }
 
