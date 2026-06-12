@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import DeploymentCanvas from "./deployment-canvas";
 import { LiveEvents, type Evt } from "./live-events";
@@ -8,7 +8,6 @@ import ContractCallButton from "./contract-call-button";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { isTrigger } from "@/lib/flows/schema";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
-import { POLL_EVENTS_INTERVAL_MS } from "@/lib/deployments/constants";
 
 export default function DeploymentView({
   deploymentId,
@@ -38,74 +37,129 @@ export default function DeploymentView({
   const [connectionStatus, setConnectionStatus] = useState<
     "live" | "reconnecting" | "disconnected"
   >("live");
+  const esRef = useRef<EventSource | null>(null);
 
-  // Single source of polling for the whole deployment page. Both the canvas
-  // pulse animation and the LiveEvents feed derive from this one fetch.
+  const mergeEvents = (prev: Evt[], incoming: Evt[]) => {
+    const merged = [...prev];
+    let addedPulses = 0;
+    for (const data of incoming) {
+      const isDuplicate = merged.some(
+        (p) =>
+          (p.eventId && data.eventId && p.eventId === data.eventId) ||
+          (p.txHash === data.txHash && p.kind === data.kind),
+      );
+      if (!isDuplicate) {
+        merged.unshift({ ...data, _isNew: true });
+        if (data.kind === "RECEIVE" || data.kind === "PAYOUT") {
+          addedPulses += 1;
+        }
+      }
+    }
+    if (addedPulses > 0) setPulse((p) => p + addedPulses);
+    return merged.slice(0, 100);
+  };
+
+  const clearIsNew = (eventId: string | undefined, txHash: string, kind: string) => {
+    setEvents((curr) =>
+      curr.map((e) =>
+        (e.eventId && eventId && e.eventId === eventId) || (e.txHash === txHash && e.kind === kind)
+          ? { ...e, _isNew: false }
+          : e,
+      ),
+    );
+  };
+
+  const scheduleClearIsNew = (eventId: string | undefined, txHash: string, kind: string) => {
+    setTimeout(() => clearIsNew(eventId, txHash, kind), 250);
+  };
+
+  // Single source of live events for the deployment page. Uses SSE with a
+  // one-time poll fallback when the connection drops.
   useEffect(() => {
     if (status !== "CONFIRMED") return;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-    let failures = 0;
 
-    const updateStatus = () => {
-      setConnectionStatus(
-        failures === 0 ? "live" : failures >= 2 ? "disconnected" : "reconnecting",
-      );
-    };
+    let es: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
 
-    const poll = async () => {
-      try {
-        const res = await fetch(`/api/deployments/${deploymentId}/poll-events`);
-        if (!res.ok) {
-          failures += 1;
-          updateStatus();
-          return;
+    const connectSSE = () => {
+      if (cancelled || status !== "CONFIRMED") return;
+      es = new EventSource(`/api/deployments/${deploymentId}/events`);
+      esRef.current = es;
+
+      es.addEventListener("connected", () => {
+        if (!cancelled) setConnectionStatus("live");
+      });
+
+      es.addEventListener("message", (e) => {
+        if (cancelled) return;
+        try {
+          const event = JSON.parse(e.data) as Evt;
+          setEvents((prev) => mergeEvents(prev, [event]));
+          scheduleClearIsNew(event.eventId, event.txHash, event.kind);
+        } catch {
+          /* ignore malformed SSE messages */
         }
-        const { events: newEvents } = (await res.json()) as { events: Evt[] };
-        if (failures > 0) {
-          failures = 0;
-          updateStatus();
+      });
+
+      es.onerror = () => {
+        if (cancelled) return;
+        setConnectionStatus("disconnected");
+        if (es) {
+          es.close();
+          esRef.current = null;
+          es = null;
         }
 
-        setEvents((prev) => {
-          const merged = [...prev];
-          let addedPulses = 0;
-          for (const data of newEvents) {
-            const isDuplicate = merged.some(
-              (p) =>
-                (p.eventId && data.eventId && p.eventId === data.eventId) ||
-                (p.txHash === data.txHash && p.kind === data.kind),
-            );
-            if (!isDuplicate) {
-              merged.unshift({ ...data, _isNew: true });
-              setTimeout(() => {
-                setEvents((curr) =>
-                  curr.map((e) =>
-                    (e.eventId && data.eventId && e.eventId === data.eventId) ||
-                    (e.txHash === data.txHash && e.kind === data.kind)
-                      ? { ...e, _isNew: false }
-                      : e,
-                  ),
-                );
-              }, 250);
-              if (data.kind === "RECEIVE" || data.kind === "PAYOUT") {
-                addedPulses += 1;
-              }
-            }
+        // Fallback: poll once for any missed events, then reconnect.
+        const fallbackUrl = `/api/deployments/${deploymentId}/poll-events`;
+        fetch(fallbackUrl)
+          .then((r) => r.json())
+          .then(({ events: polledEvents }: { events: Evt[] }) => {
+            if (cancelled) return;
+            setEvents((prev) => mergeEvents(prev, polledEvents));
+            polledEvents.forEach((ev) => scheduleClearIsNew(ev.eventId, ev.txHash, ev.kind));
+          })
+          .catch(() => null);
+
+        reconnectTimer = setTimeout(() => {
+          if (!cancelled) {
+            setConnectionStatus("reconnecting");
+            connectSSE();
           }
-          if (addedPulses > 0) setPulse((p) => p + addedPulses);
-          return merged.slice(0, 100);
-        });
-      } catch {
-        failures += 1;
-        updateStatus();
-      }
+        }, 5000);
+      };
     };
 
-    poll();
-    intervalId = setInterval(poll, POLL_EVENTS_INTERVAL_MS);
+    connectSSE();
+
     return () => {
-      if (intervalId) clearInterval(intervalId);
+      cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (es) {
+        es.close();
+        esRef.current = null;
+      }
+      setConnectionStatus("disconnected");
     };
+  }, [deploymentId, status]);
+
+  // Poll status while waiting for the deployment to be confirmed.
+  useEffect(() => {
+    if (status === "CONFIRMED") return;
+    const id = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/deployments/${deploymentId}/status`);
+        if (!r.ok) return;
+        const { status: newStatus } = (await r.json()) as { status: string };
+        if (newStatus === "CONFIRMED") {
+          window.location.reload();
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 2000);
+    return () => clearInterval(id);
   }, [deploymentId, status]);
 
   async function copy(text: string) {

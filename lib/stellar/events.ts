@@ -562,7 +562,7 @@ async function pollEventsWithStartLedger(
     const safeDecodedData = convertBigInts(resolvedData) as Prisma.InputJsonValue | null;
 
     try {
-      await db.contractEvent.create({
+      const created = await db.contractEvent.create({
         data: {
           deploymentId,
           eventId: ev.id,
@@ -582,6 +582,7 @@ async function pollEventsWithStartLedger(
             eventChannel(deploymentId),
             JSON.stringify(
               convertBigInts({
+                id: created.id,
                 eventId: ev.id,
                 kind,
                 ledger: ev.ledger,
