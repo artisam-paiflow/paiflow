@@ -760,7 +760,7 @@ export function LiveEvents({ events, network, connectionStatus = "live", graph }
       ? "RECONNECTING"
       : connectionStatus === "disconnected"
         ? "OFFLINE"
-        : "LIVE";
+        : "SSE · LIVE";
   const dotClass =
     connectionStatus === "reconnecting"
       ? "status-dot-warn"
@@ -792,7 +792,12 @@ export function LiveEvents({ events, network, connectionStatus = "live", graph }
           </li>
         )}
         {events.map((e) => (
-          <EventRow key={e.id} evt={e} network={network} graph={graph} />
+          <EventRow
+            key={e.id ?? `${e.txHash}:${e.kind}:${e.ledger}`}
+            evt={e}
+            network={network}
+            graph={graph}
+          />
         ))}
       </ul>
     </section>
