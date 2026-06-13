@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import DeploymentCanvas from "./deployment-canvas";
 import { LiveEvents, type Evt } from "./live-events";
+import LiveBalances from "./live-balances";
 import ContractCallButton from "./contract-call-button";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { isTrigger } from "@/lib/flows/schema";
@@ -33,6 +34,7 @@ export default function DeploymentView({
   const explorerUrl =
     contractAddress && network ? stellarExpertContractUrl(contractAddress, network) : null;
   const [pulse, setPulse] = useState(0);
+  const [balanceTick, setBalanceTick] = useState(0);
   const [events, setEvents] = useState<Evt[]>(initialEvents);
   const [connectionStatus, setConnectionStatus] = useState<
     "live" | "reconnecting" | "disconnected"
@@ -42,6 +44,7 @@ export default function DeploymentView({
   const mergeEvents = (prev: Evt[], incoming: Evt[]) => {
     const merged = [...prev];
     let addedPulses = 0;
+    let balanceChanges = 0;
     for (const data of incoming) {
       const isDuplicate = merged.some(
         (p) =>
@@ -53,9 +56,18 @@ export default function DeploymentView({
         if (data.kind === "RECEIVE" || data.kind === "PAYOUT") {
           addedPulses += 1;
         }
+        if (
+          data.kind === "RECEIVE" ||
+          data.kind === "PAYOUT" ||
+          data.kind === "CLAIM" ||
+          data.kind === "CANCEL"
+        ) {
+          balanceChanges += 1;
+        }
       }
     }
     if (addedPulses > 0) setPulse((p) => p + addedPulses);
+    if (balanceChanges > 0) setBalanceTick((t) => t + balanceChanges);
     return merged.slice(0, 100);
   };
 
@@ -198,6 +210,7 @@ export default function DeploymentView({
           <DeploymentCanvas graph={graph} pulseTick={pulse} />
         </section>
       )}
+      <LiveBalances deploymentId={deploymentId} network={network} refreshTick={balanceTick} />
       <div className="gap-md grid grid-cols-1 lg:grid-cols-2">
         <section className="glass-panel p-md rounded-xl">
           <div className="flex items-center justify-between">
