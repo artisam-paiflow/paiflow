@@ -24,6 +24,7 @@ export default function LiveBalances({
   const [balances, setBalances] = useState<WorkflowBalances>({ totals: [], nodes: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,16 +88,30 @@ export default function LiveBalances({
           <span className="material-symbols-outlined text-on-surface-variant">account_balance</span>
           <h2 className="text-headline-sm text-on-surface">{title}</h2>
         </div>
-        <span
-          className={cn(
-            "material-symbols-outlined text-on-surface-variant transition-opacity",
-            loading && "animate-spin opacity-100",
-            !loading && "opacity-60",
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "material-symbols-outlined text-on-surface-variant transition-opacity",
+              loading && "animate-spin opacity-100",
+              !loading && "opacity-60",
+            )}
+            aria-hidden
+          >
+            sync
+          </span>
+          {balances.nodes.length > 0 && (
+            <button
+              onClick={() => setExpanded((e) => !e)}
+              aria-expanded={expanded}
+              className="text-label-sm text-on-surface-variant hover:text-primary inline-flex items-center gap-1 font-mono transition-colors"
+            >
+              {expanded ? "Hide breakdown" : "Show breakdown"}
+              <span className="material-symbols-outlined text-[18px]">
+                {expanded ? "expand_less" : "expand_more"}
+              </span>
+            </button>
           )}
-          aria-hidden
-        >
-          sync
-        </span>
+        </div>
       </div>
 
       {error && (
@@ -132,7 +147,7 @@ export default function LiveBalances({
         </div>
       )}
 
-      {balances.nodes.length > 0 && (
+      {expanded && balances.nodes.length > 0 && (
         <div className="mt-md space-y-2">
           <p className="text-label-sm text-on-surface-variant font-mono uppercase">Per contract</p>
           <div className="divide-outline-variant/40 divide-y">
