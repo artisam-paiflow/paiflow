@@ -303,19 +303,32 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
         }
         case "on_schedule": {
           const startsAt = String(data.startsAt ?? "2026-05-20T00:00:00Z");
+          const intervalUnit = String(data.intervalUnit ?? data.interval ?? "day") as
+            | "minute"
+            | "hour"
+            | "day"
+            | "week"
+            | "month";
           nodes.push({
             id,
             type: "on_schedule",
             config: {
-              interval: String(data.interval ?? "day") as "minute" | "hour" | "day",
+              intervalAmount: data.intervalAmount ? Number(data.intervalAmount) : 1,
+              intervalUnit,
               startsAt,
               endsAt: data.endsAt ? String(data.endsAt) : undefined,
               occurrences: data.occurrences ? Number(data.occurrences) : undefined,
+              timeZone: data.timeZone ? String(data.timeZone) : undefined,
             },
           } as FlowNode);
           break;
         }
         case "pay": {
+          const mode = (data.mode === "percentage" ? "percentage" : "fixed") as
+            | "fixed"
+            | "percentage";
+          const fullAmount = Boolean(data.fullAmount);
+          const percentage = typeof data.percentage === "number" ? data.percentage : undefined;
           nodes.push({
             id,
             type: "pay",
@@ -323,6 +336,9 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
               recipient: sanitizeAddress(String(data.recipient ?? "")),
               amountStroops: String(data.amountStroops ?? data.amount ?? "0"),
               asset: normalizeAsset(data.asset),
+              mode,
+              ...(percentage !== undefined ? { percentage } : {}),
+              fullAmount,
             },
           } as FlowNode);
           break;
@@ -545,7 +561,12 @@ function rescueFlow(
       ? {
           id: triggerId,
           type: "on_schedule",
-          config: { interval: "day", startsAt: new Date(Date.now() + 86400000).toISOString() },
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "day",
+            startsAt: new Date(Date.now() + 86400000).toISOString(),
+            timeZone: "UTC",
+          },
         }
       : ({ id: triggerId, type: "on_receive", config: { asset } } as FlowNode);
 

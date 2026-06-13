@@ -18,6 +18,7 @@ const PUBLIC_PATHS = [
   /^\/api\/health$/,
   /^\/api\/cron\/.*/,
   /^\/api\/files\/.*/,
+  /^\/api\/webhooks(\/.*)?$/,
   /^\/deployments\/[^/]+\/embed$/,
   /^\/trigger\/[^/]+$/,
   /^\/api\/deployments\/[^/]+\/trigger$/,

@@ -19,6 +19,8 @@ describe("onNodesChange remove handling", () => {
           recipient: ADDR,
           amountStroops: "100",
           asset: { kind: "native" },
+          mode: "fixed",
+          fullAmount: false,
         },
       },
     ];

@@ -9,8 +9,9 @@ import { rateLimit } from "@/lib/rate-limit";
 import { env } from "@/lib/env";
 import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
-import { flowToParams } from "@/lib/flows/to-params";
-import { prepareDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
+import { flowToPipeline } from "@/lib/flows/to-params";
+import { preparePipelineDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
+import { stellarWasmHash, stellarRelayerAddress } from "@/lib/env";
 
 const PrepareSchema = z.object({
   flowId: z.string().uuid(),
@@ -51,19 +52,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const params = flowToParams(v.graph, v.templateKind);
-
-    await checkAccountFunding(body.sourceAccount);
-
-    const template = await db.contractTemplate.findFirst({
-      where: { kind: v.templateKind, network },
-    });
-    if (!template) {
+    const trigger = v.graph.nodes.find((n) => n.type === "web2_webhook");
+    const relayerAddress = stellarRelayerAddress();
+    if (trigger && !relayerAddress) {
       throw new AppError(
         "VALIDATION",
-        `No WASM uploaded for ${v.templateKind} on ${network}. Run pnpm contracts:upload --network=${network}.`,
+        "STELLAR_RELAYER_ADDRESS is required to deploy an HTTP Webhook flow. Set it in your environment.",
       );
     }
+
+    const pipeline = flowToPipeline(v.graph, relayerAddress);
+
+    // Ensure every pipeline node has a corresponding WASM template on-chain.
+    const deployNodes = await Promise.all(
+      pipeline.map(async (node) => {
+        const hash = stellarWasmHash(node.templateKind);
+        if (!hash) {
+          throw new AppError(
+            "VALIDATION",
+            `No WASM uploaded for ${node.templateKind} on ${network}. Run pnpm contracts:upload --network=${network}.`,
+          );
+        }
+        return {
+          nodeId: node.nodeId,
+          templateKind: node.templateKind,
+          wasmHash: hash,
+          params: node.params,
+        };
+      }),
+    );
+
+    await checkAccountFunding(body.sourceAccount);
 
     const deployment = await db.deployment.create({
       data: {
@@ -72,20 +91,29 @@ export async function POST(req: NextRequest) {
         network,
         status: "BUILDING",
         graphSnapshot: graph as object,
-        paramsSnapshot: params as object,
+        paramsSnapshot: pipeline as object,
         sourceAccount: body.sourceAccount,
       },
     });
 
     try {
-      const prepared = await prepareDeployTx({
-        wasmHash: template.wasmHash,
+      const prepared = await preparePipelineDeployTx({
         sourceAccount: body.sourceAccount,
-        params,
+        graph,
+        nodes: deployNodes,
       });
+
+      // Use the trigger contract (first node) as the primary contract address.
+      const triggerNode = prepared.pipeline[0];
+
       await db.deployment.update({
         where: { id: deployment.id },
-        data: { status: "PENDING_SIGNATURE", unsignedXdr: prepared.xdr },
+        data: {
+          status: "PENDING_SIGNATURE",
+          unsignedXdr: prepared.xdr,
+          contractAddress: triggerNode?.contractAddress ?? null,
+          pipelineSnapshot: prepared.pipeline as object,
+        },
       });
       await audit({
         action: "DEPLOY_PREPARE",
@@ -96,7 +124,8 @@ export async function POST(req: NextRequest) {
         data: {
           deploymentId: deployment.id,
           xdr: prepared.xdr,
-          expectedContractAddress: prepared.contractAddress,
+          expectedContractAddress: triggerNode?.contractAddress ?? null,
+          pipeline: prepared.pipeline,
         },
       });
     } catch (err) {

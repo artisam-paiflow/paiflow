@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import crypto from "crypto";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -30,13 +31,32 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const result = await submitDeployTx(body.signedXdr);
     if (result.status === "SUCCESS") {
+      // For pipeline deployments we trust the deterministic pre-computed
+      // addresses stored in pipelineSnapshot.  For legacy single-contract
+      // deployments we fall back to the address returned by the RPC.
+      const pipeline = deployment.pipelineSnapshot as Array<{
+        nodeId: string;
+        contractAddress: string;
+        templateKind: string;
+      }> | null;
+      const contractAddress = pipeline?.[0]?.contractAddress ?? result.contractAddress ?? null;
+
+      const graph = deployment.graphSnapshot as {
+        nodes: Array<{ type: string; config?: Record<string, unknown> }>;
+      } | null;
+      const hasWeb2Webhook = graph?.nodes.some((n) => n.type === "web2_webhook") ?? false;
+      const webhookSecret = hasWeb2Webhook
+        ? `whsec_${crypto.randomBytes(32).toString("hex")}`
+        : null;
+
       await db.deployment.update({
         where: { id },
         data: {
           status: "CONFIRMED",
           deployTxHash: result.txHash,
-          contractAddress: result.contractAddress ?? null,
+          contractAddress,
           confirmedAt: new Date(),
+          ...(webhookSecret ? { webhookSecret } : {}),
         },
       });
       await audit({
@@ -48,7 +68,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         data: {
           status: "CONFIRMED",
           txHash: result.txHash,
-          contractAddress: result.contractAddress,
+          contractAddress,
+          pipeline: pipeline ?? undefined,
         },
       });
     }

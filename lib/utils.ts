@@ -25,3 +25,13 @@ export function formatStroops(stroops: bigint | string, decimals = 7): string {
   const out = fracStr ? `${whole}.${fracStr}` : whole.toString();
   return negative ? `-${out}` : out;
 }
+
+export function formatAmount(stroops: bigint | string, maxDecimals = 4): string {
+  const raw = formatStroops(stroops, 7);
+  const parts = raw.split(".");
+  const whole = parts[0] ?? "0";
+  const frac = parts[1];
+  if (!frac) return whole;
+  const trimmed = frac.slice(0, maxDecimals).replace(/0+$/, "");
+  return trimmed ? `${whole}.${trimmed}` : whole;
+}

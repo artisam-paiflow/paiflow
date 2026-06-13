@@ -13,13 +13,27 @@ function nodeLabel(n: FlowNode): string {
     case "on_receive":
       return `On Receive (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "on_schedule":
-      return `On Schedule (${n.config.interval})`;
+      return `On Schedule (${(n.config as { intervalAmount?: number; intervalUnit?: string; interval?: string }).intervalAmount ?? 1} ${(n.config as { intervalAmount?: number; intervalUnit?: string; interval?: string }).intervalUnit ?? (n.config as { interval?: string }).interval ?? "hour"})`;
+    case "webhook":
+      return `Webhook (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+    case "web2_webhook":
+      return `HTTP Webhook (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+    case "subscription":
+      return `Subscription (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+    case "oracle":
+      return `Oracle (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "pay":
       return "Pay";
     case "split":
       return `Split (${n.config.recipients.length})`;
+    case "swap":
+      return `Swap (${n.config.assetIn.kind === "known" ? n.config.assetIn.symbol : n.config.assetIn.kind} → ${n.config.assetOut.kind === "known" ? n.config.assetOut.symbol : n.config.assetOut.kind})`;
+    case "yield":
+      return `Yield (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "condition":
       return `Condition (${n.config.kind})`;
+    default:
+      return "Unknown";
   }
 }
 

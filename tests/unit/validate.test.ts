@@ -29,7 +29,10 @@ describe("validateFlow", () => {
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.templateKind).toBe(TemplateKind.SPLITTER);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.SPLITTER);
+      expect(r.pipeline).toEqual([TemplateKind.DEPOSIT_TRIGGER, TemplateKind.SPLITTER]);
+    }
   });
 
   it("rejects bps that don't sum to 10000", () => {
@@ -142,7 +145,8 @@ describe("validateFlow", () => {
           id: "t",
           type: "on_schedule",
           config: {
-            interval: "hour",
+            intervalAmount: 1,
+            intervalUnit: "hour",
             startsAt: "2030-01-01T00:00:00.000Z",
           },
         },
@@ -159,7 +163,10 @@ describe("validateFlow", () => {
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.templateKind).toBe(TemplateKind.STREAMER);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.STREAMER);
+      expect(r.pipeline).toEqual([TemplateKind.STREAMER]);
+    }
   });
 
   it("infers STREAMER from on_schedule → split", () => {
@@ -169,7 +176,8 @@ describe("validateFlow", () => {
           id: "t",
           type: "on_schedule",
           config: {
-            interval: "day",
+            intervalAmount: 1,
+            intervalUnit: "day",
             startsAt: "2030-01-01T00:00:00.000Z",
           },
         },
@@ -188,7 +196,10 @@ describe("validateFlow", () => {
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.templateKind).toBe(TemplateKind.STREAMER);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.STREAMER);
+      expect(r.pipeline).toEqual([TemplateKind.STREAMER]);
+    }
   });
 
   it("infers CONDITIONAL from on_receive + split + condition", () => {
@@ -222,7 +233,14 @@ describe("validateFlow", () => {
       ],
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.templateKind).toBe(TemplateKind.CONDITIONAL);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.CONDITIONAL);
+      expect(r.pipeline).toEqual([
+        TemplateKind.DEPOSIT_TRIGGER,
+        TemplateKind.ROUTER,
+        TemplateKind.SPLITTER,
+      ]);
+    }
   });
 
   it("infers CONDITIONAL from on_schedule + split + condition", () => {
@@ -232,7 +250,8 @@ describe("validateFlow", () => {
           id: "t",
           type: "on_schedule",
           config: {
-            interval: "hour",
+            intervalAmount: 1,
+            intervalUnit: "hour",
             startsAt: "2030-01-01T00:00:00.000Z",
           },
         },
@@ -259,6 +278,136 @@ describe("validateFlow", () => {
       ],
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.templateKind).toBe(TemplateKind.CONDITIONAL);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.CONDITIONAL);
+      expect(r.pipeline).toEqual([TemplateKind.STREAMER]);
+    }
+  });
+
+  // ── web2_webhook compatibility ──
+  it("accepts web2_webhook → swap", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "web2_webhook",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "swap",
+          config: {
+            assetIn: { kind: "native" },
+            assetOut: { kind: "known", symbol: "USDC" },
+            rateBps: 9500,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.pipeline).toEqual([TemplateKind.WEBHOOK, TemplateKind.SWAPPER]);
+    }
+  });
+
+  it("accepts web2_webhook → yield", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "web2_webhook",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "yield",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            vault: ADDR_A,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.pipeline).toEqual([TemplateKind.WEBHOOK, TemplateKind.YIELD]);
+    }
+  });
+
+  it("rejects web2_webhook → pay", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "web2_webhook",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "10000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("accepts web2_webhook → split", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "web2_webhook",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, bps: 5000 },
+              { address: ADDR_B, bps: 5000 },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("accepts webhook → pay", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "webhook",
+          config: { asset: { kind: "known", symbol: "USDC" }, relayer: ADDR_A },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "10000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
   });
 });

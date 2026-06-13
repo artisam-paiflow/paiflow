@@ -2,8 +2,11 @@ import { shortAddr, formatStroops } from "@/lib/utils";
 import type { Asset, FlowGraph, FlowNode } from "./schema";
 import { isAction, isLogic, isTrigger, isPendingAddress, bpsToPct, assetLabel } from "./schema";
 
-function intervalLabel(i: "minute" | "hour" | "day"): string {
-  return i === "minute" ? "every minute" : i === "hour" ? "every hour" : "every day";
+function intervalLabel(amount: number, unit: string): string {
+  if (amount === 1) {
+    return `every ${unit}`;
+  }
+  return `every ${amount} ${unit}s`;
 }
 
 function describeCondition(c: Extract<FlowNode, { type: "condition" }>, asset?: Asset): string {
@@ -11,7 +14,7 @@ function describeCondition(c: Extract<FlowNode, { type: "condition" }>, asset?: 
   const suffix = asset ? ` ${assetLabel(asset)}` : "";
   switch (cfg.kind) {
     case "amount_gt":
-      return `only if amount > ${formatStroops(cfg.amountStroops)}${suffix}`;
+      return `only if amount ≥ ${formatStroops(cfg.amountStroops)}${suffix}`;
     case "amount_lt":
       return `only if amount < ${formatStroops(cfg.amountStroops)}${suffix}`;
     case "oracle_gte":
@@ -20,6 +23,8 @@ function describeCondition(c: Extract<FlowNode, { type: "condition" }>, asset?: 
       return `only after ${cfg.at}`;
     case "time_before":
       return `only before ${cfg.at}`;
+    case "multisig":
+      return `only after ${cfg.threshold} of ${cfg.signers.length} signers approve`;
   }
 }
 
@@ -35,8 +40,21 @@ export function flowToEnglish(graph: FlowGraph): string {
     triggerText = min
       ? `When this contract receives ≥ ${formatStroops(min)} ${assetLabel(trigger.config.asset)}`
       : `When this contract receives ${assetLabel(trigger.config.asset)}`;
+  } else if (trigger.type === "webhook") {
+    triggerText = `When webhook trigger fires for ${assetLabel(trigger.config.asset)}`;
+  } else if (trigger.type === "web2_webhook") {
+    triggerText = `When HTTP webhook fires for ${assetLabel(trigger.config.asset)}`;
+  } else if (trigger.type === "subscription") {
+    triggerText = `When subscription pulls ${formatStroops(trigger.config.amountPerPeriodStroops)} ${assetLabel(trigger.config.asset)}`;
+  } else if (trigger.type === "oracle") {
+    triggerText = `When oracle price meets threshold (${trigger.config.threshold}) for ${assetLabel(trigger.config.asset)}`;
   } else {
-    triggerText = `${intervalLabel(trigger.config.interval)} starting ${trigger.config.startsAt}`;
+    const sched = trigger.config as {
+      intervalAmount?: number;
+      intervalUnit?: string;
+      interval?: string;
+    };
+    triggerText = `${intervalLabel(sched.intervalAmount ?? 1, sched.intervalUnit ?? sched.interval ?? "hour")} starting ${trigger.config.startsAt}`;
   }
 
   let actionText: string;
@@ -44,9 +62,24 @@ export function flowToEnglish(graph: FlowGraph): string {
     const who = isPendingAddress(action.config.recipient)
       ? "(needs address)"
       : shortAddr(action.config.recipient);
-    actionText = `pay ${formatStroops(action.config.amountStroops)} ${assetLabel(
-      action.config.asset,
-    )} to ${who}`;
+    if (action.config.fullAmount) {
+      actionText = `pay full incoming ${assetLabel(action.config.asset)} to ${who}`;
+    } else if (action.config.mode === "percentage") {
+      actionText = `pay ${action.config.percentage}% of incoming ${assetLabel(
+        action.config.asset,
+      )} to ${who}`;
+    } else {
+      actionText = `pay ${formatStroops(action.config.amountStroops || "0")} ${assetLabel(
+        action.config.asset,
+      )} to ${who}`;
+    }
+  } else if (action.type === "swap") {
+    actionText = `swap ${assetLabel(action.config.assetIn)} to ${assetLabel(action.config.assetOut)} at ${(action.config.rateBps / 100).toFixed(0)}% rate`;
+  } else if (action.type === "yield") {
+    const vault = isPendingAddress(action.config.vault)
+      ? "(needs address)"
+      : shortAddr(action.config.vault);
+    actionText = `deposit ${assetLabel(action.config.asset)} into yield vault ${vault}`;
   } else {
     const totalBps = action.config.recipients.reduce((s, r) => s + r.bps, 0);
     const sourceAmount =
@@ -71,7 +104,19 @@ export function flowToEnglish(graph: FlowGraph): string {
     }
   }
 
-  const conditionAsset = trigger.type === "on_receive" ? trigger.config.asset : action.config.asset;
+  const conditionAsset =
+    trigger.type === "on_receive"
+      ? trigger.config.asset
+      : trigger.type === "webhook" ||
+          trigger.type === "web2_webhook" ||
+          trigger.type === "oracle" ||
+          trigger.type === "subscription"
+        ? trigger.config.asset
+        : action.type === "swap"
+          ? action.config.assetIn
+          : action.type === "yield"
+            ? action.config.asset
+            : action.config.asset;
   const tail = condition ? `, ${describeCondition(condition, conditionAsset)}` : "";
   return `${triggerText}, ${actionText}${tail}.`;
 }

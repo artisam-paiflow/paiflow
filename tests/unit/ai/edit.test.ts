@@ -80,7 +80,13 @@ describe("applyPatch", () => {
         {
           id: "a",
           type: "pay",
-          config: { recipient: ADDR, amountStroops: "100", asset: { kind: "native" } },
+          config: {
+            recipient: ADDR,
+            amountStroops: "100",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
         },
       ],
       edges: [],

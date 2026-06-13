@@ -214,6 +214,21 @@ h4 {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-right: 1px solid rgba(92, 63, 70, 0.2);
+  overflow-x: hidden;
+}
+
+.glass-panel-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.glass-panel-sidebar::-webkit-scrollbar-track {
+  background: rgba(28, 27, 27, 0.5);
+}
+.glass-panel-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+.glass-panel-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .glass-panel-nav {
@@ -313,6 +328,27 @@ h4 {
   background-color: #ffba20;
   box-shadow: 0 0 6px rgba(255, 186, 32, 0.8);
   animation: pulse-glow-tertiary 2s infinite;
+}
+
+@keyframes pulse-glow-error {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 84, 73, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(255, 84, 73, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 84, 73, 0);
+  }
+}
+
+.status-dot-error {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ff5449;
+  box-shadow: 0 0 6px rgba(255, 84, 73, 0.8);
+  animation: pulse-glow-error 2s infinite;
 }
 
 /* Animated flow line keyframe — used by custom builder edges */

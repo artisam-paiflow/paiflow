@@ -10,6 +10,9 @@ type Props = {
   onAdd: (node: FlowNode) => void;
   flowNodes: FlowNode[];
   templateKind?: TemplateKind | null;
+  pipeline?: TemplateKind[];
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 };
 
 function makeId(prefix: string) {
@@ -42,9 +45,55 @@ const TEMPLATES: Template[] = [
       id: makeId("sched"),
       type: "on_schedule",
       config: {
-        interval: "hour",
+        intervalAmount: 1,
+        intervalUnit: "hour",
         startsAt: new Date().toISOString(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       },
+    }),
+  },
+  {
+    group: "Triggers",
+    label: "Webhook",
+    icon: "webhook",
+    make: () => ({
+      id: makeId("webhook"),
+      type: "webhook",
+      config: { asset: { kind: "known", symbol: "USDC" }, relayer: "PENDING:relayer" },
+    }),
+  },
+  {
+    group: "Triggers",
+    label: "HTTP Webhook",
+    icon: "http",
+    make: () => ({
+      id: makeId("web2"),
+      type: "web2_webhook",
+      config: { asset: { kind: "known", symbol: "USDC" } },
+    }),
+  },
+  {
+    group: "Triggers",
+    label: "Subscription",
+    icon: "repeat",
+    make: () => ({
+      id: makeId("sub"),
+      type: "subscription",
+      config: {
+        asset: { kind: "known", symbol: "USDC" },
+        subscriber: "PENDING:subscriber",
+        amountPerPeriodStroops: "10000000",
+      },
+    }),
+  },
+  {
+    group: "Triggers",
+    label: "Oracle",
+    icon: "online_prediction",
+    make: () => ({
+      id: makeId("oracle"),
+      type: "oracle",
+      config: { asset: { kind: "known", symbol: "USDC" }, threshold: "100" },
     }),
   },
   {
@@ -58,6 +107,8 @@ const TEMPLATES: Template[] = [
         recipient: "PENDING:unnamed",
         amountStroops: "10000000",
         asset: { kind: "known", symbol: "USDC" },
+        mode: "fixed",
+        fullAmount: false,
       },
     }),
   },
@@ -86,6 +137,33 @@ const TEMPLATES: Template[] = [
     }),
   },
   {
+    group: "Actions",
+    label: "Swap",
+    icon: "swap_horiz",
+    make: () => ({
+      id: makeId("swap"),
+      type: "swap",
+      config: {
+        assetIn: { kind: "native" },
+        assetOut: { kind: "known", symbol: "USDC" },
+        rateBps: 9500,
+      },
+    }),
+  },
+  {
+    group: "Actions",
+    label: "Yield",
+    icon: "savings",
+    make: () => ({
+      id: makeId("yield"),
+      type: "yield",
+      config: {
+        asset: { kind: "known", symbol: "USDC" },
+        vault: "PENDING:vault",
+      },
+    }),
+  },
+  {
     group: "Logic",
     label: "Condition",
     icon: "rule",
@@ -103,28 +181,78 @@ const GROUP_TONE: Record<Template["group"], { tone: string; dot: string }> = {
   Logic: { tone: "text-tertiary", dot: "bg-tertiary" },
 };
 
-export default function Palette({ onAdd, flowNodes, templateKind }: Props) {
+export default function Palette({
+  onAdd,
+  flowNodes,
+  templateKind,
+  pipeline,
+  collapsed,
+  onToggleCollapse,
+}: Props) {
   const groups: Template["group"][] = ["Triggers", "Actions", "Logic"];
   const headingId = useId();
   const hasTrigger = flowNodes.some(isTrigger);
   const templateLabel = templateKind ? TEMPLATE_LABELS[templateKind] : null;
   const templateDescription = templateKind ? TEMPLATE_DESCRIPTIONS[templateKind] : null;
 
+  if (collapsed) {
+    return (
+      <aside className="glass-panel-sidebar pt-md relative flex h-full flex-col items-center">
+        <button
+          onClick={onToggleCollapse}
+          className="text-on-surface-variant hover:bg-surface-container-high/50 hover:text-on-surface flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
+          title="Expand sidebar"
+        >
+          <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+        </button>
+      </aside>
+    );
+  }
+
   return (
-    <aside aria-labelledby={headingId} className="glass-panel-sidebar p-md h-full overflow-y-auto">
-      <section aria-label="Contract template" className="mb-md">
-        <div className="text-label-sm text-on-surface-variant font-mono">/ CONTRACT TEMPLATE</div>
-        <div className="mt-2">
-          <span
-            className={`text-label-md inline-flex items-center gap-2 rounded-lg border px-2 py-1 font-mono ${
-              templateLabel
-                ? "bg-primary/10 border-primary/20 text-primary"
-                : "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant"
-            }`}
-          >
-            {templateLabel ?? "—"}
-          </span>
+    <aside
+      aria-labelledby={headingId}
+      className="glass-panel-sidebar p-md relative h-full overflow-y-auto"
+    >
+      <button
+        onClick={onToggleCollapse}
+        className="text-on-surface-variant hover:bg-surface-container-high/50 hover:text-on-surface absolute top-3 right-2 flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
+        title="Collapse sidebar"
+      >
+        <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+      </button>
+      <section aria-label="Pipeline architecture" className="mb-md">
+        <div className="text-label-sm text-on-surface-variant font-mono">
+          / PIPELINE ARCHITECTURE
         </div>
+        {pipeline && pipeline.length > 0 ? (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {pipeline.map((kind, i) => (
+              <span key={`${kind}-${i}`} className="inline-flex items-center gap-1.5">
+                <span className="text-label-sm border-primary/20 bg-primary/10 text-primary inline-flex items-center rounded-md border px-2 py-1 font-mono">
+                  {TEMPLATE_LABELS[kind]}
+                </span>
+                {i < pipeline.length - 1 && (
+                  <span className="material-symbols-outlined text-on-surface-variant text-[14px]">
+                    arrow_forward
+                  </span>
+                )}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-2">
+            <span
+              className={`text-label-md inline-flex items-center gap-2 rounded-lg border px-2 py-1 font-mono ${
+                templateLabel
+                  ? "bg-primary/10 border-primary/20 text-primary"
+                  : "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant"
+              }`}
+            >
+              {templateLabel ?? "—"}
+            </span>
+          </div>
+        )}
         {templateDescription && (
           <p className="text-body-md text-on-surface-variant mt-2 leading-snug">
             {templateDescription}

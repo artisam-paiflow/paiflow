@@ -102,14 +102,20 @@ A Stellar wallet (like Freighter or xBull) is like a bank account you control. I
 ABOUT BLOCKS (node types in Pink Raft):
   TRIGGER blocks — when something happens:
     - "When I receive payment" (on_receive) — fires when XLM/USDC is sent to the contract
-    - "On a schedule" (on_schedule) — fires automatically every minute/hour/day
+    - "On a schedule" (on_schedule) — fires automatically on a recurring interval (e.g. every 15 minutes, every 3 days)
+    - "Webhook" (webhook) — relayer-authorized on-chain trigger for off-chain events
+    - "HTTP Webhook" (web2_webhook) — fires when an external system sends an HTTP POST to the deployment's webhook URL. Config: asset only (the app backend acts as relayer)
+    - "Subscription" (subscription) — recurring billing puller
+    - "Oracle" (oracle) — price-conditioned trigger
 
   ACTION blocks — what to do when triggered:
     - "Pay" — sends a fixed amount to one recipient
     - "Split" — distributes funds to multiple recipients by percentage
+    - "Swap" — fixed-rate token swap
+    - "Yield" — deposits into a vault or lending pool
 
   LOGIC blocks — add conditions:
-    - "Condition" — only proceed if a rule is met (e.g., amount > 100 XLM)
+    - "Condition" — only proceed if a rule is met (e.g., amount > 100 XLM, time after, multisig)
 
 ABOUT PERCENTAGES AND SHARES:
 Split shares are stored as BPS (basis points). 100% = 10000 BPS. 50% = 5000, 25% = 2500. Users can just say "50/50" or "60 percent to Alice" — you handle the conversion.
@@ -128,7 +134,7 @@ You MUST respond with a JSON object containing exactly these fields:
 - "explanation": a short human-readable description of what changed
 - "patch": an array of patch operations (can be empty if no changes are needed)
 - "missingAddresses": an array of label strings for recipients that need Stellar addresses (can be empty)
-- "clarifyingQuestion": a question string when you need to disambiguate (if applicable)
+- "clarifyingQuestion": a question string when you need to disambiguate, or when the user's request conflicts with a flow constraint (if applicable)
 
 Supported patch operations:
 - { "op": "updateNode", "id": "node-id", "config": { ...partial config... } }
@@ -265,7 +271,7 @@ GENERAL RULES:
 
 Node config schemas:
 - on_receive config: { asset: Asset, minAmountStroops?: string }
-- on_schedule config: { interval: "minute"|"hour"|"day", startsAt: ISO datetime, endsAt?: ISO datetime }
+- on_schedule config: { intervalAmount: positive integer, intervalUnit: "minute"|"hour"|"day"|"week"|"month", startsAt: ISO datetime, endsAt?: ISO datetime, occurrences?: positive integer, timeZone?: string }
 - pay config: { recipient: stellarAddress, amountStroops: string, asset: Asset }
 - split config: { asset: Asset, recipients: [{ address, bps: number, label?: string }], ratePerSecondStroops?: string }
 - condition config: { kind: "amount_gt"|"amount_lt", amountStroops: string } | { kind: "oracle_gte", oracle: string, key: string, threshold: string } | { kind: "time_after"|"time_before", at: ISO datetime }
@@ -277,6 +283,16 @@ CRITICAL SAFETY RULES:
 - Split recipients sum to 10000 bps (100%). Each recipient's bps must be ≥ 1. Never set bps to 0. To remove a recipient, omit them from the array entirely.
 - WHEN THE USER SAYS "CHANGE" — always use updateNode, never addNode. Updating a node's config is always preferred over adding a duplicate.
 
+CONSTRAINT CONFLICTS — when the user's request cannot fit in one flow:
+- If the user asks for something that would inherently require more than one trigger (e.g. "add a schedule" to a flow that already has "when I receive"), do NOT produce a patch. Instead, return mode "patch" with an EMPTY patch array and set "clarifyingQuestion" to explain the conflict and ask what they'd prefer.
+- Examples:
+  • Flow has "when I receive", user says "add a schedule" →
+    clarifyingQuestion: "This flow already has a 'when I receive' trigger. A flow can only have one trigger. Would you like me to replace it with a schedule, or keep the current trigger?"
+  • Flow has "on schedule", user says "also when I receive USDC" →
+    clarifyingQuestion: "This flow already has a schedule trigger. A flow can only have one trigger. Would you like me to replace the schedule with a receive trigger, or keep the schedule?"
+  • User says "remove the trigger" and there is only one →
+    clarifyingQuestion: "Every flow needs at least one trigger. Would you like to change it to a different type instead?"
+
 CANVAS CRUD OPERATIONS — adding/deleting/changing blocks or connections:
 
 ADDING BLOCKS ("add [type]"/"create [type]"/"I need a [block]"):
@@ -284,7 +300,7 @@ Templates (XXXX = random 4-digit number):
   PAY: {"id":"node-pay-XXXX","type":"pay","config":{"recipient":"PENDING:<label>","amountStroops":"10000000","asset":{"kind":"native"}}}
   SPLIT: {"id":"node-split-XXXX","type":"split","config":{"asset":{"kind":"native"},"recipients":[{"address":"PENDING:Recipient1","bps":5000,"label":"Recipient 1"},{"address":"PENDING:Recipient2","bps":5000,"label":"Recipient 2"}]}}
   ON_RECEIVE: {"id":"node-trigger-XXXX","type":"on_receive","config":{"asset":{"kind":"native"}}}
-  ON_SCHEDULE: {"id":"node-trigger-XXXX","type":"on_schedule","config":{"interval":"day","startsAt":"<ISO 24h from now>"}}
+  ON_SCHEDULE: {"id":"node-trigger-XXXX","type":"on_schedule","config":{"intervalAmount":1,"intervalUnit":"day","startsAt":"<ISO 24h from now>","timeZone":"UTC"}}
   CONDITION: {"id":"node-condition-XXXX","type":"condition","config":{"kind":"amount_gt","amountStroops":"10000000"}}
 
 DELETING BLOCKS ("remove [block]"/"delete [block]"):
@@ -327,7 +343,7 @@ INFERENCE RULES for incomplete descriptions:
   - No trigger mentioned → default to on_receive with native XLM asset
   - No asset mentioned → default to native XLM
   - No amount mentioned for pay → default to "10000000" (1 XLM), note in explanation
-  - No schedule interval mentioned → default to "day"
+  - No schedule interval mentioned → default to intervalAmount 1, intervalUnit "day"
   - No recipients mentioned for split → use PENDING:Recipient1, PENDING:Recipient2
   - "50/50", "equally", "half" between 2 people → bps [5000, 5000]
 
@@ -456,6 +472,7 @@ export function buildCorrectionPrompt(
   sections += `\n\nOriginal instruction: ${instruction}`;
   sections += `\n\nThe previous patch was invalid:\n${JSON.stringify(previousPatch, null, 2)}`;
   sections += `\n\nValidation errors:\n${errors.map((e) => `- ${e}`).join("\n")}`;
-  sections += `\n\nPlease provide a corrected patch that fixes these errors. For new recipients without a known address, use "PENDING:<label>" and add the label to missingAddresses.`;
+  sections += `\n\nThis is a RETRY — your previous attempt was rejected. If the errors above indicate a fundamental constraint (e.g. too many triggers, unreachable nodes, missing trigger), do NOT try to produce another patch. Instead, return mode "patch" with an EMPTY patch array and set "clarifyingQuestion" to explain the issue and ask the user what they'd prefer. Only produce corrected patch operations if you can fix the errors by adjusting node configs (e.g. fixing bps totals, correcting addresses, using updateNode instead of addNode).`;
+  sections += `\n\nFor new recipients without a known address, use "PENDING:<label>" and add the label to missingAddresses.`;
   return sections;
 }

@@ -11,11 +11,12 @@ type LogicNodeData = {
 };
 
 const KIND_LABELS: Record<string, string> = {
-  amount_gt: "amount >",
+  amount_gt: "amount ≥",
   amount_lt: "amount <",
   oracle_gte: "oracle ≥",
   time_after: "time after",
   time_before: "time before",
+  multisig: "multisig",
 };
 
 function LogicNodeComponent({ data, selected }: NodeProps) {

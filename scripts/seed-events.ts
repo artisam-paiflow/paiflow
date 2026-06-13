@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { config } from "dotenv";
 import { PrismaClient, EventKind } from "@prisma/client";
@@ -137,7 +138,7 @@ async function main() {
   await db.contractEvent.deleteMany({ where: { deploymentId } });
 
   for (const event of events) {
-    await db.contractEvent.create({ data: event });
+    await db.contractEvent.create({ data: { ...event, eventId: randomUUID() } });
   }
 
   console.log(`Seeded ${events.length} events for deployment ${deploymentId}`);

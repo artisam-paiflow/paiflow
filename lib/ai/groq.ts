@@ -47,6 +47,24 @@ function extractJson(text: string): string | null {
   return null;
 }
 
+export function stripNulls(obj: unknown): unknown {
+  if (obj === null) return undefined;
+  if (Array.isArray(obj)) {
+    return obj.map(stripNulls);
+  }
+  if (typeof obj === "object" && obj !== null) {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      const cleaned = stripNulls(value);
+      if (cleaned !== undefined) {
+        result[key] = cleaned;
+      }
+    }
+    return result;
+  }
+  return obj;
+}
+
 function getModelChain(callerModel?: string): string[] {
   if (callerModel) return [callerModel];
   const primary = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
@@ -99,12 +117,12 @@ async function tryModel(
   if (!content) throw new AppError("UPSTREAM_RPC", "Empty response from Groq");
 
   try {
-    return JSON.parse(content);
+    return stripNulls(JSON.parse(content));
   } catch {
     const extracted = extractJson(content);
     if (extracted) {
       try {
-        return JSON.parse(extracted);
+        return stripNulls(JSON.parse(extracted));
       } catch {
         // fall through to error
       }

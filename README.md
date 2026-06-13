@@ -11,6 +11,22 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 ---
 
+## Pitch deck
+
+A 10-slide draft investor deck (MARP) lives at [`docs/pitch-deck.md`](docs/pitch-deck.md) — sized for a 3-minute pitch, themed to match [`BRAND.md`](BRAND.md).
+
+```bash
+# PDF
+npx @marp-team/marp-cli docs/pitch-deck.md -o pitch-deck.pdf
+
+# Live preview
+npx @marp-team/marp-cli --preview docs/pitch-deck.md
+```
+
+Team names, raise size, and pricing tiers are placeholders — swap before sharing externally.
+
+---
+
 ## 🧩 Problem
 
 Every fintech, MSME, and SMB that wants **programmable payments** today has two options:
@@ -43,7 +59,7 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 
 ## ✨ Features
 
-- **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`) and actions (`Pay`, `Split`) onto a `@xyflow/react` canvas, wire them up, validate, deploy. Mobile-responsive; the hero demo runs on a phone.
+- **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`) and actions (`Pay`, `Split`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
 - **Three Soroban templates** —
   - **Splitter** — 60/30/10-style fan-out across N recipients (BPS-weighted).
   - **Streamer** — time-based linear vesting / streaming payouts.
@@ -115,48 +131,40 @@ Pink Raft is **non-custodial** — the backend prepares XDR, but only the user's
 Deployed via Railway from `staging` (auto-deploy on merge into `staging`).
 
 - **App URL**: https://pinkraft.up.railway.app/
-- **Splitter contract template**: _TODO: paste `C…` address from latest `pnpm contracts:upload --network=testnet`_
-- **Streamer contract template**: _TODO_
-- **Conditional contract template**: _TODO_
 - **📸 Stellar Expert (testnet)**:
-  ![Testnet Screenshot](./screenshots/testnet.png)
+  <img width="1251" height="891" alt="image" src="https://github.com/user-attachments/assets/e93400b1-82d5-45ec-b3ea-1af2bdb2b68e" />
 
 ### Mainnet
 
 Cutover gated by `docs/mainnet-cutover.md`. WASM hashes uploaded via `pnpm contracts:upload --network=mainnet`.
 
 - **App URL**: https://pinkraft.xyz/
-- **Splitter contract template**: _TODO_
-- **Streamer contract template**: _TODO_
-- **Conditional contract template**: _TODO_
 - **📸 Stellar Expert (mainnet)**:
-  ![Mainnet Screenshot](./screenshots/mainnet.png)
+  <img width="1259" height="887" alt="image" src="https://github.com/user-attachments/assets/be166d1c-93eb-4cef-b6f7-a8d75e15241c" />
 
 ## 🎥 Demo
 
 - 🔗 **Live App**: https://pinkraft.xyz/
-- 🎬 **Demo Video**: _TODO: link YouTube / Loom_
+- 🎬 **Demo Video**: https://www.youtube.com/watch?v=VkOgegleb9A
+  [![Pink Raft Demo Video](https://img.youtube.com/vi/VkOgegleb9A/0.jpg)](https://www.youtube.com/watch?v=VkOgegleb9A)
+
 - 🖼️ **Pitch Deck**: https://drive.google.com/file/d/1CT2iNDgmdkfkzFDfRYTxZZYAcNdY7QP0/view
 
 ## 👨‍💻 Team
 
-_The team list below reflects active contributors on GitHub. Roles are TODO — fill in per submission._
-
-| Name | Role | GitHub                                                     |
-| ---- | ---- | ---------------------------------------------------------- |
-| Mark Hugh Neri | CTO | [@kimerran](https://github.com/kimerran)                   |
-| Mycal Pejana | Smart Contract Dev | [@SaltinStillWaters](https://github.com/SaltinStillWaters) |
-| Carl Macabales | AI Developer | [@cemmacabales](https://github.com/cemmacabales)           |               |
+| Name           | Role               | GitHub                                                     |
+| -------------- | ------------------ | ---------------------------------------------------------- | --- |
+| Mark Hugh Neri | CTO                | [@kimerran](https://github.com/kimerran)                   |
+| Mycal Pejana   | Smart Contract Dev | [@SaltinStillWaters](https://github.com/SaltinStillWaters) |
+| Carl Macabales | AI Developer       | [@cemmacabales](https://github.com/cemmacabales)           |     |
 
 ## 📜 License
 
-MIT — see [`LICENSE`](./LICENSE).
+MIT
 
 ---
 
 ## Developer reference
-
-Everything below is the engineering-onboarding detail — kept inline so contributors don't have to chase docs across the repo.
 
 ### Stack at a glance
 

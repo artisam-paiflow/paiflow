@@ -16,6 +16,17 @@ enum TemplateKind {
   SPLITTER
   STREAMER
   CONDITIONAL
+  DEPOSIT_TRIGGER
+  ROUTER
+  TIMELOCK
+  FACTORY
+  WEBHOOK
+  SUBSCRIPTION
+  ORACLE
+  MULTISIG
+  SWAPPER
+  YIELD
+  PAYER
 }
 
 enum DeploymentStatus {
@@ -151,11 +162,13 @@ model Deployment {
   errorMessage    String?
   graphSnapshot   Json
   paramsSnapshot  Json
+  pipelineSnapshot Json?
   createdAt       DateTime         @default(now())
   confirmedAt     DateTime?
   unsignedXdr     String?
   sourceAccount   String?
   distributeAmountStroops String?
+  webhookSecret   String?
 
   flow   Flow            @relation(fields: [flowId], references: [id], onDelete: Restrict)
   owner  User            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
@@ -169,6 +182,7 @@ model Deployment {
 model ContractEvent {
   id           String     @id @default(uuid()) @db.Uuid
   deploymentId String     @db.Uuid
+  eventId      String     @unique
   kind         EventKind
   ledger       Int
   txHash       String
@@ -178,14 +192,12 @@ model ContractEvent {
 
   deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
 
-  @@unique([txHash, kind])
   @@index([deploymentId, occurredAt(sort: Desc)])
 }
 
 model EventCursor {
   deploymentId    String     @id @db.Uuid
   lastLedger      Int
-  lastPagingToken String?
   updatedAt       DateTime   @updatedAt
   deployment      Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
 }

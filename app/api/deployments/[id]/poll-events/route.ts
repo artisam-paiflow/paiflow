@@ -3,6 +3,7 @@ import { pollEventsFor } from "@/lib/stellar/events";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError } from "@/lib/errors";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,6 +12,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const user = await requireSession().catch(() => null);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const ip = clientIp(req);
+  const limit = await rateLimit(`poll-events:${ip}`, 30, 60);
+  if (!limit.ok) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
 
   const { id } = await ctx.params;
@@ -32,6 +39,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     polled: written,
     events: latestEvents.map((e) => ({
       id: e.id,
+      eventId: e.eventId,
       kind: e.kind,
       ledger: e.ledger,
       txHash: e.txHash,

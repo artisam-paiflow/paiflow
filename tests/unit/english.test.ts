@@ -99,7 +99,7 @@ describe("flowToEnglish", () => {
         {
           id: "t",
           type: "on_schedule",
-          config: { interval: "hour", startsAt: "2030-01-01T00:00:00.000Z" },
+          config: { intervalAmount: 1, intervalUnit: "hour", startsAt: "2030-01-01T00:00:00.000Z" },
         },
         {
           id: "a",
@@ -108,6 +108,8 @@ describe("flowToEnglish", () => {
             recipient: ADDR,
             amountStroops: "20000000",
             asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
           },
         },
       ],
@@ -123,7 +125,7 @@ describe("flowToEnglish", () => {
         {
           id: "t",
           type: "on_schedule",
-          config: { interval: "day", startsAt: "2030-01-01T00:00:00.000Z" },
+          config: { intervalAmount: 1, intervalUnit: "day", startsAt: "2030-01-01T00:00:00.000Z" },
         },
         {
           id: "a",
@@ -173,6 +175,79 @@ describe("flowToEnglish", () => {
         { id: "e2", source: "c", target: "a" },
       ],
     });
-    expect(out).toContain("only if amount > 5 XLM");
+    expect(out).toContain("only if amount ≥ 5 XLM");
+  });
+
+  it("describes a pay node with percentage mode", () => {
+    const out = flowToEnglish({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR,
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "percentage",
+            percentage: 25,
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("pay 25% of incoming USDC");
+  });
+
+  it("describes a pay node with fullAmount", () => {
+    const out = flowToEnglish({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "native" } },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR,
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: true,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("pay full incoming XLM");
+  });
+
+  it("describes a web2_webhook → swap flow", () => {
+    const out = flowToEnglish({
+      nodes: [
+        {
+          id: "t",
+          type: "web2_webhook",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "swap",
+          config: {
+            assetIn: { kind: "native" },
+            assetOut: { kind: "known", symbol: "USDC" },
+            rateBps: 9500,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("When HTTP webhook fires for USDC");
+    expect(out).toContain("swap XLM to USDC at 95% rate");
   });
 });

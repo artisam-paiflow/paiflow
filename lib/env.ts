@@ -1,10 +1,19 @@
 import "server-only";
+import { Keypair } from "@stellar/stellar-sdk";
 import { z } from "zod";
 
 const optionalString = z
   .string()
   .optional()
   .transform((v) => (v && v.length > 0 ? v : undefined));
+
+const optionalWasmHash = z
+  .string()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined))
+  .refine((v) => v === undefined || /^[0-9a-f]{64}$/i.test(v), {
+    message: "WASM hash must be a 64-character hex string",
+  });
 
 const boolish = z
   .union([z.boolean(), z.string()])
@@ -38,12 +47,43 @@ const EnvSchema = z.object({
   // Friendbot is testnet-only; undefined on mainnet.
   STELLAR_FRIENDBOT_URL: optionalString,
 
-  STELLAR_WASM_HASH_SPLITTER_TESTNET: optionalString,
-  STELLAR_WASM_HASH_STREAMER_TESTNET: optionalString,
-  STELLAR_WASM_HASH_CONDITIONAL_TESTNET: optionalString,
-  STELLAR_WASM_HASH_SPLITTER_MAINNET: optionalString,
-  STELLAR_WASM_HASH_STREAMER_MAINNET: optionalString,
-  STELLAR_WASM_HASH_CONDITIONAL_MAINNET: optionalString,
+  STELLAR_WASM_HASH_SPLITTER_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_STREAMER_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_CONDITIONAL_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_DEPOSIT_TRIGGER_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_ROUTER_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_TIMELOCK_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SPLITTER_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_STREAMER_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_CONDITIONAL_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_DEPOSIT_TRIGGER_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_ROUTER_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_TIMELOCK_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_FACTORY_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_FACTORY_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_WEBHOOK_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_WEBHOOK_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SUBSCRIPTION_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SUBSCRIPTION_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_ORACLE_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_ORACLE_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_MULTISIG_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_MULTISIG_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SWAPPER_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SWAPPER_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_YIELD_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_YIELD_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_PAYER_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_PAYER_MAINNET: optionalWasmHash,
+  STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
+  STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
+
+  // ---- Relayer ----
+  // Used for auto-releasing timelock contracts and for signing webhook
+  // trigger transactions. Optional; when unset the admin address is used
+  // as the relayer, disabling the relayer path.
+  STELLAR_RELAYER_SECRET_KEY: optionalString,
+  STELLAR_RELAYER_ADDRESS: optionalString,
 
   CRON_SECRET: optionalString,
   SENTRY_DSN: optionalString,
@@ -136,9 +176,40 @@ export function stellarFriendbotUrl(): string {
   return e.STELLAR_FRIENDBOT_URL;
 }
 
-export function stellarWasmHash(kind: "SPLITTER" | "STREAMER" | "CONDITIONAL"): string | undefined {
+export function stellarWasmHash(
+  kind:
+    | "SPLITTER"
+    | "STREAMER"
+    | "CONDITIONAL"
+    | "DEPOSIT_TRIGGER"
+    | "ROUTER"
+    | "TIMELOCK"
+    | "FACTORY"
+    | "WEBHOOK"
+    | "SUBSCRIPTION"
+    | "ORACLE"
+    | "MULTISIG"
+    | "SWAPPER"
+    | "YIELD"
+    | "PAYER",
+): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
   const key = `STELLAR_WASM_HASH_${kind}_${suffix}` as keyof EnvShape;
   return e[key] as string | undefined;
+}
+
+export function stellarFactoryAddress(): string | undefined {
+  const e = env();
+  const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
+  const key = `STELLAR_FACTORY_ADDRESS_${suffix}` as keyof EnvShape;
+  return e[key] as string | undefined;
+}
+
+export function stellarRelayerSecretKey(): string | undefined {
+  return env().STELLAR_RELAYER_SECRET_KEY;
+}
+
+export function stellarRelayerAddress(): string | undefined {
+  return env().STELLAR_RELAYER_ADDRESS;
 }

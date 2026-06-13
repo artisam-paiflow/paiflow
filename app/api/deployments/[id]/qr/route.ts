@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { sep7PaymentUri } from "@/lib/stellar/sep7";
-import { prepareDistributeTx } from "@/lib/stellar/invoke";
+import { prepareDistributeTx, prepareDepositInvocation } from "@/lib/stellar/invoke";
 import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
 import { z } from "zod";
 
@@ -25,10 +25,31 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   });
   if (!d || !d.contractAddress) return new Response("Not ready", { status: 404 });
 
+  const pipeline = d.pipelineSnapshot as Array<{
+    nodeId: string;
+    contractAddress: string;
+    templateKind: string;
+  }> | null;
+  const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
+
+  const graph = FlowGraphSchema.safeParse(d.graphSnapshot);
+  const trigger = graph.success ? graph.data.nodes.find(isTrigger) : null;
+  const isWebhookLike = trigger?.type === "webhook" || trigger?.type === "web2_webhook";
+
   let uri: string;
   if (q.action === "trigger") {
-    if (d.flow.templateKind !== "SPLITTER") {
-      return new Response("Trigger QR only available for splitter deployments", { status: 400 });
+    if (
+      !isPipeline &&
+      !isWebhookLike &&
+      d.flow.templateKind !== "SPLITTER" &&
+      d.flow.templateKind !== "STREAMER"
+    ) {
+      return new Response(
+        "Trigger QR only available for splitter, webhook, or streamer deployments",
+        {
+          status: 400,
+        },
+      );
     }
     if (d.status !== "CONFIRMED") {
       return new Response("Contract not yet confirmed", { status: 400 });
@@ -41,7 +62,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       ? `${appUrl}/trigger/${d.id}?amount=${"0"}`
       : `${appUrl}/trigger/${d.id}`;
   } else if (q.action === "invoke") {
-    if (d.flow.templateKind !== "SPLITTER") {
+    if (!isPipeline && d.flow.templateKind !== "SPLITTER") {
       return new Response("Invoke QR only available for splitter deployments", { status: 400 });
     }
     if (d.status !== "CONFIRMED") {
@@ -54,12 +75,21 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (!d.sourceAccount) {
       return new Response("Source account not available", { status: 400 });
     }
-    const { xdr } = await prepareDistributeTx({
-      contractAddress: d.contractAddress,
-      amount,
-      sourceAccount: d.sourceAccount,
-    });
-    uri = `web+stellar:tx?xdr=${encodeURIComponent(xdr)}`;
+    if (isPipeline) {
+      const { xdr } = await prepareDepositInvocation({
+        contractAddress: d.contractAddress,
+        amount,
+        invokerAddress: d.sourceAccount,
+      });
+      uri = `web+stellar:tx?xdr=${encodeURIComponent(xdr)}`;
+    } else {
+      const { xdr } = await prepareDistributeTx({
+        contractAddress: d.contractAddress,
+        amount,
+        sourceAccount: d.sourceAccount,
+      });
+      uri = `web+stellar:tx?xdr=${encodeURIComponent(xdr)}`;
+    }
   } else {
     const graph = FlowGraphSchema.safeParse(d.graphSnapshot);
     const trigger = graph.success ? graph.data.nodes.find(isTrigger) : null;
