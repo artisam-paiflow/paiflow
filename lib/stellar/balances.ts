@@ -160,6 +160,8 @@ export async function getWorkflowBalances(
     }
 
     const { balance } = result.value;
+    if (balance <= 0n) continue;
+
     const symbol = assetLabel(target.asset);
     const balanceStroops = balance.toString();
 
