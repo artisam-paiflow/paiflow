@@ -20,3 +20,8 @@ command = "curl -fsS -H \"x-cron-secret: $CRON_SECRET\" $RAILWAY_PUBLIC_DOMAIN/a
 name = "finalize-deployments"
 schedule = "*/2 * * * *"
 command = "curl -fsS -H \"x-cron-secret: $CRON_SECRET\" $RAILWAY_PUBLIC_DOMAIN/api/cron/finalize-deployments || true"
+
+[[deploy.cron]]
+name = "auto-claim-streamers"
+schedule = "*/5 * * * *"
+command = "curl -fsS -H \"x-cron-secret: $CRON_SECRET\" $RAILWAY_PUBLIC_DOMAIN/api/cron/auto-claim-streamers || true"
