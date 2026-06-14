@@ -86,6 +86,9 @@ export async function POST(req: NextRequest) {
           } else if (message.includes("Unauthorized")) {
             // Defensive parity with auto-release
             results.push({ contractAddress, status: "skipped" });
+          } else if (message.includes("not sufficient to spend")) {
+            // Streamer is underfunded relative to its vested amount
+            results.push({ contractAddress, status: "skipped" });
           } else {
             // Truly unexpected error — log it
             log.warn({ deploymentId: d.id, contractAddress, error: message }, "Auto-claim failed");
