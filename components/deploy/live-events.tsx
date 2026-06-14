@@ -46,7 +46,7 @@ const KIND_META: Record<string, { label: string; color: string; icon: string }> 
   CLAIM: {
     label: "CLAIM",
     color: "border-tertiary/30 bg-tertiary/10 text-tertiary",
-    icon: "withdraw",
+    icon: "payment",
   },
   CANCEL: { label: "CANCEL", color: "border-error/30 bg-error/10 text-error", icon: "cancel" },
   STATUS_CHANGE: {
@@ -243,9 +243,11 @@ function DetailField({
 function RecipientList({
   recipients,
   totalAmount,
+  asset,
 }: {
   recipients: Recipient[];
   totalAmount?: string;
+  asset?: unknown;
 }) {
   const shares = useMemo(() => {
     if (!totalAmount) return recipients;
@@ -269,7 +271,7 @@ function RecipientList({
           )}
           {isNonEmptyString(r.amount) && (
             <span className="text-body-sm text-on-surface font-medium">
-              {formatAmount(r.amount)}
+              ({formatAmountWithAsset(r.amount, asset)})
             </span>
           )}
         </div>
@@ -443,11 +445,6 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
               <DetailField label="To">
                 <AddressValue addr={recipient} />
               </DetailField>
-              <DetailField label="Amount">
-                <span className="text-primary font-medium">
-                  {formatAmountWithAsset(amount, asset)}
-                </span>
-              </DetailField>
               {asset !== undefined && asset !== null && (
                 <DetailField label="Asset">{formatAsset(asset)}</DetailField>
               )}
@@ -482,6 +479,7 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
                 <RecipientList
                   recipients={recipients}
                   totalAmount={isNonEmptyString(amount) ? amount : undefined}
+                  asset={asset}
                 />
               </DetailField>
             </div>
@@ -541,11 +539,6 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
                 <AddressValue addr={contract} />
               </DetailField>
             )}
-            <DetailField label="Amount">
-              <span className="text-primary font-medium">
-                {formatAmountWithAsset(amount, asset)}
-              </span>
-            </DetailField>
             {asset !== undefined && asset !== null && (
               <DetailField label="Asset">{formatAsset(asset)}</DetailField>
             )}
@@ -555,25 +548,22 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
     }
     case "CLAIM": {
       const amount = d?.amount;
+      const asset = d?.asset;
       const recipients = normalizeRecipients(d?.recipients ?? d?.addresses);
 
       return (
         <div className="space-y-2">
           <div className="text-body-sm text-on-surface">
             Claimed{" "}
-            <span className="text-primary font-medium">{formatAmountWithAsset(amount)}</span>
+            <span className="text-primary font-medium">{formatAmountWithAsset(amount, asset)}</span>
           </div>
           <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-            {amount !== undefined && amount !== null && (
-              <DetailField label="Amount">
-                <span className="text-primary font-medium">{formatAmountWithAsset(amount)}</span>
-              </DetailField>
-            )}
             {recipients.length > 0 && (
               <DetailField label="Recipients" fullWidth>
                 <RecipientList
                   recipients={recipients}
                   totalAmount={isNonEmptyString(amount) ? amount : undefined}
+                  asset={asset}
                 />
               </DetailField>
             )}

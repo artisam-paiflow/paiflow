@@ -65,7 +65,7 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
   } else if (n.type === "email_notify") {
     icon = "mail";
     title = "Email Notify";
-    detail = `${n.config.to.length} recipient${n.config.to.length === 1 ? "" : "s"}`;
+    detail = `${n.config.recipients.length} recipient${n.config.recipients.length === 1 ? "" : "s"}`;
   } else {
     icon = "call_split";
     title = "Split";

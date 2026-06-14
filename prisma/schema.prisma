@@ -200,6 +200,7 @@ model EmailNotification {
   id              String   @id @default(uuid()) @db.Uuid
   contractEventId String   @db.Uuid
   nodeId          String
+  address         String?
   recipient       String
   status          String
   error           String?
@@ -207,7 +208,7 @@ model EmailNotification {
 
   contractEvent ContractEvent @relation(fields: [contractEventId], references: [id], onDelete: Cascade)
 
-  @@unique([contractEventId, nodeId, recipient])
+  @@unique([contractEventId, nodeId, address])
   @@index([contractEventId])
 }
 

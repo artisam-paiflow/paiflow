@@ -405,7 +405,11 @@ describe("validateFlow", () => {
         {
           id: "e",
           type: "email_notify",
-          config: { to: ["a@example.com"], subject: "Hi", body: "" },
+          config: {
+            recipients: [{ address: ADDR_A, email: "a@example.com" }],
+            subject: "Hi",
+            body: "",
+          },
         },
       ],
       edges: [
@@ -436,7 +440,11 @@ describe("validateFlow", () => {
         {
           id: "e",
           type: "email_notify",
-          config: { to: ["a@example.com"], subject: "Hi", body: "" },
+          config: {
+            recipients: [{ address: ADDR_A, email: "a@example.com" }],
+            subject: "Hi",
+            body: "",
+          },
         },
       ],
       edges: [
@@ -457,7 +465,7 @@ describe("validateFlow", () => {
           type: "pay",
           config: { recipient: ADDR_A, amountStroops: "10", asset: { kind: "native" } },
         },
-        { id: "e", type: "email_notify", config: { to: [], subject: "Hi", body: "" } },
+        { id: "e", type: "email_notify", config: { recipients: [], subject: "Hi", body: "" } },
       ],
       edges: [
         { id: "e1", source: "t", target: "a" },
@@ -474,11 +482,111 @@ describe("validateFlow", () => {
         {
           id: "e",
           type: "email_notify",
-          config: { to: ["a@example.com"], subject: "Hi", body: "" },
+          config: {
+            recipients: [{ address: ADDR_A, email: "a@example.com" }],
+            subject: "Hi",
+            body: "",
+          },
         },
       ],
       edges: [{ id: "e1", source: "t", target: "e" }],
     });
     expect(r.ok).toBe(false);
+  });
+
+  it("accepts email_notify attached to a split with one email per recipient", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "s",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [
+              { address: ADDR_A, bps: 5000 },
+              { address: ADDR_B, bps: 5000 },
+            ],
+          },
+        },
+        {
+          id: "e",
+          type: "email_notify",
+          config: {
+            recipients: [
+              { address: ADDR_A, email: "a@example.com" },
+              { address: ADDR_B, email: "b@example.com" },
+            ],
+            subject: "Hi",
+            body: "",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "s" },
+        { id: "e2", source: "s", target: "e" },
+      ],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects email_notify attached to a split with missing recipient emails", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "s",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [
+              { address: ADDR_A, bps: 5000 },
+              { address: ADDR_B, bps: 5000 },
+            ],
+          },
+        },
+        {
+          id: "e",
+          type: "email_notify",
+          config: {
+            recipients: [{ address: ADDR_A, email: "a@example.com" }],
+            subject: "Hi",
+            body: "",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "s" },
+        { id: "e2", source: "s", target: "e" },
+      ],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("accepts email_notify attached to pay with any recipient address", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "pay",
+          config: { recipient: ADDR_A, amountStroops: "10", asset: { kind: "native" } },
+        },
+        {
+          id: "e",
+          type: "email_notify",
+          config: {
+            recipients: [{ address: ADDR_B, email: "b@example.com" }],
+            subject: "Hi",
+            body: "",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "a", target: "e" },
+      ],
+    });
+    expect(r.ok).toBe(true);
   });
 });

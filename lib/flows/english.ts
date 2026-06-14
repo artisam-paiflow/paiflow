@@ -128,7 +128,7 @@ export function flowToEnglish(graph: FlowGraph): string {
   const tail = condition ? `, ${describeCondition(condition, conditionAsset)}` : "";
   const emailTail =
     emailNodes.length > 0
-      ? `, and send email notifications to ${emailNodes.flatMap((n) => n.config.to).join(", ")}`
+      ? `, and send email notifications to ${emailNodes.flatMap((n) => n.config.recipients.map((r) => r.email)).join(", ")}`
       : "";
   return `${triggerText}, ${actionText}${tail}${emailTail}.`;
 }

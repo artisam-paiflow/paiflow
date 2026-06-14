@@ -356,7 +356,11 @@ describe("flowToParams", () => {
         {
           id: "e",
           type: "email_notify",
-          config: { to: ["a@example.com"], subject: "Hi", body: "" },
+          config: {
+            recipients: [{ address: ADDR_A, email: "a@example.com" }],
+            subject: "Hi",
+            body: "",
+          },
         },
       ],
       edges: [
@@ -386,7 +390,11 @@ describe("flowToParams", () => {
         {
           id: "e",
           type: "email_notify",
-          config: { to: ["a@example.com"], subject: "Hi", body: "" },
+          config: {
+            recipients: [{ address: ADDR_A, email: "a@example.com" }],
+            subject: "Hi",
+            body: "",
+          },
         },
       ],
       edges: [

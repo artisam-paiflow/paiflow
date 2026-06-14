@@ -171,7 +171,7 @@ const TEMPLATES: Template[] = [
       id: makeId("email"),
       type: "email_notify",
       config: {
-        to: [],
+        recipients: [],
         subject: "",
         body: "",
       },

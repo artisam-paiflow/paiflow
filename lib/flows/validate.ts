@@ -170,13 +170,38 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
             "Email notify nodes can't be connected to other steps. Remove any connections coming out of it.",
         });
       }
-      if (n.config.to.length === 0) {
+
+      const parentEdge = graph.edges.find((e) => e.target === n.id);
+      const parent = parentEdge ? nodesById.get(parentEdge.source) : undefined;
+
+      if (parent?.type === "split") {
+        const parentAddresses = parent.config.recipients.map((r) => r.address);
+        const emailAddresses = n.config.recipients.map((r) => r.address);
+        if (emailAddresses.length !== parentAddresses.length) {
+          errors.push({
+            path: `nodes.${n.id}.config.recipients`,
+            message: "Email notify node must have exactly one email per split recipient",
+            friendlyMessage:
+              "Add exactly one email for each address in the split. Remove or fill any blank rows.",
+          });
+        }
+        for (const addr of parentAddresses) {
+          if (!emailAddresses.includes(addr)) {
+            errors.push({
+              path: `nodes.${n.id}.config.recipients`,
+              message: `Missing email for split recipient ${addr}`,
+              friendlyMessage: `Add an email for split recipient ${addr}.`,
+            });
+          }
+        }
+      } else if (n.config.recipients.length === 0) {
         errors.push({
-          path: `nodes.${n.id}.config.to`,
+          path: `nodes.${n.id}.config.recipients`,
           message: "Email notify node requires at least one recipient",
           friendlyMessage: "Add at least one recipient email to the email notify node.",
         });
       }
+
       if (!n.config.subject.trim()) {
         errors.push({
           path: `nodes.${n.id}.config.subject`,

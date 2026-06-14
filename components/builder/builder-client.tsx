@@ -591,7 +591,7 @@ function nodeLabel(n: FlowNode | undefined): string {
     case "yield":
       return `Yield`;
     case "email_notify":
-      return `Email (${n.config.to.length})`;
+      return `Email (${n.config.recipients.length})`;
     case "condition":
       return `Condition (${n.config.kind})`;
   }

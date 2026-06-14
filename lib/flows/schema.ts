@@ -186,11 +186,17 @@ export const YieldAction = z.object({
   }),
 });
 
+export const EmailRecipient = z.object({
+  address: z.string().min(1),
+  email: z.string().email(),
+});
+export type EmailRecipient = z.infer<typeof EmailRecipient>;
+
 export const EmailNotifyAction = z.object({
   id: z.string().min(1),
   type: z.literal("email_notify"),
   config: z.object({
-    to: z.array(z.string().email()).min(1),
+    recipients: z.array(EmailRecipient).min(1),
     subject: z.string().min(1),
     body: z.string().default(""),
   }),

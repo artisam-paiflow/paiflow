@@ -31,7 +31,7 @@ function nodeLabel(n: FlowNode): string {
     case "yield":
       return `Yield (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "email_notify":
-      return `Email (${n.config.to.length})`;
+      return `Email (${n.config.recipients.length})`;
     case "condition":
       return `Condition (${n.config.kind})`;
     default:

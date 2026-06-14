@@ -797,24 +797,7 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
 
       {node.type === "email_notify" && (
         <>
-          <Field label="Recipients (one email per line)">
-            <textarea
-              className="input font-mono"
-              rows={3}
-              value={node.config.to.join("\n")}
-              placeholder="alice@example.com"
-              onChange={(e) => {
-                const to = e.target.value
-                  .split("\n")
-                  .map((s) => s.trim())
-                  .filter(Boolean);
-                onChange({
-                  ...node,
-                  config: { ...node.config, to },
-                } as FlowNode);
-              }}
-            />
-          </Field>
+          <EmailRecipientsField node={node} graph={graph} onChange={onChange} />
           <Field label="Subject">
             <input
               className="input"
@@ -1095,7 +1078,7 @@ function EmailVariablesHint({ graph, nodeId }: { graph: FlowGraph; nodeId: strin
   const parentEdge = graph.edges.find((e) => e.target === nodeId);
   const parent = parentEdge ? graph.nodes.find((n) => n.id === parentEdge.source) : undefined;
 
-  const variables = ["kind", "ledger", "txHash", "eventId"];
+  const variables = ["kind", "ledger", "txHash", "eventId", "walletAddress"];
   if (parent?.type === "condition") {
     if (parent.config.kind === "amount_gt" || parent.config.kind === "amount_lt") {
       variables.push("amount", "threshold", "condition");
@@ -1123,6 +1106,103 @@ function EmailVariablesHint({ graph, nodeId }: { graph: FlowGraph; nodeId: strin
         ))}
       </div>
     </div>
+  );
+}
+
+function EmailRecipientsField({
+  node,
+  graph,
+  onChange,
+}: {
+  node: Extract<FlowNode, { type: "email_notify" }>;
+  graph: FlowGraph;
+  onChange: (n: FlowNode) => void;
+}) {
+  const parentEdge = graph.edges.find((e) => e.target === node.id);
+  const parent = parentEdge ? graph.nodes.find((n) => n.id === parentEdge.source) : undefined;
+  const isSplit = parent?.type === "split";
+  const placeholderAddress = parent?.type === "pay" ? parent.config.recipient : "_";
+
+  let rows: { address: string; email: string }[];
+  if (isSplit) {
+    rows = parent.config.recipients.map((r) => ({
+      address: r.address,
+      email: node.config.recipients.find((e) => e.address === r.address)?.email ?? "",
+    }));
+  } else {
+    rows = node.config.recipients.length
+      ? node.config.recipients.map((r) => ({
+          address: r.address || placeholderAddress,
+          email: r.email,
+        }))
+      : [{ address: placeholderAddress, email: "" }];
+  }
+
+  const updateEmail = (idx: number, email: string) => {
+    const next = rows.map((r, i) => (i === idx ? { ...r, email: email.trim() } : r));
+    onChange({ ...node, config: { ...node.config, recipients: next } } as FlowNode);
+  };
+
+  const addRow = () => {
+    onChange({
+      ...node,
+      config: { ...node.config, recipients: [...rows, { address: placeholderAddress, email: "" }] },
+    } as FlowNode);
+  };
+
+  const removeRow = (idx: number) => {
+    onChange({
+      ...node,
+      config: { ...node.config, recipients: rows.filter((_, i) => i !== idx) },
+    } as FlowNode);
+  };
+
+  return (
+    <Field label="Recipients">
+      <div className="space-y-2">
+        {rows.map((r, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            {isSplit && (
+              <input
+                className="input flex-1 font-mono text-xs"
+                value={r.address}
+                placeholder="G..."
+                readOnly
+              />
+            )}
+            <input
+              className="input flex-1 text-xs"
+              value={r.email}
+              placeholder="alice@example.com"
+              onChange={(e) => updateEmail(idx, e.target.value)}
+            />
+            {!isSplit && rows.length > 1 && (
+              <button
+                type="button"
+                className="px-1 text-zinc-500 hover:text-red-400"
+                onClick={() => removeRow(idx)}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      {!isSplit && (
+        <button
+          type="button"
+          className="mt-2 rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
+          onClick={addRow}
+        >
+          + Add recipient
+        </button>
+      )}
+      {isSplit && (
+        <div className="mt-1 text-xs text-zinc-500">
+          One email is required for each split recipient.
+        </div>
+      )}
+    </Field>
   );
 }
 
