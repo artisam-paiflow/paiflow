@@ -1,6 +1,14 @@
 import { TemplateKind } from "@prisma/client";
-import type { Asset, ActionNode, FlowGraph, FlowNode, LogicNode } from "./schema";
-import { isAction, isLogic, isTrigger, pctToBps, sourceAmountStroops, TOTAL_BPS } from "./schema";
+import type { Asset, ContractActionNode, FlowGraph, FlowNode, LogicNode } from "./schema";
+import {
+  isAction,
+  isLogic,
+  isTrigger,
+  isContractAction,
+  pctToBps,
+  sourceAmountStroops,
+  TOTAL_BPS,
+} from "./schema";
 
 export type SplitterParams = {
   kind: "splitter";
@@ -152,13 +160,13 @@ export type PipelineNode = {
   params: PipelineNodeParams;
 };
 
-function getAsset(action: ActionNode): Asset {
+function getAsset(action: ContractActionNode): Asset {
   if (action.type === "swap") return action.config.assetIn;
   if (action.type === "yield") return action.config.asset;
   return action.config.asset;
 }
 
-function toRecipients(action: ActionNode): Array<{ address: string; bps: number }> {
+function toRecipients(action: ContractActionNode): Array<{ address: string; bps: number }> {
   if (action.type === "split") {
     return action.config.recipients.map((r) => ({ address: r.address, bps: r.bps }));
   }
@@ -172,6 +180,19 @@ function getChildren(graph: FlowGraph): Map<string, string[]> {
   const children = new Map<string, string[]>();
   for (const n of graph.nodes) children.set(n.id, []);
   for (const e of graph.edges) {
+    children.get(e.source)!.push(e.target);
+  }
+  return children;
+}
+
+function getPipelineChildren(graph: FlowGraph): Map<string, string[]> {
+  const emailIds = new Set(graph.nodes.filter((n) => n.type === "email_notify").map((n) => n.id));
+  const children = new Map<string, string[]>();
+  for (const n of graph.nodes) children.set(n.id, []);
+  for (const e of graph.edges) {
+    // Email notify nodes are off-chain decorators; they should never be wired
+    // into the on-chain pipeline as next steps.
+    if (emailIds.has(e.source) || emailIds.has(e.target)) continue;
     children.get(e.source)!.push(e.target);
   }
   return children;
@@ -214,7 +235,7 @@ function computeStreamerEndTs(
   return startTs + 60 * 60 * 24 * 30; // 30-day default
 }
 
-function streamerRatePerSecond(action: ActionNode, trigger: FlowNode): string {
+function streamerRatePerSecond(action: ContractActionNode, trigger: FlowNode): string {
   if (action.type === "pay") {
     const amountStroops = action.config.amountStroops ?? "1";
     if (trigger.type === "on_schedule") {
@@ -244,13 +265,14 @@ function streamerRatePerSecond(action: ActionNode, trigger: FlowNode): string {
 export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): PipelineNode[] {
   const trigger = graph.nodes.find(isTrigger)!;
   const actions = graph.nodes.filter(isAction);
+  const contractActions = actions.filter(isContractAction);
   const conditions = graph.nodes.filter(isLogic);
-  const children = getChildren(graph);
+  const children = getPipelineChildren(graph);
   const pipeline: PipelineNode[] = [];
 
   // ── schedule-like flows (on_schedule, subscription) ──────────────────
   if (trigger.type === "on_schedule" || trigger.type === "subscription") {
-    const action = actions[0]!;
+    const action = contractActions[0]!;
     const recipients = toRecipients(action);
     const asset = getAsset(action);
 
@@ -293,7 +315,7 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
   }
 
   // ── receive-like flows (on_receive, webhook, oracle) ─────────────────
-  const action = actions[0]!;
+  const action = contractActions[0]!;
   const asset = action.type === "swap" ? action.config.assetIn : getAsset(action);
   const recipients = toRecipients(action);
 
@@ -510,7 +532,7 @@ export function getStreamerPreviewFromPipeline(pipeline: PipelineNode[]) {
  */
 export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): ContractParams {
   const trigger = graph.nodes.find(isTrigger)!;
-  const action = graph.nodes.find(isAction)!;
+  const action = graph.nodes.find(isContractAction)!;
   const condition = graph.nodes.find(isLogic);
   const recipients = toRecipients(action);
 

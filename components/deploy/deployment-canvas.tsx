@@ -30,6 +30,8 @@ function nodeLabel(n: FlowNode): string {
       return `Swap (${n.config.assetIn.kind === "known" ? n.config.assetIn.symbol : n.config.assetIn.kind} → ${n.config.assetOut.kind === "known" ? n.config.assetOut.symbol : n.config.assetOut.kind})`;
     case "yield":
       return `Yield (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+    case "email_notify":
+      return `Email (${n.config.to.length})`;
     case "condition":
       return `Condition (${n.config.kind})`;
     default:

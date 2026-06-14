@@ -795,6 +795,57 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
         </>
       )}
 
+      {node.type === "email_notify" && (
+        <>
+          <Field label="Recipients (one email per line)">
+            <textarea
+              className="input font-mono"
+              rows={3}
+              value={node.config.to.join("\n")}
+              placeholder="alice@example.com"
+              onChange={(e) => {
+                const to = e.target.value
+                  .split("\n")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                onChange({
+                  ...node,
+                  config: { ...node.config, to },
+                } as FlowNode);
+              }}
+            />
+          </Field>
+          <Field label="Subject">
+            <input
+              className="input"
+              value={node.config.subject}
+              placeholder="Payment notification"
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, subject: e.target.value },
+                } as FlowNode)
+              }
+            />
+          </Field>
+          <Field label="Body">
+            <textarea
+              className="input"
+              rows={5}
+              value={node.config.body}
+              placeholder="A payment of {{amount}} {{asset}} was received."
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, body: e.target.value },
+                } as FlowNode)
+              }
+            />
+          </Field>
+          <EmailVariablesHint graph={graph} nodeId={node.id} />
+        </>
+      )}
+
       {node.type === "condition" && (
         <>
           <Field label="Condition kind">
@@ -1037,6 +1088,41 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-xs text-zinc-400">{label}</span>
       {children}
     </label>
+  );
+}
+
+function EmailVariablesHint({ graph, nodeId }: { graph: FlowGraph; nodeId: string }) {
+  const parentEdge = graph.edges.find((e) => e.target === nodeId);
+  const parent = parentEdge ? graph.nodes.find((n) => n.id === parentEdge.source) : undefined;
+
+  const variables = ["kind", "ledger", "txHash", "eventId"];
+  if (parent?.type === "condition") {
+    if (parent.config.kind === "amount_gt" || parent.config.kind === "amount_lt") {
+      variables.push("amount", "threshold", "condition");
+    } else if (parent.config.kind === "oracle_gte") {
+      variables.push("price", "amount", "threshold", "condition");
+    } else if (parent.config.kind === "multisig") {
+      variables.push("signer", "condition");
+    } else {
+      variables.push("condition");
+    }
+  } else {
+    variables.push("amount", "asset", "from", "recipient");
+  }
+
+  return (
+    <div className="rounded border border-zinc-800 bg-zinc-900/50 p-2 text-xs text-zinc-400">
+      <div className="mb-1 font-medium text-zinc-300">Available variables</div>
+      <div className="flex flex-wrap gap-1">
+        {variables.map((v) => (
+          <code key={v} className="rounded bg-zinc-800 px-1 py-0.5 text-[10px]">
+            {"{{"}
+            {v}
+            {"}}"}
+          </code>
+        ))}
+      </div>
+    </div>
   );
 }
 

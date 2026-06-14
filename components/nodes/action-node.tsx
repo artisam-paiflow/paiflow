@@ -62,11 +62,17 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
           ? "XLM"
           : n.config.asset.code;
     detail = `deposit ${assetLabel}`;
+  } else if (n.type === "email_notify") {
+    icon = "mail";
+    title = "Email Notify";
+    detail = `${n.config.to.length} recipient${n.config.to.length === 1 ? "" : "s"}`;
   } else {
     icon = "call_split";
     title = "Split";
     detail = `${n.config.recipients.length} recipients`;
   }
+
+  const canHaveChildren = n.type !== "email_notify";
 
   return (
     <div
@@ -94,11 +100,13 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
         <div className="text-on-surface-variant mt-1 font-mono text-[11px]">{detail}</div>
       </div>
 
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        className="!border-primary !bg-surface-container !h-2.5 !w-2.5 !rounded-full !border-2"
-      />
+      {canHaveChildren && (
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          className="!border-primary !bg-surface-container !h-2.5 !w-2.5 !rounded-full !border-2"
+        />
+      )}
     </div>
   );
 }

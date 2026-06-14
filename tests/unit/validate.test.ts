@@ -386,28 +386,99 @@ describe("validateFlow", () => {
     expect(r.ok).toBe(true);
   });
 
-  it("accepts webhook → pay", () => {
+  it("accepts email_notify as a decorator attached to a condition", () => {
     const r = validateFlow({
       nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        { id: "c", type: "condition", config: { kind: "amount_gt", amountStroops: "10000000" } },
         {
-          id: "t",
-          type: "webhook",
-          config: { asset: { kind: "known", symbol: "USDC" }, relayer: ADDR_A },
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, bps: 5000 },
+              { address: ADDR_B, bps: 5000 },
+            ],
+          },
         },
+        {
+          id: "e",
+          type: "email_notify",
+          config: { to: ["a@example.com"], subject: "Hi", body: "" },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "c" },
+        { id: "e2", source: "c", target: "a" },
+        { id: "e3", source: "c", target: "e" },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.pipeline).toEqual([
+        TemplateKind.DEPOSIT_TRIGGER,
+        TemplateKind.ROUTER,
+        TemplateKind.SPLITTER,
+      ]);
+    }
+  });
+
+  it("rejects email_notify with outgoing edges", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
         {
           id: "a",
           type: "pay",
-          config: {
-            recipient: ADDR_B,
-            amountStroops: "10000000",
-            asset: { kind: "known", symbol: "USDC" },
-            mode: "fixed",
-            fullAmount: false,
-          },
+          config: { recipient: ADDR_A, amountStroops: "10", asset: { kind: "native" } },
+        },
+        {
+          id: "e",
+          type: "email_notify",
+          config: { to: ["a@example.com"], subject: "Hi", body: "" },
         },
       ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "t", target: "e" },
+        { id: "e3", source: "e", target: "a" },
+      ],
     });
-    expect(r.ok).toBe(true);
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects email_notify without recipients", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "pay",
+          config: { recipient: ADDR_A, amountStroops: "10", asset: { kind: "native" } },
+        },
+        { id: "e", type: "email_notify", config: { to: [], subject: "Hi", body: "" } },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "t", target: "e" },
+      ],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects email_notify without a contract action", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "e",
+          type: "email_notify",
+          config: { to: ["a@example.com"], subject: "Hi", body: "" },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "e" }],
+    });
+    expect(r.ok).toBe(false);
   });
 });

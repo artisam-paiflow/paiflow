@@ -1,6 +1,13 @@
 import { shortAddr, formatStroops } from "@/lib/utils";
 import type { Asset, FlowGraph, FlowNode } from "./schema";
-import { isAction, isLogic, isTrigger, isPendingAddress, bpsToPct, assetLabel } from "./schema";
+import {
+  isContractAction,
+  isLogic,
+  isTrigger,
+  isPendingAddress,
+  bpsToPct,
+  assetLabel,
+} from "./schema";
 
 function intervalLabel(amount: number, unit: string): string {
   if (amount === 1) {
@@ -30,8 +37,9 @@ function describeCondition(c: Extract<FlowNode, { type: "condition" }>, asset?: 
 
 export function flowToEnglish(graph: FlowGraph): string {
   const trigger = graph.nodes.find(isTrigger);
-  const action = graph.nodes.find(isAction);
+  const action = graph.nodes.find(isContractAction);
   const condition = graph.nodes.find(isLogic);
+  const emailNodes = graph.nodes.filter((n) => n.type === "email_notify");
   if (!trigger || !action) return "(incomplete flow)";
 
   let triggerText: string;
@@ -118,5 +126,9 @@ export function flowToEnglish(graph: FlowGraph): string {
             ? action.config.asset
             : action.config.asset;
   const tail = condition ? `, ${describeCondition(condition, conditionAsset)}` : "";
-  return `${triggerText}, ${actionText}${tail}.`;
+  const emailTail =
+    emailNodes.length > 0
+      ? `, and send email notifications to ${emailNodes.flatMap((n) => n.config.to).join(", ")}`
+      : "";
+  return `${triggerText}, ${actionText}${tail}${emailTail}.`;
 }

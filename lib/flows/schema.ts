@@ -186,6 +186,16 @@ export const YieldAction = z.object({
   }),
 });
 
+export const EmailNotifyAction = z.object({
+  id: z.string().min(1),
+  type: z.literal("email_notify"),
+  config: z.object({
+    to: z.array(z.string().email()).min(1),
+    subject: z.string().min(1),
+    body: z.string().default(""),
+  }),
+});
+
 export const ConditionLogic = z.object({
   id: z.string().min(1),
   type: z.literal("condition"),
@@ -227,6 +237,7 @@ export const FlowNodeSchema = z.discriminatedUnion("type", [
   SplitAction,
   SwapAction,
   YieldAction,
+  EmailNotifyAction,
   ConditionLogic,
 ]);
 export type FlowNode = z.infer<typeof FlowNodeSchema>;
@@ -265,8 +276,11 @@ export type ActionNode =
   | z.infer<typeof PayAction>
   | z.infer<typeof SplitAction>
   | z.infer<typeof SwapAction>
-  | z.infer<typeof YieldAction>;
+  | z.infer<typeof YieldAction>
+  | z.infer<typeof EmailNotifyAction>;
 export type LogicNode = z.infer<typeof ConditionLogic>;
+
+export type ContractActionNode = Exclude<ActionNode, { type: "email_notify" }>;
 
 export function isTrigger(n: FlowNode): n is TriggerNode {
   return (
@@ -279,6 +293,15 @@ export function isTrigger(n: FlowNode): n is TriggerNode {
   );
 }
 export function isAction(n: FlowNode): n is ActionNode {
+  return (
+    n.type === "pay" ||
+    n.type === "split" ||
+    n.type === "swap" ||
+    n.type === "yield" ||
+    n.type === "email_notify"
+  );
+}
+export function isContractAction(n: FlowNode): n is ContractActionNode {
   return n.type === "pay" || n.type === "split" || n.type === "swap" || n.type === "yield";
 }
 export function isLogic(n: FlowNode): n is LogicNode {
