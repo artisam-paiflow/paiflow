@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { TemplateKind } from "@prisma/client";
 import { flowToParams, flowToPipeline } from "@/lib/flows/to-params";
 import { sourceAmountStroops, bpsToPct, pctToBps } from "@/lib/flows/schema";
@@ -6,7 +6,11 @@ import { sourceAmountStroops, bpsToPct, pctToBps } from "@/lib/flows/schema";
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const ADDR_B = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 
-function splitGraph(opts?: { minAmount?: string; condition?: boolean; rate?: string }) {
+function splitGraph(opts?: {
+  minAmount?: string;
+  condition?: boolean;
+  amountPerInterval?: string;
+}) {
   const nodes: Array<Record<string, unknown>> = [
     {
       id: "t",
@@ -37,7 +41,7 @@ function splitGraph(opts?: { minAmount?: string; condition?: boolean; rate?: str
         { address: ADDR_A, bps: 6000, label: "Alice" },
         { address: ADDR_B, bps: 4000, label: "Bob" },
       ],
-      ...(opts?.rate ? { ratePerSecondStroops: opts.rate } : {}),
+      ...(opts?.amountPerInterval ? { amountPerIntervalStroops: opts.amountPerInterval } : {}),
     },
   });
 
@@ -47,7 +51,7 @@ function splitGraph(opts?: { minAmount?: string; condition?: boolean; rate?: str
   return { nodes, edges } as const;
 }
 
-function scheduleSplitGraph(opts?: { condition?: boolean; rate?: string }) {
+function scheduleSplitGraph(opts?: { condition?: boolean; amountPerInterval?: string }) {
   const nodes: Array<Record<string, unknown>> = [
     {
       id: "t",
@@ -79,7 +83,7 @@ function scheduleSplitGraph(opts?: { condition?: boolean; rate?: string }) {
         { address: ADDR_A, bps: 6000, label: "A" },
         { address: ADDR_B, bps: 4000, label: "B" },
       ],
-      ...(opts?.rate ? { ratePerSecondStroops: opts.rate } : {}),
+      ...(opts?.amountPerInterval ? { amountPerIntervalStroops: opts.amountPerInterval } : {}),
     },
   });
 
@@ -182,14 +186,15 @@ describe("flowToParams", () => {
       expect(out.recipients).toHaveLength(1);
       expect(out.recipients[0]!.address).toBe(ADDR_A);
       expect(out.recipients[0]!.bps).toBe(10000);
-      expect(out.ratePerSecondStroops).toBe("1000");
+      expect(out.amountPerIntervalStroops).toBe("3600000");
+      expect(out.intervalSeconds).toBe(3600);
       expect(out.endTs).toBeGreaterThan(out.startTs);
     }
   });
 
   it("produces streamer params for scheduled split", () => {
     const out = flowToParams(
-      scheduleSplitGraph({ rate: "500" }) as Parameters<typeof flowToParams>[0],
+      scheduleSplitGraph({ amountPerInterval: "500" }) as Parameters<typeof flowToParams>[0],
       TemplateKind.STREAMER,
     );
     expect(out.kind).toBe("streamer");
@@ -197,7 +202,8 @@ describe("flowToParams", () => {
       expect(out.recipients).toHaveLength(2);
       expect(out.recipients[0]!.bps).toBe(6000);
       expect(out.recipients[1]!.bps).toBe(4000);
-      expect(out.ratePerSecondStroops).toBe("500");
+      expect(out.amountPerIntervalStroops).toBe("500");
+      expect(out.intervalSeconds).toBe(3600);
       expect(out.endTs).toBeGreaterThan(out.startTs);
     }
   });
@@ -551,7 +557,7 @@ describe("flowToPipeline", () => {
     expect(pipeline[0]!.params.kind).toBe("streamer");
   });
 
-  it("converts pay amount to per-second rate for on_schedule streamer", () => {
+  it("converts pay amount to amount per interval for on_schedule streamer", () => {
     const pipeline = flowToPipeline({
       nodes: [
         {
@@ -580,10 +586,12 @@ describe("flowToPipeline", () => {
     expect(pipeline).toHaveLength(1);
     const streamer = pipeline[0]!.params as {
       kind: string;
-      ratePerSecondStroops: string;
+      amountPerIntervalStroops: string;
+      intervalSeconds: number;
     };
     expect(streamer.kind).toBe("streamer");
-    expect(streamer.ratePerSecondStroops).toBe("1000");
+    expect(streamer.amountPerIntervalStroops).toBe("60000");
+    expect(streamer.intervalSeconds).toBe(60);
   });
 
   it("wires nextStepNodeIds from graph edges", () => {
@@ -724,6 +732,52 @@ describe("flowToPipeline", () => {
     expect(triggerParams.relayer).toBe("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWH2");
   });
 
+  it("converts 2 XLM per minute for 5 occurrences to correct streamer params", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "minute",
+            startsAt: "2030-01-01T00:00:00.000Z",
+            occurrences: 5,
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "20000000",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(1);
+    const streamer = pipeline[0]!.params as {
+      kind: string;
+      amountPerIntervalStroops: string;
+      intervalSeconds: number;
+      startTs: number;
+      endTs: number;
+    };
+    expect(streamer.kind).toBe("streamer");
+    // 2 XLM is the amount released each 60-second interval.
+    expect(streamer.amountPerIntervalStroops).toBe("20000000");
+    expect(streamer.intervalSeconds).toBe(60);
+    // 5 occurrences * 1 minute = 5 minutes
+    expect(streamer.endTs - streamer.startTs).toBe(5 * 60);
+    // After 3 minutes exactly 3 intervals have vested => 6 XLM
+    const vestedAfter3Min = BigInt(streamer.amountPerIntervalStroops) * 3n;
+    expect(vestedAfter3Min).toBe(60_000_000n);
+  });
+
   it("computes endTs from occurrences and intervalAmount/intervalUnit", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -818,5 +872,51 @@ describe("flowToPipeline", () => {
     });
     const streamer = pipeline[0]!.params as { kind: string; startTs: number; endTs: number };
     expect(streamer.endTs - streamer.startTs).toBe(14 * 86400);
+  });
+
+  it("clamps on_schedule startTs to now when startsAt is in the past", () => {
+    const now = new Date("2030-01-01T12:00:00.000Z").getTime();
+    vi.setSystemTime(now);
+
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "minute",
+            // 10 minutes in the past relative to the mocked "now"
+            startsAt: "2030-01-01T11:50:00.000Z",
+            occurrences: 5,
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "20000000",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+
+    const streamer = pipeline[0]!.params as {
+      kind: string;
+      startTs: number;
+      endTs: number;
+    };
+    expect(streamer.kind).toBe("streamer");
+    expect(streamer.startTs).toBe(Math.floor(now / 1000));
+    // Duration is still computed from occurrences * interval, not from the
+    // original (now-past) startsAt.
+    expect(streamer.endTs - streamer.startTs).toBe(5 * 60);
+
+    vi.useRealTimers();
   });
 });

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { cn, formatAmount, shortAddr, shortAddrExtraShort } from "@/lib/utils";
 import { stellarExpertTxUrl, type StellarNetwork } from "@/lib/stellar/explorer";
-import type { FlowGraph } from "@/lib/flows/schema";
+import { assetLabel, type Asset, type FlowGraph } from "@/lib/flows/schema";
 
 export type Evt = {
   id: string;
@@ -46,7 +46,7 @@ const KIND_META: Record<string, { label: string; color: string; icon: string }> 
   CLAIM: {
     label: "CLAIM",
     color: "border-tertiary/30 bg-tertiary/10 text-tertiary",
-    icon: "withdraw",
+    icon: "payments",
   },
   CANCEL: { label: "CANCEL", color: "border-error/30 bg-error/10 text-error", icon: "cancel" },
   STATUS_CHANGE: {
@@ -91,6 +91,17 @@ function getGraphSplitRecipients(
       amount: share.toString(),
     };
   });
+}
+
+function getActionAsset(graph: FlowGraph | null | undefined): unknown {
+  if (!graph) return undefined;
+  const action = graph.nodes.find(
+    (n): n is Extract<FlowGraph["nodes"][number], { type: "pay" | "split" | "swap" | "yield" }> =>
+      n.type === "pay" || n.type === "split" || n.type === "swap" || n.type === "yield",
+  );
+  if (!action) return undefined;
+  if (action.type === "swap") return action.config.assetOut;
+  return action.config.asset;
 }
 
 function getEventTopic(evt: Evt): string | null {
@@ -203,6 +214,13 @@ function computeRecipientShares(totalAmount: string, recipients: Recipient[]): R
 
 function formatAsset(asset: unknown): string {
   if (!asset) return "XLM";
+  if (asset && typeof asset === "object" && "kind" in asset) {
+    try {
+      return assetLabel(asset as Asset);
+    } catch {
+      return "XLM";
+    }
+  }
   const str = String(asset);
   if (str.length > 20) return shortAddrExtraShort(str);
   return str;
@@ -243,9 +261,11 @@ function DetailField({
 function RecipientList({
   recipients,
   totalAmount,
+  asset,
 }: {
   recipients: Recipient[];
   totalAmount?: string;
+  asset?: unknown;
 }) {
   const shares = useMemo(() => {
     if (!totalAmount) return recipients;
@@ -269,7 +289,7 @@ function RecipientList({
           )}
           {isNonEmptyString(r.amount) && (
             <span className="text-body-sm text-on-surface font-medium">
-              {formatAmount(r.amount)}
+              ({formatAmountWithAsset(r.amount, asset)})
             </span>
           )}
         </div>
@@ -482,6 +502,7 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
                 <RecipientList
                   recipients={recipients}
                   totalAmount={isNonEmptyString(amount) ? amount : undefined}
+                  asset={asset}
                 />
               </DetailField>
             </div>
@@ -556,24 +577,23 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
     case "CLAIM": {
       const amount = d?.amount;
       const recipients = normalizeRecipients(d?.recipients ?? d?.addresses);
+      const claimAsset = d?.asset ?? getActionAsset(graph);
 
       return (
         <div className="space-y-2">
           <div className="text-body-sm text-on-surface">
             Claimed{" "}
-            <span className="text-primary font-medium">{formatAmountWithAsset(amount)}</span>
+            <span className="text-primary font-medium">
+              {formatAmountWithAsset(amount, claimAsset)}
+            </span>
           </div>
           <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-            {amount !== undefined && amount !== null && (
-              <DetailField label="Amount">
-                <span className="text-primary font-medium">{formatAmountWithAsset(amount)}</span>
-              </DetailField>
-            )}
             {recipients.length > 0 && (
               <DetailField label="Recipients" fullWidth>
                 <RecipientList
                   recipients={recipients}
                   totalAmount={isNonEmptyString(amount) ? amount : undefined}
+                  asset={claimAsset}
                 />
               </DetailField>
             )}

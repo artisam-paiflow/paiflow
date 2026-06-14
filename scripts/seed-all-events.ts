@@ -75,7 +75,7 @@ function makeGraph(kind: TemplateKind): Prisma.InputJsonValue {
                 { address: addr(), bps: 5000 },
                 { address: addr(), bps: 5000 },
               ],
-              ratePerSecondStroops: "100",
+              amountPerIntervalStroops: (1n * STROOP).toString(),
             },
           },
         ],
