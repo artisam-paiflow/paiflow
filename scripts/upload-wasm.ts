@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 /**
- * Uploads all Soroban WASM artifacts found in the release directory to the
- * specified network and appends their hashes to .env.local under per-network
- * env-var names (STELLAR_WASM_HASH_<KIND>_<TESTNET|MAINNET>).
+ * Uploads Soroban WASM artifacts whose locally-built hash differs from the
+ * value already stored in .env.local. Writes updated hashes back to .env.local
+ * under per-network env-var names (STELLAR_WASM_HASH_<KIND>_<TESTNET|MAINNET>).
  * Run after `pnpm contracts:build`.
  *
  * Usage:
@@ -11,7 +11,7 @@
  *   pnpm contracts:upload --network=mainnet
  */
 import "dotenv/config";
-import { readFileSync, existsSync, appendFileSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   BASE_FEE,
@@ -22,6 +22,7 @@ import {
   rpc,
   hash,
 } from "@stellar/stellar-sdk";
+import { writeEnvLocal } from "./env-file";
 
 const WASM_DIR = "contracts/target/wasm32v1-none/release";
 
@@ -84,13 +85,34 @@ async function main() {
 
   const server = new rpc.Server(rpcUrl, { allowHttp: false });
   const kp = Keypair.fromSecret(uploaderSecret);
-  const lines: string[] = [];
   const suffix = network.toUpperCase();
 
-  const account = await server.getAccount(kp.publicKey());
+  const updates: Record<string, string> = {};
+  let account: Awaited<ReturnType<typeof server.getAccount>> | null = null;
 
   for (const c of contracts) {
     const wasm = readFileSync(c.path);
+    const wasmHash = hash(wasm).toString("hex");
+    const envKey = `STELLAR_WASM_HASH_${c.kind}_${suffix}`;
+    const existingHash = process.env[envKey];
+
+    if (existingHash === wasmHash) {
+      console.log(`[upload] ${c.kind} hash unchanged, skipping`);
+      continue;
+    }
+
+    if (existingHash) {
+      console.log(
+        `[upload] ${c.kind} hash changed (${existingHash.slice(0, 12)}... -> ${wasmHash.slice(0, 12)}...), uploading`,
+      );
+    } else {
+      console.log(`[upload] ${c.kind} has no existing hash, uploading`);
+    }
+
+    if (!account) {
+      account = await server.getAccount(kp.publicKey());
+    }
+
     const op = Operation.uploadContractWasm({ wasm });
 
     const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: passphrase })
@@ -129,16 +151,16 @@ async function main() {
       throw new Error(`transaction polling timed out for ${c.kind} after 20 attempts`);
     }
 
-    const wasmHash = hash(wasm).toString("hex");
     console.log(`[upload] ${c.kind}@${network} uploaded, hash=${wasmHash}`);
-    lines.push(`STELLAR_WASM_HASH_${c.kind}_${suffix}=${wasmHash}`);
+    updates[envKey] = wasmHash;
   }
 
-  appendFileSync(
-    ".env.local",
-    `\n# uploaded ${network} ${new Date().toISOString()}\n${lines.join("\n")}\n`,
-  );
-  console.log(`[upload] done — ${network} hashes written to .env.local`);
+  if (Object.keys(updates).length > 0) {
+    writeEnvLocal(updates);
+    console.log(`[upload] done — ${network} hashes written to .env.local`);
+  } else {
+    console.log(`[upload] done — no uploads were needed`);
+  }
 }
 
 main().catch((err) => {

@@ -34,7 +34,16 @@ async function update() {
       continue;
     }
 
-    const result = await db.contractTemplate.upsert({
+    const existing = await db.contractTemplate.findUnique({
+      where: { kind_network: { kind: t.kind, network } },
+    });
+
+    if (existing?.wasmHash === hash) {
+      console.log(`${t.kind} hash unchanged, skipping`);
+      continue;
+    }
+
+    await db.contractTemplate.upsert({
       where: { kind_network: { kind: t.kind, network } },
       update: { wasmHash: hash },
       create: {
