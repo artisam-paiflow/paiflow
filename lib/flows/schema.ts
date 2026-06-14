@@ -160,6 +160,11 @@ export const SplitAction = z.object({
   config: z.object({
     asset: AssetSchema,
     recipients: z.array(SplitRecipient).min(1).max(20),
+    amountPerIntervalStroops: z
+      .string()
+      .regex(/^\d+$/, "Amount must be a positive integer string")
+      .optional(),
+    // Deprecated: old flows used continuous rate-per-second streaming.
     ratePerSecondStroops: z
       .string()
       .regex(/^\d+$/, "Rate must be a positive integer string")

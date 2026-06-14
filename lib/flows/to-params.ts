@@ -1,5 +1,12 @@
 import { TemplateKind } from "@prisma/client";
-import type { Asset, ContractActionNode, FlowGraph, FlowNode, LogicNode } from "./schema";
+import type {
+  ActionNode,
+  Asset,
+  ContractActionNode,
+  FlowGraph,
+  FlowNode,
+  LogicNode,
+} from "./schema";
 import {
   isAction,
   isLogic,
@@ -21,7 +28,8 @@ export type StreamerParams = {
   kind: "streamer";
   asset: Asset;
   recipients: Array<{ address: string; bps: number }>;
-  ratePerSecondStroops: string;
+  amountPerIntervalStroops: string;
+  intervalSeconds: number;
   startTs: number;
   endTs: number;
 };
@@ -53,7 +61,8 @@ export type StreamerNodeParams = {
   kind: "streamer";
   asset: Asset;
   recipients: Array<{ address: string; bps: number }>;
-  ratePerSecondStroops: string;
+  amountPerIntervalStroops: string;
+  intervalSeconds: number;
   startTs: number;
   endTs: number;
 };
@@ -235,23 +244,33 @@ function computeStreamerEndTs(
   return startTs + 60 * 60 * 24 * 30; // 30-day default
 }
 
-function streamerRatePerSecond(action: ContractActionNode, trigger: FlowNode): string {
+function scheduleIntervalSeconds(trigger: Extract<FlowNode, { type: "on_schedule" }>): number {
+  const intervalAmount =
+    (trigger.config as { intervalAmount?: number; interval?: string }).intervalAmount ?? 1;
+  const intervalUnit = ((trigger.config as { intervalUnit?: string; interval?: string })
+    .intervalUnit ??
+    (trigger.config as { interval?: string }).interval ??
+    "hour") as "minute" | "hour" | "day" | "week" | "month";
+  return intervalToSeconds(intervalAmount, intervalUnit);
+}
+
+function streamerAmountPerInterval(
+  action: ActionNode,
+  _trigger: FlowNode,
+  intervalSeconds: number,
+): string {
   if (action.type === "pay") {
-    const amountStroops = action.config.amountStroops ?? "1";
-    if (trigger.type === "on_schedule") {
-      const intervalAmount =
-        (trigger.config as { intervalAmount?: number; interval?: string }).intervalAmount ?? 1;
-      const intervalUnit = ((trigger.config as { intervalUnit?: string; interval?: string })
-        .intervalUnit ??
-        (trigger.config as { interval?: string }).interval ??
-        "hour") as "minute" | "hour" | "day" | "week" | "month";
-      const intervalSeconds = intervalToSeconds(intervalAmount, intervalUnit);
-      return String(BigInt(amountStroops) / BigInt(Math.max(1, intervalSeconds)));
-    }
-    return amountStroops;
+    return action.config.amountStroops ?? "1";
   }
   if (action.type === "split") {
-    return action.config.ratePerSecondStroops ?? "1";
+    if (action.config.amountPerIntervalStroops) {
+      return action.config.amountPerIntervalStroops;
+    }
+    // Backward compat: convert deprecated rate-per-second to amount-per-interval.
+    if (action.config.ratePerSecondStroops) {
+      return String(BigInt(action.config.ratePerSecondStroops) * BigInt(intervalSeconds));
+    }
+    return "1";
   }
   return "1";
 }
@@ -290,15 +309,21 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
       });
     }
 
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    // If the configured start time is already in the past (common when a flow
+    // was created minutes ago and is only being deployed now), start the stream
+    // at the current time so short streams aren't already over on deploy.
     const start =
       trigger.type === "on_schedule"
-        ? Math.floor(new Date(trigger.config.startsAt).getTime() / 1000)
-        : Math.floor(Date.now() / 1000);
+        ? Math.max(nowSeconds, Math.floor(new Date(trigger.config.startsAt).getTime() / 1000))
+        : nowSeconds;
     const end =
       trigger.type === "on_schedule"
         ? computeStreamerEndTs(trigger, start)
         : start + 60 * 60 * 24 * 30;
-    const rate = streamerRatePerSecond(action, trigger);
+    const intervalSeconds =
+      trigger.type === "on_schedule" ? scheduleIntervalSeconds(trigger) : 24 * 60 * 60;
+    const amountPerInterval = streamerAmountPerInterval(action, trigger, intervalSeconds);
     pipeline.push({
       nodeId: action.id,
       templateKind: TemplateKind.STREAMER,
@@ -306,7 +331,8 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
         kind: "streamer",
         asset,
         recipients,
-        ratePerSecondStroops: rate,
+        amountPerIntervalStroops: amountPerInterval,
+        intervalSeconds,
         startTs: start,
         endTs: end,
       },
@@ -519,10 +545,11 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
 export function getStreamerPreviewFromPipeline(pipeline: PipelineNode[]) {
   const streamer = pipeline.find((n) => n.templateKind === TemplateKind.STREAMER);
   if (!streamer || streamer.params.kind !== "streamer") return null;
-  const { ratePerSecondStroops, startTs, endTs } = streamer.params;
+  const { amountPerIntervalStroops, intervalSeconds, startTs, endTs } = streamer.params;
   const durationSecs = endTs - startTs;
-  const totalStroops = (BigInt(ratePerSecondStroops) * BigInt(durationSecs)).toString();
-  return { ratePerSecondStroops, startTs, endTs, durationSecs, totalStroops };
+  const intervals = Math.floor(durationSecs / intervalSeconds);
+  const totalStroops = (BigInt(amountPerIntervalStroops) * BigInt(intervals)).toString();
+  return { amountPerIntervalStroops, intervalSeconds, startTs, endTs, durationSecs, totalStroops };
 }
 
 /**
@@ -551,14 +578,20 @@ export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): Cont
     if (trigger.type !== "on_schedule") {
       throw new Error("Streamer requires an on_schedule trigger");
     }
-    const start = Math.floor(new Date(trigger.config.startsAt).getTime() / 1000);
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const start = Math.max(
+      nowSeconds,
+      Math.floor(new Date(trigger.config.startsAt).getTime() / 1000),
+    );
     const end = computeStreamerEndTs(trigger, start);
-    const rate = streamerRatePerSecond(action, trigger);
+    const intervalSeconds = scheduleIntervalSeconds(trigger);
+    const amountPerInterval = streamerAmountPerInterval(action, trigger, intervalSeconds);
     return {
       kind: "streamer",
       asset: getAsset(action),
       recipients,
-      ratePerSecondStroops: rate,
+      amountPerIntervalStroops: amountPerInterval,
+      intervalSeconds,
       startTs: start,
       endTs: end,
     };

@@ -105,7 +105,9 @@ export function flowToEnglish(graph: FlowGraph): string {
       return `${pctStr} to ${who}`;
     });
     const assetStr = assetLabel(action.config.asset);
-    if (action.config.ratePerSecondStroops) {
+    if (action.config.amountPerIntervalStroops) {
+      actionText = `stream ${formatStroops(action.config.amountPerIntervalStroops)} ${assetStr} per interval — ${parts.join(", ")}`;
+    } else if (action.config.ratePerSecondStroops) {
       actionText = `stream ${formatStroops(action.config.ratePerSecondStroops)} ${assetStr}/s — ${parts.join(", ")}`;
     } else {
       actionText = `split ${assetStr} — ${parts.join(", ")}`;
