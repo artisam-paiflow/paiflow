@@ -56,7 +56,12 @@ export async function POST(req: NextRequest) {
 
           if (submit.status === "SUCCESS") {
             log.info(
-              { deploymentId: d.id, contractAddress, txHash: submit.txHash },
+              {
+                deploymentId: d.id,
+                contractAddress,
+                txHash: submit.txHash,
+                availableStroops: available.toString(),
+              },
               "Auto-claimed streamer contract",
             );
             results.push({ contractAddress, status: "claimed" });

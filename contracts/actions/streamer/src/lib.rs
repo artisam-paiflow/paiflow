@@ -16,7 +16,8 @@ pub enum Key {
     Admin,
     Recipients,
     Asset,
-    Rate,
+    AmountPerInterval,
+    IntervalSeconds,
     StartTs,
     EndTs,
     Claimed,
@@ -54,7 +55,8 @@ impl Streamer {
         admin: Address,
         recipients: Vec<Recipient>,
         asset: Address,
-        rate_per_second: i128,
+        amount_per_interval: i128,
+        interval_seconds: u64,
         start_ts: u64,
         end_ts: u64,
         parent: Address,
@@ -62,7 +64,7 @@ impl Streamer {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
         }
-        if end_ts <= start_ts || rate_per_second <= 0 {
+        if end_ts <= start_ts || amount_per_interval <= 0 || interval_seconds == 0 {
             panic_with_error!(&env, Error::BadWindow);
         }
         if recipients.is_empty() {
@@ -80,7 +82,12 @@ impl Streamer {
         env.storage().instance().set(&Key::Admin, &admin);
         env.storage().instance().set(&Key::Recipients, &recipients);
         env.storage().instance().set(&Key::Asset, &asset);
-        env.storage().instance().set(&Key::Rate, &rate_per_second);
+        env.storage()
+            .instance()
+            .set(&Key::AmountPerInterval, &amount_per_interval);
+        env.storage()
+            .instance()
+            .set(&Key::IntervalSeconds, &interval_seconds);
         env.storage().instance().set(&Key::StartTs, &start_ts);
         env.storage().instance().set(&Key::EndTs, &end_ts);
         env.storage().instance().set(&Key::Claimed, &0i128);
@@ -115,7 +122,16 @@ impl Streamer {
             panic_with_error!(&env, Error::Paused);
         }
         let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
-        let rate: i128 = env.storage().instance().get(&Key::Rate).unwrap();
+        let amount_per_interval: i128 = env
+            .storage()
+            .instance()
+            .get(&Key::AmountPerInterval)
+            .unwrap();
+        let interval_seconds: u64 = env
+            .storage()
+            .instance()
+            .get(&Key::IntervalSeconds)
+            .unwrap();
         let start: u64 = env.storage().instance().get(&Key::StartTs).unwrap();
         let end: u64 = env.storage().instance().get(&Key::EndTs).unwrap();
         let claimed: i128 = env.storage().instance().get(&Key::Claimed).unwrap();
@@ -125,8 +141,11 @@ impl Streamer {
         if cap <= start {
             panic_with_error!(&env, Error::NothingToClaim);
         }
-        let elapsed: i128 = (cap - start) as i128;
-        let vested = elapsed.checked_mul(rate).unwrap_or(0);
+        let elapsed = cap.saturating_sub(start);
+        let intervals = elapsed / interval_seconds;
+        let vested = (intervals as i128)
+            .checked_mul(amount_per_interval)
+            .unwrap_or(0);
         let available = vested.checked_sub(claimed).unwrap_or(0);
         if available <= 0 {
             panic_with_error!(&env, Error::NothingToClaim);
@@ -173,7 +192,16 @@ impl Streamer {
         {
             return 0;
         }
-        let rate: i128 = env.storage().instance().get(&Key::Rate).unwrap();
+        let amount_per_interval: i128 = env
+            .storage()
+            .instance()
+            .get(&Key::AmountPerInterval)
+            .unwrap();
+        let interval_seconds: u64 = env
+            .storage()
+            .instance()
+            .get(&Key::IntervalSeconds)
+            .unwrap();
         let start: u64 = env.storage().instance().get(&Key::StartTs).unwrap();
         let end: u64 = env.storage().instance().get(&Key::EndTs).unwrap();
         let claimed: i128 = env.storage().instance().get(&Key::Claimed).unwrap();
@@ -182,8 +210,11 @@ impl Streamer {
         if cap <= start {
             return 0;
         }
-        let elapsed: i128 = (cap - start) as i128;
-        let vested = elapsed.checked_mul(rate).unwrap_or(0);
+        let elapsed = cap.saturating_sub(start);
+        let intervals = elapsed / interval_seconds;
+        let vested = (intervals as i128)
+            .checked_mul(amount_per_interval)
+            .unwrap_or(0);
         vested.checked_sub(claimed).unwrap_or(0)
     }
 
@@ -220,6 +251,26 @@ impl Streamer {
 
     pub fn is_paused(env: Env) -> bool {
         env.storage().instance().get(&Key::Paused).unwrap_or(false)
+    }
+
+    pub fn start_ts(env: Env) -> u64 {
+        env.storage().instance().get(&Key::StartTs).unwrap()
+    }
+
+    pub fn end_ts(env: Env) -> u64 {
+        env.storage().instance().get(&Key::EndTs).unwrap()
+    }
+
+    pub fn amount_per_interval(env: Env) -> i128 {
+        env.storage().instance().get(&Key::AmountPerInterval).unwrap()
+    }
+
+    pub fn interval_seconds(env: Env) -> u64 {
+        env.storage().instance().get(&Key::IntervalSeconds).unwrap()
+    }
+
+    pub fn claimed(env: Env) -> i128 {
+        env.storage().instance().get(&Key::Claimed).unwrap_or(0)
     }
 }
 
@@ -267,13 +318,15 @@ mod test {
         let c = Address::generate(&env);
         let parent = Address::generate(&env);
 
+        // 1000 per 100-second interval, window 1000-2000 => 10 intervals total.
         let contract_id = env.register(
             Streamer,
             (
                 admin.clone(),
                 make_recipients(&env, &a, &b, &c),
                 asset.address(),
-                10_i128,
+                1000_i128,
+                100_u64,
                 1000_u64,
                 2000_u64,
                 parent.clone(),
@@ -285,6 +338,7 @@ mod test {
         sac.mint(&funder, &10_000);
         client.top_up(&funder, &10_000);
 
+        // 500 elapsed seconds = 5 intervals => 5000 vested.
         env.ledger().set_timestamp(1500);
         let claimed = client.claim();
         assert_eq!(claimed, 5_000);
@@ -293,12 +347,123 @@ mod test {
         assert_eq!(tok.balance(&b), 1_500);
         assert_eq!(tok.balance(&c), 500);
 
+        // At 3000 we cap at end (2000): 1000 elapsed seconds = 10 intervals => 10000 vested.
         env.ledger().set_timestamp(3000);
         let claimed2 = client.claim();
         assert_eq!(claimed2, 5_000);
         assert_eq!(tok.balance(&a), 6_000);
         assert_eq!(tok.balance(&b), 3_000);
         assert_eq!(tok.balance(&c), 1_000);
+    }
+
+    #[test]
+    fn vest_and_claim_partial_matches_user_scenario() {
+        // User scenario: 2 XLM every minute for 5 occurrences.
+        // Discrete vesting: 2 XLM vests only after each full minute.
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let recipient = Address::generate(&env);
+        let parent = Address::generate(&env);
+
+        let start_ts = 1_000_000_u64;
+        let end_ts = start_ts + 5 * 60; // 5 occurrences * 1 minute
+        let amount_per_interval = 20_000_000_i128; // 2 XLM
+        let interval_seconds = 60_u64;
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: recipient.clone(),
+                        bps: 10_000,
+                    },
+                ],
+                asset.address(),
+                amount_per_interval,
+                interval_seconds,
+                start_ts,
+                end_ts,
+                parent.clone(),
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+
+        // Top up with the full expected vesting amount (10 XLM).
+        let total_expected = amount_per_interval * 5;
+        let funder = Address::generate(&env);
+        sac.mint(&funder, &total_expected);
+        client.top_up(&funder, &total_expected);
+
+        // Claim after 3 minutes: exactly 3 intervals => 6 XLM.
+        env.ledger().set_timestamp(start_ts + 3 * 60);
+        let expected_after_3_min = amount_per_interval * 3;
+        let available = client.available();
+        assert_eq!(available, expected_after_3_min);
+        let claimed = client.claim();
+        assert_eq!(claimed, expected_after_3_min);
+        assert_eq!(tok.balance(&recipient), expected_after_3_min);
+
+        // Claiming again immediately should yield nothing new.
+        assert_eq!(client.available(), 0);
+    }
+
+    #[test]
+    fn partial_interval_vests_nothing() {
+        // 2 XLM every 3 minutes. After 4.5 minutes only one full interval has passed.
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let recipient = Address::generate(&env);
+        let parent = Address::generate(&env);
+
+        let start_ts = 1_000_000_u64;
+        let amount_per_interval = 20_000_000_i128; // 2 XLM
+        let interval_seconds = 3 * 60_u64;
+        let end_ts = start_ts + 10 * interval_seconds;
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: recipient.clone(),
+                        bps: 10_000,
+                    },
+                ],
+                asset.address(),
+                amount_per_interval,
+                interval_seconds,
+                start_ts,
+                end_ts,
+                parent.clone(),
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+
+        let funder = Address::generate(&env);
+        let top_up_amount = amount_per_interval * 10;
+        sac.mint(&funder, &top_up_amount);
+        client.top_up(&funder, &top_up_amount);
+
+        // 4.5 minutes => only 1 full 3-minute interval => 2 XLM.
+        env.ledger().set_timestamp(start_ts + 4 * 60 + 30);
+        assert_eq!(client.available(), amount_per_interval);
+        assert_eq!(client.claim(), amount_per_interval);
+        assert_eq!(tok.balance(&recipient), amount_per_interval);
     }
 
     #[test]
@@ -322,7 +487,8 @@ mod test {
                     },
                 ],
                 asset.address(),
-                10_i128,
+                1000_i128,
+                100_u64,
                 1000_u64,
                 2000_u64,
                 parent.clone(),
@@ -362,7 +528,8 @@ mod test {
                 admin,
                 bad,
                 asset.address(),
-                10_i128,
+                1000_i128,
+                100_u64,
                 1000_u64,
                 2000_u64,
                 parent,
@@ -390,7 +557,8 @@ mod test {
                     },
                 ],
                 asset.address(),
-                10_i128,
+                1000_i128,
+                100_u64,
                 1000_u64,
                 2000_u64,
                 parent.clone(),
@@ -403,6 +571,42 @@ mod test {
         assert!(client.is_paused());
         client.unpause();
         assert!(!client.is_paused());
+    }
+
+    #[test]
+    fn getters_expose_contract_state() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                    },
+                ],
+                asset.address(),
+                123_i128,
+                60_u64,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+
+        assert_eq!(client.start_ts(), 1000);
+        assert_eq!(client.end_ts(), 2000);
+        assert_eq!(client.amount_per_interval(), 123);
+        assert_eq!(client.interval_seconds(), 60);
+        assert_eq!(client.claimed(), 0);
     }
 
     #[test]
@@ -427,7 +631,8 @@ mod test {
                     },
                 ],
                 asset.address(),
-                10_i128,
+                1000_i128,
+                100_u64,
                 1000_u64,
                 2000_u64,
                 parent.clone(),
@@ -465,7 +670,8 @@ mod test {
                     },
                 ],
                 asset.address(),
-                10_i128,
+                1000_i128,
+                100_u64,
                 1000_u64,
                 2000_u64,
                 parent.clone(),

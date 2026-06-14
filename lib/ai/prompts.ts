@@ -273,7 +273,7 @@ Node config schemas:
 - on_receive config: { asset: Asset, minAmountStroops?: string }
 - on_schedule config: { intervalAmount: positive integer, intervalUnit: "minute"|"hour"|"day"|"week"|"month", startsAt: ISO datetime, endsAt?: ISO datetime, occurrences?: positive integer, timeZone?: string }
 - pay config: { recipient: stellarAddress, amountStroops: string, asset: Asset }
-- split config: { asset: Asset, recipients: [{ address, bps: number, label?: string }], ratePerSecondStroops?: string }
+- split config: { asset: Asset, recipients: [{ address, bps: number, label?: string }], amountPerIntervalStroops?: string, ratePerSecondStroops?: string (deprecated) }
 - condition config: { kind: "amount_gt"|"amount_lt", amountStroops: string } | { kind: "oracle_gte", oracle: string, key: string, threshold: string } | { kind: "time_after"|"time_before", at: ISO datetime }
 
 CRITICAL SAFETY RULES:

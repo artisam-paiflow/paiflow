@@ -62,8 +62,12 @@ function workflowTargets(nodeIds: string[], addresses: Record<string, string>): 
   );
 }
 
-function ratePerSecondStroops(params: { ratePerSecondStroops: string }): xdr.ScVal {
-  return i128(params.ratePerSecondStroops);
+function amountPerIntervalStroops(params: { amountPerIntervalStroops: string }): xdr.ScVal {
+  return i128(params.amountPerIntervalStroops);
+}
+
+function intervalSeconds(params: { intervalSeconds: number }): xdr.ScVal {
+  return u64(params.intervalSeconds);
 }
 
 function amountStroops(params: { amountStroops: string }): xdr.ScVal {
@@ -139,7 +143,8 @@ export function pipelineNodeConstructorArgs(
         addr(admin),
         recipientsVec(params.recipients),
         addr(assetContractId(params.asset)),
-        ratePerSecondStroops(params),
+        amountPerIntervalStroops(params),
+        intervalSeconds(params),
         u64(params.startTs),
         u64(params.endTs),
         addr(parentAddress),
@@ -290,7 +295,8 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
         addr(admin),
         recipientsVec(params.recipients),
         addr(assetContractId(params.asset)),
-        ratePerSecondStroops(params),
+        amountPerIntervalStroops(params),
+        intervalSeconds(params),
         u64(params.startTs),
         u64(params.endTs),
       ];

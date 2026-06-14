@@ -441,26 +441,30 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
           />
 
           {triggerType === "on_schedule" && (
-            <Field label={`Rate (${assetLabel(node.config.asset)}/s)`}>
+            <Field label={`Amount per interval (${assetLabel(node.config.asset)})`}>
               <input
                 className="input"
                 value={
-                  node.config.ratePerSecondStroops
-                    ? formatStroops(node.config.ratePerSecondStroops)
+                  node.config.amountPerIntervalStroops
+                    ? formatStroops(node.config.amountPerIntervalStroops)
                     : ""
                 }
-                placeholder="Per-second streaming rate"
+                placeholder="Amount released each interval"
                 onChange={(e) => {
                   const stroops = tokenAmountToStroops(e.target.value);
                   onChange({
                     ...node,
-                    config: { ...node.config, ratePerSecondStroops: stroops || undefined },
+                    config: {
+                      ...node.config,
+                      amountPerIntervalStroops: stroops || undefined,
+                    },
                   });
                 }}
               />
-              {node.config.ratePerSecondStroops && (
+              {node.config.amountPerIntervalStroops && (
                 <div className="mt-0.5 text-[11px] text-zinc-500">
-                  = {stroopsToDisplay(node.config.ratePerSecondStroops, node.config.asset)}/s
+                  = {stroopsToDisplay(node.config.amountPerIntervalStroops, node.config.asset)} per
+                  interval
                 </div>
               )}
             </Field>

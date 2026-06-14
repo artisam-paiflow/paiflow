@@ -132,7 +132,7 @@ describe("flowToEnglish", () => {
           type: "split",
           config: {
             asset: { kind: "native" },
-            ratePerSecondStroops: "10",
+            amountPerIntervalStroops: "10",
             recipients: [
               { address: ADDR, bps: 6000, label: "A" },
               { address: ADDR_B, bps: 4000, label: "B" },
@@ -143,7 +143,7 @@ describe("flowToEnglish", () => {
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
     expect(out).toContain("every day");
-    expect(out).toContain("stream 0.000001 XLM/s");
+    expect(out).toContain("stream 0.000001 XLM per interval");
     expect(out).toContain("60% to A");
     expect(out).toContain("40% to B");
   });
