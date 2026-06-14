@@ -60,11 +60,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
       const sub = redisSub();
       if (!sub) {
+        log.warn({ deploymentId: id }, "SSE no redis subscriber available");
         closeStream();
         return;
       }
 
       const channel = eventChannel(id);
+      log.info({ deploymentId: id, channel, subStatus: sub.status }, "SSE starting");
 
       // The global subscriber singleton may be reconnecting. Wait until it is
       // ready before issuing SUBSCRIBE; otherwise ioredis rejects the command
@@ -93,8 +95,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
             sub.once("ready", onReady);
             sub.once("error", onError);
           });
+          log.info(
+            { deploymentId: id, channel, subStatus: sub.status },
+            "SSE redis subscriber ready",
+          );
         } catch (err) {
-          log.warn({ err, channel }, "SSE redis connection failed");
+          log.warn(
+            { err, deploymentId: id, channel, subStatus: sub.status },
+            "SSE redis connection failed",
+          );
           closeStream();
           return;
         }
@@ -113,16 +122,21 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
       sub.subscribe(channel, (err) => {
         if (err) {
-          log.warn({ err, channel }, "SSE redis subscribe failed");
+          log.warn({ err, deploymentId: id, channel }, "SSE redis subscribe failed");
           closeStream();
           return;
         }
 
         subscribed = true;
+        log.info({ deploymentId: id, channel }, "SSE redis subscribed");
 
         pingInterval = setInterval(() => {
           if (!aborted) ping();
         }, 15000);
+
+        // Force an immediate chunk to the client so we can detect proxy buffering.
+        send(": ping\n\n");
+        log.info({ deploymentId: id, channel }, "SSE sent initial ping");
 
         // Catch any events that arrived between SSR and SSE connect.
         pollEventsFor(id).catch((err) => {
@@ -136,6 +150,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         if (ch !== channel || aborted) return;
         try {
           const event = JSON.parse(msg);
+          log.info(
+            { deploymentId: id, channel, eventKind: event.kind, eventId: event.eventId },
+            "SSE forwarding redis message",
+          );
           sendEvent(event);
         } catch {
           /* ignore malformed messages */
@@ -143,6 +161,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       });
 
       req.signal.addEventListener("abort", () => {
+        log.info({ deploymentId: id, channel, subscribed }, "SSE client aborted");
         cleanup();
         if (subscribed) {
           sub.unsubscribe(channel).catch(() => null);

@@ -577,6 +577,10 @@ async function pollEventsWithStartLedger(
       written += 1;
       const client = redis();
       if (client) {
+        log.info(
+          { deploymentId, eventId: ev.id, kind, redisStatus: client.status },
+          "event publisher: attempting redis publish",
+        );
         client
           .publish(
             eventChannel(deploymentId),
@@ -593,9 +597,17 @@ async function pollEventsWithStartLedger(
               }),
             ),
           )
+          .then((receivers) => {
+            log.info(
+              { deploymentId, eventId: ev.id, kind, receivers },
+              "event publisher: redis publish succeeded",
+            );
+          })
           .catch((err) => {
-            log.warn({ err, deploymentId }, "redis publish failed");
+            log.warn({ err, deploymentId, eventId: ev.id }, "redis publish failed");
           });
+      } else {
+        log.warn({ deploymentId, eventId: ev.id }, "event publisher: no redis client");
       }
     } catch (err) {
       const code = (err as { code?: string })?.code;
