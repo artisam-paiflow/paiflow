@@ -25,6 +25,16 @@ export default function LiveBalances({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [displayBalances, setDisplayBalances] = useState<WorkflowBalances>({
+    totals: [],
+    nodes: [],
+  });
+
+  useEffect(() => {
+    if (!loading) {
+      setDisplayBalances(balances);
+    }
+  }, [loading, balances]);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,8 +88,8 @@ export default function LiveBalances({
     toast.success("Copied to clipboard.");
   }
 
-  const hasBalances = balances.totals.length > 0;
-  const title = balances.totals.length > 1 ? "Workflow balances" : "Contract balance";
+  const hasBalances = displayBalances.totals.length > 0;
+  const title = displayBalances.totals.length > 1 ? "Workflow balances" : "Contract balance";
 
   return (
     <section className="glass-panel p-md rounded-xl">
@@ -99,7 +109,7 @@ export default function LiveBalances({
           >
             sync
           </span>
-          {balances.nodes.length > 0 && (
+          {displayBalances.nodes.length > 0 && (
             <button
               onClick={() => setExpanded((e) => !e)}
               aria-expanded={expanded}
@@ -128,12 +138,12 @@ export default function LiveBalances({
 
       {hasBalances && (
         <div className="mt-md flex flex-wrap gap-4">
-          {balances.totals.map((total) => (
+          {displayBalances.totals.map((total) => (
             <div
               key={total.symbol}
               className={cn(
                 "border-primary/20 bg-primary/5 flex items-baseline gap-2 rounded-lg border px-4 py-3",
-                balances.totals.length === 1 && "flex-1",
+                displayBalances.totals.length === 1 && "flex-1",
               )}
             >
               <span className="text-display-sm text-on-surface font-display font-semibold">
@@ -147,11 +157,11 @@ export default function LiveBalances({
         </div>
       )}
 
-      {expanded && balances.nodes.length > 0 && (
+      {expanded && displayBalances.nodes.length > 0 && (
         <div className="mt-md space-y-2">
           <p className="text-label-sm text-on-surface-variant font-mono uppercase">Per contract</p>
           <div className="divide-outline-variant/40 divide-y">
-            {balances.nodes.map((node) => {
+            {displayBalances.nodes.map((node) => {
               const explorerUrl = network
                 ? stellarExpertContractUrl(node.contractAddress, network)
                 : null;
