@@ -344,6 +344,75 @@ describe("flowToParams", () => {
       expect(out.amountStroops).toBe("50000000");
     }
   });
+  it("excludes email_notify from pipeline mapping", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "100",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+        {
+          id: "e",
+          type: "email_notify",
+          config: {
+            recipients: [{ address: ADDR_A, email: "a@example.com" }],
+            subject: "Hi",
+            body: "",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "t", target: "e" },
+      ],
+    });
+    expect(pipeline).toHaveLength(2);
+    expect(pipeline.map((n) => n.nodeId)).toEqual(["t", "a"]);
+  });
+
+  it("keeps email_notify out of nextStepNodeIds", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "100",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+        {
+          id: "e",
+          type: "email_notify",
+          config: {
+            recipients: [{ address: ADDR_A, email: "a@example.com" }],
+            subject: "Hi",
+            body: "",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "t", target: "e" },
+      ],
+    });
+    const trigger = pipeline.find((n) => n.params.kind === "deposit_trigger");
+    expect(trigger!.params).toMatchObject({
+      nextStepNodeIds: ["a"],
+    });
+  });
 });
 
 describe("bps helpers", () => {

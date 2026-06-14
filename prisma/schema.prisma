@@ -190,9 +190,26 @@ model ContractEvent {
   decodedData  Json?
   occurredAt   DateTime
 
-  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  deployment        Deployment           @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  emailNotifications EmailNotification[]
 
   @@index([deploymentId, occurredAt(sort: Desc)])
+}
+
+model EmailNotification {
+  id              String   @id @default(uuid()) @db.Uuid
+  contractEventId String   @db.Uuid
+  nodeId          String
+  address         String?
+  recipient       String
+  status          String
+  error           String?
+  sentAt          DateTime @default(now())
+
+  contractEvent ContractEvent @relation(fields: [contractEventId], references: [id], onDelete: Cascade)
+
+  @@unique([contractEventId, nodeId, address])
+  @@index([contractEventId])
 }
 
 model EventCursor {

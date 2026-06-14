@@ -63,6 +63,7 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
     case "split":
     case "swap":
     case "yield":
+    case "email_notify":
       type = "action";
       break;
     case "condition":
@@ -95,6 +96,7 @@ function nodeBorderColor(n: FlowNode | undefined): string {
     case "split":
     case "swap":
     case "yield":
+    case "email_notify":
       return "#ffb1c4";
     case "condition":
       return "#ffba20";
@@ -588,6 +590,8 @@ function nodeLabel(n: FlowNode | undefined): string {
       return `Swap`;
     case "yield":
       return `Yield`;
+    case "email_notify":
+      return `Email (${n.config.recipients.length})`;
     case "condition":
       return `Condition (${n.config.kind})`;
   }

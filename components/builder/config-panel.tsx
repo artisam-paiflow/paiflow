@@ -799,6 +799,40 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
         </>
       )}
 
+      {node.type === "email_notify" && (
+        <>
+          <EmailRecipientsField node={node} graph={graph} onChange={onChange} />
+          <Field label="Subject">
+            <input
+              className="input"
+              value={node.config.subject}
+              placeholder="Payment notification"
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, subject: e.target.value },
+                } as FlowNode)
+              }
+            />
+          </Field>
+          <Field label="Body">
+            <textarea
+              className="input"
+              rows={5}
+              value={node.config.body}
+              placeholder="A payment of {{amount}} {{asset}} was received."
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, body: e.target.value },
+                } as FlowNode)
+              }
+            />
+          </Field>
+          <EmailVariablesHint graph={graph} nodeId={node.id} />
+        </>
+      )}
+
       {node.type === "condition" && (
         <>
           <Field label="Condition kind">
@@ -1041,6 +1075,138 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-xs text-zinc-400">{label}</span>
       {children}
     </label>
+  );
+}
+
+function EmailVariablesHint({ graph, nodeId }: { graph: FlowGraph; nodeId: string }) {
+  const parentEdge = graph.edges.find((e) => e.target === nodeId);
+  const parent = parentEdge ? graph.nodes.find((n) => n.id === parentEdge.source) : undefined;
+
+  const variables = ["kind", "ledger", "txHash", "eventId", "walletAddress"];
+  if (parent?.type === "condition") {
+    if (parent.config.kind === "amount_gt" || parent.config.kind === "amount_lt") {
+      variables.push("amount", "threshold", "condition");
+    } else if (parent.config.kind === "oracle_gte") {
+      variables.push("price", "amount", "threshold", "condition");
+    } else if (parent.config.kind === "multisig") {
+      variables.push("signer", "condition");
+    } else {
+      variables.push("condition");
+    }
+  } else {
+    variables.push("amount", "asset", "from", "recipient");
+  }
+
+  return (
+    <div className="rounded border border-zinc-800 bg-zinc-900/50 p-2 text-xs text-zinc-400">
+      <div className="mb-1 font-medium text-zinc-300">Available variables</div>
+      <div className="flex flex-wrap gap-1">
+        {variables.map((v) => (
+          <code key={v} className="rounded bg-zinc-800 px-1 py-0.5 text-[10px]">
+            {"{{"}
+            {v}
+            {"}}"}
+          </code>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EmailRecipientsField({
+  node,
+  graph,
+  onChange,
+}: {
+  node: Extract<FlowNode, { type: "email_notify" }>;
+  graph: FlowGraph;
+  onChange: (n: FlowNode) => void;
+}) {
+  const parentEdge = graph.edges.find((e) => e.target === node.id);
+  const parent = parentEdge ? graph.nodes.find((n) => n.id === parentEdge.source) : undefined;
+  const isSplit = parent?.type === "split";
+  const placeholderAddress = parent?.type === "pay" ? parent.config.recipient : "_";
+
+  let rows: { address: string; email: string }[];
+  if (isSplit) {
+    rows = parent.config.recipients.map((r) => ({
+      address: r.address,
+      email: node.config.recipients.find((e) => e.address === r.address)?.email ?? "",
+    }));
+  } else {
+    rows = node.config.recipients.length
+      ? node.config.recipients.map((r) => ({
+          address: r.address || placeholderAddress,
+          email: r.email,
+        }))
+      : [{ address: placeholderAddress, email: "" }];
+  }
+
+  const updateEmail = (idx: number, email: string) => {
+    const next = rows.map((r, i) => (i === idx ? { ...r, email: email.trim() } : r));
+    onChange({ ...node, config: { ...node.config, recipients: next } } as FlowNode);
+  };
+
+  const addRow = () => {
+    onChange({
+      ...node,
+      config: { ...node.config, recipients: [...rows, { address: placeholderAddress, email: "" }] },
+    } as FlowNode);
+  };
+
+  const removeRow = (idx: number) => {
+    onChange({
+      ...node,
+      config: { ...node.config, recipients: rows.filter((_, i) => i !== idx) },
+    } as FlowNode);
+  };
+
+  return (
+    <Field label="Recipients">
+      <div className="space-y-2">
+        {rows.map((r, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            {isSplit && (
+              <input
+                className="input flex-1 font-mono text-xs"
+                value={r.address}
+                placeholder="G..."
+                readOnly
+              />
+            )}
+            <input
+              className="input flex-1 text-xs"
+              value={r.email}
+              placeholder="alice@example.com"
+              onChange={(e) => updateEmail(idx, e.target.value)}
+            />
+            {!isSplit && rows.length > 1 && (
+              <button
+                type="button"
+                className="px-1 text-zinc-500 hover:text-red-400"
+                onClick={() => removeRow(idx)}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      {!isSplit && (
+        <button
+          type="button"
+          className="mt-2 rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
+          onClick={addRow}
+        >
+          + Add recipient
+        </button>
+      )}
+      {isSplit && (
+        <div className="mt-1 text-xs text-zinc-500">
+          One email is required for each split recipient.
+        </div>
+      )}
+    </Field>
   );
 }
 

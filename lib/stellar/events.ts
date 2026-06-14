@@ -8,6 +8,10 @@ import { redis, eventChannel } from "@/lib/redis";
 import { log } from "@/lib/log";
 import { assetContractId } from "@/lib/stellar/assets";
 import { assetLabel, type FlowGraph } from "@/lib/flows/schema";
+import {
+  sendEmailNotificationsForEvent,
+  type PipelineNodeSnapshot,
+} from "@/lib/flows/notifications";
 
 // Paranoia buffer: when polling events for the first time we start a few
 // ledgers before the deployment transaction to avoid missing events emitted
@@ -521,6 +525,8 @@ async function pollEventsWithStartLedger(
   templateKind: TemplateKind,
   startLedger: number,
   symbolMap: Map<string, string>,
+  graph: FlowGraph | null,
+  pipeline: PipelineNodeSnapshot[] | null,
 ): Promise<{ written: number; maxLedger: number }> {
   const server = sorobanRpc();
   let resp: rpc.Api.GetEventsResponse;
@@ -609,6 +615,24 @@ async function pollEventsWithStartLedger(
       } else {
         log.warn({ deploymentId, eventId: ev.id }, "event publisher: no redis client");
       }
+
+      // Fire-and-forget: email notify decorators attached to this pipeline node.
+      sendEmailNotificationsForEvent({
+        deploymentId,
+        contractEventId: created.id,
+        event: {
+          kind,
+          ledger: ev.ledger,
+          txHash: ev.txHash,
+          eventId: ev.id,
+          decodedData: resolvedData as Record<string, unknown> | null,
+        },
+        graph,
+        pipeline,
+        contractAddress,
+      }).catch((err) => {
+        log.warn({ err, deploymentId, eventId: created.id }, "email notification dispatch failed");
+      });
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code !== "P2002") log.warn({ err, deploymentId }, "event upsert failed");
@@ -697,6 +721,8 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
       node.templateKind,
       startLedger,
       symbolMap,
+      deployment.graphSnapshot as FlowGraph | null,
+      (deployment.pipelineSnapshot as PipelineNodeSnapshot[] | null) ?? [],
     );
     totalWritten += result.written;
     if (result.maxLedger > maxLedger) maxLedger = result.maxLedger;

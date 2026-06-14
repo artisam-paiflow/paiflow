@@ -46,7 +46,7 @@ const KIND_META: Record<string, { label: string; color: string; icon: string }> 
   CLAIM: {
     label: "CLAIM",
     color: "border-tertiary/30 bg-tertiary/10 text-tertiary",
-    icon: "payments",
+    icon: "payment",
   },
   CANCEL: { label: "CANCEL", color: "border-error/30 bg-error/10 text-error", icon: "cancel" },
   STATUS_CHANGE: {
@@ -463,11 +463,6 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
               <DetailField label="To">
                 <AddressValue addr={recipient} />
               </DetailField>
-              <DetailField label="Amount">
-                <span className="text-primary font-medium">
-                  {formatAmountWithAsset(amount, asset)}
-                </span>
-              </DetailField>
               {asset !== undefined && asset !== null && (
                 <DetailField label="Asset">{formatAsset(asset)}</DetailField>
               )}
@@ -562,11 +557,6 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
                 <AddressValue addr={contract} />
               </DetailField>
             )}
-            <DetailField label="Amount">
-              <span className="text-primary font-medium">
-                {formatAmountWithAsset(amount, asset)}
-              </span>
-            </DetailField>
             {asset !== undefined && asset !== null && (
               <DetailField label="Asset">{formatAsset(asset)}</DetailField>
             )}
