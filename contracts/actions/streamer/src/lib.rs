@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
     Address, Env, Vec,
@@ -48,6 +49,7 @@ const TTL_EXTEND_TO: u32 = 500_000;
 pub struct Streamer;
 
 #[contractimpl]
+#[allow(clippy::too_many_arguments)]
 impl Streamer {
     #[allow(clippy::too_many_arguments)]
     pub fn __constructor(
@@ -127,11 +129,7 @@ impl Streamer {
             .instance()
             .get(&Key::AmountPerInterval)
             .unwrap();
-        let interval_seconds: u64 = env
-            .storage()
-            .instance()
-            .get(&Key::IntervalSeconds)
-            .unwrap();
+        let interval_seconds: u64 = env.storage().instance().get(&Key::IntervalSeconds).unwrap();
         let start: u64 = env.storage().instance().get(&Key::StartTs).unwrap();
         let end: u64 = env.storage().instance().get(&Key::EndTs).unwrap();
         let claimed: i128 = env.storage().instance().get(&Key::Claimed).unwrap();
@@ -197,11 +195,7 @@ impl Streamer {
             .instance()
             .get(&Key::AmountPerInterval)
             .unwrap();
-        let interval_seconds: u64 = env
-            .storage()
-            .instance()
-            .get(&Key::IntervalSeconds)
-            .unwrap();
+        let interval_seconds: u64 = env.storage().instance().get(&Key::IntervalSeconds).unwrap();
         let start: u64 = env.storage().instance().get(&Key::StartTs).unwrap();
         let end: u64 = env.storage().instance().get(&Key::EndTs).unwrap();
         let claimed: i128 = env.storage().instance().get(&Key::Claimed).unwrap();
@@ -262,7 +256,10 @@ impl Streamer {
     }
 
     pub fn amount_per_interval(env: Env) -> i128 {
-        env.storage().instance().get(&Key::AmountPerInterval).unwrap()
+        env.storage()
+            .instance()
+            .get(&Key::AmountPerInterval)
+            .unwrap()
     }
 
     pub fn interval_seconds(env: Env) -> u64 {
