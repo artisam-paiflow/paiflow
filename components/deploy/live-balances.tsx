@@ -25,6 +25,7 @@ export default function LiveBalances({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
   const [displayBalances, setDisplayBalances] = useState<WorkflowBalances>({
     totals: [],
     nodes: [],
@@ -59,7 +60,10 @@ export default function LiveBalances({
           setError(err instanceof Error ? err.message : String(err));
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setHasFetched(true);
+        }
       }
     }
 
@@ -130,7 +134,7 @@ export default function LiveBalances({
         </div>
       )}
 
-      {!hasBalances && !loading && !error && (
+      {!hasBalances && !error && (hasFetched || !loading) && (
         <p className="text-body-md text-on-surface-variant mt-md">
           This workflow does not currently hold any contract balances.
         </p>
