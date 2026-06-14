@@ -9,7 +9,7 @@
  *   pnpm contracts:deploy-factory --network=testnet
  *   pnpm contracts:deploy-factory --network=mainnet
  */
-import "dotenv/config";
+import { config as dotenvConfig } from "dotenv";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -27,6 +27,9 @@ import { writeEnvLocal } from "./env-file";
 
 const WASM_DIR = "contracts/target/wasm32v1-none/release";
 const FACTORY_WASM = "pinkraft_factory.wasm";
+
+dotenvConfig({ path: resolve(".env") });
+dotenvConfig({ path: resolve(".env.local"), override: true });
 
 type NetworkName = "testnet" | "mainnet";
 

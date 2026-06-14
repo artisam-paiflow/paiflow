@@ -10,7 +10,7 @@
  *   pnpm contracts:upload --network=testnet
  *   pnpm contracts:upload --network=mainnet
  */
-import "dotenv/config";
+import { config as dotenvConfig } from "dotenv";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -25,6 +25,9 @@ import {
 import { writeEnvLocal } from "./env-file";
 
 const WASM_DIR = "contracts/target/wasm32v1-none/release";
+
+dotenvConfig({ path: resolve(".env") });
+dotenvConfig({ path: resolve(".env.local"), override: true });
 
 type NetworkName = "testnet" | "mainnet";
 
