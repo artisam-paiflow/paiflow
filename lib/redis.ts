@@ -1,6 +1,7 @@
 import "server-only";
 import Redis from "ioredis";
 import { env } from "./env";
+import { log } from "./log";
 
 const globalForRedis = globalThis as unknown as {
   redis?: Redis | null;
@@ -20,6 +21,18 @@ function makeClient(): Redis | null {
     if (process.env.NODE_ENV === "development") return;
     console.error("[redis] error:", err.message);
   });
+  client.on("connect", () =>
+    log.info({ redisUrl: url.replace(/:.+@/, ":***@") }, "redis client connected"),
+  );
+  client.on("ready", () =>
+    log.info({ redisUrl: url.replace(/:.+@/, ":***@") }, "redis client ready"),
+  );
+  client.on("close", () =>
+    log.warn({ redisUrl: url.replace(/:.+@/, ":***@") }, "redis client closed"),
+  );
+  client.on("reconnecting", () =>
+    log.warn({ redisUrl: url.replace(/:.+@/, ":***@") }, "redis client reconnecting"),
+  );
   return client;
 }
 
