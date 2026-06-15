@@ -8,8 +8,8 @@ use soroban_sdk::{
 #[derive(Clone)]
 pub struct Recipient {
     pub address: Address,
-    pub bps: u32,      // 0 for fixed-amount recipients
-    pub amount: i128,  // 0 for percentage recipients
+    pub bps: u32,     // 0 for fixed-amount recipients
+    pub amount: i128, // 0 for percentage recipients
 }
 
 #[contracttype]
@@ -102,8 +102,12 @@ impl Splitter {
             .set(&Key::NextSteps, &Vec::<WorkflowTarget>::new(&env));
         env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
-        env.storage().instance().set(&Key::TotalFixedAmount, &total_fixed);
-        env.storage().instance().set(&Key::AccumulatedBalance, &0i128);
+        env.storage()
+            .instance()
+            .set(&Key::TotalFixedAmount, &total_fixed);
+        env.storage()
+            .instance()
+            .set(&Key::AccumulatedBalance, &0i128);
     }
 
     pub fn distribute(env: Env, from: Address, amount: i128) {
@@ -363,6 +367,7 @@ fn handle_fixed_deposit(env: &Env, asset: &Address, amount: i128) -> bool {
             .set(&Key::AccumulatedBalance, &remaining);
         true
     } else {
+        #[allow(deprecated)]
         env.events().publish(
             (symbol_short!("shortfall"), asset.clone()),
             (
@@ -381,6 +386,7 @@ fn do_split_fixed(env: &Env, asset: &Address, recipients: &Vec<Recipient>) {
     for r in recipients.iter() {
         if r.amount > 0 {
             client.transfer(&env.current_contract_address(), &r.address, &r.amount);
+            #[allow(deprecated)]
             env.events().publish(
                 (symbol_short!("pay"), r.address.clone()),
                 (asset.clone(), r.amount),
