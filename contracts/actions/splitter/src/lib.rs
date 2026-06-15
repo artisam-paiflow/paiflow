@@ -242,9 +242,14 @@ impl Splitter {
 
         if distributed {
             let emit_amount = if total_fixed > 0 { total_fixed } else { amount };
+            let recipients: Vec<Recipient> =
+                env.storage().instance().get(&Key::Recipients).unwrap();
             #[allow(deprecated)]
             env.events()
                 .publish((symbol_short!("distrib"), asset.clone()), emit_amount);
+            #[allow(deprecated)]
+            env.events()
+                .publish((symbol_short!("payout"), parent.clone()), recipients);
             forward_remaining(&env, &asset);
         }
     }
@@ -253,7 +258,7 @@ impl Splitter {
     /// Funds are expected to already be held by this contract.
     pub fn receive_and_forward(
         env: Env,
-        _from: Address,
+        from: Address,
         asset: Address,
         amount: i128,
         _next_steps: Vec<WorkflowTarget>,
@@ -291,9 +296,14 @@ impl Splitter {
 
         if distributed {
             let emit_amount = if total_fixed > 0 { total_fixed } else { amount };
+            let recipients: Vec<Recipient> =
+                env.storage().instance().get(&Key::Recipients).unwrap();
             #[allow(deprecated)]
             env.events()
                 .publish((symbol_short!("distrib"), asset.clone()), emit_amount);
+            #[allow(deprecated)]
+            env.events()
+                .publish((symbol_short!("payout"), from.clone()), recipients);
             forward_remaining(&env, &asset);
         }
     }
@@ -374,11 +384,6 @@ fn do_split_fixed(env: &Env, asset: &Address, recipients: &Vec<Recipient>) {
     for r in recipients.iter() {
         if r.amount > 0 {
             client.transfer(&env.current_contract_address(), &r.address, &r.amount);
-            #[allow(deprecated)]
-            env.events().publish(
-                (symbol_short!("pay"), r.address.clone()),
-                (asset.clone(), r.amount),
-            );
         }
     }
 }
