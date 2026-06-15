@@ -131,7 +131,7 @@ describe("pipelineNodeConstructorArgs", () => {
       {
         kind: "streamer",
         asset: { kind: "native" },
-        recipients: [{ address: ADDR, bps: 10_000 }],
+        recipients: [{ address: ADDR, bps: 10_000, amount: "0" }],
         amountPerIntervalStroops: "1000",
         intervalSeconds: 60,
         startTs: 1000,
