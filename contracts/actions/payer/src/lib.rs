@@ -742,6 +742,7 @@ mod test {
                 ],
                 0_i128,
                 payer_id.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let splitter_client = SplitterClient::new(&env, &splitter_id);

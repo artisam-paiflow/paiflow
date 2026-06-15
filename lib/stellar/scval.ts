@@ -142,6 +142,7 @@ export function pipelineNodeConstructorArgs(
         recipientsVec(params.recipients),
         i128(params.minAmountStroops),
         addr(parentAddress),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
       ];
     }
     case "streamer": {

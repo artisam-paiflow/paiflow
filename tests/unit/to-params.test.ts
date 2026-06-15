@@ -1115,4 +1115,55 @@ describe("flowToPipeline", () => {
 
     vi.useRealTimers();
   });
+
+  it("chains splitter → payer and wires nextStepNodeIds on both", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "native" } },
+        },
+        {
+          id: "split",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "100000000" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "50000000" },
+            ],
+          },
+        },
+        {
+          id: "pay",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            asset: { kind: "native" },
+            mode: "fixed",
+            amountStroops: "10000000",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "split" },
+        { id: "e2", source: "split", target: "pay" },
+      ],
+    } as Parameters<typeof flowToPipeline>[0]);
+
+    expect(pipeline).toHaveLength(3);
+    expect(pipeline[0]!.params.kind).toBe("deposit_trigger");
+    expect(pipeline[1]!.params.kind).toBe("splitter");
+    expect(pipeline[2]!.params.kind).toBe("payer");
+
+    const trigger = pipeline[0]!.params as { nextStepNodeIds: string[] };
+    expect(trigger.nextStepNodeIds).toEqual(["split"]);
+
+    const splitter = pipeline[1]!.params as { nextStepNodeIds: string[] };
+    expect(splitter.nextStepNodeIds).toEqual(["pay"]);
+
+    const payer = pipeline[2]!.params as { nextStepNodeIds: string[] };
+    expect(payer.nextStepNodeIds).toEqual([]);
+  });
 });

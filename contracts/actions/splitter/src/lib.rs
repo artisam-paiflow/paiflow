@@ -63,6 +63,7 @@ impl Splitter {
         recipients: Vec<Recipient>,
         min_amount: i128,
         parent: Address,
+        next_steps: Vec<WorkflowTarget>,
     ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
@@ -97,9 +98,7 @@ impl Splitter {
         env.storage().instance().set(&Key::Recipients, &recipients);
         env.storage().instance().set(&Key::MinAmount, &min_amount);
         env.storage().instance().set(&Key::Paused, &false);
-        env.storage()
-            .instance()
-            .set(&Key::NextSteps, &Vec::<WorkflowTarget>::new(&env));
+        env.storage().instance().set(&Key::NextSteps, &next_steps);
         env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
         env.storage()
@@ -500,6 +499,7 @@ mod test {
                 make_recipients(&env, &a, &b, &c),
                 0_i128,
                 parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let client = SplitterClient::new(&env, &contract_id);
@@ -543,6 +543,7 @@ mod test {
                 ),
                 0_i128,
                 parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let client = SplitterClient::new(&env, &contract_id);
@@ -580,7 +581,17 @@ mod test {
             },
         ];
         let parent = Address::generate(&env);
-        env.register(Splitter, (admin, asset.address(), bad, 0_i128, parent));
+        env.register(
+            Splitter,
+            (
+                admin,
+                asset.address(),
+                bad,
+                0_i128,
+                parent,
+                Vec::<WorkflowTarget>::new(&env),
+            ),
+        );
     }
 
     #[test]
@@ -608,6 +619,7 @@ mod test {
                 make_recipients(&env, &a, &b, &c),
                 0_i128,
                 parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let client = SplitterClient::new(&env, &contract_id);
@@ -652,6 +664,7 @@ mod test {
                 make_recipients(&env, &a, &b, &c),
                 0_i128,
                 parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let client = SplitterClient::new(&env, &contract_id);
@@ -699,6 +712,7 @@ mod test {
                 ),
                 0_i128,
                 parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let client = SplitterClient::new(&env, &contract_id);
@@ -763,6 +777,7 @@ mod test {
                 make_fixed_recipients(&env, &a, &b, 6_000_000, 4_000_000),
                 0_i128,
                 parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let client = SplitterClient::new(&env, &contract_id);
@@ -801,6 +816,7 @@ mod test {
                 make_fixed_recipients(&env, &a, &b, 6_000_000, 4_000_000),
                 0_i128,
                 parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let client = SplitterClient::new(&env, &contract_id);
@@ -836,6 +852,7 @@ mod test {
                 make_fixed_recipients(&env, &a, &b, 6_000_000, 4_000_000),
                 0_i128,
                 parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let client = SplitterClient::new(&env, &contract_id);
@@ -876,7 +893,17 @@ mod test {
             },
         ];
         let parent = Address::generate(&env);
-        env.register(Splitter, (admin, asset.address(), mixed, 0_i128, parent));
+        env.register(
+            Splitter,
+            (
+                admin,
+                asset.address(),
+                mixed,
+                0_i128,
+                parent,
+                Vec::<WorkflowTarget>::new(&env),
+            ),
+        );
     }
 
     #[test]
@@ -896,7 +923,17 @@ mod test {
             },
         ];
         let parent = Address::generate(&env);
-        env.register(Splitter, (admin, asset.address(), zero, 0_i128, parent));
+        env.register(
+            Splitter,
+            (
+                admin,
+                asset.address(),
+                zero,
+                0_i128,
+                parent,
+                Vec::<WorkflowTarget>::new(&env),
+            ),
+        );
     }
 
     #[test]
@@ -931,6 +968,7 @@ mod test {
                 make_fixed_recipients(&env, &a, &b, 3_000_000, 2_000_000),
                 0_i128,
                 parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let client = SplitterClient::new(&env, &contract_id);
@@ -968,6 +1006,7 @@ mod test {
                 make_fixed_recipients(&env, &a, &b, 3_000_000, 2_000_000),
                 0_i128,
                 parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let splitter_client = SplitterClient::new(&env, &splitter_id);
@@ -1030,6 +1069,7 @@ mod test {
                 make_fixed_recipients(&env, &a, &b, 3_000_000, 2_000_000),
                 0_i128,
                 parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let splitter1_client = SplitterClient::new(&env, &splitter1_id);
@@ -1042,6 +1082,7 @@ mod test {
                 make_fixed_recipients(&env, &c, &d, 1_000_000, 1_000_000),
                 0_i128,
                 splitter1_id.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let splitter2_client = SplitterClient::new(&env, &splitter2_id);
@@ -1091,6 +1132,7 @@ mod test {
                 make_recipients(&env, &a, &b, &c),
                 0_i128,
                 parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let splitter_client = SplitterClient::new(&env, &splitter_id);
@@ -1151,6 +1193,7 @@ mod test {
                 make_fixed_recipients(&env, &a, &b, 3_000_000, 2_000_000),
                 0_i128,
                 parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
             ),
         );
         let splitter_client = SplitterClient::new(&env, &splitter_id);
