@@ -257,7 +257,7 @@ describe("pollEventsFor", () => {
     );
   });
 
-  it("decodes splitter forward events as FORWARD", async () => {
+  it("decodes splitter forward events with recipient as FORWARD", async () => {
     const event = makeMockEvent({
       topic: ["forward", ADDR_A, ADDR_B],
       value: "350000000",
@@ -288,6 +288,41 @@ describe("pollEventsFor", () => {
       data: expect.objectContaining({
         kind: "FORWARD",
         decodedData: { asset: ADDR_A, recipient: ADDR_B, amount: "350000000" },
+      }),
+    });
+  });
+
+  it("decodes legacy splitter forward events without recipient as FORWARD", async () => {
+    const event = makeMockEvent({
+      topic: ["forward", ADDR_A],
+      value: "350000000",
+      ledger: 500,
+      txHash: "tx1",
+      ledgerClosedAt: "2024-01-01T00:00:00Z",
+    });
+
+    vi.mocked(db.deployment.findUnique).mockResolvedValue({
+      id: "dep-1",
+      contractAddress: "C123",
+      status: "CONFIRMED",
+      cursor: { lastLedger: 400 },
+      deployTxHash: "dtx1",
+      flow: { templateKind: TemplateKind.SPLITTER },
+    } as unknown as Prisma.PromiseReturnType<typeof db.deployment.findUnique>);
+
+    mockServer({
+      getEvents: async () => ({
+        events: [event],
+        latestLedger: 500,
+      }),
+    });
+
+    const result = await pollEventsFor("dep-1");
+    expect(result).toBe(1);
+    expect(db.contractEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        kind: "FORWARD",
+        decodedData: { asset: ADDR_A, amount: "350000000" },
       }),
     });
   });

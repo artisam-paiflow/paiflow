@@ -64,6 +64,10 @@ impl DepositTrigger {
 
         token::Client::new(&env, &asset).transfer(&from, env.current_contract_address(), &amount);
 
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("deposit"), from), amount);
+
         for step in next_steps.iter() {
             token::Client::new(&env, &asset).transfer(
                 &env.current_contract_address(),
@@ -72,10 +76,6 @@ impl DepositTrigger {
             );
             invoke_execute_step(&env, &step.address, &asset, &amount);
         }
-
-        #[allow(deprecated)]
-        env.events()
-            .publish((symbol_short!("deposit"), from), amount);
     }
 
     pub fn next_steps(env: Env) -> Vec<WorkflowTarget> {
