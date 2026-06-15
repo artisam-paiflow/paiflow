@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { readStreamerAvailable, readStreamerPaused } from "@/lib/stellar/relayer";
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
 
