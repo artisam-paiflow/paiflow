@@ -8,6 +8,7 @@ import { TemplateKind } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const ADDR_B = "GAA5Z4XWC6K2RHP7K4BAVPUGDL3EUD5PGGBHJ7S2RFWAFHTTLHXN6CFZ";
 
 vi.mock("@/lib/stellar/client");
 vi.mock("@/lib/db", () => ({
@@ -258,7 +259,7 @@ describe("pollEventsFor", () => {
 
   it("decodes splitter forward events as FORWARD", async () => {
     const event = makeMockEvent({
-      topic: ["forward"],
+      topic: ["forward", ADDR_A, ADDR_B],
       value: "350000000",
       ledger: 500,
       txHash: "tx1",
@@ -286,7 +287,7 @@ describe("pollEventsFor", () => {
     expect(db.contractEvent.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         kind: "FORWARD",
-        decodedData: { amount: "350000000" },
+        decodedData: { asset: ADDR_A, recipient: ADDR_B, amount: "350000000" },
       }),
     });
   });

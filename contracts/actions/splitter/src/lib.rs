@@ -393,6 +393,12 @@ fn forward_remaining(env: &Env, asset: &Address) {
         for step in next_steps.iter() {
             client.transfer(&env.current_contract_address(), &step.address, &forward_amount);
             invoke_execute_step(env, &step.address, asset, &forward_amount);
+
+            #[allow(deprecated)]
+            env.events().publish(
+                (symbol_short!("forward"), asset.clone(), step.address.clone()),
+                forward_amount,
+            );
         }
 
         let total_fixed: i128 = env
@@ -405,10 +411,6 @@ fn forward_remaining(env: &Env, asset: &Address) {
                 .instance()
                 .set(&Key::AccumulatedBalance, &0i128);
         }
-
-        #[allow(deprecated)]
-        env.events()
-            .publish((symbol_short!("forward"), asset.clone()), forward_amount);
     }
 }
 

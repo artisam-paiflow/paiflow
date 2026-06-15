@@ -76,9 +76,11 @@ const SPLITTER_REGISTRY: EventRegistry = {
   },
   forward: {
     kind: EventKind.FORWARD,
-    decode: (_topics, value) => {
+    decode: (topics, value) => {
+      const asset = topics[1] ?? null;
+      const recipient = topics[2] ?? null;
       const amount = value ?? null;
-      return amount !== null ? { amount } : null;
+      return asset && recipient && amount !== null ? { asset, recipient, amount } : null;
     },
   },
 };
@@ -156,9 +158,11 @@ const PAYER_REGISTRY: EventRegistry = {
   },
   forward: {
     kind: EventKind.FORWARD,
-    decode: (_topics, value) => {
+    decode: (topics, value) => {
+      const asset = topics[1] ?? null;
+      const recipient = topics[2] ?? null;
       const amount = value ?? null;
-      return amount !== null ? { amount } : null;
+      return asset && recipient && amount !== null ? { asset, recipient, amount } : null;
     },
   },
 };
