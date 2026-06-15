@@ -313,7 +313,11 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                     onChange={(e) =>
                       onChange({
                         ...node,
-                        config: { ...cfg, pauseAllowed: e.target.checked },
+                        config: {
+                          ...cfg,
+                          pauseAllowed: e.target.checked,
+                          retrieveAllowed: e.target.checked ? cfg.retrieveAllowed : false,
+                        },
                       } as FlowNode)
                     }
                   />
@@ -323,10 +327,13 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                 </label>
               </Field>
               <Field label="Allow retrieve unvested">
-                <label className="flex items-center gap-2">
+                <label
+                  className={`flex items-center gap-2 ${!(cfg.pauseAllowed ?? true) ? "cursor-not-allowed opacity-50" : ""}`}
+                >
                   <input
                     type="checkbox"
-                    checked={cfg.retrieveAllowed ?? true}
+                    checked={(cfg.pauseAllowed ?? true) && (cfg.retrieveAllowed ?? true)}
+                    disabled={!(cfg.pauseAllowed ?? true)}
                     onChange={(e) =>
                       onChange({
                         ...node,

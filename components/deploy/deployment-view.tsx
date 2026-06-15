@@ -278,6 +278,7 @@ export default function DeploymentView({
                   busyLabel="RESUMING…"
                   icon="play_arrow"
                   variant="secondary"
+                  size="sm"
                   prepare={async (address) => {
                     const res = await fetch(`/api/deployments/${deploymentId}/invoke`, {
                       method: "POST",
@@ -322,6 +323,7 @@ export default function DeploymentView({
                   busyLabel="PAUSING…"
                   icon="pause"
                   variant="danger"
+                  size="sm"
                   prepare={async (address) => {
                     const res = await fetch(`/api/deployments/${deploymentId}/invoke`, {
                       method: "POST",
