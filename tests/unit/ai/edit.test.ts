@@ -19,8 +19,8 @@ const baseGraph: FlowGraph = {
       config: {
         asset: { kind: "native" },
         recipients: [
-          { address: ADDR, bps: 6000, label: "Alice" },
-          { address: ADDR, bps: 4000, label: "Bob" },
+          { address: ADDR, mode: "percentage", bps: 6000, label: "Alice" },
+          { address: ADDR, mode: "percentage", bps: 4000, label: "Bob" },
         ],
       },
     },
@@ -36,8 +36,8 @@ describe("applyPatch", () => {
         id: "a",
         config: {
           recipients: [
-            { address: ADDR, bps: 5500, label: "Alice" },
-            { address: ADDR, bps: 4500, label: "Bob" },
+            { address: ADDR, mode: "percentage", bps: 5500, label: "Alice" },
+            { address: ADDR, mode: "percentage", bps: 4500, label: "Bob" },
           ],
         },
       },

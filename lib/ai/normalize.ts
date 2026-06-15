@@ -107,7 +107,9 @@ export function autoConnectOrphans(graph: FlowGraph): FlowGraph {
 export function stripZeroBpsRecipients(graph: FlowGraph): FlowGraph {
   const nodes = graph.nodes.map((n) => {
     if (n.type !== "split") return n;
-    const filtered = n.config.recipients.filter((r) => r.bps > 0);
+    const filtered = n.config.recipients.filter((r) =>
+      r.mode === "percentage" ? r.bps > 0 : BigInt(r.amountStroops) > 0n,
+    );
     if (filtered.length === n.config.recipients.length) return n;
     return { ...n, config: { ...n.config, recipients: filtered } } as FlowNode;
   });

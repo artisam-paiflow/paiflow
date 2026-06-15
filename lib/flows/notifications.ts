@@ -1,5 +1,5 @@
 import "server-only";
-import type { FlowGraph, FlowNode } from "./schema";
+import type { FlowGraph, FlowNode, SplitRecipient } from "./schema";
 import { assetLabel, isTrigger } from "./schema";
 import { sendEmail } from "@/lib/mail";
 import { db } from "@/lib/db";
@@ -107,6 +107,18 @@ export function buildEmailContext(params: {
     if (formatted !== undefined) ctx.amount = formatted;
   }
 
+  if (event.kind === "SHORTFALL") {
+    const deposited = formatAmountValue(data.amount);
+    const balance = formatAmountValue(data.balance);
+    const needed = formatAmountValue(data.needed);
+    const remaining = formatAmountValue(data.remaining);
+    if (deposited !== undefined) ctx.amount = deposited;
+    if (balance !== undefined) ctx.balance = balance;
+    if (needed !== undefined) ctx.needed = needed;
+    if (remaining !== undefined) ctx.remaining = remaining;
+    ctx.shortfall = `Insufficient funds: deposited ${deposited ?? data.amount ?? ""} ${ctx.asset ?? ""}, balance ${balance ?? data.balance ?? ""}, needed ${needed ?? data.needed ?? ""}, remaining ${remaining ?? data.remaining ?? ""}`;
+  }
+
   const resolvedAsset = resolveAssetLabel({ rawAsset: data.asset, parentNode, graph });
   if (resolvedAsset !== undefined) ctx.asset = resolvedAsset;
 
@@ -197,10 +209,26 @@ function formatAmountValue(value: unknown): string | undefined {
 export function resolvePerRecipientAmount(params: {
   address: string;
   parentNode: FlowNode | undefined;
-  event: { decodedData: Record<string, unknown> | null };
+  event: { kind: string; decodedData: Record<string, unknown> | null };
 }): string | null | undefined {
   const { address, parentNode, event } = params;
   const data = event.decodedData ?? {};
+
+  // Shortfall events have no payout yet.
+  if (
+    event.kind === "SHORTFALL" ||
+    (data.needed != null && data.remaining != null && data.balance != null)
+  ) {
+    return null;
+  }
+
+  // Fixed-amount split: return the configured amount for this recipient.
+  if (parentNode?.type === "split") {
+    const recipient = parentNode.config.recipients.find((r) => r.address === address);
+    if (recipient?.mode === "fixed") {
+      return recipient.amountStroops;
+    }
+  }
 
   // Per-recipient event emitted by the contract (e.g. splitter "pay").
   if (typeof data.recipient === "string") {
@@ -216,8 +244,14 @@ export function resolvePerRecipientAmount(params: {
     // wallet's share from the known payment and the source recipient's bps.
     if (parentNode?.type === "split") {
       const payment = asIntegerString(data.payment) ?? asIntegerString(data.amount);
-      const sourceShare = parentNode.config.recipients.find((r) => r.address === data.recipient);
-      const targetShare = parentNode.config.recipients.find((r) => r.address === address);
+      const sourceShare = parentNode.config.recipients.find(
+        (r): r is Extract<SplitRecipient, { mode: "percentage" }> =>
+          r.mode === "percentage" && r.address === data.recipient,
+      );
+      const targetShare = parentNode.config.recipients.find(
+        (r): r is Extract<SplitRecipient, { mode: "percentage" }> =>
+          r.mode === "percentage" && r.address === address,
+      );
       if (payment !== undefined && sourceShare && targetShare) {
         try {
           const estimatedTotal = (BigInt(payment) * 10000n) / BigInt(sourceShare.bps);
@@ -231,10 +265,13 @@ export function resolvePerRecipientAmount(params: {
     }
   }
 
-  // Total-amount event with a splitter parent — calculate the address's share.
+  // Total-amount event with a percentage splitter parent — calculate the address's share.
   if (parentNode?.type === "split") {
     const total = asIntegerString(data.amount);
-    const share = parentNode.config.recipients.find((r) => r.address === address);
+    const share = parentNode.config.recipients.find(
+      (r): r is Extract<SplitRecipient, { mode: "percentage" }> =>
+        r.mode === "percentage" && r.address === address,
+    );
     if (total !== undefined && share) {
       try {
         const perRecipient = (BigInt(total) * BigInt(share.bps)) / 10000n;

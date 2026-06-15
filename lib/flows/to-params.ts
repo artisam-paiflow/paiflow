@@ -17,17 +17,23 @@ import {
   TOTAL_BPS,
 } from "./schema";
 
+export type PipelineRecipient = {
+  address: string;
+  bps: number;
+  amount: string;
+};
+
 export type SplitterParams = {
   kind: "splitter";
   asset: Asset;
-  recipients: Array<{ address: string; bps: number }>;
+  recipients: PipelineRecipient[];
   minAmountStroops?: string;
 };
 
 export type StreamerParams = {
   kind: "streamer";
   asset: Asset;
-  recipients: Array<{ address: string; bps: number }>;
+  recipients: PipelineRecipient[];
   amountPerIntervalStroops: string;
   intervalSeconds: number;
   startTs: number;
@@ -38,7 +44,7 @@ export type StreamerParams = {
 export type ConditionalParams = {
   kind: "conditional";
   asset: Asset;
-  recipients: Array<{ address: string; bps: number }>;
+  recipients: PipelineRecipient[];
   amountStroops: string;
   condition: unknown;
 };
@@ -54,14 +60,14 @@ export type DepositTriggerNodeParams = {
 export type SplitterNodeParams = {
   kind: "splitter";
   asset: Asset;
-  recipients: Array<{ address: string; bps: number }>;
+  recipients: PipelineRecipient[];
   minAmountStroops: string;
 };
 
 export type StreamerNodeParams = {
   kind: "streamer";
   asset: Asset;
-  recipients: Array<{ address: string; bps: number }>;
+  recipients: PipelineRecipient[];
   amountPerIntervalStroops: string;
   intervalSeconds: number;
   startTs: number;
@@ -72,7 +78,7 @@ export type StreamerNodeParams = {
 export type ConditionalNodeParams = {
   kind: "conditional";
   asset: Asset;
-  recipients: Array<{ address: string; bps: number }>;
+  recipients: PipelineRecipient[];
   amountStroops: string;
   condition: unknown;
   nextStepNodeIds: string[];
@@ -177,12 +183,16 @@ function getAsset(action: ContractActionNode): Asset {
   return action.config.asset;
 }
 
-function toRecipients(action: ContractActionNode): Array<{ address: string; bps: number }> {
+function toRecipients(action: ContractActionNode): PipelineRecipient[] {
   if (action.type === "split") {
-    return action.config.recipients.map((r) => ({ address: r.address, bps: r.bps }));
+    return action.config.recipients.map((r) => ({
+      address: r.address,
+      bps: r.mode === "percentage" ? r.bps : 0,
+      amount: r.mode === "fixed" ? r.amountStroops : "0",
+    }));
   }
   if (action.type === "pay") {
-    return [{ address: action.config.recipient, bps: TOTAL_BPS }];
+    return [{ address: action.config.recipient, bps: TOTAL_BPS, amount: "0" }];
   }
   return [];
 }

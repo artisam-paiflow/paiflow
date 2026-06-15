@@ -149,11 +149,66 @@ export const PayAction = z.object({
     ),
 });
 
-export const SplitRecipient = z.object({
+const SplitRecipientBase = z.object({
   address: stellarAccount,
-  bps: z.number().int().min(1).max(10_000),
   label: z.string().max(64).optional(),
 });
+
+export const SplitRecipient = z.discriminatedUnion("mode", [
+  SplitRecipientBase.extend({
+    mode: z.literal("percentage"),
+    bps: z.number().int().min(1).max(10_000),
+  }),
+  SplitRecipientBase.extend({
+    mode: z.literal("fixed"),
+    amountStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
+  }),
+]);
+export type SplitRecipient = z.infer<typeof SplitRecipient>;
+
+// Backward compatibility: older flows stored recipients with `bps` but no
+// `mode`. Hydrate them to percentage mode before parsing.
+function hydrateSplitRecipient(r: unknown): unknown {
+  if (r && typeof r === "object" && !("mode" in (r as object)) && "bps" in (r as object)) {
+    return { ...(r as object), mode: "percentage" };
+  }
+  return r;
+}
+
+export function migrateFlowGraph(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const graph = raw as { nodes?: unknown[] };
+  if (!Array.isArray(graph.nodes)) return raw;
+  return {
+    ...graph,
+    nodes: graph.nodes.map((n) => {
+      if (!n || typeof n !== "object") return n;
+      const node = n as { type?: unknown; config?: { recipients?: unknown[] } };
+      if (node.type === "split" && Array.isArray(node.config?.recipients)) {
+        return {
+          ...node,
+          config: {
+            ...node.config,
+            recipients: node.config.recipients.map(hydrateSplitRecipient),
+          },
+        };
+      }
+      return n;
+    }),
+  };
+}
+
+export function splitTotalFixedStroops(recipients: SplitRecipient[]): string | null {
+  let total = 0n;
+  let hasFixed = false;
+  for (const r of recipients) {
+    if (r.mode === "fixed") {
+      hasFixed = true;
+      total += BigInt(r.amountStroops);
+    }
+  }
+  return hasFixed ? total.toString() : null;
+}
 
 export const SplitAction = z.object({
   id: z.string().min(1),

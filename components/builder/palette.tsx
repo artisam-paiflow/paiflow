@@ -124,11 +124,13 @@ const TEMPLATES: Template[] = [
         recipients: [
           {
             address: "PENDING:unnamed",
+            mode: "percentage",
             bps: 5000,
             label: "A",
           },
           {
             address: "PENDING:unnamed",
+            mode: "percentage",
             bps: 5000,
             label: "B",
           },

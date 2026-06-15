@@ -44,6 +44,7 @@ enum EventKind {
   CLAIM
   STATUS_CHANGE
   CANCEL
+  SHORTFALL
   PAUSE
   RESUME
 }

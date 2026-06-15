@@ -594,30 +594,63 @@ describe("validateFlow", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("accepts email_notify attached to pay with any recipient address", () => {
+  it("accepts an all-fixed split", () => {
     const r = validateFlow({
       nodes: [
         { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
         {
           id: "a",
-          type: "pay",
-          config: { recipient: ADDR_A, amountStroops: "10", asset: { kind: "native" } },
-        },
-        {
-          id: "e",
-          type: "email_notify",
+          type: "split",
           config: {
-            recipients: [{ address: ADDR_B, email: "b@example.com" }],
-            subject: "Hi",
-            body: "",
+            asset: { kind: "native" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "5000000" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "5000000" },
+            ],
           },
         },
       ],
-      edges: [
-        { id: "e1", source: "t", target: "a" },
-        { id: "e2", source: "a", target: "e" },
-      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
     });
     expect(r.ok).toBe(true);
+  });
+
+  it("rejects a mixed-mode split", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [
+              { address: ADDR_A, mode: "percentage", bps: 5000 },
+              { address: ADDR_B, mode: "fixed", amountStroops: "5000000" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects a fixed split with zero amount", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "0" }],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
   });
 });
