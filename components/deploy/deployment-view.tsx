@@ -60,7 +60,8 @@ export default function DeploymentView({
           data.kind === "RECEIVE" ||
           data.kind === "PAYOUT" ||
           data.kind === "CLAIM" ||
-          data.kind === "CANCEL"
+          data.kind === "CANCEL" ||
+          data.kind === "SHORTFALL"
         ) {
           balanceChanges += 1;
         }

@@ -47,8 +47,8 @@ const splitGraph: FlowGraph = {
       config: {
         asset: { kind: "known", symbol: "USDC" },
         recipients: [
-          { address: "GAAA", bps: 6000 },
-          { address: "GBBB", bps: 4000 },
+          { address: "GAAA", mode: "percentage", bps: 6000 },
+          { address: "GBBB", mode: "percentage", bps: 4000 },
         ],
       },
     } as FlowNode,
@@ -203,12 +203,91 @@ describe("buildEmailContext", () => {
     const amount = resolvePerRecipientAmount({
       address: "GAAA",
       parentNode: splitGraph.nodes[1],
-      event: {
-        decodedData: { recipient: "GBBB", payment: "10000000" },
-      },
+      event: { kind: "PAYOUT", decodedData: { recipient: "GBBB", payment: "10000000" } },
     });
     // GBBB got 1 XLM at 40% bps, so total ≈ 2.5 XLM and GAAA's 60% share ≈ 1.5 XLM.
     expect(amount).toBe("15000000");
+  });
+
+  it("returns configured fixed amount for fixed split recipients", () => {
+    const fixedSplit: FlowNode = {
+      id: "s",
+      type: "split",
+      config: {
+        asset: { kind: "known", symbol: "USDC" },
+        recipients: [
+          { address: "GAAA", mode: "fixed", amountStroops: "10000000" },
+          { address: "GBBB", mode: "fixed", amountStroops: "5000000" },
+        ],
+      },
+    } as FlowNode;
+    const amount = resolvePerRecipientAmount({
+      address: "GAAA",
+      parentNode: fixedSplit,
+      event: { kind: "PAYOUT", decodedData: { recipient: "GAAA", payment: "10000000" } },
+    });
+    expect(amount).toBe("10000000");
+  });
+
+  it("returns null for shortfall events", () => {
+    const fixedSplit: FlowNode = {
+      id: "s",
+      type: "split",
+      config: {
+        asset: { kind: "known", symbol: "USDC" },
+        recipients: [{ address: "GAAA", mode: "fixed", amountStroops: "10000000" }],
+      },
+    } as FlowNode;
+    const amount = resolvePerRecipientAmount({
+      address: "GAAA",
+      parentNode: fixedSplit,
+      event: {
+        kind: "SHORTFALL",
+        decodedData: {
+          amount: "3000000",
+          balance: "3000000",
+          needed: "10000000",
+          remaining: "7000000",
+        },
+      },
+    });
+    expect(amount).toBeNull();
+  });
+
+  it("builds shortfall context with balance, needed, and remaining", () => {
+    const fixedSplit: FlowNode = {
+      id: "s",
+      type: "split",
+      config: {
+        asset: { kind: "known", symbol: "USDC" },
+        recipients: [{ address: "GAAA", mode: "fixed", amountStroops: "10000000" }],
+      },
+    } as FlowNode;
+    const ctx = buildEmailContext({
+      event: {
+        kind: "SHORTFALL",
+        ledger: 1,
+        txHash: "tx",
+        eventId: "ev1",
+        decodedData: {
+          amount: "3000000",
+          balance: "3000000",
+          needed: "10000000",
+          remaining: "7000000",
+          asset: "USDC",
+        },
+      },
+      parentNode: fixedSplit,
+      graph: splitGraph,
+      walletAddress: "GAAA",
+      amount: null,
+    });
+    expect(ctx.amount).toBe("0.3");
+    expect(ctx.balance).toBe("0.3");
+    expect(ctx.needed).toBe("1");
+    expect(ctx.remaining).toBe("0.7");
+    expect(ctx.asset).toBe("USDC");
+    expect(ctx.shortfall).toContain("Insufficient funds");
   });
 });
 

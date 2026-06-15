@@ -89,26 +89,31 @@ export function flowToEnglish(graph: FlowGraph): string {
       : shortAddr(action.config.vault);
     actionText = `deposit ${assetLabel(action.config.asset)} into yield vault ${vault}`;
   } else {
-    const totalBps = action.config.recipients.reduce((s, r) => s + r.bps, 0);
-    const sourceAmount =
-      trigger.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
+    const mode = action.config.recipients[0]?.mode ?? "percentage";
+    const assetStr = assetLabel(action.config.asset);
     const parts = action.config.recipients.map((r) => {
-      const pct = bpsToPct(r.bps);
-      const pctStr = pct === Math.floor(pct) ? `${pct}%` : `${pct.toFixed(1)}%`;
       const who = isPendingAddress(r.address)
         ? `${r.label ?? "?"} (needs address)`
         : (r.label ?? shortAddr(r.address));
-      if (sourceAmount && totalBps === 10000) {
+      if (r.mode === "fixed") {
+        return `${formatStroops(r.amountStroops)} ${assetStr} to ${who}`;
+      }
+      const pct = bpsToPct(r.bps);
+      const pctStr = pct === Math.floor(pct) ? `${pct}%` : `${pct.toFixed(1)}%`;
+      const sourceAmount =
+        trigger.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
+      if (sourceAmount) {
         const projected = (BigInt(sourceAmount) * BigInt(r.bps)) / 10000n;
-        return `${pctStr} (${formatStroops(projected.toString())} ${assetLabel(action.config.asset)}) to ${who}`;
+        return `${pctStr} (${formatStroops(projected.toString())} ${assetStr}) to ${who}`;
       }
       return `${pctStr} to ${who}`;
     });
-    const assetStr = assetLabel(action.config.asset);
     if (action.config.amountPerIntervalStroops) {
       actionText = `stream ${formatStroops(action.config.amountPerIntervalStroops)} ${assetStr} per interval — ${parts.join(", ")}`;
     } else if (action.config.ratePerSecondStroops) {
       actionText = `stream ${formatStroops(action.config.ratePerSecondStroops)} ${assetStr}/s — ${parts.join(", ")}`;
+    } else if (mode === "fixed") {
+      actionText = `split ${parts.join(", ")}`;
     } else {
       actionText = `split ${assetStr} — ${parts.join(", ")}`;
     }

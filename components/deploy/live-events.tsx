@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { cn, formatAmount, shortAddr, shortAddrExtraShort } from "@/lib/utils";
 import { stellarExpertTxUrl, type StellarNetwork } from "@/lib/stellar/explorer";
-import { assetLabel, type Asset, type FlowGraph } from "@/lib/flows/schema";
+import { assetLabel, type Asset, type FlowGraph, type SplitRecipient } from "@/lib/flows/schema";
 
 export type Evt = {
   id: string;
@@ -49,6 +49,11 @@ const KIND_META: Record<string, { label: string; color: string; icon: string }> 
     icon: "payment",
   },
   CANCEL: { label: "CANCEL", color: "border-error/30 bg-error/10 text-error", icon: "cancel" },
+  SHORTFALL: {
+    label: "SHORTFALL",
+    color: "border-[#ffba20]/30 bg-[#ffba20]/10 text-[#ffba20]",
+    icon: "account_balance_wallet",
+  },
   STATUS_CHANGE: {
     label: "STATUS",
     color: "border-outline-variant/30 bg-surface-container-low text-on-surface-variant",
@@ -70,17 +75,28 @@ function getGraphSplitRecipients(
   const splitNode = graph.nodes.find((n) => n.type === "split");
   if (!splitNode || splitNode.type !== "split") return [];
 
-  const recipients = (
-    splitNode.config as { recipients: Array<{ address: string; bps: number; label?: string }> }
-  ).recipients;
+  const recipients = (splitNode.config as { recipients: SplitRecipient[] }).recipients;
   if (!Array.isArray(recipients)) return [];
 
   if (!totalAmount)
-    return recipients.map((r) => ({ address: r.address, bps: r.bps, label: r.label }));
+    return recipients.map((r) => ({
+      address: r.address,
+      bps: r.mode === "percentage" ? r.bps : undefined,
+      label: r.label,
+      amount: r.mode === "fixed" ? r.amountStroops : undefined,
+    }));
 
   const total = BigInt(totalAmount);
   let distributed = 0n;
   return recipients.map((r, index) => {
+    if (r.mode === "fixed") {
+      return {
+        address: r.address,
+        bps: undefined,
+        label: r.label,
+        amount: r.amountStroops,
+      };
+    }
     const isLast = index === recipients.length - 1;
     const share = isLast ? total - distributed : (total * BigInt(r.bps)) / TOTAL_BPS;
     distributed += share;
@@ -560,6 +576,39 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
             {asset !== undefined && asset !== null && (
               <DetailField label="Asset">{formatAsset(asset)}</DetailField>
             )}
+          </div>
+        </div>
+      );
+    }
+    case "SHORTFALL": {
+      const asset = d?.asset;
+      const amount = d?.amount;
+      const balance = d?.balance;
+      const needed = d?.needed;
+      const remaining = d?.remaining;
+
+      return (
+        <div className="space-y-2">
+          <div className="text-body-sm text-on-surface">
+            Deposited{" "}
+            <span className="text-primary font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
+            — not enough to execute the fixed split.
+          </div>
+          <div className="text-body-sm text-on-surface-variant">
+            Funds are held in the contract until the required total is reached.
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+            <DetailField label="Held balance">
+              <span className="text-primary font-medium">
+                {formatAmountWithAsset(balance, asset)}
+              </span>
+            </DetailField>
+            <DetailField label="Total needed">{formatAmountWithAsset(needed, asset)}</DetailField>
+            <DetailField label="Still needed">
+              <span className="text-error font-medium">
+                {formatAmountWithAsset(remaining, asset)}
+              </span>
+            </DetailField>
           </div>
         </div>
       );

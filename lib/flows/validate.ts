@@ -8,6 +8,8 @@ import {
   isLogic,
   isTrigger,
   isPendingAddress,
+  migrateFlowGraph,
+  splitTotalFixedStroops,
 } from "./schema";
 import { flowToPipeline } from "./to-params";
 
@@ -44,10 +46,14 @@ const FRIENDLY = {
     `The connection "${eid}" references a node "${src}" that doesn't exist.`,
   MISSING_EDGE_TARGET: (eid: string, tgt: string) =>
     `The connection "${eid}" references a node "${tgt}" that doesn't exist.`,
+  MIXED_SPLIT_MODE:
+    "All recipients in a split must be either percentages or fixed amounts, not a mix.",
+  FIXED_AMOUNT_REQUIRED: "Each fixed-amount recipient needs a positive amount.",
+  TOTAL_FIXED_AMOUNT_REQUIRED: "Add at least one positive fixed amount to the split.",
 } as const;
 
 export function validateFlow(rawGraph: unknown): ValidationResult {
-  const parsed = FlowGraphSchema.safeParse(rawGraph);
+  const parsed = FlowGraphSchema.safeParse(migrateFlowGraph(rawGraph));
   if (!parsed.success) {
     return {
       ok: false,
@@ -102,14 +108,49 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   for (const a of actions) {
     if (a.type === "split") {
-      const sum = a.config.recipients.reduce((s, r) => s + r.bps, 0);
-      if (sum !== 10_000) {
+      const modes = new Set(a.config.recipients.map((r) => r.mode));
+      if (modes.size > 1) {
         errors.push({
           path: `nodes.${a.id}.config.recipients`,
-          message: `Recipient basis points must sum to 10000 (got ${sum})`,
-          friendlyMessage: FRIENDLY.BPS_SUM(sum),
+          message: "Split recipients must all use the same mode (percentage or fixed)",
+          friendlyMessage: FRIENDLY.MIXED_SPLIT_MODE,
         });
       }
+
+      const mode = a.config.recipients[0]?.mode ?? "percentage";
+
+      if (mode === "percentage") {
+        const sum = a.config.recipients.reduce(
+          (s, r) => (r.mode === "percentage" ? s + r.bps : s),
+          0,
+        );
+        if (sum !== 10_000) {
+          errors.push({
+            path: `nodes.${a.id}.config.recipients`,
+            message: `Recipient basis points must sum to 10000 (got ${sum})`,
+            friendlyMessage: FRIENDLY.BPS_SUM(sum),
+          });
+        }
+      } else {
+        for (const r of a.config.recipients) {
+          if (r.mode === "fixed" && (!r.amountStroops || r.amountStroops === "0")) {
+            errors.push({
+              path: `nodes.${a.id}.config.recipients`,
+              message: "Fixed recipient amount must be positive",
+              friendlyMessage: FRIENDLY.FIXED_AMOUNT_REQUIRED,
+            });
+          }
+        }
+        const total = splitTotalFixedStroops(a.config.recipients);
+        if (!total || total === "0") {
+          errors.push({
+            path: `nodes.${a.id}.config.recipients`,
+            message: "Total fixed amount must be greater than 0",
+            friendlyMessage: FRIENDLY.TOTAL_FIXED_AMOUNT_REQUIRED,
+          });
+        }
+      }
+
       const seen = new Set<string>();
       for (const r of a.config.recipients) {
         if (isPendingAddress(r.address)) {

@@ -11,6 +11,8 @@ import {
   assetLabel,
   stroopsToDisplay,
   tokenAmountToStroops,
+  splitTotalFixedStroops,
+  type SplitRecipient,
 } from "@/lib/flows/schema";
 import { cn, formatStroops } from "@/lib/utils";
 
@@ -470,143 +472,253 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
             </Field>
           )}
 
-          <div className="text-xs text-zinc-400">Recipients (shares must sum to 100%)</div>
+          {(() => {
+            const splitNode = node as Extract<FlowNode, { type: "split" }>;
+            const mode = splitNode.config.recipients[0]?.mode ?? "percentage";
+            const totalFixed = splitTotalFixedStroops(splitNode.config.recipients);
+            const minAmount =
+              trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
 
-          <AllocationBar recipients={node.config.recipients} />
+            const setMode = (newMode: "percentage" | "fixed") => {
+              const next = splitNode.config.recipients.map((r) => {
+                const base = { address: r.address, label: r.label };
+                if (newMode === "percentage") {
+                  return { ...base, mode: "percentage" as const, bps: 0 };
+                }
+                return { ...base, mode: "fixed" as const, amountStroops: "0" };
+              });
+              onChange({
+                ...splitNode,
+                config: { ...splitNode.config, recipients: next },
+              } as FlowNode);
+            };
 
-          {node.config.recipients.map((r, i) => {
-            const isPending = isPendingAddress(r.address);
-            const pct = bpsToPct(r.bps);
-            const pctDisplay = pct === Math.floor(pct) ? `${pct}` : `${pct.toFixed(1)}`;
-            const totalBps = node.config.recipients.reduce((s, r2) => s + r2.bps, 0);
-            const projected =
-              sourceAmount && totalBps === TOTAL_BPS
-                ? stroopsToDisplay(
-                    ((BigInt(sourceAmount) * BigInt(r.bps)) / 10000n).toString(),
-                    node.config.asset,
-                  )
-                : null;
+            const updateRecipient = (i: number, r: SplitRecipient) => {
+              const next = [...splitNode.config.recipients];
+              next[i] = r;
+              onChange({
+                ...splitNode,
+                config: { ...splitNode.config, recipients: next },
+              } as FlowNode);
+            };
 
             return (
-              <div key={i} className="space-y-1 rounded border border-zinc-800 bg-zinc-900/50 p-2">
-                <div className="grid grid-cols-[1fr_64px_28px] items-center gap-1">
-                  <div className="grid gap-0.5">
-                    <input
-                      className="input font-mono text-xs"
-                      value={r.address}
-                      placeholder="G... or PENDING:label"
-                      onChange={(e) => {
-                        const next = [...node.config.recipients];
-                        next[i] = { ...r, address: e.target.value.trim() };
-                        onChange({
-                          ...node,
-                          config: { ...node.config, recipients: next },
-                        } as FlowNode);
-                      }}
-                    />
+              <>
+                <Field label="Distribution mode">
+                  <select
+                    className="input"
+                    value={mode}
+                    onChange={(e) => setMode(e.target.value as "percentage" | "fixed")}
+                  >
+                    <option value="percentage">Percentage</option>
+                    <option value="fixed">Fixed amount</option>
+                  </select>
+                </Field>
+
+                <div className="text-xs text-zinc-400">
+                  {mode === "percentage"
+                    ? "Recipients (shares must sum to 100%)"
+                    : "Recipients (fixed amounts accumulate until the total is reached)"}
+                </div>
+
+                {mode === "percentage" && (
+                  <AllocationBar recipients={splitNode.config.recipients} />
+                )}
+
+                {splitNode.config.recipients.map((r, i) => {
+                  const isPending = isPendingAddress(r.address);
+                  const isPercentage = r.mode === "percentage";
+                  const projected =
+                    isPercentage && sourceAmount
+                      ? stroopsToDisplay(
+                          ((BigInt(sourceAmount) * BigInt(r.bps)) / 10000n).toString(),
+                          splitNode.config.asset,
+                        )
+                      : null;
+
+                  return (
+                    <div
+                      key={i}
+                      className="space-y-1 rounded border border-zinc-800 bg-zinc-900/50 p-2"
+                    >
+                      <div className="grid grid-cols-[1fr_80px_28px] items-center gap-1">
+                        <div className="grid gap-0.5">
+                          <input
+                            className="input font-mono text-xs"
+                            value={r.address}
+                            placeholder="G... or PENDING:label"
+                            onChange={(e) =>
+                              updateRecipient(i, {
+                                ...r,
+                                address: e.target.value.trim(),
+                              } as SplitRecipient)
+                            }
+                          />
+                        </div>
+                        {isPercentage ? (
+                          <div className="relative">
+                            <input
+                              className="input pr-5 text-right"
+                              value={
+                                r.bps === 0
+                                  ? ""
+                                  : (() => {
+                                      const pct = bpsToPct(r.bps);
+                                      return pct === Math.floor(pct)
+                                        ? `${pct}`
+                                        : `${pct.toFixed(1)}`;
+                                    })()
+                              }
+                              placeholder="0"
+                              onChange={(e) => {
+                                const v = Number(e.target.value);
+                                updateRecipient(i, {
+                                  ...r,
+                                  bps: isNaN(v) ? 0 : Math.min(10000, Math.max(0, pctToBps(v))),
+                                } as SplitRecipient);
+                              }}
+                            />
+                            <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[11px] text-zinc-500">
+                              %
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <input
+                              className="input pr-5 text-right"
+                              value={r.amountStroops ? formatStroops(r.amountStroops) : ""}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const stroops = tokenAmountToStroops(e.target.value);
+                                updateRecipient(i, {
+                                  ...r,
+                                  amountStroops: stroops || "0",
+                                } as SplitRecipient);
+                              }}
+                            />
+                          </div>
+                        )}
+                        <button
+                          onClick={() => {
+                            const next = splitNode.config.recipients.filter((_, j) => j !== i);
+                            onChange({
+                              ...splitNode,
+                              config: { ...splitNode.config, recipients: next },
+                            } as FlowNode);
+                          }}
+                          className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-[1fr_auto] gap-1">
+                        <input
+                          className="input text-xs"
+                          value={r.label ?? ""}
+                          placeholder="Label (e.g. Alice)"
+                          onChange={(e) =>
+                            updateRecipient(i, {
+                              ...r,
+                              label: e.target.value || undefined,
+                            } as SplitRecipient)
+                          }
+                        />
+                        <div className="flex items-center gap-1 text-[10px]">
+                          {isPending && (
+                            <span className="rounded bg-amber-950 px-1.5 py-0.5 text-amber-400">
+                              needs address
+                            </span>
+                          )}
+                          {projected && (
+                            <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                              {projected}
+                            </span>
+                          )}
+                          {!isPercentage && r.amountStroops && r.amountStroops !== "0" && (
+                            <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                              {stroopsToDisplay(r.amountStroops, splitNode.config.asset)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {mode === "percentage" && remainingPct(splitNode.config.recipients) > 0 && (
+                  <div className="text-xs text-amber-400">
+                    Remaining: {remainingPct(splitNode.config.recipients).toFixed(1)}% unallocated
                   </div>
-                  <div className="relative">
-                    <input
-                      className="input pr-5 text-right"
-                      value={pctDisplay}
-                      placeholder="0"
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        const next = [...node.config.recipients];
-                        next[i] = {
-                          ...r,
-                          bps: isNaN(v) ? 0 : Math.min(10000, Math.max(0, pctToBps(v))),
-                        };
-                        onChange({
-                          ...node,
-                          config: { ...node.config, recipients: next },
-                        } as FlowNode);
-                      }}
-                    />
-                    <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[11px] text-zinc-500">
+                )}
+
+                {mode === "percentage" &&
+                  splitNode.config.recipients.reduce(
+                    (s, r2) => s + (r2.mode === "percentage" ? r2.bps : 0),
+                    0,
+                  ) > TOTAL_BPS && (
+                    <div className="text-xs text-red-400">
+                      Total exceeds 100% by{" "}
+                      {(
+                        (splitNode.config.recipients.reduce(
+                          (s, r2) => s + (r2.mode === "percentage" ? r2.bps : 0),
+                          0,
+                        ) -
+                          TOTAL_BPS) /
+                        100
+                      ).toFixed(1)}
                       %
+                    </div>
+                  )}
+
+                {mode === "fixed" && totalFixed && (
+                  <div className="text-xs text-zinc-400">
+                    Total fixed amount:{" "}
+                    <span className="font-mono text-zinc-300">
+                      {stroopsToDisplay(totalFixed, splitNode.config.asset)}
                     </span>
                   </div>
-                  <button
-                    onClick={() => {
-                      const next = node.config.recipients.filter((_, j) => j !== i);
-                      onChange({
-                        ...node,
-                        config: { ...node.config, recipients: next },
-                      } as FlowNode);
-                    }}
-                    className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="grid grid-cols-[1fr_auto] gap-1">
-                  <input
-                    className="input text-xs"
-                    value={r.label ?? ""}
-                    placeholder="Label (e.g. Alice)"
-                    onChange={(e) => {
-                      const next = [...node.config.recipients];
-                      next[i] = { ...r, label: e.target.value || undefined };
-                      onChange({
-                        ...node,
-                        config: { ...node.config, recipients: next },
-                      } as FlowNode);
-                    }}
-                  />
-                  <div className="flex items-center gap-1 text-[10px]">
-                    {isPending && (
-                      <span className="rounded bg-amber-950 px-1.5 py-0.5 text-amber-400">
-                        needs address
-                      </span>
-                    )}
-                    {projected && (
-                      <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                        {projected}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
+                )}
+
+                {mode === "fixed" &&
+                  minAmount &&
+                  totalFixed &&
+                  BigInt(totalFixed) > BigInt(minAmount) && (
+                    <div className="text-xs text-amber-400">
+                      Total fixed amount is greater than the trigger minimum. Deposits will
+                      accumulate until the total is reached.
+                    </div>
+                  )}
+
+                <button
+                  className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
+                  onClick={() =>
+                    onChange({
+                      ...splitNode,
+                      config: {
+                        ...splitNode.config,
+                        recipients: [
+                          ...splitNode.config.recipients,
+                          mode === "percentage"
+                            ? {
+                                address: "PENDING:unnamed",
+                                mode: "percentage" as const,
+                                bps: 100,
+                              }
+                            : {
+                                address: "PENDING:unnamed",
+                                mode: "fixed" as const,
+                                amountStroops: "0",
+                              },
+                        ],
+                      },
+                    } as FlowNode)
+                  }
+                >
+                  + Add recipient
+                </button>
+              </>
             );
-          })}
-
-          {remainingPct(node.config.recipients) > 0 && (
-            <div className="text-xs text-amber-400">
-              Remaining: {remainingPct(node.config.recipients).toFixed(1)}% unallocated
-            </div>
-          )}
-
-          {node.config.recipients.reduce((s, r) => s + r.bps, 0) > TOTAL_BPS && (
-            <div className="text-xs text-red-400">
-              Total exceeds 100% by{" "}
-              {((node.config.recipients.reduce((s, r) => s + r.bps, 0) - TOTAL_BPS) / 100).toFixed(
-                1,
-              )}
-              %
-            </div>
-          )}
-
-          <button
-            className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
-            onClick={() =>
-              onChange({
-                ...node,
-                config: {
-                  ...node.config,
-                  recipients: [
-                    ...node.config.recipients,
-                    {
-                      address: "PENDING:unnamed",
-                      bps: 100,
-                    },
-                  ],
-                },
-              })
-            }
-          >
-            + Add recipient
-          </button>
+          })()}
         </>
       )}
 
@@ -1095,6 +1207,9 @@ function EmailVariablesHint({ graph, nodeId }: { graph: FlowGraph; nodeId: strin
     }
   } else {
     variables.push("amount", "asset", "from", "recipient");
+    if (parent?.type === "split" && parent.config.recipients[0]?.mode === "fixed") {
+      variables.push("balance", "needed", "remaining", "shortfall");
+    }
   }
 
   return (
@@ -1264,13 +1379,16 @@ function AssetSimpleSelect({
   );
 }
 
-function remainingPct(recipients: Array<{ bps: number }>): number {
-  const used = recipients.reduce((s, r) => s + r.bps, 0);
+function remainingPct(recipients: SplitRecipient[]): number {
+  const used = recipients.reduce((s, r) => (r.mode === "percentage" ? s + r.bps : s), 0);
   return Math.max(0, (TOTAL_BPS - used) / 100);
 }
 
-function AllocationBar({ recipients }: { recipients: Array<{ bps: number; label?: string }> }) {
-  const total = recipients.reduce((s, r) => s + r.bps, 0);
+function AllocationBar({ recipients }: { recipients: SplitRecipient[] }) {
+  const percentageRecipients = recipients.filter(
+    (r): r is Extract<SplitRecipient, { mode: "percentage" }> => r.mode === "percentage",
+  );
+  const total = percentageRecipients.reduce((s, r) => s + r.bps, 0);
   const colors = [
     "#a78bfa",
     "#34d399",
@@ -1284,7 +1402,7 @@ function AllocationBar({ recipients }: { recipients: Array<{ bps: number; label?
 
   return (
     <div className="flex h-2 overflow-hidden rounded-full bg-zinc-800">
-      {recipients.map((r, i) => {
+      {percentageRecipients.map((r, i) => {
         const w = total > 0 ? (r.bps / total) * 100 : 0;
         if (w <= 0) return null;
         return (
