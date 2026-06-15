@@ -78,6 +78,21 @@ const SPLITTER_REGISTRY: EventRegistry = {
       return recipient && asset && payment ? { recipient, asset, payment } : null;
     },
   },
+  shortfall: {
+    kind: EventKind.SHORTFALL,
+    decode: (topics, value) => {
+      if (!value || !Array.isArray(value)) return null;
+      const v = value as ScValNative[];
+      const asset = topics[1] ?? null;
+      const amount = v[0] ?? null;
+      const balance = v[1] ?? null;
+      const needed = v[2] ?? null;
+      const remaining = v[3] ?? null;
+      return asset && amount !== null && balance !== null && needed !== null && remaining !== null
+        ? { asset, amount, balance, needed, remaining }
+        : null;
+    },
+  },
 };
 
 const STREAMER_REGISTRY: EventRegistry = {

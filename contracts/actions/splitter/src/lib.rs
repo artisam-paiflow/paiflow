@@ -8,7 +8,8 @@ use soroban_sdk::{
 #[derive(Clone)]
 pub struct Recipient {
     pub address: Address,
-    pub bps: u32,
+    pub bps: u32,      // 0 for fixed-amount recipients
+    pub amount: i128,  // 0 for percentage recipients
 }
 
 #[contracttype]
@@ -28,6 +29,8 @@ pub enum Key {
     NextSteps,
     ParentNode,
     Version,
+    TotalFixedAmount,
+    AccumulatedBalance,
 }
 
 #[contracterror]
@@ -40,6 +43,7 @@ pub enum Error {
     Paused = 4,
     Unauthorized = 5,
     InvalidAmount = 6,
+    MixedModeNotAllowed = 7,
 }
 
 const VERSION: u32 = 1;
@@ -66,15 +70,28 @@ impl Splitter {
         if recipients.is_empty() {
             panic_with_error!(&env, Error::NoRecipients);
         }
-        let mut sum: u32 = 0;
+        let mut total_bps: u32 = 0;
+        let mut total_fixed: i128 = 0;
         for r in recipients.iter() {
-            sum = sum
+            if r.bps > 0 && r.amount > 0 {
+                panic_with_error!(&env, Error::MixedModeNotAllowed);
+            }
+            total_bps = total_bps
                 .checked_add(r.bps)
                 .unwrap_or_else(|| panic_with_error!(&env, Error::BpsSumInvalid));
+            total_fixed = total_fixed
+                .checked_add(r.amount)
+                .unwrap_or_else(|| panic_with_error!(&env, Error::BpsSumInvalid));
         }
-        if sum != TOTAL_BPS {
+
+        if total_fixed > 0 {
+            if total_bps != 0 {
+                panic_with_error!(&env, Error::MixedModeNotAllowed);
+            }
+        } else if total_bps != TOTAL_BPS {
             panic_with_error!(&env, Error::BpsSumInvalid);
         }
+
         env.storage().instance().set(&Key::Admin, &admin);
         env.storage().instance().set(&Key::Asset, &asset);
         env.storage().instance().set(&Key::Recipients, &recipients);
@@ -85,6 +102,8 @@ impl Splitter {
             .set(&Key::NextSteps, &Vec::<WorkflowTarget>::new(&env));
         env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
+        env.storage().instance().set(&Key::TotalFixedAmount, &total_fixed);
+        env.storage().instance().set(&Key::AccumulatedBalance, &0i128);
     }
 
     pub fn distribute(env: Env, from: Address, amount: i128) {
@@ -111,15 +130,33 @@ impl Splitter {
         let client = token::Client::new(&env, &asset);
         client.transfer(&from, env.current_contract_address(), &amount);
 
-        do_split(&env, &asset, &recipients, amount);
+        let total_fixed: i128 = env
+            .storage()
+            .instance()
+            .get(&Key::TotalFixedAmount)
+            .unwrap_or(0);
+        if total_fixed > 0 {
+            let distributed = handle_fixed_deposit(&env, &asset, amount);
+            if distributed {
+                let topic: Symbol = symbol_short!("distrib");
+                #[allow(deprecated)]
+                env.events()
+                    .publish((topic, from.clone()), (asset.clone(), total_fixed));
+                #[allow(deprecated)]
+                env.events()
+                    .publish((symbol_short!("payout"), from), recipients);
+            }
+        } else {
+            do_split(&env, &asset, &recipients, amount);
 
-        let topic: Symbol = symbol_short!("distrib");
-        #[allow(deprecated)]
-        env.events()
-            .publish((topic, from.clone()), (asset.clone(), amount));
-        #[allow(deprecated)]
-        env.events()
-            .publish((symbol_short!("payout"), from), recipients);
+            let topic: Symbol = symbol_short!("distrib");
+            #[allow(deprecated)]
+            env.events()
+                .publish((topic, from.clone()), (asset.clone(), amount));
+            #[allow(deprecated)]
+            env.events()
+                .publish((symbol_short!("payout"), from), recipients);
+        }
     }
 
     pub fn pause(env: Env) {
@@ -134,6 +171,20 @@ impl Splitter {
 
     pub fn recipients(env: Env) -> Vec<Recipient> {
         env.storage().instance().get(&Key::Recipients).unwrap()
+    }
+
+    pub fn accumulated_balance(env: Env) -> i128 {
+        env.storage()
+            .instance()
+            .get(&Key::AccumulatedBalance)
+            .unwrap_or(0)
+    }
+
+    pub fn total_fixed_amount(env: Env) -> i128 {
+        env.storage()
+            .instance()
+            .get(&Key::TotalFixedAmount)
+            .unwrap_or(0)
     }
 
     pub fn set_next_steps(env: Env, next_steps: Vec<WorkflowTarget>) {
@@ -168,24 +219,36 @@ impl Splitter {
         {
             panic_with_error!(&env, Error::Paused);
         }
-        let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
 
-        do_split(&env, &asset, &recipients, amount);
-
-        let next_steps: Vec<WorkflowTarget> = env
+        let total_fixed: i128 = env
             .storage()
             .instance()
-            .get(&Key::NextSteps)
-            .unwrap_or_else(|| Vec::new(&env));
-        // All funds were distributed to recipients above; forward execution
-        // control to next_steps with amount=0 since no funds remain.
-        for step in next_steps.iter() {
-            invoke_execute_step(&env, &step.address, &asset, &0);
-        }
+            .get(&Key::TotalFixedAmount)
+            .unwrap_or(0);
+        let distributed = if total_fixed > 0 {
+            handle_fixed_deposit(&env, &asset, amount)
+        } else {
+            let recipients: Vec<Recipient> =
+                env.storage().instance().get(&Key::Recipients).unwrap();
+            do_split(&env, &asset, &recipients, amount);
+            true
+        };
 
-        #[allow(deprecated)]
-        env.events()
-            .publish((symbol_short!("distrib"), asset), amount);
+        if distributed {
+            let next_steps: Vec<WorkflowTarget> = env
+                .storage()
+                .instance()
+                .get(&Key::NextSteps)
+                .unwrap_or_else(|| Vec::new(&env));
+            for step in next_steps.iter() {
+                invoke_execute_step(&env, &step.address, &asset, &0);
+            }
+
+            let emit_amount = if total_fixed > 0 { total_fixed } else { amount };
+            #[allow(deprecated)]
+            env.events()
+                .publish((symbol_short!("distrib"), asset), emit_amount);
+        }
     }
 
     /// Called by receive_and_forward triggers (webhook, oracle, subscription).
@@ -213,22 +276,36 @@ impl Splitter {
         {
             panic_with_error!(&env, Error::Paused);
         }
-        let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
 
-        do_split(&env, &asset, &recipients, amount);
-
-        let next_steps: Vec<WorkflowTarget> = env
+        let total_fixed: i128 = env
             .storage()
             .instance()
-            .get(&Key::NextSteps)
-            .unwrap_or_else(|| Vec::new(&env));
-        for step in next_steps.iter() {
-            invoke_execute_step(&env, &step.address, &asset, &0);
-        }
+            .get(&Key::TotalFixedAmount)
+            .unwrap_or(0);
+        let distributed = if total_fixed > 0 {
+            handle_fixed_deposit(&env, &asset, amount)
+        } else {
+            let recipients: Vec<Recipient> =
+                env.storage().instance().get(&Key::Recipients).unwrap();
+            do_split(&env, &asset, &recipients, amount);
+            true
+        };
 
-        #[allow(deprecated)]
-        env.events()
-            .publish((symbol_short!("distrib"), asset), amount);
+        if distributed {
+            let next_steps: Vec<WorkflowTarget> = env
+                .storage()
+                .instance()
+                .get(&Key::NextSteps)
+                .unwrap_or_else(|| Vec::new(&env));
+            for step in next_steps.iter() {
+                invoke_execute_step(&env, &step.address, &asset, &0);
+            }
+
+            let emit_amount = if total_fixed > 0 { total_fixed } else { amount };
+            #[allow(deprecated)]
+            env.events()
+                .publish((symbol_short!("distrib"), asset), emit_amount);
+        }
     }
 
     fn require_admin(env: &Env) {
@@ -258,6 +335,57 @@ fn do_split(env: &Env, asset: &Address, recipients: &Vec<Recipient>, amount: i12
             distributed = distributed.checked_add(share).unwrap_or(distributed);
         }
         i += 1;
+    }
+}
+
+fn handle_fixed_deposit(env: &Env, asset: &Address, amount: i128) -> bool {
+    let balance: i128 = env
+        .storage()
+        .instance()
+        .get(&Key::AccumulatedBalance)
+        .unwrap_or(0);
+    let new_balance = balance.checked_add(amount).unwrap_or(balance);
+    env.storage()
+        .instance()
+        .set(&Key::AccumulatedBalance, &new_balance);
+
+    let total_fixed: i128 = env
+        .storage()
+        .instance()
+        .get(&Key::TotalFixedAmount)
+        .unwrap_or(0);
+    if new_balance >= total_fixed {
+        let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
+        do_split_fixed(env, asset, &recipients);
+        let remaining = new_balance.checked_sub(total_fixed).unwrap_or(0);
+        env.storage()
+            .instance()
+            .set(&Key::AccumulatedBalance, &remaining);
+        true
+    } else {
+        env.events().publish(
+            (symbol_short!("shortfall"), asset.clone()),
+            (
+                amount,
+                new_balance,
+                total_fixed,
+                total_fixed.checked_sub(new_balance).unwrap_or(0),
+            ),
+        );
+        false
+    }
+}
+
+fn do_split_fixed(env: &Env, asset: &Address, recipients: &Vec<Recipient>) {
+    let client = token::Client::new(env, asset);
+    for r in recipients.iter() {
+        if r.amount > 0 {
+            client.transfer(&env.current_contract_address(), &r.address, &r.amount);
+            env.events().publish(
+                (symbol_short!("pay"), r.address.clone()),
+                (asset.clone(), r.amount),
+            );
+        }
     }
 }
 
@@ -297,14 +425,17 @@ mod test {
             Recipient {
                 address: a.clone(),
                 bps: 6000,
+                amount: 0,
             },
             Recipient {
                 address: b.clone(),
                 bps: 3000,
+                amount: 0,
             },
             Recipient {
                 address: c.clone(),
                 bps: 1000,
+                amount: 0,
             },
         ]
     }
@@ -394,10 +525,12 @@ mod test {
             Recipient {
                 address: a.clone(),
                 bps: 6000,
+                amount: 0,
             },
             Recipient {
                 address: b.clone(),
                 bps: 3000,
+                amount: 0,
             },
         ];
         let parent = Address::generate(&env);
@@ -537,5 +670,186 @@ mod test {
         assert_eq!(tok.balance(&b), 3_000_000);
         assert_eq!(tok.balance(&c), 1_000_000);
         assert_eq!(tok.balance(&contract_id), 0);
+    }
+
+    fn make_fixed_recipients(
+        env: &Env,
+        a: &Address,
+        b: &Address,
+        amount_a: i128,
+        amount_b: i128,
+    ) -> Vec<Recipient> {
+        vec![
+            env,
+            Recipient {
+                address: a.clone(),
+                bps: 0,
+                amount: amount_a,
+            },
+            Recipient {
+                address: b.clone(),
+                bps: 0,
+                amount: amount_b,
+            },
+        ]
+    }
+
+    #[test]
+    fn distribute_fixed_accumulates_until_total() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let a = Address::generate(&env);
+        let b = Address::generate(&env);
+        let payer = Address::generate(&env);
+        sac.mint(&payer, &10_000_000);
+
+        let parent = Address::generate(&env);
+        let contract_id = env.register(
+            Splitter,
+            (
+                admin.clone(),
+                asset.address(),
+                make_fixed_recipients(&env, &a, &b, 6_000_000, 4_000_000),
+                0_i128,
+                parent.clone(),
+            ),
+        );
+        let client = SplitterClient::new(&env, &contract_id);
+
+        client.distribute(&payer, &3_000_000);
+        assert_eq!(tok.balance(&a), 0);
+        assert_eq!(tok.balance(&b), 0);
+        assert_eq!(client.accumulated_balance(), 3_000_000);
+
+        client.distribute(&payer, &7_000_000);
+        assert_eq!(tok.balance(&a), 6_000_000);
+        assert_eq!(tok.balance(&b), 4_000_000);
+        assert_eq!(client.accumulated_balance(), 0);
+    }
+
+    #[test]
+    fn distribute_fixed_emits_shortfall() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let a = Address::generate(&env);
+        let b = Address::generate(&env);
+        let payer = Address::generate(&env);
+        sac.mint(&payer, &10_000_000);
+
+        let parent = Address::generate(&env);
+        let contract_id = env.register(
+            Splitter,
+            (
+                admin.clone(),
+                asset.address(),
+                make_fixed_recipients(&env, &a, &b, 6_000_000, 4_000_000),
+                0_i128,
+                parent.clone(),
+            ),
+        );
+        let client = SplitterClient::new(&env, &contract_id);
+
+        client.distribute(&payer, &3_000_000);
+
+        // No payout yet; funds accumulate in the contract.
+        assert_eq!(tok.balance(&a), 0);
+        assert_eq!(tok.balance(&b), 0);
+        assert_eq!(client.accumulated_balance(), 3_000_000);
+        assert_eq!(tok.balance(&contract_id), 3_000_000);
+    }
+
+    #[test]
+    fn execute_step_fixed_accumulates() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let a = Address::generate(&env);
+        let b = Address::generate(&env);
+        let parent = Address::generate(&env);
+        sac.mint(&parent, &10_000_000);
+
+        let contract_id = env.register(
+            Splitter,
+            (
+                admin.clone(),
+                asset.address(),
+                make_fixed_recipients(&env, &a, &b, 6_000_000, 4_000_000),
+                0_i128,
+                parent.clone(),
+            ),
+        );
+        let client = SplitterClient::new(&env, &contract_id);
+
+        tok.transfer(&parent, &contract_id, &3_000_000);
+        client.execute_step(&asset.address(), &3_000_000);
+        assert_eq!(tok.balance(&a), 0);
+        assert_eq!(tok.balance(&b), 0);
+        assert_eq!(client.accumulated_balance(), 3_000_000);
+
+        tok.transfer(&parent, &contract_id, &7_000_000);
+        client.execute_step(&asset.address(), &7_000_000);
+        assert_eq!(tok.balance(&a), 6_000_000);
+        assert_eq!(tok.balance(&b), 4_000_000);
+        assert_eq!(client.accumulated_balance(), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #7)")]
+    fn constructor_rejects_mixed_mode() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let a = Address::generate(&env);
+        let b = Address::generate(&env);
+        let mixed = vec![
+            &env,
+            Recipient {
+                address: a.clone(),
+                bps: 5000,
+                amount: 0,
+            },
+            Recipient {
+                address: b.clone(),
+                bps: 0,
+                amount: 1_000_000,
+            },
+        ];
+        let parent = Address::generate(&env);
+        env.register(Splitter, (admin, asset.address(), mixed, 0_i128, parent));
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #2)")]
+    fn constructor_rejects_all_fixed_zero_total() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let a = Address::generate(&env);
+        let zero = vec![
+            &env,
+            Recipient {
+                address: a.clone(),
+                bps: 0,
+                amount: 0,
+            },
+        ];
+        let parent = Address::generate(&env);
+        env.register(Splitter, (admin, asset.address(), zero, 0_i128, parent));
     }
 }

@@ -35,7 +35,9 @@ function symbol(s: string): xdr.ScVal {
   return nativeToScVal(s, { type: "symbol" });
 }
 
-function recipientsVec(recipients: Array<{ address: string; bps: number }>): xdr.ScVal {
+function recipientsVec(
+  recipients: Array<{ address: string; bps: number; amount: string }>,
+): xdr.ScVal {
   return xdr.ScVal.scvVec(
     recipients.map((r) =>
       xdr.ScVal.scvMap([
@@ -43,6 +45,7 @@ function recipientsVec(recipients: Array<{ address: string; bps: number }>): xdr
           key: symbol("address"),
           val: addr(r.address),
         }),
+        new xdr.ScMapEntry({ key: symbol("amount"), val: i128(r.amount) }),
         new xdr.ScMapEntry({ key: symbol("bps"), val: u32(r.bps) }),
       ]),
     ),
@@ -216,7 +219,7 @@ export function pipelineNodeConstructorArgs(
       return [
         addr(admin),
         addr(assetContractId(params.asset)),
-        recipientsVec(params.signers),
+        recipientsVec(params.signers.map((s) => ({ ...s, amount: "0" }))),
         u32(params.threshold),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
         addr(parentAddress),

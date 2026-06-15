@@ -38,8 +38,8 @@ function splitGraph(opts?: {
     config: {
       asset: { kind: "known", symbol: "USDC" } as const,
       recipients: [
-        { address: ADDR_A, bps: 6000, label: "Alice" },
-        { address: ADDR_B, bps: 4000, label: "Bob" },
+        { address: ADDR_A, mode: "percentage", bps: 6000, label: "Alice" },
+        { address: ADDR_B, mode: "percentage", bps: 4000, label: "Bob" },
       ],
       ...(opts?.amountPerInterval ? { amountPerIntervalStroops: opts.amountPerInterval } : {}),
     },
@@ -80,8 +80,8 @@ function scheduleSplitGraph(opts?: { condition?: boolean; amountPerInterval?: st
     config: {
       asset: { kind: "native" } as const,
       recipients: [
-        { address: ADDR_A, bps: 6000, label: "A" },
-        { address: ADDR_B, bps: 4000, label: "B" },
+        { address: ADDR_A, mode: "percentage", bps: 6000, label: "A" },
+        { address: ADDR_B, mode: "percentage", bps: 4000, label: "B" },
       ],
       ...(opts?.amountPerInterval ? { amountPerIntervalStroops: opts.amountPerInterval } : {}),
     },
@@ -512,8 +512,38 @@ describe("flowToPipeline", () => {
     expect(pipeline[1]!.params).toMatchObject({
       asset: { kind: "known", symbol: "USDC" },
       recipients: [
-        { address: ADDR_A, bps: 6000 },
-        { address: ADDR_B, bps: 4000 },
+        { address: ADDR_A, bps: 6000, amount: "0" },
+        { address: ADDR_B, bps: 4000, amount: "0" },
+      ],
+      minAmountStroops: "0",
+    });
+  });
+
+  it("produces deposit_trigger → splitter for on_receive → fixed split", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "5000000" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "5000000" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    } as Parameters<typeof flowToPipeline>[0]);
+    expect(pipeline).toHaveLength(2);
+    expect(pipeline[1]!.templateKind).toBe("SPLITTER");
+    expect(pipeline[1]!.params).toMatchObject({
+      asset: { kind: "known", symbol: "USDC" },
+      recipients: [
+        { address: ADDR_A, bps: 0, amount: "5000000" },
+        { address: ADDR_B, bps: 0, amount: "5000000" },
       ],
       minAmountStroops: "0",
     });

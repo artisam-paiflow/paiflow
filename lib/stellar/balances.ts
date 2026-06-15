@@ -43,6 +43,7 @@ const BALANCE_HOLDING_KINDS = new Set<TemplateKind>([
   "PAYER",
   "SWAPPER",
   "WEBHOOK",
+  "SPLITTER",
 ]);
 
 function isBalanceHolding(kind: TemplateKind): boolean {
