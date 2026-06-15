@@ -353,7 +353,7 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
         endTs: end,
         pauseAllowed: trigger.type === "on_schedule" ? (trigger.config.pauseAllowed ?? true) : true,
         retrieveAllowed:
-          trigger.type === "on_schedule" ? (trigger.config.retrieveAllowed ?? true) : true,
+          trigger.type === "on_schedule" ? (trigger.config.retrieveAllowed ?? false) : false,
       },
     });
     return pipeline;
@@ -645,7 +645,7 @@ export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): Cont
       startTs: start,
       endTs: end,
       pauseAllowed: trigger.config.pauseAllowed ?? true,
-      retrieveAllowed: trigger.config.retrieveAllowed ?? true,
+      retrieveAllowed: trigger.config.retrieveAllowed ?? false,
     };
   }
 

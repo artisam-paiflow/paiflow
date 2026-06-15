@@ -246,7 +246,7 @@ describe("flowToParams", () => {
     }
   });
 
-  it("defaults retrieveAllowed to true in streamer params", () => {
+  it("defaults retrieveAllowed to false in streamer params", () => {
     const out = flowToParams(
       {
         nodes: [
@@ -277,7 +277,7 @@ describe("flowToParams", () => {
     );
     expect(out.kind).toBe("streamer");
     if (out.kind === "streamer") {
-      expect(out.retrieveAllowed).toBe(true);
+      expect(out.retrieveAllowed).toBe(false);
     }
   });
 
@@ -861,7 +861,7 @@ describe("flowToPipeline", () => {
     expect(streamer.pauseAllowed).toBe(false);
   });
 
-  it("defaults retrieveAllowed to true for on_schedule streamer", () => {
+  it("defaults retrieveAllowed to false for on_schedule streamer", () => {
     const pipeline = flowToPipeline({
       nodes: [
         {
@@ -885,7 +885,7 @@ describe("flowToPipeline", () => {
     });
     expect(pipeline).toHaveLength(1);
     const streamer = pipeline[0]!.params as { retrieveAllowed: boolean };
-    expect(streamer.retrieveAllowed).toBe(true);
+    expect(streamer.retrieveAllowed).toBe(false);
   });
 
   it("passes retrieveAllowed: false through flowToPipeline", () => {

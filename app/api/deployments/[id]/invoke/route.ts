@@ -45,7 +45,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     if (body.method === "retrieve_unvested") {
       const retrieveAllowed =
-        trigger?.type === "on_schedule" ? (trigger.config.retrieveAllowed ?? true) : false;
+        trigger?.type === "on_schedule" ? (trigger.config.retrieveAllowed ?? false) : false;
       if (!retrieveAllowed) {
         throw new AppError(
           "VALIDATION",

@@ -206,7 +206,7 @@ export default function DeploymentView({
   const pauseAllowed =
     triggerNode?.type === "on_schedule" ? (triggerNode.config.pauseAllowed ?? true) : true;
   const retrieveAllowedFromConfig =
-    triggerNode?.type === "on_schedule" ? (triggerNode.config.retrieveAllowed ?? true) : false;
+    triggerNode?.type === "on_schedule" ? (triggerNode.config.retrieveAllowed ?? false) : false;
 
   const [isPaused, setIsPaused] = useState(false);
   const [retrieveAllowed, setRetrieveAllowed] = useState(retrieveAllowedFromConfig);

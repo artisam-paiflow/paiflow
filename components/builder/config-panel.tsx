@@ -332,7 +332,7 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                 >
                   <input
                     type="checkbox"
-                    checked={(cfg.pauseAllowed ?? true) && (cfg.retrieveAllowed ?? true)}
+                    checked={(cfg.pauseAllowed ?? true) && (cfg.retrieveAllowed ?? false)}
                     disabled={!(cfg.pauseAllowed ?? true)}
                     onChange={(e) =>
                       onChange({
