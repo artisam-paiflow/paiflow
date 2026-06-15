@@ -4,7 +4,7 @@ import { pollEventsFor } from "@/lib/stellar/events";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
-import { TemplateKind } from "@prisma/client";
+import { EventKind, TemplateKind } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
@@ -325,5 +325,46 @@ describe("pollEventsFor", () => {
         decodedData: { asset: ADDR_A, amount: "350000000" },
       }),
     });
+  });
+
+  it("decodes streamer deposit event as RECEIVE", async () => {
+    const funder = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK2";
+    const event = makeMockEvent({
+      topic: ["deposit", funder],
+      value: "5000",
+      ledger: 600,
+      txHash: "tx3",
+      ledgerClosedAt: "2024-01-01T00:00:00Z",
+    });
+
+    vi.mocked(db.deployment.findUnique).mockResolvedValue({
+      id: "dep-1",
+      contractAddress: "C123",
+      status: "CONFIRMED",
+      cursor: { lastLedger: 500 },
+      deployTxHash: "dtx1",
+      graphSnapshot: null,
+      pipelineSnapshot: null,
+      flow: { templateKind: TemplateKind.STREAMER },
+    } as unknown as Prisma.PromiseReturnType<typeof db.deployment.findUnique>);
+
+    mockServer({
+      getEvents: async () => ({
+        events: [event],
+        latestLedger: 600,
+      }),
+    });
+
+    const result = await pollEventsFor("dep-1");
+    expect(result).toBe(1);
+    expect(db.contractEvent.create).toHaveBeenCalledTimes(1);
+    expect(db.contractEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          kind: EventKind.RECEIVE,
+          decodedData: { from: funder, amount: "5000" },
+        }),
+      }),
+    );
   });
 });

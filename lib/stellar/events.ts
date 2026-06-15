@@ -107,6 +107,14 @@ const SPLITTER_REGISTRY: EventRegistry = {
 };
 
 const STREAMER_REGISTRY: EventRegistry = {
+  deposit: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const from = topics[1] ?? null;
+      const amount = value ?? null;
+      return from && amount !== null ? { from, amount } : null;
+    },
+  },
   receive: {
     kind: EventKind.RECEIVE,
     decode: (topics, value) => {

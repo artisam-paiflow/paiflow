@@ -67,7 +67,7 @@ async function main() {
       envKey: `STELLAR_WASM_HASH_STREAMER_${networkSuffix}`,
       abi: {
         functions: ["__constructor", "execute_step", "claim", "top_up", "cancel", "available"],
-        events: ["receive", "claim", "cancel"],
+        events: ["receive", "claim", "cancel", "deposit"],
       },
     },
     {

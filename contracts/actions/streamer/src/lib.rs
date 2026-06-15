@@ -216,6 +216,10 @@ impl Streamer {
         from.require_auth();
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         token::Client::new(&env, &asset).transfer(&from, env.current_contract_address(), &amount);
+
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("deposit"), from.clone()), amount);
     }
 
     pub fn cancel(env: Env) {
@@ -264,8 +268,7 @@ impl Streamer {
         }
 
         let unvested = balance - available;
-        client.transfer(&env.current_contract_address(), &admin, &unvested,
-        );
+        client.transfer(&env.current_contract_address(), &admin, &unvested);
 
         #[allow(deprecated)]
         env.events().publish((symbol_short!("retrieve"),), unvested);
@@ -372,8 +375,8 @@ fn bump_ttl(env: &Env) {
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::testutils::{Address as _, Ledger};
-    use soroban_sdk::{token, vec, Env};
+    use soroban_sdk::testutils::{Address as _, Events, Ledger};
+    use soroban_sdk::{token, vec, Env, IntoVal};
 
     fn make_recipients(env: &Env, a: &Address, b: &Address, c: &Address) -> Vec<Recipient> {
         vec![
@@ -1186,5 +1189,61 @@ mod test {
         );
         let client = StreamerClient::new(&env, &contract_id);
         assert!(!client.retrieve_allowed());
+    }
+
+    #[test]
+    fn top_up_emits_deposit_event() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                        amount: 0,
+                    },
+                ],
+                asset.address(),
+                1000_i128,
+                100_u64,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+                true,
+                true,
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+
+        let funder = Address::generate(&env);
+        sac.mint(&funder, &5_000);
+        client.top_up(&funder, &5_000);
+
+        let deposit_symbol = symbol_short!("deposit");
+        let expected = vec![
+            &env,
+            (
+                contract_id.clone(),
+                vec![
+                    &env,
+                    deposit_symbol.into_val(&env),
+                    funder.clone().into_val(&env),
+                ],
+                5_000i128.into_val(&env),
+            ),
+        ];
+        assert_eq!(
+            env.events().all().filter_by_contract(&contract_id),
+            expected
+        );
     }
 }
