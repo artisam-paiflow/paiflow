@@ -7,6 +7,8 @@ import { log } from "@/lib/log";
 import { TemplateKind } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
+const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+
 vi.mock("@/lib/stellar/client");
 vi.mock("@/lib/db", () => ({
   db: {
@@ -122,8 +124,8 @@ describe("pollEventsFor", () => {
 
   it("cursor-exists path: polls from cursor.lastLedger + 1 and writes new cursor", async () => {
     const event = makeMockEvent({
-      topic: ["distrib"],
-      value: { 0: "native", 1: "100" },
+      topic: ["payout"],
+      value: [{ address: ADDR_A, bps: 5000, amount: "100" }],
       ledger: 500,
       txHash: "tx1",
       ledgerClosedAt: "2024-01-01T00:00:00Z",
@@ -180,8 +182,8 @@ describe("pollEventsFor", () => {
 
   it("no-cursor + deployTxHash path: fetches deploy ledger and polls with buffer", async () => {
     const event = makeMockEvent({
-      topic: ["distrib"],
-      value: { 0: "native", 1: "200" },
+      topic: ["payout"],
+      value: [{ address: ADDR_A, bps: 5000, amount: "200" }],
       ledger: 900,
       txHash: "tx2",
       ledgerClosedAt: "2024-01-01T00:00:00Z",
@@ -254,7 +256,15 @@ describe("pollEventsFor", () => {
     );
   });
 
-  it("does not update cursor when no events are returned", async () => {
+  it("decodes splitter forward events as FORWARD", async () => {
+    const event = makeMockEvent({
+      topic: ["forward"],
+      value: "350000000",
+      ledger: 500,
+      txHash: "tx1",
+      ledgerClosedAt: "2024-01-01T00:00:00Z",
+    });
+
     vi.mocked(db.deployment.findUnique).mockResolvedValue({
       id: "dep-1",
       contractAddress: "C123",
@@ -266,13 +276,18 @@ describe("pollEventsFor", () => {
 
     mockServer({
       getEvents: async () => ({
-        events: [],
-        latestLedger: 400,
+        events: [event],
+        latestLedger: 500,
       }),
     });
 
     const result = await pollEventsFor("dep-1");
-    expect(result).toBe(0);
-    expect(db.eventCursor.upsert).not.toHaveBeenCalled();
+    expect(result).toBe(1);
+    expect(db.contractEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        kind: "FORWARD",
+        decodedData: { amount: "350000000" },
+      }),
+    });
   });
 });

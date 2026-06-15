@@ -39,25 +39,6 @@ type EventEntry = {
 type EventRegistry = Record<string, EventEntry>;
 
 const SPLITTER_REGISTRY: EventRegistry = {
-  distrib: {
-    kind: EventKind.PAYOUT,
-    decode: (topics, value) => {
-      const topic1 = topics[1] ?? null;
-      // Two shapes are emitted:
-      // 1. distribute(): ("distrib", from), (asset, amount) — value is an object.
-      // 2. execute_step()/receive_and_forward(): ("distrib", asset), amount — value is a scalar.
-      if (value && typeof value === "object" && !Array.isArray(value)) {
-        const v = value as { 0?: ScValNative; 1?: ScValNative };
-        const from = topic1;
-        const asset = v[0] ?? null;
-        const amount = v[1] ?? null;
-        return from && asset && amount ? { from, asset, amount } : null;
-      }
-      const asset = topic1;
-      const amount = value ?? null;
-      return asset && amount !== null ? { asset, amount } : null;
-    },
-  },
   payout: {
     kind: EventKind.PAYOUT,
     decode: (topics, value) => {
@@ -91,6 +72,13 @@ const SPLITTER_REGISTRY: EventRegistry = {
       return asset && amount !== null && balance !== null && needed !== null && remaining !== null
         ? { asset, amount, balance, needed, remaining }
         : null;
+    },
+  },
+  forward: {
+    kind: EventKind.FORWARD,
+    decode: (_topics, value) => {
+      const amount = value ?? null;
+      return amount !== null ? { amount } : null;
     },
   },
 };
@@ -164,6 +152,13 @@ const PAYER_REGISTRY: EventRegistry = {
     decode: (_topics, value) => {
       const balance = value ?? null;
       return balance !== null ? { balance } : null;
+    },
+  },
+  forward: {
+    kind: EventKind.FORWARD,
+    decode: (_topics, value) => {
+      const amount = value ?? null;
+      return amount !== null ? { amount } : null;
     },
   },
 };
@@ -458,16 +453,7 @@ function genericDecode(topics: EventTopics, value: ScValNative | null): DecodedD
 
 function classifyEvent(topics: EventTopics): EventKind {
   const first = typeof topics[0] === "string" ? (topics[0] as string).toLowerCase() : "";
-  const payoutTopics = new Set([
-    "distrib",
-    "payout",
-    "transfer",
-    "pay",
-    "swap",
-    "route",
-    "release",
-    "escrow",
-  ]);
+  const payoutTopics = new Set(["payout", "transfer", "pay", "swap", "route", "release", "escrow"]);
   const receiveTopics = new Set(["receive", "deposit", "topup", "charge", "execute"]);
   if (payoutTopics.has(first)) return EventKind.PAYOUT;
   if (receiveTopics.has(first)) return EventKind.RECEIVE;

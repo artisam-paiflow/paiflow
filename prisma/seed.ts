@@ -59,7 +59,7 @@ async function main() {
           "set_next_steps",
           "next_steps",
         ],
-        events: ["distrib", "payout"],
+        events: ["payout", "forward"],
       },
     },
     {
@@ -114,7 +114,7 @@ async function main() {
           "configured_amount",
           "recipient",
         ],
-        events: ["pay", "cancel"],
+        events: ["pay", "cancel", "forward"],
       },
     },
   ];

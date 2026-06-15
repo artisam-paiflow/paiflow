@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       where: { id, ownerId: user.id },
       include: {
         flow: { select: { name: true, templateKind: true } },
-        events: { orderBy: { occurredAt: "desc" }, take: 50 },
+        events: { orderBy: [{ occurredAt: "desc" }, { eventId: "desc" }], take: 50 },
       },
     });
     if (!deployment) throw new AppError("NOT_FOUND", "Deployment not found");

@@ -47,6 +47,7 @@ enum EventKind {
   SHORTFALL
   PAUSE
   RESUME
+  FORWARD
 }
 
 model User {

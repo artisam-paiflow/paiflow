@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
-    vec, Address, Env, IntoVal, String, Symbol, Vec,
+    vec, Address, Env, IntoVal, String, Vec,
 };
 
 #[contracttype]
@@ -141,10 +141,6 @@ impl Splitter {
         if total_fixed > 0 {
             let distributed = handle_fixed_deposit(&env, &asset, amount);
             if distributed {
-                let topic: Symbol = symbol_short!("distrib");
-                #[allow(deprecated)]
-                env.events()
-                    .publish((topic, from.clone()), (asset.clone(), total_fixed));
                 #[allow(deprecated)]
                 env.events()
                     .publish((symbol_short!("payout"), from), recipients);
@@ -152,10 +148,6 @@ impl Splitter {
         } else {
             do_split(&env, &asset, &recipients, amount);
 
-            let topic: Symbol = symbol_short!("distrib");
-            #[allow(deprecated)]
-            env.events()
-                .publish((topic, from.clone()), (asset.clone(), amount));
             #[allow(deprecated)]
             env.events()
                 .publish((symbol_short!("payout"), from), recipients);
@@ -240,12 +232,8 @@ impl Splitter {
         };
 
         if distributed {
-            let emit_amount = if total_fixed > 0 { total_fixed } else { amount };
             let recipients: Vec<Recipient> =
                 env.storage().instance().get(&Key::Recipients).unwrap();
-            #[allow(deprecated)]
-            env.events()
-                .publish((symbol_short!("distrib"), asset.clone()), emit_amount);
             #[allow(deprecated)]
             env.events()
                 .publish((symbol_short!("payout"), parent.clone()), recipients);
@@ -294,12 +282,8 @@ impl Splitter {
         };
 
         if distributed {
-            let emit_amount = if total_fixed > 0 { total_fixed } else { amount };
             let recipients: Vec<Recipient> =
                 env.storage().instance().get(&Key::Recipients).unwrap();
-            #[allow(deprecated)]
-            env.events()
-                .publish((symbol_short!("distrib"), asset.clone()), emit_amount);
             #[allow(deprecated)]
             env.events()
                 .publish((symbol_short!("payout"), from.clone()), recipients);
