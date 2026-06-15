@@ -9,6 +9,8 @@ import {
 } from "@/lib/stellar/invoke";
 import { stellarPassphrase } from "@/lib/env";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
+import type { FlowGraph } from "@/lib/flows/schema";
+import { isTrigger } from "@/lib/flows/schema";
 
 const PostSchema = z.object({
   method: z.enum(["pause", "unpause"]),
@@ -25,9 +27,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const d = await db.deployment.findFirst({
       where: { id, status: "CONFIRMED" },
-      include: { flow: { select: { templateKind: true } } },
+      include: { flow: { select: { templateKind: true, graph: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
+
+    const flowGraph = d.flow.graph as FlowGraph | null;
+    const trigger = flowGraph?.nodes.find(isTrigger);
+    const pauseAllowed =
+      trigger?.type === "on_schedule" ? (trigger.config.pauseAllowed ?? true) : true;
+    if (!pauseAllowed) {
+      throw new AppError("VALIDATION", "Pause is not allowed for this streamer deployment");
+    }
 
     const pipeline = d.pipelineSnapshot as Array<{
       nodeId: string;

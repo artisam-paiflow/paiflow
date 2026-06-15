@@ -4,9 +4,12 @@ import {
   type FlowGraph,
   type FlowNode,
   isAction,
+  isContractAction,
   isLogic,
   isTrigger,
   isPendingAddress,
+  migrateFlowGraph,
+  splitTotalFixedStroops,
 } from "./schema";
 import { flowToPipeline } from "./to-params";
 
@@ -43,10 +46,14 @@ const FRIENDLY = {
     `The connection "${eid}" references a node "${src}" that doesn't exist.`,
   MISSING_EDGE_TARGET: (eid: string, tgt: string) =>
     `The connection "${eid}" references a node "${tgt}" that doesn't exist.`,
+  MIXED_SPLIT_MODE:
+    "All recipients in a split must be either percentages or fixed amounts, not a mix.",
+  FIXED_AMOUNT_REQUIRED: "Each fixed-amount recipient needs a positive amount.",
+  TOTAL_FIXED_AMOUNT_REQUIRED: "Add at least one positive fixed amount to the split.",
 } as const;
 
 export function validateFlow(rawGraph: unknown): ValidationResult {
-  const parsed = FlowGraphSchema.safeParse(rawGraph);
+  const parsed = FlowGraphSchema.safeParse(migrateFlowGraph(rawGraph));
   if (!parsed.success) {
     return {
       ok: false,
@@ -90,7 +97,8 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     });
   }
   const actions = graph.nodes.filter(isAction);
-  if (actions.length < 1) {
+  const contractActions = actions.filter(isContractAction);
+  if (contractActions.length < 1) {
     errors.push({
       path: "nodes",
       message: "Flow must have at least one action node",
@@ -100,14 +108,49 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   for (const a of actions) {
     if (a.type === "split") {
-      const sum = a.config.recipients.reduce((s, r) => s + r.bps, 0);
-      if (sum !== 10_000) {
+      const modes = new Set(a.config.recipients.map((r) => r.mode));
+      if (modes.size > 1) {
         errors.push({
           path: `nodes.${a.id}.config.recipients`,
-          message: `Recipient basis points must sum to 10000 (got ${sum})`,
-          friendlyMessage: FRIENDLY.BPS_SUM(sum),
+          message: "Split recipients must all use the same mode (percentage or fixed)",
+          friendlyMessage: FRIENDLY.MIXED_SPLIT_MODE,
         });
       }
+
+      const mode = a.config.recipients[0]?.mode ?? "percentage";
+
+      if (mode === "percentage") {
+        const sum = a.config.recipients.reduce(
+          (s, r) => (r.mode === "percentage" ? s + r.bps : s),
+          0,
+        );
+        if (sum !== 10_000) {
+          errors.push({
+            path: `nodes.${a.id}.config.recipients`,
+            message: `Recipient basis points must sum to 10000 (got ${sum})`,
+            friendlyMessage: FRIENDLY.BPS_SUM(sum),
+          });
+        }
+      } else {
+        for (const r of a.config.recipients) {
+          if (r.mode === "fixed" && (!r.amountStroops || r.amountStroops === "0")) {
+            errors.push({
+              path: `nodes.${a.id}.config.recipients`,
+              message: "Fixed recipient amount must be positive",
+              friendlyMessage: FRIENDLY.FIXED_AMOUNT_REQUIRED,
+            });
+          }
+        }
+        const total = splitTotalFixedStroops(a.config.recipients);
+        if (!total || total === "0") {
+          errors.push({
+            path: `nodes.${a.id}.config.recipients`,
+            message: "Total fixed amount must be greater than 0",
+            friendlyMessage: FRIENDLY.TOTAL_FIXED_AMOUNT_REQUIRED,
+          });
+        }
+      }
+
       const seen = new Set<string>();
       for (const r of a.config.recipients) {
         if (isPendingAddress(r.address)) {
@@ -153,6 +196,60 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
     if (a.type === "yield" && isPendingAddress(a.config.vault)) {
       pendingLabels.add(a.config.vault.slice(8) || "unnamed");
+    }
+  }
+
+  // Email notify nodes are decorator leaves — they cannot have children.
+  for (const n of graph.nodes) {
+    if (n.type === "email_notify") {
+      const hasOutgoing = graph.edges.some((e) => e.source === n.id);
+      if (hasOutgoing) {
+        errors.push({
+          path: `nodes.${n.id}`,
+          message: "Email notify node cannot have outgoing edges",
+          friendlyMessage:
+            "Email notify nodes can't be connected to other steps. Remove any connections coming out of it.",
+        });
+      }
+
+      const parentEdge = graph.edges.find((e) => e.target === n.id);
+      const parent = parentEdge ? nodesById.get(parentEdge.source) : undefined;
+
+      if (parent?.type === "split") {
+        const parentAddresses = parent.config.recipients.map((r) => r.address);
+        const emailAddresses = n.config.recipients.map((r) => r.address);
+        if (emailAddresses.length !== parentAddresses.length) {
+          errors.push({
+            path: `nodes.${n.id}.config.recipients`,
+            message: "Email notify node must have exactly one email per split recipient",
+            friendlyMessage:
+              "Add exactly one email for each address in the split. Remove or fill any blank rows.",
+          });
+        }
+        for (const addr of parentAddresses) {
+          if (!emailAddresses.includes(addr)) {
+            errors.push({
+              path: `nodes.${n.id}.config.recipients`,
+              message: `Missing email for split recipient ${addr}`,
+              friendlyMessage: `Add an email for split recipient ${addr}.`,
+            });
+          }
+        }
+      } else if (n.config.recipients.length === 0) {
+        errors.push({
+          path: `nodes.${n.id}.config.recipients`,
+          message: "Email notify node requires at least one recipient",
+          friendlyMessage: "Add at least one recipient email to the email notify node.",
+        });
+      }
+
+      if (!n.config.subject.trim()) {
+        errors.push({
+          path: `nodes.${n.id}.config.subject`,
+          message: "Email notify node requires a subject",
+          friendlyMessage: "Add a subject line to the email notify node.",
+        });
+      }
     }
   }
 
@@ -237,8 +334,8 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   if (errors.length) return { ok: false, errors };
 
-  // Infer template kind
-  const action = actions[0]!;
+  // Infer template kind from contract actions only.
+  const action = contractActions[0]!;
   const condition = graph.nodes.find(isLogic);
   const hasCondition = condition != null;
   const isScheduleLike = trigger!.type === "on_schedule" || trigger!.type === "subscription";

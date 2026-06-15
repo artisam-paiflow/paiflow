@@ -124,11 +124,13 @@ const TEMPLATES: Template[] = [
         recipients: [
           {
             address: "PENDING:unnamed",
+            mode: "percentage",
             bps: 5000,
             label: "A",
           },
           {
             address: "PENDING:unnamed",
+            mode: "percentage",
             bps: 5000,
             label: "B",
           },
@@ -160,6 +162,20 @@ const TEMPLATES: Template[] = [
       config: {
         asset: { kind: "known", symbol: "USDC" },
         vault: "PENDING:vault",
+      },
+    }),
+  },
+  {
+    group: "Actions",
+    label: "Email Notify",
+    icon: "mail",
+    make: () => ({
+      id: makeId("email"),
+      type: "email_notify",
+      config: {
+        recipients: [],
+        subject: "",
+        body: "",
       },
     }),
   },

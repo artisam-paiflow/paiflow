@@ -75,7 +75,7 @@ function makeGraph(kind: TemplateKind): Prisma.InputJsonValue {
                 { address: addr(), bps: 5000 },
                 { address: addr(), bps: 5000 },
               ],
-              ratePerSecondStroops: "100",
+              amountPerIntervalStroops: (1n * STROOP).toString(),
             },
           },
         ],
@@ -303,6 +303,16 @@ function makeEvents(kind: TemplateKind, deploymentId: string) {
           ...base(1234569, 20),
           kind: EventKind.CANCEL,
           decodedData: { balance: (3n * STROOP).toString() },
+        },
+        {
+          ...base(1234570, 15),
+          kind: EventKind.PAUSE,
+          decodedData: {},
+        },
+        {
+          ...base(1234571, 10),
+          kind: EventKind.RESUME,
+          decodedData: {},
         },
       ];
     case TemplateKind.CONDITIONAL:

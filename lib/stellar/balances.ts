@@ -3,7 +3,7 @@ import type { Deployment, TemplateKind } from "@prisma/client";
 import { fetchTokenBalance } from "./balance";
 import { assetContractId } from "./assets";
 import type { Asset, FlowGraph } from "@/lib/flows/schema";
-import { assetLabel, isAction } from "@/lib/flows/schema";
+import { assetLabel, isContractAction } from "@/lib/flows/schema";
 import { log } from "@/lib/log";
 
 export type BalanceNode = {
@@ -43,6 +43,7 @@ const BALANCE_HOLDING_KINDS = new Set<TemplateKind>([
   "PAYER",
   "SWAPPER",
   "WEBHOOK",
+  "SPLITTER",
 ]);
 
 function isBalanceHolding(kind: TemplateKind): boolean {
@@ -55,7 +56,7 @@ function isBalanceHolding(kind: TemplateKind): boolean {
  * actions. For swapper flows the flow asset is assetIn.
  */
 function getFlowAsset(graph: FlowGraph): Asset | null {
-  const action = graph.nodes.find(isAction);
+  const action = graph.nodes.find(isContractAction);
   if (!action) return null;
   if (action.type === "swap") return action.config.assetIn;
   return action.config.asset;

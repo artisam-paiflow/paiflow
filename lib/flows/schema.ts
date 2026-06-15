@@ -83,6 +83,7 @@ export const OnScheduleTrigger = z.object({
     endsAt: z.string().datetime().optional(),
     occurrences: z.number().int().positive().optional(),
     timeZone: z.string().optional(),
+    pauseAllowed: z.boolean().optional(),
   }),
 });
 
@@ -148,11 +149,66 @@ export const PayAction = z.object({
     ),
 });
 
-export const SplitRecipient = z.object({
+const SplitRecipientBase = z.object({
   address: stellarAccount,
-  bps: z.number().int().min(1).max(10_000),
   label: z.string().max(64).optional(),
 });
+
+export const SplitRecipient = z.discriminatedUnion("mode", [
+  SplitRecipientBase.extend({
+    mode: z.literal("percentage"),
+    bps: z.number().int().min(1).max(10_000),
+  }),
+  SplitRecipientBase.extend({
+    mode: z.literal("fixed"),
+    amountStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
+  }),
+]);
+export type SplitRecipient = z.infer<typeof SplitRecipient>;
+
+// Backward compatibility: older flows stored recipients with `bps` but no
+// `mode`. Hydrate them to percentage mode before parsing.
+function hydrateSplitRecipient(r: unknown): unknown {
+  if (r && typeof r === "object" && !("mode" in (r as object)) && "bps" in (r as object)) {
+    return { ...(r as object), mode: "percentage" };
+  }
+  return r;
+}
+
+export function migrateFlowGraph(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const graph = raw as { nodes?: unknown[] };
+  if (!Array.isArray(graph.nodes)) return raw;
+  return {
+    ...graph,
+    nodes: graph.nodes.map((n) => {
+      if (!n || typeof n !== "object") return n;
+      const node = n as { type?: unknown; config?: { recipients?: unknown[] } };
+      if (node.type === "split" && Array.isArray(node.config?.recipients)) {
+        return {
+          ...node,
+          config: {
+            ...node.config,
+            recipients: node.config.recipients.map(hydrateSplitRecipient),
+          },
+        };
+      }
+      return n;
+    }),
+  };
+}
+
+export function splitTotalFixedStroops(recipients: SplitRecipient[]): string | null {
+  let total = 0n;
+  let hasFixed = false;
+  for (const r of recipients) {
+    if (r.mode === "fixed") {
+      hasFixed = true;
+      total += BigInt(r.amountStroops);
+    }
+  }
+  return hasFixed ? total.toString() : null;
+}
 
 export const SplitAction = z.object({
   id: z.string().min(1),
@@ -160,6 +216,11 @@ export const SplitAction = z.object({
   config: z.object({
     asset: AssetSchema,
     recipients: z.array(SplitRecipient).min(1).max(20),
+    amountPerIntervalStroops: z
+      .string()
+      .regex(/^\d+$/, "Amount must be a positive integer string")
+      .optional(),
+    // Deprecated: old flows used continuous rate-per-second streaming.
     ratePerSecondStroops: z
       .string()
       .regex(/^\d+$/, "Rate must be a positive integer string")
@@ -183,6 +244,22 @@ export const YieldAction = z.object({
   config: z.object({
     asset: AssetSchema,
     vault: stellarAccount,
+  }),
+});
+
+export const EmailRecipient = z.object({
+  address: z.string().min(1),
+  email: z.string().email(),
+});
+export type EmailRecipient = z.infer<typeof EmailRecipient>;
+
+export const EmailNotifyAction = z.object({
+  id: z.string().min(1),
+  type: z.literal("email_notify"),
+  config: z.object({
+    recipients: z.array(EmailRecipient).min(1),
+    subject: z.string().min(1),
+    body: z.string().default(""),
   }),
 });
 
@@ -227,6 +304,7 @@ export const FlowNodeSchema = z.discriminatedUnion("type", [
   SplitAction,
   SwapAction,
   YieldAction,
+  EmailNotifyAction,
   ConditionLogic,
 ]);
 export type FlowNode = z.infer<typeof FlowNodeSchema>;
@@ -265,8 +343,11 @@ export type ActionNode =
   | z.infer<typeof PayAction>
   | z.infer<typeof SplitAction>
   | z.infer<typeof SwapAction>
-  | z.infer<typeof YieldAction>;
+  | z.infer<typeof YieldAction>
+  | z.infer<typeof EmailNotifyAction>;
 export type LogicNode = z.infer<typeof ConditionLogic>;
+
+export type ContractActionNode = Exclude<ActionNode, { type: "email_notify" }>;
 
 export function isTrigger(n: FlowNode): n is TriggerNode {
   return (
@@ -279,6 +360,15 @@ export function isTrigger(n: FlowNode): n is TriggerNode {
   );
 }
 export function isAction(n: FlowNode): n is ActionNode {
+  return (
+    n.type === "pay" ||
+    n.type === "split" ||
+    n.type === "swap" ||
+    n.type === "yield" ||
+    n.type === "email_notify"
+  );
+}
+export function isContractAction(n: FlowNode): n is ContractActionNode {
   return n.type === "pay" || n.type === "split" || n.type === "swap" || n.type === "yield";
 }
 export function isLogic(n: FlowNode): n is LogicNode {

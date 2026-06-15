@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { cn, formatAmount, shortAddr, shortAddrExtraShort } from "@/lib/utils";
 import { stellarExpertTxUrl, type StellarNetwork } from "@/lib/stellar/explorer";
-import type { FlowGraph } from "@/lib/flows/schema";
+import { assetLabel, type Asset, type FlowGraph, type SplitRecipient } from "@/lib/flows/schema";
 
 export type Evt = {
   id: string;
@@ -46,13 +46,28 @@ const KIND_META: Record<string, { label: string; color: string; icon: string }> 
   CLAIM: {
     label: "CLAIM",
     color: "border-tertiary/30 bg-tertiary/10 text-tertiary",
-    icon: "withdraw",
+    icon: "payment",
   },
   CANCEL: { label: "CANCEL", color: "border-error/30 bg-error/10 text-error", icon: "cancel" },
+  SHORTFALL: {
+    label: "SHORTFALL",
+    color: "border-[#ffba20]/30 bg-[#ffba20]/10 text-[#ffba20]",
+    icon: "account_balance_wallet",
+  },
   STATUS_CHANGE: {
     label: "STATUS",
     color: "border-outline-variant/30 bg-surface-container-low text-on-surface-variant",
     icon: "info",
+  },
+  PAUSE: {
+    label: "PAUSED",
+    color: "border-error/30 bg-error/10 text-error",
+    icon: "pause",
+  },
+  RESUME: {
+    label: "RESUMED",
+    color: "border-success/30 bg-success/10 text-success",
+    icon: "play_arrow",
   },
 };
 
@@ -70,17 +85,28 @@ function getGraphSplitRecipients(
   const splitNode = graph.nodes.find((n) => n.type === "split");
   if (!splitNode || splitNode.type !== "split") return [];
 
-  const recipients = (
-    splitNode.config as { recipients: Array<{ address: string; bps: number; label?: string }> }
-  ).recipients;
+  const recipients = (splitNode.config as { recipients: SplitRecipient[] }).recipients;
   if (!Array.isArray(recipients)) return [];
 
   if (!totalAmount)
-    return recipients.map((r) => ({ address: r.address, bps: r.bps, label: r.label }));
+    return recipients.map((r) => ({
+      address: r.address,
+      bps: r.mode === "percentage" ? r.bps : undefined,
+      label: r.label,
+      amount: r.mode === "fixed" ? r.amountStroops : undefined,
+    }));
 
   const total = BigInt(totalAmount);
   let distributed = 0n;
   return recipients.map((r, index) => {
+    if (r.mode === "fixed") {
+      return {
+        address: r.address,
+        bps: undefined,
+        label: r.label,
+        amount: r.amountStroops,
+      };
+    }
     const isLast = index === recipients.length - 1;
     const share = isLast ? total - distributed : (total * BigInt(r.bps)) / TOTAL_BPS;
     distributed += share;
@@ -91,6 +117,17 @@ function getGraphSplitRecipients(
       amount: share.toString(),
     };
   });
+}
+
+function getActionAsset(graph: FlowGraph | null | undefined): unknown {
+  if (!graph) return undefined;
+  const action = graph.nodes.find(
+    (n): n is Extract<FlowGraph["nodes"][number], { type: "pay" | "split" | "swap" | "yield" }> =>
+      n.type === "pay" || n.type === "split" || n.type === "swap" || n.type === "yield",
+  );
+  if (!action) return undefined;
+  if (action.type === "swap") return action.config.assetOut;
+  return action.config.asset;
 }
 
 function getEventTopic(evt: Evt): string | null {
@@ -203,6 +240,13 @@ function computeRecipientShares(totalAmount: string, recipients: Recipient[]): R
 
 function formatAsset(asset: unknown): string {
   if (!asset) return "XLM";
+  if (asset && typeof asset === "object" && "kind" in asset) {
+    try {
+      return assetLabel(asset as Asset);
+    } catch {
+      return "XLM";
+    }
+  }
   const str = String(asset);
   if (str.length > 20) return shortAddrExtraShort(str);
   return str;
@@ -243,9 +287,11 @@ function DetailField({
 function RecipientList({
   recipients,
   totalAmount,
+  asset,
 }: {
   recipients: Recipient[];
   totalAmount?: string;
+  asset?: unknown;
 }) {
   const shares = useMemo(() => {
     if (!totalAmount) return recipients;
@@ -269,7 +315,7 @@ function RecipientList({
           )}
           {isNonEmptyString(r.amount) && (
             <span className="text-body-sm text-on-surface font-medium">
-              {formatAmount(r.amount)}
+              ({formatAmountWithAsset(r.amount, asset)})
             </span>
           )}
         </div>
@@ -285,6 +331,28 @@ function RecipientList({
 
 function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
   const d = evt.decodedData as Record<string, unknown> | null;
+
+  // Status-like events have no numeric payload but should still render nicely.
+  switch (evt.kind) {
+    case "PAUSE": {
+      return (
+        <div className="space-y-2">
+          <div className="text-body-sm text-on-surface">Workflow paused</div>
+          <div className="text-body-sm text-on-surface-variant">
+            Vesting is paused. Already-vested funds remain claimable.
+          </div>
+        </div>
+      );
+    }
+    case "RESUME": {
+      return (
+        <div className="space-y-2">
+          <div className="text-body-sm text-on-surface">Workflow resumed</div>
+          <div className="text-body-sm text-on-surface-variant">Vesting has resumed.</div>
+        </div>
+      );
+    }
+  }
 
   if (!hasMeaningfulEventData(d)) {
     return <UndecodedFallback evt={evt} d={d} />;
@@ -443,11 +511,6 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
               <DetailField label="To">
                 <AddressValue addr={recipient} />
               </DetailField>
-              <DetailField label="Amount">
-                <span className="text-primary font-medium">
-                  {formatAmountWithAsset(amount, asset)}
-                </span>
-              </DetailField>
               {asset !== undefined && asset !== null && (
                 <DetailField label="Asset">{formatAsset(asset)}</DetailField>
               )}
@@ -482,6 +545,7 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
                 <RecipientList
                   recipients={recipients}
                   totalAmount={isNonEmptyString(amount) ? amount : undefined}
+                  asset={asset}
                 />
               </DetailField>
             </div>
@@ -541,11 +605,6 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
                 <AddressValue addr={contract} />
               </DetailField>
             )}
-            <DetailField label="Amount">
-              <span className="text-primary font-medium">
-                {formatAmountWithAsset(amount, asset)}
-              </span>
-            </DetailField>
             {asset !== undefined && asset !== null && (
               <DetailField label="Asset">{formatAsset(asset)}</DetailField>
             )}
@@ -553,27 +612,59 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
         </div>
       );
     }
+    case "SHORTFALL": {
+      const asset = d?.asset;
+      const amount = d?.amount;
+      const balance = d?.balance;
+      const needed = d?.needed;
+      const remaining = d?.remaining;
+
+      return (
+        <div className="space-y-2">
+          <div className="text-body-sm text-on-surface">
+            Deposited{" "}
+            <span className="text-primary font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
+            — not enough to execute the fixed split.
+          </div>
+          <div className="text-body-sm text-on-surface-variant">
+            Funds are held in the contract until the required total is reached.
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+            <DetailField label="Held balance">
+              <span className="text-primary font-medium">
+                {formatAmountWithAsset(balance, asset)}
+              </span>
+            </DetailField>
+            <DetailField label="Total needed">{formatAmountWithAsset(needed, asset)}</DetailField>
+            <DetailField label="Still needed">
+              <span className="text-error font-medium">
+                {formatAmountWithAsset(remaining, asset)}
+              </span>
+            </DetailField>
+          </div>
+        </div>
+      );
+    }
     case "CLAIM": {
       const amount = d?.amount;
       const recipients = normalizeRecipients(d?.recipients ?? d?.addresses);
+      const claimAsset = d?.asset ?? getActionAsset(graph);
 
       return (
         <div className="space-y-2">
           <div className="text-body-sm text-on-surface">
             Claimed{" "}
-            <span className="text-primary font-medium">{formatAmountWithAsset(amount)}</span>
+            <span className="text-primary font-medium">
+              {formatAmountWithAsset(amount, claimAsset)}
+            </span>
           </div>
           <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-            {amount !== undefined && amount !== null && (
-              <DetailField label="Amount">
-                <span className="text-primary font-medium">{formatAmountWithAsset(amount)}</span>
-              </DetailField>
-            )}
             {recipients.length > 0 && (
               <DetailField label="Recipients" fullWidth>
                 <RecipientList
                   recipients={recipients}
                   totalAmount={isNonEmptyString(amount) ? amount : undefined}
+                  asset={claimAsset}
                 />
               </DetailField>
             )}

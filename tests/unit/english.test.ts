@@ -19,9 +19,9 @@ describe("flowToEnglish", () => {
           config: {
             asset: { kind: "known", symbol: "USDC" },
             recipients: [
-              { address: ADDR, bps: 6000, label: "Alice" },
-              { address: ADDR, bps: 3000, label: "Bob" },
-              { address: ADDR_B, bps: 1000, label: "Charlie" },
+              { address: ADDR, mode: "percentage", bps: 6000, label: "Alice" },
+              { address: ADDR, mode: "percentage", bps: 3000, label: "Bob" },
+              { address: ADDR_B, mode: "percentage", bps: 1000, label: "Charlie" },
             ],
           },
         },
@@ -51,8 +51,8 @@ describe("flowToEnglish", () => {
           config: {
             asset: { kind: "native" },
             recipients: [
-              { address: ADDR, bps: 5000, label: "A" },
-              { address: ADDR_B, bps: 5000, label: "B" },
+              { address: ADDR, mode: "percentage", bps: 5000, label: "A" },
+              { address: ADDR_B, mode: "percentage", bps: 5000, label: "B" },
             ],
           },
         },
@@ -81,8 +81,8 @@ describe("flowToEnglish", () => {
           config: {
             asset: { kind: "known", symbol: "USDC" },
             recipients: [
-              { address: ADDR, bps: 6000, label: "Savings" },
-              { address: ADDR_B, bps: 4000, label: "Spending" },
+              { address: ADDR, mode: "percentage", bps: 6000, label: "Savings" },
+              { address: ADDR_B, mode: "percentage", bps: 4000, label: "Spending" },
             ],
           },
         },
@@ -132,10 +132,10 @@ describe("flowToEnglish", () => {
           type: "split",
           config: {
             asset: { kind: "native" },
-            ratePerSecondStroops: "10",
+            amountPerIntervalStroops: "10",
             recipients: [
-              { address: ADDR, bps: 6000, label: "A" },
-              { address: ADDR_B, bps: 4000, label: "B" },
+              { address: ADDR, mode: "percentage", bps: 6000, label: "A" },
+              { address: ADDR_B, mode: "percentage", bps: 4000, label: "B" },
             ],
           },
         },
@@ -143,9 +143,36 @@ describe("flowToEnglish", () => {
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
     expect(out).toContain("every day");
-    expect(out).toContain("stream 0.000001 XLM/s");
+    expect(out).toContain("stream 0.000001 XLM per interval");
     expect(out).toContain("60% to A");
     expect(out).toContain("40% to B");
+  });
+
+  it("describes a fixed split", () => {
+    const out = flowToEnglish({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR, mode: "fixed", amountStroops: "10000000", label: "Alice" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "5000000", label: "Bob" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("receives USDC");
+    expect(out).toContain("1 USDC to Alice");
+    expect(out).toContain("0.5 USDC to Bob");
   });
 
   it("describes a flow with condition", () => {
@@ -166,7 +193,7 @@ describe("flowToEnglish", () => {
           type: "split",
           config: {
             asset: { kind: "native" },
-            recipients: [{ address: ADDR, bps: 10000, label: "Recipient" }],
+            recipients: [{ address: ADDR, mode: "percentage", bps: 10000, label: "Recipient" }],
           },
         },
       ],

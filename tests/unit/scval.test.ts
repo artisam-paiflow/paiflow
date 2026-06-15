@@ -11,14 +11,14 @@ const ADDR2 = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 
 describe("constructorArgs", () => {
   describe("splitter recipients encoding", () => {
-    it("encodes recipients as ScVal scvVec of scvMap entries with address/bps keys", () => {
+    it("encodes recipients as ScVal scvVec of scvMap entries with address/bps/amount keys", () => {
       const args = constructorArgs(
         {
           kind: "splitter",
           asset: { kind: "known", symbol: "USDC" },
           recipients: [
-            { address: ADDR, bps: 6000 },
-            { address: ADDR, bps: 4000 },
+            { address: ADDR, bps: 6000, amount: "0" },
+            { address: ADDR, bps: 4000, amount: "0" },
           ],
         },
         ADDR,
@@ -33,9 +33,10 @@ describe("constructorArgs", () => {
       for (const entry of vec) {
         expect(entry.switch()).toBe(xdr.ScValType.scvMap());
         const inner = entry.value() as xdr.ScMapEntry[];
-        expect(inner).toHaveLength(2);
+        expect(inner).toHaveLength(3);
         expect(inner[0]!.key()).toEqual(nativeToScVal("address", { type: "symbol" }));
-        expect(inner[1]!.key()).toEqual(nativeToScVal("bps", { type: "symbol" }));
+        expect(inner[1]!.key()).toEqual(nativeToScVal("amount", { type: "symbol" }));
+        expect(inner[2]!.key()).toEqual(nativeToScVal("bps", { type: "symbol" }));
       }
     });
   });
@@ -63,7 +64,7 @@ describe("pipelineNodeConstructorArgs", () => {
       {
         kind: "splitter",
         asset: { kind: "native" },
-        recipients: [{ address: ADDR, bps: 10_000 }],
+        recipients: [{ address: ADDR, bps: 10_000, amount: "0" }],
         minAmountStroops: "100",
       },
       ADDR,
@@ -113,7 +114,7 @@ describe("pipelineNodeConstructorArgs", () => {
       {
         kind: "conditional",
         asset: { kind: "native" },
-        recipients: [{ address: ADDR, bps: 10_000 }],
+        recipients: [{ address: ADDR, bps: 10_000, amount: "0" }],
         amountStroops: "1000",
         condition: { kind: "time_after", at: "2030-01-01T00:00:00.000Z" },
         nextStepNodeIds: [],
@@ -125,13 +126,34 @@ describe("pipelineNodeConstructorArgs", () => {
     expect(args).toHaveLength(7);
   });
 
+  it("encodes streamer with pauseAllowed as last bool arg", () => {
+    const args = pipelineNodeConstructorArgs(
+      {
+        kind: "streamer",
+        asset: { kind: "native" },
+        recipients: [{ address: ADDR, bps: 10_000, amount: "0" }],
+        amountPerIntervalStroops: "1000",
+        intervalSeconds: 60,
+        startTs: 1000,
+        endTs: 2000,
+        pauseAllowed: false,
+      },
+      ADDR,
+      ADDR2,
+      {},
+    );
+    expect(args).toHaveLength(9);
+    expect(args[7]!).toEqual(new Address(ADDR2).toScVal());
+    expect(args[8]!.switch()).toBe(xdr.ScValType.scvBool());
+  });
+
   it("throws when parent is missing for a child node", () => {
     expect(() =>
       pipelineNodeConstructorArgs(
         {
           kind: "splitter",
           asset: { kind: "native" },
-          recipients: [{ address: ADDR, bps: 10_000 }],
+          recipients: [{ address: ADDR, bps: 10_000, amount: "0" }],
           minAmountStroops: "0",
         },
         ADDR,

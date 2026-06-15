@@ -60,7 +60,8 @@ export default function DeploymentView({
           data.kind === "RECEIVE" ||
           data.kind === "PAYOUT" ||
           data.kind === "CLAIM" ||
-          data.kind === "CANCEL"
+          data.kind === "CANCEL" ||
+          data.kind === "SHORTFALL"
         ) {
           balanceChanges += 1;
         }
@@ -194,8 +195,28 @@ export default function DeploymentView({
   const appUrl = typeof window !== "undefined" ? window.location.origin : "";
   const streamerNode = pipeline?.find((n) => n.templateKind === "STREAMER");
   const isStreamer = !!streamerNode;
+  const triggerNode = graph?.nodes.find(isTrigger);
+  const pauseAllowed =
+    triggerNode?.type === "on_schedule" ? (triggerNode.config.pauseAllowed ?? true) : true;
 
   const [isPaused, setIsPaused] = useState(false);
+
+  useEffect(() => {
+    if (!streamerNode?.contractAddress || !network) return;
+    let cancelled = false;
+    fetch(`/api/deployments/${deploymentId}/streamer-state`)
+      .then(async (res) => {
+        if (!res.ok) return;
+        const json = (await res.json()) as { data: { paused: boolean } };
+        if (!cancelled) setIsPaused(json.data.paused);
+      })
+      .catch(() => {
+        // Ignore read errors; the local fallback is acceptable.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [deploymentId, streamerNode?.contractAddress, network]);
 
   return (
     <div className="mt-md space-y-md">
@@ -232,7 +253,7 @@ export default function DeploymentView({
               </span>
             )}
           </div>
-          {isStreamer && streamerNode.contractAddress && network && (
+          {isStreamer && streamerNode.contractAddress && network && pauseAllowed && (
             <div className="mt-md flex items-center gap-3">
               {isPaused ? (
                 <ContractCallButton
@@ -315,6 +336,11 @@ export default function DeploymentView({
                   onSuccess={() => setIsPaused(true)}
                 />
               )}
+            </div>
+          )}
+          {isStreamer && streamerNode.contractAddress && network && !pauseAllowed && (
+            <div className="mt-md text-label-sm text-on-surface-variant font-mono">
+              Pause is disabled for this stream.
             </div>
           )}
           {contractAddress ? (

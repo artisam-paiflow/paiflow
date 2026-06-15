@@ -1,27 +1,50 @@
 import { TemplateKind } from "@prisma/client";
-import type { Asset, ActionNode, FlowGraph, FlowNode, LogicNode } from "./schema";
-import { isAction, isLogic, isTrigger, pctToBps, sourceAmountStroops, TOTAL_BPS } from "./schema";
+import type {
+  ActionNode,
+  Asset,
+  ContractActionNode,
+  FlowGraph,
+  FlowNode,
+  LogicNode,
+} from "./schema";
+import {
+  isAction,
+  isLogic,
+  isTrigger,
+  isContractAction,
+  pctToBps,
+  sourceAmountStroops,
+  TOTAL_BPS,
+} from "./schema";
+
+export type PipelineRecipient = {
+  address: string;
+  bps: number;
+  amount: string;
+};
 
 export type SplitterParams = {
   kind: "splitter";
   asset: Asset;
-  recipients: Array<{ address: string; bps: number }>;
+  recipients: PipelineRecipient[];
   minAmountStroops?: string;
 };
 
 export type StreamerParams = {
   kind: "streamer";
   asset: Asset;
-  recipients: Array<{ address: string; bps: number }>;
-  ratePerSecondStroops: string;
+  recipients: PipelineRecipient[];
+  amountPerIntervalStroops: string;
+  intervalSeconds: number;
   startTs: number;
   endTs: number;
+  pauseAllowed: boolean;
 };
 
 export type ConditionalParams = {
   kind: "conditional";
   asset: Asset;
-  recipients: Array<{ address: string; bps: number }>;
+  recipients: PipelineRecipient[];
   amountStroops: string;
   condition: unknown;
 };
@@ -37,23 +60,25 @@ export type DepositTriggerNodeParams = {
 export type SplitterNodeParams = {
   kind: "splitter";
   asset: Asset;
-  recipients: Array<{ address: string; bps: number }>;
+  recipients: PipelineRecipient[];
   minAmountStroops: string;
 };
 
 export type StreamerNodeParams = {
   kind: "streamer";
   asset: Asset;
-  recipients: Array<{ address: string; bps: number }>;
-  ratePerSecondStroops: string;
+  recipients: PipelineRecipient[];
+  amountPerIntervalStroops: string;
+  intervalSeconds: number;
   startTs: number;
   endTs: number;
+  pauseAllowed: boolean;
 };
 
 export type ConditionalNodeParams = {
   kind: "conditional";
   asset: Asset;
-  recipients: Array<{ address: string; bps: number }>;
+  recipients: PipelineRecipient[];
   amountStroops: string;
   condition: unknown;
   nextStepNodeIds: string[];
@@ -152,18 +177,22 @@ export type PipelineNode = {
   params: PipelineNodeParams;
 };
 
-function getAsset(action: ActionNode): Asset {
+function getAsset(action: ContractActionNode): Asset {
   if (action.type === "swap") return action.config.assetIn;
   if (action.type === "yield") return action.config.asset;
   return action.config.asset;
 }
 
-function toRecipients(action: ActionNode): Array<{ address: string; bps: number }> {
+function toRecipients(action: ContractActionNode): PipelineRecipient[] {
   if (action.type === "split") {
-    return action.config.recipients.map((r) => ({ address: r.address, bps: r.bps }));
+    return action.config.recipients.map((r) => ({
+      address: r.address,
+      bps: r.mode === "percentage" ? r.bps : 0,
+      amount: r.mode === "fixed" ? r.amountStroops : "0",
+    }));
   }
   if (action.type === "pay") {
-    return [{ address: action.config.recipient, bps: TOTAL_BPS }];
+    return [{ address: action.config.recipient, bps: TOTAL_BPS, amount: "0" }];
   }
   return [];
 }
@@ -172,6 +201,19 @@ function getChildren(graph: FlowGraph): Map<string, string[]> {
   const children = new Map<string, string[]>();
   for (const n of graph.nodes) children.set(n.id, []);
   for (const e of graph.edges) {
+    children.get(e.source)!.push(e.target);
+  }
+  return children;
+}
+
+function getPipelineChildren(graph: FlowGraph): Map<string, string[]> {
+  const emailIds = new Set(graph.nodes.filter((n) => n.type === "email_notify").map((n) => n.id));
+  const children = new Map<string, string[]>();
+  for (const n of graph.nodes) children.set(n.id, []);
+  for (const e of graph.edges) {
+    // Email notify nodes are off-chain decorators; they should never be wired
+    // into the on-chain pipeline as next steps.
+    if (emailIds.has(e.source) || emailIds.has(e.target)) continue;
     children.get(e.source)!.push(e.target);
   }
   return children;
@@ -214,23 +256,33 @@ function computeStreamerEndTs(
   return startTs + 60 * 60 * 24 * 30; // 30-day default
 }
 
-function streamerRatePerSecond(action: ActionNode, trigger: FlowNode): string {
+function scheduleIntervalSeconds(trigger: Extract<FlowNode, { type: "on_schedule" }>): number {
+  const intervalAmount =
+    (trigger.config as { intervalAmount?: number; interval?: string }).intervalAmount ?? 1;
+  const intervalUnit = ((trigger.config as { intervalUnit?: string; interval?: string })
+    .intervalUnit ??
+    (trigger.config as { interval?: string }).interval ??
+    "hour") as "minute" | "hour" | "day" | "week" | "month";
+  return intervalToSeconds(intervalAmount, intervalUnit);
+}
+
+function streamerAmountPerInterval(
+  action: ActionNode,
+  _trigger: FlowNode,
+  intervalSeconds: number,
+): string {
   if (action.type === "pay") {
-    const amountStroops = action.config.amountStroops ?? "1";
-    if (trigger.type === "on_schedule") {
-      const intervalAmount =
-        (trigger.config as { intervalAmount?: number; interval?: string }).intervalAmount ?? 1;
-      const intervalUnit = ((trigger.config as { intervalUnit?: string; interval?: string })
-        .intervalUnit ??
-        (trigger.config as { interval?: string }).interval ??
-        "hour") as "minute" | "hour" | "day" | "week" | "month";
-      const intervalSeconds = intervalToSeconds(intervalAmount, intervalUnit);
-      return String(BigInt(amountStroops) / BigInt(Math.max(1, intervalSeconds)));
-    }
-    return amountStroops;
+    return action.config.amountStroops ?? "1";
   }
   if (action.type === "split") {
-    return action.config.ratePerSecondStroops ?? "1";
+    if (action.config.amountPerIntervalStroops) {
+      return action.config.amountPerIntervalStroops;
+    }
+    // Backward compat: convert deprecated rate-per-second to amount-per-interval.
+    if (action.config.ratePerSecondStroops) {
+      return String(BigInt(action.config.ratePerSecondStroops) * BigInt(intervalSeconds));
+    }
+    return "1";
   }
   return "1";
 }
@@ -244,13 +296,14 @@ function streamerRatePerSecond(action: ActionNode, trigger: FlowNode): string {
 export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): PipelineNode[] {
   const trigger = graph.nodes.find(isTrigger)!;
   const actions = graph.nodes.filter(isAction);
+  const contractActions = actions.filter(isContractAction);
   const conditions = graph.nodes.filter(isLogic);
-  const children = getChildren(graph);
+  const children = getPipelineChildren(graph);
   const pipeline: PipelineNode[] = [];
 
   // ── schedule-like flows (on_schedule, subscription) ──────────────────
   if (trigger.type === "on_schedule" || trigger.type === "subscription") {
-    const action = actions[0]!;
+    const action = contractActions[0]!;
     const recipients = toRecipients(action);
     const asset = getAsset(action);
 
@@ -268,15 +321,21 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
       });
     }
 
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    // If the configured start time is already in the past (common when a flow
+    // was created minutes ago and is only being deployed now), start the stream
+    // at the current time so short streams aren't already over on deploy.
     const start =
       trigger.type === "on_schedule"
-        ? Math.floor(new Date(trigger.config.startsAt).getTime() / 1000)
-        : Math.floor(Date.now() / 1000);
+        ? Math.max(nowSeconds, Math.floor(new Date(trigger.config.startsAt).getTime() / 1000))
+        : nowSeconds;
     const end =
       trigger.type === "on_schedule"
         ? computeStreamerEndTs(trigger, start)
         : start + 60 * 60 * 24 * 30;
-    const rate = streamerRatePerSecond(action, trigger);
+    const intervalSeconds =
+      trigger.type === "on_schedule" ? scheduleIntervalSeconds(trigger) : 24 * 60 * 60;
+    const amountPerInterval = streamerAmountPerInterval(action, trigger, intervalSeconds);
     pipeline.push({
       nodeId: action.id,
       templateKind: TemplateKind.STREAMER,
@@ -284,16 +343,18 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
         kind: "streamer",
         asset,
         recipients,
-        ratePerSecondStroops: rate,
+        amountPerIntervalStroops: amountPerInterval,
+        intervalSeconds,
         startTs: start,
         endTs: end,
+        pauseAllowed: trigger.type === "on_schedule" ? (trigger.config.pauseAllowed ?? true) : true,
       },
     });
     return pipeline;
   }
 
   // ── receive-like flows (on_receive, webhook, oracle) ─────────────────
-  const action = actions[0]!;
+  const action = contractActions[0]!;
   const asset = action.type === "swap" ? action.config.assetIn : getAsset(action);
   const recipients = toRecipients(action);
 
@@ -497,10 +558,11 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
 export function getStreamerPreviewFromPipeline(pipeline: PipelineNode[]) {
   const streamer = pipeline.find((n) => n.templateKind === TemplateKind.STREAMER);
   if (!streamer || streamer.params.kind !== "streamer") return null;
-  const { ratePerSecondStroops, startTs, endTs } = streamer.params;
+  const { amountPerIntervalStroops, intervalSeconds, startTs, endTs } = streamer.params;
   const durationSecs = endTs - startTs;
-  const totalStroops = (BigInt(ratePerSecondStroops) * BigInt(durationSecs)).toString();
-  return { ratePerSecondStroops, startTs, endTs, durationSecs, totalStroops };
+  const intervals = Math.floor(durationSecs / intervalSeconds);
+  const totalStroops = (BigInt(amountPerIntervalStroops) * BigInt(intervals)).toString();
+  return { amountPerIntervalStroops, intervalSeconds, startTs, endTs, durationSecs, totalStroops };
 }
 
 /**
@@ -510,7 +572,7 @@ export function getStreamerPreviewFromPipeline(pipeline: PipelineNode[]) {
  */
 export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): ContractParams {
   const trigger = graph.nodes.find(isTrigger)!;
-  const action = graph.nodes.find(isAction)!;
+  const action = graph.nodes.find(isContractAction)!;
   const condition = graph.nodes.find(isLogic);
   const recipients = toRecipients(action);
 
@@ -529,16 +591,23 @@ export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): Cont
     if (trigger.type !== "on_schedule") {
       throw new Error("Streamer requires an on_schedule trigger");
     }
-    const start = Math.floor(new Date(trigger.config.startsAt).getTime() / 1000);
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const start = Math.max(
+      nowSeconds,
+      Math.floor(new Date(trigger.config.startsAt).getTime() / 1000),
+    );
     const end = computeStreamerEndTs(trigger, start);
-    const rate = streamerRatePerSecond(action, trigger);
+    const intervalSeconds = scheduleIntervalSeconds(trigger);
+    const amountPerInterval = streamerAmountPerInterval(action, trigger, intervalSeconds);
     return {
       kind: "streamer",
       asset: getAsset(action),
       recipients,
-      ratePerSecondStroops: rate,
+      amountPerIntervalStroops: amountPerInterval,
+      intervalSeconds,
       startTs: start,
       endTs: end,
+      pauseAllowed: trigger.config.pauseAllowed ?? true,
     };
   }
 

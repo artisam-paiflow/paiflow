@@ -29,9 +29,9 @@ export const STARTER_GRAPH = {
       config: {
         asset: { kind: "known", symbol: "USDC" },
         recipients: [
-          { address: DEMO_RECIPIENT_ALICE, bps: 6000, label: "Alice" },
-          { address: DEMO_RECIPIENT_BOB, bps: 3000, label: "Bob" },
-          { address: DEMO_RECIPIENT_CHARLIE, bps: 1000, label: "Charlie" },
+          { address: DEMO_RECIPIENT_ALICE, mode: "percentage", bps: 6000, label: "Alice" },
+          { address: DEMO_RECIPIENT_BOB, mode: "percentage", bps: 3000, label: "Bob" },
+          { address: DEMO_RECIPIENT_CHARLIE, mode: "percentage", bps: 1000, label: "Charlie" },
         ],
       },
     },
