@@ -348,7 +348,9 @@ fn handle_fixed_deposit(env: &Env, asset: &Address, amount: i128) -> bool {
         .instance()
         .get(&Key::AccumulatedBalance)
         .unwrap_or(0);
-    let new_balance = balance.checked_add(amount).unwrap_or(balance);
+    let new_balance = balance
+        .checked_add(amount)
+        .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAmount));
     env.storage()
         .instance()
         .set(&Key::AccumulatedBalance, &new_balance);
