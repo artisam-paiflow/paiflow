@@ -390,27 +390,35 @@ fn forward_remaining(env: &Env, asset: &Address) {
     let forward_amount = if has_steps && balance > 0 { balance } else { 0 };
 
     if forward_amount > 0 {
-        for step in next_steps.iter() {
-            client.transfer(&env.current_contract_address(), &step.address, &forward_amount);
+        if let Some(step) = next_steps.first() {
+            client.transfer(
+                &env.current_contract_address(),
+                &step.address,
+                &forward_amount,
+            );
 
             #[allow(deprecated)]
             env.events().publish(
-                (symbol_short!("forward"), asset.clone(), step.address.clone()),
+                (
+                    symbol_short!("forward"),
+                    asset.clone(),
+                    step.address.clone(),
+                ),
                 forward_amount,
             );
 
             invoke_execute_step(env, &step.address, asset, &forward_amount);
-        }
 
-        let total_fixed: i128 = env
-            .storage()
-            .instance()
-            .get(&Key::TotalFixedAmount)
-            .unwrap_or(0);
-        if total_fixed > 0 {
-            env.storage()
+            let total_fixed: i128 = env
+                .storage()
                 .instance()
-                .set(&Key::AccumulatedBalance, &0i128);
+                .get(&Key::TotalFixedAmount)
+                .unwrap_or(0);
+            if total_fixed > 0 {
+                env.storage()
+                    .instance()
+                    .set(&Key::AccumulatedBalance, &0i128);
+            }
         }
     }
 }
@@ -427,9 +435,9 @@ fn invoke_execute_step(env: &Env, target: &Address, asset: &Address, amount: &i1
 #[cfg(test)]
 mod test {
     use super::*;
+    use payer::{Payer, PayerClient};
     use soroban_sdk::testutils::Address as _;
     use soroban_sdk::{contract, contractimpl, token, vec, Env};
-    use payer::{Payer, PayerClient};
 
     #[contract]
     pub struct Dummy;
@@ -526,8 +534,7 @@ mod test {
             (
                 admin.clone(),
                 asset.address(),
-                make_fixed_recipients(&env, &a, &b, 3_000_000, 2_000_000,
-                ),
+                make_fixed_recipients(&env, &a, &b, 3_000_000, 2_000_000),
                 0_i128,
                 parent.clone(),
                 Vec::<WorkflowTarget>::new(&env),
@@ -695,8 +702,7 @@ mod test {
             (
                 admin.clone(),
                 asset.address(),
-                make_fixed_recipients(&env, &a, &b, 3_000_000, 2_000_000,
-                ),
+                make_fixed_recipients(&env, &a, &b, 3_000_000, 2_000_000),
                 0_i128,
                 parent.clone(),
                 Vec::<WorkflowTarget>::new(&env),
