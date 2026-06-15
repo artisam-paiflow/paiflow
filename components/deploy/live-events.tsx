@@ -59,6 +59,11 @@ const KIND_META: Record<string, { label: string; color: string; icon: string }> 
     color: "border-outline-variant/30 bg-surface-container-low text-on-surface-variant",
     icon: "info",
   },
+  FORWARD: {
+    label: "FORWARD",
+    color: "border-tertiary/30 bg-tertiary/10 text-tertiary",
+    icon: "forward",
+  },
   PAUSE: {
     label: "PAUSED",
     color: "border-error/30 bg-error/10 text-error",
@@ -238,6 +243,19 @@ function computeRecipientShares(totalAmount: string, recipients: Recipient[]): R
   });
 }
 
+function sumRecipientAmounts(recipients: Recipient[]): string | undefined {
+  try {
+    let total = 0n;
+    for (const r of recipients) {
+      if (!isNonEmptyString(r.amount)) return undefined;
+      total += BigInt(r.amount);
+    }
+    return total.toString();
+  } catch {
+    return undefined;
+  }
+}
+
 function formatAsset(asset: unknown): string {
   if (!asset) return "XLM";
   if (asset && typeof asset === "object" && "kind" in asset) {
@@ -311,7 +329,9 @@ function RecipientList({
           <AddressValue addr={r.address} />
           {r.label && <span className="text-label-xs text-on-surface-variant">({r.label})</span>}
           {typeof r.bps === "number" && (
-            <span className="text-label-xs text-on-surface-variant font-mono">{r.bps / 100}%</span>
+            <span className="text-label-xs text-on-surface-variant font-mono">
+              {r.bps === 0 ? "-%" : `${r.bps / 100}%`}
+            </span>
           )}
           {isNonEmptyString(r.amount) && (
             <span className="text-body-sm text-on-surface font-medium">
@@ -438,6 +458,7 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
           : getGraphSplitRecipients(graph, isNonEmptyString(amount) ? amount : undefined);
       const recipients = decodedRecipients.length > 0 ? decodedRecipients : graphRecipients;
       const tookPathA = d?.tookPathA;
+      const displayAmount = isNonEmptyString(amount) ? amount : sumRecipientAmounts(recipients);
 
       if (assetIn && assetOut && amountIn !== undefined && amountOut !== undefined) {
         return (
@@ -525,7 +546,7 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
             <div className="text-body-sm text-on-surface">
               Paid out{" "}
               <span className="text-primary font-medium">
-                {formatAmountWithAsset(amount, asset)}
+                {formatAmountWithAsset(displayAmount, asset)}
               </span>{" "}
               to <span className="font-medium">{recipients.length}</span> recipient
               {recipients.length === 1 ? "" : "s"}
@@ -544,7 +565,7 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
               <DetailField label="Recipients" fullWidth>
                 <RecipientList
                   recipients={recipients}
-                  totalAmount={isNonEmptyString(amount) ? amount : undefined}
+                  totalAmount={isNonEmptyString(displayAmount) ? displayAmount : undefined}
                   asset={asset}
                 />
               </DetailField>
@@ -684,6 +705,30 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
             <DetailField label="Remaining balance">
               <span className="text-primary font-medium">{formatAmountWithAsset(balance)}</span>
             </DetailField>
+          </div>
+        </div>
+      );
+    }
+    case "FORWARD": {
+      const asset = d?.asset;
+      const amount = d?.amount;
+      const recipient = d?.recipient;
+      return (
+        <div className="space-y-2">
+          <div className="text-body-sm text-on-surface">
+            Forwarded{" "}
+            <span className="text-primary font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
+            to {isNonEmptyString(recipient) ? <AddressValue addr={recipient} /> : "next step"}
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+            {isNonEmptyString(recipient) && (
+              <DetailField label="To">
+                <AddressValue addr={recipient} />
+              </DetailField>
+            )}
+            {asset !== undefined && asset !== null && (
+              <DetailField label="Asset">{formatAsset(asset)}</DetailField>
+            )}
           </div>
         </div>
       );

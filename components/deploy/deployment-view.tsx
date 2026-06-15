@@ -52,7 +52,7 @@ export default function DeploymentView({
           (p.txHash === data.txHash && p.kind === data.kind),
       );
       if (!isDuplicate) {
-        merged.unshift({ ...data, _isNew: true });
+        merged.push({ ...data, _isNew: true });
         if (data.kind === "RECEIVE" || data.kind === "PAYOUT") {
           addedPulses += 1;
         }
@@ -61,12 +61,19 @@ export default function DeploymentView({
           data.kind === "PAYOUT" ||
           data.kind === "CLAIM" ||
           data.kind === "CANCEL" ||
-          data.kind === "SHORTFALL"
+          data.kind === "SHORTFALL" ||
+          data.kind === "FORWARD"
         ) {
           balanceChanges += 1;
         }
       }
     }
+
+    merged.sort((a, b) => {
+      if (a.ledger !== b.ledger) return b.ledger - a.ledger;
+      return (b.eventId ?? "").localeCompare(a.eventId ?? "");
+    });
+
     if (addedPulses > 0) setPulse((p) => p + addedPulses);
     if (balanceChanges > 0) setBalanceTick((t) => t + balanceChanges);
     return merged.slice(0, 100);

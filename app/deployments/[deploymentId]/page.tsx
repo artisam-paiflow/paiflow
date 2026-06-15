@@ -58,7 +58,7 @@ export default async function DeploymentPage({
     where: { id: deploymentId, ownerId: user.id },
     include: {
       flow: { select: { name: true, templateKind: true } },
-      events: { orderBy: { occurredAt: "desc" }, take: 50 },
+      events: { orderBy: [{ ledger: "desc" }, { eventId: "desc" }], take: 50 },
     },
   });
   if (!d) notFound();

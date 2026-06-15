@@ -6,6 +6,7 @@ import type {
   FlowGraph,
   FlowNode,
   LogicNode,
+  TriggerNode,
 } from "./schema";
 import {
   isAction,
@@ -62,6 +63,7 @@ export type SplitterNodeParams = {
   asset: Asset;
   recipients: PipelineRecipient[];
   minAmountStroops: string;
+  nextStepNodeIds: string[];
 };
 
 export type StreamerNodeParams = {
@@ -468,10 +470,40 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
     }
   }
 
-  // Action
+  // Action(s)
   if (!terminal) {
-    if (action.type === "swap") {
-      pipeline.push({
+    const seenActions = new Set<string>();
+    const actionQueue: ContractActionNode[] = [action];
+
+    while (actionQueue.length > 0) {
+      const current = actionQueue.shift()!;
+      if (seenActions.has(current.id)) continue;
+      seenActions.add(current.id);
+
+      pipeline.push(contractActionToPipelineNode(current, trigger, children));
+
+      for (const childId of children.get(current.id) ?? []) {
+        const childNode = graph.nodes.find((n) => n.id === childId);
+        if (childNode && isContractAction(childNode) && !seenActions.has(childNode.id)) {
+          actionQueue.push(childNode);
+        }
+      }
+    }
+  }
+
+  return pipeline;
+}
+
+function contractActionToPipelineNode(
+  action: ContractActionNode,
+  trigger: TriggerNode,
+  children: Map<string, string[]>,
+): PipelineNode {
+  const nextStepNodeIds = children.get(action.id) ?? [];
+
+  switch (action.type) {
+    case "swap":
+      return {
         nodeId: action.id,
         templateKind: TemplateKind.SWAPPER,
         params: {
@@ -479,80 +511,81 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
           assetIn: action.config.assetIn,
           assetOut: action.config.assetOut,
           rateBps: action.config.rateBps,
-          nextStepNodeIds: children.get(action.id) ?? [],
+          nextStepNodeIds,
         },
-      });
-    } else if (action.type === "yield") {
-      pipeline.push({
+      };
+    case "yield":
+      return {
         nodeId: action.id,
         templateKind: TemplateKind.YIELD,
         params: {
           kind: "yield",
           asset: action.config.asset,
           vault: action.config.vault,
-          nextStepNodeIds: children.get(action.id) ?? [],
+          nextStepNodeIds,
         },
-      });
-    } else if (action.type === "pay") {
+      };
+    case "pay": {
+      const base = {
+        nodeId: action.id,
+        templateKind: TemplateKind.PAYER,
+        params: {
+          kind: "payer" as const,
+          asset: getAsset(action),
+          recipient: action.config.recipient,
+          nextStepNodeIds,
+        },
+      };
+
       if (action.config.fullAmount) {
-        pipeline.push({
-          nodeId: action.id,
-          templateKind: TemplateKind.PAYER,
+        return {
+          ...base,
           params: {
-            kind: "payer",
-            asset: getAsset(action),
-            recipient: action.config.recipient,
+            ...base.params,
             amountStroops: "0",
-            mode: "percentage",
+            mode: "percentage" as const,
             percentageBps: 10_000,
-            nextStepNodeIds: children.get(action.id) ?? [],
           },
-        });
-      } else if (action.config.mode === "percentage") {
-        pipeline.push({
-          nodeId: action.id,
-          templateKind: TemplateKind.PAYER,
-          params: {
-            kind: "payer",
-            asset: getAsset(action),
-            recipient: action.config.recipient,
-            amountStroops: "0",
-            mode: "percentage",
-            percentageBps: pctToBps(action.config.percentage ?? 0),
-            nextStepNodeIds: children.get(action.id) ?? [],
-          },
-        });
-      } else {
-        pipeline.push({
-          nodeId: action.id,
-          templateKind: TemplateKind.PAYER,
-          params: {
-            kind: "payer",
-            asset: getAsset(action),
-            recipient: action.config.recipient,
-            amountStroops: action.config.amountStroops ?? "0",
-            mode: "fixed",
-            nextStepNodeIds: children.get(action.id) ?? [],
-          },
-        });
+        };
       }
-    } else {
+
+      if (action.config.mode === "percentage") {
+        return {
+          ...base,
+          params: {
+            ...base.params,
+            amountStroops: "0",
+            mode: "percentage" as const,
+            percentageBps: pctToBps(action.config.percentage ?? 0),
+          },
+        };
+      }
+
+      return {
+        ...base,
+        params: {
+          ...base.params,
+          amountStroops: action.config.amountStroops ?? "0",
+          mode: "fixed" as const,
+        },
+      };
+    }
+    case "split": {
       const minAmountStroops =
         trigger.type === "on_receive" ? (trigger.config.minAmountStroops ?? "0") : "0";
-      pipeline.push({
+      return {
         nodeId: action.id,
         templateKind: TemplateKind.SPLITTER,
         params: {
           kind: "splitter",
           asset: getAsset(action),
-          recipients,
+          recipients: toRecipients(action),
           minAmountStroops,
+          nextStepNodeIds,
         },
-      });
+      };
     }
   }
-
-  return pipeline;
 }
 
 export function getStreamerPreviewFromPipeline(pipeline: PipelineNode[]) {

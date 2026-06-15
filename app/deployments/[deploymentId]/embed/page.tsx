@@ -14,7 +14,7 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
     where: { id: deploymentId },
     include: {
       flow: { select: { templateKind: true } },
-      events: { orderBy: { occurredAt: "desc" }, take: 50 },
+      events: { orderBy: [{ ledger: "desc" }, { eventId: "desc" }], take: 50 },
     },
   });
   if (!d || d.status !== "CONFIRMED" || !d.contractAddress) notFound();
