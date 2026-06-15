@@ -237,6 +237,62 @@ export async function readStreamerPaused(contractAddress: string): Promise<boole
   return value;
 }
 
+export async function readStreamerRetrieveAllowed(contractAddress: string): Promise<boolean> {
+  const server = sorobanRpc();
+
+  const source = stellarRelayerAddress();
+  if (!source) {
+    throw new AppError("INTERNAL", "STELLAR_RELAYER_ADDRESS is not configured");
+  }
+
+  let sourceAcct;
+  try {
+    sourceAcct = await server.getAccount(source);
+  } catch (err) {
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Relayer account ${source} is not funded or does not exist`,
+    );
+  }
+
+  const contractIdBytes = decodeContractAddress(contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName: "retrieve_allowed",
+      args: [],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    // Old streamer WASM does not expose retrieve_allowed; treat as disabled.
+    return false;
+  }
+  if (!sim.result?.retval) {
+    return false;
+  }
+
+  const value = scValToNative(sim.result.retval);
+  if (typeof value !== "boolean") {
+    return false;
+  }
+
+  return value;
+}
+
 export async function prepareStreamerClaimByRelayerTx(
   contractAddress: string,
 ): Promise<{ xdr: string; txHash: string }> {

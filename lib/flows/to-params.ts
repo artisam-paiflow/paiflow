@@ -40,6 +40,7 @@ export type StreamerParams = {
   startTs: number;
   endTs: number;
   pauseAllowed: boolean;
+  retrieveAllowed: boolean;
 };
 
 export type ConditionalParams = {
@@ -75,6 +76,7 @@ export type StreamerNodeParams = {
   startTs: number;
   endTs: number;
   pauseAllowed: boolean;
+  retrieveAllowed: boolean;
 };
 
 export type ConditionalNodeParams = {
@@ -350,6 +352,8 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
         startTs: start,
         endTs: end,
         pauseAllowed: trigger.type === "on_schedule" ? (trigger.config.pauseAllowed ?? true) : true,
+        retrieveAllowed:
+          trigger.type === "on_schedule" ? (trigger.config.retrieveAllowed ?? true) : true,
       },
     });
     return pipeline;
@@ -641,6 +645,7 @@ export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): Cont
       startTs: start,
       endTs: end,
       pauseAllowed: trigger.config.pauseAllowed ?? true,
+      retrieveAllowed: trigger.config.retrieveAllowed ?? true,
     };
   }
 

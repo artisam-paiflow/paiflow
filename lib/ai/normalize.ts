@@ -323,6 +323,8 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
               timeZone: data.timeZone ? String(data.timeZone) : undefined,
               pauseAllowed:
                 data.pauseAllowed !== undefined ? Boolean(data.pauseAllowed) : undefined,
+              retrieveAllowed:
+                data.retrieveAllowed !== undefined ? Boolean(data.retrieveAllowed) : undefined,
             },
           } as FlowNode);
           break;

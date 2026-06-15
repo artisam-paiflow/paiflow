@@ -162,6 +162,7 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
             occurrences?: number;
             timeZone?: string;
             pauseAllowed?: boolean;
+            retrieveAllowed?: boolean;
           };
           // Backward-compat: old flows used `interval` string
           const amount = cfg.intervalAmount ?? 1;
@@ -318,6 +319,23 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                   />
                   <span className="text-xs text-zinc-400">
                     Allow pausing this stream after deployment
+                  </span>
+                </label>
+              </Field>
+              <Field label="Allow retrieve unvested">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={cfg.retrieveAllowed ?? true}
+                    onChange={(e) =>
+                      onChange({
+                        ...node,
+                        config: { ...cfg, retrieveAllowed: e.target.checked },
+                      } as FlowNode)
+                    }
+                  />
+                  <span className="text-xs text-zinc-400">
+                    Allow admin to retrieve unvested funds while paused
                   </span>
                 </label>
               </Field>

@@ -56,6 +56,8 @@ type ContractCallButtonProps = {
   busyLabel: string;
   icon?: string;
   variant?: "primary" | "secondary" | "danger";
+  size?: "sm" | "md";
+  disabled?: boolean;
   prepare: (address: string) => Promise<{ xdr: string; networkPassphrase: string }>;
   submit: (signedXdr: string) => Promise<{ txHash: string }>;
   onSuccess?: () => void;
@@ -68,6 +70,8 @@ export default function ContractCallButton({
   busyLabel,
   icon = "send",
   variant = "primary",
+  size = "md",
+  disabled = false,
   prepare,
   submit,
   onSuccess,
@@ -82,8 +86,11 @@ export default function ContractCallButton({
         ? "bg-error text-on-error hover:-translate-y-px hover:shadow-[0_0_24px_rgba(239,68,68,0.4)]"
         : "border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20";
 
+  const sizeClass =
+    size === "sm" ? "text-label-sm px-3 py-1.5 gap-1.5" : "text-label-md px-4 py-2.5 gap-2";
+
   const handleClick = useCallback(async () => {
-    if (busy) return;
+    if (busy || disabled) return;
     abortRef.current?.abort();
     abortRef.current = new AbortController();
     setBusy(true);
@@ -141,8 +148,8 @@ export default function ContractCallButton({
   return (
     <button
       onClick={handleClick}
-      disabled={busy}
-      className={`${variantClass} text-label-md inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-mono font-bold transition-all duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none`}
+      disabled={busy || disabled}
+      className={`${variantClass} ${sizeClass} inline-flex items-center justify-center rounded-lg font-mono font-bold transition-all duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none`}
     >
       {busy ? (
         <>

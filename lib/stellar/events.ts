@@ -138,6 +138,13 @@ const STREAMER_REGISTRY: EventRegistry = {
     kind: EventKind.RESUME,
     decode: () => ({}),
   },
+  retrieve: {
+    kind: EventKind.RETRIEVE,
+    decode: (_topics, value) => {
+      const amount = value ?? null;
+      return amount !== null ? { amount } : null;
+    },
+  },
 };
 
 const CONDITIONAL_REGISTRY: EventRegistry = {
@@ -488,6 +495,7 @@ function classifyEvent(topics: EventTopics): EventKind {
     "route",
     "release",
     "escrow",
+    "retrieve",
   ]);
   const receiveTopics = new Set(["receive", "deposit", "topup", "charge", "execute"]);
   if (payoutTopics.has(first)) return EventKind.PAYOUT;
