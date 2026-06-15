@@ -243,6 +243,19 @@ function computeRecipientShares(totalAmount: string, recipients: Recipient[]): R
   });
 }
 
+function sumRecipientAmounts(recipients: Recipient[]): string | undefined {
+  try {
+    let total = 0n;
+    for (const r of recipients) {
+      if (!isNonEmptyString(r.amount)) return undefined;
+      total += BigInt(r.amount);
+    }
+    return total.toString();
+  } catch {
+    return undefined;
+  }
+}
+
 function formatAsset(asset: unknown): string {
   if (!asset) return "XLM";
   if (asset && typeof asset === "object" && "kind" in asset) {
@@ -445,6 +458,7 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
           : getGraphSplitRecipients(graph, isNonEmptyString(amount) ? amount : undefined);
       const recipients = decodedRecipients.length > 0 ? decodedRecipients : graphRecipients;
       const tookPathA = d?.tookPathA;
+      const displayAmount = isNonEmptyString(amount) ? amount : sumRecipientAmounts(recipients);
 
       if (assetIn && assetOut && amountIn !== undefined && amountOut !== undefined) {
         return (
@@ -532,7 +546,7 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
             <div className="text-body-sm text-on-surface">
               Paid out{" "}
               <span className="text-primary font-medium">
-                {formatAmountWithAsset(amount, asset)}
+                {formatAmountWithAsset(displayAmount, asset)}
               </span>{" "}
               to <span className="font-medium">{recipients.length}</span> recipient
               {recipients.length === 1 ? "" : "s"}
@@ -551,7 +565,7 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
               <DetailField label="Recipients" fullWidth>
                 <RecipientList
                   recipients={recipients}
-                  totalAmount={isNonEmptyString(amount) ? amount : undefined}
+                  totalAmount={isNonEmptyString(displayAmount) ? displayAmount : undefined}
                   asset={asset}
                 />
               </DetailField>
