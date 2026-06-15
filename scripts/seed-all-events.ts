@@ -304,6 +304,16 @@ function makeEvents(kind: TemplateKind, deploymentId: string) {
           kind: EventKind.CANCEL,
           decodedData: { balance: (3n * STROOP).toString() },
         },
+        {
+          ...base(1234570, 15),
+          kind: EventKind.PAUSE,
+          decodedData: {},
+        },
+        {
+          ...base(1234571, 10),
+          kind: EventKind.RESUME,
+          decodedData: {},
+        },
       ];
     case TemplateKind.CONDITIONAL:
     case TemplateKind.TIMELOCK:

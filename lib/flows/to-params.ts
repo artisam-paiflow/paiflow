@@ -38,6 +38,7 @@ export type StreamerParams = {
   intervalSeconds: number;
   startTs: number;
   endTs: number;
+  pauseAllowed: boolean;
 };
 
 export type ConditionalParams = {
@@ -71,6 +72,7 @@ export type StreamerNodeParams = {
   intervalSeconds: number;
   startTs: number;
   endTs: number;
+  pauseAllowed: boolean;
 };
 
 export type ConditionalNodeParams = {
@@ -345,6 +347,7 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
         intervalSeconds,
         startTs: start,
         endTs: end,
+        pauseAllowed: trigger.type === "on_schedule" ? (trigger.config.pauseAllowed ?? true) : true,
       },
     });
     return pipeline;
@@ -604,6 +607,7 @@ export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): Cont
       intervalSeconds,
       startTs: start,
       endTs: end,
+      pauseAllowed: trigger.config.pauseAllowed ?? true,
     };
   }
 

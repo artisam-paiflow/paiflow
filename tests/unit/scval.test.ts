@@ -126,6 +126,27 @@ describe("pipelineNodeConstructorArgs", () => {
     expect(args).toHaveLength(7);
   });
 
+  it("encodes streamer with pauseAllowed as last bool arg", () => {
+    const args = pipelineNodeConstructorArgs(
+      {
+        kind: "streamer",
+        asset: { kind: "native" },
+        recipients: [{ address: ADDR, bps: 10_000, amount: "0" }],
+        amountPerIntervalStroops: "1000",
+        intervalSeconds: 60,
+        startTs: 1000,
+        endTs: 2000,
+        pauseAllowed: false,
+      },
+      ADDR,
+      ADDR2,
+      {},
+    );
+    expect(args).toHaveLength(9);
+    expect(args[7]!).toEqual(new Address(ADDR2).toScVal());
+    expect(args[8]!.switch()).toBe(xdr.ScValType.scvBool());
+  });
+
   it("throws when parent is missing for a child node", () => {
     expect(() =>
       pipelineNodeConstructorArgs(

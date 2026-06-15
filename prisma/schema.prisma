@@ -45,6 +45,8 @@ enum EventKind {
   STATUS_CHANGE
   CANCEL
   SHORTFALL
+  PAUSE
+  RESUME
 }
 
 model User {

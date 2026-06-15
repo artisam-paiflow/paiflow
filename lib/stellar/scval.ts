@@ -19,6 +19,10 @@ function u64(n: number | bigint): xdr.ScVal {
   return nativeToScVal(typeof n === "bigint" ? n : BigInt(n), { type: "u64" });
 }
 
+function bool(b: boolean): xdr.ScVal {
+  return nativeToScVal(b, { type: "bool" });
+}
+
 // Mode is a #[contracttype] enum; in Soroban SDK v26 it serializes as
 // ScVal::Vec([ScVal::Symbol(variant_name)]) for fieldless variants.
 function enumVariant(name: string): xdr.ScVal {
@@ -151,6 +155,7 @@ export function pipelineNodeConstructorArgs(
         u64(params.startTs),
         u64(params.endTs),
         addr(parentAddress),
+        bool(params.pauseAllowed),
       ];
     }
     case "conditional": {
@@ -302,6 +307,8 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
         intervalSeconds(params),
         u64(params.startTs),
         u64(params.endTs),
+        addr(admin),
+        bool(params.pauseAllowed ?? true),
       ];
     }
     case "conditional": {
