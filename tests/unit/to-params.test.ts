@@ -246,6 +246,77 @@ describe("flowToParams", () => {
     }
   });
 
+  it("defaults retrieveAllowed to false in streamer params", () => {
+    const out = flowToParams(
+      {
+        nodes: [
+          {
+            id: "t",
+            type: "on_schedule",
+            config: {
+              intervalAmount: 1,
+              intervalUnit: "hour",
+              startsAt: "2030-01-01T00:00:00.000Z",
+            },
+          },
+          {
+            id: "a",
+            type: "pay",
+            config: {
+              recipient: ADDR_A,
+              amountStroops: "3600000",
+              asset: { kind: "native" },
+              mode: "fixed",
+              fullAmount: false,
+            },
+          },
+        ],
+        edges: [{ id: "e", source: "t", target: "a" }],
+      },
+      TemplateKind.STREAMER,
+    );
+    expect(out.kind).toBe("streamer");
+    if (out.kind === "streamer") {
+      expect(out.retrieveAllowed).toBe(false);
+    }
+  });
+
+  it("honors retrieveAllowed: false in streamer params", () => {
+    const out = flowToParams(
+      {
+        nodes: [
+          {
+            id: "t",
+            type: "on_schedule",
+            config: {
+              intervalAmount: 1,
+              intervalUnit: "hour",
+              startsAt: "2030-01-01T00:00:00.000Z",
+              retrieveAllowed: false,
+            },
+          },
+          {
+            id: "a",
+            type: "pay",
+            config: {
+              recipient: ADDR_A,
+              amountStroops: "3600000",
+              asset: { kind: "native" },
+              mode: "fixed",
+              fullAmount: false,
+            },
+          },
+        ],
+        edges: [{ id: "e", source: "t", target: "a" }],
+      },
+      TemplateKind.STREAMER,
+    );
+    expect(out.kind).toBe("streamer");
+    if (out.kind === "streamer") {
+      expect(out.retrieveAllowed).toBe(false);
+    }
+  });
+
   // ── CONDITIONAL ──
   it("produces conditional params (on_receive + condition → pay)", () => {
     const out = flowToParams(
@@ -788,6 +859,65 @@ describe("flowToPipeline", () => {
     expect(pipeline).toHaveLength(1);
     const streamer = pipeline[0]!.params as { pauseAllowed: boolean };
     expect(streamer.pauseAllowed).toBe(false);
+  });
+
+  it("defaults retrieveAllowed to false for on_schedule streamer", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: { intervalAmount: 1, intervalUnit: "hour", startsAt: "2030-01-01T00:00:00.000Z" },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "3600000",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(1);
+    const streamer = pipeline[0]!.params as { retrieveAllowed: boolean };
+    expect(streamer.retrieveAllowed).toBe(false);
+  });
+
+  it("passes retrieveAllowed: false through flowToPipeline", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "hour",
+            startsAt: "2030-01-01T00:00:00.000Z",
+            retrieveAllowed: false,
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "3600000",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(1);
+    const streamer = pipeline[0]!.params as { retrieveAllowed: boolean };
+    expect(streamer.retrieveAllowed).toBe(false);
   });
 
   it("wires nextStepNodeIds from graph edges", () => {

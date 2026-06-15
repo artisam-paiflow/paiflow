@@ -107,6 +107,14 @@ const SPLITTER_REGISTRY: EventRegistry = {
 };
 
 const STREAMER_REGISTRY: EventRegistry = {
+  deposit: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const from = topics[1] ?? null;
+      const amount = value ?? null;
+      return from && amount !== null ? { from, amount } : null;
+    },
+  },
   receive: {
     kind: EventKind.RECEIVE,
     decode: (topics, value) => {
@@ -137,6 +145,13 @@ const STREAMER_REGISTRY: EventRegistry = {
   unpause: {
     kind: EventKind.RESUME,
     decode: () => ({}),
+  },
+  retrieve: {
+    kind: EventKind.RETRIEVE,
+    decode: (_topics, value) => {
+      const amount = value ?? null;
+      return amount !== null ? { amount } : null;
+    },
   },
 };
 
@@ -488,6 +503,7 @@ function classifyEvent(topics: EventTopics): EventKind {
     "route",
     "release",
     "escrow",
+    "retrieve",
   ]);
   const receiveTopics = new Set(["receive", "deposit", "topup", "charge", "execute"]);
   if (payoutTopics.has(first)) return EventKind.PAYOUT;

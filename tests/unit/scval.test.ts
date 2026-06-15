@@ -128,7 +128,7 @@ describe("pipelineNodeConstructorArgs", () => {
     expect(args).toHaveLength(7);
   });
 
-  it("encodes streamer with pauseAllowed as last bool arg", () => {
+  it("encodes streamer with pauseAllowed and retrieveAllowed as last bool args", () => {
     const args = pipelineNodeConstructorArgs(
       {
         kind: "streamer",
@@ -139,14 +139,16 @@ describe("pipelineNodeConstructorArgs", () => {
         startTs: 1000,
         endTs: 2000,
         pauseAllowed: false,
+        retrieveAllowed: true,
       },
       ADDR,
       ADDR2,
       {},
     );
-    expect(args).toHaveLength(9);
+    expect(args).toHaveLength(10);
     expect(args[7]!).toEqual(new Address(ADDR2).toScVal());
     expect(args[8]!.switch()).toBe(xdr.ScValType.scvBool());
+    expect(args[9]!.switch()).toBe(xdr.ScValType.scvBool());
   });
 
   it("throws when parent is missing for a child node", () => {

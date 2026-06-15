@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import { readStreamerAvailable, readStreamerPaused } from "@/lib/stellar/relayer";
+import {
+  readStreamerAvailable,
+  readStreamerPaused,
+  readStreamerRetrieveAllowed,
+} from "@/lib/stellar/relayer";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
@@ -24,15 +28,17 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       throw new AppError("VALIDATION", "No streamer contract found for deployment");
     }
 
-    const [paused, available] = await Promise.all([
+    const [paused, available, retrieveAllowed] = await Promise.all([
       readStreamerPaused(streamerNode.contractAddress),
       readStreamerAvailable(streamerNode.contractAddress),
+      readStreamerRetrieveAllowed(streamerNode.contractAddress),
     ]);
 
     return NextResponse.json({
       data: {
         paused,
         available: available.toString(),
+        retrieveAllowed,
       },
     });
   });
