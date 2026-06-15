@@ -101,7 +101,9 @@ impl Streamer {
         env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
         env.storage().instance().set(&Key::Paused, &false);
-        env.storage().instance().set(&Key::PauseAllowed, &pause_allowed);
+        env.storage()
+            .instance()
+            .set(&Key::PauseAllowed, &pause_allowed);
         env.storage().instance().set(&Key::PausedAt, &0u64);
         env.storage().instance().set(&Key::PauseOffset, &0u64);
     }
@@ -138,16 +140,8 @@ impl Streamer {
             .instance()
             .get::<_, bool>(&Key::Paused)
             .unwrap_or(false);
-        let paused_at: u64 = env
-            .storage()
-            .instance()
-            .get(&Key::PausedAt)
-            .unwrap_or(0);
-        let pause_offset: u64 = env
-            .storage()
-            .instance()
-            .get(&Key::PauseOffset)
-            .unwrap_or(0);
+        let paused_at: u64 = env.storage().instance().get(&Key::PausedAt).unwrap_or(0);
+        let pause_offset: u64 = env.storage().instance().get(&Key::PauseOffset).unwrap_or(0);
 
         let mut cap = if now > end { end } else { now };
         if paused && paused_at > 0 && paused_at < cap {
@@ -231,7 +225,12 @@ impl Streamer {
     pub fn pause(env: Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
-        if !env.storage().instance().get::<_, bool>(&Key::PauseAllowed).unwrap_or(true) {
+        if !env
+            .storage()
+            .instance()
+            .get::<_, bool>(&Key::PauseAllowed)
+            .unwrap_or(true)
+        {
             panic_with_error!(&env, Error::PauseNotAllowed);
         }
         env.storage().instance().set(&Key::Paused, &true);
@@ -245,7 +244,12 @@ impl Streamer {
     pub fn unpause(env: Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
-        if !env.storage().instance().get::<_, bool>(&Key::PauseAllowed).unwrap_or(true) {
+        if !env
+            .storage()
+            .instance()
+            .get::<_, bool>(&Key::PauseAllowed)
+            .unwrap_or(true)
+        {
             panic_with_error!(&env, Error::PauseNotAllowed);
         }
         let paused_at: u64 = env.storage().instance().get(&Key::PausedAt).unwrap_or(0);
@@ -272,7 +276,10 @@ impl Streamer {
     }
 
     pub fn pause_allowed(env: Env) -> bool {
-        env.storage().instance().get::<_, bool>(&Key::PauseAllowed).unwrap_or(true)
+        env.storage()
+            .instance()
+            .get::<_, bool>(&Key::PauseAllowed)
+            .unwrap_or(true)
     }
 
     pub fn start_ts(env: Env) -> u64 {
