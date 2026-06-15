@@ -230,13 +230,14 @@ fn forward_remaining(env: &Env, asset: &Address) {
                 &step.address,
                 &forward_amount,
             );
-            invoke_execute_step(env, &step.address, asset, &forward_amount);
 
             #[allow(deprecated)]
             env.events().publish(
                 (symbol_short!("forward"), asset.clone(), step.address.clone()),
                 forward_amount,
             );
+
+            invoke_execute_step(env, &step.address, asset, &forward_amount);
         }
     }
 }

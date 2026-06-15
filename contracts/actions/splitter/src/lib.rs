@@ -392,13 +392,14 @@ fn forward_remaining(env: &Env, asset: &Address) {
     if forward_amount > 0 {
         for step in next_steps.iter() {
             client.transfer(&env.current_contract_address(), &step.address, &forward_amount);
-            invoke_execute_step(env, &step.address, asset, &forward_amount);
 
             #[allow(deprecated)]
             env.events().publish(
                 (symbol_short!("forward"), asset.clone(), step.address.clone()),
                 forward_amount,
             );
+
+            invoke_execute_step(env, &step.address, asset, &forward_amount);
         }
 
         let total_fixed: i128 = env
