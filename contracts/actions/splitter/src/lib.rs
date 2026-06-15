@@ -161,6 +161,8 @@ impl Splitter {
             env.events()
                 .publish((symbol_short!("payout"), from), recipients);
         }
+
+        forward_remaining(&env, &asset);
     }
 
     pub fn pause(env: Env) {
@@ -239,19 +241,11 @@ impl Splitter {
         };
 
         if distributed {
-            let next_steps: Vec<WorkflowTarget> = env
-                .storage()
-                .instance()
-                .get(&Key::NextSteps)
-                .unwrap_or_else(|| Vec::new(&env));
-            for step in next_steps.iter() {
-                invoke_execute_step(&env, &step.address, &asset, &0);
-            }
-
             let emit_amount = if total_fixed > 0 { total_fixed } else { amount };
             #[allow(deprecated)]
             env.events()
-                .publish((symbol_short!("distrib"), asset), emit_amount);
+                .publish((symbol_short!("distrib"), asset.clone()), emit_amount);
+            forward_remaining(&env, &asset);
         }
     }
 
@@ -296,19 +290,11 @@ impl Splitter {
         };
 
         if distributed {
-            let next_steps: Vec<WorkflowTarget> = env
-                .storage()
-                .instance()
-                .get(&Key::NextSteps)
-                .unwrap_or_else(|| Vec::new(&env));
-            for step in next_steps.iter() {
-                invoke_execute_step(&env, &step.address, &asset, &0);
-            }
-
             let emit_amount = if total_fixed > 0 { total_fixed } else { amount };
             #[allow(deprecated)]
             env.events()
-                .publish((symbol_short!("distrib"), asset), emit_amount);
+                .publish((symbol_short!("distrib"), asset.clone()), emit_amount);
+            forward_remaining(&env, &asset);
         }
     }
 
@@ -403,6 +389,41 @@ fn bump_ttl(env: &Env) {
         .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
 }
 
+fn forward_remaining(env: &Env, asset: &Address) {
+    let next_steps: Vec<WorkflowTarget> = env
+        .storage()
+        .instance()
+        .get(&Key::NextSteps)
+        .unwrap_or_else(|| Vec::new(env));
+    let client = token::Client::new(env, asset);
+    let balance = client.balance(&env.current_contract_address());
+
+    let has_steps = !next_steps.is_empty();
+    let forward_amount = if has_steps && balance > 0 { balance } else { 0 };
+
+    if forward_amount > 0 {
+        for step in next_steps.iter() {
+            client.transfer(&env.current_contract_address(), &step.address, &forward_amount);
+            invoke_execute_step(env, &step.address, asset, &forward_amount);
+        }
+
+        let total_fixed: i128 = env
+            .storage()
+            .instance()
+            .get(&Key::TotalFixedAmount)
+            .unwrap_or(0);
+        if total_fixed > 0 {
+            env.storage()
+                .instance()
+                .set(&Key::AccumulatedBalance, &0i128);
+        }
+
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("forward"), asset.clone()), forward_amount);
+    }
+}
+
 fn invoke_execute_step(env: &Env, target: &Address, asset: &Address, amount: &i128) {
     let func = soroban_sdk::Symbol::new(env, "execute_step");
     env.invoke_contract::<()>(
@@ -417,6 +438,7 @@ mod test {
     use super::*;
     use soroban_sdk::testutils::Address as _;
     use soroban_sdk::{contract, contractimpl, token, vec, Env};
+    use payer::{Payer, PayerClient};
 
     #[contract]
     pub struct Dummy;
@@ -485,7 +507,7 @@ mod test {
     }
 
     #[test]
-    fn execute_step_splits_and_passes_control() {
+    fn execute_step_splits_and_passes_leftover() {
         let env = Env::default();
         env.mock_all_auths();
         let admin = Address::generate(&env);
@@ -495,28 +517,39 @@ mod test {
 
         let a = Address::generate(&env);
         let b = Address::generate(&env);
-        let c = Address::generate(&env);
         let parent = Address::generate(&env);
+        let next = env.register(Dummy, ());
         sac.mint(&parent, &10_000_000);
+
+        let next_steps = vec![
+            &env,
+            WorkflowTarget {
+                address: next.clone(),
+                data: String::from_str(&env, ""),
+            },
+        ];
 
         let contract_id = env.register(
             Splitter,
             (
                 admin.clone(),
                 asset.address(),
-                make_recipients(&env, &a, &b, &c),
+                make_fixed_recipients(&env, &a, &b, 3_000_000, 2_000_000,
+                ),
                 0_i128,
                 parent.clone(),
             ),
         );
         let client = SplitterClient::new(&env, &contract_id);
+        client.set_next_steps(&next_steps);
 
         tok.transfer(&parent, &contract_id, &10_000_000);
         client.execute_step(&asset.address(), &10_000_000);
 
-        assert_eq!(tok.balance(&a), 6_000_000);
-        assert_eq!(tok.balance(&b), 3_000_000);
-        assert_eq!(tok.balance(&c), 1_000_000);
+        assert_eq!(tok.balance(&a), 3_000_000);
+        assert_eq!(tok.balance(&b), 2_000_000);
+        assert_eq!(tok.balance(&next), 5_000_000);
+        assert_eq!(client.accumulated_balance(), 0);
     }
 
     #[test]
@@ -629,7 +662,7 @@ mod test {
     }
 
     #[test]
-    fn receive_and_forward_forwards_to_next_steps() {
+    fn receive_and_forward_forwards_leftover() {
         let env = Env::default();
         env.mock_all_auths();
         let admin = Address::generate(&env);
@@ -639,7 +672,6 @@ mod test {
 
         let a = Address::generate(&env);
         let b = Address::generate(&env);
-        let c = Address::generate(&env);
         let predecessor = Address::generate(&env);
         sac.mint(&predecessor, &10_000_000);
 
@@ -658,7 +690,8 @@ mod test {
             (
                 admin.clone(),
                 asset.address(),
-                make_recipients(&env, &a, &b, &c),
+                make_fixed_recipients(&env, &a, &b, 3_000_000, 2_000_000,
+                ),
                 0_i128,
                 parent.clone(),
             ),
@@ -674,10 +707,10 @@ mod test {
             &Vec::<WorkflowTarget>::new(&env),
         );
 
-        assert_eq!(tok.balance(&a), 6_000_000);
-        assert_eq!(tok.balance(&b), 3_000_000);
-        assert_eq!(tok.balance(&c), 1_000_000);
-        assert_eq!(tok.balance(&contract_id), 0);
+        assert_eq!(tok.balance(&a), 3_000_000);
+        assert_eq!(tok.balance(&b), 2_000_000);
+        assert_eq!(tok.balance(&next), 5_000_000);
+        assert_eq!(client.accumulated_balance(), 0);
     }
 
     fn make_fixed_recipients(
@@ -859,5 +892,293 @@ mod test {
         ];
         let parent = Address::generate(&env);
         env.register(Splitter, (admin, asset.address(), zero, 0_i128, parent));
+    }
+
+    #[test]
+    fn distribute_fixed_forwards_leftover() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let a = Address::generate(&env);
+        let b = Address::generate(&env);
+        let payer = Address::generate(&env);
+        let next = env.register(Dummy, ());
+        sac.mint(&payer, &10_000_000);
+
+        let next_steps = vec![
+            &env,
+            WorkflowTarget {
+                address: next.clone(),
+                data: String::from_str(&env, ""),
+            },
+        ];
+
+        let parent = Address::generate(&env);
+        let contract_id = env.register(
+            Splitter,
+            (
+                admin.clone(),
+                asset.address(),
+                make_fixed_recipients(&env, &a, &b, 3_000_000, 2_000_000),
+                0_i128,
+                parent.clone(),
+            ),
+        );
+        let client = SplitterClient::new(&env, &contract_id);
+        client.set_next_steps(&next_steps);
+
+        client.distribute(&payer, &10_000_000);
+
+        assert_eq!(tok.balance(&a), 3_000_000);
+        assert_eq!(tok.balance(&b), 2_000_000);
+        assert_eq!(tok.balance(&next), 5_000_000);
+        assert_eq!(tok.balance(&contract_id), 0);
+        assert_eq!(client.accumulated_balance(), 0);
+    }
+
+    #[test]
+    fn fixed_splitter_forwards_leftover_to_payer() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let a = Address::generate(&env);
+        let b = Address::generate(&env);
+        let payer_recipient = Address::generate(&env);
+        let parent = Address::generate(&env);
+        sac.mint(&parent, &10_000_000);
+
+        let splitter_id = env.register(
+            Splitter,
+            (
+                admin.clone(),
+                asset.address(),
+                make_fixed_recipients(&env, &a, &b, 3_000_000, 2_000_000),
+                0_i128,
+                parent.clone(),
+            ),
+        );
+        let splitter_client = SplitterClient::new(&env, &splitter_id);
+
+        let payer_id = env.register(
+            Payer,
+            (
+                admin.clone(),
+                asset.address(),
+                payer_recipient.clone(),
+                1_000_i128,
+                0_u32,
+                Vec::<WorkflowTarget>::new(&env),
+                splitter_id.clone(),
+            ),
+        );
+        let payer_client = PayerClient::new(&env, &payer_id);
+
+        splitter_client.set_next_steps(&vec![
+            &env,
+            WorkflowTarget {
+                address: payer_id.clone(),
+                data: String::from_str(&env, ""),
+            },
+        ]);
+
+        tok.transfer(&parent, &splitter_id, &10_000_000);
+        splitter_client.execute_step(&asset.address(), &10_000_000);
+
+        assert_eq!(tok.balance(&a), 3_000_000);
+        assert_eq!(tok.balance(&b), 2_000_000);
+        assert_eq!(tok.balance(&payer_recipient), 1_000);
+        assert_eq!(tok.balance(&payer_id), 4_999_000);
+        assert_eq!(tok.balance(&splitter_id), 0);
+        assert_eq!(splitter_client.accumulated_balance(), 0);
+        assert_eq!(payer_client.configured_amount(), 1_000);
+    }
+
+    #[test]
+    fn fixed_splitter_forwards_leftover_to_splitter() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let a = Address::generate(&env);
+        let b = Address::generate(&env);
+        let c = Address::generate(&env);
+        let d = Address::generate(&env);
+        let parent = Address::generate(&env);
+        sac.mint(&parent, &10_000_000);
+
+        let splitter1_id = env.register(
+            Splitter,
+            (
+                admin.clone(),
+                asset.address(),
+                make_fixed_recipients(&env, &a, &b, 3_000_000, 2_000_000),
+                0_i128,
+                parent.clone(),
+            ),
+        );
+        let splitter1_client = SplitterClient::new(&env, &splitter1_id);
+
+        let splitter2_id = env.register(
+            Splitter,
+            (
+                admin.clone(),
+                asset.address(),
+                make_fixed_recipients(&env, &c, &d, 1_000_000, 1_000_000),
+                0_i128,
+                splitter1_id.clone(),
+            ),
+        );
+        let splitter2_client = SplitterClient::new(&env, &splitter2_id);
+
+        splitter1_client.set_next_steps(&vec![
+            &env,
+            WorkflowTarget {
+                address: splitter2_id.clone(),
+                data: String::from_str(&env, ""),
+            },
+        ]);
+
+        tok.transfer(&parent, &splitter1_id, &10_000_000);
+        splitter1_client.execute_step(&asset.address(), &10_000_000);
+
+        assert_eq!(tok.balance(&a), 3_000_000);
+        assert_eq!(tok.balance(&b), 2_000_000);
+        assert_eq!(tok.balance(&c), 1_000_000);
+        assert_eq!(tok.balance(&d), 1_000_000);
+        assert_eq!(tok.balance(&splitter1_id), 0);
+        assert_eq!(tok.balance(&splitter2_id), 3_000_000);
+        assert_eq!(splitter1_client.accumulated_balance(), 0);
+        assert_eq!(splitter2_client.accumulated_balance(), 3_000_000);
+    }
+
+    #[test]
+    fn percentage_splitter_does_not_forward_without_leftover() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let a = Address::generate(&env);
+        let b = Address::generate(&env);
+        let c = Address::generate(&env);
+        let payer_recipient = Address::generate(&env);
+        let parent = Address::generate(&env);
+        sac.mint(&parent, &10_000_000);
+
+        let splitter_id = env.register(
+            Splitter,
+            (
+                admin.clone(),
+                asset.address(),
+                make_recipients(&env, &a, &b, &c),
+                0_i128,
+                parent.clone(),
+            ),
+        );
+        let splitter_client = SplitterClient::new(&env, &splitter_id);
+
+        let payer_id = env.register(
+            Payer,
+            (
+                admin.clone(),
+                asset.address(),
+                payer_recipient.clone(),
+                100_i128,
+                0_u32,
+                Vec::<WorkflowTarget>::new(&env),
+                splitter_id.clone(),
+            ),
+        );
+        let _payer_client = PayerClient::new(&env, &payer_id);
+
+        splitter_client.set_next_steps(&vec![
+            &env,
+            WorkflowTarget {
+                address: payer_id.clone(),
+                data: String::from_str(&env, ""),
+            },
+        ]);
+
+        tok.transfer(&parent, &splitter_id, &10_000_000);
+        splitter_client.execute_step(&asset.address(), &10_000_000);
+
+        assert_eq!(tok.balance(&a), 6_000_000);
+        assert_eq!(tok.balance(&b), 3_000_000);
+        assert_eq!(tok.balance(&c), 1_000_000);
+        assert_eq!(tok.balance(&payer_id), 0);
+        assert_eq!(tok.balance(&payer_recipient), 0);
+        assert_eq!(tok.balance(&splitter_id), 0);
+    }
+
+    #[test]
+    fn fixed_splitter_below_threshold_does_not_forward() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let a = Address::generate(&env);
+        let b = Address::generate(&env);
+        let payer_recipient = Address::generate(&env);
+        let parent = Address::generate(&env);
+        sac.mint(&parent, &3_000_000);
+
+        let splitter_id = env.register(
+            Splitter,
+            (
+                admin.clone(),
+                asset.address(),
+                make_fixed_recipients(&env, &a, &b, 3_000_000, 2_000_000),
+                0_i128,
+                parent.clone(),
+            ),
+        );
+        let splitter_client = SplitterClient::new(&env, &splitter_id);
+
+        let payer_id = env.register(
+            Payer,
+            (
+                admin.clone(),
+                asset.address(),
+                payer_recipient.clone(),
+                100_i128,
+                0_u32,
+                Vec::<WorkflowTarget>::new(&env),
+                splitter_id.clone(),
+            ),
+        );
+
+        splitter_client.set_next_steps(&vec![
+            &env,
+            WorkflowTarget {
+                address: payer_id.clone(),
+                data: String::from_str(&env, ""),
+            },
+        ]);
+
+        tok.transfer(&parent, &splitter_id, &3_000_000);
+        splitter_client.execute_step(&asset.address(), &3_000_000);
+
+        assert_eq!(tok.balance(&a), 0);
+        assert_eq!(tok.balance(&b), 0);
+        assert_eq!(tok.balance(&payer_id), 0);
+        assert_eq!(tok.balance(&payer_recipient), 0);
+        assert_eq!(tok.balance(&splitter_id), 3_000_000);
+        assert_eq!(splitter_client.accumulated_balance(), 3_000_000);
     }
 }
