@@ -25,6 +25,9 @@ pub enum Key {
     ParentNode,
     Version,
     Paused,
+    PauseAllowed,
+    PausedAt,
+    PauseOffset,
 }
 
 #[contracterror]
@@ -38,9 +41,10 @@ pub enum Error {
     BpsSumInvalid = 5,
     NoRecipients = 6,
     Paused = 7,
+    PauseNotAllowed = 8,
 }
 
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 const TOTAL_BPS: u32 = 10_000;
 const TTL_THRESHOLD: u32 = 50_000;
 const TTL_EXTEND_TO: u32 = 500_000;
@@ -62,6 +66,7 @@ impl Streamer {
         start_ts: u64,
         end_ts: u64,
         parent: Address,
+        pause_allowed: bool,
     ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
@@ -96,6 +101,9 @@ impl Streamer {
         env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
         env.storage().instance().set(&Key::Paused, &false);
+        env.storage().instance().set(&Key::PauseAllowed, &pause_allowed);
+        env.storage().instance().set(&Key::PausedAt, &0u64);
+        env.storage().instance().set(&Key::PauseOffset, &0u64);
     }
 
     pub fn execute_step(env: Env, asset: Address, amount: i128) {
@@ -113,17 +121,7 @@ impl Streamer {
             .publish((symbol_short!("receive"), asset), amount);
     }
 
-    pub fn claim(env: Env) -> i128 {
-        bump_ttl(&env);
-        if env
-            .storage()
-            .instance()
-            .get::<_, bool>(&Key::Paused)
-            .unwrap_or(false)
-        {
-            panic_with_error!(&env, Error::Paused);
-        }
-        let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
+    fn compute_vested_and_available(env: &Env) -> (i128, i128) {
         let amount_per_interval: i128 = env
             .storage()
             .instance()
@@ -135,22 +133,48 @@ impl Streamer {
         let claimed: i128 = env.storage().instance().get(&Key::Claimed).unwrap();
 
         let now = env.ledger().timestamp();
-        let cap = if now > end { end } else { now };
-        if cap <= start {
-            panic_with_error!(&env, Error::NothingToClaim);
+        let paused = env
+            .storage()
+            .instance()
+            .get::<_, bool>(&Key::Paused)
+            .unwrap_or(false);
+        let paused_at: u64 = env
+            .storage()
+            .instance()
+            .get(&Key::PausedAt)
+            .unwrap_or(0);
+        let pause_offset: u64 = env
+            .storage()
+            .instance()
+            .get(&Key::PauseOffset)
+            .unwrap_or(0);
+
+        let mut cap = if now > end { end } else { now };
+        if paused && paused_at > 0 && paused_at < cap {
+            cap = paused_at;
         }
-        let elapsed = cap.saturating_sub(start);
+        if cap <= start {
+            return (0, 0);
+        }
+        let elapsed = cap.saturating_sub(start).saturating_sub(pause_offset);
         let intervals = elapsed / interval_seconds;
         let vested = (intervals as i128)
             .checked_mul(amount_per_interval)
             .unwrap_or(0);
         let available = vested.checked_sub(claimed).unwrap_or(0);
+        (vested, available)
+    }
+
+    pub fn claim(env: Env) -> i128 {
+        bump_ttl(&env);
+        let (vested, available) = Self::compute_vested_and_available(&env);
         if available <= 0 {
             panic_with_error!(&env, Error::NothingToClaim);
         }
 
         env.storage().instance().set(&Key::Claimed, &vested);
 
+        let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         let client = token::Client::new(&env, &asset);
 
@@ -182,34 +206,7 @@ impl Streamer {
     }
 
     pub fn available(env: Env) -> i128 {
-        if env
-            .storage()
-            .instance()
-            .get::<_, bool>(&Key::Paused)
-            .unwrap_or(false)
-        {
-            return 0;
-        }
-        let amount_per_interval: i128 = env
-            .storage()
-            .instance()
-            .get(&Key::AmountPerInterval)
-            .unwrap();
-        let interval_seconds: u64 = env.storage().instance().get(&Key::IntervalSeconds).unwrap();
-        let start: u64 = env.storage().instance().get(&Key::StartTs).unwrap();
-        let end: u64 = env.storage().instance().get(&Key::EndTs).unwrap();
-        let claimed: i128 = env.storage().instance().get(&Key::Claimed).unwrap();
-        let now = env.ledger().timestamp();
-        let cap = if now > end { end } else { now };
-        if cap <= start {
-            return 0;
-        }
-        let elapsed = cap.saturating_sub(start);
-        let intervals = elapsed / interval_seconds;
-        let vested = (intervals as i128)
-            .checked_mul(amount_per_interval)
-            .unwrap_or(0);
-        vested.checked_sub(claimed).unwrap_or(0)
+        Self::compute_vested_and_available(&env).1
     }
 
     pub fn top_up(env: Env, from: Address, amount: i128) {
@@ -234,17 +231,48 @@ impl Streamer {
     pub fn pause(env: Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
+        if !env.storage().instance().get::<_, bool>(&Key::PauseAllowed).unwrap_or(true) {
+            panic_with_error!(&env, Error::PauseNotAllowed);
+        }
         env.storage().instance().set(&Key::Paused, &true);
+        env.storage()
+            .instance()
+            .set(&Key::PausedAt, &env.ledger().timestamp());
+        #[allow(deprecated)]
+        env.events().publish((symbol_short!("pause"),), ());
     }
 
     pub fn unpause(env: Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
+        if !env.storage().instance().get::<_, bool>(&Key::PauseAllowed).unwrap_or(true) {
+            panic_with_error!(&env, Error::PauseNotAllowed);
+        }
+        let paused_at: u64 = env.storage().instance().get(&Key::PausedAt).unwrap_or(0);
+        let now = env.ledger().timestamp();
+        if paused_at > 0 && now > paused_at {
+            let offset: u64 = env.storage().instance().get(&Key::PauseOffset).unwrap_or(0);
+            let added = now - paused_at;
+            env.storage()
+                .instance()
+                .set(&Key::PauseOffset, &offset.saturating_add(added));
+        }
         env.storage().instance().set(&Key::Paused, &false);
+        env.storage().instance().set(&Key::PausedAt, &0u64);
+        #[allow(deprecated)]
+        env.events().publish((symbol_short!("unpause"),), ());
     }
 
     pub fn is_paused(env: Env) -> bool {
         env.storage().instance().get(&Key::Paused).unwrap_or(false)
+    }
+
+    pub fn paused_at(env: Env) -> u64 {
+        env.storage().instance().get(&Key::PausedAt).unwrap_or(0)
+    }
+
+    pub fn pause_allowed(env: Env) -> bool {
+        env.storage().instance().get::<_, bool>(&Key::PauseAllowed).unwrap_or(true)
     }
 
     pub fn start_ts(env: Env) -> u64 {
@@ -327,6 +355,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent.clone(),
+                true,
             ),
         );
         let client = StreamerClient::new(&env, &contract_id);
@@ -389,6 +418,7 @@ mod test {
                 start_ts,
                 end_ts,
                 parent.clone(),
+                true,
             ),
         );
         let client = StreamerClient::new(&env, &contract_id);
@@ -447,6 +477,7 @@ mod test {
                 start_ts,
                 end_ts,
                 parent.clone(),
+                true,
             ),
         );
         let client = StreamerClient::new(&env, &contract_id);
@@ -489,6 +520,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent.clone(),
+                true,
             ),
         );
         sac.mint(&parent, &10_000);
@@ -530,6 +562,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent,
+                true,
             ),
         );
     }
@@ -559,6 +592,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent.clone(),
+                true,
             ),
         );
         let client = StreamerClient::new(&env, &contract_id);
@@ -595,6 +629,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent.clone(),
+                true,
             ),
         );
         let client = StreamerClient::new(&env, &contract_id);
@@ -607,13 +642,13 @@ mod test {
     }
 
     #[test]
-    #[should_panic]
-    fn claim_rejects_when_paused() {
+    fn claim_succeeds_for_vested_amount_when_paused() {
         let env = Env::default();
         env.mock_all_auths();
         let admin = Address::generate(&env);
         let asset = env.register_stellar_asset_contract_v2(admin.clone());
         let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
         let parent = Address::generate(&env);
 
         let contract_id = env.register(
@@ -633,6 +668,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent.clone(),
+                true,
             ),
         );
         let client = StreamerClient::new(&env, &contract_id);
@@ -643,11 +679,13 @@ mod test {
 
         env.ledger().set_timestamp(1500);
         client.pause();
-        client.claim();
+        let claimed = client.claim();
+        assert_eq!(claimed, 5_000);
+        assert_eq!(tok.balance(&client.address), 5_000);
     }
 
     #[test]
-    fn available_is_zero_when_paused() {
+    fn available_returns_vested_amount_when_paused() {
         let env = Env::default();
         env.mock_all_auths();
         let admin = Address::generate(&env);
@@ -672,6 +710,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent.clone(),
+                true,
             ),
         );
         let client = StreamerClient::new(&env, &contract_id);
@@ -683,8 +722,165 @@ mod test {
         env.ledger().set_timestamp(1500);
         assert!(client.available() > 0);
         client.pause();
-        assert_eq!(client.available(), 0);
+        assert_eq!(client.available(), 5_000);
         client.unpause();
-        assert!(client.available() > 0);
+        assert_eq!(client.available(), 5_000);
+    }
+
+    #[test]
+    fn pause_stops_future_vesting_but_allows_claiming_vested() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+        let recipient = Address::generate(&env);
+        let parent = Address::generate(&env);
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: recipient.clone(),
+                        bps: 10_000,
+                    },
+                ],
+                asset.address(),
+                1000_i128,
+                100_u64,
+                1000_u64,
+                3000_u64,
+                parent.clone(),
+                true,
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+
+        let funder = Address::generate(&env);
+        sac.mint(&funder, &20_000);
+        client.top_up(&funder, &20_000);
+
+        // At T=1500, 5 intervals vested = 5000.
+        env.ledger().set_timestamp(1500);
+        assert_eq!(client.available(), 5_000);
+
+        // Pause at T=1500.
+        client.pause();
+        assert!(client.is_paused());
+        assert_eq!(client.paused_at(), 1500);
+
+        // Advance time while paused; no additional vesting should occur.
+        env.ledger().set_timestamp(2500);
+        assert_eq!(client.available(), 5_000);
+        let claimed = client.claim();
+        assert_eq!(claimed, 5_000);
+        assert_eq!(tok.balance(&recipient), 5_000);
+
+        // Unpause and advance; vesting resumes from current time.
+        client.unpause();
+        env.ledger().set_timestamp(2600);
+        // Only 1 additional interval (from 2500 to 2600) vests after unpausing.
+        assert_eq!(client.available(), 1_000);
+    }
+
+    #[test]
+    fn pause_allowed_getter_returns_expected_value() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                    },
+                ],
+                asset.address(),
+                1000_i128,
+                100_u64,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+                false,
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+        assert!(!client.pause_allowed());
+    }
+
+    #[test]
+    #[should_panic]
+    fn pause_not_allowed_rejects_pause() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                    },
+                ],
+                asset.address(),
+                1000_i128,
+                100_u64,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+                false,
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+        client.pause();
+    }
+
+    #[test]
+    #[should_panic]
+    fn pause_not_allowed_rejects_unpause() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                    },
+                ],
+                asset.address(),
+                1000_i128,
+                100_u64,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+                false,
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+        client.unpause();
     }
 }

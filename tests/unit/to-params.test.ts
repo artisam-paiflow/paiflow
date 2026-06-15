@@ -189,6 +189,7 @@ describe("flowToParams", () => {
       expect(out.amountPerIntervalStroops).toBe("3600000");
       expect(out.intervalSeconds).toBe(3600);
       expect(out.endTs).toBeGreaterThan(out.startTs);
+      expect(out.pauseAllowed).toBe(true);
     }
   });
 
@@ -205,6 +206,43 @@ describe("flowToParams", () => {
       expect(out.amountPerIntervalStroops).toBe("500");
       expect(out.intervalSeconds).toBe(3600);
       expect(out.endTs).toBeGreaterThan(out.startTs);
+      expect(out.pauseAllowed).toBe(true);
+    }
+  });
+
+  it("honors pauseAllowed: false in streamer params", () => {
+    const out = flowToParams(
+      {
+        nodes: [
+          {
+            id: "t",
+            type: "on_schedule",
+            config: {
+              intervalAmount: 1,
+              intervalUnit: "hour",
+              startsAt: "2030-01-01T00:00:00.000Z",
+              pauseAllowed: false,
+            },
+          },
+          {
+            id: "a",
+            type: "pay",
+            config: {
+              recipient: ADDR_A,
+              amountStroops: "3600000",
+              asset: { kind: "native" },
+              mode: "fixed",
+              fullAmount: false,
+            },
+          },
+        ],
+        edges: [{ id: "e", source: "t", target: "a" }],
+      },
+      TemplateKind.STREAMER,
+    );
+    expect(out.kind).toBe("streamer");
+    if (out.kind === "streamer") {
+      expect(out.pauseAllowed).toBe(false);
     }
   });
 
@@ -661,6 +699,65 @@ describe("flowToPipeline", () => {
     expect(streamer.kind).toBe("streamer");
     expect(streamer.amountPerIntervalStroops).toBe("60000");
     expect(streamer.intervalSeconds).toBe(60);
+  });
+
+  it("defaults pauseAllowed to true for on_schedule streamer", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: { intervalAmount: 1, intervalUnit: "hour", startsAt: "2030-01-01T00:00:00.000Z" },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "3600000",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(1);
+    const streamer = pipeline[0]!.params as { pauseAllowed: boolean };
+    expect(streamer.pauseAllowed).toBe(true);
+  });
+
+  it("passes pauseAllowed: false through flowToPipeline", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "hour",
+            startsAt: "2030-01-01T00:00:00.000Z",
+            pauseAllowed: false,
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "3600000",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(1);
+    const streamer = pipeline[0]!.params as { pauseAllowed: boolean };
+    expect(streamer.pauseAllowed).toBe(false);
   });
 
   it("wires nextStepNodeIds from graph edges", () => {

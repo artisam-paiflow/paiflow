@@ -319,6 +319,8 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
               endsAt: data.endsAt ? String(data.endsAt) : undefined,
               occurrences: data.occurrences ? Number(data.occurrences) : undefined,
               timeZone: data.timeZone ? String(data.timeZone) : undefined,
+              pauseAllowed:
+                data.pauseAllowed !== undefined ? Boolean(data.pauseAllowed) : undefined,
             },
           } as FlowNode);
           break;

@@ -104,6 +104,14 @@ const STREAMER_REGISTRY: EventRegistry = {
       return balance !== null ? { balance } : null;
     },
   },
+  pause: {
+    kind: EventKind.PAUSE,
+    decode: () => ({}),
+  },
+  unpause: {
+    kind: EventKind.RESUME,
+    decode: () => ({}),
+  },
 };
 
 const CONDITIONAL_REGISTRY: EventRegistry = {

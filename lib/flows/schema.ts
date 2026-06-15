@@ -83,6 +83,7 @@ export const OnScheduleTrigger = z.object({
     endsAt: z.string().datetime().optional(),
     occurrences: z.number().int().positive().optional(),
     timeZone: z.string().optional(),
+    pauseAllowed: z.boolean().optional(),
   }),
 });
 

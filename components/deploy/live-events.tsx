@@ -54,6 +54,16 @@ const KIND_META: Record<string, { label: string; color: string; icon: string }> 
     color: "border-outline-variant/30 bg-surface-container-low text-on-surface-variant",
     icon: "info",
   },
+  PAUSE: {
+    label: "PAUSED",
+    color: "border-error/30 bg-error/10 text-error",
+    icon: "pause",
+  },
+  RESUME: {
+    label: "RESUMED",
+    color: "border-success/30 bg-success/10 text-success",
+    icon: "play_arrow",
+  },
 };
 
 const TOTAL_BPS = 10000n;
@@ -305,6 +315,28 @@ function RecipientList({
 
 function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
   const d = evt.decodedData as Record<string, unknown> | null;
+
+  // Status-like events have no numeric payload but should still render nicely.
+  switch (evt.kind) {
+    case "PAUSE": {
+      return (
+        <div className="space-y-2">
+          <div className="text-body-sm text-on-surface">Workflow paused</div>
+          <div className="text-body-sm text-on-surface-variant">
+            Vesting is paused. Already-vested funds remain claimable.
+          </div>
+        </div>
+      );
+    }
+    case "RESUME": {
+      return (
+        <div className="space-y-2">
+          <div className="text-body-sm text-on-surface">Workflow resumed</div>
+          <div className="text-body-sm text-on-surface-variant">Vesting has resumed.</div>
+        </div>
+      );
+    }
+  }
 
   if (!hasMeaningfulEventData(d)) {
     return <UndecodedFallback evt={evt} d={d} />;

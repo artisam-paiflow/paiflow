@@ -159,6 +159,7 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
             endsAt?: string;
             occurrences?: number;
             timeZone?: string;
+            pauseAllowed?: boolean;
           };
           // Backward-compat: old flows used `interval` string
           const amount = cfg.intervalAmount ?? 1;
@@ -300,6 +301,23 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                     } as FlowNode)
                   }
                 />
+              </Field>
+              <Field label="Allow pause / resume">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={cfg.pauseAllowed ?? true}
+                    onChange={(e) =>
+                      onChange({
+                        ...node,
+                        config: { ...cfg, pauseAllowed: e.target.checked },
+                      } as FlowNode)
+                    }
+                  />
+                  <span className="text-xs text-zinc-400">
+                    Allow pausing this stream after deployment
+                  </span>
+                </label>
               </Field>
             </>
           );

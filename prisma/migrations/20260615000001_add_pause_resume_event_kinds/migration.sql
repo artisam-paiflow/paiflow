@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "EventKind" ADD VALUE 'PAUSE';
+ALTER TYPE "EventKind" ADD VALUE 'RESUME';

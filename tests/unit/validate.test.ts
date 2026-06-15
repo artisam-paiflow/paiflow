@@ -202,6 +202,37 @@ describe("validateFlow", () => {
     }
   });
 
+  it("accepts on_schedule with pauseAllowed: false", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "hour",
+            startsAt: "2030-01-01T00:00:00.000Z",
+            pauseAllowed: false,
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "100",
+            asset: { kind: "known", symbol: "USDC" },
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.STREAMER);
+    }
+  });
+
   it("infers CONDITIONAL from on_receive + split + condition", () => {
     const r = validateFlow({
       nodes: [

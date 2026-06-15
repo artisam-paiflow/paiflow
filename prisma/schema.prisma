@@ -44,6 +44,8 @@ enum EventKind {
   CLAIM
   STATUS_CHANGE
   CANCEL
+  PAUSE
+  RESUME
 }
 
 model User {
