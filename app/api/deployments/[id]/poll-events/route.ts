@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   const latestEvents = await db.contractEvent.findMany({
     where: { deploymentId: deployment.id },
-    orderBy: { occurredAt: "desc" },
+    orderBy: [{ ledger: "desc" }, { eventId: "desc" }],
     take: 50,
   });
 

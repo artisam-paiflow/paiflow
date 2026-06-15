@@ -10,6 +10,7 @@ use soroban_sdk::{
 pub struct Recipient {
     pub address: Address,
     pub bps: u32,
+    pub amount: i128,
 }
 
 #[contracttype]
@@ -28,6 +29,7 @@ pub enum Key {
     PauseAllowed,
     PausedAt,
     PauseOffset,
+    RetrieveAllowed,
 }
 
 #[contracterror]
@@ -42,9 +44,12 @@ pub enum Error {
     NoRecipients = 6,
     Paused = 7,
     PauseNotAllowed = 8,
+    RetrieveNotAllowed = 9,
+    NotPaused = 10,
+    NothingToRetrieve = 11,
 }
 
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 const TOTAL_BPS: u32 = 10_000;
 const TTL_THRESHOLD: u32 = 50_000;
 const TTL_EXTEND_TO: u32 = 500_000;
@@ -67,6 +72,7 @@ impl Streamer {
         end_ts: u64,
         parent: Address,
         pause_allowed: bool,
+        retrieve_allowed: bool,
     ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
@@ -106,6 +112,9 @@ impl Streamer {
             .set(&Key::PauseAllowed, &pause_allowed);
         env.storage().instance().set(&Key::PausedAt, &0u64);
         env.storage().instance().set(&Key::PauseOffset, &0u64);
+        env.storage()
+            .instance()
+            .set(&Key::RetrieveAllowed, &retrieve_allowed);
     }
 
     pub fn execute_step(env: Env, asset: Address, amount: i128) {
@@ -207,6 +216,10 @@ impl Streamer {
         from.require_auth();
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         token::Client::new(&env, &asset).transfer(&from, env.current_contract_address(), &amount);
+
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("deposit"), from.clone()), amount);
     }
 
     pub fn cancel(env: Env) {
@@ -220,6 +233,46 @@ impl Streamer {
         }
         #[allow(deprecated)]
         env.events().publish((symbol_short!("cancel"),), balance);
+    }
+
+    pub fn retrieve_unvested(env: Env) -> i128 {
+        bump_ttl(&env);
+        let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
+        admin.require_auth();
+
+        if !env
+            .storage()
+            .instance()
+            .get::<_, bool>(&Key::Paused)
+            .unwrap_or(false)
+        {
+            panic_with_error!(&env, Error::NotPaused);
+        }
+
+        if !env
+            .storage()
+            .instance()
+            .get::<_, bool>(&Key::RetrieveAllowed)
+            .unwrap_or(false)
+        {
+            panic_with_error!(&env, Error::RetrieveNotAllowed);
+        }
+
+        let (_, available) = Self::compute_vested_and_available(&env);
+        let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+        let client = token::Client::new(&env, &asset);
+        let balance = client.balance(&env.current_contract_address());
+
+        if balance <= available {
+            panic_with_error!(&env, Error::NothingToRetrieve);
+        }
+
+        let unvested = balance - available;
+        client.transfer(&env.current_contract_address(), &admin, &unvested);
+
+        #[allow(deprecated)]
+        env.events().publish((symbol_short!("retrieve"),), unvested);
+        unvested
     }
 
     pub fn pause(env: Env) {
@@ -282,6 +335,13 @@ impl Streamer {
             .unwrap_or(true)
     }
 
+    pub fn retrieve_allowed(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get::<_, bool>(&Key::RetrieveAllowed)
+            .unwrap_or(false)
+    }
+
     pub fn start_ts(env: Env) -> u64 {
         env.storage().instance().get(&Key::StartTs).unwrap()
     }
@@ -315,8 +375,8 @@ fn bump_ttl(env: &Env) {
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::testutils::{Address as _, Ledger};
-    use soroban_sdk::{token, vec, Env};
+    use soroban_sdk::testutils::{Address as _, Events, Ledger};
+    use soroban_sdk::{token, vec, Env, IntoVal};
 
     fn make_recipients(env: &Env, a: &Address, b: &Address, c: &Address) -> Vec<Recipient> {
         vec![
@@ -324,14 +384,17 @@ mod test {
             Recipient {
                 address: a.clone(),
                 bps: 6000,
+                amount: 0,
             },
             Recipient {
                 address: b.clone(),
                 bps: 3000,
+                amount: 0,
             },
             Recipient {
                 address: c.clone(),
                 bps: 1000,
+                amount: 0,
             },
         ]
     }
@@ -362,6 +425,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent.clone(),
+                true,
                 true,
             ),
         );
@@ -417,6 +481,7 @@ mod test {
                     Recipient {
                         address: recipient.clone(),
                         bps: 10_000,
+                        amount: 0,
                     },
                 ],
                 asset.address(),
@@ -425,6 +490,7 @@ mod test {
                 start_ts,
                 end_ts,
                 parent.clone(),
+                true,
                 true,
             ),
         );
@@ -476,6 +542,7 @@ mod test {
                     Recipient {
                         address: recipient.clone(),
                         bps: 10_000,
+                        amount: 0,
                     },
                 ],
                 asset.address(),
@@ -484,6 +551,7 @@ mod test {
                 start_ts,
                 end_ts,
                 parent.clone(),
+                true,
                 true,
             ),
         );
@@ -519,6 +587,7 @@ mod test {
                     Recipient {
                         address: Address::generate(&env),
                         bps: 10_000,
+                        amount: 0,
                     },
                 ],
                 asset.address(),
@@ -527,6 +596,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent.clone(),
+                true,
                 true,
             ),
         );
@@ -555,6 +625,7 @@ mod test {
             Recipient {
                 address: a.clone(),
                 bps: 6000,
+                amount: 0,
             },
         ];
         let parent = Address::generate(&env);
@@ -569,6 +640,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent,
+                true,
                 true,
             ),
         );
@@ -591,6 +663,7 @@ mod test {
                     Recipient {
                         address: Address::generate(&env),
                         bps: 10_000,
+                        amount: 0,
                     },
                 ],
                 asset.address(),
@@ -599,6 +672,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent.clone(),
+                true,
                 true,
             ),
         );
@@ -628,6 +702,7 @@ mod test {
                     Recipient {
                         address: Address::generate(&env),
                         bps: 10_000,
+                        amount: 0,
                     },
                 ],
                 asset.address(),
@@ -636,6 +711,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent.clone(),
+                true,
                 true,
             ),
         );
@@ -667,6 +743,7 @@ mod test {
                     Recipient {
                         address: Address::generate(&env),
                         bps: 10_000,
+                        amount: 0,
                     },
                 ],
                 asset.address(),
@@ -675,6 +752,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent.clone(),
+                true,
                 true,
             ),
         );
@@ -709,6 +787,7 @@ mod test {
                     Recipient {
                         address: Address::generate(&env),
                         bps: 10_000,
+                        amount: 0,
                     },
                 ],
                 asset.address(),
@@ -717,6 +796,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent.clone(),
+                true,
                 true,
             ),
         );
@@ -753,6 +833,7 @@ mod test {
                     Recipient {
                         address: recipient.clone(),
                         bps: 10_000,
+                        amount: 0,
                     },
                 ],
                 asset.address(),
@@ -761,6 +842,7 @@ mod test {
                 1000_u64,
                 3000_u64,
                 parent.clone(),
+                true,
                 true,
             ),
         );
@@ -810,6 +892,7 @@ mod test {
                     Recipient {
                         address: Address::generate(&env),
                         bps: 10_000,
+                        amount: 0,
                     },
                 ],
                 asset.address(),
@@ -818,6 +901,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent.clone(),
+                false,
                 false,
             ),
         );
@@ -843,6 +927,7 @@ mod test {
                     Recipient {
                         address: Address::generate(&env),
                         bps: 10_000,
+                        amount: 0,
                     },
                 ],
                 asset.address(),
@@ -851,6 +936,7 @@ mod test {
                 1000_u64,
                 2000_u64,
                 parent.clone(),
+                false,
                 false,
             ),
         );
@@ -876,6 +962,7 @@ mod test {
                     Recipient {
                         address: Address::generate(&env),
                         bps: 10_000,
+                        amount: 0,
                     },
                 ],
                 asset.address(),
@@ -885,9 +972,278 @@ mod test {
                 2000_u64,
                 parent.clone(),
                 false,
+                false,
             ),
         );
         let client = StreamerClient::new(&env, &contract_id);
         client.unpause();
+    }
+
+    #[test]
+    fn retrieve_unvested_returns_unvested_funds_to_admin() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                        amount: 0,
+                    },
+                ],
+                asset.address(),
+                1000_i128,
+                100_u64,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+                true,
+                true,
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+
+        let funder = Address::generate(&env);
+        sac.mint(&funder, &10_000);
+        client.top_up(&funder, &10_000);
+
+        // At T=1500, 5 intervals vested (5000 available) and 5000 unvested.
+        env.ledger().set_timestamp(1500);
+        client.pause();
+        let retrieved = client.retrieve_unvested();
+        assert_eq!(retrieved, 5_000);
+        assert_eq!(tok.balance(&admin), 5_000);
+        assert_eq!(tok.balance(&contract_id), 5_000);
+        assert_eq!(client.available(), 5_000);
+
+        // The remaining vested amount can still be claimed.
+        client.claim();
+        assert_eq!(tok.balance(&contract_id), 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn retrieve_unvested_requires_paused() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                        amount: 0,
+                    },
+                ],
+                asset.address(),
+                1000_i128,
+                100_u64,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+                true,
+                true,
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+
+        let funder = Address::generate(&env);
+        token::StellarAssetClient::new(&env, &asset.address()).mint(&funder, &10_000);
+        client.top_up(&funder, &10_000);
+
+        env.ledger().set_timestamp(1500);
+        client.retrieve_unvested();
+    }
+
+    #[test]
+    #[should_panic]
+    fn retrieve_unvested_rejected_when_not_allowed() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                        amount: 0,
+                    },
+                ],
+                asset.address(),
+                1000_i128,
+                100_u64,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+                true,
+                false,
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+
+        let funder = Address::generate(&env);
+        token::StellarAssetClient::new(&env, &asset.address()).mint(&funder, &10_000);
+        client.top_up(&funder, &10_000);
+
+        env.ledger().set_timestamp(1500);
+        client.pause();
+        client.retrieve_unvested();
+    }
+
+    #[test]
+    #[should_panic]
+    fn retrieve_unvested_panics_when_nothing_unvested() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                        amount: 0,
+                    },
+                ],
+                asset.address(),
+                1000_i128,
+                100_u64,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+                true,
+                true,
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+
+        // Fund only the vested portion.
+        let funder = Address::generate(&env);
+        token::StellarAssetClient::new(&env, &asset.address()).mint(&funder, &5_000);
+        client.top_up(&funder, &5_000);
+
+        env.ledger().set_timestamp(1500);
+        client.pause();
+        client.retrieve_unvested();
+    }
+
+    #[test]
+    fn retrieve_allowed_getter_returns_expected_value() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                        amount: 0,
+                    },
+                ],
+                asset.address(),
+                1000_i128,
+                100_u64,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+                true,
+                false,
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+        assert!(!client.retrieve_allowed());
+    }
+
+    #[test]
+    fn top_up_emits_deposit_event() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Streamer,
+            (
+                admin.clone(),
+                vec![
+                    &env,
+                    Recipient {
+                        address: Address::generate(&env),
+                        bps: 10_000,
+                        amount: 0,
+                    },
+                ],
+                asset.address(),
+                1000_i128,
+                100_u64,
+                1000_u64,
+                2000_u64,
+                parent.clone(),
+                true,
+                true,
+            ),
+        );
+        let client = StreamerClient::new(&env, &contract_id);
+
+        let funder = Address::generate(&env);
+        sac.mint(&funder, &5_000);
+        client.top_up(&funder, &5_000);
+
+        let deposit_symbol = symbol_short!("deposit");
+        let expected = vec![
+            &env,
+            (
+                contract_id.clone(),
+                vec![
+                    &env,
+                    deposit_symbol.into_val(&env),
+                    funder.clone().into_val(&env),
+                ],
+                5_000i128.into_val(&env),
+            ),
+        ];
+        assert_eq!(
+            env.events().all().filter_by_contract(&contract_id),
+            expected
+        );
     }
 }

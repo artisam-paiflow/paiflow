@@ -2,6 +2,39 @@
 
 Running log of user-visible features.
 
+## Streamer retrieve-unvested and deposit live events
+
+Streamer deployments now support an admin-only `retrieve_unvested` action and
+emit a `deposit` live event when topped up.
+
+- `retrieve_unvested` can only be invoked while the stream is paused, only if
+  the flow explicitly allowed it at deploy time, and only retrieves the
+  unvested portion (`balance - available`). Vested recipient funds are left in
+  the contract.
+- The builder gates "Allow retrieve unvested" behind "Allow pause / resume"
+  and defaults both flags to the safe off state.
+- `top_up` emits a `deposit` event that the event poller surfaces as a
+  `RECEIVE` live event.
+
+### Deployment note — breaking ABI change
+
+The streamer `Recipient` struct now includes an `amount: i128` field:
+
+```rust
+pub struct Recipient {
+    pub address: Address,
+    pub bps: u32,
+    pub amount: i128,
+}
+```
+
+All new streamer deployments encode `Recipient` with three fields. Existing
+streamers that were deployed with the previous two-field `Recipient` are
+incompatible with the new constructor encoder. Before this code reaches
+production, re-build and re-upload the streamer WASM, then upgrade (or
+re-deploy) any existing streamer contracts so their stored `Recipients` decode
+with the new layout. The in-contract `Version` constant has been bumped to 4.
+
 ## Payer action contract
 
 New `contracts/actions/payer` fixes the bug where **pay** nodes in receive-like

@@ -52,7 +52,7 @@ export default function DeploymentView({
           (p.txHash === data.txHash && p.kind === data.kind),
       );
       if (!isDuplicate) {
-        merged.unshift({ ...data, _isNew: true });
+        merged.push({ ...data, _isNew: true });
         if (data.kind === "RECEIVE" || data.kind === "PAYOUT") {
           addedPulses += 1;
         }
@@ -61,12 +61,19 @@ export default function DeploymentView({
           data.kind === "PAYOUT" ||
           data.kind === "CLAIM" ||
           data.kind === "CANCEL" ||
-          data.kind === "SHORTFALL"
+          data.kind === "SHORTFALL" ||
+          data.kind === "FORWARD"
         ) {
           balanceChanges += 1;
         }
       }
     }
+
+    merged.sort((a, b) => {
+      if (a.ledger !== b.ledger) return b.ledger - a.ledger;
+      return (b.eventId ?? "").localeCompare(a.eventId ?? "");
+    });
+
     if (addedPulses > 0) setPulse((p) => p + addedPulses);
     if (balanceChanges > 0) setBalanceTick((t) => t + balanceChanges);
     return merged.slice(0, 100);
@@ -198,8 +205,11 @@ export default function DeploymentView({
   const triggerNode = graph?.nodes.find(isTrigger);
   const pauseAllowed =
     triggerNode?.type === "on_schedule" ? (triggerNode.config.pauseAllowed ?? true) : true;
+  const retrieveAllowedFromConfig =
+    triggerNode?.type === "on_schedule" ? (triggerNode.config.retrieveAllowed ?? false) : false;
 
   const [isPaused, setIsPaused] = useState(false);
+  const [retrieveAllowed, setRetrieveAllowed] = useState(retrieveAllowedFromConfig);
 
   useEffect(() => {
     if (!streamerNode?.contractAddress || !network) return;
@@ -207,8 +217,13 @@ export default function DeploymentView({
     fetch(`/api/deployments/${deploymentId}/streamer-state`)
       .then(async (res) => {
         if (!res.ok) return;
-        const json = (await res.json()) as { data: { paused: boolean } };
-        if (!cancelled) setIsPaused(json.data.paused);
+        const json = (await res.json()) as {
+          data: { paused: boolean; retrieveAllowed: boolean };
+        };
+        if (!cancelled) {
+          setIsPaused(json.data.paused);
+          setRetrieveAllowed(json.data.retrieveAllowed);
+        }
       })
       .catch(() => {
         // Ignore read errors; the local fallback is acceptable.
@@ -263,6 +278,7 @@ export default function DeploymentView({
                   busyLabel="RESUMING…"
                   icon="play_arrow"
                   variant="secondary"
+                  size="sm"
                   prepare={async (address) => {
                     const res = await fetch(`/api/deployments/${deploymentId}/invoke`, {
                       method: "POST",
@@ -274,13 +290,17 @@ export default function DeploymentView({
                       }),
                     });
                     const json = (await res.json()) as {
-                      data: { xdr: string; networkPassphrase: string };
+                      data?: { xdr: string; networkPassphrase: string };
+                      error?: { message?: string };
                     };
-                    if (!res.ok)
-                      throw new Error(json.data?.xdr ? "Prepare failed" : "Unknown error");
+                    if (!res.ok) {
+                      throw new Error(json.error?.message ?? "Unknown error");
+                    }
+                    const data = json.data;
+                    if (!data) throw new Error("Prepare failed");
                     return {
-                      xdr: json.data.xdr,
-                      networkPassphrase: json.data.networkPassphrase,
+                      xdr: data.xdr,
+                      networkPassphrase: data.networkPassphrase,
                     };
                   }}
                   submit={async (signedXdr) => {
@@ -303,6 +323,7 @@ export default function DeploymentView({
                   busyLabel="PAUSING…"
                   icon="pause"
                   variant="danger"
+                  size="sm"
                   prepare={async (address) => {
                     const res = await fetch(`/api/deployments/${deploymentId}/invoke`, {
                       method: "POST",
@@ -314,13 +335,17 @@ export default function DeploymentView({
                       }),
                     });
                     const json = (await res.json()) as {
-                      data: { xdr: string; networkPassphrase: string };
+                      data?: { xdr: string; networkPassphrase: string };
+                      error?: { message?: string };
                     };
-                    if (!res.ok)
-                      throw new Error(json.data?.xdr ? "Prepare failed" : "Unknown error");
+                    if (!res.ok) {
+                      throw new Error(json.error?.message ?? "Unknown error");
+                    }
+                    const data = json.data;
+                    if (!data) throw new Error("Prepare failed");
                     return {
-                      xdr: json.data.xdr,
-                      networkPassphrase: json.data.networkPassphrase,
+                      xdr: data.xdr,
+                      networkPassphrase: data.networkPassphrase,
                     };
                   }}
                   submit={async (signedXdr) => {
@@ -334,6 +359,55 @@ export default function DeploymentView({
                     return { txHash: json.data.txHash };
                   }}
                   onSuccess={() => setIsPaused(true)}
+                />
+              )}
+              {retrieveAllowed && (
+                <ContractCallButton
+                  deploymentId={deploymentId}
+                  network={network}
+                  label="RETRIEVE UNVESTED"
+                  busyLabel="RETRIEVING…"
+                  icon="account_balance_wallet"
+                  variant="danger"
+                  size="sm"
+                  disabled={!isPaused}
+                  prepare={async (address) => {
+                    const res = await fetch(`/api/deployments/${deploymentId}/invoke`, {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({
+                        method: "retrieve_unvested",
+                        contractAddress: streamerNode.contractAddress,
+                        userAddress: address,
+                      }),
+                    });
+                    const json = (await res.json()) as {
+                      data?: { xdr: string; networkPassphrase: string };
+                      error?: { message?: string };
+                    };
+                    if (!res.ok) {
+                      throw new Error(json.error?.message ?? "Unknown error");
+                    }
+                    const data = json.data;
+                    if (!data) throw new Error("Prepare failed");
+                    return {
+                      xdr: data.xdr,
+                      networkPassphrase: data.networkPassphrase,
+                    };
+                  }}
+                  submit={async (signedXdr) => {
+                    const res = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ signedXdr }),
+                    });
+                    const json = (await res.json()) as { data: { txHash: string } };
+                    if (!res.ok) throw new Error("Submit failed");
+                    return { txHash: json.data.txHash };
+                  }}
+                  onSuccess={() => {
+                    // Balance refresh is handled by the existing polling/tick.
+                  }}
                 />
               )}
             </div>

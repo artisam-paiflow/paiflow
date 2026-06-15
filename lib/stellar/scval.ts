@@ -142,6 +142,7 @@ export function pipelineNodeConstructorArgs(
         recipientsVec(params.recipients),
         i128(params.minAmountStroops),
         addr(parentAddress),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
       ];
     }
     case "streamer": {
@@ -156,6 +157,7 @@ export function pipelineNodeConstructorArgs(
         u64(params.endTs),
         addr(parentAddress),
         bool(params.pauseAllowed),
+        bool(params.retrieveAllowed),
       ];
     }
     case "conditional": {
@@ -309,6 +311,7 @@ export function constructorArgs(params: ContractParams, admin: string): xdr.ScVa
         u64(params.endTs),
         addr(admin),
         bool(params.pauseAllowed ?? true),
+        bool(params.retrieveAllowed ?? false),
       ];
     }
     case "conditional": {

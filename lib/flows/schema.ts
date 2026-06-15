@@ -84,6 +84,7 @@ export const OnScheduleTrigger = z.object({
     occurrences: z.number().int().positive().optional(),
     timeZone: z.string().optional(),
     pauseAllowed: z.boolean().optional(),
+    retrieveAllowed: z.boolean().optional(),
   }),
 });
 

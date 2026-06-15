@@ -59,20 +59,22 @@ describe("pipelineNodeConstructorArgs", () => {
     expect(args[2]!.switch()).toBe(xdr.ScValType.scvVec());
   });
 
-  it("encodes splitter with parent", () => {
+  it("encodes splitter with parent and next steps", () => {
     const args = pipelineNodeConstructorArgs(
       {
         kind: "splitter",
         asset: { kind: "native" },
         recipients: [{ address: ADDR, bps: 10_000, amount: "0" }],
         minAmountStroops: "100",
+        nextStepNodeIds: ["action"],
       },
       ADDR,
       ADDR2,
-      {},
+      { action: ADDR2 },
     );
-    expect(args).toHaveLength(5);
+    expect(args).toHaveLength(6);
     expect(args[4]!).toEqual(new Address(ADDR2).toScVal());
+    expect(args[5]!.switch()).toBe(xdr.ScValType.scvVec());
   });
 
   it("encodes timelock with unlock time, mode, next steps, and relayer", () => {
@@ -126,7 +128,7 @@ describe("pipelineNodeConstructorArgs", () => {
     expect(args).toHaveLength(7);
   });
 
-  it("encodes streamer with pauseAllowed as last bool arg", () => {
+  it("encodes streamer with pauseAllowed and retrieveAllowed as last bool args", () => {
     const args = pipelineNodeConstructorArgs(
       {
         kind: "streamer",
@@ -137,14 +139,16 @@ describe("pipelineNodeConstructorArgs", () => {
         startTs: 1000,
         endTs: 2000,
         pauseAllowed: false,
+        retrieveAllowed: true,
       },
       ADDR,
       ADDR2,
       {},
     );
-    expect(args).toHaveLength(9);
+    expect(args).toHaveLength(10);
     expect(args[7]!).toEqual(new Address(ADDR2).toScVal());
     expect(args[8]!.switch()).toBe(xdr.ScValType.scvBool());
+    expect(args[9]!.switch()).toBe(xdr.ScValType.scvBool());
   });
 
   it("throws when parent is missing for a child node", () => {
@@ -155,6 +159,7 @@ describe("pipelineNodeConstructorArgs", () => {
           asset: { kind: "native" },
           recipients: [{ address: ADDR, bps: 10_000, amount: "0" }],
           minAmountStroops: "0",
+          nextStepNodeIds: [],
         },
         ADDR,
         undefined,
