@@ -3,6 +3,7 @@ import {
   FlowGraphSchema,
   type FlowGraph,
   type FlowNode,
+  type Asset,
   isAction,
   isContractAction,
   isLogic,
@@ -10,6 +11,7 @@ import {
   isPendingAddress,
   migrateFlowGraph,
   splitTotalFixedStroops,
+  assetLabel,
 } from "./schema";
 import { flowToPipeline } from "./to-params";
 
@@ -51,6 +53,27 @@ const FRIENDLY = {
   FIXED_AMOUNT_REQUIRED: "Each fixed-amount recipient needs a positive amount.",
   TOTAL_FIXED_AMOUNT_REQUIRED: "Add at least one positive fixed amount to the split.",
 } as const;
+
+function assetsEqual(a: Asset, b: Asset): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === "known" && b.kind === "known") return a.symbol === b.symbol;
+  if (a.kind === "custom" && b.kind === "custom")
+    return a.code === b.code && a.issuer === b.issuer;
+  return true; // both native
+}
+
+function getTriggerAsset(t: FlowNode): Asset | null {
+  if (
+    t.type === "on_receive" ||
+    t.type === "webhook" ||
+    t.type === "web2_webhook" ||
+    t.type === "subscription" ||
+    t.type === "oracle"
+  ) {
+    return t.config.asset;
+  }
+  return null;
+}
 
 export function validateFlow(rawGraph: unknown): ValidationResult {
   const parsed = FlowGraphSchema.safeParse(migrateFlowGraph(rawGraph));
@@ -328,6 +351,58 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
           message: `Action ${a.id} is not reachable from the trigger`,
           friendlyMessage: FRIENDLY.ACTION_UNREACHABLE(a.id),
         });
+      }
+    }
+  }
+
+  if (errors.length) return { ok: false, errors };
+
+  // Asset type enforcement: propagate the trigger's asset through the graph via BFS.
+  // Swap nodes transform the in-flight asset; all other contract actions must match it.
+  if (trigger) {
+    const incomingAsset = getTriggerAsset(trigger);
+    if (incomingAsset) {
+      const assetAt = new Map<string, Asset>();
+      assetAt.set(trigger.id, incomingAsset);
+      const queue = [trigger.id];
+      while (queue.length) {
+        const nodeId = queue.shift()!;
+        const currentAsset = assetAt.get(nodeId)!;
+        const node = nodesById.get(nodeId)!;
+        let outAsset: Asset = currentAsset;
+        if (node.type === "swap") {
+          if (!assetsEqual(currentAsset, node.config.assetIn)) {
+            errors.push({
+              path: `nodes.${node.id}.config.assetIn`,
+              message: `Swap assetIn (${assetLabel(node.config.assetIn)}) does not match incoming asset (${assetLabel(currentAsset)})`,
+              friendlyMessage: `The swap node expects ${assetLabel(node.config.assetIn)} as input but the flow carries ${assetLabel(currentAsset)}. Update the swap node's input asset to ${assetLabel(currentAsset)}.`,
+            });
+          }
+          outAsset = node.config.assetOut;
+        }
+        for (const nextId of adj.get(nodeId) ?? []) {
+          if (!assetAt.has(nextId)) {
+            assetAt.set(nextId, outAsset);
+            queue.push(nextId);
+          }
+        }
+      }
+
+      for (const a of contractActions) {
+        const expected = assetAt.get(a.id);
+        if (!expected) continue;
+        let actual: Asset | null = null;
+        if (a.type === "pay") actual = a.config.asset;
+        else if (a.type === "split") actual = a.config.asset;
+        else if (a.type === "yield") actual = a.config.asset;
+        else if (a.type === "swap") continue;
+        if (actual && !assetsEqual(expected, actual)) {
+          errors.push({
+            path: `nodes.${a.id}.config.asset`,
+            message: `Asset mismatch: action uses ${assetLabel(actual)} but flow carries ${assetLabel(expected)}`,
+            friendlyMessage: `Asset mismatch: the flow carries ${assetLabel(expected)} from the trigger, but this action uses ${assetLabel(actual)}. Change the action asset to ${assetLabel(expected)}, or add a swap node to convert assets first.`,
+          });
+        }
       }
     }
   }
