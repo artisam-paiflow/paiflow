@@ -23,6 +23,7 @@ import { isPendingAddress } from "@/lib/flows/schema";
 import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
+import type { AddressEntry } from "@/lib/address-book.types";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import AnimatedStraightEdge from "@/components/nodes/animated-edge";
 import ConfigPanel from "./config-panel";
@@ -148,6 +149,24 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
   const [hasAnimated, setHasAnimated] = useState(false);
   const [ready, setReady] = useState(false);
+  const [addressBook, setAddressBook] = useState<AddressEntry[]>([]);
+
+  useEffect(() => {
+    async function loadAddressBook() {
+      const r = await fetch("/api/address-book");
+      if (!r.ok) return;
+      const json = await r.json();
+      setAddressBook(json?.data ?? []);
+    }
+    void loadAddressBook();
+  }, []);
+
+  const refreshAddressBook = useCallback(async () => {
+    const r = await fetch("/api/address-book");
+    if (!r.ok) return;
+    const json = await r.json();
+    setAddressBook(json?.data ?? []);
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem("sidebarCollapsed");
@@ -517,6 +536,8 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                   graph={graph}
                   onChange={updateNode}
                   onDelete={deleteNode}
+                  addressBook={addressBook}
+                  refreshAddressBook={refreshAddressBook}
                   className="border-0"
                 />
               </div>
