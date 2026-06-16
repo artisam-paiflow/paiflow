@@ -357,50 +357,41 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   if (errors.length) return { ok: false, errors };
 
-  // Asset type enforcement: propagate the trigger's asset through the graph via BFS.
-  // Swap nodes transform the in-flight asset; all other contract actions must match it.
+  // Asset type enforcement: pay/split/yield nodes reachable from the trigger WITHOUT
+  // passing through a swap must declare the same asset as the trigger.
+  // Swap nodes are exempt — they are the explicit asset-transformation step.
   if (trigger) {
     const incomingAsset = getTriggerAsset(trigger);
     if (incomingAsset) {
-      const assetAt = new Map<string, Asset>();
-      assetAt.set(trigger.id, incomingAsset);
+      // BFS: track whether a swap was on the path from trigger to each node.
+      const swapOnPath = new Map<string, boolean>();
+      swapOnPath.set(trigger.id, false);
       const queue = [trigger.id];
       while (queue.length) {
         const nodeId = queue.shift()!;
-        const currentAsset = assetAt.get(nodeId)!;
+        const passedSwap = swapOnPath.get(nodeId)!;
         const node = nodesById.get(nodeId)!;
-        let outAsset: Asset = currentAsset;
-        if (node.type === "swap") {
-          if (!assetsEqual(currentAsset, node.config.assetIn)) {
-            errors.push({
-              path: `nodes.${node.id}.config.assetIn`,
-              message: `Swap assetIn (${assetLabel(node.config.assetIn)}) does not match incoming asset (${assetLabel(currentAsset)})`,
-              friendlyMessage: `The swap node expects ${assetLabel(node.config.assetIn)} as input but the flow carries ${assetLabel(currentAsset)}. Update the swap node's input asset to ${assetLabel(currentAsset)}.`,
-            });
-          }
-          outAsset = node.config.assetOut;
-        }
+        const isSwap = node.type === "swap";
         for (const nextId of adj.get(nodeId) ?? []) {
-          if (!assetAt.has(nextId)) {
-            assetAt.set(nextId, outAsset);
+          if (!swapOnPath.has(nextId)) {
+            swapOnPath.set(nextId, passedSwap || isSwap);
             queue.push(nextId);
           }
         }
       }
 
       for (const a of contractActions) {
-        const expected = assetAt.get(a.id);
-        if (!expected) continue;
+        if (a.type === "swap") continue;
+        if (swapOnPath.get(a.id)) continue; // swap on path handles the asset transform
         let actual: Asset | null = null;
         if (a.type === "pay") actual = a.config.asset;
         else if (a.type === "split") actual = a.config.asset;
         else if (a.type === "yield") actual = a.config.asset;
-        else if (a.type === "swap") continue;
-        if (actual && !assetsEqual(expected, actual)) {
+        if (actual && !assetsEqual(incomingAsset, actual)) {
           errors.push({
             path: `nodes.${a.id}.config.asset`,
-            message: `Asset mismatch: action uses ${assetLabel(actual)} but flow carries ${assetLabel(expected)}`,
-            friendlyMessage: `Asset mismatch: the flow carries ${assetLabel(expected)} from the trigger, but this action uses ${assetLabel(actual)}. Change the action asset to ${assetLabel(expected)}, or add a swap node to convert assets first.`,
+            message: `Asset mismatch: action uses ${assetLabel(actual)} but trigger provides ${assetLabel(incomingAsset)}`,
+            friendlyMessage: `Asset mismatch: the trigger provides ${assetLabel(incomingAsset)}, but this action uses ${assetLabel(actual)}. Change the action asset to ${assetLabel(incomingAsset)}, or add a swap node to convert assets first.`,
           });
         }
       }
