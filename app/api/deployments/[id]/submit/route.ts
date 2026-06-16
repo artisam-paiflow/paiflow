@@ -6,6 +6,8 @@ import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { submitDeployTx } from "@/lib/stellar/deploy";
+import { stellarRelayerAddress } from "@/lib/env";
+import { ChargeRelayerMode } from "@prisma/client";
 
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
 
@@ -17,6 +19,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const deployment = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
+      include: { flow: { select: { templateKind: true } } },
     });
     if (!deployment) throw new AppError("NOT_FOUND", "Deployment not found");
     if (deployment.status !== "PENDING_SIGNATURE") {
@@ -49,6 +52,42 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         ? `whsec_${crypto.randomBytes(32).toString("hex")}`
         : null;
 
+      const isSubscription = deployment.flow?.templateKind === "SUBSCRIPTION";
+      const subscriptionSchedule: {
+        chargeRelayerMode?: ChargeRelayerMode;
+        chargeRelayerAddress?: string | null;
+        nextChargeAt?: Date | null;
+        chargeEndAt?: Date | null;
+      } = {};
+      if (isSubscription) {
+        const paramsPipeline = deployment.paramsSnapshot as Array<{
+          nodeId: string;
+          templateKind: string;
+          params: Record<string, unknown>;
+        }> | null;
+        const subNode = paramsPipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
+        const streamerNode = paramsPipeline?.find((n) => n.templateKind === "STREAMER");
+        const relayer =
+          typeof subNode?.params?.relayer === "string" ? subNode.params.relayer : null;
+        const startTs =
+          typeof subNode?.params?.startTs === "number"
+            ? subNode.params.startTs
+            : Math.floor(Date.now() / 1000);
+        const platformRelayer = stellarRelayerAddress();
+        subscriptionSchedule.chargeRelayerMode =
+          platformRelayer && relayer === platformRelayer
+            ? ChargeRelayerMode.PLATFORM
+            : ChargeRelayerMode.MANUAL;
+        subscriptionSchedule.chargeRelayerAddress = relayer;
+        subscriptionSchedule.nextChargeAt = new Date(
+          Math.max(startTs, Math.floor(Date.now() / 1000)) * 1000,
+        );
+        subscriptionSchedule.chargeEndAt =
+          typeof streamerNode?.params?.endTs === "number"
+            ? new Date(streamerNode.params.endTs * 1000)
+            : null;
+      }
+
       await db.deployment.update({
         where: { id },
         data: {
@@ -57,6 +96,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           contractAddress,
           confirmedAt: new Date(),
           ...(webhookSecret ? { webhookSecret } : {}),
+          ...subscriptionSchedule,
         },
       });
       await audit({

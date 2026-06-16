@@ -10,6 +10,7 @@ type TriggerButtonProps = {
   network: "testnet" | "mainnet";
   amount: string;
   isDeposit?: boolean;
+  mode?: "trigger" | "allowance";
 };
 
 function isMobile() {
@@ -68,7 +69,13 @@ function pollTxStatus(
   });
 }
 
-export function TriggerButton({ deploymentId, network, amount, isDeposit }: TriggerButtonProps) {
+export function TriggerButton({
+  deploymentId,
+  network,
+  amount,
+  isDeposit,
+  mode = "trigger",
+}: TriggerButtonProps) {
   const [busy, setBusy] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [pendingWallet, setPendingWallet] = useState<string | null>(null);
@@ -275,7 +282,15 @@ export function TriggerButton({ deploymentId, network, amount, isDeposit }: Trig
     onAwaitingSignature?: () => void,
   ) {
     toast.info("Preparing transaction...");
-    const res = await fetch(`/api/deployments/${deploymentId}/trigger`, {
+    const preparePath =
+      mode === "allowance"
+        ? `/api/deployments/${deploymentId}/subscription-allowance`
+        : `/api/deployments/${deploymentId}/trigger`;
+    const submitPath =
+      mode === "allowance"
+        ? `/api/deployments/${deploymentId}/submit-invoke`
+        : `/api/deployments/${deploymentId}/submit-trigger`;
+    const res = await fetch(preparePath, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ amount, userAddress: address }),
@@ -299,7 +314,7 @@ export function TriggerButton({ deploymentId, network, amount, isDeposit }: Trig
     });
 
     toast.info("Submitting transaction...");
-    const submit = await fetch(`/api/deployments/${deploymentId}/submit-trigger`, {
+    const submit = await fetch(submitPath, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
@@ -312,7 +327,11 @@ export function TriggerButton({ deploymentId, network, amount, isDeposit }: Trig
 
     const outcome = await pollTxStatus(deploymentId, txHash, abortRef.current!.signal);
     if (outcome.status === "SUCCESS") {
-      toast.success(isDeposit ? "Deposited!" : "Distribution triggered!");
+      if (mode === "allowance") {
+        toast.success("Allowance approved!");
+      } else {
+        toast.success(isDeposit ? "Deposited!" : "Distribution triggered!");
+      }
     } else {
       throw new Error(outcome.errorMessage ?? "Transaction failed on the network");
     }
@@ -533,7 +552,11 @@ export function TriggerButton({ deploymentId, network, amount, isDeposit }: Trig
         ) : (
           <>
             <span className="material-symbols-outlined text-[16px]">send</span>
-            {isDeposit ? "CONNECT WALLET & DEPOSIT" : "CONNECT WALLET & TRIGGER"}
+            {mode === "allowance"
+              ? "CONNECT WALLET & APPROVE"
+              : isDeposit
+                ? "CONNECT WALLET & DEPOSIT"
+                : "CONNECT WALLET & TRIGGER"}
           </>
         )}
       </button>

@@ -117,6 +117,9 @@ export type SubscriptionTriggerNodeParams = {
   asset: Asset;
   subscriber: string;
   amountPerPeriodStroops: string;
+  relayer?: string;
+  startTs: number;
+  intervalSeconds: number;
   nextStepNodeIds: string[];
 };
 
@@ -311,6 +314,38 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
     const recipients = toRecipients(action);
     const asset = getAsset(action);
 
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    // If the configured start time is already in the past (common when a flow
+    // was created minutes ago and is only being deployed now), start the stream
+    // at the current time so short streams aren't already over on deploy.
+    const start =
+      trigger.type === "on_schedule"
+        ? Math.max(nowSeconds, Math.floor(new Date(trigger.config.startsAt).getTime() / 1000))
+        : nowSeconds;
+
+    let end: number;
+    let intervalSeconds: number;
+
+    if (trigger.type === "subscription") {
+      const cfg = trigger.config as {
+        intervalAmount: number;
+        intervalUnit: "minute" | "hour" | "day" | "week" | "month";
+        endsAt?: string;
+        occurrences?: number;
+      };
+      intervalSeconds = intervalToSeconds(cfg.intervalAmount, cfg.intervalUnit);
+      if (cfg.endsAt) {
+        end = Math.floor(new Date(cfg.endsAt).getTime() / 1000);
+      } else if (cfg.occurrences) {
+        end = start + cfg.occurrences * intervalSeconds;
+      } else {
+        end = start + 60 * 60 * 24 * 30;
+      }
+    } else {
+      end = computeStreamerEndTs(trigger, start);
+      intervalSeconds = scheduleIntervalSeconds(trigger);
+    }
+
     if (trigger.type === "subscription") {
       pipeline.push({
         nodeId: trigger.id,
@@ -320,25 +355,14 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
           asset: trigger.config.asset,
           subscriber: trigger.config.subscriber,
           amountPerPeriodStroops: trigger.config.amountPerPeriodStroops,
+          relayer: relayerAddress,
+          startTs: start,
+          intervalSeconds,
           nextStepNodeIds: children.get(trigger.id) ?? [],
         },
       });
     }
 
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    // If the configured start time is already in the past (common when a flow
-    // was created minutes ago and is only being deployed now), start the stream
-    // at the current time so short streams aren't already over on deploy.
-    const start =
-      trigger.type === "on_schedule"
-        ? Math.max(nowSeconds, Math.floor(new Date(trigger.config.startsAt).getTime() / 1000))
-        : nowSeconds;
-    const end =
-      trigger.type === "on_schedule"
-        ? computeStreamerEndTs(trigger, start)
-        : start + 60 * 60 * 24 * 30;
-    const intervalSeconds =
-      trigger.type === "on_schedule" ? scheduleIntervalSeconds(trigger) : 24 * 60 * 60;
     const amountPerInterval = streamerAmountPerInterval(action, trigger, intervalSeconds);
     pipeline.push({
       nodeId: action.id,
