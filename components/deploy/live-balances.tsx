@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useDocumentVisibility } from "@/lib/hooks/use-document-visibility";
 import { cn, formatAmount, shortAddr } from "@/lib/utils";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import type { BalanceNode, BalanceNodeError, WorkflowBalances } from "@/lib/stellar/balances";
@@ -30,6 +31,7 @@ export default function LiveBalances({
     totals: [],
     nodes: [],
   });
+  const isVisible = useDocumentVisibility();
 
   useEffect(() => {
     if (!loading) {
@@ -39,6 +41,7 @@ export default function LiveBalances({
 
   useEffect(() => {
     let cancelled = false;
+    let interval: ReturnType<typeof setInterval> | null = null;
 
     async function load() {
       setLoading(true);
@@ -67,14 +70,27 @@ export default function LiveBalances({
       }
     }
 
-    load();
-    const interval = setInterval(load, 10_000);
+    function start() {
+      load();
+      interval = setInterval(load, 10_000);
+    }
+
+    function stop() {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    }
+
+    if (isVisible) {
+      start();
+    }
 
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      stop();
     };
-  }, [deploymentId, refreshTick]);
+  }, [deploymentId, refreshTick, isVisible]);
 
   async function copy(text: string) {
     try {
