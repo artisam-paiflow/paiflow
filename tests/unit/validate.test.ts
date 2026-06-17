@@ -636,6 +636,41 @@ describe("validateFlow", () => {
     expect(r.ok).toBe(false);
   });
 
+  it("infers SUBSCRIPTION from subscription → pay", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            subscriber: ADDR_A,
+            amountPerPeriodStroops: "10000000",
+            intervalAmount: 1,
+            intervalUnit: "minute",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "10000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.SUBSCRIPTION);
+      expect(r.pipeline).toEqual([TemplateKind.SUBSCRIPTION, TemplateKind.STREAMER]);
+    }
+  });
+
   it("rejects a fixed split with zero amount", () => {
     const r = validateFlow({
       nodes: [
