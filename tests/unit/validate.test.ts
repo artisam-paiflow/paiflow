@@ -667,7 +667,7 @@ describe("validateFlow", () => {
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.templateKind).toBe(TemplateKind.SUBSCRIPTION);
-      expect(r.pipeline).toEqual([TemplateKind.SUBSCRIPTION, TemplateKind.STREAMER]);
+      expect(r.pipeline).toEqual([TemplateKind.SUBSCRIPTION, TemplateKind.PAYER]);
     }
   });
 

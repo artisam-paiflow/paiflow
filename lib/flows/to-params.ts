@@ -312,7 +312,6 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
   // ── schedule-like flows (on_schedule, subscription) ──────────────────
   if (trigger.type === "on_schedule" || trigger.type === "subscription") {
     const action = contractActions[0]!;
-    const recipients = toRecipients(action);
     const asset = getAsset(action);
 
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -363,8 +362,28 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
           nextStepNodeIds: children.get(trigger.id) ?? [],
         },
       });
+
+      // Subscription pulls are forwarded to standard action contracts that
+      // implement receive_and_forward (payer, splitter, swapper, yield).
+      const seenActions = new Set<string>();
+      const actionQueue: ContractActionNode[] = [action];
+      while (actionQueue.length > 0) {
+        const current = actionQueue.shift()!;
+        if (seenActions.has(current.id)) continue;
+        seenActions.add(current.id);
+        pipeline.push(contractActionToPipelineNode(current, trigger, children));
+        for (const childId of children.get(current.id) ?? []) {
+          const childNode = graph.nodes.find((n) => n.id === childId);
+          if (childNode && isContractAction(childNode) && !seenActions.has(childNode.id)) {
+            actionQueue.push(childNode);
+          }
+        }
+      }
+      return pipeline;
     }
 
+    // on_schedule flows use the streamer contract as the action because the
+    // streamer itself drives the release schedule.
     const amountPerInterval = streamerAmountPerInterval(action, trigger, intervalSeconds);
     pipeline.push({
       nodeId: action.id,
@@ -372,14 +391,13 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
       params: {
         kind: "streamer",
         asset,
-        recipients,
+        recipients: toRecipients(action),
         amountPerIntervalStroops: amountPerInterval,
         intervalSeconds,
         startTs: start,
         endTs: end,
-        pauseAllowed: trigger.type === "on_schedule" ? (trigger.config.pauseAllowed ?? true) : true,
-        retrieveAllowed:
-          trigger.type === "on_schedule" ? (trigger.config.retrieveAllowed ?? false) : false,
+        pauseAllowed: trigger.config.pauseAllowed ?? true,
+        retrieveAllowed: trigger.config.retrieveAllowed ?? false,
       },
     });
     return pipeline;
@@ -626,6 +644,16 @@ export function getStreamerPreviewFromPipeline(pipeline: PipelineNode[]) {
   const intervals = Math.floor(durationSecs / intervalSeconds);
   const totalStroops = (BigInt(amountPerIntervalStroops) * BigInt(intervals)).toString();
   return { amountPerIntervalStroops, intervalSeconds, startTs, endTs, durationSecs, totalStroops };
+}
+
+export function getSubscriptionPreviewFromPipeline(pipeline: PipelineNode[]) {
+  const sub = pipeline.find((n) => n.templateKind === TemplateKind.SUBSCRIPTION);
+  if (!sub || sub.params.kind !== "subscription_trigger") return null;
+  const { amountPerPeriodStroops, intervalSeconds, startTs, endTs } = sub.params;
+  const durationSecs = endTs - startTs;
+  const intervals = Math.floor(durationSecs / intervalSeconds);
+  const totalStroops = (BigInt(amountPerPeriodStroops) * BigInt(intervals)).toString();
+  return { amountPerPeriodStroops, intervalSeconds, startTs, endTs, durationSecs, totalStroops };
 }
 
 /**

@@ -611,7 +611,7 @@ describe("sourceAmountStroops", () => {
 });
 
 describe("flowToPipeline", () => {
-  it("produces subscription_trigger → streamer for subscription → pay", () => {
+  it("produces subscription_trigger → payer for subscription → pay", () => {
     const pipeline = flowToPipeline({
       nodes: [
         {
@@ -650,12 +650,11 @@ describe("flowToPipeline", () => {
     expect(subParams.relayer).toBeUndefined();
     expect(subParams.intervalSeconds).toBe(3600);
     expect(subParams.startTs).toBeGreaterThan(0);
-    expect(pipeline[1]!.templateKind).toBe("STREAMER");
-    expect(pipeline[1]!.params.kind).toBe("streamer");
-    if (pipeline[1]!.params.kind === "streamer") {
-      expect(pipeline[1]!.params.intervalSeconds).toBe(3600);
-      expect(pipeline[1]!.params.amountPerIntervalStroops).toBe("1000000");
-      expect(pipeline[1]!.params.endTs).toBeGreaterThan(pipeline[1]!.params.startTs);
+    expect(pipeline[1]!.templateKind).toBe("PAYER");
+    expect(pipeline[1]!.params.kind).toBe("payer");
+    if (pipeline[1]!.params.kind === "payer") {
+      expect(pipeline[1]!.params.recipient).toBe(ADDR_B);
+      expect(pipeline[1]!.params.amountStroops).toBe("1000000");
     }
   });
 

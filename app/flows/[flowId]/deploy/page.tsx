@@ -6,7 +6,11 @@ import Topbar from "@/components/app/topbar";
 import { FlowGraphSchema, type Asset, assetLabel } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToEnglish } from "@/lib/flows/english";
-import { flowToPipeline, getStreamerPreviewFromPipeline } from "@/lib/flows/to-params";
+import {
+  flowToPipeline,
+  getStreamerPreviewFromPipeline,
+  getSubscriptionPreviewFromPipeline,
+} from "@/lib/flows/to-params";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
 import DeployReview from "@/components/deploy/deploy-review";
 import { env } from "@/lib/env";
@@ -38,7 +42,9 @@ export default async function DeployReviewPage({
   } | null = null;
   const isSubscriptionTrigger = graph.data!.nodes.some((n) => n.type === "subscription");
   if (pipeline) {
-    const sp = getStreamerPreviewFromPipeline(flowToPipeline(graph.data!));
+    const sp =
+      getStreamerPreviewFromPipeline(flowToPipeline(graph.data!)) ??
+      getSubscriptionPreviewFromPipeline(flowToPipeline(graph.data!));
     if (sp) {
       const triggerNode = graph.data!.nodes.find(
         (n) => n.type === "on_schedule" || n.type === "subscription",
