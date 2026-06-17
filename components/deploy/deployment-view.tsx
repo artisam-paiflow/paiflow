@@ -6,8 +6,10 @@ import DeploymentCanvas from "./deployment-canvas";
 import { LiveEvents, type Evt } from "./live-events";
 import LiveBalances from "./live-balances";
 import ContractCallButton from "./contract-call-button";
+import SubscriptionRelayerPanel from "./subscription-relayer-panel";
 import type { FlowGraph } from "@/lib/flows/schema";
-import { isTrigger } from "@/lib/flows/schema";
+import { assetLabel, isTrigger } from "@/lib/flows/schema";
+import { formatStroops } from "@/lib/utils";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 
 export default function DeploymentView({
@@ -207,6 +209,8 @@ export default function DeploymentView({
   const appUrl = typeof window !== "undefined" ? window.location.origin : "";
   const streamerNode = pipeline?.find((n) => n.templateKind === "STREAMER");
   const isStreamer = !!streamerNode;
+  const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
+  const isSubscription = !!subscriptionNode;
   const triggerNode = graph?.nodes.find(isTrigger);
   const pauseAllowed =
     triggerNode?.type === "on_schedule" ? (triggerNode.config.pauseAllowed ?? true) : true;
@@ -215,6 +219,29 @@ export default function DeploymentView({
 
   const [isPaused, setIsPaused] = useState(false);
   const [retrieveAllowed, setRetrieveAllowed] = useState(retrieveAllowedFromConfig);
+  const [allowance, setAllowance] = useState<bigint | null>(null);
+  const [isCancelled, setIsCancelled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!subscriptionNode?.contractAddress || !network) return;
+    let cancelled = false;
+    fetch(`/api/deployments/${deploymentId}/subscription-allowance`)
+      .then(async (res) => {
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          data: { allowance: string; subscriber: string; asset: { kind: string } };
+        };
+        if (!cancelled) {
+          setAllowance(BigInt(json.data.allowance));
+        }
+      })
+      .catch(() => {
+        // Ignore read errors; the UI simply won't show the allowance.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [deploymentId, subscriptionNode?.contractAddress, network, balanceTick]);
 
   useEffect(() => {
     if (!streamerNode?.contractAddress || !network) return;
@@ -273,6 +300,137 @@ export default function DeploymentView({
               </span>
             )}
           </div>
+          {isSubscription && subscriptionNode?.contractAddress && network && (
+            <div className="mt-md space-y-md">
+              <p className="text-label-sm text-on-surface-variant font-mono">
+                SCAN WITH FREIGHTER WALLET · APPROVE ALLOWANCE FOR RECURRING PAYMENTS.
+              </p>
+              <div className="gap-md grid grid-cols-[160px_1fr]">
+                <div className="flex min-h-[160px] items-center justify-center rounded-lg bg-white p-3">
+                  {qrUrl ? (
+                    <img src={qrUrl} width={140} height={140} alt="QR code" />
+                  ) : (
+                    <span className="font-mono text-xs text-zinc-400">NO QR YET</span>
+                  )}
+                </div>
+                <div className="text-body-md space-y-3">
+                  {allowance !== null && triggerNode?.type === "subscription" && (
+                    <div>
+                      <div className="text-label-sm text-on-surface-variant font-mono uppercase">
+                        Current allowance
+                      </div>
+                      <div className="text-on-surface mt-1 font-mono text-[12px]">
+                        {formatStroops(allowance.toString())} {assetLabel(triggerNode.config.asset)}
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-label-sm text-on-surface-variant font-mono uppercase">
+                      Subscriber
+                    </div>
+                    <div className="text-on-surface mt-1 font-mono text-[12px] break-all">
+                      {triggerNode?.type === "subscription" ? triggerNode.config.subscriber : "—"}
+                    </div>
+                  </div>
+                  <a
+                    href={`/allowance/${deploymentId}`}
+                    className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 inline-block rounded border px-3 py-1.5 font-mono text-xs transition-colors"
+                  >
+                    OPEN ALLOWANCE PAGE
+                  </a>
+                </div>
+              </div>
+              <SubscriptionRelayerPanel deploymentId={deploymentId} network={network} />
+              <div className="flex flex-wrap items-center gap-3">
+                <ContractCallButton
+                  deploymentId={deploymentId}
+                  network={network}
+                  label="CHARGE NOW"
+                  busyLabel="CHARGING…"
+                  icon="bolt"
+                  variant="secondary"
+                  size="sm"
+                  prepare={async (address) => {
+                    const res = await fetch(
+                      `/api/deployments/${deploymentId}/subscription-charge`,
+                      {
+                        method: "POST",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ userAddress: address }),
+                      },
+                    );
+                    const json = (await res.json()) as {
+                      data?: { xdr: string; networkPassphrase: string };
+                      error?: { message?: string };
+                    };
+                    if (!res.ok) {
+                      throw new Error(json.error?.message ?? "Unknown error");
+                    }
+                    const data = json.data;
+                    if (!data) throw new Error("Prepare failed");
+                    return { xdr: data.xdr, networkPassphrase: data.networkPassphrase };
+                  }}
+                  submit={async (signedXdr) => {
+                    const res = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ signedXdr }),
+                    });
+                    const json = (await res.json()) as { data: { txHash: string } };
+                    if (!res.ok) throw new Error("Submit failed");
+                    return { txHash: json.data.txHash };
+                  }}
+                  onSuccess={() => {
+                    setBalanceTick((t) => t + 1);
+                  }}
+                />
+                <ContractCallButton
+                  deploymentId={deploymentId}
+                  network={network}
+                  label="UNSUBSCRIBE"
+                  busyLabel="UNSUBSCRIBING…"
+                  icon="cancel"
+                  variant="danger"
+                  size="sm"
+                  prepare={async (address) => {
+                    const res = await fetch(
+                      `/api/deployments/${deploymentId}/subscription-unsubscribe`,
+                      {
+                        method: "POST",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ userAddress: address }),
+                      },
+                    );
+                    const json = (await res.json()) as {
+                      data?: { xdr: string; networkPassphrase: string };
+                      error?: { message?: string };
+                    };
+                    if (!res.ok) {
+                      throw new Error(json.error?.message ?? "Unknown error");
+                    }
+                    const data = json.data;
+                    if (!data) throw new Error("Prepare failed");
+                    return { xdr: data.xdr, networkPassphrase: data.networkPassphrase };
+                  }}
+                  submit={async (signedXdr) => {
+                    const res = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ signedXdr }),
+                    });
+                    const json = (await res.json()) as { data: { txHash: string } };
+                    if (!res.ok) throw new Error("Submit failed");
+                    return { txHash: json.data.txHash };
+                  }}
+                  onSuccess={() => {
+                    setIsCancelled(true);
+                    setAllowance(0n);
+                    setBalanceTick((t) => t + 1);
+                  }}
+                />
+              </div>
+            </div>
+          )}
           {isStreamer && streamerNode.contractAddress && network && pauseAllowed && (
             <div className="mt-md flex items-center gap-3">
               {isPaused ? (
@@ -423,7 +581,7 @@ export default function DeploymentView({
             </div>
           )}
           {status === "FAILED" ? (
-            <div className="mt-md flex items-start gap-2 rounded-lg border border-error/30 bg-error-container/20 p-3">
+            <div className="mt-md border-error/30 bg-error-container/20 flex items-start gap-2 rounded-lg border p-3">
               <span className="material-symbols-outlined text-error mt-0.5 shrink-0 text-[16px]">
                 error
               </span>
@@ -435,7 +593,7 @@ export default function DeploymentView({
               </div>
             </div>
           ) : status !== "CONFIRMED" ? (
-            <div className="mt-md flex items-center gap-2 text-label-sm text-on-surface-variant font-mono">
+            <div className="mt-md text-label-sm text-on-surface-variant flex items-center gap-2 font-mono">
               <span className="status-dot-deploy h-1.5 w-1.5" />
               CONTRACT IS DEPLOYING… QR WILL APPEAR WHEN READY.
             </div>

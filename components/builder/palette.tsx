@@ -83,6 +83,8 @@ const TEMPLATES: Template[] = [
         asset: { kind: "known", symbol: "USDC" },
         subscriber: "PENDING:subscriber",
         amountPerPeriodStroops: "10000000",
+        intervalAmount: 1,
+        intervalUnit: "day",
       },
     }),
   },

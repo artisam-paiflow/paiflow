@@ -3,7 +3,8 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { FlowNode } from "@/lib/flows/schema";
-import { isTrigger } from "@/lib/flows/schema";
+import { assetLabel, isTrigger } from "@/lib/flows/schema";
+import { formatStroops } from "@/lib/utils";
 
 type TriggerNodeData = {
   node: FlowNode;
@@ -48,7 +49,9 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
   } else if (n.type === "subscription") {
     icon = "repeat";
     title = "Subscription";
-    detail = `${n.config.amountPerPeriodStroops} stroops`;
+    const intervalAmount = n.config.intervalAmount ?? 1;
+    const intervalUnit = n.config.intervalUnit ?? "day";
+    detail = `${formatStroops(n.config.amountPerPeriodStroops)} ${assetLabel(n.config.asset)} / ${intervalAmount} ${intervalUnit}`;
   } else if (n.type === "oracle") {
     icon = "online_prediction";
     title = "Oracle";

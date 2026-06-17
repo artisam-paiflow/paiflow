@@ -211,6 +211,9 @@ export function pipelineNodeConstructorArgs(
         addr(params.subscriber),
         i128(params.amountPerPeriodStroops),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
+        u64(params.startTs),
+        u64(params.intervalSeconds),
       ];
     }
     case "oracle_trigger": {

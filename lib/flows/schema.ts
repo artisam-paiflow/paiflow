@@ -112,6 +112,10 @@ export const SubscriptionTrigger = z.object({
     asset: AssetSchema,
     subscriber: stellarAccount,
     amountPerPeriodStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
+    intervalAmount: z.number().int().positive().default(1),
+    intervalUnit: z.enum(["minute", "hour", "day", "week", "month"]).default("day"),
+    endsAt: z.string().datetime().optional(),
+    occurrences: z.number().int().positive().optional(),
   }),
 });
 
@@ -193,6 +197,19 @@ export function migrateFlowGraph(raw: unknown): unknown {
             recipients: node.config.recipients.map(hydrateSplitRecipient),
           },
         };
+      }
+      if (node.type === "subscription" && node.config && typeof node.config === "object") {
+        const cfg = node.config as { intervalAmount?: unknown; intervalUnit?: unknown };
+        if (cfg.intervalAmount === undefined || cfg.intervalUnit === undefined) {
+          return {
+            ...node,
+            config: {
+              ...node.config,
+              intervalAmount: 1,
+              intervalUnit: "day",
+            },
+          };
+        }
       }
       return n;
     }),

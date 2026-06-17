@@ -432,3 +432,197 @@ export async function prepareStreamerTopUpInvocation(opts: {
 
   return { xdr: assembled.toXDR() };
 }
+
+const U32_MAX = 4_294_967_295;
+
+export async function prepareTokenApproveInvocation(opts: {
+  tokenContractAddress: string;
+  from: string;
+  spender: string;
+  amount: string;
+}): Promise<PreparedInvokeTx> {
+  const server = sorobanRpc();
+  const sourceAcct = await server.getAccount(opts.from);
+
+  const tokenIdBytes = decodeContractAddress(opts.tokenContractAddress);
+  const tokenScAddress = xdr.ScAddress.scAddressTypeContract(tokenIdBytes as unknown as xdr.Hash);
+  const fromScVal = new Address(opts.from).toScVal();
+  const spenderScVal = new Address(opts.spender).toScVal();
+  const amountScVal = nativeToScVal(BigInt(opts.amount), { type: "i128" });
+  const expirationScVal = nativeToScVal(U32_MAX, { type: "u32" });
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: tokenScAddress,
+      functionName: "approve",
+      args: [fromScVal, spenderScVal, amountScVal, expirationScVal],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(180)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+  }
+  const assembled = rpc.assembleTransaction(tx, sim).build();
+
+  return { xdr: assembled.toXDR(), tx: assembled };
+}
+
+export async function prepareSubscriptionUnsubscribeInvocation(opts: {
+  contractAddress: string;
+  subscriberAddress: string;
+}): Promise<PreparedInvokeTx> {
+  const server = sorobanRpc();
+  const sourceAcct = await server.getAccount(opts.subscriberAddress);
+
+  const contractIdBytes = decodeContractAddress(opts.contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName: "unsubscribe",
+      args: [],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(180)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+  }
+  const assembled = rpc.assembleTransaction(tx, sim).build();
+
+  return { xdr: assembled.toXDR(), tx: assembled };
+}
+
+export async function prepareSubscriptionChargeInvocation(opts: {
+  contractAddress: string;
+  adminAddress: string;
+}): Promise<PreparedInvokeTx> {
+  const server = sorobanRpc();
+  const sourceAcct = await server.getAccount(opts.adminAddress);
+
+  const contractIdBytes = decodeContractAddress(opts.contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName: "charge",
+      args: [],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(180)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+  }
+  const assembled = rpc.assembleTransaction(tx, sim).build();
+
+  return { xdr: assembled.toXDR(), tx: assembled };
+}
+
+export async function prepareSubscriptionChargeByRelayerUnsigned(opts: {
+  contractAddress: string;
+  relayerAddress: string;
+}): Promise<PreparedInvokeTx> {
+  const server = sorobanRpc();
+  const sourceAcct = await server.getAccount(opts.relayerAddress);
+
+  const contractIdBytes = decodeContractAddress(opts.contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName: "charge_by_relayer",
+      args: [],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(180)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+  }
+  const assembled = rpc.assembleTransaction(tx, sim).build();
+
+  return { xdr: assembled.toXDR(), tx: assembled };
+}
+
+export async function prepareSubscriptionSetRelayerInvocation(opts: {
+  contractAddress: string;
+  adminAddress: string;
+  newRelayerAddress: string;
+}): Promise<PreparedInvokeTx> {
+  const server = sorobanRpc();
+  const sourceAcct = await server.getAccount(opts.adminAddress);
+
+  const contractIdBytes = decodeContractAddress(opts.contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName: "set_relayer",
+      args: [new Address(opts.newRelayerAddress).toScVal()],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(180)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+  }
+  const assembled = rpc.assembleTransaction(tx, sim).build();
+
+  return { xdr: assembled.toXDR(), tx: assembled };
+}

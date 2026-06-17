@@ -57,8 +57,7 @@ const FRIENDLY = {
 function assetsEqual(a: Asset, b: Asset): boolean {
   if (a.kind !== b.kind) return false;
   if (a.kind === "known" && b.kind === "known") return a.symbol === b.symbol;
-  if (a.kind === "custom" && b.kind === "custom")
-    return a.code === b.code && a.issuer === b.issuer;
+  if (a.kind === "custom" && b.kind === "custom") return a.code === b.code && a.issuer === b.issuer;
   return true; // both native
 }
 
