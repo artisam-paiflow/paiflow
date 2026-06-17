@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
     vec, Address, Env, IntoVal, String, Symbol, Vec,
@@ -75,8 +76,12 @@ impl SubscriptionTrigger {
         env.storage().instance().set(&Key::Cancelled, &false);
         env.storage().instance().set(&Key::Relayer, &relayer);
         env.storage().instance().set(&Key::StartTime, &start_time);
-        env.storage().instance().set(&Key::IntervalSeconds, &interval_seconds);
-        env.storage().instance().set(&Key::NextChargeAt, &start_time);
+        env.storage()
+            .instance()
+            .set(&Key::IntervalSeconds, &interval_seconds);
+        env.storage()
+            .instance()
+            .set(&Key::NextChargeAt, &start_time);
     }
 
     /// Pulls the pre-authorized subscription amount from the subscriber and
@@ -142,19 +147,19 @@ impl SubscriptionTrigger {
         let subscriber: Address = env.storage().instance().get(&Key::Subscriber).unwrap();
         subscriber.require_auth();
 
-        if env.storage().instance().get(&Key::Cancelled).unwrap_or(false) {
+        if env
+            .storage()
+            .instance()
+            .get(&Key::Cancelled)
+            .unwrap_or(false)
+        {
             panic_with_error!(&env, Error::AlreadyCancelled);
         }
 
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         let contract = env.current_contract_address();
         let expiration_ledger = env.ledger().sequence().saturating_add(1);
-        token::Client::new(&env, &asset).approve(
-            &subscriber,
-            &contract,
-            &0,
-            &expiration_ledger,
-        );
+        token::Client::new(&env, &asset).approve(&subscriber, &contract, &0, &expiration_ledger);
 
         env.storage().instance().set(&Key::Cancelled, &true);
 
@@ -164,12 +169,20 @@ impl SubscriptionTrigger {
     }
 
     pub fn is_cancelled(env: Env) -> bool {
-        env.storage().instance().get(&Key::Cancelled).unwrap_or(false)
+        env.storage()
+            .instance()
+            .get(&Key::Cancelled)
+            .unwrap_or(false)
     }
 }
 
 fn execute_charge(env: &Env) {
-    if env.storage().instance().get(&Key::Cancelled).unwrap_or(false) {
+    if env
+        .storage()
+        .instance()
+        .get(&Key::Cancelled)
+        .unwrap_or(false)
+    {
         panic_with_error!(env, Error::AlreadyCancelled);
     }
 
@@ -180,15 +193,15 @@ fn execute_charge(env: &Env) {
     }
 
     let interval_seconds: u64 = env.storage().instance().get(&Key::IntervalSeconds).unwrap();
-    env.storage()
-        .instance()
-        .set(&Key::NextChargeAt, &next_charge_at.saturating_add(interval_seconds));
+    env.storage().instance().set(
+        &Key::NextChargeAt,
+        &next_charge_at.saturating_add(interval_seconds),
+    );
 
     let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
     let subscriber: Address = env.storage().instance().get(&Key::Subscriber).unwrap();
     let amount: i128 = env.storage().instance().get(&Key::AmountPerPeriod).unwrap();
-    let next_steps: Vec<WorkflowTarget> =
-        env.storage().instance().get(&Key::NextSteps).unwrap();
+    let next_steps: Vec<WorkflowTarget> = env.storage().instance().get(&Key::NextSteps).unwrap();
 
     token::Client::new(env, &asset).transfer_from(
         &env.current_contract_address(),
@@ -327,7 +340,8 @@ mod test {
         let admin = Address::generate(&env);
         let relayer = Address::generate(&env);
         let subscriber = Address::generate(&env);
-        let (contract_id, asset) = deploy_contract(&env, admin, subscriber.clone(), relayer.clone());
+        let (contract_id, asset) =
+            deploy_contract(&env, admin, subscriber.clone(), relayer.clone());
         let tok = token::TokenClient::new(&env, &asset);
         token::StellarAssetClient::new(&env, &asset).mint(&subscriber, &1_000);
 
@@ -350,7 +364,8 @@ mod test {
         let relayer = Address::generate(&env);
         let new_relayer = Address::generate(&env);
         let subscriber = Address::generate(&env);
-        let (contract_id, asset) = deploy_contract(&env, admin.clone(), subscriber.clone(), relayer);
+        let (contract_id, asset) =
+            deploy_contract(&env, admin.clone(), subscriber.clone(), relayer);
         let tok = token::TokenClient::new(&env, &asset);
         token::StellarAssetClient::new(&env, &asset).mint(&subscriber, &1_000);
         tok.approve(&subscriber, &contract_id, &500, &1000);
