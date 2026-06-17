@@ -38,7 +38,7 @@ pub enum Error {
     NotYetDue = 5,
 }
 
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 #[contract]
 pub struct SubscriptionTrigger;
@@ -193,11 +193,6 @@ fn execute_charge(env: &Env) {
     }
 
     let interval_seconds: u64 = env.storage().instance().get(&Key::IntervalSeconds).unwrap();
-    env.storage().instance().set(
-        &Key::NextChargeAt,
-        &next_charge_at.saturating_add(interval_seconds),
-    );
-
     let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
     let subscriber: Address = env.storage().instance().get(&Key::Subscriber).unwrap();
     let amount: i128 = env.storage().instance().get(&Key::AmountPerPeriod).unwrap();
@@ -224,6 +219,13 @@ fn execute_charge(env: &Env) {
             &amount,
         );
     }
+
+    // Advance the schedule only after the charge succeeds so a failed transfer
+    // does not silently skip a billing period.
+    env.storage().instance().set(
+        &Key::NextChargeAt,
+        &next_charge_at.saturating_add(interval_seconds),
+    );
 
     #[allow(deprecated)]
     env.events()
@@ -421,6 +423,30 @@ mod test {
         client.charge();
         assert_eq!(client.next_charge_at(), START_TIME + 2 * INTERVAL);
         assert_eq!(tok.balance(&subscriber), 600);
+    }
+
+    #[test]
+    #[should_panic]
+    fn charge_does_not_advance_schedule_on_failure() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let relayer = Address::generate(&env);
+        let subscriber = Address::generate(&env);
+        let (contract_id, asset) = deploy_contract(&env, admin, subscriber.clone(), relayer);
+        let tok = token::TokenClient::new(&env, &asset);
+        token::StellarAssetClient::new(&env, &asset).mint(&subscriber, &1_000);
+
+        // Approve less than the charged amount so the transfer fails.
+        tok.approve(&subscriber, &contract_id, &100, &1000);
+
+        env.ledger().set_timestamp(START_TIME);
+        let client = SubscriptionTriggerClient::new(&env, &contract_id);
+        client.charge();
+
+        // If we reach here, assert the schedule did not advance.
+        assert_eq!(client.next_charge_at(), START_TIME);
     }
 
     #[test]

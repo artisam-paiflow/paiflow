@@ -53,7 +53,7 @@ export function flowToEnglish(graph: FlowGraph): string {
   } else if (trigger.type === "web2_webhook") {
     triggerText = `When HTTP webhook fires for ${assetLabel(trigger.config.asset)}`;
   } else if (trigger.type === "subscription") {
-    triggerText = `When subscription pulls ${formatStroops(trigger.config.amountPerPeriodStroops)} ${assetLabel(trigger.config.asset)}`;
+    triggerText = `When subscription pulls ${formatStroops(trigger.config.amountPerPeriodStroops)} ${assetLabel(trigger.config.asset)} ${intervalLabel(trigger.config.intervalAmount ?? 1, trigger.config.intervalUnit ?? "day")}`;
   } else if (trigger.type === "oracle") {
     triggerText = `When oracle price meets threshold (${trigger.config.threshold}) for ${assetLabel(trigger.config.asset)}`;
   } else {

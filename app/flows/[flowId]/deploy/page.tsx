@@ -35,12 +35,15 @@ export default async function DeployReviewPage({
     startDate: string;
     endDate: string;
   } | null = null;
+  const isSubscriptionTrigger = graph.data!.nodes.some((n) => n.type === "subscription");
   if (pipeline) {
     const sp = getStreamerPreviewFromPipeline(flowToPipeline(graph.data!));
     if (sp) {
-      const triggerNode = graph.data!.nodes.find((n) => n.type === "on_schedule") as
+      const triggerNode = graph.data!.nodes.find(
+        (n) => n.type === "on_schedule" || n.type === "subscription",
+      ) as
         | {
-            type: "on_schedule";
+            type: "on_schedule" | "subscription";
             config: { intervalAmount?: number; intervalUnit?: string; interval?: string };
           }
         | undefined;
@@ -139,17 +142,21 @@ export default async function DeployReviewPage({
         {streamerPreview && (
           <section className="mt-4 rounded-xl border border-amber-900 bg-amber-950/20 p-4">
             <div className="text-[10px] font-medium tracking-wide text-amber-400 uppercase">
-              Streamer funding required
+              {isSubscriptionTrigger ? "Subscription schedule" : "Streamer funding required"}
             </div>
             <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
               <div>
-                <div className="text-xs text-zinc-400">Total vest amount</div>
+                <div className="text-xs text-zinc-400">
+                  {isSubscriptionTrigger ? "Total pull amount" : "Total vest amount"}
+                </div>
                 <div className="font-mono text-lg text-amber-200">
                   {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()} XLM
                 </div>
               </div>
               <div>
-                <div className="text-xs text-zinc-400">Vesting interval</div>
+                <div className="text-xs text-zinc-400">
+                  {isSubscriptionTrigger ? "Billing interval" : "Vesting interval"}
+                </div>
                 <div className="font-mono text-lg text-amber-200">
                   {streamerPreview.intervalLabel}
                 </div>
@@ -164,12 +171,25 @@ export default async function DeployReviewPage({
               </div>
             </div>
             <p className="mt-3 text-xs text-amber-300">
-              This contract will vest{" "}
-              <strong>
-                {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()} XLM
-              </strong>{" "}
-              over its lifetime. You must top up the contract with sufficient funds for claims to
-              succeed.
+              {isSubscriptionTrigger ? (
+                <>
+                  This subscription will pull{" "}
+                  <strong>
+                    {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()} XLM
+                  </strong>{" "}
+                  from the subscriber over its lifetime. The subscriber must maintain sufficient
+                  token allowance for each charge to succeed.
+                </>
+              ) : (
+                <>
+                  This contract will vest{" "}
+                  <strong>
+                    {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()} XLM
+                  </strong>{" "}
+                  over its lifetime. You must top up the contract with sufficient funds for claims
+                  to succeed.
+                </>
+              )}
             </p>
           </section>
         )}

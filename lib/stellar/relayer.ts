@@ -640,6 +640,10 @@ export async function readSubscriptionAmountPerPeriod(contractAddress: string): 
   return readSubscriptionValue<bigint>(contractAddress, "amount_per_period", "bigint");
 }
 
+export async function readSubscriptionRelayer(contractAddress: string): Promise<string> {
+  return readSubscriptionAddress(contractAddress, "relayer");
+}
+
 export async function readSubscriptionSubscriber(contractAddress: string): Promise<string> {
   return readSubscriptionAddress(contractAddress, "subscriber");
 }
