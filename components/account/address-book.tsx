@@ -88,18 +88,17 @@ export default function AddressBookManager() {
       setEditError(addrError);
       return;
     }
-    const label = entries.find((e) => e.id === editingId)?.label;
-    if (!label) {
+    if (!entries.some((e) => e.id === editingId)) {
       setEditError("Contact not found");
       return;
     }
     setBusy(true);
     setEditError(null);
     try {
-      const r = await fetch("/api/address-book", {
-        method: "POST",
+      const r = await fetch(`/api/address-book/${editingId}`, {
+        method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ label, address }),
+        body: JSON.stringify({ address }),
       });
       if (!r.ok) {
         const b = await r.json().catch(() => ({}));
