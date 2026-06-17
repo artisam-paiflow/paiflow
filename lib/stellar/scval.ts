@@ -214,6 +214,7 @@ export function pipelineNodeConstructorArgs(
         addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
         u64(params.startTs),
         u64(params.intervalSeconds),
+        u64(params.endTs),
       ];
     }
     case "oracle_trigger": {

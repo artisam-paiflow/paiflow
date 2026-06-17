@@ -119,6 +119,7 @@ export type SubscriptionTriggerNodeParams = {
   amountPerPeriodStroops: string;
   relayer?: string;
   startTs: number;
+  endTs: number;
   intervalSeconds: number;
   nextStepNodeIds: string[];
 };
@@ -357,6 +358,7 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
           amountPerPeriodStroops: trigger.config.amountPerPeriodStroops,
           relayer: relayerAddress,
           startTs: start,
+          endTs: end,
           intervalSeconds,
           nextStepNodeIds: children.get(trigger.id) ?? [],
         },

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
-import { FlowGraphSchema } from "@/lib/flows/schema";
+import { FlowGraphSchema, type Asset, assetLabel } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToEnglish } from "@/lib/flows/english";
 import { flowToPipeline, getStreamerPreviewFromPipeline } from "@/lib/flows/to-params";
@@ -34,6 +34,7 @@ export default async function DeployReviewPage({
     intervalLabel: string;
     startDate: string;
     endDate: string;
+    asset: Asset;
   } | null = null;
   const isSubscriptionTrigger = graph.data!.nodes.some((n) => n.type === "subscription");
   if (pipeline) {
@@ -52,12 +53,22 @@ export default async function DeployReviewPage({
         triggerNode?.config.intervalUnit ?? triggerNode?.config.interval ?? "hour";
       const intervalLabel =
         intervalAmount === 1 ? `every ${intervalUnit}` : `every ${intervalAmount} ${intervalUnit}s`;
+
+      const action = graph.data!.nodes.find(
+        (n) => n.type === "pay" || n.type === "split" || n.type === "swap" || n.type === "yield",
+      );
+      const asset: Asset =
+        action?.type === "swap"
+          ? action.config.assetIn
+          : (action?.config.asset ?? { kind: "native" });
+
       streamerPreview = {
         totalStroops: sp.totalStroops,
         durationSecs: sp.durationSecs,
         intervalLabel,
         startDate: new Date(sp.startTs * 1000).toISOString(),
         endDate: new Date(sp.endTs * 1000).toISOString(),
+        asset,
       };
     }
   }
@@ -150,7 +161,8 @@ export default async function DeployReviewPage({
                   {isSubscriptionTrigger ? "Total pull amount" : "Total vest amount"}
                 </div>
                 <div className="font-mono text-lg text-amber-200">
-                  {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()} XLM
+                  {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()}{" "}
+                  {assetLabel(streamerPreview.asset)}
                 </div>
               </div>
               <div>
@@ -175,7 +187,8 @@ export default async function DeployReviewPage({
                 <>
                   This subscription will pull{" "}
                   <strong>
-                    {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()} XLM
+                    {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()}{" "}
+                    {assetLabel(streamerPreview.asset)}
                   </strong>{" "}
                   from the subscriber over its lifetime. The subscriber must maintain sufficient
                   token allowance for each charge to succeed.
@@ -184,7 +197,8 @@ export default async function DeployReviewPage({
                 <>
                   This contract will vest{" "}
                   <strong>
-                    {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()} XLM
+                    {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()}{" "}
+                    {assetLabel(streamerPreview.asset)}
                   </strong>{" "}
                   over its lifetime. You must top up the contract with sufficient funds for claims
                   to succeed.
