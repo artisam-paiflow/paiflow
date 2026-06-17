@@ -1,7 +1,8 @@
 import "server-only";
 import { db } from "./db";
+import type { AddressEntry } from "./address-book.types";
 
-export type AddressEntry = { label: string; address: string };
+export type { AddressEntry };
 
 export async function getAddressBook(userId: string): Promise<AddressEntry[]> {
   const entries = await db.addressBookEntry.findMany({

@@ -15,6 +15,8 @@ import {
   type SplitRecipient,
 } from "@/lib/flows/schema";
 import { cn, formatStroops } from "@/lib/utils";
+import AddressInput from "./address-input";
+import type { AddressEntry } from "@/lib/address-book.types";
 
 const TIMEZONES = [
   "UTC",
@@ -82,10 +84,20 @@ type Props = {
   graph: FlowGraph;
   onChange: (n: FlowNode) => void;
   onDelete: (id: string) => void;
+  addressBook?: AddressEntry[];
+  refreshAddressBook?: () => void;
   className?: string;
 };
 
-export default function ConfigPanel({ node, graph, onChange, onDelete, className }: Props) {
+export default function ConfigPanel({
+  node,
+  graph,
+  onChange,
+  onDelete,
+  addressBook = [],
+  refreshAddressBook,
+  className,
+}: Props) {
   if (!node) {
     return (
       <aside
@@ -353,23 +365,18 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
       {node.type === "pay" && (
         <>
           <Field label="Recipient (G… or PENDING:)">
-            <div className="relative">
-              <input
-                className={`input font-mono ${isPendingAddress(node.config.recipient) ? "ring-1 ring-amber-700" : ""}`}
-                value={node.config.recipient}
-                onChange={(e) =>
-                  onChange({
-                    ...node,
-                    config: { ...node.config, recipient: e.target.value.trim() },
-                  })
-                }
-              />
-              {isPendingAddress(node.config.recipient) && (
-                <span className="absolute -top-2 right-1 rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400">
-                  needs address
-                </span>
-              )}
-            </div>
+            <AddressInput
+              value={node.config.recipient}
+              onChange={(recipient) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, recipient },
+                })
+              }
+              pending={isPendingAddress(node.config.recipient)}
+              addressBook={addressBook}
+              onAddressBookChange={refreshAddressBook}
+            />
           </Field>
 
           <label className="flex items-center gap-2">
@@ -586,16 +593,18 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                     >
                       <div className="grid grid-cols-[1fr_80px_28px] items-center gap-1">
                         <div className="grid gap-0.5">
-                          <input
-                            className="input font-mono text-xs"
+                          <AddressInput
                             value={r.address}
                             placeholder="G... or PENDING:label"
-                            onChange={(e) =>
+                            onChange={(address) =>
                               updateRecipient(i, {
                                 ...r,
-                                address: e.target.value.trim(),
+                                address,
                               } as SplitRecipient)
                             }
+                            pending={isPendingAddress(r.address)}
+                            addressBook={addressBook}
+                            onAddressBookChange={refreshAddressBook}
                           />
                         </div>
                         {isPercentage ? (
@@ -774,23 +783,18 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
             }
           />
           <Field label="Relayer address (G… or PENDING:)">
-            <div className="relative">
-              <input
-                className={`input font-mono ${isPendingAddress(node.config.relayer) ? "ring-1 ring-amber-700" : ""}`}
-                value={node.config.relayer}
-                onChange={(e) =>
-                  onChange({
-                    ...node,
-                    config: { ...node.config, relayer: e.target.value.trim() },
-                  })
-                }
-              />
-              {isPendingAddress(node.config.relayer) && (
-                <span className="absolute -top-2 right-1 rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400">
-                  needs address
-                </span>
-              )}
-            </div>
+            <AddressInput
+              value={node.config.relayer}
+              onChange={(relayer) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, relayer },
+                })
+              }
+              pending={isPendingAddress(node.config.relayer)}
+              addressBook={addressBook}
+              onAddressBookChange={refreshAddressBook}
+            />
           </Field>
         </>
       )}
@@ -819,23 +823,18 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
             }
           />
           <Field label="Subscriber address (G… or PENDING:)">
-            <div className="relative">
-              <input
-                className={`input font-mono ${isPendingAddress(node.config.subscriber) ? "ring-1 ring-amber-700" : ""}`}
-                value={node.config.subscriber}
-                onChange={(e) =>
-                  onChange({
-                    ...node,
-                    config: { ...node.config, subscriber: e.target.value.trim() },
-                  })
-                }
-              />
-              {isPendingAddress(node.config.subscriber) && (
-                <span className="absolute -top-2 right-1 rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400">
-                  needs address
-                </span>
-              )}
-            </div>
+            <AddressInput
+              value={node.config.subscriber}
+              onChange={(subscriber) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, subscriber },
+                })
+              }
+              pending={isPendingAddress(node.config.subscriber)}
+              addressBook={addressBook}
+              onAddressBookChange={refreshAddressBook}
+            />
           </Field>
           <Field label={`Amount per period (${assetLabel(node.config.asset)})`}>
             <input
@@ -1046,23 +1045,18 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
             }
           />
           <Field label="Vault address (G… or PENDING:)">
-            <div className="relative">
-              <input
-                className={`input font-mono ${isPendingAddress(node.config.vault) ? "ring-1 ring-amber-700" : ""}`}
-                value={node.config.vault}
-                onChange={(e) =>
-                  onChange({
-                    ...node,
-                    config: { ...node.config, vault: e.target.value.trim() },
-                  })
-                }
-              />
-              {isPendingAddress(node.config.vault) && (
-                <span className="absolute -top-2 right-1 rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400">
-                  needs address
-                </span>
-              )}
-            </div>
+            <AddressInput
+              value={node.config.vault}
+              onChange={(vault) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, vault },
+                })
+              }
+              pending={isPendingAddress(node.config.vault)}
+              addressBook={addressBook}
+              onAddressBookChange={refreshAddressBook}
+            />
           </Field>
         </>
       )}
@@ -1264,15 +1258,17 @@ export default function ConfigPanel({ node, graph, onChange, onDelete, className
                   <Field label="Signers">
                     {cfg.signers.map((s, i) => (
                       <div key={i} className="mb-1 flex gap-1">
-                        <input
-                          className={`input font-mono text-xs ${isPendingAddress(s) ? "ring-1 ring-amber-700" : ""}`}
+                        <AddressInput
                           value={s}
                           placeholder="G... or PENDING:label"
-                          onChange={(e) => {
+                          onChange={(address) => {
                             const next = [...cfg.signers];
-                            next[i] = e.target.value.trim();
+                            next[i] = address;
                             onChange({ ...node, config: { ...cfg, signers: next } } as FlowNode);
                           }}
+                          pending={isPendingAddress(s)}
+                          addressBook={addressBook}
+                          onAddressBookChange={refreshAddressBook}
                         />
                         <button
                           onClick={() => {

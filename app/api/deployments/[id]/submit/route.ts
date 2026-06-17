@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
+import { redis, eventChannel } from "@/lib/redis";
 import { submitDeployTx } from "@/lib/stellar/deploy";
 import { stellarRelayerAddress } from "@/lib/env";
 import { ChargeRelayerMode } from "@prisma/client";
@@ -99,6 +100,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           ...subscriptionSchedule,
         },
       });
+
+      const redisClient = redis();
+      if (redisClient) {
+        redisClient
+          .publish(
+            eventChannel(id),
+            JSON.stringify({ type: "status", status: "CONFIRMED", deploymentId: id }),
+          )
+          .catch(() => {
+            // Fire-and-forget: the client still polls as a fallback.
+          });
+      }
+
       await audit({
         action: "DEPLOY_CONFIRM",
         userId: user.id,

@@ -22,6 +22,7 @@ export default function DeploymentView({
   graph,
   webhookSecret,
   pipeline,
+  errorMessage,
 }: {
   deploymentId: string;
   contractAddress: string | null;
@@ -32,6 +33,7 @@ export default function DeploymentView({
   graph: FlowGraph | null;
   webhookSecret: string | null;
   pipeline?: Array<{ nodeId: string; contractAddress: string; templateKind: string }> | null;
+  errorMessage: string | null;
 }) {
   const explorerUrl =
     contractAddress && network ? stellarExpertContractUrl(contractAddress, network) : null;
@@ -98,14 +100,12 @@ export default function DeploymentView({
   // Single source of live events for the deployment page. Uses SSE with a
   // one-time poll fallback when the connection drops.
   useEffect(() => {
-    if (status !== "CONFIRMED") return;
-
     let es: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
 
     const connectSSE = () => {
-      if (cancelled || status !== "CONFIRMED") return;
+      if (cancelled) return;
       es = new EventSource(`/api/deployments/${deploymentId}/events`);
       esRef.current = es;
 
@@ -116,9 +116,14 @@ export default function DeploymentView({
       es.addEventListener("message", (e) => {
         if (cancelled) return;
         try {
-          const event = JSON.parse(e.data) as Evt;
-          setEvents((prev) => mergeEvents(prev, [event]));
-          scheduleClearIsNew(event.eventId, event.txHash, event.kind);
+          const event = JSON.parse(e.data) as Evt | { type: string; status: string };
+          if ("type" in event && event.type === "status" && event.status === "CONFIRMED") {
+            window.location.reload();
+            return;
+          }
+          const contractEvent = event as Evt;
+          setEvents((prev) => mergeEvents(prev, [contractEvent]));
+          scheduleClearIsNew(contractEvent.eventId, contractEvent.txHash, contractEvent.kind);
         } catch {
           /* ignore malformed SSE messages */
         }
@@ -164,7 +169,7 @@ export default function DeploymentView({
       }
       setConnectionStatus("disconnected");
     };
-  }, [deploymentId, status]);
+  }, [deploymentId]);
 
   // Poll status while waiting for the deployment to be confirmed.
   useEffect(() => {
@@ -575,7 +580,24 @@ export default function DeploymentView({
               Pause is disabled for this stream.
             </div>
           )}
-          {contractAddress ? (
+          {status === "FAILED" ? (
+            <div className="mt-md border-error/30 bg-error-container/20 flex items-start gap-2 rounded-lg border p-3">
+              <span className="material-symbols-outlined text-error mt-0.5 shrink-0 text-[16px]">
+                error
+              </span>
+              <div>
+                <p className="text-label-sm text-error font-mono">DEPLOYMENT FAILED</p>
+                {errorMessage && (
+                  <p className="text-body-sm text-on-surface-variant mt-1">{errorMessage}</p>
+                )}
+              </div>
+            </div>
+          ) : status !== "CONFIRMED" ? (
+            <div className="mt-md text-label-sm text-on-surface-variant flex items-center gap-2 font-mono">
+              <span className="status-dot-deploy h-1.5 w-1.5" />
+              CONTRACT IS DEPLOYING… QR WILL APPEAR WHEN READY.
+            </div>
+          ) : contractAddress ? (
             isWeb2Webhook ? (
               <>
                 <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
@@ -733,12 +755,7 @@ export default function DeploymentView({
                 </div>
               </>
             )
-          ) : (
-            <div className="mt-md text-label-sm text-on-surface-variant flex items-center gap-2 font-mono">
-              <span className="status-dot-deploy h-1.5 w-1.5" />
-              WAITING FOR CONFIRMATION…
-            </div>
-          )}
+          ) : null}
         </section>
 
         <LiveEvents
