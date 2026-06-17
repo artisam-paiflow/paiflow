@@ -47,6 +47,12 @@ enum StreamerClaimJobStatus {
   CANCELLED
 }
 
+enum ChargeRelayerMode {
+  PLATFORM
+  USER
+  MANUAL
+}
+
 enum EventKind {
   RECEIVE
   PAYOUT
@@ -183,6 +189,13 @@ model Deployment {
   sourceAccount   String?
   distributeAmountStroops String?
   webhookSecret   String?
+  chargeRelayerMode     ChargeRelayerMode @default(MANUAL)
+  chargeRelayerUrl      String?
+  chargeRelayerToken    String?
+  chargeRelayerAddress  String?
+  nextChargeAt          DateTime?
+  lastChargedAt         DateTime?
+  chargeEndAt           DateTime?
 
   flow   Flow            @relation(fields: [flowId], references: [id], onDelete: Restrict)
   owner  User            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
@@ -192,6 +205,8 @@ model Deployment {
 
   @@index([ownerId, createdAt(sort: Desc)])
   @@index([status])
+  @@index([status, nextChargeAt])
+  @@index([chargeRelayerMode])
 }
 
 model StreamerClaimJob {

@@ -10,7 +10,6 @@ import type { AddressEntry } from "@/lib/address-book.types";
 export type AddressInputProps = {
   value: string;
   onChange: (value: string) => void;
-  label?: string;
   placeholder?: string;
   pending?: boolean;
   addressBook?: AddressEntry[];
@@ -20,7 +19,6 @@ export type AddressInputProps = {
 export default function AddressInput({
   value,
   onChange,
-  label,
   placeholder = "G... or PENDING:label",
   pending,
   addressBook = [],
@@ -93,13 +91,10 @@ export default function AddressInput({
     setFocused(false);
   }
 
-  const inputId = `${label ?? "address"}-input`;
-
   return (
     <div ref={containerRef} className="relative">
       <div className="relative flex items-center">
         <input
-          id={inputId}
           value={value}
           onChange={(e) => onChange(e.target.value.trim())}
           onFocus={() => setFocused(true)}

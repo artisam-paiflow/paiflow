@@ -79,10 +79,16 @@ export default async function DeploymentPage({
 
   const isStreamerLike = d.flow.templateKind === "STREAMER";
 
+  const isSubscription = d.flow.templateKind === "SUBSCRIPTION";
+
   const qrUrl =
     d.contractAddress &&
-    (isPipeline || isWebhookLike || d.flow.templateKind === "SPLITTER" || isStreamerLike)
-      ? `/api/deployments/${d.id}/qr?action=trigger`
+    (isPipeline ||
+      isWebhookLike ||
+      d.flow.templateKind === "SPLITTER" ||
+      isStreamerLike ||
+      isSubscription)
+      ? `/api/deployments/${d.id}/qr?action=${isSubscription ? "allowance" : "trigger"}`
       : null;
 
   const badge = statusMeta[d.status] ?? {
@@ -172,6 +178,7 @@ export default async function DeploymentPage({
           graph={graph}
           webhookSecret={d.webhookSecret}
           pipeline={pipeline}
+          errorMessage={d.errorMessage ?? null}
           initialEvents={d.events.map((e) => ({
             id: e.id,
             eventId: e.eventId,

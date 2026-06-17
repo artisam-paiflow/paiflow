@@ -151,22 +151,16 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [ready, setReady] = useState(false);
   const [addressBook, setAddressBook] = useState<AddressEntry[]>([]);
 
-  useEffect(() => {
-    async function loadAddressBook() {
-      const r = await fetch("/api/address-book");
-      if (!r.ok) return;
-      const json = await r.json();
-      setAddressBook(json?.data ?? []);
-    }
-    void loadAddressBook();
-  }, []);
-
   const refreshAddressBook = useCallback(async () => {
     const r = await fetch("/api/address-book");
     if (!r.ok) return;
     const json = await r.json();
     setAddressBook(json?.data ?? []);
   }, []);
+
+  useEffect(() => {
+    void refreshAddressBook();
+  }, [refreshAddressBook]);
 
   useEffect(() => {
     const stored = localStorage.getItem("sidebarCollapsed");
