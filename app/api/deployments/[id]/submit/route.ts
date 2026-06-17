@@ -9,6 +9,9 @@ import { redis, eventChannel } from "@/lib/redis";
 import { submitDeployTx } from "@/lib/stellar/deploy";
 import { stellarRelayerAddress } from "@/lib/env";
 import { ChargeRelayerMode } from "@prisma/client";
+import { scheduleNextStreamerClaimJob } from "@/lib/streamer-jobs";
+import { log } from "@/lib/log";
+import type { StreamerParams } from "@/lib/flows/to-params";
 
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
 
@@ -100,6 +103,45 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           ...subscriptionSchedule,
         },
       });
+
+      // Schedule the first auto-claim job for each STREAMER node so the
+      // per-streamer cron can claim vested funds at the right milestones
+      // instead of scanning every contract every 5 minutes.
+      const paramsSnapshot = deployment.paramsSnapshot as Array<{
+        nodeId: string;
+        templateKind: string;
+        params: { kind: string } | StreamerParams;
+      }> | null;
+
+      if (paramsSnapshot) {
+        for (const node of paramsSnapshot) {
+          if (node.templateKind !== "STREAMER" || node.params.kind !== "streamer") {
+            continue;
+          }
+          const pipelineNode = pipeline?.find((p) => p.nodeId === node.nodeId);
+          if (!pipelineNode?.contractAddress) continue;
+
+          try {
+            await scheduleNextStreamerClaimJob(
+              db,
+              id,
+              node.nodeId,
+              pipelineNode.contractAddress,
+              node.params as StreamerParams,
+            );
+          } catch (scheduleErr) {
+            log.warn(
+              {
+                deploymentId: id,
+                nodeId: node.nodeId,
+                contractAddress: pipelineNode.contractAddress,
+                error: scheduleErr instanceof Error ? scheduleErr.message : String(scheduleErr),
+              },
+              "Failed to schedule initial streamer claim job",
+            );
+          }
+        }
+      }
 
       const redisClient = redis();
       if (redisClient) {
