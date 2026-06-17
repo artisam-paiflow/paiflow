@@ -38,6 +38,21 @@ enum DeploymentStatus {
   FAILED
 }
 
+enum StreamerClaimJobStatus {
+  PENDING
+  RUNNING
+  CLAIMED
+  SKIPPED
+  FAILED
+  CANCELLED
+}
+
+enum ChargeRelayerMode {
+  PLATFORM
+  USER
+  MANUAL
+}
+
 enum EventKind {
   RECEIVE
   PAYOUT
@@ -174,14 +189,44 @@ model Deployment {
   sourceAccount   String?
   distributeAmountStroops String?
   webhookSecret   String?
+  chargeRelayerMode     ChargeRelayerMode @default(MANUAL)
+  chargeRelayerUrl      String?
+  chargeRelayerToken    String?
+  chargeRelayerAddress  String?
+  nextChargeAt          DateTime?
+  lastChargedAt         DateTime?
+  chargeEndAt           DateTime?
 
   flow   Flow            @relation(fields: [flowId], references: [id], onDelete: Restrict)
   owner  User            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   events ContractEvent[]
   cursor EventCursor?
+  streamerClaimJobs StreamerClaimJob[]
 
   @@index([ownerId, createdAt(sort: Desc)])
   @@index([status])
+  @@index([status, nextChargeAt])
+  @@index([chargeRelayerMode])
+}
+
+model StreamerClaimJob {
+  id              String                 @id @default(uuid()) @db.Uuid
+  deploymentId    String                 @db.Uuid
+  nodeId          String
+  contractAddress String
+  runAt           DateTime
+  status          StreamerClaimJobStatus @default(PENDING)
+  attemptCount    Int                    @default(0)
+  lastError       String?
+  claimedAt       DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@index([deploymentId, nodeId, status])
+  @@index([contractAddress, status])
 }
 
 model ContractEvent {

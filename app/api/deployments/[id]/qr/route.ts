@@ -10,7 +10,7 @@ import { z } from "zod";
 const Query = z.object({
   size: z.coerce.number().int().min(64).max(1024).default(256),
   format: z.enum(["svg", "png"]).default("svg"),
-  action: z.enum(["pay", "invoke", "trigger"]).default("pay"),
+  action: z.enum(["pay", "invoke", "trigger", "allowance"]).default("pay"),
   amount: z.string().regex(/^\d+$/).optional(),
 });
 
@@ -42,10 +42,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       !isPipeline &&
       !isWebhookLike &&
       d.flow.templateKind !== "SPLITTER" &&
-      d.flow.templateKind !== "STREAMER"
+      d.flow.templateKind !== "STREAMER" &&
+      d.flow.templateKind !== "SUBSCRIPTION"
     ) {
       return new Response(
-        "Trigger QR only available for splitter, webhook, or streamer deployments",
+        "Trigger QR only available for splitter, webhook, streamer, or subscription deployments",
         {
           status: 400,
         },
@@ -58,9 +59,27 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       return new Response("Contract address not available", { status: 400 });
     }
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    uri = d.distributeAmountStroops
-      ? `${appUrl}/trigger/${d.id}?amount=${"0"}`
-      : `${appUrl}/trigger/${d.id}`;
+    if (d.flow.templateKind === "SUBSCRIPTION") {
+      uri = `${appUrl}/allowance/${d.id}`;
+    } else if (d.distributeAmountStroops) {
+      uri = `${appUrl}/trigger/${d.id}?amount=${"0"}`;
+    } else {
+      uri = `${appUrl}/trigger/${d.id}`;
+    }
+  } else if (q.action === "allowance") {
+    if (d.flow.templateKind !== "SUBSCRIPTION") {
+      return new Response("Allowance QR only available for subscription deployments", {
+        status: 400,
+      });
+    }
+    if (d.status !== "CONFIRMED") {
+      return new Response("Contract not yet confirmed", { status: 400 });
+    }
+    if (!d.contractAddress) {
+      return new Response("Contract address not available", { status: 400 });
+    }
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    uri = `${appUrl}/allowance/${d.id}`;
   } else if (q.action === "invoke") {
     if (!isPipeline && d.flow.templateKind !== "SPLITTER") {
       return new Response("Invoke QR only available for splitter deployments", { status: 400 });

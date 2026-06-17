@@ -611,6 +611,97 @@ describe("sourceAmountStroops", () => {
 });
 
 describe("flowToPipeline", () => {
+  it("produces subscription_trigger → streamer for subscription → pay", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            subscriber: ADDR_A,
+            amountPerPeriodStroops: "1000000",
+            intervalAmount: 1,
+            intervalUnit: "hour",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "1000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(2);
+    expect(pipeline[0]!.templateKind).toBe("SUBSCRIPTION");
+    expect(pipeline[0]!.params.kind).toBe("subscription_trigger");
+    const subParams = pipeline[0]!.params as {
+      relayer?: string;
+      startTs: number;
+      intervalSeconds: number;
+    };
+    expect(subParams.relayer).toBeUndefined();
+    expect(subParams.intervalSeconds).toBe(3600);
+    expect(subParams.startTs).toBeGreaterThan(0);
+    expect(pipeline[1]!.templateKind).toBe("STREAMER");
+    expect(pipeline[1]!.params.kind).toBe("streamer");
+    if (pipeline[1]!.params.kind === "streamer") {
+      expect(pipeline[1]!.params.intervalSeconds).toBe(3600);
+      expect(pipeline[1]!.params.amountPerIntervalStroops).toBe("1000000");
+      expect(pipeline[1]!.params.endTs).toBeGreaterThan(pipeline[1]!.params.startTs);
+    }
+  });
+
+  it("passes relayer address into subscription_trigger params", () => {
+    const RELAYER = "GAPPG3VDBPONOHRYQL6D7XIVZFDZDXCC2QE3CBTN2GDRBMOBMSAT6TQK";
+    const pipeline = flowToPipeline(
+      {
+        nodes: [
+          {
+            id: "t",
+            type: "subscription",
+            config: {
+              asset: { kind: "known", symbol: "USDC" },
+              subscriber: ADDR_A,
+              amountPerPeriodStroops: "1000000",
+              intervalAmount: 1,
+              intervalUnit: "day",
+            },
+          },
+          {
+            id: "a",
+            type: "pay",
+            config: {
+              recipient: ADDR_B,
+              amountStroops: "1000000",
+              asset: { kind: "known", symbol: "USDC" },
+              mode: "fixed",
+              fullAmount: false,
+            },
+          },
+        ],
+        edges: [{ id: "e", source: "t", target: "a" }],
+      },
+      RELAYER,
+    );
+    expect(pipeline).toHaveLength(2);
+    const subParams = pipeline[0]!.params as {
+      kind: string;
+      relayer?: string;
+      intervalSeconds: number;
+    };
+    expect(subParams.kind).toBe("subscription_trigger");
+    expect(subParams.relayer).toBe(RELAYER);
+    expect(subParams.intervalSeconds).toBe(86400);
+  });
+
   it("produces deposit_trigger → splitter for on_receive → split", () => {
     const pipeline = flowToPipeline(splitGraph() as Parameters<typeof flowToPipeline>[0]);
     expect(pipeline).toHaveLength(2);

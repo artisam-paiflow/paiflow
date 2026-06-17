@@ -3,6 +3,7 @@ import {
   FlowGraphSchema,
   type FlowGraph,
   type FlowNode,
+  type Asset,
   isAction,
   isContractAction,
   isLogic,
@@ -10,6 +11,7 @@ import {
   isPendingAddress,
   migrateFlowGraph,
   splitTotalFixedStroops,
+  assetLabel,
 } from "./schema";
 import { flowToPipeline } from "./to-params";
 
@@ -51,6 +53,26 @@ const FRIENDLY = {
   FIXED_AMOUNT_REQUIRED: "Each fixed-amount recipient needs a positive amount.",
   TOTAL_FIXED_AMOUNT_REQUIRED: "Add at least one positive fixed amount to the split.",
 } as const;
+
+function assetsEqual(a: Asset, b: Asset): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === "known" && b.kind === "known") return a.symbol === b.symbol;
+  if (a.kind === "custom" && b.kind === "custom") return a.code === b.code && a.issuer === b.issuer;
+  return true; // both native
+}
+
+function getTriggerAsset(t: FlowNode): Asset | null {
+  if (
+    t.type === "on_receive" ||
+    t.type === "webhook" ||
+    t.type === "web2_webhook" ||
+    t.type === "subscription" ||
+    t.type === "oracle"
+  ) {
+    return t.config.asset;
+  }
+  return null;
+}
 
 export function validateFlow(rawGraph: unknown): ValidationResult {
   const parsed = FlowGraphSchema.safeParse(migrateFlowGraph(rawGraph));
@@ -328,6 +350,49 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
           message: `Action ${a.id} is not reachable from the trigger`,
           friendlyMessage: FRIENDLY.ACTION_UNREACHABLE(a.id),
         });
+      }
+    }
+  }
+
+  if (errors.length) return { ok: false, errors };
+
+  // Asset type enforcement: pay/split/yield nodes reachable from the trigger WITHOUT
+  // passing through a swap must declare the same asset as the trigger.
+  // Swap nodes are exempt — they are the explicit asset-transformation step.
+  if (trigger) {
+    const incomingAsset = getTriggerAsset(trigger);
+    if (incomingAsset) {
+      // BFS: track whether a swap was on the path from trigger to each node.
+      const swapOnPath = new Map<string, boolean>();
+      swapOnPath.set(trigger.id, false);
+      const queue = [trigger.id];
+      while (queue.length) {
+        const nodeId = queue.shift()!;
+        const passedSwap = swapOnPath.get(nodeId)!;
+        const node = nodesById.get(nodeId)!;
+        const isSwap = node.type === "swap";
+        for (const nextId of adj.get(nodeId) ?? []) {
+          if (!swapOnPath.has(nextId)) {
+            swapOnPath.set(nextId, passedSwap || isSwap);
+            queue.push(nextId);
+          }
+        }
+      }
+
+      for (const a of contractActions) {
+        if (a.type === "swap") continue;
+        if (swapOnPath.get(a.id)) continue; // swap on path handles the asset transform
+        let actual: Asset | null = null;
+        if (a.type === "pay") actual = a.config.asset;
+        else if (a.type === "split") actual = a.config.asset;
+        else if (a.type === "yield") actual = a.config.asset;
+        if (actual && !assetsEqual(incomingAsset, actual)) {
+          errors.push({
+            path: `nodes.${a.id}.config.asset`,
+            message: `Asset mismatch: action uses ${assetLabel(actual)} but trigger provides ${assetLabel(incomingAsset)}`,
+            friendlyMessage: `Asset mismatch: the trigger provides ${assetLabel(incomingAsset)}, but this action uses ${assetLabel(actual)}. Change the action asset to ${assetLabel(incomingAsset)}, or add a swap node to convert assets first.`,
+          });
+        }
       }
     }
   }
