@@ -98,14 +98,12 @@ export default function DeploymentView({
   // Single source of live events for the deployment page. Uses SSE with a
   // one-time poll fallback when the connection drops.
   useEffect(() => {
-    if (status !== "CONFIRMED") return;
-
     let es: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
 
     const connectSSE = () => {
-      if (cancelled || status !== "CONFIRMED") return;
+      if (cancelled) return;
       es = new EventSource(`/api/deployments/${deploymentId}/events`);
       esRef.current = es;
 
@@ -116,9 +114,14 @@ export default function DeploymentView({
       es.addEventListener("message", (e) => {
         if (cancelled) return;
         try {
-          const event = JSON.parse(e.data) as Evt;
-          setEvents((prev) => mergeEvents(prev, [event]));
-          scheduleClearIsNew(event.eventId, event.txHash, event.kind);
+          const event = JSON.parse(e.data) as Evt | { type: string; status: string };
+          if ("type" in event && event.type === "status" && event.status === "CONFIRMED") {
+            window.location.reload();
+            return;
+          }
+          const contractEvent = event as Evt;
+          setEvents((prev) => mergeEvents(prev, [contractEvent]));
+          scheduleClearIsNew(contractEvent.eventId, contractEvent.txHash, contractEvent.kind);
         } catch {
           /* ignore malformed SSE messages */
         }
@@ -164,7 +167,7 @@ export default function DeploymentView({
       }
       setConnectionStatus("disconnected");
     };
-  }, [deploymentId, status]);
+  }, [deploymentId]);
 
   // Poll status while waiting for the deployment to be confirmed.
   useEffect(() => {
