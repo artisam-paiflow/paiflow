@@ -172,6 +172,7 @@ export default async function DeploymentPage({
           graph={graph}
           webhookSecret={d.webhookSecret}
           pipeline={pipeline}
+          errorMessage={d.errorMessage ?? null}
           initialEvents={d.events.map((e) => ({
             id: e.id,
             eventId: e.eventId,

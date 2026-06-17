@@ -20,6 +20,7 @@ export default function DeploymentView({
   graph,
   webhookSecret,
   pipeline,
+  errorMessage,
 }: {
   deploymentId: string;
   contractAddress: string | null;
@@ -30,6 +31,7 @@ export default function DeploymentView({
   graph: FlowGraph | null;
   webhookSecret: string | null;
   pipeline?: Array<{ nodeId: string; contractAddress: string; templateKind: string }> | null;
+  errorMessage: string | null;
 }) {
   const explorerUrl =
     contractAddress && network ? stellarExpertContractUrl(contractAddress, network) : null;
@@ -417,7 +419,24 @@ export default function DeploymentView({
               Pause is disabled for this stream.
             </div>
           )}
-          {contractAddress ? (
+          {status === "FAILED" ? (
+            <div className="mt-md flex items-start gap-2 rounded-lg border border-error/30 bg-error-container/20 p-3">
+              <span className="material-symbols-outlined text-error mt-0.5 shrink-0 text-[16px]">
+                error
+              </span>
+              <div>
+                <p className="text-label-sm text-error font-mono">DEPLOYMENT FAILED</p>
+                {errorMessage && (
+                  <p className="text-body-sm text-on-surface-variant mt-1">{errorMessage}</p>
+                )}
+              </div>
+            </div>
+          ) : status !== "CONFIRMED" ? (
+            <div className="mt-md flex items-center gap-2 text-label-sm text-on-surface-variant font-mono">
+              <span className="status-dot-deploy h-1.5 w-1.5" />
+              CONTRACT IS DEPLOYING… QR WILL APPEAR WHEN READY.
+            </div>
+          ) : contractAddress ? (
             isWeb2Webhook ? (
               <>
                 <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
@@ -575,12 +594,7 @@ export default function DeploymentView({
                 </div>
               </>
             )
-          ) : (
-            <div className="mt-md text-label-sm text-on-surface-variant flex items-center gap-2 font-mono">
-              <span className="status-dot-deploy h-1.5 w-1.5" />
-              WAITING FOR CONFIRMATION…
-            </div>
-          )}
+          ) : null}
         </section>
 
         <LiveEvents
