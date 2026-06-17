@@ -10,7 +10,6 @@ import type { AddressEntry } from "@/lib/address-book.types";
 export type AddressInputProps = {
   value: string;
   onChange: (value: string) => void;
-  label?: string;
   placeholder?: string;
   pending?: boolean;
   addressBook?: AddressEntry[];
