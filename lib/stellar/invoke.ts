@@ -433,7 +433,11 @@ export async function prepareStreamerTopUpInvocation(opts: {
   return { xdr: assembled.toXDR() };
 }
 
-const U32_MAX = 4_294_967_295;
+// Maximum ledger delta that a Soroban storage entry can be extended, i.e.
+// the farthest future ledger an `approve` expiration can target.
+// Current protocol value: 3110400 ledgers (~180 days at 5s/ledger).
+const MAX_APPROVAL_LEDGER_DELTA = 3_110_400;
+const APPROVAL_LEDGER_BUFFER = 10;
 
 export async function prepareTokenApproveInvocation(opts: {
   tokenContractAddress: string;
@@ -442,14 +446,21 @@ export async function prepareTokenApproveInvocation(opts: {
   amount: string;
 }): Promise<PreparedInvokeTx> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.from);
+  const [sourceAcct, latestLedger] = await Promise.all([
+    server.getAccount(opts.from),
+    server.getLatestLedger(),
+  ]);
 
   const tokenIdBytes = decodeContractAddress(opts.tokenContractAddress);
   const tokenScAddress = xdr.ScAddress.scAddressTypeContract(tokenIdBytes as unknown as xdr.Hash);
   const fromScVal = new Address(opts.from).toScVal();
   const spenderScVal = new Address(opts.spender).toScVal();
   const amountScVal = nativeToScVal(BigInt(opts.amount), { type: "i128" });
-  const expirationScVal = nativeToScVal(U32_MAX, { type: "u32" });
+  // Approval expirations must be within the network's max entry TTL.
+  // Using U32_MAX caused "live_until is greater than max".
+  const expirationLedger =
+    latestLedger.sequence + MAX_APPROVAL_LEDGER_DELTA - APPROVAL_LEDGER_BUFFER;
+  const expirationScVal = nativeToScVal(expirationLedger, { type: "u32" });
 
   const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
     new xdr.InvokeContractArgs({
