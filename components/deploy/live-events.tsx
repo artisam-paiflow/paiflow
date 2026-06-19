@@ -234,8 +234,10 @@ function computeRecipientShares(totalAmount: string, recipients: Recipient[]): R
   const total = BigInt(totalAmount);
   let distributed = 0n;
   return recipients.map((r, index) => {
-    if (isNonEmptyString(r.amount)) return r;
-    if (typeof r.bps !== "number") return r;
+    // Fixed-amount recipients (bps 0/undefined) carry their own amount; keep it.
+    // Percentage recipients carry bps but the on-chain `payout` event reports
+    // their amount as 0, so always derive the share from bps + total here.
+    if (typeof r.bps !== "number" || r.bps === 0) return r;
     const isLast = index === recipients.length - 1;
     const share = isLast ? total - distributed : (total * BigInt(r.bps)) / TOTAL_BPS;
     distributed += share;
@@ -349,7 +351,15 @@ function RecipientList({
   );
 }
 
-function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
+function EventDetails({
+  evt,
+  graph,
+  fallbackTotal,
+}: {
+  evt: Evt;
+  graph?: FlowGraph | null;
+  fallbackTotal?: string;
+}) {
   const d = evt.decodedData as Record<string, unknown> | null;
 
   // Status-like events have no numeric payload but should still render nicely.
@@ -452,13 +462,23 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
       const amountOut = d?.amountOut;
       const recipient = d?.recipient;
       const decodedRecipients = normalizeRecipients(d?.recipients ?? d?.addresses);
+      // The splitter's payout event has no total; recover it from the RECEIVE
+      // event in the same tx so percentage shares can be derived.
+      const effectiveTotal = isNonEmptyString(amount)
+        ? amount
+        : isNonEmptyString(fallbackTotal)
+          ? fallbackTotal
+          : undefined;
       const graphRecipients =
-        decodedRecipients.length > 0
-          ? []
-          : getGraphSplitRecipients(graph, isNonEmptyString(amount) ? amount : undefined);
+        decodedRecipients.length > 0 ? [] : getGraphSplitRecipients(graph, effectiveTotal);
       const recipients = decodedRecipients.length > 0 ? decodedRecipients : graphRecipients;
       const tookPathA = d?.tookPathA;
-      const displayAmount = isNonEmptyString(amount) ? amount : sumRecipientAmounts(recipients);
+      const shareTotal = effectiveTotal
+        ? sumRecipientAmounts(computeRecipientShares(effectiveTotal, recipients))
+        : undefined;
+      const displayAmount = isNonEmptyString(amount)
+        ? amount
+        : (effectiveTotal ?? shareTotal ?? sumRecipientAmounts(recipients));
 
       if (assetIn && assetOut && amountIn !== undefined && amountOut !== undefined) {
         return (
@@ -776,10 +796,12 @@ function EventRow({
   evt,
   network,
   graph,
+  fallbackTotal,
 }: {
   evt: Evt;
   network: StellarNetwork | null;
   graph?: FlowGraph | null;
+  fallbackTotal?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const meta = KIND_META[evt.kind] ?? KIND_META["STATUS_CHANGE"]!;
@@ -853,7 +875,7 @@ function EventRow({
         </div>
       </div>
 
-      <EventDetails evt={evt} graph={graph} />
+      <EventDetails evt={evt} graph={graph} fallbackTotal={fallbackTotal} />
 
       {expanded && (
         <div className="border-outline-variant/15 space-y-2 border-t pt-2">
@@ -891,6 +913,21 @@ function EventRow({
 }
 
 export function LiveEvents({ events, network, connectionStatus = "live", graph }: LiveEventsProps) {
+  // The splitter's `payout` event carries no total amount, and in percentage
+  // mode each recipient's reported amount is 0. Recover the real total from the
+  // RECEIVE event (deposit/trigger) emitted in the same transaction.
+  const receivedByTx = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const e of events) {
+      if (e.kind !== "RECEIVE" || !e.txHash) continue;
+      const amount = (e.decodedData as Record<string, unknown> | null)?.amount;
+      if (typeof amount === "string" && amount.length > 0 && !map.has(e.txHash)) {
+        map.set(e.txHash, amount);
+      }
+    }
+    return map;
+  }, [events]);
+
   const statusLabel =
     connectionStatus === "reconnecting"
       ? "RECONNECTING"
@@ -933,6 +970,7 @@ export function LiveEvents({ events, network, connectionStatus = "live", graph }
             evt={e}
             network={network}
             graph={graph}
+            fallbackTotal={receivedByTx.get(e.txHash)}
           />
         ))}
       </ul>
