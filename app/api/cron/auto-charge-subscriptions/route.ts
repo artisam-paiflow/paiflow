@@ -11,6 +11,7 @@ import {
   readSubscriptionAmountPerPeriod,
   readSubscriptionSubscriber,
   readSubscriptionAsset,
+  readSubscriptionRelayer,
   readTokenAllowance,
 } from "@/lib/stellar/relayer";
 import { prepareSubscriptionChargeByRelayerUnsigned } from "@/lib/stellar/invoke";
@@ -141,6 +142,23 @@ export async function POST(req: NextRequest) {
             contractAddress,
             status: "skipped",
             error: "Insufficient allowance",
+          });
+          continue;
+        }
+
+        // Verify the configured relayer matches the on-chain relayer so we
+        // don't waste fees on transactions that will fail auth.
+        const onChainRelayer = await readSubscriptionRelayer(contractAddress);
+        const expectedRelayer =
+          d.chargeRelayerMode === ChargeRelayerMode.PLATFORM
+            ? stellarRelayerAddress()
+            : d.chargeRelayerAddress;
+        if (expectedRelayer && onChainRelayer !== expectedRelayer) {
+          results.push({
+            deploymentId: d.id,
+            contractAddress,
+            status: "skipped",
+            error: `Relayer mismatch: on-chain ${onChainRelayer}, configured ${expectedRelayer}`,
           });
           continue;
         }

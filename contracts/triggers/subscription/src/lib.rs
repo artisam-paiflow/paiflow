@@ -25,6 +25,7 @@ pub enum Key {
     StartTime,
     IntervalSeconds,
     NextChargeAt,
+    EndTime,
 }
 
 #[contracterror]
@@ -36,9 +37,11 @@ pub enum Error {
     InvalidAmount = 3,
     AlreadyCancelled = 4,
     NotYetDue = 5,
+    SubscriptionEnded = 6,
+    NotCancelled = 7,
 }
 
-const VERSION: u32 = 3;
+const VERSION: u32 = 5;
 
 #[contract]
 pub struct SubscriptionTrigger;
@@ -55,6 +58,7 @@ impl SubscriptionTrigger {
         relayer: Address,
         start_time: u64,
         interval_seconds: u64,
+        end_time: u64,
     ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
@@ -63,6 +67,9 @@ impl SubscriptionTrigger {
             panic_with_error!(&env, Error::InvalidAmount);
         }
         if interval_seconds == 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
+        if end_time <= start_time {
             panic_with_error!(&env, Error::InvalidAmount);
         }
         env.storage().instance().set(&Key::Admin, &admin);
@@ -79,6 +86,7 @@ impl SubscriptionTrigger {
         env.storage()
             .instance()
             .set(&Key::IntervalSeconds, &interval_seconds);
+        env.storage().instance().set(&Key::EndTime, &end_time);
         env.storage()
             .instance()
             .set(&Key::NextChargeAt, &start_time);
@@ -141,6 +149,10 @@ impl SubscriptionTrigger {
         env.storage().instance().get(&Key::NextChargeAt).unwrap()
     }
 
+    pub fn end_time(env: Env) -> u64 {
+        env.storage().instance().get(&Key::EndTime).unwrap()
+    }
+
     /// Cancel the subscription. The subscriber stops future charges and the
     /// contract's token allowance is revoked.
     pub fn unsubscribe(env: Env) {
@@ -174,6 +186,28 @@ impl SubscriptionTrigger {
             .get(&Key::Cancelled)
             .unwrap_or(false)
     }
+
+    /// Re-enable a previously cancelled subscription. The subscriber must still
+    /// grant a sufficient token allowance separately for charges to succeed.
+    pub fn subscribe(env: Env) {
+        let subscriber: Address = env.storage().instance().get(&Key::Subscriber).unwrap();
+        subscriber.require_auth();
+
+        if !env
+            .storage()
+            .instance()
+            .get(&Key::Cancelled)
+            .unwrap_or(false)
+        {
+            panic_with_error!(&env, Error::NotCancelled);
+        }
+
+        env.storage().instance().set(&Key::Cancelled, &false);
+
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("subscribe"), subscriber), ());
+    }
 }
 
 fn execute_charge(env: &Env) {
@@ -192,12 +226,12 @@ fn execute_charge(env: &Env) {
         panic_with_error!(env, Error::NotYetDue);
     }
 
-    let interval_seconds: u64 = env.storage().instance().get(&Key::IntervalSeconds).unwrap();
-    env.storage().instance().set(
-        &Key::NextChargeAt,
-        &next_charge_at.saturating_add(interval_seconds),
-    );
+    let end_time: u64 = env.storage().instance().get(&Key::EndTime).unwrap();
+    if now >= end_time {
+        panic_with_error!(env, Error::SubscriptionEnded);
+    }
 
+    let interval_seconds: u64 = env.storage().instance().get(&Key::IntervalSeconds).unwrap();
     let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
     let subscriber: Address = env.storage().instance().get(&Key::Subscriber).unwrap();
     let amount: i128 = env.storage().instance().get(&Key::AmountPerPeriod).unwrap();
@@ -224,6 +258,13 @@ fn execute_charge(env: &Env) {
             &amount,
         );
     }
+
+    // Advance the schedule only after the charge succeeds so a failed transfer
+    // does not silently skip a billing period.
+    env.storage().instance().set(
+        &Key::NextChargeAt,
+        &next_charge_at.saturating_add(interval_seconds),
+    );
 
     #[allow(deprecated)]
     env.events()
@@ -260,6 +301,7 @@ mod test {
 
     const START_TIME: u64 = 1000;
     const INTERVAL: u64 = 60;
+    const END_TIME: u64 = 10_000;
 
     #[contract]
     pub struct Dummy;
@@ -304,6 +346,7 @@ mod test {
                 relayer,
                 START_TIME,
                 INTERVAL,
+                END_TIME,
             ),
         );
         (contract_id, asset.address())
@@ -424,6 +467,49 @@ mod test {
     }
 
     #[test]
+    #[should_panic]
+    fn charge_does_not_advance_schedule_on_failure() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let relayer = Address::generate(&env);
+        let subscriber = Address::generate(&env);
+        let (contract_id, asset) = deploy_contract(&env, admin, subscriber.clone(), relayer);
+        let tok = token::TokenClient::new(&env, &asset);
+        token::StellarAssetClient::new(&env, &asset).mint(&subscriber, &1_000);
+
+        // Approve less than the charged amount so the transfer fails.
+        tok.approve(&subscriber, &contract_id, &100, &1000);
+
+        env.ledger().set_timestamp(START_TIME);
+        let client = SubscriptionTriggerClient::new(&env, &contract_id);
+        client.charge();
+
+        // If we reach here, assert the schedule did not advance.
+        assert_eq!(client.next_charge_at(), START_TIME);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #6)")]
+    fn charge_fails_after_end_time() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let relayer = Address::generate(&env);
+        let subscriber = Address::generate(&env);
+        let (contract_id, asset) = deploy_contract(&env, admin, subscriber.clone(), relayer);
+        let tok = token::TokenClient::new(&env, &asset);
+        token::StellarAssetClient::new(&env, &asset).mint(&subscriber, &1_000);
+        tok.approve(&subscriber, &contract_id, &500, &1000);
+
+        env.ledger().set_timestamp(END_TIME);
+        let client = SubscriptionTriggerClient::new(&env, &contract_id);
+        client.charge();
+    }
+
+    #[test]
     fn unsubscribe_cancels_and_revokes_allowance() {
         let env = Env::default();
         env.mock_all_auths();
@@ -464,8 +550,36 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #4)")]
-    fn unsubscribe_twice_fails() {
+    fn subscribe_re_enables_after_unsubscribe() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let relayer = Address::generate(&env);
+        let subscriber = Address::generate(&env);
+        let (contract_id, asset) = deploy_contract(&env, admin, subscriber.clone(), relayer);
+        let tok = token::TokenClient::new(&env, &asset);
+        token::StellarAssetClient::new(&env, &asset).mint(&subscriber, &1_000);
+        tok.approve(&subscriber, &contract_id, &500, &1000);
+
+        let client = SubscriptionTriggerClient::new(&env, &contract_id);
+        client.unsubscribe();
+        assert!(client.is_cancelled());
+        assert_eq!(tok.allowance(&subscriber, &contract_id), 0);
+
+        // Re-approve so the re-enabled subscription can charge again.
+        tok.approve(&subscriber, &contract_id, &200, &1000);
+        env.ledger().set_timestamp(START_TIME);
+        client.subscribe();
+        assert!(!client.is_cancelled());
+
+        client.charge();
+        assert_eq!(tok.balance(&subscriber), 800);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #7)")]
+    fn subscribe_fails_when_already_active() {
         let env = Env::default();
         env.mock_all_auths();
 
@@ -475,7 +589,6 @@ mod test {
         let (contract_id, _) = deploy_contract(&env, admin, subscriber.clone(), relayer);
 
         let client = SubscriptionTriggerClient::new(&env, &contract_id);
-        client.unsubscribe();
-        client.unsubscribe();
+        client.subscribe(); // already active
     }
 }

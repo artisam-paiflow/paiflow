@@ -277,4 +277,67 @@ describe("flowToEnglish", () => {
     expect(out).toContain("When HTTP webhook fires for USDC");
     expect(out).toContain("swap XLM to USDC at 95% rate");
   });
+
+  it("describes a subscription trigger with interval", () => {
+    const out = flowToEnglish({
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            subscriber: ADDR,
+            amountPerPeriodStroops: "10000000",
+            intervalAmount: 1,
+            intervalUnit: "minute",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "10000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("When subscription pulls 1 USDC every minute");
+    expect(out).toContain("pay 1 USDC");
+  });
+
+  it("describes a subscription trigger with plural interval", () => {
+    const out = flowToEnglish({
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            subscriber: ADDR,
+            amountPerPeriodStroops: "10000000",
+            intervalAmount: 5,
+            intervalUnit: "day",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "10000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("When subscription pulls 1 USDC every 5 days");
+  });
 });

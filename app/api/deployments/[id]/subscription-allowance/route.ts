@@ -4,7 +4,7 @@ import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { prepareTokenApproveInvocation } from "@/lib/stellar/invoke";
-import { readTokenAllowance } from "@/lib/stellar/relayer";
+import { readTokenAllowance, readSubscriptionIsCancelled } from "@/lib/stellar/relayer";
 import { assetContractId } from "@/lib/stellar/assets";
 import { stellarPassphrase } from "@/lib/env";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
@@ -56,17 +56,21 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     }
 
     const tokenContractAddress = assetContractId(trigger.config.asset);
-    const allowance = await readTokenAllowance({
-      tokenContractAddress,
-      owner: trigger.config.subscriber,
-      spender: subscriptionNode.contractAddress,
-    });
+    const [allowance, isCancelled] = await Promise.all([
+      readTokenAllowance({
+        tokenContractAddress,
+        owner: trigger.config.subscriber,
+        spender: subscriptionNode.contractAddress,
+      }),
+      readSubscriptionIsCancelled(subscriptionNode.contractAddress),
+    ]);
 
     return NextResponse.json({
       data: {
         allowance: allowance.toString(),
         subscriber: trigger.config.subscriber,
         asset: trigger.config.asset,
+        isCancelled,
       },
     });
   });

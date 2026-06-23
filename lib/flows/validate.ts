@@ -428,7 +428,9 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   let templateKind: TemplateKind;
   if (hasCondition) {
     templateKind = TemplateKind.CONDITIONAL;
-  } else if (isScheduleLike && isPayOrSplit) {
+  } else if (trigger!.type === "subscription" && isPayOrSplit) {
+    templateKind = TemplateKind.SUBSCRIPTION;
+  } else if (trigger!.type === "on_schedule" && isPayOrSplit) {
     templateKind = TemplateKind.STREAMER;
   } else if (isOnReceive && isPayOrSplit) {
     templateKind = TemplateKind.SPLITTER;
