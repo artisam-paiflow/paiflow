@@ -52,6 +52,8 @@ const FRIENDLY = {
     "All recipients in a split must be either percentages or fixed amounts, not a mix.",
   FIXED_AMOUNT_REQUIRED: "Each fixed-amount recipient needs a positive amount.",
   TOTAL_FIXED_AMOUNT_REQUIRED: "Add at least one positive fixed amount to the split.",
+  ASSET_CONFLICT:
+    "This step can receive different assets depending on which path funds arrive through. Make sure every path leading into it carries the same asset, or add a swap so they match before merging.",
 } as const;
 
 export function assetsEqual(a: Asset, b: Asset): boolean {
@@ -74,40 +76,87 @@ function getTriggerAsset(t: FlowNode): Asset | null {
   return null;
 }
 
+function uniqueAssets(assets: Asset[]): Asset[] {
+  const out: Asset[] = [];
+  for (const a of assets) {
+    if (!out.some((o) => assetsEqual(o, a))) out.push(a);
+  }
+  return out;
+}
+
 /**
  * For every node in the graph, the asset expected to flow into it: the
  * trigger's asset, transformed to a swap's assetOut for anything downstream
  * of that swap. Null means unconstrained (no trigger asset, or unreachable).
+ *
+ * A node is only resolved once every one of its incoming edges has been
+ * resolved (Kahn's algorithm), so a merge point that receives conflicting
+ * assets via different paths is detected rather than silently settled by
+ * whichever path the queue happened to visit first.
  */
-export function computeAssetFlow(graph: FlowGraph): Map<string, Asset | null> {
+function computeAssetFlowInternal(graph: FlowGraph): {
+  resolved: Map<string, Asset | null>;
+  conflicts: Set<string>;
+} {
   const nodesById = new Map<string, FlowNode>(graph.nodes.map((n) => [n.id, n]));
   const adj = new Map<string, string[]>();
-  for (const n of graph.nodes) adj.set(n.id, []);
-  for (const e of graph.edges) adj.get(e.source)?.push(e.target);
+  const indegree = new Map<string, number>();
+  for (const n of graph.nodes) {
+    adj.set(n.id, []);
+    indegree.set(n.id, 0);
+  }
+  for (const e of graph.edges) {
+    adj.get(e.source)?.push(e.target);
+    indegree.set(e.target, (indegree.get(e.target) ?? 0) + 1);
+  }
 
-  const expected = new Map<string, Asset | null>();
+  const resolved = new Map<string, Asset | null>();
+  const conflicts = new Set<string>();
   const trigger = graph.nodes.find(isTrigger);
-  if (!trigger) return expected;
+  if (!trigger) return { resolved, conflicts };
 
-  expected.set(trigger.id, getTriggerAsset(trigger));
+  const incoming = new Map<string, (Asset | null)[]>();
+  const remaining = new Map(indegree);
+  const visited = new Set<string>([trigger.id]);
+  resolved.set(trigger.id, getTriggerAsset(trigger));
   const queue = [trigger.id];
+
   while (queue.length) {
     const nodeId = queue.shift()!;
-    const incoming = expected.get(nodeId) ?? null;
     const node = nodesById.get(nodeId)!;
-    const outgoing = node.type === "swap" ? node.config.assetOut : incoming;
+    const nodeIncoming = resolved.get(nodeId) ?? null;
+    const outgoing = node.type === "swap" ? node.config.assetOut : nodeIncoming;
+
     for (const nextId of adj.get(nodeId) ?? []) {
-      if (!expected.has(nextId)) {
-        expected.set(nextId, outgoing);
+      const list = incoming.get(nextId) ?? [];
+      list.push(outgoing);
+      incoming.set(nextId, list);
+      remaining.set(nextId, (remaining.get(nextId) ?? 0) - 1);
+
+      if ((remaining.get(nextId) ?? 0) <= 0 && !visited.has(nextId)) {
+        visited.add(nextId);
+        const distinct = uniqueAssets(
+          (incoming.get(nextId) ?? []).filter((a): a is Asset => a !== null),
+        );
+        if (distinct.length > 1) {
+          conflicts.add(nextId);
+          resolved.set(nextId, null);
+        } else {
+          resolved.set(nextId, distinct[0] ?? null);
+        }
         queue.push(nextId);
       }
     }
   }
 
   for (const n of graph.nodes) {
-    if (!expected.has(n.id)) expected.set(n.id, null);
+    if (!resolved.has(n.id)) resolved.set(n.id, null);
   }
-  return expected;
+  return { resolved, conflicts };
+}
+
+export function computeAssetFlow(graph: FlowGraph): Map<string, Asset | null> {
+  return computeAssetFlowInternal(graph).resolved;
 }
 
 export function validateFlow(rawGraph: unknown): ValidationResult {
@@ -396,11 +445,19 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   // actually flows into it (the trigger's asset, transformed to a swap's
   // assetOut for anything downstream of that swap).
   if (trigger) {
-    const expectedAssetByNode = computeAssetFlow(graph);
+    const { resolved: expectedAssetByNode, conflicts } = computeAssetFlowInternal(graph);
+
+    for (const nodeId of conflicts) {
+      errors.push({
+        path: `nodes.${nodeId}`,
+        message: "Asset conflict: multiple incoming paths provide different assets",
+        friendlyMessage: FRIENDLY.ASSET_CONFLICT,
+      });
+    }
 
     for (const a of contractActions) {
       const expected = expectedAssetByNode.get(a.id);
-      if (!expected) continue; // unconstrained: no trigger asset, or unreachable
+      if (!expected) continue; // unconstrained: no trigger asset, unreachable, or conflicting (reported above)
 
       let actual: Asset | null = null;
       if (a.type === "pay") actual = a.config.asset;

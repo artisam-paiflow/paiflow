@@ -813,6 +813,146 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(true);
   });
+
+  it("rejects a node reached by two paths that disagree on asset (merge conflict)", () => {
+    // t (USDC) -> s (swap USDC->XLM) -> a (pay), plus a second edge t -> a
+    // directly. "a" receives XLM via the swap path and USDC via the direct
+    // path — neither the validator nor the user can pick a single winner.
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "s",
+          type: "swap",
+          config: {
+            assetIn: { kind: "known", symbol: "USDC" },
+            assetOut: { kind: "native" },
+            rateBps: 9500,
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "10",
+            asset: { kind: "known", symbol: "USDC" },
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "s" },
+        { id: "e2", source: "s", target: "a" },
+        { id: "e3", source: "t", target: "a" },
+      ],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => e.message.toLowerCase().includes("conflict"))).toBe(true);
+    }
+  });
+
+  it("accepts a node reached by two paths that agree on asset (no false-positive conflict)", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "10",
+            asset: { kind: "known", symbol: "USDC" },
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "t", target: "a" },
+      ],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects the second swap in a chain when its assetIn doesn't match the first swap's assetOut", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "s1",
+          type: "swap",
+          config: {
+            assetIn: { kind: "native" },
+            assetOut: { kind: "known", symbol: "USDC" },
+            rateBps: 9500,
+          },
+        },
+        {
+          id: "s2",
+          type: "swap",
+          config: {
+            // Wrong: s1 outputs USDC, but s2 declares it expects native.
+            assetIn: { kind: "native" },
+            assetOut: { kind: "native" },
+            rateBps: 9500,
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: { recipient: ADDR_A, amountStroops: "10", asset: { kind: "native" } },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "s1" },
+        { id: "e2", source: "s1", target: "s2" },
+        { id: "e3", source: "s2", target: "a" },
+      ],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("accepts a custom asset trigger flowing into a matching custom asset pay", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "custom", code: "PAI", issuer: ADDR_A } },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "10",
+            asset: { kind: "custom", code: "PAI", issuer: ADDR_A },
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects a custom asset trigger flowing into a pay configured for a different asset", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "custom", code: "PAI", issuer: ADDR_A } },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: { recipient: ADDR_B, amountStroops: "10", asset: { kind: "native" } },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+  });
 });
 
 describe("computeAssetFlow", () => {
@@ -936,5 +1076,34 @@ describe("computeAssetFlow", () => {
     });
     const flow = computeAssetFlow(graph);
     expect(flow.get("a")).toEqual({ kind: "native" });
+  });
+
+  it("returns null (not an arbitrary pick) for a node whose incoming paths disagree", () => {
+    const graph = FlowGraphSchema.parse({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "s",
+          type: "swap",
+          config: {
+            assetIn: { kind: "known", symbol: "USDC" },
+            assetOut: { kind: "native" },
+            rateBps: 9500,
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: { recipient: ADDR_A, amountStroops: "10", asset: { kind: "native" } },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "s" },
+        { id: "e2", source: "s", target: "a" },
+        { id: "e3", source: "t", target: "a" },
+      ],
+    });
+    const flow = computeAssetFlow(graph);
+    expect(flow.get("a")).toBeNull();
   });
 });

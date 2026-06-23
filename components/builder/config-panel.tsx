@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
 import type { FlowNode, FlowGraph, Asset } from "@/lib/flows/schema";
 import {
   isPendingAddress,
@@ -99,6 +100,11 @@ export default function ConfigPanel({
   refreshAddressBook,
   className,
 }: Props) {
+  const expectedAsset = useMemo(
+    () => (node ? (computeAssetFlow(graph).get(node.id) ?? null) : null),
+    [graph, node],
+  );
+
   if (!node) {
     return (
       <aside
@@ -112,7 +118,6 @@ export default function ConfigPanel({
   const trigger = graph.nodes.find(isTrigger);
   const triggerType = trigger?.type ?? null;
   const sourceAmount = sourceAmountStroops(graph);
-  const expectedAsset = computeAssetFlow(graph).get(node.id) ?? null;
 
   return (
     <aside
@@ -1492,34 +1497,64 @@ function AssetOptionInfoIcon({ expectedAsset }: { expectedAsset: Asset }) {
   );
 }
 
-function AssetField({
+type SimpleAsset =
+  | { kind: "native" }
+  | { kind: "known"; symbol: "USDC" }
+  | { kind: "custom"; code: string; issuer: string };
+
+function AssetFieldLabel({
+  label,
+  expectedAsset,
+}: {
+  label: React.ReactNode;
+  expectedAsset?: Asset | null;
+}) {
+  if (!expectedAsset) return <>{label}</>;
+  return (
+    <span className="inline-flex items-center gap-1">
+      {label}
+      <AssetOptionInfoIcon expectedAsset={expectedAsset} />
+    </span>
+  );
+}
+
+/**
+ * The dropdown below only offers native/USDC. When the upstream trigger
+ * carries a custom asset, neither option is valid — rather than disabling
+ * both and leaving the field dead, show the required asset read-only and
+ * force the node's config to match it, since there is no other value the
+ * user could legitimately pick.
+ */
+function AssetSelectOrReadout({
+  label,
   asset,
   onChange,
   expectedAsset,
 }: {
-  asset:
-    | { kind: "native" }
-    | { kind: "known"; symbol: "USDC" }
-    | { kind: "custom"; code: string; issuer: string };
-  onChange: (a: typeof asset) => void;
+  label: React.ReactNode;
+  asset: SimpleAsset;
+  onChange: (a: SimpleAsset) => void;
   expectedAsset?: Asset | null;
 }) {
+  useEffect(() => {
+    if (expectedAsset?.kind === "custom" && !assetsEqual(expectedAsset, asset)) {
+      onChange(expectedAsset);
+    }
+  }, [expectedAsset, asset, onChange]);
+
+  if (expectedAsset?.kind === "custom") {
+    return (
+      <Field label={<AssetFieldLabel label={label} expectedAsset={expectedAsset} />}>
+        <div className="input flex items-center text-zinc-400">{assetLabel(expectedAsset)}</div>
+      </Field>
+    );
+  }
+
   const nativeDisabled = !!expectedAsset && !assetsEqual(expectedAsset, { kind: "native" });
   const usdcDisabled =
     !!expectedAsset && !assetsEqual(expectedAsset, { kind: "known", symbol: "USDC" });
   return (
-    <Field
-      label={
-        expectedAsset ? (
-          <span className="inline-flex items-center gap-1">
-            Asset
-            <AssetOptionInfoIcon expectedAsset={expectedAsset} />
-          </span>
-        ) : (
-          "Asset"
-        )
-      }
-    >
+    <Field label={<AssetFieldLabel label={label} expectedAsset={expectedAsset} />}>
       <select
         className="input"
         value={asset.kind === "known" ? `known:${asset.symbol}` : asset.kind}
@@ -1540,6 +1575,25 @@ function AssetField({
   );
 }
 
+function AssetField({
+  asset,
+  onChange,
+  expectedAsset,
+}: {
+  asset: SimpleAsset;
+  onChange: (a: SimpleAsset) => void;
+  expectedAsset?: Asset | null;
+}) {
+  return (
+    <AssetSelectOrReadout
+      label="Asset"
+      asset={asset}
+      onChange={onChange}
+      expectedAsset={expectedAsset}
+    />
+  );
+}
+
 function AssetSimpleSelect({
   label,
   asset,
@@ -1547,46 +1601,17 @@ function AssetSimpleSelect({
   expectedAsset,
 }: {
   label: string;
-  asset:
-    | { kind: "native" }
-    | { kind: "known"; symbol: "USDC" }
-    | { kind: "custom"; code: string; issuer: string };
-  onChange: (a: typeof asset) => void;
+  asset: SimpleAsset;
+  onChange: (a: SimpleAsset) => void;
   expectedAsset?: Asset | null;
 }) {
-  const nativeDisabled = !!expectedAsset && !assetsEqual(expectedAsset, { kind: "native" });
-  const usdcDisabled =
-    !!expectedAsset && !assetsEqual(expectedAsset, { kind: "known", symbol: "USDC" });
   return (
-    <Field
-      label={
-        expectedAsset ? (
-          <span className="inline-flex items-center gap-1">
-            {label}
-            <AssetOptionInfoIcon expectedAsset={expectedAsset} />
-          </span>
-        ) : (
-          label
-        )
-      }
-    >
-      <select
-        className="input"
-        value={asset.kind === "known" ? `known:${asset.symbol}` : asset.kind}
-        onChange={(e) => {
-          const v = e.target.value;
-          if (v === "native") onChange({ kind: "native" });
-          else if (v === "known:USDC") onChange({ kind: "known", symbol: "USDC" });
-        }}
-      >
-        <option value="known:USDC" disabled={usdcDisabled}>
-          USDC
-        </option>
-        <option value="native" disabled={nativeDisabled}>
-          XLM (native)
-        </option>
-      </select>
-    </Field>
+    <AssetSelectOrReadout
+      label={label}
+      asset={asset}
+      onChange={onChange}
+      expectedAsset={expectedAsset}
+    />
   );
 }
 
