@@ -526,6 +526,43 @@ export async function prepareSubscriptionUnsubscribeInvocation(opts: {
   return { xdr: assembled.toXDR(), tx: assembled };
 }
 
+export async function prepareSubscriptionSubscribeInvocation(opts: {
+  contractAddress: string;
+  subscriberAddress: string;
+}): Promise<PreparedInvokeTx> {
+  const server = sorobanRpc();
+  const sourceAcct = await server.getAccount(opts.subscriberAddress);
+
+  const contractIdBytes = decodeContractAddress(opts.contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName: "subscribe",
+      args: [],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(180)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+  }
+  const assembled = rpc.assembleTransaction(tx, sim).build();
+
+  return { xdr: assembled.toXDR(), tx: assembled };
+}
+
 export async function prepareSubscriptionChargeInvocation(opts: {
   contractAddress: string;
   adminAddress: string;

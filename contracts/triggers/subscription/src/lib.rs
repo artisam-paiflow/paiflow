@@ -38,9 +38,10 @@ pub enum Error {
     AlreadyCancelled = 4,
     NotYetDue = 5,
     SubscriptionEnded = 6,
+    NotCancelled = 7,
 }
 
-const VERSION: u32 = 4;
+const VERSION: u32 = 5;
 
 #[contract]
 pub struct SubscriptionTrigger;
@@ -184,6 +185,28 @@ impl SubscriptionTrigger {
             .instance()
             .get(&Key::Cancelled)
             .unwrap_or(false)
+    }
+
+    /// Re-enable a previously cancelled subscription. The subscriber must still
+    /// grant a sufficient token allowance separately for charges to succeed.
+    pub fn subscribe(env: Env) {
+        let subscriber: Address = env.storage().instance().get(&Key::Subscriber).unwrap();
+        subscriber.require_auth();
+
+        if !env
+            .storage()
+            .instance()
+            .get(&Key::Cancelled)
+            .unwrap_or(false)
+        {
+            panic_with_error!(&env, Error::NotCancelled);
+        }
+
+        env.storage().instance().set(&Key::Cancelled, &false);
+
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("subscribe"), subscriber), ());
     }
 }
 
@@ -527,8 +550,36 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #4)")]
-    fn unsubscribe_twice_fails() {
+    fn subscribe_re_enables_after_unsubscribe() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let relayer = Address::generate(&env);
+        let subscriber = Address::generate(&env);
+        let (contract_id, asset) = deploy_contract(&env, admin, subscriber.clone(), relayer);
+        let tok = token::TokenClient::new(&env, &asset);
+        token::StellarAssetClient::new(&env, &asset).mint(&subscriber, &1_000);
+        tok.approve(&subscriber, &contract_id, &500, &1000);
+
+        let client = SubscriptionTriggerClient::new(&env, &contract_id);
+        client.unsubscribe();
+        assert!(client.is_cancelled());
+        assert_eq!(tok.allowance(&subscriber, &contract_id), 0);
+
+        // Re-approve so the re-enabled subscription can charge again.
+        tok.approve(&subscriber, &contract_id, &200, &1000);
+        env.ledger().set_timestamp(START_TIME);
+        client.subscribe();
+        assert!(!client.is_cancelled());
+
+        client.charge();
+        assert_eq!(tok.balance(&subscriber), 800);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #7)")]
+    fn subscribe_fails_when_already_active() {
         let env = Env::default();
         env.mock_all_auths();
 
@@ -538,7 +589,6 @@ mod test {
         let (contract_id, _) = deploy_contract(&env, admin, subscriber.clone(), relayer);
 
         let client = SubscriptionTriggerClient::new(&env, &contract_id);
-        client.unsubscribe();
-        client.unsubscribe();
+        client.subscribe(); // already active
     }
 }

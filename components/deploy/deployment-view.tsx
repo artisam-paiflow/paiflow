@@ -230,10 +230,16 @@ export default function DeploymentView({
       .then(async (res) => {
         if (!res.ok) return;
         const json = (await res.json()) as {
-          data: { allowance: string; subscriber: string; asset: { kind: string } };
+          data: {
+            allowance: string;
+            subscriber: string;
+            asset: { kind: string };
+            isCancelled: boolean;
+          };
         };
         if (!cancelled) {
           setAllowance(BigInt(json.data.allowance));
+          setIsCancelled(json.data.isCancelled);
         }
       })
       .catch(() => {
@@ -385,50 +391,104 @@ export default function DeploymentView({
                     setBalanceTick((t) => t + 1);
                   }}
                 />
-                <ContractCallButton
-                  deploymentId={deploymentId}
-                  network={network}
-                  label="UNSUBSCRIBE"
-                  busyLabel="UNSUBSCRIBING…"
-                  icon="cancel"
-                  variant="danger"
-                  size="sm"
-                  prepare={async (address) => {
-                    const res = await fetch(
-                      `/api/deployments/${deploymentId}/subscription-unsubscribe`,
-                      {
+                {isCancelled === null ? (
+                  <button
+                    disabled
+                    className="bg-surface-variant text-on-surface-variant inline-flex cursor-not-allowed items-center gap-1.5 rounded px-3 py-1.5 font-mono text-xs opacity-60"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">sync</span>
+                    LOADING…
+                  </button>
+                ) : isCancelled ? (
+                  <ContractCallButton
+                    deploymentId={deploymentId}
+                    network={network}
+                    label="SUBSCRIBE"
+                    busyLabel="SUBSCRIBING…"
+                    icon="check_circle"
+                    variant="secondary"
+                    size="sm"
+                    prepare={async (address) => {
+                      const res = await fetch(
+                        `/api/deployments/${deploymentId}/subscription-subscribe`,
+                        {
+                          method: "POST",
+                          headers: { "content-type": "application/json" },
+                          body: JSON.stringify({ userAddress: address }),
+                        },
+                      );
+                      const json = (await res.json()) as {
+                        data?: { xdr: string; networkPassphrase: string };
+                        error?: { message?: string };
+                      };
+                      if (!res.ok) {
+                        throw new Error(json.error?.message ?? "Unknown error");
+                      }
+                      const data = json.data;
+                      if (!data) throw new Error("Prepare failed");
+                      return { xdr: data.xdr, networkPassphrase: data.networkPassphrase };
+                    }}
+                    submit={async (signedXdr) => {
+                      const res = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
                         method: "POST",
                         headers: { "content-type": "application/json" },
-                        body: JSON.stringify({ userAddress: address }),
-                      },
-                    );
-                    const json = (await res.json()) as {
-                      data?: { xdr: string; networkPassphrase: string };
-                      error?: { message?: string };
-                    };
-                    if (!res.ok) {
-                      throw new Error(json.error?.message ?? "Unknown error");
-                    }
-                    const data = json.data;
-                    if (!data) throw new Error("Prepare failed");
-                    return { xdr: data.xdr, networkPassphrase: data.networkPassphrase };
-                  }}
-                  submit={async (signedXdr) => {
-                    const res = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
-                      method: "POST",
-                      headers: { "content-type": "application/json" },
-                      body: JSON.stringify({ signedXdr }),
-                    });
-                    const json = (await res.json()) as { data: { txHash: string } };
-                    if (!res.ok) throw new Error("Submit failed");
-                    return { txHash: json.data.txHash };
-                  }}
-                  onSuccess={() => {
-                    setIsCancelled(true);
-                    setAllowance(0n);
-                    setBalanceTick((t) => t + 1);
-                  }}
-                />
+                        body: JSON.stringify({ signedXdr }),
+                      });
+                      const json = (await res.json()) as { data: { txHash: string } };
+                      if (!res.ok) throw new Error("Submit failed");
+                      return { txHash: json.data.txHash };
+                    }}
+                    onSuccess={() => {
+                      setIsCancelled(false);
+                      setBalanceTick((t) => t + 1);
+                    }}
+                  />
+                ) : (
+                  <ContractCallButton
+                    deploymentId={deploymentId}
+                    network={network}
+                    label="UNSUBSCRIBE"
+                    busyLabel="UNSUBSCRIBING…"
+                    icon="cancel"
+                    variant="danger"
+                    size="sm"
+                    prepare={async (address) => {
+                      const res = await fetch(
+                        `/api/deployments/${deploymentId}/subscription-unsubscribe`,
+                        {
+                          method: "POST",
+                          headers: { "content-type": "application/json" },
+                          body: JSON.stringify({ userAddress: address }),
+                        },
+                      );
+                      const json = (await res.json()) as {
+                        data?: { xdr: string; networkPassphrase: string };
+                        error?: { message?: string };
+                      };
+                      if (!res.ok) {
+                        throw new Error(json.error?.message ?? "Unknown error");
+                      }
+                      const data = json.data;
+                      if (!data) throw new Error("Prepare failed");
+                      return { xdr: data.xdr, networkPassphrase: data.networkPassphrase };
+                    }}
+                    submit={async (signedXdr) => {
+                      const res = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
+                        method: "POST",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ signedXdr }),
+                      });
+                      const json = (await res.json()) as { data: { txHash: string } };
+                      if (!res.ok) throw new Error("Submit failed");
+                      return { txHash: json.data.txHash };
+                    }}
+                    onSuccess={() => {
+                      setIsCancelled(true);
+                      setAllowance(0n);
+                      setBalanceTick((t) => t + 1);
+                    }}
+                  />
+                )}
               </div>
             </div>
           )}

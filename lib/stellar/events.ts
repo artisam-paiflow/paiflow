@@ -288,6 +288,20 @@ const SUBSCRIPTION_REGISTRY: EventRegistry = {
       return subscriber && amount !== null ? { subscriber, amount } : null;
     },
   },
+  subscribe: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics) => {
+      const subscriber = topics[1] ?? null;
+      return subscriber ? { subscriber } : null;
+    },
+  },
+  cancel: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics) => {
+      const subscriber = topics[1] ?? null;
+      return subscriber ? { subscriber } : null;
+    },
+  },
 };
 
 const ORACLE_REGISTRY: EventRegistry = {
