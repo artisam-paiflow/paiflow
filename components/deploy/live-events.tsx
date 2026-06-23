@@ -74,6 +74,11 @@ const KIND_META: Record<string, { label: string; color: string; icon: string }> 
     color: "border-success/30 bg-success/10 text-success",
     icon: "play_arrow",
   },
+  ALLOWANCE: {
+    label: "ALLOWANCE",
+    color: "border-success/30 bg-success/10 text-success",
+    icon: "approval",
+  },
 };
 
 const TOTAL_BPS = 10000n;
@@ -724,6 +729,37 @@ function EventDetails({ evt, graph }: { evt: Evt; graph?: FlowGraph | null }) {
             {isNonEmptyString(recipient) && (
               <DetailField label="To">
                 <AddressValue addr={recipient} />
+              </DetailField>
+            )}
+            {asset !== undefined && asset !== null && (
+              <DetailField label="Asset">{formatAsset(asset)}</DetailField>
+            )}
+          </div>
+        </div>
+      );
+    }
+    case "ALLOWANCE": {
+      const from = d?.from ?? d?.subscriber ?? d?.address;
+      const spender = d?.spender;
+      const amount = d?.amount;
+      const asset = d?.asset;
+
+      return (
+        <div className="space-y-2">
+          <div className="text-body-sm text-on-surface">
+            Approved{" "}
+            <span className="text-primary font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
+            for recurring charges
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+            {isNonEmptyString(from) && (
+              <DetailField label="Subscriber">
+                <AddressValue addr={from} />
+              </DetailField>
+            )}
+            {isNonEmptyString(spender) && (
+              <DetailField label="Spender">
+                <AddressValue addr={spender} />
               </DetailField>
             )}
             {asset !== undefined && asset !== null && (

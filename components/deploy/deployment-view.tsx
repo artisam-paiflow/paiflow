@@ -66,7 +66,8 @@ export default function DeploymentView({
           data.kind === "CLAIM" ||
           data.kind === "CANCEL" ||
           data.kind === "SHORTFALL" ||
-          data.kind === "FORWARD"
+          data.kind === "FORWARD" ||
+          data.kind === "ALLOWANCE"
         ) {
           balanceChanges += 1;
         }
@@ -697,7 +698,7 @@ export default function DeploymentView({
                   </div>
                 </div>
               </>
-            ) : (
+            ) : isSubscription ? null : (
               <>
                 <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
                   SCAN WITH FREIGHTER WALLET · SET AMOUNT IN TRIGGER PAGE.

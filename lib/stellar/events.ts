@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
-import { rpc, scValToNative } from "@stellar/stellar-sdk";
+import { TransactionBuilder, Address, StrKey, rpc, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { EventKind, TemplateKind } from "@prisma/client";
 import { sorobanRpc } from "./client";
 import { db } from "@/lib/db";
@@ -8,6 +8,7 @@ import { redis, eventChannel } from "@/lib/redis";
 import { log } from "@/lib/log";
 import { assetContractId } from "@/lib/stellar/assets";
 import { assetLabel, type FlowGraph } from "@/lib/flows/schema";
+import { stellarPassphrase } from "@/lib/env";
 import {
   sendEmailNotificationsForEvent,
   type PipelineNodeSnapshot,
@@ -531,6 +532,160 @@ function convertBigInts<T>(value: T): T {
     ) as unknown as T;
   }
   return value;
+}
+
+function transactionFromEnvelope(envelopeXdr: string): { operations: unknown[] } | null {
+  let tx;
+  try {
+    tx = TransactionBuilder.fromXDR(envelopeXdr, stellarPassphrase());
+  } catch {
+    return null;
+  }
+  if ((tx as any).innerTransaction) {
+    tx = (tx as any).innerTransaction;
+  }
+  if ("operations" in tx) {
+    return tx as { operations: unknown[] };
+  }
+  return null;
+}
+
+export function detectAllowanceFromEnvelope(envelopeXdr: string): {
+  tokenContractAddress: string;
+  from: string;
+  spender: string;
+  amount: string;
+} | null {
+  const tx = transactionFromEnvelope(envelopeXdr);
+  if (!tx) return null;
+
+  for (const op of tx.operations) {
+    const anyOp = op as any;
+    if (anyOp.type !== "invokeHostFunction" || !anyOp.func) continue;
+
+    const hostFn = anyOp.func as xdr.HostFunction;
+    if (hostFn.switch().value !== xdr.HostFunctionType.hostFunctionTypeInvokeContract().value)
+      continue;
+
+    const invoke = hostFn.invokeContract();
+    const functionName = Buffer.from(invoke.functionName() as Uint8Array).toString();
+    if (functionName !== "approve") continue;
+
+    const args = invoke.args();
+    if (args.length < 4) continue;
+
+    try {
+      const fromArg = args[0];
+      const spenderArg = args[1];
+      const amountArg = args[2];
+      if (!fromArg || !spenderArg || !amountArg) continue;
+      const from = Address.fromScVal(fromArg).toString();
+      const spender = Address.fromScVal(spenderArg).toString();
+      const amount = scValToNative(amountArg);
+      const tokenContractAddress = StrKey.encodeContract(
+        Buffer.from(invoke.contractAddress().contractId() as unknown as Uint8Array),
+      );
+      return {
+        tokenContractAddress,
+        from,
+        spender,
+        amount: amount?.toString() ?? "0",
+      };
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+export async function recordAllowanceEvent(opts: {
+  deploymentId: string;
+  envelopeXdr: string;
+  txHash: string;
+  ledger: number;
+  occurredAt: Date;
+  graph: FlowGraph | null;
+}): Promise<void> {
+  const allowance = detectAllowanceFromEnvelope(opts.envelopeXdr);
+  if (!allowance) return;
+
+  const symbolMap = buildAssetSymbolMap(opts.graph);
+  let asset = symbolMap.get(allowance.tokenContractAddress);
+  if (!asset) {
+    // Fall back to a short display of the token contract address.
+    asset = allowance.tokenContractAddress;
+  }
+
+  const decodedData = {
+    from: allowance.from,
+    spender: allowance.spender,
+    amount: allowance.amount,
+    asset,
+  };
+  const safeDecodedData = convertBigInts(decodedData) as Prisma.InputJsonValue;
+  const safePayload = convertBigInts({
+    functionName: "approve",
+    tokenContractAddress: allowance.tokenContractAddress,
+    from: allowance.from,
+    spender: allowance.spender,
+    amount: allowance.amount,
+  }) as Prisma.InputJsonValue;
+
+  try {
+    const created = await db.contractEvent.create({
+      data: {
+        deploymentId: opts.deploymentId,
+        eventId: `${opts.txHash}:allowance`,
+        kind: EventKind.ALLOWANCE,
+        ledger: opts.ledger,
+        txHash: opts.txHash,
+        payload: safePayload,
+        decodedData: safeDecodedData,
+        occurredAt: opts.occurredAt,
+      },
+    });
+
+    const client = redis();
+    if (client) {
+      client
+        .publish(
+          eventChannel(opts.deploymentId),
+          JSON.stringify(
+            convertBigInts({
+              id: created.id,
+              eventId: `${opts.txHash}:allowance`,
+              kind: EventKind.ALLOWANCE,
+              ledger: opts.ledger,
+              txHash: opts.txHash,
+              payload: {
+                functionName: "approve",
+                tokenContractAddress: allowance.tokenContractAddress,
+                from: allowance.from,
+                spender: allowance.spender,
+                amount: allowance.amount,
+              },
+              decodedData,
+              occurredAt: opts.occurredAt.toISOString(),
+            }),
+          ),
+        )
+        .catch((err) => {
+          log.warn(
+            { err, deploymentId: opts.deploymentId, txHash: opts.txHash },
+            "allowance event redis publish failed",
+          );
+        });
+    }
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code !== "P2002") {
+      log.warn(
+        { err, deploymentId: opts.deploymentId, txHash: opts.txHash },
+        "allowance event insert failed",
+      );
+    }
+  }
 }
 
 function extractAssetsFromGraph(

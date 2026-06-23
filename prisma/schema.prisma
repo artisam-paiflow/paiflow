@@ -64,6 +64,7 @@ enum EventKind {
   RESUME
   FORWARD
   RETRIEVE
+  ALLOWANCE
 }
 
 model User {
