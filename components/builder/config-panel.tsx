@@ -17,6 +17,7 @@ import {
 import { cn, formatStroops } from "@/lib/utils";
 import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
+import { computeAssetFlow, assetsEqual } from "@/lib/flows/validate";
 
 const TIMEZONES = [
   "UTC",
@@ -111,6 +112,7 @@ export default function ConfigPanel({
   const trigger = graph.nodes.find(isTrigger);
   const triggerType = trigger?.type ?? null;
   const sourceAmount = sourceAmountStroops(graph);
+  const expectedAsset = computeAssetFlow(graph).get(node.id) ?? null;
 
   return (
     <aside
@@ -479,6 +481,7 @@ export default function ConfigPanel({
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
+            expectedAsset={expectedAsset}
           />
         </>
       )}
@@ -490,6 +493,7 @@ export default function ConfigPanel({
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
+            expectedAsset={expectedAsset}
           />
 
           {triggerType === "on_schedule" && (
@@ -995,22 +999,21 @@ export default function ConfigPanel({
 
       {node.type === "swap" && (
         <>
-          <Field label="Asset In">
-            <AssetSimpleSelect
-              asset={node.config.assetIn}
-              onChange={(assetIn) =>
-                onChange({ ...node, config: { ...node.config, assetIn } } as FlowNode)
-              }
-            />
-          </Field>
-          <Field label="Asset Out">
-            <AssetSimpleSelect
-              asset={node.config.assetOut}
-              onChange={(assetOut) =>
-                onChange({ ...node, config: { ...node.config, assetOut } } as FlowNode)
-              }
-            />
-          </Field>
+          <AssetSimpleSelect
+            label="Asset In"
+            asset={node.config.assetIn}
+            onChange={(assetIn) =>
+              onChange({ ...node, config: { ...node.config, assetIn } } as FlowNode)
+            }
+            expectedAsset={expectedAsset}
+          />
+          <AssetSimpleSelect
+            label="Asset Out"
+            asset={node.config.assetOut}
+            onChange={(assetOut) =>
+              onChange({ ...node, config: { ...node.config, assetOut } } as FlowNode)
+            }
+          />
           <Field label="Rate (basis points, 1–10000)">
             <input
               className="input"
@@ -1043,6 +1046,7 @@ export default function ConfigPanel({
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
+            expectedAsset={expectedAsset}
           />
           <Field label="Vault address (G… or PENDING:)">
             <AddressInput
@@ -1333,7 +1337,7 @@ export default function ConfigPanel({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <label className="grid gap-1">
       <span className="text-xs text-zinc-400">{label}</span>
@@ -1477,18 +1481,45 @@ function EmailRecipientsField({
   );
 }
 
+function AssetOptionInfoIcon({ expectedAsset }: { expectedAsset: Asset }) {
+  return (
+    <span
+      className="material-symbols-outlined cursor-help text-[14px] text-zinc-500"
+      title={`Only ${assetLabel(expectedAsset)} can be picked here — that's the asset flowing into this step. Add or change a swap node upstream to use a different asset.`}
+    >
+      info
+    </span>
+  );
+}
+
 function AssetField({
   asset,
   onChange,
+  expectedAsset,
 }: {
   asset:
     | { kind: "native" }
     | { kind: "known"; symbol: "USDC" }
     | { kind: "custom"; code: string; issuer: string };
   onChange: (a: typeof asset) => void;
+  expectedAsset?: Asset | null;
 }) {
+  const nativeDisabled = !!expectedAsset && !assetsEqual(expectedAsset, { kind: "native" });
+  const usdcDisabled =
+    !!expectedAsset && !assetsEqual(expectedAsset, { kind: "known", symbol: "USDC" });
   return (
-    <Field label="Asset">
+    <Field
+      label={
+        expectedAsset ? (
+          <span className="inline-flex items-center gap-1">
+            Asset
+            <AssetOptionInfoIcon expectedAsset={expectedAsset} />
+          </span>
+        ) : (
+          "Asset"
+        )
+      }
+    >
       <select
         className="input"
         value={asset.kind === "known" ? `known:${asset.symbol}` : asset.kind}
@@ -1498,36 +1529,64 @@ function AssetField({
           else if (v === "known:USDC") onChange({ kind: "known", symbol: "USDC" });
         }}
       >
-        <option value="known:USDC">USDC</option>
-        <option value="native">XLM (native)</option>
+        <option value="known:USDC" disabled={usdcDisabled}>
+          USDC
+        </option>
+        <option value="native" disabled={nativeDisabled}>
+          XLM (native)
+        </option>
       </select>
     </Field>
   );
 }
 
 function AssetSimpleSelect({
+  label,
   asset,
   onChange,
+  expectedAsset,
 }: {
+  label: string;
   asset:
     | { kind: "native" }
     | { kind: "known"; symbol: "USDC" }
     | { kind: "custom"; code: string; issuer: string };
   onChange: (a: typeof asset) => void;
+  expectedAsset?: Asset | null;
 }) {
+  const nativeDisabled = !!expectedAsset && !assetsEqual(expectedAsset, { kind: "native" });
+  const usdcDisabled =
+    !!expectedAsset && !assetsEqual(expectedAsset, { kind: "known", symbol: "USDC" });
   return (
-    <select
-      className="input"
-      value={asset.kind === "known" ? `known:${asset.symbol}` : asset.kind}
-      onChange={(e) => {
-        const v = e.target.value;
-        if (v === "native") onChange({ kind: "native" });
-        else if (v === "known:USDC") onChange({ kind: "known", symbol: "USDC" });
-      }}
+    <Field
+      label={
+        expectedAsset ? (
+          <span className="inline-flex items-center gap-1">
+            {label}
+            <AssetOptionInfoIcon expectedAsset={expectedAsset} />
+          </span>
+        ) : (
+          label
+        )
+      }
     >
-      <option value="known:USDC">USDC</option>
-      <option value="native">XLM (native)</option>
-    </select>
+      <select
+        className="input"
+        value={asset.kind === "known" ? `known:${asset.symbol}` : asset.kind}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === "native") onChange({ kind: "native" });
+          else if (v === "known:USDC") onChange({ kind: "known", symbol: "USDC" });
+        }}
+      >
+        <option value="known:USDC" disabled={usdcDisabled}>
+          USDC
+        </option>
+        <option value="native" disabled={nativeDisabled}>
+          XLM (native)
+        </option>
+      </select>
+    </Field>
   );
 }
 
