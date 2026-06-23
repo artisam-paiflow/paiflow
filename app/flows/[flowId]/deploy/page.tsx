@@ -10,6 +10,7 @@ import {
   flowToPipeline,
   getStreamerPreviewFromPipeline,
   getSubscriptionPreviewFromPipeline,
+  getPayrollPreviewFromPipeline,
 } from "@/lib/flows/to-params";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
 import DeployReview from "@/components/deploy/deploy-review";
@@ -41,16 +42,18 @@ export default async function DeployReviewPage({
     asset: Asset;
   } | null = null;
   const isSubscriptionTrigger = graph.data!.nodes.some((n) => n.type === "subscription");
+  const isPayrollTrigger = graph.data!.nodes.some((n) => n.type === "payroll");
   if (pipeline) {
     const sp =
       getStreamerPreviewFromPipeline(flowToPipeline(graph.data!)) ??
-      getSubscriptionPreviewFromPipeline(flowToPipeline(graph.data!));
+      getSubscriptionPreviewFromPipeline(flowToPipeline(graph.data!)) ??
+      getPayrollPreviewFromPipeline(flowToPipeline(graph.data!));
     if (sp) {
       const triggerNode = graph.data!.nodes.find(
-        (n) => n.type === "on_schedule" || n.type === "subscription",
+        (n) => n.type === "on_schedule" || n.type === "subscription" || n.type === "payroll",
       ) as
         | {
-            type: "on_schedule" | "subscription";
+            type: "on_schedule" | "subscription" | "payroll";
             config: { intervalAmount?: number; intervalUnit?: string; interval?: string };
           }
         | undefined;

@@ -54,6 +54,11 @@ export function flowToEnglish(graph: FlowGraph): string {
     triggerText = `When HTTP webhook fires for ${assetLabel(trigger.config.asset)}`;
   } else if (trigger.type === "subscription") {
     triggerText = `When subscription pulls ${formatStroops(trigger.config.amountPerPeriodStroops)} ${assetLabel(trigger.config.asset)} ${intervalLabel(trigger.config.intervalAmount ?? 1, trigger.config.intervalUnit ?? "day")}`;
+  } else if (trigger.type === "payroll") {
+    const employer = isPendingAddress(trigger.config.employer)
+      ? "(needs employer address)"
+      : shortAddr(trigger.config.employer);
+    triggerText = `When payroll pulls from ${employer} ${intervalLabel(trigger.config.intervalAmount ?? 1, trigger.config.intervalUnit ?? "week")}`;
   } else if (trigger.type === "oracle") {
     triggerText = `When oracle price meets threshold (${trigger.config.threshold}) for ${assetLabel(trigger.config.asset)}`;
   } else {

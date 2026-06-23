@@ -967,6 +967,148 @@ export default function ConfigPanel({
         </>
       )}
 
+      {node.type === "payroll" && (
+        <>
+          <AssetField
+            asset={node.config.asset}
+            onChange={(asset) =>
+              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
+            }
+          />
+          <Field label="Employer address (G… or PENDING:)">
+            <AddressInput
+              value={node.config.employer}
+              onChange={(employer) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, employer },
+                })
+              }
+              pending={isPendingAddress(node.config.employer)}
+              addressBook={addressBook}
+              onAddressBookChange={refreshAddressBook}
+            />
+          </Field>
+          {(() => {
+            const cfg = node.config as {
+              intervalAmount?: number;
+              intervalUnit?: "minute" | "hour" | "day" | "week" | "month";
+              endsAt?: string;
+              occurrences?: number;
+            };
+            const amount = cfg.intervalAmount ?? 1;
+            const unit = cfg.intervalUnit ?? "week";
+            return (
+              <>
+                <Field label="Interval">
+                  <div className="flex gap-2">
+                    <input
+                      className="input w-20 text-right"
+                      type="number"
+                      min={1}
+                      value={amount}
+                      onChange={(e) => {
+                        const v = Math.max(1, Math.floor(Number(e.target.value) || 1));
+                        onChange({
+                          ...node,
+                          config: { ...cfg, intervalAmount: v, intervalUnit: unit },
+                        } as FlowNode);
+                      }}
+                    />
+                    <select
+                      className="input flex-1"
+                      value={unit}
+                      onChange={(e) => {
+                        const newUnit = e.target.value as typeof unit;
+                        onChange({
+                          ...node,
+                          config: { ...cfg, intervalAmount: amount, intervalUnit: newUnit },
+                        } as FlowNode);
+                      }}
+                    >
+                      <option value="minute">Minute(s)</option>
+                      <option value="hour">Hour(s)</option>
+                      <option value="day">Day(s)</option>
+                      <option value="week">Week(s)</option>
+                      <option value="month">Month(s)</option>
+                    </select>
+                  </div>
+                </Field>
+                <Field label="Ends at — optional">
+                  <div className="flex gap-1">
+                    <input
+                      className="input"
+                      type="datetime-local"
+                      value={
+                        cfg.endsAt
+                          ? formatIsoForTimezone(
+                              cfg.endsAt,
+                              Intl.DateTimeFormat().resolvedOptions().timeZone,
+                            )
+                          : ""
+                      }
+                      onChange={(e) => {
+                        const local = e.target.value;
+                        onChange({
+                          ...node,
+                          config: {
+                            ...cfg,
+                            endsAt: local
+                              ? isoFromLocalAndTimezone(
+                                  local,
+                                  Intl.DateTimeFormat().resolvedOptions().timeZone,
+                                )
+                              : undefined,
+                            occurrences: undefined,
+                          },
+                        } as FlowNode);
+                      }}
+                    />
+                    {cfg.endsAt && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange({
+                            ...node,
+                            config: { ...cfg, endsAt: undefined },
+                          } as FlowNode)
+                        }
+                        className="rounded border border-zinc-700 px-2 text-zinc-400 hover:text-red-300"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </Field>
+                <Field label="Occurrences — optional">
+                  <input
+                    className="input"
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 5"
+                    value={cfg.occurrences ?? ""}
+                    onChange={(e) =>
+                      onChange({
+                        ...node,
+                        config: {
+                          ...cfg,
+                          endsAt: undefined,
+                          occurrences: e.target.value ? Number(e.target.value) : undefined,
+                        },
+                      } as FlowNode)
+                    }
+                  />
+                </Field>
+                <div className="rounded border border-zinc-800 bg-zinc-900/50 p-2 text-xs text-zinc-400">
+                  Connect a Split action with fixed amounts to set employee salaries. The payroll
+                  contract will pull the total from the employer each period and distribute it.
+                </div>
+              </>
+            );
+          })()}
+        </>
+      )}
+
       {node.type === "oracle" && (
         <>
           <AssetField

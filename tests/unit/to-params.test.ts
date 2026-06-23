@@ -487,6 +487,48 @@ describe("flowToParams", () => {
     expect(pipeline.map((n) => n.nodeId)).toEqual(["t", "a"]);
   });
 
+  it("produces payroll pipeline (payroll trigger → split with fixed amounts)", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+            occurrences: 4,
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "60000000", label: "Alice" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "40000000", label: "Bob" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(1);
+    const payroll = pipeline[0]!;
+    expect(payroll.templateKind).toBe(TemplateKind.PAYROLL);
+    expect(payroll.params.kind).toBe("payroll_trigger");
+    if (payroll.params.kind === "payroll_trigger") {
+      expect(payroll.params.employer).toBe(ADDR_A);
+      expect(payroll.params.amountPerPeriodStroops).toBe("100000000");
+      expect(payroll.params.intervalSeconds).toBe(60 * 60 * 24 * 7);
+      expect(payroll.params.recipients).toHaveLength(2);
+      expect(payroll.params.recipients[0]!.amount).toBe("60000000");
+      expect(payroll.params.recipients[1]!.amount).toBe("40000000");
+    }
+  });
+
   it("keeps email_notify out of nextStepNodeIds", () => {
     const pipeline = flowToPipeline({
       nodes: [

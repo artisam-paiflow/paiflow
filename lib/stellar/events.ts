@@ -304,6 +304,55 @@ const SUBSCRIPTION_REGISTRY: EventRegistry = {
   },
 };
 
+const PAYROLL_REGISTRY: EventRegistry = {
+  charge: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const employer = topics[1] ?? null;
+      const amount = value ?? null;
+      return employer && amount !== null ? { employer, amount } : null;
+    },
+  },
+  payout: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      const employer = topics[1] ?? null;
+      const recipients = value ?? null;
+      return employer && recipients !== null ? { employer, recipients } : null;
+    },
+  },
+  recipient_updated: {
+    kind: EventKind.RECIPIENT_UPDATED,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      const recipients = value ?? null;
+      return admin && recipients !== null ? { admin, recipients } : null;
+    },
+  },
+  cancel: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics) => {
+      const employer = topics[1] ?? null;
+      return employer ? { employer } : null;
+    },
+  },
+  subscribe: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics) => {
+      const employer = topics[1] ?? null;
+      return employer ? { employer } : null;
+    },
+  },
+  set_relayer: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      const relayer = value ?? null;
+      return admin && relayer !== null ? { admin, relayer } : null;
+    },
+  },
+};
+
 const ORACLE_REGISTRY: EventRegistry = {
   execute: {
     kind: EventKind.RECEIVE,
@@ -393,6 +442,8 @@ function getRegistry(templateKind: TemplateKind): EventRegistry {
       return WEBHOOK_REGISTRY;
     case TemplateKind.SUBSCRIPTION:
       return SUBSCRIPTION_REGISTRY;
+    case TemplateKind.PAYROLL:
+      return PAYROLL_REGISTRY;
     case TemplateKind.ORACLE:
       return ORACLE_REGISTRY;
     case TemplateKind.ROUTER:

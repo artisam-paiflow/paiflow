@@ -15,6 +15,7 @@ export const TEMPLATE_LABELS: Record<TemplateKind, string> = {
   SWAPPER: "Swapper",
   YIELD: "Yield",
   PAYER: "Payer",
+  PAYROLL: "Payroll",
 };
 
 export const TEMPLATE_DESCRIPTIONS: Record<TemplateKind, string> = {
@@ -32,4 +33,5 @@ export const TEMPLATE_DESCRIPTIONS: Record<TemplateKind, string> = {
   SWAPPER: "Fixed-rate token swap from asset_in to asset_out.",
   YIELD: "Deposits incoming funds into a vault or lending pool.",
   PAYER: "Sends a fixed amount to a single recipient.",
+  PAYROLL: "Pulls fixed salaries from an employer and distributes to employees on a schedule.",
 };

@@ -124,6 +124,19 @@ export type SubscriptionTriggerNodeParams = {
   nextStepNodeIds: string[];
 };
 
+export type PayrollTriggerNodeParams = {
+  kind: "payroll_trigger";
+  asset: Asset;
+  employer: string;
+  amountPerPeriodStroops: string;
+  recipients: PipelineRecipient[];
+  relayer?: string;
+  startTs: number;
+  endTs: number;
+  intervalSeconds: number;
+  nextStepNodeIds: string[];
+};
+
 export type OracleTriggerNodeParams = {
   kind: "oracle_trigger";
   asset: Asset;
@@ -173,6 +186,7 @@ export type PipelineNodeParams =
   | TimelockNodeParams
   | WebhookTriggerNodeParams
   | SubscriptionTriggerNodeParams
+  | PayrollTriggerNodeParams
   | OracleTriggerNodeParams
   | MultisigNodeParams
   | SwapperNodeParams
@@ -309,8 +323,12 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
   const children = getPipelineChildren(graph);
   const pipeline: PipelineNode[] = [];
 
-  // ── schedule-like flows (on_schedule, subscription) ──────────────────
-  if (trigger.type === "on_schedule" || trigger.type === "subscription") {
+  // ── schedule-like flows (on_schedule, subscription, payroll) ─────────
+  if (
+    trigger.type === "on_schedule" ||
+    trigger.type === "subscription" ||
+    trigger.type === "payroll"
+  ) {
     const action = contractActions[0]!;
     const asset = getAsset(action);
 
@@ -326,7 +344,7 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
     let end: number;
     let intervalSeconds: number;
 
-    if (trigger.type === "subscription") {
+    if (trigger.type === "subscription" || trigger.type === "payroll") {
       const cfg = trigger.config as {
         intervalAmount: number;
         intervalUnit: "minute" | "hour" | "day" | "week" | "month";
@@ -379,6 +397,29 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
           }
         }
       }
+      return pipeline;
+    }
+
+    if (trigger.type === "payroll") {
+      const recipients = toRecipients(action);
+      const amountPerPeriod = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n).toString();
+
+      pipeline.push({
+        nodeId: trigger.id,
+        templateKind: TemplateKind.PAYROLL,
+        params: {
+          kind: "payroll_trigger",
+          asset: trigger.config.asset,
+          employer: trigger.config.employer,
+          amountPerPeriodStroops: amountPerPeriod,
+          recipients,
+          relayer: relayerAddress,
+          startTs: start,
+          endTs: end,
+          intervalSeconds,
+          nextStepNodeIds: [],
+        },
+      });
       return pipeline;
     }
 
@@ -654,6 +695,24 @@ export function getSubscriptionPreviewFromPipeline(pipeline: PipelineNode[]) {
   const intervals = Math.floor(durationSecs / intervalSeconds);
   const totalStroops = (BigInt(amountPerPeriodStroops) * BigInt(intervals)).toString();
   return { amountPerPeriodStroops, intervalSeconds, startTs, endTs, durationSecs, totalStroops };
+}
+
+export function getPayrollPreviewFromPipeline(pipeline: PipelineNode[]) {
+  const payroll = pipeline.find((n) => n.templateKind === TemplateKind.PAYROLL);
+  if (!payroll || payroll.params.kind !== "payroll_trigger") return null;
+  const { amountPerPeriodStroops, recipients, intervalSeconds, startTs, endTs } = payroll.params;
+  const durationSecs = endTs - startTs;
+  const intervals = Math.floor(durationSecs / intervalSeconds);
+  const totalStroops = (BigInt(amountPerPeriodStroops) * BigInt(intervals)).toString();
+  return {
+    amountPerPeriodStroops,
+    recipients,
+    intervalSeconds,
+    startTs,
+    endTs,
+    durationSecs,
+    totalStroops,
+  };
 }
 
 /**

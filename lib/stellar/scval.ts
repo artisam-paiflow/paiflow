@@ -56,6 +56,20 @@ function recipientsVec(
   );
 }
 
+function payrollRecipientsVec(recipients: Array<{ address: string; amount: string }>): xdr.ScVal {
+  return xdr.ScVal.scvVec(
+    recipients.map((r) =>
+      xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({
+          key: symbol("address"),
+          val: addr(r.address),
+        }),
+        new xdr.ScMapEntry({ key: symbol("amount"), val: i128(r.amount) }),
+      ]),
+    ),
+  );
+}
+
 function workflowTargets(nodeIds: string[], addresses: Record<string, string>): xdr.ScVal {
   return xdr.ScVal.scvVec(
     nodeIds.map((id) => {
@@ -211,6 +225,18 @@ export function pipelineNodeConstructorArgs(
         addr(params.subscriber),
         i128(params.amountPerPeriodStroops),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
+        u64(params.startTs),
+        u64(params.intervalSeconds),
+        u64(params.endTs),
+      ];
+    }
+    case "payroll_trigger": {
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        addr(params.employer),
+        payrollRecipientsVec(params.recipients),
         addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
         u64(params.startTs),
         u64(params.intervalSeconds),

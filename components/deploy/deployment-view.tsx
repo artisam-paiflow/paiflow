@@ -7,6 +7,7 @@ import { LiveEvents, type Evt } from "./live-events";
 import LiveBalances from "./live-balances";
 import ContractCallButton from "./contract-call-button";
 import SubscriptionRelayerPanel from "./subscription-relayer-panel";
+import PayrollPanel from "./payroll-panel";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { assetLabel, isTrigger } from "@/lib/flows/schema";
 import { formatStroops } from "@/lib/utils";
@@ -212,6 +213,8 @@ export default function DeploymentView({
   const isStreamer = !!streamerNode;
   const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
   const isSubscription = !!subscriptionNode;
+  const payrollNode = pipeline?.find((n) => n.templateKind === "PAYROLL");
+  const isPayroll = !!payrollNode;
   const triggerNode = graph?.nodes.find(isTrigger);
   const pauseAllowed =
     triggerNode?.type === "on_schedule" ? (triggerNode.config.pauseAllowed ?? true) : true;
@@ -491,6 +494,14 @@ export default function DeploymentView({
                 )}
               </div>
             </div>
+          )}
+          {isPayroll && payrollNode?.contractAddress && network && graph && (
+            <PayrollPanel
+              deploymentId={deploymentId}
+              contractAddress={payrollNode.contractAddress}
+              network={network}
+              graph={graph}
+            />
           )}
           {isStreamer && streamerNode.contractAddress && network && pauseAllowed && (
             <div className="mt-md flex items-center gap-3">

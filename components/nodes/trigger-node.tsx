@@ -52,6 +52,12 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
     const intervalAmount = n.config.intervalAmount ?? 1;
     const intervalUnit = n.config.intervalUnit ?? "day";
     detail = `${formatStroops(n.config.amountPerPeriodStroops)} ${assetLabel(n.config.asset)} / ${intervalAmount} ${intervalUnit}`;
+  } else if (n.type === "payroll") {
+    icon = "group";
+    title = "Payroll";
+    const intervalAmount = n.config.intervalAmount ?? 1;
+    const intervalUnit = n.config.intervalUnit ?? "week";
+    detail = `${assetLabel(n.config.asset)} / ${intervalAmount} ${intervalUnit}`;
   } else if (n.type === "oracle") {
     icon = "online_prediction";
     title = "Oracle";

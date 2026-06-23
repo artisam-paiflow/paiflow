@@ -27,6 +27,7 @@ enum TemplateKind {
   SWAPPER
   YIELD
   PAYER
+  PAYROLL
 }
 
 enum DeploymentStatus {
@@ -53,6 +54,13 @@ enum ChargeRelayerMode {
   MANUAL
 }
 
+enum PayrollRunStatus {
+  PENDING
+  CHARGED
+  FAILED
+  CANCELLED
+}
+
 enum EventKind {
   RECEIVE
   PAYOUT
@@ -65,6 +73,7 @@ enum EventKind {
   FORWARD
   RETRIEVE
   ALLOWANCE
+  RECIPIENT_UPDATED
 }
 
 model User {
@@ -203,6 +212,8 @@ model Deployment {
   events ContractEvent[]
   cursor EventCursor?
   streamerClaimJobs StreamerClaimJob[]
+  employees Employee[]
+  payrollRuns PayrollRun[]
 
   @@index([ownerId, createdAt(sort: Desc)])
   @@index([status])
@@ -228,6 +239,57 @@ model StreamerClaimJob {
   @@index([status, runAt])
   @@index([deploymentId, nodeId, status])
   @@index([contractAddress, status])
+}
+
+model Employee {
+  id            String   @id @default(uuid()) @db.Uuid
+  deploymentId  String   @db.Uuid
+  address       String
+  amountStroops String
+  label         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  payouts    PayrollPayout[]
+
+  @@unique([deploymentId, address])
+  @@index([deploymentId])
+}
+
+model PayrollRun {
+  id           String           @id @default(uuid()) @db.Uuid
+  deploymentId String           @db.Uuid
+  runAt        DateTime
+  status       PayrollRunStatus @default(PENDING)
+  attemptCount Int              @default(0)
+  lastError    String?
+  txHash       String?
+  totalStroops String
+  chargedAt    DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  payouts    PayrollPayout[]
+
+  @@index([deploymentId, runAt])
+  @@index([status, runAt])
+}
+
+model PayrollPayout {
+  id            String   @id @default(uuid()) @db.Uuid
+  payrollRunId  String   @db.Uuid
+  employeeId    String   @db.Uuid
+  amountStroops String
+  txHash        String?
+  createdAt     DateTime @default(now())
+
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([payrollRunId])
+  @@index([employeeId])
 }
 
 model ContractEvent {

@@ -27,6 +27,9 @@ export function getPendingLabels(graph: FlowGraph): string[] {
     if (n.type === "subscription" && isPendingAddress(n.config.subscriber)) {
       labels.add(n.config.subscriber.slice(PENDING_PREFIX.length) || "unnamed");
     }
+    if (n.type === "payroll" && isPendingAddress(n.config.employer)) {
+      labels.add(n.config.employer.slice(PENDING_PREFIX.length) || "unnamed");
+    }
     if (n.type === "yield" && isPendingAddress(n.config.vault)) {
       labels.add(n.config.vault.slice(PENDING_PREFIX.length) || "unnamed");
     }
@@ -114,6 +117,19 @@ export const SubscriptionTrigger = z.object({
     amountPerPeriodStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
     intervalAmount: z.number().int().positive().default(1),
     intervalUnit: z.enum(["minute", "hour", "day", "week", "month"]).default("day"),
+    endsAt: z.string().datetime().optional(),
+    occurrences: z.number().int().positive().optional(),
+  }),
+});
+
+export const PayrollTrigger = z.object({
+  id: z.string().min(1),
+  type: z.literal("payroll"),
+  config: z.object({
+    asset: AssetSchema,
+    employer: stellarAccount,
+    intervalAmount: z.number().int().positive().default(1),
+    intervalUnit: z.enum(["minute", "hour", "day", "week", "month"]).default("week"),
     endsAt: z.string().datetime().optional(),
     occurrences: z.number().int().positive().optional(),
   }),
@@ -317,6 +333,7 @@ export const FlowNodeSchema = z.discriminatedUnion("type", [
   WebhookTrigger,
   Web2WebhookTrigger,
   SubscriptionTrigger,
+  PayrollTrigger,
   OracleTrigger,
   PayAction,
   SplitAction,
@@ -356,6 +373,7 @@ export type TriggerNode =
   | z.infer<typeof WebhookTrigger>
   | z.infer<typeof Web2WebhookTrigger>
   | z.infer<typeof SubscriptionTrigger>
+  | z.infer<typeof PayrollTrigger>
   | z.infer<typeof OracleTrigger>;
 export type ActionNode =
   | z.infer<typeof PayAction>
@@ -374,6 +392,7 @@ export function isTrigger(n: FlowNode): n is TriggerNode {
     n.type === "webhook" ||
     n.type === "web2_webhook" ||
     n.type === "subscription" ||
+    n.type === "payroll" ||
     n.type === "oracle"
   );
 }
@@ -432,6 +451,17 @@ export function sourceAmountStroops(graph: FlowGraph): string | undefined {
   }
   if (trigger?.type === "subscription" && trigger.config.amountPerPeriodStroops) {
     return trigger.config.amountPerPeriodStroops;
+  }
+  if (trigger?.type === "payroll") {
+    const action = graph.nodes.find(
+      (n): n is Extract<FlowNode, { type: "split" }> => n.type === "split",
+    );
+    if (action) {
+      const total = action.config.recipients
+        .filter((r) => r.mode === "fixed")
+        .reduce((sum, r) => sum + BigInt(r.amountStroops), 0n);
+      if (total > 0n) return total.toString();
+    }
   }
   const condition = graph.nodes.find(isLogic);
   if (condition?.type === "condition") {

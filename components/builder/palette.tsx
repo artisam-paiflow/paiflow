@@ -90,6 +90,21 @@ const TEMPLATES: Template[] = [
   },
   {
     group: "Triggers",
+    label: "Payroll",
+    icon: "group",
+    make: () => ({
+      id: makeId("payroll"),
+      type: "payroll",
+      config: {
+        asset: { kind: "known", symbol: "USDC" },
+        employer: "PENDING:employer",
+        intervalAmount: 1,
+        intervalUnit: "week",
+      },
+    }),
+  },
+  {
+    group: "Triggers",
     label: "Oracle",
     icon: "online_prediction",
     make: () => ({

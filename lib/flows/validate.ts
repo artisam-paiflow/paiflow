@@ -67,6 +67,7 @@ function getTriggerAsset(t: FlowNode): Asset | null {
     t.type === "webhook" ||
     t.type === "web2_webhook" ||
     t.type === "subscription" ||
+    t.type === "payroll" ||
     t.type === "oracle"
   ) {
     return t.config.asset;
@@ -317,7 +318,6 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
   }
 
-  // Trigger must be a root (no incoming edges)
   const trigger = triggers[0];
   if (trigger) {
     const hasIncoming = graph.edges.some((e) => e.target === trigger.id);
@@ -327,6 +327,32 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         message: "Trigger node must have no incoming edges",
         friendlyMessage: FRIENDLY.NO_INCOMING_EDGES_TO_TRIGGER,
       });
+    }
+  }
+
+  // Payroll flows must use fixed amounts so the contract can compute the
+  // exact pull amount per period.
+  if (trigger?.type === "payroll") {
+    for (const a of contractActions) {
+      if (a.type === "split") {
+        const modes = new Set(a.config.recipients.map((r) => r.mode));
+        if (modes.has("percentage")) {
+          errors.push({
+            path: `nodes.${a.id}.config.recipients`,
+            message: "Payroll split must use fixed amounts, not percentages",
+            friendlyMessage:
+              "Payroll distributions must be fixed salary amounts. Switch all recipients to fixed amounts.",
+          });
+        }
+      }
+      if (a.type === "pay" && a.config.mode === "percentage") {
+        errors.push({
+          path: `nodes.${a.id}.config.mode`,
+          message: "Payroll pay node must use fixed amount, not percentage",
+          friendlyMessage:
+            "Payroll distributions must be fixed salary amounts. Switch the pay node to a fixed amount.",
+        });
+      }
     }
   }
 
@@ -430,6 +456,8 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     templateKind = TemplateKind.CONDITIONAL;
   } else if (trigger!.type === "subscription" && isPayOrSplit) {
     templateKind = TemplateKind.SUBSCRIPTION;
+  } else if (trigger!.type === "payroll" && isPayOrSplit) {
+    templateKind = TemplateKind.PAYROLL;
   } else if (trigger!.type === "on_schedule" && isPayOrSplit) {
     templateKind = TemplateKind.STREAMER;
   } else if (isOnReceive && isPayOrSplit) {
@@ -449,7 +477,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         {
           path: "nodes",
           message:
-            "Unsupported trigger/action combination. Supported: on_receive with pay/split/swap/yield, webhook/web2_webhook/oracle with pay/split/swap/yield/multisig, schedule-like triggers (on_schedule, subscription) with pay/split, or any with a compatible condition.",
+            "Unsupported trigger/action combination. Supported: on_receive with pay/split/swap/yield, webhook/web2_webhook/oracle with pay/split/swap/yield/multisig, schedule-like triggers (on_schedule, subscription) with pay/split, payroll with pay/split, or any with a compatible condition.",
           friendlyMessage: FRIENDLY.UNSUPPORTED_COMBO,
         },
       ],
