@@ -51,7 +51,7 @@ export default function LoginForm({ from, error }: { from?: string; error?: stri
             className="text-on-surface-variant hover:text-on-surface absolute top-1/2 right-2 translate-y-[calc(-50%+3px)]"
           >
             <span className="material-symbols-outlined text-[16px]">
-              {showPassword ? "visibility_off" : "visibility"}
+              {showPassword ? "visibility" : "visibility_off"}
             </span>
           </button>
         }
