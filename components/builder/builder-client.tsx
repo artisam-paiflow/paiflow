@@ -84,6 +84,12 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
   };
 }
 
+/** Node types that deploy as a mutable `_DEV` contract variant when dev mode is on. */
+function hasDevCounterpart(n: FlowNode | undefined): boolean {
+  if (!n) return false;
+  return n.type === "pay" || n.type === "split" || n.type === "subscription";
+}
+
 function nodeBorderColor(n: FlowNode | undefined): string {
   if (!n) return "#71717a";
   switch (n.type) {
@@ -564,15 +570,19 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
             )}
 
             <ReactFlow
-              nodes={rfNodes.map((n) => ({
-                ...n,
-                data: {
-                  ...n.data,
-                  label: nodeLabel(flowNodes.find((f) => f.id === n.id)),
-                  node: flowNodes.find((f) => f.id === n.id) ?? n.data.node,
-                },
-                selected: n.id === selectedId,
-              }))}
+              nodes={rfNodes.map((n) => {
+                const fn = flowNodes.find((f) => f.id === n.id);
+                return {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    label: nodeLabel(fn),
+                    node: fn ?? n.data.node,
+                    isMutable: devMode && hasDevCounterpart(fn),
+                  },
+                  selected: n.id === selectedId,
+                };
+              })}
               edges={rfEdges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}

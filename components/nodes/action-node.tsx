@@ -9,12 +9,14 @@ import { formatAmount } from "@/lib/utils";
 type ActionNodeData = {
   node: FlowNode;
   label: string;
+  isMutable?: boolean;
 };
 
 function ActionNodeComponent({ data, selected }: NodeProps) {
   const d = data as ActionNodeData;
   const n = d.node;
   if (!isAction(n)) return null;
+  const isMutable = d.isMutable === true;
 
   let icon: string;
   let title: string;
@@ -77,7 +79,13 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
   return (
     <div
       className={`glass-panel relative min-w-[200px] rounded-xl ${selected ? "neon-glow" : ""}`}
-      style={{ borderColor: selected ? undefined : "rgba(255, 177, 196, 0.3)" }}
+      style={{
+        borderColor: selected
+          ? undefined
+          : isMutable
+            ? "rgba(255, 186, 32, 0.55)"
+            : "rgba(255, 177, 196, 0.3)",
+      }}
     >
       <Handle
         type="target"
@@ -90,7 +98,22 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
           <span className="material-symbols-outlined text-[14px]">{icon}</span>
           ACTION
         </span>
-        <span className="status-dot-live h-1.5 w-1.5" />
+        {isMutable ? (
+          <span
+            className="text-label-sm inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[9px] tracking-[0.08em]"
+            style={{
+              borderColor: "rgba(255, 186, 32, 0.4)",
+              backgroundColor: "rgba(255, 186, 32, 0.12)",
+              color: "#ffba20",
+            }}
+            title="Deploys as a mutable _DEV contract — fill recipient/amount via the API after deploy"
+          >
+            <span className="material-symbols-outlined text-[11px]">tune</span>
+            MUTABLE
+          </span>
+        ) : (
+          <span className="status-dot-live h-1.5 w-1.5" />
+        )}
       </div>
 
       <div className="px-3 py-2.5">
