@@ -100,6 +100,23 @@ const EnvSchema = z.object({
   GROQ_STT_MODEL_PRIMARY: optionalString,
   GROQ_STT_MODEL_FALLBACK: optionalString,
 
+  // ---- Off-ramp provider (e.g. PDAX) ----
+  OFFRAMP_PROVIDER: z.enum(["pdax", "mock"]).default("mock"),
+  OFFRAMP_API_URL: optionalString,
+  // PDAX uses Bearer tokens. ACCESS_TOKEN is the current access token;
+  // REFRESH_TOKEN + USERNAME are used to obtain a new access token when it
+  // expires. OFFRAMP_API_KEY and OFFRAMP_ID_TOKEN are legacy fields kept for
+  // backwards compatibility but are not used for Bearer auth.
+  OFFRAMP_API_KEY: optionalString,
+  OFFRAMP_ACCESS_TOKEN: optionalString,
+  OFFRAMP_REFRESH_TOKEN: optionalString,
+  OFFRAMP_USERNAME: optionalString,
+  OFFRAMP_ID_TOKEN: optionalString,
+  OFFRAMP_WEBHOOK_SECRET: optionalString,
+  OFFRAMP_ASSET_CODE: optionalString,
+  OFFRAMP_NETWORK: optionalString,
+  OFFRAMP_CHANNEL: optionalString,
+
   // ---- Email (Resend) ----
   // Optional in dev — when RESEND_API_KEY is unset, `lib/mail.ts` logs the
   // payload to stdout instead of delivering. Required in prod.

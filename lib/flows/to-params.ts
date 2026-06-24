@@ -219,6 +219,30 @@ function toRecipients(action: ContractActionNode): PipelineRecipient[] {
   return [];
 }
 
+/**
+ * Payroll stores the fixed salary amount per recipient in the contract, so the
+ * amount field must be populated for both split and pay actions.
+ */
+function toPayrollRecipients(action: ContractActionNode): PipelineRecipient[] {
+  if (action.type === "split") {
+    return action.config.recipients.map((r) => ({
+      address: r.address,
+      bps: 0,
+      amount: r.mode === "fixed" ? r.amountStroops : "0",
+    }));
+  }
+  if (action.type === "pay") {
+    return [
+      {
+        address: action.config.recipient,
+        bps: 0,
+        amount: action.config.amountStroops ?? "0",
+      },
+    ];
+  }
+  return [];
+}
+
 function getChildren(graph: FlowGraph): Map<string, string[]> {
   const children = new Map<string, string[]>();
   for (const n of graph.nodes) children.set(n.id, []);
@@ -401,7 +425,7 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
     }
 
     if (trigger.type === "payroll") {
-      const recipients = toRecipients(action);
+      const recipients = toPayrollRecipients(action);
       const amountPerPeriod = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n).toString();
 
       pipeline.push({

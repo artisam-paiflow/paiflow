@@ -18,6 +18,7 @@ import { withRelayerLock } from "@/lib/stellar/client";
 import { readTokenAllowance } from "@/lib/stellar/relayer";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode, PayrollRunStatus } from "@prisma/client";
+import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
 
 export const dynamic = "force-dynamic";
 
@@ -297,6 +298,22 @@ export async function POST(req: NextRequest) {
             chargedAt: new Date(),
           },
         });
+
+        if (d.offRampEnabled) {
+          try {
+            const created = await createOffRampJobsForPayrollRun(db, payrollRun.id);
+            log.info(
+              { deploymentId: d.id, payrollRunId: payrollRun.id, created: created.length },
+              "Created off-ramp jobs for payroll run",
+            );
+          } catch (offRampErr) {
+            const message = offRampErr instanceof Error ? offRampErr.message : String(offRampErr);
+            log.warn(
+              { deploymentId: d.id, payrollRunId: payrollRun.id, error: message },
+              "Failed to create off-ramp jobs for payroll run",
+            );
+          }
+        }
 
         if (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM) {
           platformCharged += chargedCount;

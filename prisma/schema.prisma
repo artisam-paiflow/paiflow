@@ -54,6 +54,16 @@ enum ChargeRelayerMode {
   MANUAL
 }
 
+enum OffRampPayoutJobStatus {
+  PENDING
+  RUNNING
+  QUOTED
+  INITIATED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
 enum PayrollRunStatus {
   PENDING
   CHARGED
@@ -206,6 +216,7 @@ model Deployment {
   nextChargeAt          DateTime?
   lastChargedAt         DateTime?
   chargeEndAt           DateTime?
+  offRampEnabled        Boolean           @default(false)
 
   flow   Flow            @relation(fields: [flowId], references: [id], onDelete: Restrict)
   owner  User            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
@@ -214,6 +225,7 @@ model Deployment {
   streamerClaimJobs StreamerClaimJob[]
   employees Employee[]
   payrollRuns PayrollRun[]
+  offRampSenderProfile OffRampSenderProfile?
 
   @@index([ownerId, createdAt(sort: Desc)])
   @@index([status])
@@ -252,9 +264,25 @@ model Employee {
 
   deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
   payouts    PayrollPayout[]
+  bankDetail EmployeeBankDetail?
+  offRampJobs OffRampPayoutJob[]
 
   @@unique([deploymentId, address])
   @@index([deploymentId])
+}
+
+model EmployeeBankDetail {
+  id            String   @id @default(uuid()) @db.Uuid
+  employeeId    String   @db.Uuid @unique
+  accountName   String
+  accountNumber String
+  bankCode      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
 }
 
 model PayrollRun {
@@ -272,6 +300,7 @@ model PayrollRun {
 
   deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
   payouts    PayrollPayout[]
+  offRampJobs OffRampPayoutJob[]
 
   @@index([deploymentId, runAt])
   @@index([status, runAt])
@@ -287,9 +316,68 @@ model PayrollPayout {
 
   payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
   employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  offRampJobs OffRampPayoutJob[]
 
   @@index([payrollRunId])
   @@index([employeeId])
+}
+
+model OffRampPayoutJob {
+  id              String                 @id @default(uuid()) @db.Uuid
+  payrollRunId    String                 @db.Uuid
+  employeeId      String                 @db.Uuid
+  payrollPayoutId String                 @db.Uuid
+  amountStroops   String
+  status          OffRampPayoutJobStatus @default(PENDING)
+  providerRef     String?                // withdrawal identifier
+  tradeRef        String?                // order/trade reference
+  requestId       String?                // provider request id
+  providerQuote   Json?
+  runAt           DateTime
+  attemptCount    Int                    @default(0)
+  lastError       String?
+  completedAt     DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  payrollRun    PayrollRun    @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee      Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  payrollPayout PayrollPayout @relation(fields: [payrollPayoutId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@index([payrollRunId])
+  @@index([employeeId])
+  @@index([providerRef])
+  @@index([tradeRef])
+  @@index([requestId])
+}
+
+model OffRampSenderProfile {
+  id                      String   @id @default(uuid()) @db.Uuid
+  deploymentId            String   @db.Uuid @unique
+  firstName               String
+  middleName              String   @default("n.a.")
+  lastName                String
+  countryOrigin           String
+  addressLineOne          String?
+  addressLineTwo          String?
+  city                    String?
+  province                String?
+  country                 String?
+  zipCode                 String?
+  phoneNumber             String?
+  nationality             String?
+  nationalIdentityNumber  String?
+  dob                     String?  // mm-dd-yyyy
+  placeOfBirth            String?
+  sourceOfFunds           String
+  email                   String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+
+  @@index([deploymentId])
 }
 
 model ContractEvent {

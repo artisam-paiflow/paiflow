@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import ContractCallButton from "./contract-call-button";
 import SubscriptionRelayerPanel from "./subscription-relayer-panel";
+import OffRampSenderForm from "@/components/payroll/offramp-sender-form";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { assetLabel } from "@/lib/flows/schema";
 import { formatStroops } from "@/lib/utils";
@@ -14,6 +15,12 @@ type PayrollRecipient = {
   address: string;
   amount: string;
   label?: string | null;
+};
+
+type BankDetail = {
+  accountName: string;
+  accountNumber: string;
+  bankCode: string;
 };
 
 export default function PayrollPanel({
@@ -32,6 +39,8 @@ export default function PayrollPanel({
   const [asset, setAsset] = useState<Asset | null>(null);
   const [isCancelled, setIsCancelled] = useState<boolean | null>(null);
   const [recipients, setRecipients] = useState<PayrollRecipient[]>([]);
+  const [offRampEnabled, setOffRampEnabled] = useState<boolean | null>(null);
+  const [bankDetails, setBankDetails] = useState<Record<string, BankDetail | null>>({});
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -86,7 +95,60 @@ export default function PayrollPanel({
     };
   }, [deploymentId, tick]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/deployments/${deploymentId}/offramp-enable`)
+      .then(async (res) => {
+        if (!res.ok) return;
+        const json = (await res.json()) as { data: { offRampEnabled: boolean } };
+        if (!cancelled) setOffRampEnabled(json.data.offRampEnabled);
+      })
+      .catch(() => null);
+    return () => {
+      cancelled = true;
+    };
+  }, [deploymentId, tick]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/deployments/${deploymentId}/employees/bank`)
+      .then(async (res) => {
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          data: Array<{ address: string; bankDetail: BankDetail | null }>;
+        };
+        if (!cancelled) {
+          const map: Record<string, BankDetail | null> = {};
+          for (const item of json.data) {
+            map[item.address] = item.bankDetail;
+          }
+          setBankDetails(map);
+        }
+      })
+      .catch(() => null);
+    return () => {
+      cancelled = true;
+    };
+  }, [deploymentId, tick]);
+
   const total = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);
+
+  const toggleOffRamp = async () => {
+    const next = !offRampEnabled;
+    const res = await fetch(`/api/deployments/${deploymentId}/offramp-enable`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: next }),
+    });
+    if (!res.ok) {
+      toast.error("Failed to update off-ramp setting");
+      return;
+    }
+    setOffRampEnabled(next);
+    toast.success(next ? "Fiat off-ramp enabled" : "Fiat off-ramp disabled");
+  };
+
+  const fiatCount = recipients.filter((r) => bankDetails[r.address]).length;
 
   return (
     <div className="mt-md space-y-md">
@@ -122,7 +184,14 @@ export default function PayrollPanel({
             )}
             {recipients.map((r) => (
               <div key={r.address} className="flex justify-between gap-2">
-                <span className="break-all">{r.label ?? r.address}</span>
+                <span className="flex items-center gap-1.5 break-all">
+                  {bankDetails[r.address] && (
+                    <span className="material-symbols-outlined text-on-surface-variant text-[14px]">
+                      account_balance
+                    </span>
+                  )}
+                  {r.label ?? r.address}
+                </span>
                 <span>
                   {formatStroops(r.amount)} {asset ? assetLabel(asset) : ""}
                 </span>
@@ -139,9 +208,40 @@ export default function PayrollPanel({
         >
           MANAGE EMPLOYEES
         </a>
+
+        <div className="space-y-3 rounded border border-zinc-800 bg-zinc-900/50 p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-label-sm text-on-surface font-mono uppercase">Fiat off-ramp</div>
+              <div className="text-on-surface-variant mt-0.5 font-mono text-[11px]">
+                {fiatCount} of {recipients.length} employees configured for fiat payout
+              </div>
+            </div>
+            {offRampEnabled === null ? (
+              <span className="text-on-surface-variant font-mono text-xs">Loading…</span>
+            ) : (
+              <button
+                type="button"
+                onClick={toggleOffRamp}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  offRampEnabled ? "bg-primary" : "bg-zinc-700"
+                }`}
+                aria-pressed={offRampEnabled}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    offRampEnabled ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            )}
+          </div>
+
+          {offRampEnabled && <OffRampSenderForm deploymentId={deploymentId} />}
+        </div>
       </div>
 
-      <SubscriptionRelayerPanel deploymentId={deploymentId} network={network} />
+      <SubscriptionRelayerPanel deploymentId={deploymentId} network={network} kind="payroll" />
 
       <div className="flex flex-wrap items-center gap-3">
         <ContractCallButton
