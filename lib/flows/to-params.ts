@@ -517,6 +517,54 @@ export function flowToPipeline(
       const recipients = toPayrollRecipients(action);
       const amountPerPeriod = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n).toString();
 
+      if (devMode) {
+        // Decompose payroll into the dev preset: SUBSCRIPTION_DEV pulls from the
+        // employer each period, then forwards atomically to SPLITTER_DEV which
+        // distributes the fixed salaries in the same transaction.
+        pipeline.push({
+          nodeId: trigger.id,
+          templateKind: TemplateKind.SUBSCRIPTION_DEV,
+          params: {
+            kind: "subscription_dev_trigger",
+            asset: trigger.config.asset,
+            subscriber: isPendingAddress(trigger.config.employer)
+              ? undefined
+              : trigger.config.employer,
+            amountPerPeriodStroops: amountPerPeriod,
+            relayer: relayerAddress,
+            startTs: start,
+            endTs: end,
+            intervalSeconds,
+            nextStepNodeIds: children.get(trigger.id) ?? [],
+          },
+        });
+
+        const seenActions = new Set<string>();
+        const actionQueue: ContractActionNode[] = [action];
+        while (actionQueue.length > 0) {
+          const current = actionQueue.shift()!;
+          if (seenActions.has(current.id)) continue;
+          seenActions.add(current.id);
+          pipeline.push(
+            contractActionToPipelineNode(
+              current,
+              trigger,
+              children,
+              true,
+              relayerAddress,
+              treasuryAddress,
+            ),
+          );
+          for (const childId of children.get(current.id) ?? []) {
+            const childNode = graph.nodes.find((n) => n.id === childId);
+            if (childNode && isContractAction(childNode) && !seenActions.has(childNode.id)) {
+              actionQueue.push(childNode);
+            }
+          }
+        }
+        return pipeline;
+      }
+
       pipeline.push({
         nodeId: trigger.id,
         templateKind: TemplateKind.PAYROLL,
@@ -911,20 +959,52 @@ export function getSubscriptionPreviewFromPipeline(pipeline: PipelineNode[]) {
 
 export function getPayrollPreviewFromPipeline(pipeline: PipelineNode[]) {
   const payroll = pipeline.find((n) => n.templateKind === TemplateKind.PAYROLL);
-  if (!payroll || payroll.params.kind !== "payroll_trigger") return null;
-  const { amountPerPeriodStroops, recipients, intervalSeconds, startTs, endTs } = payroll.params;
-  const durationSecs = endTs - startTs;
-  const intervals = Math.floor(durationSecs / intervalSeconds);
-  const totalStroops = (BigInt(amountPerPeriodStroops) * BigInt(intervals)).toString();
-  return {
-    amountPerPeriodStroops,
-    recipients,
-    intervalSeconds,
-    startTs,
-    endTs,
-    durationSecs,
-    totalStroops,
-  };
+  if (payroll && payroll.params.kind === "payroll_trigger") {
+    const { amountPerPeriodStroops, recipients, intervalSeconds, startTs, endTs } = payroll.params;
+    const durationSecs = endTs - startTs;
+    const intervals = Math.floor(durationSecs / intervalSeconds);
+    const totalStroops = (BigInt(amountPerPeriodStroops) * BigInt(intervals)).toString();
+    return {
+      amountPerPeriodStroops,
+      recipients,
+      intervalSeconds,
+      startTs,
+      endTs,
+      durationSecs,
+      totalStroops,
+    };
+  }
+
+  // Dev-mode decomposition: SUBSCRIPTION_DEV (employer pull) → SPLITTER_DEV (distribution).
+  const sub = pipeline.find((n) => n.templateKind === TemplateKind.SUBSCRIPTION_DEV);
+  const split = pipeline.find((n) => n.templateKind === TemplateKind.SPLITTER_DEV);
+  if (
+    sub &&
+    sub.params.kind === "subscription_dev_trigger" &&
+    split &&
+    split.params.kind === "splitter_dev"
+  ) {
+    const { amountPerPeriodStroops, intervalSeconds, startTs, endTs } = sub.params;
+    const durationSecs = endTs - startTs;
+    const intervals = Math.floor(durationSecs / intervalSeconds);
+    const totalStroops = (BigInt(amountPerPeriodStroops) * BigInt(intervals)).toString();
+    const recipients = split.params.recipients.map((r) => ({
+      address: r.address,
+      bps: r.bps,
+      amount: r.amount,
+    }));
+    return {
+      amountPerPeriodStroops,
+      recipients,
+      intervalSeconds,
+      startTs,
+      endTs,
+      durationSecs,
+      totalStroops,
+    };
+  }
+
+  return null;
 }
 
 /**

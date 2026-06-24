@@ -69,6 +69,42 @@ describe("validateFlow", () => {
     }
   });
 
+  it("decomposes a dev-mode payroll pipeline to SUBSCRIPTION_DEV → SPLITTER_DEV", () => {
+    const r = validateFlow({
+      devMode: true,
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "60000000" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "40000000" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      // Flow-level label stays PAYROLL; the deploy pipeline is the dev preset.
+      expect(r.templateKind).toBe(TemplateKind.PAYROLL);
+      expect(r.pipeline).toEqual([TemplateKind.SUBSCRIPTION_DEV, TemplateKind.SPLITTER_DEV]);
+    }
+  });
+
   it("rejects payroll → split with percentage recipients", () => {
     const r = validateFlow({
       nodes: [

@@ -81,7 +81,12 @@ export async function POST(req: NextRequest) {
         contractAddress: string;
         templateKind: string;
       }> | null;
-      const node = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
+      // Match both the immutable SUBSCRIPTION trigger and the mutable
+      // SUBSCRIPTION_DEV variant (used by dev-mode subscriptions and by the
+      // decomposed dev-mode payroll preset: SUBSCRIPTION_DEV → SPLITTER_DEV).
+      const node = pipeline?.find(
+        (n) => n.templateKind === "SUBSCRIPTION" || n.templateKind === "SUBSCRIPTION_DEV",
+      );
       const contractAddress = node?.contractAddress;
       if (!contractAddress) {
         results.push({

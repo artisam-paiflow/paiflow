@@ -70,9 +70,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           templateKind: string;
           params: Record<string, unknown>;
         }> | null;
-        const scheduleNode = paramsPipeline?.find(
-          (n) => n.templateKind === (isSubscription ? "SUBSCRIPTION" : "PAYROLL"),
-        );
+        // The schedule node carries the relayer / start / end the auto-charge
+        // cron needs. A subscription deploys as SUBSCRIPTION or (dev mode)
+        // SUBSCRIPTION_DEV; a payroll deploys as PAYROLL (monolith) or, in dev
+        // mode, decomposes into SUBSCRIPTION_DEV → SPLITTER_DEV.
+        const scheduleKinds = isSubscription
+          ? ["SUBSCRIPTION", "SUBSCRIPTION_DEV"]
+          : ["PAYROLL", "SUBSCRIPTION_DEV"];
+        const scheduleNode = paramsPipeline?.find((n) => scheduleKinds.includes(n.templateKind));
         const streamerNode = paramsPipeline?.find((n) => n.templateKind === "STREAMER");
         const relayer =
           typeof scheduleNode?.params?.relayer === "string" ? scheduleNode.params.relayer : null;

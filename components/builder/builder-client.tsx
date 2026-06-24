@@ -93,11 +93,12 @@ function hasDevCounterpart(n: FlowNode | undefined): boolean {
 
 /**
  * Node types that deploy as a mutable contract in dev mode — either a `_DEV`
- * counterpart of an immutable node, or a dev-only node (cash_out). Drives the
- * amber MUTABLE badge on the canvas.
+ * counterpart of an immutable node, or a dev-only node (cash_out), or a
+ * trigger that decomposes into dev nodes (payroll → SUBSCRIPTION_DEV →
+ * SPLITTER_DEV). Drives the amber MUTABLE badge on the canvas.
  */
 function isMutableInDevMode(n: FlowNode | undefined): boolean {
-  return hasDevCounterpart(n) || n?.type === "cash_out";
+  return hasDevCounterpart(n) || n?.type === "payroll" || n?.type === "cash_out";
 }
 
 function nodeBorderColor(n: FlowNode | undefined): string {
