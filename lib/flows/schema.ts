@@ -354,6 +354,11 @@ export type FlowEdge = z.infer<typeof FlowEdgeSchema>;
 export const FlowGraphSchema = z.object({
   nodes: z.array(FlowNodeSchema).max(40),
   edges: z.array(FlowEdgeSchema).max(80),
+  // Dev mode turns this flow into a parameterized one: nodes with a dev
+  // counterpart (pay, split, subscription) deploy as their mutable `_DEV`
+  // variant whose recipients / amounts / schedule can be left blank at design
+  // time and filled or changed later via the API.
+  devMode: z.boolean().optional(),
 });
 export type FlowGraph = z.infer<typeof FlowGraphSchema>;
 

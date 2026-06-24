@@ -77,6 +77,12 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_PAYER_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_PAYROLL_TESTNET: optionalWasmHash,
   STELLAR_WASM_HASH_PAYROLL_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_PAYER_DEV_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_PAYER_DEV_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SPLITTER_DEV_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SPLITTER_DEV_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SUBSCRIPTION_DEV_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SUBSCRIPTION_DEV_MAINNET: optionalWasmHash,
   STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
   STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
 
@@ -211,7 +217,10 @@ export function stellarWasmHash(
     | "SWAPPER"
     | "YIELD"
     | "PAYER"
-    | "PAYROLL",
+    | "PAYROLL"
+    | "PAYER_DEV"
+    | "SPLITTER_DEV"
+    | "SUBSCRIPTION_DEV",
 ): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";

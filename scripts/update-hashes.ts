@@ -26,6 +26,12 @@ async function update() {
     { kind: TemplateKind.YIELD, envKey: `STELLAR_WASM_HASH_YIELD_${suffix}` },
     { kind: TemplateKind.PAYER, envKey: `STELLAR_WASM_HASH_PAYER_${suffix}` },
     { kind: TemplateKind.PAYROLL, envKey: `STELLAR_WASM_HASH_PAYROLL_${suffix}` },
+    { kind: TemplateKind.PAYER_DEV, envKey: `STELLAR_WASM_HASH_PAYER_DEV_${suffix}` },
+    { kind: TemplateKind.SPLITTER_DEV, envKey: `STELLAR_WASM_HASH_SPLITTER_DEV_${suffix}` },
+    {
+      kind: TemplateKind.SUBSCRIPTION_DEV,
+      envKey: `STELLAR_WASM_HASH_SUBSCRIPTION_DEV_${suffix}`,
+    },
   ];
 
   for (const t of templates) {

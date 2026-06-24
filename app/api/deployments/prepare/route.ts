@@ -44,8 +44,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Dev-mode flows are allowed to deploy with blank (pending) recipients —
+    // that is the whole point: deploy now, fill the values via the API later.
+    // The mutable contracts deploy "not yet configured" and guard execution.
     const pending = getPendingLabels(graph);
-    if (pending.length > 0) {
+    if (!graph.devMode && pending.length > 0) {
       throw new AppError(
         "VALIDATION",
         `Cannot deploy: these recipients need Stellar addresses first: ${pending.join(", ")}. Resolve them in the flow editor before deploying.`,

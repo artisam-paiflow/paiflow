@@ -13,6 +13,7 @@ import {
   isLogic,
   isTrigger,
   isContractAction,
+  isPendingAddress,
   pctToBps,
   sourceAmountStroops,
   TOTAL_BPS,
@@ -177,6 +178,44 @@ export type PayerNodeParams = {
   nextStepNodeIds: string[];
 };
 
+// ── Dev-mode (mutable / parameterized) node params ──────────────────────────
+// These map to the PAYER_DEV / SPLITTER_DEV / SUBSCRIPTION_DEV contracts whose
+// recipient / subscriber may be left blank (`undefined`) at deploy time and
+// filled later via the API. All carry the relayer so the backend key can both
+// trigger execution and mutate the params.
+
+export type PayerDevNodeParams = {
+  kind: "payer_dev";
+  asset: Asset;
+  recipient?: string; // undefined => blank, configure via API
+  amountStroops: string;
+  mode: "fixed" | "percentage";
+  percentageBps?: number;
+  relayer?: string;
+  nextStepNodeIds: string[];
+};
+
+export type SplitterDevNodeParams = {
+  kind: "splitter_dev";
+  asset: Asset;
+  recipients: PipelineRecipient[]; // may be empty => blank, configure via API
+  minAmountStroops: string;
+  relayer?: string;
+  nextStepNodeIds: string[];
+};
+
+export type SubscriptionDevTriggerNodeParams = {
+  kind: "subscription_dev_trigger";
+  asset: Asset;
+  subscriber?: string; // undefined => blank, configure via API
+  amountPerPeriodStroops: string;
+  relayer?: string;
+  startTs: number;
+  endTs: number;
+  intervalSeconds: number;
+  nextStepNodeIds: string[];
+};
+
 export type PipelineNodeParams =
   | DepositTriggerNodeParams
   | SplitterNodeParams
@@ -191,7 +230,10 @@ export type PipelineNodeParams =
   | MultisigNodeParams
   | SwapperNodeParams
   | YieldNodeParams
-  | PayerNodeParams;
+  | PayerNodeParams
+  | PayerDevNodeParams
+  | SplitterDevNodeParams
+  | SubscriptionDevTriggerNodeParams;
 
 export type PipelineNode = {
   nodeId: string;
@@ -345,6 +387,7 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
   const contractActions = actions.filter(isContractAction);
   const conditions = graph.nodes.filter(isLogic);
   const children = getPipelineChildren(graph);
+  const devMode = graph.devMode === true;
   const pipeline: PipelineNode[] = [];
 
   // ── schedule-like flows (on_schedule, subscription, payroll) ─────────
@@ -389,21 +432,41 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
     }
 
     if (trigger.type === "subscription") {
-      pipeline.push({
-        nodeId: trigger.id,
-        templateKind: TemplateKind.SUBSCRIPTION,
-        params: {
-          kind: "subscription_trigger",
-          asset: trigger.config.asset,
-          subscriber: trigger.config.subscriber,
-          amountPerPeriodStroops: trigger.config.amountPerPeriodStroops,
-          relayer: relayerAddress,
-          startTs: start,
-          endTs: end,
-          intervalSeconds,
-          nextStepNodeIds: children.get(trigger.id) ?? [],
-        },
-      });
+      if (devMode) {
+        pipeline.push({
+          nodeId: trigger.id,
+          templateKind: TemplateKind.SUBSCRIPTION_DEV,
+          params: {
+            kind: "subscription_dev_trigger",
+            asset: trigger.config.asset,
+            subscriber: isPendingAddress(trigger.config.subscriber)
+              ? undefined
+              : trigger.config.subscriber,
+            amountPerPeriodStroops: trigger.config.amountPerPeriodStroops,
+            relayer: relayerAddress,
+            startTs: start,
+            endTs: end,
+            intervalSeconds,
+            nextStepNodeIds: children.get(trigger.id) ?? [],
+          },
+        });
+      } else {
+        pipeline.push({
+          nodeId: trigger.id,
+          templateKind: TemplateKind.SUBSCRIPTION,
+          params: {
+            kind: "subscription_trigger",
+            asset: trigger.config.asset,
+            subscriber: trigger.config.subscriber,
+            amountPerPeriodStroops: trigger.config.amountPerPeriodStroops,
+            relayer: relayerAddress,
+            startTs: start,
+            endTs: end,
+            intervalSeconds,
+            nextStepNodeIds: children.get(trigger.id) ?? [],
+          },
+        });
+      }
 
       // Subscription pulls are forwarded to standard action contracts that
       // implement receive_and_forward (payer, splitter, swapper, yield).
@@ -413,7 +476,9 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
         const current = actionQueue.shift()!;
         if (seenActions.has(current.id)) continue;
         seenActions.add(current.id);
-        pipeline.push(contractActionToPipelineNode(current, trigger, children));
+        pipeline.push(
+          contractActionToPipelineNode(current, trigger, children, devMode, relayerAddress),
+        );
         for (const childId of children.get(current.id) ?? []) {
           const childNode = graph.nodes.find((n) => n.id === childId);
           if (childNode && isContractAction(childNode) && !seenActions.has(childNode.id)) {
@@ -593,7 +658,9 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
       if (seenActions.has(current.id)) continue;
       seenActions.add(current.id);
 
-      pipeline.push(contractActionToPipelineNode(current, trigger, children));
+      pipeline.push(
+        contractActionToPipelineNode(current, trigger, children, devMode, relayerAddress),
+      );
 
       for (const childId of children.get(current.id) ?? []) {
         const childNode = graph.nodes.find((n) => n.id === childId);
@@ -611,6 +678,8 @@ function contractActionToPipelineNode(
   action: ContractActionNode,
   trigger: TriggerNode,
   children: Map<string, string[]>,
+  devMode = false,
+  relayerAddress?: string,
 ): PipelineNode {
   const nextStepNodeIds = children.get(action.id) ?? [];
 
@@ -639,6 +708,54 @@ function contractActionToPipelineNode(
         },
       };
     case "pay": {
+      // Dev variant: mutable recipient/amount, blank-capable.
+      if (devMode) {
+        const recipient = isPendingAddress(action.config.recipient)
+          ? undefined
+          : action.config.recipient;
+        const devBase = {
+          nodeId: action.id,
+          templateKind: TemplateKind.PAYER_DEV,
+          params: {
+            kind: "payer_dev" as const,
+            asset: getAsset(action),
+            recipient,
+            relayer: relayerAddress,
+            nextStepNodeIds,
+          },
+        };
+        if (action.config.fullAmount) {
+          return {
+            ...devBase,
+            params: {
+              ...devBase.params,
+              amountStroops: "0",
+              mode: "percentage" as const,
+              percentageBps: 10_000,
+            },
+          };
+        }
+        if (action.config.mode === "percentage") {
+          return {
+            ...devBase,
+            params: {
+              ...devBase.params,
+              amountStroops: "0",
+              mode: "percentage" as const,
+              percentageBps: pctToBps(action.config.percentage ?? 0),
+            },
+          };
+        }
+        return {
+          ...devBase,
+          params: {
+            ...devBase.params,
+            amountStroops: action.config.amountStroops ?? "0",
+            mode: "fixed" as const,
+          },
+        };
+      }
+
       const base = {
         nodeId: action.id,
         templateKind: TemplateKind.PAYER,
@@ -686,6 +803,26 @@ function contractActionToPipelineNode(
     case "split": {
       const minAmountStroops =
         trigger.type === "on_receive" ? (trigger.config.minAmountStroops ?? "0") : "0";
+
+      // Dev variant: mutable recipients, blank-capable. Pending recipients are
+      // dropped so the contract deploys "not yet configured" and is filled via
+      // the API; pre-filled (concrete) recipients must still be valid.
+      if (devMode) {
+        const recipients = toRecipients(action).filter((r) => !isPendingAddress(r.address));
+        return {
+          nodeId: action.id,
+          templateKind: TemplateKind.SPLITTER_DEV,
+          params: {
+            kind: "splitter_dev",
+            asset: getAsset(action),
+            recipients,
+            minAmountStroops,
+            relayer: relayerAddress,
+            nextStepNodeIds,
+          },
+        };
+      }
+
       return {
         nodeId: action.id,
         templateKind: TemplateKind.SPLITTER,

@@ -16,6 +16,9 @@ export const TEMPLATE_LABELS: Record<TemplateKind, string> = {
   YIELD: "Yield",
   PAYER: "Payer",
   PAYROLL: "Payroll",
+  PAYER_DEV: "Payer (dev)",
+  SPLITTER_DEV: "Splitter (dev)",
+  SUBSCRIPTION_DEV: "Subscription (dev)",
 };
 
 export const TEMPLATE_DESCRIPTIONS: Record<TemplateKind, string> = {
@@ -34,4 +37,10 @@ export const TEMPLATE_DESCRIPTIONS: Record<TemplateKind, string> = {
   YIELD: "Deposits incoming funds into a vault or lending pool.",
   PAYER: "Sends a fixed amount to a single recipient.",
   PAYROLL: "Pulls fixed salaries from an employer and distributes to employees on a schedule.",
+  PAYER_DEV:
+    "Mutable payer: recipient and amount can be left blank at deploy and set later via the API.",
+  SPLITTER_DEV:
+    "Mutable splitter: recipients can be left blank at deploy and set later via the API.",
+  SUBSCRIPTION_DEV:
+    "Mutable subscription: subscriber, amount and schedule can be set or changed via the API.",
 };

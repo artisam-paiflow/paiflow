@@ -152,6 +152,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [hasAnimated, setHasAnimated] = useState(false);
   const [ready, setReady] = useState(false);
   const [addressBook, setAddressBook] = useState<AddressEntry[]>([]);
+  const [devMode, setDevMode] = useState<boolean>(initialGraph.devMode ?? false);
 
   const refreshAddressBook = useCallback(async () => {
     const r = await fetch("/api/address-book");
@@ -180,8 +181,9 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     () => ({
       nodes: flowNodes,
       edges: rfEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+      devMode,
     }),
-    [flowNodes, rfEdges],
+    [flowNodes, rfEdges, devMode],
   );
 
   const validation = useMemo(() => validateFlow(graph), [graph]);
@@ -489,6 +491,28 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
               className="text-headline-sm text-on-surface max-w-[40ch] min-w-[12ch] flex-1 border-0 bg-transparent px-0 py-1 font-semibold tracking-[-0.01em] outline-none focus:outline-none"
               style={{ fieldSizing: "content" } as React.CSSProperties}
             />
+            <button
+              type="button"
+              role="switch"
+              aria-checked={devMode}
+              onClick={() => setDevMode((v) => !v)}
+              title={
+                devMode
+                  ? "Dev mode ON — pay / split / subscription nodes deploy as mutable variants you fill via the API"
+                  : "Dev mode OFF — recipients and amounts are fixed at design time"
+              }
+              className={cn(
+                "text-label-sm inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors",
+                devMode
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant hover:text-on-surface",
+              )}
+            >
+              <span className="material-symbols-outlined text-[16px]">
+                {devMode ? "toggle_on" : "toggle_off"}
+              </span>
+              Dev mode
+            </button>
           </div>
 
           {/* Row 2: English Preview */}

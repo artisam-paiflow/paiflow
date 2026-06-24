@@ -7,6 +7,13 @@ function addr(a: string): xdr.ScVal {
   return new Address(a).toScVal();
 }
 
+// Soroban `Option<Address>`: None serializes as ScVal::Void, Some(addr) as the
+// address itself. Used by the dev contracts whose recipient / subscriber may be
+// left blank at deploy time.
+function optAddr(a: string | undefined): xdr.ScVal {
+  return a && a.length > 0 ? addr(a) : xdr.ScVal.scvVoid();
+}
+
 function i128(n: string | bigint): xdr.ScVal {
   return nativeToScVal(typeof n === "bigint" ? n : BigInt(n), { type: "i128" });
 }
@@ -293,6 +300,51 @@ export function pipelineNodeConstructorArgs(
         u32(params.percentageBps ?? 0),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
         addr(parentAddress),
+      ];
+    }
+    case "payer_dev": {
+      if (!parentAddress) throw new Error("Payer dev requires a parent address");
+      // __constructor(admin, relayer, asset, recipient: Option<Address>,
+      //               amount, percentage_bps, next_steps, parent)
+      return [
+        addr(admin),
+        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
+        addr(assetContractId(params.asset)),
+        optAddr(params.recipient),
+        i128(params.amountStroops),
+        u32(params.percentageBps ?? 0),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        addr(parentAddress),
+      ];
+    }
+    case "splitter_dev": {
+      if (!parentAddress) throw new Error("Splitter dev requires a parent address");
+      // __constructor(admin, relayer, asset, recipients, min_amount, parent,
+      //               next_steps)
+      return [
+        addr(admin),
+        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
+        addr(assetContractId(params.asset)),
+        recipientsVec(params.recipients),
+        i128(params.minAmountStroops),
+        addr(parentAddress),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+      ];
+    }
+    case "subscription_dev_trigger": {
+      // __constructor(admin, asset, subscriber: Option<Address>,
+      //               amount_per_period, next_steps, relayer, start_time,
+      //               interval_seconds, end_time)
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        optAddr(params.subscriber),
+        i128(params.amountPerPeriodStroops),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
+        u64(params.startTs),
+        u64(params.intervalSeconds),
+        u64(params.endTs),
       ];
     }
   }

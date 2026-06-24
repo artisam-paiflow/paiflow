@@ -28,6 +28,9 @@ enum TemplateKind {
   YIELD
   PAYER
   PAYROLL
+  PAYER_DEV
+  SPLITTER_DEV
+  SUBSCRIPTION_DEV
 }
 
 enum DeploymentStatus {
