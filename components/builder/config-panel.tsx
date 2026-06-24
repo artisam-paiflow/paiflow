@@ -18,6 +18,17 @@ import { cn, formatStroops } from "@/lib/utils";
 import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
 
+/**
+ * Sentinel for an address field a developer chose to leave blank at design time
+ * and fill via the API after deploy (dev mode only). It is a `PENDING:` value, so
+ * `isPendingAddress` recognizes it and the deploy resolver encodes it as a blank
+ * (`None` / `ScVal::Void`) on the matching `_DEV` contract.
+ */
+const API_FILL_ADDRESS = "PENDING:__api__";
+function isApiFillAddress(addr: string): boolean {
+  return addr === API_FILL_ADDRESS;
+}
+
 const TIMEZONES = [
   "UTC",
   "America/New_York",
@@ -111,6 +122,7 @@ export default function ConfigPanel({
   const trigger = graph.nodes.find(isTrigger);
   const triggerType = trigger?.type ?? null;
   const sourceAmount = sourceAmountStroops(graph);
+  const devMode = graph.devMode === true;
 
   return (
     <aside
@@ -364,7 +376,16 @@ export default function ConfigPanel({
 
       {node.type === "pay" && (
         <>
-          <Field label="Recipient (G… or PENDING:)">
+          <ApiFillField
+            label="Recipient (G… or PENDING:)"
+            devMode={devMode}
+            active={isApiFillAddress(node.config.recipient)}
+            onActivate={() =>
+              onChange({ ...node, config: { ...node.config, recipient: API_FILL_ADDRESS } })
+            }
+            onDeactivate={() => onChange({ ...node, config: { ...node.config, recipient: "" } })}
+            hint="Recipient set via the API after deploy"
+          >
             <AddressInput
               value={node.config.recipient}
               onChange={(recipient) =>
@@ -377,7 +398,7 @@ export default function ConfigPanel({
               addressBook={addressBook}
               onAddressBookChange={refreshAddressBook}
             />
-          </Field>
+          </ApiFillField>
 
           <label className="flex items-center gap-2">
             <input
@@ -442,6 +463,13 @@ export default function ConfigPanel({
                       = {stroopsToDisplay(node.config.amountStroops, node.config.asset)}
                     </div>
                   )}
+                  <ApiFillHint
+                    show={
+                      devMode && (!node.config.amountStroops || node.config.amountStroops === "0")
+                    }
+                  >
+                    Leave empty to set the amount via the API after deploy.
+                  </ApiFillHint>
                 </Field>
               )}
 
@@ -492,6 +520,36 @@ export default function ConfigPanel({
             }
           />
 
+          {devMode && (
+            <label className="flex cursor-pointer items-center justify-between rounded border border-amber-800/40 bg-amber-950/10 px-3 py-2">
+              <span className="text-xs text-amber-300">Fill recipients via API after deploy</span>
+              <input
+                type="checkbox"
+                checked={node.config.recipients.length === 0}
+                onChange={(e) =>
+                  onChange({
+                    ...node,
+                    config: {
+                      ...node.config,
+                      recipients: e.target.checked
+                        ? []
+                        : [{ address: "", mode: "percentage" as const, bps: 0 }],
+                    },
+                  } as FlowNode)
+                }
+              />
+            </label>
+          )}
+
+          {devMode && node.config.recipients.length === 0 ? (
+            <div className="flex items-center gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 font-mono text-[12px] text-amber-300">
+              <span className="material-symbols-outlined text-[14px]">tune</span>
+              Recipients set via the API after deploy
+            </div>
+          ) : (
+            <></>
+          )}
+
           {triggerType === "on_schedule" && (
             <Field label={`Amount per interval (${assetLabel(node.config.asset)})`}>
               <input
@@ -524,6 +582,9 @@ export default function ConfigPanel({
 
           {(() => {
             const splitNode = node as Extract<FlowNode, { type: "split" }>;
+            // In dev mode an empty recipients list means "fill via API"; the
+            // banner above already covers it, so skip the editor entirely.
+            if (devMode && splitNode.config.recipients.length === 0) return null;
             const mode = splitNode.config.recipients[0]?.mode ?? "percentage";
             const totalFixed = splitTotalFixedStroops(splitNode.config.recipients);
             const minAmount =
@@ -822,7 +883,16 @@ export default function ConfigPanel({
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
           />
-          <Field label="Subscriber address (G… or PENDING:)">
+          <ApiFillField
+            label="Subscriber address (G… or PENDING:)"
+            devMode={devMode}
+            active={isApiFillAddress(node.config.subscriber)}
+            onActivate={() =>
+              onChange({ ...node, config: { ...node.config, subscriber: API_FILL_ADDRESS } })
+            }
+            onDeactivate={() => onChange({ ...node, config: { ...node.config, subscriber: "" } })}
+            hint="Subscriber set via the API after deploy"
+          >
             <AddressInput
               value={node.config.subscriber}
               onChange={(subscriber) =>
@@ -835,7 +905,7 @@ export default function ConfigPanel({
               addressBook={addressBook}
               onAddressBookChange={refreshAddressBook}
             />
-          </Field>
+          </ApiFillField>
           <Field label={`Amount per period (${assetLabel(node.config.asset)})`}>
             <input
               className="input"
@@ -850,6 +920,14 @@ export default function ConfigPanel({
                 })
               }
             />
+            <ApiFillHint
+              show={
+                devMode &&
+                (!node.config.amountPerPeriodStroops || node.config.amountPerPeriodStroops === "0")
+              }
+            >
+              Leave empty to set the amount via the API after deploy.
+            </ApiFillHint>
           </Field>
           {(() => {
             const cfg = node.config as {
@@ -1482,6 +1560,63 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </label>
   );
+}
+
+/**
+ * A field with an explicit "Fill via API" affordance, shown only in dev mode.
+ * When the toggle is on, the input is replaced by a banner and the underlying
+ * value is the blank sentinel; the developer fills it through the API after
+ * deploy. Outside dev mode it renders as a plain `Field`.
+ */
+function ApiFillField({
+  label,
+  devMode,
+  active,
+  onActivate,
+  onDeactivate,
+  hint = "Set via the API after deploy",
+  children,
+}: {
+  label: string;
+  devMode: boolean;
+  active: boolean;
+  onActivate: () => void;
+  onDeactivate: () => void;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  if (!devMode) {
+    return <Field label={label}>{children}</Field>;
+  }
+  return (
+    <div className="grid gap-1">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-zinc-400">{label}</span>
+        <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-amber-400">
+          <input
+            type="checkbox"
+            checked={active}
+            onChange={(e) => (e.target.checked ? onActivate() : onDeactivate())}
+          />
+          Fill via API
+        </label>
+      </div>
+      {active ? (
+        <div className="flex items-center gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 font-mono text-[12px] text-amber-300">
+          <span className="material-symbols-outlined text-[14px]">tune</span>
+          {hint}
+        </div>
+      ) : (
+        children
+      )}
+    </div>
+  );
+}
+
+/** Inline amber hint shown under an already-emptyable field in dev mode. */
+function ApiFillHint({ show, children }: { show: boolean; children: React.ReactNode }) {
+  if (!show) return null;
+  return <div className="mt-0.5 text-[11px] text-amber-400/80">{children}</div>;
 }
 
 function EmailVariablesHint({ graph, nodeId }: { graph: FlowGraph; nodeId: string }) {
