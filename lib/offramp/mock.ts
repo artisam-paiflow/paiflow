@@ -34,16 +34,22 @@ export class MockOffRampProvider implements OffRampProvider {
   }
 
   async executeTrade(request: OffRampTradeRequest): Promise<OffRampTradeResult> {
+    const ref = request.payrollRunId
+      ? `mock-trade-${request.payrollRunId}-${request.employeeId ?? "none"}`
+      : `mock-trade-cashout-${request.jobSource}`;
     return {
-      providerRef: `mock-trade-${request.payrollRunId}-${request.employeeId}`,
+      providerRef: ref,
       status: "COMPLETED",
       metadata: { quoteId: request.quoteId, amountStroops: request.amountStroops },
     };
   }
 
   async initiatePayout(request: OffRampPayoutRequest): Promise<OffRampPayoutResult> {
+    const ref = request.payrollRunId
+      ? `mock-withdraw-${request.payrollRunId}-${request.employeeId ?? "none"}`
+      : `mock-withdraw-cashout-${request.jobSource}`;
     return {
-      providerRef: `mock-withdraw-${request.payrollRunId}-${request.employeeId}`,
+      providerRef: ref,
       status: "PENDING",
       metadata: {
         accountName: request.accountName,

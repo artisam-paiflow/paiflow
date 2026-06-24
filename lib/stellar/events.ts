@@ -7,12 +7,13 @@ import { db } from "@/lib/db";
 import { redis, eventChannel } from "@/lib/redis";
 import { log } from "@/lib/log";
 import { assetContractId } from "@/lib/stellar/assets";
-import { assetLabel, type FlowGraph } from "@/lib/flows/schema";
+import { assetLabel, type FlowGraph, type FlowNode } from "@/lib/flows/schema";
 import { stellarPassphrase } from "@/lib/env";
 import {
   sendEmailNotificationsForEvent,
   type PipelineNodeSnapshot,
 } from "@/lib/flows/notifications";
+import { createCashOutJob } from "@/lib/offramp/jobs";
 
 // Paranoia buffer: when polling events for the first time we start a few
 // ledgers before the deployment transaction to avoid missing events emitted
@@ -353,6 +354,24 @@ const PAYROLL_REGISTRY: EventRegistry = {
   },
 };
 
+const CASH_OUT_DEV_REGISTRY: EventRegistry = {
+  cash_out: {
+    kind: EventKind.CASH_OUT,
+    decode: (topics, value) => {
+      const source = topics[1] ?? null;
+      const amount = value ?? null;
+      return source && amount !== null ? { source, amount } : null;
+    },
+  },
+  bank_updated: {
+    kind: EventKind.RECIPIENT_UPDATED,
+    decode: (topics) => {
+      const admin = topics[1] ?? null;
+      return admin ? { admin } : null;
+    },
+  },
+};
+
 const ORACLE_REGISTRY: EventRegistry = {
   execute: {
     kind: EventKind.RECEIVE,
@@ -452,6 +471,8 @@ function getRegistry(templateKind: TemplateKind): EventRegistry {
       return TIMELOCK_REGISTRY;
     case TemplateKind.MULTISIG:
       return MULTISIG_REGISTRY;
+    case TemplateKind.CASH_OUT_DEV:
+      return CASH_OUT_DEV_REGISTRY;
     default:
       return {};
   }
@@ -896,6 +917,45 @@ async function pollEventsWithStartLedger(
         log.warn({ deploymentId, eventId: ev.id }, "event publisher: no redis client");
       }
 
+      // Fire-and-forget: cash_out events spawn off-ramp jobs so the PDAX leg
+      // can run asynchronously.
+      if (kind === EventKind.CASH_OUT) {
+        const bank = findCashOutBank(graph, contractAddress, pipeline ?? []);
+        const source = typeof resolvedData?.source === "string" ? resolvedData.source : null;
+        const amount =
+          typeof resolvedData?.amount === "bigint"
+            ? resolvedData.amount.toString()
+            : typeof resolvedData?.amount === "string"
+              ? resolvedData.amount
+              : null;
+        if (bank && source && amount) {
+          createCashOutJob(db, {
+            deploymentId,
+            sourceAddress: source,
+            amountStroops: amount,
+            bankAccountName: bank.accountName,
+            bankAccountNumber: bank.accountNumber,
+            bankCode: bank.bankCode,
+          }).catch((err) => {
+            log.warn(
+              { err, deploymentId, eventId: created.id },
+              "cash_out event job creation failed",
+            );
+          });
+        } else {
+          log.warn(
+            {
+              deploymentId,
+              eventId: created.id,
+              hasBank: !!bank,
+              hasSource: !!source,
+              hasAmount: !!amount,
+            },
+            "cash_out event missing bank/source/amount; skipping off-ramp job",
+          );
+        }
+      }
+
       // Fire-and-forget: email notify decorators attached to this pipeline node.
       sendEmailNotificationsForEvent({
         deploymentId,
@@ -927,6 +987,37 @@ type PipelineNode = {
   contractAddress: string;
   templateKind: TemplateKind;
 };
+
+type CashOutBank = {
+  accountName: string;
+  accountNumber: string;
+  bankCode: string;
+};
+
+/**
+ * Locate the bank details configured for the cash_out node that owns
+ * `contractAddress`. We match by address in the pipeline snapshot, then look up
+ * the corresponding `cash_out` node in the saved graph snapshot.
+ */
+function findCashOutBank(
+  graph: FlowGraph | null,
+  contractAddress: string,
+  pipeline: PipelineNodeSnapshot[],
+): CashOutBank | null {
+  if (!graph) return null;
+  const snapshot = pipeline.find((p) => p.contractAddress === contractAddress);
+  if (!snapshot) return null;
+  const node = graph.nodes.find(
+    (n): n is Extract<FlowNode, { type: "cash_out" }> =>
+      n.type === "cash_out" && n.id === snapshot.nodeId,
+  );
+  if (!node || !node.config.bankCode) return null;
+  return {
+    accountName: node.config.accountName,
+    accountNumber: node.config.accountNumber,
+    bankCode: node.config.bankCode,
+  };
+}
 
 export async function pollEventsFor(deploymentId: string): Promise<number> {
   const deployment = await db.deployment.findUnique({

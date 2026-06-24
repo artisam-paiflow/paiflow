@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { OffRampPayoutJobStatus, type Prisma } from "@prisma/client";
+import { OffRampJobSource, OffRampPayoutJobStatus, type Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
@@ -10,6 +10,8 @@ import {
   cancelPendingOffRampJobs,
 } from "@/lib/offramp/jobs";
 import { getOffRampProvider, offRampAssetCode, offRampFiatCurrency } from "@/lib/offramp/provider";
+import { refundFromTreasury } from "@/lib/stellar/dev-mutate";
+import { assetContractId } from "@/lib/stellar/assets";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +39,16 @@ function isKnownSkipError(message: string): boolean {
   );
 }
 
+/**
+ * True if the failure happened before the PDAX trade executed.
+ * At that point USDC is still in the treasury and can be refunded to the source
+ * address. Once the trade has executed (INITIATED or beyond) the crypto is gone,
+ * so we retry the withdrawal rather than refunding.
+ */
+function isPreTradeFailure(status: OffRampPayoutJobStatus): boolean {
+  return status === OffRampPayoutJobStatus.PENDING || status === OffRampPayoutJobStatus.RUNNING;
+}
+
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const secret = env().CRON_SECRET;
@@ -47,22 +59,17 @@ export async function POST(req: NextRequest) {
     const jobs = await getDueOffRampJobs(db, 50);
     const results: Array<{
       jobId: string;
-      employeeId: string;
       status: "quoted" | "traded" | "initiated" | "completed" | "skipped" | "failed" | "cancelled";
       error?: string;
     }> = [];
 
     for (const job of jobs) {
-      const deployment = await db.deployment.findUnique({
-        where: { id: job.payrollRun.deploymentId },
-        include: { offRampSenderProfile: true },
-      });
+      const deployment = job.deployment;
 
       if (!deployment || deployment.status !== "CONFIRMED") {
-        await cancelPendingOffRampJobs(db, job.payrollRun.deploymentId);
+        await cancelPendingOffRampJobs(db, job.deploymentId);
         results.push({
           jobId: job.id,
-          employeeId: job.employeeId,
           status: "cancelled",
           error: "Deployment no longer CONFIRMED",
         });
@@ -74,9 +81,13 @@ export async function POST(req: NextRequest) {
       });
 
       try {
-        const bankDetail = job.employee.bankDetail;
-        if (!bankDetail) {
-          throw new Error("No bank details for employee");
+        const bankDetail = {
+          accountName: job.bankAccountName,
+          accountNumber: job.bankAccountNumber,
+          bankCode: job.bankCode,
+        };
+        if (!bankDetail.accountName || !bankDetail.accountNumber || !bankDetail.bankCode) {
+          throw new Error("No bank details for off-ramp job");
         }
 
         const sender = deployment.offRampSenderProfile;
@@ -102,8 +113,9 @@ export async function POST(req: NextRequest) {
         const trade = await provider.executeTrade({
           quoteId: quote.id,
           amountStroops: job.amountStroops,
-          employeeId: job.employeeId,
-          payrollRunId: job.payrollRunId,
+          employeeId: job.employeeId ?? undefined,
+          payrollRunId: job.payrollRunId ?? undefined,
+          jobSource: job.source,
         });
 
         if (trade.status === "FAILED") {
@@ -124,8 +136,8 @@ export async function POST(req: NextRequest) {
           accountName: bankDetail.accountName,
           accountNumber: bankDetail.accountNumber,
           bankCode: bankDetail.bankCode,
-          employeeId: job.employeeId,
-          payrollRunId: job.payrollRunId,
+          employeeId: job.employeeId ?? undefined,
+          payrollRunId: job.payrollRunId ?? undefined,
           sender: {
             firstName: sender.firstName,
             middleName: sender.middleName,
@@ -145,6 +157,7 @@ export async function POST(req: NextRequest) {
             sourceOfFunds: sender.sourceOfFunds,
             email: sender.email,
           },
+          jobSource: job.source,
         });
 
         if (payout.status === "FAILED") {
@@ -165,7 +178,7 @@ export async function POST(req: NextRequest) {
         log.info(
           {
             jobId: job.id,
-            employeeId: job.employeeId,
+            source: job.source,
             payrollRunId: job.payrollRunId,
             tradeRef: trade.providerRef,
             providerRef: payout.providerRef,
@@ -177,7 +190,6 @@ export async function POST(req: NextRequest) {
         const resultStatus = payout.status === "COMPLETED" ? "completed" : ("initiated" as const);
         results.push({
           jobId: job.id,
-          employeeId: job.employeeId,
           status: resultStatus,
         });
       } catch (err) {
@@ -190,7 +202,6 @@ export async function POST(req: NextRequest) {
           });
           results.push({
             jobId: job.id,
-            employeeId: job.employeeId,
             status: "skipped",
             error: message,
           });
@@ -207,15 +218,49 @@ export async function POST(req: NextRequest) {
           });
           results.push({
             jobId: job.id,
-            employeeId: job.employeeId,
             status: "failed",
             error: message,
+          });
+        } else if (isPreTradeFailure(job.status) && job.sourceAddress) {
+          // Refund policy: before the trade executes, USDC is still in the
+          // treasury. Refund to the on-chain source address.
+          const refund = await refundFromTreasury({
+            destination: job.sourceAddress,
+            amountStroops: job.amountStroops,
+            assetContractAddress: assetContractId({
+              kind: "known",
+              symbol: "USDC",
+            }),
+          });
+          const refundStatus =
+            refund.status === "SUCCESS"
+              ? OffRampPayoutJobStatus.FAILED
+              : OffRampPayoutJobStatus.CANCELLED;
+          log.warn(
+            {
+              jobId: job.id,
+              source: job.source,
+              sourceAddress: job.sourceAddress,
+              amountStroops: job.amountStroops,
+              refundStatus: refund.status,
+              error: message,
+            },
+            "Off-ramp payout failed pre-trade; refunded treasury to source",
+          );
+          await rescheduleOffRampJob(db, job.id, {
+            status: refundStatus,
+            lastError: `${message}; refund ${refund.status}`,
+          });
+          results.push({
+            jobId: job.id,
+            status: "failed",
+            error: `${message}; refund ${refund.status}`,
           });
         } else {
           log.warn(
             {
               jobId: job.id,
-              employeeId: job.employeeId,
+              source: job.source,
               payrollRunId: job.payrollRunId,
               error: message,
             },
@@ -227,7 +272,6 @@ export async function POST(req: NextRequest) {
           });
           results.push({
             jobId: job.id,
-            employeeId: job.employeeId,
             status: "failed",
             error: message,
           });

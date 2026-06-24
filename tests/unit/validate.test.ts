@@ -752,4 +752,90 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
+
+  it("accepts dev-mode on_receive → split → cash_out", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
+          },
+        },
+        {
+          id: "c",
+          type: "cash_out",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            accountName: "Juan",
+            accountNumber: "123",
+            bankCode: "BASECPH",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "a", target: "c" },
+      ],
+      devMode: true,
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects cash_out without dev mode", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "c",
+          type: "cash_out",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            accountName: "",
+            accountNumber: "",
+            bankCode: "",
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "c" }],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects cash_out with outgoing edges", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "c",
+          type: "cash_out",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            accountName: "",
+            accountNumber: "",
+            bankCode: "",
+          },
+        },
+        {
+          id: "x",
+          type: "pay",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipient: ADDR_A,
+            mode: "fixed",
+            amountStroops: "100",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "c" },
+        { id: "e2", source: "c", target: "x" },
+      ],
+      devMode: true,
+    });
+    expect(r.ok).toBe(false);
+  });
 });

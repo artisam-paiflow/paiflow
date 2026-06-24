@@ -93,6 +93,9 @@ export function flowToEnglish(graph: FlowGraph): string {
       ? "(needs address)"
       : shortAddr(action.config.vault);
     actionText = `deposit ${assetLabel(action.config.asset)} into yield vault ${vault}`;
+  } else if (action.type === "cash_out") {
+    const bank = action.config.bankCode ? `bank ${action.config.bankCode}` : "a bank (set via API)";
+    actionText = `cash out ${assetLabel(action.config.asset)} to ${bank} via off-ramp`;
   } else {
     const mode = action.config.recipients[0]?.mode ?? "percentage";
     const assetStr = assetLabel(action.config.asset);

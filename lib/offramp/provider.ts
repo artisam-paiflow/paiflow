@@ -2,6 +2,7 @@ import "server-only";
 import { env } from "@/lib/env";
 import { MockOffRampProvider } from "./mock";
 import { PdaxOffRampProvider } from "./pdax";
+import type { OffRampJobSource } from "@prisma/client";
 
 export interface OffRampQuote {
   id: string;
@@ -20,8 +21,9 @@ export interface OffRampQuote {
 export interface OffRampTradeRequest {
   quoteId: string;
   amountStroops: string;
-  employeeId: string;
-  payrollRunId: string;
+  employeeId?: string | null;
+  payrollRunId?: string | null;
+  jobSource: OffRampJobSource;
 }
 
 export interface OffRampTradeResult {
@@ -41,9 +43,10 @@ export interface OffRampPayoutRequest {
   accountName: string;
   accountNumber: string;
   bankCode: string;
-  employeeId: string;
-  payrollRunId: string;
+  employeeId?: string | null;
+  payrollRunId?: string | null;
   sender: PdaxSenderProfile;
+  jobSource: OffRampJobSource;
 }
 
 export interface PdaxSenderProfile {

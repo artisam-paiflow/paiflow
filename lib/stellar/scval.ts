@@ -347,6 +347,21 @@ export function pipelineNodeConstructorArgs(
         u64(params.endTs),
       ];
     }
+    case "cash_out_dev": {
+      if (!parentAddress) throw new Error("Cash out dev requires a parent address");
+      // __constructor(admin, relayer, asset, treasury, parent,
+      //               account_name, account_number, bank_code)
+      return [
+        addr(admin),
+        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
+        addr(assetContractId(params.asset)),
+        addr(params.treasury && params.treasury.length > 0 ? params.treasury : admin),
+        addr(parentAddress),
+        string(params.accountName),
+        string(params.accountNumber),
+        string(params.bankCode),
+      ];
+    }
   }
 }
 

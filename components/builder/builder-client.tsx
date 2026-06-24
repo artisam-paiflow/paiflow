@@ -66,6 +66,7 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
     case "swap":
     case "yield":
     case "email_notify":
+    case "cash_out":
       type = "action";
       break;
     case "condition":
@@ -88,6 +89,15 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
 function hasDevCounterpart(n: FlowNode | undefined): boolean {
   if (!n) return false;
   return n.type === "pay" || n.type === "split" || n.type === "subscription";
+}
+
+/**
+ * Node types that deploy as a mutable contract in dev mode — either a `_DEV`
+ * counterpart of an immutable node, or a dev-only node (cash_out). Drives the
+ * amber MUTABLE badge on the canvas.
+ */
+function isMutableInDevMode(n: FlowNode | undefined): boolean {
+  return hasDevCounterpart(n) || n?.type === "cash_out";
 }
 
 function nodeBorderColor(n: FlowNode | undefined): string {
@@ -473,6 +483,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           templateKind={templateKind}
           pipeline={pipeline}
           collapsed={sidebarCollapsed}
+          devMode={devMode}
           onToggleCollapse={() => {
             setSidebarCollapsed((v) => !v);
             setHasAnimated(true);
@@ -578,7 +589,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                     ...n.data,
                     label: nodeLabel(fn),
                     node: fn ?? n.data.node,
-                    isMutable: devMode && hasDevCounterpart(fn),
+                    isMutable: devMode && isMutableInDevMode(fn),
                   },
                   selected: n.id === selectedId,
                 };
@@ -645,6 +656,8 @@ function nodeLabel(n: FlowNode | undefined): string {
       return `Yield`;
     case "email_notify":
       return `Email (${n.config.recipients.length})`;
+    case "cash_out":
+      return `Cash Out${n.config.bankCode ? ` (${n.config.bankCode})` : ""}`;
     case "condition":
       return `Condition (${n.config.kind})`;
   }

@@ -1315,6 +1315,77 @@ export default function ConfigPanel({
         </>
       )}
 
+      {node.type === "cash_out" && (
+        <>
+          <div className="flex items-start gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-300">
+            <span className="material-symbols-outlined text-[14px]">payments</span>
+            <span>
+              Terminal cash-out. Funds leave the chain to the off-ramp treasury, then a bank payout
+              is made via PDAX. Bank details can be left blank and filled via the API after deploy.
+            </span>
+          </div>
+          <AssetField
+            asset={node.config.asset}
+            onChange={(asset) =>
+              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
+            }
+          />
+          <Field label="Account name">
+            <input
+              className="input"
+              value={node.config.accountName}
+              placeholder="Juan Dela Cruz"
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, accountName: e.target.value },
+                } as FlowNode)
+              }
+            />
+          </Field>
+          <Field label="Account number">
+            <input
+              className="input"
+              value={node.config.accountNumber}
+              placeholder="1234567890"
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, accountNumber: e.target.value },
+                } as FlowNode)
+              }
+            />
+          </Field>
+          <Field label="Bank">
+            <select
+              className="input"
+              value={node.config.bankCode}
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, bankCode: e.target.value },
+                } as FlowNode)
+              }
+            >
+              <option value="">— set via API after deploy —</option>
+              <option value="BASECPH">BASECPH — BDO</option>
+              <option value="BACTBPH">BACTBPH — BPI</option>
+            </select>
+          </Field>
+          <ApiFillHint
+            show={
+              devMode &&
+              !node.config.accountName &&
+              !node.config.accountNumber &&
+              !node.config.bankCode
+            }
+          >
+            Leave the bank fields empty to fill them via the API after deploy. The contract deploys
+            &ldquo;not configured&rdquo; and guards execution until they are set.
+          </ApiFillHint>
+        </>
+      )}
+
       {node.type === "condition" && (
         <>
           <Field label="Condition kind">

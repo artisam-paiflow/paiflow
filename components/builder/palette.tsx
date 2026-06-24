@@ -13,6 +13,7 @@ type Props = {
   pipeline?: TemplateKind[];
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  devMode?: boolean;
 };
 
 function makeId(prefix: string) {
@@ -22,7 +23,7 @@ function makeId(prefix: string) {
 type Template = {
   label: string;
   icon: string;
-  group: "Triggers" | "Actions" | "Logic";
+  group: "Triggers" | "Actions" | "Logic" | "Dev";
   make: () => FlowNode;
 };
 
@@ -206,12 +207,28 @@ const TEMPLATES: Template[] = [
       config: { kind: "amount_gt", amountStroops: "10000000" },
     }),
   },
+  {
+    group: "Dev",
+    label: "Cash Out",
+    icon: "payments",
+    make: () => ({
+      id: makeId("cashout"),
+      type: "cash_out",
+      config: {
+        asset: { kind: "known", symbol: "USDC" },
+        accountName: "",
+        accountNumber: "",
+        bankCode: "",
+      },
+    }),
+  },
 ];
 
 const GROUP_TONE: Record<Template["group"], { tone: string; dot: string }> = {
   Triggers: { tone: "text-secondary", dot: "bg-secondary" },
   Actions: { tone: "text-primary", dot: "bg-primary" },
   Logic: { tone: "text-tertiary", dot: "bg-tertiary" },
+  Dev: { tone: "text-amber-400", dot: "bg-amber-400" },
 };
 
 export default function Palette({
@@ -221,8 +238,12 @@ export default function Palette({
   pipeline,
   collapsed,
   onToggleCollapse,
+  devMode,
 }: Props) {
-  const groups: Template["group"][] = ["Triggers", "Actions", "Logic"];
+  // Dev-only nodes (cash_out) appear only while dev mode is on.
+  const groups: Template["group"][] = devMode
+    ? ["Triggers", "Actions", "Logic", "Dev"]
+    : ["Triggers", "Actions", "Logic"];
   const headingId = useId();
   const hasTrigger = flowNodes.some(isTrigger);
   const templateLabel = templateKind ? TEMPLATE_LABELS[templateKind] : null;

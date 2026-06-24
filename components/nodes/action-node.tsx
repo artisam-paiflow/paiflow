@@ -68,13 +68,23 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
     icon = "mail";
     title = "Email Notify";
     detail = `${n.config.recipients.length} recipient${n.config.recipients.length === 1 ? "" : "s"}`;
+  } else if (n.type === "cash_out") {
+    icon = "payments";
+    title = "Cash Out";
+    const assetLabel =
+      n.config.asset.kind === "known"
+        ? n.config.asset.symbol
+        : n.config.asset.kind === "native"
+          ? "XLM"
+          : n.config.asset.code;
+    detail = n.config.bankCode ? `${assetLabel} → ${n.config.bankCode}` : `${assetLabel} → bank`;
   } else {
     icon = "call_split";
     title = "Split";
     detail = `${n.config.recipients.length} recipients`;
   }
 
-  const canHaveChildren = n.type !== "email_notify";
+  const canHaveChildren = n.type !== "email_notify" && n.type !== "cash_out";
 
   return (
     <div

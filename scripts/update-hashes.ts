@@ -32,6 +32,10 @@ async function update() {
       kind: TemplateKind.SUBSCRIPTION_DEV,
       envKey: `STELLAR_WASM_HASH_SUBSCRIPTION_DEV_${suffix}`,
     },
+    {
+      kind: TemplateKind.CASH_OUT_DEV,
+      envKey: `STELLAR_WASM_HASH_CASH_OUT_DEV_${suffix}`,
+    },
   ];
 
   for (const t of templates) {

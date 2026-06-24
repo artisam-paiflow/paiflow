@@ -83,6 +83,8 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_SPLITTER_DEV_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_SUBSCRIPTION_DEV_TESTNET: optionalWasmHash,
   STELLAR_WASM_HASH_SUBSCRIPTION_DEV_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_CASH_OUT_DEV_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_CASH_OUT_DEV_MAINNET: optionalWasmHash,
   STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
   STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
 
@@ -92,6 +94,12 @@ const EnvSchema = z.object({
   // as the relayer, disabling the relayer path.
   STELLAR_RELAYER_SECRET_KEY: optionalString,
   STELLAR_RELAYER_ADDRESS: optionalString,
+
+  // ---- Off-ramp treasury ----
+  // Relayer-controlled holding address that cash_out nodes sink USDC to before
+  // the off-chain PDAX leg. When unset, the relayer address is used.
+  OFFRAMP_TREASURY_ADDRESS_TESTNET: optionalString,
+  OFFRAMP_TREASURY_ADDRESS_MAINNET: optionalString,
 
   CRON_SECRET: optionalString,
   SENTRY_DSN: optionalString,
@@ -220,7 +228,8 @@ export function stellarWasmHash(
     | "PAYROLL"
     | "PAYER_DEV"
     | "SPLITTER_DEV"
-    | "SUBSCRIPTION_DEV",
+    | "SUBSCRIPTION_DEV"
+    | "CASH_OUT_DEV",
 ): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
@@ -241,4 +250,15 @@ export function stellarRelayerSecretKey(): string | undefined {
 
 export function stellarRelayerAddress(): string | undefined {
   return env().STELLAR_RELAYER_ADDRESS;
+}
+
+/**
+ * Address that cash_out nodes sink USDC to before the off-chain PDAX leg.
+ * Falls back to the relayer address when no dedicated treasury is configured.
+ */
+export function offRampTreasuryAddress(): string | undefined {
+  const e = env();
+  const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
+  const key = `OFFRAMP_TREASURY_ADDRESS_${suffix}` as keyof EnvShape;
+  return (e[key] as string | undefined) ?? e.STELLAR_RELAYER_ADDRESS;
 }

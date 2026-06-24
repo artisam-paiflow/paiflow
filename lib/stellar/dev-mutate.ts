@@ -50,6 +50,10 @@ function symbol(s: string): xdr.ScVal {
   return nativeToScVal(s, { type: "symbol" });
 }
 
+function string(s: string): xdr.ScVal {
+  return nativeToScVal(s, { type: "string" });
+}
+
 function recipientsVec(recipients: DevRecipient[]): xdr.ScVal {
   return xdr.ScVal.scvVec(
     recipients.map((r) =>
@@ -210,6 +214,93 @@ export function updateScheduleByRelayer(
     u64(opts.intervalSeconds),
     u64(opts.endTs),
   ]);
+}
+
+// ── CASH_OUT_DEV ──────────────────────────────────────────────────────────────
+
+export function updateBankByRelayer(
+  contractAddress: string,
+  opts: { accountName: string; accountNumber: string; bankCode: string },
+): Promise<DevMutateResult> {
+  const caller = relayerAddressOrThrow();
+  return invokeByRelayer(contractAddress, "update_bank", [
+    addr(caller),
+    string(opts.accountName),
+    string(opts.accountNumber),
+    string(opts.bankCode),
+  ]);
+}
+
+// ── Treasury refund ───────────────────────────────────────────────────────────
+
+/**
+ * Refund USDC from the off-ramp treasury back to an on-chain source address.
+ * Used when the PDAX off-ramp fails before the trade executes, so the crypto is
+ * still in the treasury. The caller supplies the SAC asset contract address.
+ */
+export async function refundFromTreasury(opts: {
+  destination: string;
+  amountStroops: string;
+  assetContractAddress: string;
+}): Promise<DevMutateResult> {
+  const kp = relayerKeypair();
+  const server = sorobanRpc();
+
+  let sourceAcct;
+  try {
+    sourceAcct = await server.getAccount(kp.publicKey());
+  } catch {
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Relayer account ${kp.publicKey()} is not funded or does not exist`,
+    );
+  }
+
+  const op = Operation.invokeContractFunction({
+    contract: opts.assetContractAddress,
+    function: "transfer",
+    args: [addr(kp.publicKey()), addr(opts.destination), i128(opts.amountStroops)],
+  });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(180)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError("UPSTREAM_RPC", `treasury refund simulation failed: ${sim.error}`);
+  }
+
+  const assembled = rpc.assembleTransaction(tx, sim).build();
+  assembled.sign(kp);
+
+  const send = await server.sendTransaction(assembled);
+  if (send.status === "ERROR") {
+    return {
+      status: "FAILED",
+      txHash: send.hash,
+      errorMessage: `sendTransaction error: ${JSON.stringify(send.errorResult?.result?.()) ?? send.status}`,
+    };
+  }
+
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const got = await server.getTransaction(send.hash);
+    if (got.status === "SUCCESS") return { status: "SUCCESS", txHash: send.hash };
+    if (got.status === "FAILED") {
+      return {
+        status: "FAILED",
+        txHash: send.hash,
+        errorMessage: "Refund transaction failed on the network",
+      };
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  return { status: "FAILED", txHash: send.hash, errorMessage: "Timed out waiting for finality" };
 }
 
 // ── Reads ─────────────────────────────────────────────────────────────────────

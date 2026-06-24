@@ -164,4 +164,73 @@ describe("dev-mode pipeline resolver", () => {
     const payer = flowToPipeline(graph, RELAYER).find((n) => n.nodeId === "a")!;
     expect(payer.templateKind).toBe(TemplateKind.PAYER);
   });
+
+  it("maps cash_out -> CASH_OUT_DEV terminal sink with treasury", () => {
+    const graph = parse({
+      devMode: true,
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "100", label: "A" }],
+          },
+        },
+        {
+          id: "c",
+          type: "cash_out",
+          config: {
+            asset: { kind: "native" },
+            accountName: "Juan",
+            accountNumber: "123",
+            bankCode: "BASECPH",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "a", target: "c" },
+      ],
+    });
+    const pipeline = flowToPipeline(graph, RELAYER, ADDR_B);
+    const cashOut = pipeline.find((n) => n.nodeId === "c")!;
+    expect(cashOut.templateKind).toBe(TemplateKind.CASH_OUT_DEV);
+    expect(cashOut.params.kind).toBe("cash_out_dev");
+    if (cashOut.params.kind === "cash_out_dev") {
+      expect(cashOut.params.treasury).toBe(ADDR_B);
+      expect(cashOut.params.relayer).toBe(RELAYER);
+      expect(cashOut.params.nextStepNodeIds).toHaveLength(0);
+      expect(cashOut.params.bankCode).toBe("BASECPH");
+    }
+  });
+
+  it("leaves cash_out bank fields blank when empty in dev mode", () => {
+    const graph = parse({
+      devMode: true,
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "c",
+          type: "cash_out",
+          config: {
+            asset: { kind: "native" },
+            accountName: "",
+            accountNumber: "",
+            bankCode: "",
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "c" }],
+    });
+    const cashOut = flowToPipeline(graph, RELAYER).find((n) => n.nodeId === "c")!;
+    if (cashOut.params.kind === "cash_out_dev") {
+      expect(cashOut.params.accountName).toBe("");
+      expect(cashOut.params.accountNumber).toBe("");
+      expect(cashOut.params.bankCode).toBe("");
+    } else {
+      throw new Error("expected cash_out_dev");
+    }
+  });
 });

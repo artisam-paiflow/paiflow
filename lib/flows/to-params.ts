@@ -216,6 +216,18 @@ export type SubscriptionDevTriggerNodeParams = {
   nextStepNodeIds: string[];
 };
 
+export type CashOutDevNodeParams = {
+  kind: "cash_out_dev";
+  asset: Asset;
+  // Bank destination — blank ("") at deploy time, filled via the API later.
+  accountName: string;
+  accountNumber: string;
+  bankCode: string;
+  treasury: string; // off-ramp treasury the USDC is sunk to
+  relayer?: string;
+  nextStepNodeIds: string[]; // always empty — cash_out is terminal
+};
+
 export type PipelineNodeParams =
   | DepositTriggerNodeParams
   | SplitterNodeParams
@@ -233,7 +245,8 @@ export type PipelineNodeParams =
   | PayerNodeParams
   | PayerDevNodeParams
   | SplitterDevNodeParams
-  | SubscriptionDevTriggerNodeParams;
+  | SubscriptionDevTriggerNodeParams
+  | CashOutDevNodeParams;
 
 export type PipelineNode = {
   nodeId: string;
@@ -381,7 +394,11 @@ function streamerAmountPerInterval(
  * relationships are expressed as nodeId references so the deploy layer can
  * wire deterministic addresses later.
  */
-export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): PipelineNode[] {
+export function flowToPipeline(
+  graph: FlowGraph,
+  relayerAddress?: string,
+  treasuryAddress?: string,
+): PipelineNode[] {
   const trigger = graph.nodes.find(isTrigger)!;
   const actions = graph.nodes.filter(isAction);
   const contractActions = actions.filter(isContractAction);
@@ -477,7 +494,14 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
         if (seenActions.has(current.id)) continue;
         seenActions.add(current.id);
         pipeline.push(
-          contractActionToPipelineNode(current, trigger, children, devMode, relayerAddress),
+          contractActionToPipelineNode(
+            current,
+            trigger,
+            children,
+            devMode,
+            relayerAddress,
+            treasuryAddress,
+          ),
         );
         for (const childId of children.get(current.id) ?? []) {
           const childNode = graph.nodes.find((n) => n.id === childId);
@@ -659,7 +683,14 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
       seenActions.add(current.id);
 
       pipeline.push(
-        contractActionToPipelineNode(current, trigger, children, devMode, relayerAddress),
+        contractActionToPipelineNode(
+          current,
+          trigger,
+          children,
+          devMode,
+          relayerAddress,
+          treasuryAddress,
+        ),
       );
 
       for (const childId of children.get(current.id) ?? []) {
@@ -680,10 +711,30 @@ function contractActionToPipelineNode(
   children: Map<string, string[]>,
   devMode = false,
   relayerAddress?: string,
+  treasuryAddress?: string,
 ): PipelineNode {
   const nextStepNodeIds = children.get(action.id) ?? [];
 
   switch (action.type) {
+    case "cash_out": {
+      // Dev-only terminal sink — no immutable counterpart. Bank details may be
+      // blank ("") at deploy time and filled via the API. Always deploys as the
+      // mutable CASH_OUT_DEV contract (validation guarantees devMode is on).
+      return {
+        nodeId: action.id,
+        templateKind: TemplateKind.CASH_OUT_DEV,
+        params: {
+          kind: "cash_out_dev",
+          asset: action.config.asset,
+          accountName: action.config.accountName ?? "",
+          accountNumber: action.config.accountNumber ?? "",
+          bankCode: action.config.bankCode ?? "",
+          treasury: treasuryAddress ?? relayerAddress ?? "",
+          relayer: relayerAddress,
+          nextStepNodeIds: [],
+        },
+      };
+    }
     case "swap":
       return {
         nodeId: action.id,

@@ -247,6 +247,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "cash_out_dev"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"

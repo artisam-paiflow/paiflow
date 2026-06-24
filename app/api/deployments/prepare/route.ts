@@ -11,7 +11,7 @@ import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { preparePipelineDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
-import { stellarWasmHash, stellarRelayerAddress } from "@/lib/env";
+import { stellarWasmHash, stellarRelayerAddress, offRampTreasuryAddress } from "@/lib/env";
 
 const PrepareSchema = z.object({
   flowId: z.string().uuid(),
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const pipeline = flowToPipeline(v.graph, relayerAddress);
+    const pipeline = flowToPipeline(v.graph, relayerAddress, offRampTreasuryAddress());
 
     // Ensure every pipeline node has a corresponding WASM template on-chain.
     const deployNodes = await Promise.all(

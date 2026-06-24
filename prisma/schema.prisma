@@ -31,6 +31,7 @@ enum TemplateKind {
   PAYER_DEV
   SPLITTER_DEV
   SUBSCRIPTION_DEV
+  CASH_OUT_DEV
 }
 
 enum DeploymentStatus {
@@ -55,6 +56,11 @@ enum ChargeRelayerMode {
   PLATFORM
   USER
   MANUAL
+}
+
+enum OffRampJobSource {
+  PAYROLL
+  CASH_OUT
 }
 
 enum OffRampPayoutJobStatus {
@@ -87,6 +93,7 @@ enum EventKind {
   RETRIEVE
   ALLOWANCE
   RECIPIENT_UPDATED
+  CASH_OUT
 }
 
 model User {
@@ -228,6 +235,7 @@ model Deployment {
   streamerClaimJobs StreamerClaimJob[]
   employees Employee[]
   payrollRuns PayrollRun[]
+  offRampPayoutJobs OffRampPayoutJob[]
   offRampSenderProfile OffRampSenderProfile?
 
   @@index([ownerId, createdAt(sort: Desc)])
@@ -326,28 +334,36 @@ model PayrollPayout {
 }
 
 model OffRampPayoutJob {
-  id              String                 @id @default(uuid()) @db.Uuid
-  payrollRunId    String                 @db.Uuid
-  employeeId      String                 @db.Uuid
-  payrollPayoutId String                 @db.Uuid
-  amountStroops   String
-  status          OffRampPayoutJobStatus @default(PENDING)
-  providerRef     String?                // withdrawal identifier
-  tradeRef        String?                // order/trade reference
-  requestId       String?                // provider request id
-  providerQuote   Json?
-  runAt           DateTime
-  attemptCount    Int                    @default(0)
-  lastError       String?
-  completedAt     DateTime?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  id                String                 @id @default(uuid()) @db.Uuid
+  source            OffRampJobSource       @default(PAYROLL)
+  deploymentId      String                 @db.Uuid
+  sourceAddress     String?
+  amountStroops     String
+  bankAccountName   String?
+  bankAccountNumber String?
+  bankCode          String?
+  payrollRunId      String?                @db.Uuid
+  employeeId        String?                @db.Uuid
+  payrollPayoutId   String?                @db.Uuid
+  status            OffRampPayoutJobStatus @default(PENDING)
+  providerRef       String?                // withdrawal identifier
+  tradeRef          String?                // order/trade reference
+  requestId         String?                // provider request id
+  providerQuote     Json?
+  runAt             DateTime
+  attemptCount      Int                    @default(0)
+  lastError         String?
+  completedAt       DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
 
-  payrollRun    PayrollRun    @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
-  employee      Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  payrollPayout PayrollPayout @relation(fields: [payrollPayoutId], references: [id], onDelete: Cascade)
+  deployment    Deployment     @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  payrollRun    PayrollRun?    @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee      Employee?      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  payrollPayout PayrollPayout? @relation(fields: [payrollPayoutId], references: [id], onDelete: Cascade)
 
   @@index([status, runAt])
+  @@index([deploymentId])
   @@index([payrollRunId])
   @@index([employeeId])
   @@index([providerRef])

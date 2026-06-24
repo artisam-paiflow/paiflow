@@ -18,6 +18,7 @@ members = [
   "actions/payer",
   "actions/payer_dev",
   "actions/payroll",
+  "actions/cash_out_dev",
   "factory",
 ]
 

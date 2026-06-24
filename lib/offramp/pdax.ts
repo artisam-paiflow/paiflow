@@ -151,8 +151,9 @@ export class PdaxOffRampProvider implements OffRampProvider {
 
   async initiatePayout(request: OffRampPayoutRequest): Promise<OffRampPayoutResult> {
     const sender = request.sender;
+    const isCashOut = request.jobSource === "CASH_OUT";
     const body = {
-      identifier: request.payrollRunId,
+      identifier: request.payrollRunId ?? crypto.randomUUID(),
       sender_first_name: sender.firstName,
       sender_middle_name: sender.middleName || "n.a.",
       sender_last_name: sender.lastName,
@@ -177,8 +178,8 @@ export class PdaxOffRampProvider implements OffRampProvider {
       beneficiary_bank_code: request.bankCode,
       beneficiary_account_name: request.accountName,
       beneficiary_account_number: request.accountNumber,
-      purpose: "PAYROLL",
-      relationship_of_sender_to_beneficiary: "EMPLOYER",
+      purpose: isCashOut ? "CASH_OUT" : "PAYROLL",
+      relationship_of_sender_to_beneficiary: isCashOut ? "SELF" : "EMPLOYER",
       currency: request.fiatCurrency,
       amount: request.fiatAmount,
       method: "PAY-TO-ACCOUNT-REAL-TIME",

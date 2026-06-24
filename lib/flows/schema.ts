@@ -297,6 +297,17 @@ export const EmailNotifyAction = z.object({
   }),
 });
 
+export const CashOutAction = z.object({
+  id: z.string().min(1),
+  type: z.literal("cash_out"),
+  config: z.object({
+    asset: AssetSchema,
+    accountName: z.string().default(""),
+    accountNumber: z.string().default(""),
+    bankCode: z.string().default(""),
+  }),
+});
+
 export const ConditionLogic = z.object({
   id: z.string().min(1),
   type: z.literal("condition"),
@@ -340,6 +351,7 @@ export const FlowNodeSchema = z.discriminatedUnion("type", [
   SwapAction,
   YieldAction,
   EmailNotifyAction,
+  CashOutAction,
   ConditionLogic,
 ]);
 export type FlowNode = z.infer<typeof FlowNodeSchema>;
@@ -385,7 +397,8 @@ export type ActionNode =
   | z.infer<typeof SplitAction>
   | z.infer<typeof SwapAction>
   | z.infer<typeof YieldAction>
-  | z.infer<typeof EmailNotifyAction>;
+  | z.infer<typeof EmailNotifyAction>
+  | z.infer<typeof CashOutAction>;
 export type LogicNode = z.infer<typeof ConditionLogic>;
 
 export type ContractActionNode = Exclude<ActionNode, { type: "email_notify" }>;
@@ -407,11 +420,18 @@ export function isAction(n: FlowNode): n is ActionNode {
     n.type === "split" ||
     n.type === "swap" ||
     n.type === "yield" ||
-    n.type === "email_notify"
+    n.type === "email_notify" ||
+    n.type === "cash_out"
   );
 }
 export function isContractAction(n: FlowNode): n is ContractActionNode {
-  return n.type === "pay" || n.type === "split" || n.type === "swap" || n.type === "yield";
+  return (
+    n.type === "pay" ||
+    n.type === "split" ||
+    n.type === "swap" ||
+    n.type === "yield" ||
+    n.type === "cash_out"
+  );
 }
 export function isLogic(n: FlowNode): n is LogicNode {
   return n.type === "condition";
