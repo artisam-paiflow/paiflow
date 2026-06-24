@@ -166,13 +166,13 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     const stored = localStorage.getItem("sidebarCollapsed");
     if (stored === "true") {
       setSidebarCollapsed(true);
+    } else if (stored === null && window.matchMedia("(max-width: 767px)").matches) {
+      // No explicit preference yet: default collapsed on narrow viewports so the
+      // canvas isn't squeezed to nothing by a fixed 260px sidebar.
+      setSidebarCollapsed(true);
     }
     setReady(true);
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem("sidebarCollapsed", String(sidebarCollapsed));
-  }, [sidebarCollapsed]);
 
   const graph: FlowGraph = useMemo(
     () => ({
@@ -464,7 +464,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           pipeline={pipeline}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => {
-            setSidebarCollapsed((v) => !v);
+            setSidebarCollapsed((v) => {
+              const next = !v;
+              localStorage.setItem("sidebarCollapsed", String(next));
+              return next;
+            });
             setHasAnimated(true);
           }}
         />
