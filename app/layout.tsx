@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { Toaster } from "sonner";
 import { Space_Grotesk, Geist, JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
@@ -52,11 +52,6 @@ export const metadata: Metadata = {
   title: "Pink Raft — Zaps for Payments on Stellar",
   description:
     "Drag, drop, deploy. Pink Raft turns triggers and actions into real Soroban contracts on Stellar in under a minute.",
-};
-
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
