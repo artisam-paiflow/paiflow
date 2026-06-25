@@ -24,10 +24,10 @@ type SenderProfile = {
 };
 
 const EMPTY: SenderProfile = {
-  firstName: "Bob",
-  middleName: "n.a.",
-  lastName: "Marley",
-  countryOrigin: "Philippines",
+  firstName: "",
+  middleName: "",
+  lastName: "",
+  countryOrigin: "",
   addressLineOne: "",
   addressLineTwo: "",
   city: "",
@@ -39,7 +39,7 @@ const EMPTY: SenderProfile = {
   nationalIdentityNumber: "",
   dob: "",
   placeOfBirth: "",
-  sourceOfFunds: "Business Income",
+  sourceOfFunds: "",
   email: "",
 };
 
@@ -78,8 +78,11 @@ export default function OffRampSenderForm({ deploymentId }: { deploymentId: stri
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          ...profile,
+          firstName: profile.firstName,
           middleName: profile.middleName || undefined,
+          lastName: profile.lastName,
+          countryOrigin: profile.countryOrigin,
+          sourceOfFunds: profile.sourceOfFunds,
         }),
       });
       if (!res.ok) {
@@ -128,7 +131,7 @@ export default function OffRampSenderForm({ deploymentId }: { deploymentId: stri
             />
             <input
               className="input"
-              placeholder="Middle name"
+              placeholder="Middle name (n.a. if none)"
               value={profile.middleName ?? ""}
               onChange={(e) => update({ middleName: e.target.value })}
             />
@@ -152,93 +155,6 @@ export default function OffRampSenderForm({ deploymentId }: { deploymentId: stri
               placeholder="Source of funds *"
               value={profile.sourceOfFunds}
               onChange={(e) => update({ sourceOfFunds: e.target.value })}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              className="input"
-              placeholder="Email"
-              value={profile.email ?? ""}
-              onChange={(e) => update({ email: e.target.value })}
-            />
-            <input
-              className="input"
-              placeholder="Phone number"
-              value={profile.phoneNumber ?? ""}
-              onChange={(e) => update({ phoneNumber: e.target.value })}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              className="input"
-              placeholder="Nationality"
-              value={profile.nationality ?? ""}
-              onChange={(e) => update({ nationality: e.target.value })}
-            />
-            <input
-              className="input"
-              placeholder="National ID number"
-              value={profile.nationalIdentityNumber ?? ""}
-              onChange={(e) => update({ nationalIdentityNumber: e.target.value })}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              className="input"
-              placeholder="Date of birth (mm-dd-yyyy)"
-              value={profile.dob ?? ""}
-              onChange={(e) => update({ dob: e.target.value })}
-            />
-            <input
-              className="input"
-              placeholder="Place of birth"
-              value={profile.placeOfBirth ?? ""}
-              onChange={(e) => update({ placeOfBirth: e.target.value })}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              className="input"
-              placeholder="Address line 1"
-              value={profile.addressLineOne ?? ""}
-              onChange={(e) => update({ addressLineOne: e.target.value })}
-            />
-            <input
-              className="input"
-              placeholder="Address line 2"
-              value={profile.addressLineTwo ?? ""}
-              onChange={(e) => update({ addressLineTwo: e.target.value })}
-            />
-          </div>
-
-          <div className="grid grid-cols-4 gap-2">
-            <input
-              className="input"
-              placeholder="City"
-              value={profile.city ?? ""}
-              onChange={(e) => update({ city: e.target.value })}
-            />
-            <input
-              className="input"
-              placeholder="Province"
-              value={profile.province ?? ""}
-              onChange={(e) => update({ province: e.target.value })}
-            />
-            <input
-              className="input"
-              placeholder="Country"
-              value={profile.country ?? ""}
-              onChange={(e) => update({ country: e.target.value })}
-            />
-            <input
-              className="input"
-              placeholder="Zip code"
-              value={profile.zipCode ?? ""}
-              onChange={(e) => update({ zipCode: e.target.value })}
             />
           </div>
 
