@@ -400,6 +400,19 @@ model OffRampSenderProfile {
   @@index([deploymentId])
 }
 
+model OffRampProviderCredential {
+  id           String   @id @default(uuid()) @db.Uuid
+  provider     String   @unique
+  username     String
+  accessToken  String
+  idToken      String?
+  refreshToken String?
+  apiUrl       String?
+  expiresAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 model ContractEvent {
   id           String     @id @default(uuid()) @db.Uuid
   deploymentId String     @db.Uuid

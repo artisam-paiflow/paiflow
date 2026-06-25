@@ -26,16 +26,16 @@ export class PdaxOffRampProvider implements OffRampProvider {
     return url.replace(/\/$/, "");
   }
 
-  private authHeaders(): Record<string, string> {
+  private async authHeaders(): Promise<Record<string, string>> {
     return getPdaxAuthHeaders();
   }
 
   private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
-    const makeRequest = () =>
+    const makeRequest = async () =>
       fetch(url, {
         ...init,
         headers: {
-          ...this.authHeaders(),
+          ...(await this.authHeaders()),
           ...(init.headers ?? {}),
         },
       });

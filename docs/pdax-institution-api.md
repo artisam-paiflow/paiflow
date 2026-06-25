@@ -5,25 +5,29 @@ Base URL: `https://api.pdax.ph` (confirm UAT base URL with PDAX).
 ## Configuration
 
 The app defaults to a built-in mock off-ramp provider. To use the real PDAX API,
-set `OFFRAMP_PROVIDER=pdax` and provide your PDAX Institution credentials:
+set `OFFRAMP_PROVIDER=pdax` and store your PDAX Institution credentials in the
+app database via **Admin → Off-ramp** (`/admin/offramp`).
 
-| Env variable             | Required | Description                                        |
-| ------------------------ | -------- | -------------------------------------------------- |
-| `OFFRAMP_PROVIDER`       | yes      | Set to `pdax` (default is `mock`).                 |
-| `OFFRAMP_API_URL`        | no       | Override base URL, e.g. PDAX UAT sandbox.          |
-| `OFFRAMP_USERNAME`       | yes      | PDAX account username.                             |
-| `OFFRAMP_ACCESS_TOKEN`   | yes      | Current PDAX access token.                         |
-| `OFFRAMP_ID_TOKEN`       | yes      | Current PDAX id token (sent as `id_token` header). |
-| `OFFRAMP_REFRESH_TOKEN`  | yes      | Used to refresh the access token when it expires.  |
-| `OFFRAMP_WEBHOOK_SECRET` | no       | Secret for validating PDAX webhooks.               |
+| Field         | Required | Description                                        |
+| ------------- | -------- | -------------------------------------------------- |
+| Username      | yes      | PDAX account username.                             |
+| Access token  | yes      | Current PDAX access token.                         |
+| ID token      | yes      | Current PDAX id token (sent as `id_token` header). |
+| Refresh token | yes      | Used to refresh the access token on `401`.         |
+| API URL       | no       | Override base URL, e.g. PDAX UAT sandbox.          |
+| Expires at    | no       | ISO timestamp for informational use.               |
+
+Environment variables (`OFFRAMP_USERNAME`, `OFFRAMP_ACCESS_TOKEN`,
+`OFFRAMP_ID_TOKEN`, `OFFRAMP_REFRESH_TOKEN`) are still read as a fallback, but
+they are not recommended for tokens that rotate every ~10 minutes.
 
 Authentication:
 
 - All endpoints require two headers:
   - `Authorization: Bearer <access_token>`
   - `id_token: <id_token>`
-- The app reads `OFFRAMP_ACCESS_TOKEN` and `OFFRAMP_ID_TOKEN` from env.
-- When a request returns `401`, the app calls `PUT /pdax-institution/v1/refresh-token` (using `OFFRAMP_REFRESH_TOKEN` and `OFFRAMP_USERNAME`) to obtain a new `access_token` and `id_token`, then retries the original request once.
+- The app reads the current access/id tokens from the database.
+- When a request returns `401`, the app calls `PUT /pdax-institution/v1/refresh-token` (using the stored refresh token and username) to obtain a new `access_token` and `id_token`, updates the stored credentials, then retries the original request once.
 
 ---
 
@@ -150,6 +154,17 @@ Notes:
 - Required fields depend on whether amount is `>= 50,000 PHP` or `< 50,000 PHP`.
 - Bank code must come from PDAX's accepted bank code list.
 - Channel is determined by PDAX based on amount and availability.
+
+#### UAT test beneficiary bank accounts
+
+Use these valid sandbox accounts as `beneficiary_account_number`. A made-up
+number is rejected by the bank rail with ISO 20022 reason **AC01** (incorrect
+account number), even though the withdraw request itself is accepted.
+
+| Bank code | Bank                       | Account number  |
+| --------- | -------------------------- | --------------- |
+| `BASECPH` | Security Bank Corporation  | `0000042001461` |
+| `BACTBPH` | CTBC Bank Philippines Corp | `001700062270`  |
 
 ### Body
 

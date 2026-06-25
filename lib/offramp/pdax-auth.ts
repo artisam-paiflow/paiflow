@@ -1,4 +1,5 @@
 import "server-only";
+import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
 
@@ -9,46 +10,49 @@ export interface PdaxTokens {
   username?: string;
 }
 
-let cachedTokens: PdaxTokens | null = null;
-
 function baseUrl(): string {
   const url = env().OFFRAMP_API_URL ?? "https://api.pdax.ph";
   return url.replace(/\/$/, "");
 }
 
-export function getPdaxTokens(): PdaxTokens | null {
-  if (cachedTokens) return cachedTokens;
-
-  const accessToken = env().OFFRAMP_ACCESS_TOKEN;
-  if (!accessToken) return null;
-
-  cachedTokens = {
-    accessToken,
-    idToken: env().OFFRAMP_ID_TOKEN,
-    refreshToken: env().OFFRAMP_REFRESH_TOKEN,
-    username: env().OFFRAMP_USERNAME,
-  };
-  return cachedTokens;
-}
-
-function updateCachedTokens(updates: Partial<PdaxTokens>) {
-  if (cachedTokens) {
-    cachedTokens = { ...cachedTokens, ...updates };
-  } else {
-    cachedTokens = {
-      accessToken: updates.accessToken ?? env().OFFRAMP_ACCESS_TOKEN ?? "",
-      idToken: updates.idToken ?? env().OFFRAMP_ID_TOKEN,
-      refreshToken: updates.refreshToken ?? env().OFFRAMP_REFRESH_TOKEN,
-      username: updates.username ?? env().OFFRAMP_USERNAME,
+async function getCredential(provider: string): Promise<{
+  accessToken: string;
+  idToken?: string | null;
+  refreshToken?: string | null;
+  username?: string;
+  apiUrl?: string | null;
+  expiresAt?: Date | null;
+} | null> {
+  const row = await db.offRampProviderCredential.findUnique({
+    where: { provider },
+  });
+  if (row) {
+    return {
+      accessToken: row.accessToken,
+      idToken: row.idToken ?? undefined,
+      refreshToken: row.refreshToken ?? undefined,
+      username: row.username,
+      apiUrl: row.apiUrl,
+      expiresAt: row.expiresAt,
     };
   }
+
+  // Fallback to env vars for one-off deployments / migration.
+  const accessToken = env().OFFRAMP_ACCESS_TOKEN;
+  if (!accessToken) return null;
+  return {
+    accessToken,
+    idToken: env().OFFRAMP_ID_TOKEN ?? undefined,
+    refreshToken: env().OFFRAMP_REFRESH_TOKEN ?? undefined,
+    username: env().OFFRAMP_USERNAME ?? undefined,
+  };
 }
 
 /**
  * Build the header object used by every PDAX Institution request.
  */
-export function getPdaxAuthHeaders(): Record<string, string> {
-  const tokens = getPdaxTokens();
+export async function getPdaxAuthHeaders(): Promise<Record<string, string>> {
+  const tokens = await getCredential("pdax");
   if (!tokens) {
     throw new Error("PDAX access token is not configured");
   }
@@ -65,15 +69,58 @@ export function getPdaxAuthHeaders(): Record<string, string> {
   return headers;
 }
 
+async function persistTokens(
+  updates: Partial<{
+    accessToken: string;
+    idToken: string | null;
+    refreshToken: string | null;
+    username: string;
+    apiUrl: string | null;
+    expiresAt: Date | null;
+  }>,
+): Promise<void> {
+  const existing = await db.offRampProviderCredential.findUnique({
+    where: { provider: "pdax" },
+  });
+
+  const data = {
+    ...(updates.username !== undefined && { username: updates.username }),
+    ...(updates.accessToken !== undefined && { accessToken: updates.accessToken }),
+    ...(updates.idToken !== undefined && { idToken: updates.idToken }),
+    ...(updates.refreshToken !== undefined && { refreshToken: updates.refreshToken }),
+    ...(updates.apiUrl !== undefined && { apiUrl: updates.apiUrl }),
+    ...(updates.expiresAt !== undefined && { expiresAt: updates.expiresAt }),
+  };
+
+  if (existing) {
+    await db.offRampProviderCredential.update({
+      where: { provider: "pdax" },
+      data,
+    });
+  } else {
+    await db.offRampProviderCredential.create({
+      data: {
+        provider: "pdax",
+        username: updates.username ?? env().OFFRAMP_USERNAME ?? "",
+        accessToken: updates.accessToken ?? env().OFFRAMP_ACCESS_TOKEN ?? "",
+        idToken: updates.idToken ?? env().OFFRAMP_ID_TOKEN,
+        refreshToken: updates.refreshToken ?? env().OFFRAMP_REFRESH_TOKEN,
+        apiUrl: updates.apiUrl ?? env().OFFRAMP_API_URL,
+      },
+    });
+  }
+}
+
 /**
  * Refresh the PDAX access token using the refresh token endpoint.
  * Returns the new access token, or null if refresh is not possible.
+ * Persisted tokens are updated in the database on success.
  */
 export async function refreshPdaxAccessToken(): Promise<{
   accessToken: string;
   idToken?: string;
 } | null> {
-  const tokens = getPdaxTokens();
+  const tokens = await getCredential("pdax");
   if (!tokens?.refreshToken || !tokens?.username) {
     log.warn("PDAX refresh token or username not configured; cannot refresh");
     return null;
@@ -116,7 +163,7 @@ export async function refreshPdaxAccessToken(): Promise<{
       return null;
     }
 
-    updateCachedTokens({
+    await persistTokens({
       accessToken: newAccessToken,
       ...(newIdToken ? { idToken: newIdToken } : {}),
       ...(data.refresh_token || data.refreshToken
@@ -131,4 +178,18 @@ export async function refreshPdaxAccessToken(): Promise<{
     log.warn({ error: message }, "PDAX token refresh threw");
     return null;
   }
+}
+
+/**
+ * Admin-facing helper: save or replace the stored PDAX credentials.
+ */
+export async function setPdaxCredential(opts: {
+  username: string;
+  accessToken: string;
+  idToken?: string | null;
+  refreshToken?: string | null;
+  apiUrl?: string | null;
+  expiresAt?: Date | null;
+}): Promise<void> {
+  await persistTokens(opts);
 }
