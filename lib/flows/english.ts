@@ -9,6 +9,10 @@ import {
   assetLabel,
 } from "./schema";
 
+function isApiFillAddress(addr: string): boolean {
+  return addr === "PENDING:__api__";
+}
+
 function intervalLabel(amount: number, unit: string): string {
   if (amount === 1) {
     return `every ${unit}`;
@@ -55,10 +59,15 @@ export function flowToEnglish(graph: FlowGraph): string {
   } else if (trigger.type === "subscription") {
     triggerText = `When subscription pulls ${formatStroops(trigger.config.amountPerPeriodStroops)} ${assetLabel(trigger.config.asset)} ${intervalLabel(trigger.config.intervalAmount ?? 1, trigger.config.intervalUnit ?? "day")}`;
   } else if (trigger.type === "payroll") {
-    const employer = isPendingAddress(trigger.config.employer)
-      ? "(needs employer address)"
-      : shortAddr(trigger.config.employer);
-    triggerText = `When payroll pulls from ${employer} ${intervalLabel(trigger.config.intervalAmount ?? 1, trigger.config.intervalUnit ?? "week")}`;
+    const employer = isApiFillAddress(trigger.config.employer)
+      ? "(employer set via API)"
+      : isPendingAddress(trigger.config.employer)
+        ? "(needs employer address)"
+        : shortAddr(trigger.config.employer);
+    const schedule = trigger.config.fillScheduleViaApi
+      ? "(schedule set via API)"
+      : intervalLabel(trigger.config.intervalAmount ?? 1, trigger.config.intervalUnit ?? "week");
+    triggerText = `When payroll pulls from ${employer} ${schedule}`;
   } else if (trigger.type === "oracle") {
     triggerText = `When oracle price meets threshold (${trigger.config.threshold}) for ${assetLabel(trigger.config.asset)}`;
   } else {

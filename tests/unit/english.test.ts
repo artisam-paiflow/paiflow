@@ -340,4 +340,34 @@ describe("flowToEnglish", () => {
     });
     expect(out).toContain("When subscription pulls 1 USDC every 5 days");
   });
+
+  it("describes a dev-mode payroll trigger with API-filled employer and schedule", () => {
+    const out = flowToEnglish({
+      devMode: true,
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: "PENDING:__api__",
+            intervalAmount: 5,
+            intervalUnit: "minute",
+            fillScheduleViaApi: true,
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("When payroll pulls from (employer set via API) (schedule set via API)");
+    expect(out).not.toContain("every 5 minutes");
+  });
 });
