@@ -264,12 +264,12 @@ function sumRecipientAmounts(recipients: Recipient[]): string | undefined {
 }
 
 function formatAsset(asset: unknown): string {
-  if (!asset) return "XLM";
+  if (!asset) return "—";
   if (asset && typeof asset === "object" && "kind" in asset) {
     try {
       return assetLabel(asset as Asset);
     } catch {
-      return "XLM";
+      return "—";
     }
   }
   const str = String(asset);

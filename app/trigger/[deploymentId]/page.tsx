@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
+import { FlowGraphSchema, isTrigger, assetLabel } from "@/lib/flows/schema";
 import TriggerClient from "./trigger-client";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +38,8 @@ export default async function TriggerPage({
   const graph = graphResult.success ? graphResult.data : null;
   const triggerNode = graph?.nodes.find(isTrigger);
   const isWeb2Webhook = triggerNode?.type === "web2_webhook";
+  const triggerAssetLabel =
+    triggerNode && "asset" in triggerNode.config ? assetLabel(triggerNode.config.asset) : undefined;
 
   return (
     <TriggerClient
@@ -47,6 +49,7 @@ export default async function TriggerPage({
       network={d.network as "testnet" | "mainnet"}
       graph={graph}
       isDeposit={isWeb2Webhook || isStreamer}
+      assetLabel={triggerAssetLabel}
     />
   );
 }

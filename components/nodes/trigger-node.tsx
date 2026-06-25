@@ -24,30 +24,15 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
   if (n.type === "on_receive") {
     icon = "toll";
     title = "On Receive";
-    detail =
-      n.config.asset.kind === "known"
-        ? n.config.asset.symbol
-        : n.config.asset.kind === "native"
-          ? "XLM"
-          : n.config.asset.code;
+    detail = assetLabel(n.config.asset);
   } else if (n.type === "webhook") {
     icon = "webhook";
     title = "Webhook";
-    detail =
-      n.config.asset.kind === "known"
-        ? n.config.asset.symbol
-        : n.config.asset.kind === "native"
-          ? "XLM"
-          : n.config.asset.code;
+    detail = assetLabel(n.config.asset);
   } else if (n.type === "web2_webhook") {
     icon = "http";
     title = "HTTP Webhook";
-    detail =
-      n.config.asset.kind === "known"
-        ? n.config.asset.symbol
-        : n.config.asset.kind === "native"
-          ? "XLM"
-          : n.config.asset.code;
+    detail = assetLabel(n.config.asset);
   } else if (n.type === "subscription") {
     icon = "repeat";
     title = "Subscription";

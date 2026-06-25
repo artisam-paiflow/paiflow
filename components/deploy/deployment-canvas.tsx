@@ -4,32 +4,32 @@ import { useEffect, useMemo, useState } from "react";
 import { ReactFlow, Background, Controls, type Edge, type Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
-import { isAction, isLogic, isTrigger } from "@/lib/flows/schema";
+import { assetLabel, isAction, isLogic, isTrigger } from "@/lib/flows/schema";
 
 type Evt = { id: string; kind: string; occurredAt: string };
 
 function nodeLabel(n: FlowNode): string {
   switch (n.type) {
     case "on_receive":
-      return `On Receive (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+      return `On Receive (${assetLabel(n.config.asset)})`;
     case "on_schedule":
       return `On Schedule (${(n.config as { intervalAmount?: number; intervalUnit?: string; interval?: string }).intervalAmount ?? 1} ${(n.config as { intervalAmount?: number; intervalUnit?: string; interval?: string }).intervalUnit ?? (n.config as { interval?: string }).interval ?? "hour"})`;
     case "webhook":
-      return `Webhook (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+      return `Webhook (${assetLabel(n.config.asset)})`;
     case "web2_webhook":
-      return `HTTP Webhook (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+      return `HTTP Webhook (${assetLabel(n.config.asset)})`;
     case "subscription":
-      return `Subscription (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+      return `Subscription (${assetLabel(n.config.asset)})`;
     case "oracle":
-      return `Oracle (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+      return `Oracle (${assetLabel(n.config.asset)})`;
     case "pay":
       return "Pay";
     case "split":
       return `Split (${n.config.recipients.length})`;
     case "swap":
-      return `Swap (${n.config.assetIn.kind === "known" ? n.config.assetIn.symbol : n.config.assetIn.kind} → ${n.config.assetOut.kind === "known" ? n.config.assetOut.symbol : n.config.assetOut.kind})`;
+      return `Swap (${assetLabel(n.config.assetIn)} → ${assetLabel(n.config.assetOut)})`;
     case "yield":
-      return `Yield (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+      return `Yield (${assetLabel(n.config.asset)})`;
     case "email_notify":
       return `Email (${n.config.recipients.length})`;
     case "condition":

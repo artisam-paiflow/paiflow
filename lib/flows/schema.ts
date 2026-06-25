@@ -249,7 +249,10 @@ export const SplitAction = z.object({
   type: z.literal("split"),
   config: z.object({
     asset: AssetSchema,
-    recipients: z.array(SplitRecipient).min(1).max(20),
+    // Empty recipients are allowed in dev mode; "fill via API after deploy" uses
+    // an empty list as its sentinel. validateFlow enforces at least one recipient
+    // for non-dev flows.
+    recipients: z.array(SplitRecipient).min(0).max(20),
     amountPerIntervalStroops: z
       .string()
       .regex(/^\d+$/, "Amount must be a positive integer string")

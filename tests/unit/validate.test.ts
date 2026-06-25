@@ -105,6 +105,55 @@ describe("validateFlow", () => {
     }
   });
 
+  it("allows dev-mode split with empty recipients to fill via API after deploy", () => {
+    const r = validateFlow({
+      devMode: true,
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.SPLITTER);
+      expect(r.pipeline).toEqual([TemplateKind.DEPOSIT_TRIGGER, TemplateKind.SPLITTER_DEV]);
+    }
+  });
+
+  it("rejects non-dev split with empty recipients", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+  });
+
   it("rejects payroll → split with percentage recipients", () => {
     const r = validateFlow({
       nodes: [

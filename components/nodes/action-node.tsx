@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { FlowNode } from "@/lib/flows/schema";
-import { isAction } from "@/lib/flows/schema";
+import { assetLabel, isAction } from "@/lib/flows/schema";
 import { formatAmount } from "@/lib/utils";
 
 type ActionNodeData = {
@@ -25,45 +25,22 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
   if (n.type === "pay") {
     icon = "payments";
     title = "Pay";
-    const assetLabel =
-      n.config.asset.kind === "known"
-        ? n.config.asset.symbol
-        : n.config.asset.kind === "native"
-          ? "XLM"
-          : n.config.asset.code;
+    const label = assetLabel(n.config.asset);
     if (n.config.fullAmount) {
-      detail = `Full amount ${assetLabel}`;
+      detail = `Full amount ${label}`;
     } else if (n.config.mode === "percentage" && n.config.percentage !== undefined) {
-      detail = `${n.config.percentage}% ${assetLabel}`;
+      detail = `${n.config.percentage}% ${label}`;
     } else {
-      detail = `${formatAmount(n.config.amountStroops || "0")} ${assetLabel}`;
+      detail = `${formatAmount(n.config.amountStroops || "0")} ${label}`;
     }
   } else if (n.type === "swap") {
     icon = "swap_horiz";
     title = "Swap";
-    const inLabel =
-      n.config.assetIn.kind === "known"
-        ? n.config.assetIn.symbol
-        : n.config.assetIn.kind === "native"
-          ? "XLM"
-          : n.config.assetIn.code;
-    const outLabel =
-      n.config.assetOut.kind === "known"
-        ? n.config.assetOut.symbol
-        : n.config.assetOut.kind === "native"
-          ? "XLM"
-          : n.config.assetOut.code;
-    detail = `${inLabel} → ${outLabel} @ ${(n.config.rateBps / 100).toFixed(0)}%`;
+    detail = `${assetLabel(n.config.assetIn)} → ${assetLabel(n.config.assetOut)} @ ${(n.config.rateBps / 100).toFixed(0)}%`;
   } else if (n.type === "yield") {
     icon = "savings";
     title = "Yield";
-    const assetLabel =
-      n.config.asset.kind === "known"
-        ? n.config.asset.symbol
-        : n.config.asset.kind === "native"
-          ? "XLM"
-          : n.config.asset.code;
-    detail = `deposit ${assetLabel}`;
+    detail = `deposit ${assetLabel(n.config.asset)}`;
   } else if (n.type === "email_notify") {
     icon = "mail";
     title = "Email Notify";
@@ -71,13 +48,8 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
   } else if (n.type === "cash_out") {
     icon = "payments";
     title = "Cash Out";
-    const assetLabel =
-      n.config.asset.kind === "known"
-        ? n.config.asset.symbol
-        : n.config.asset.kind === "native"
-          ? "XLM"
-          : n.config.asset.code;
-    detail = n.config.bankCode ? `${assetLabel} → ${n.config.bankCode}` : `${assetLabel} → bank`;
+    const label = assetLabel(n.config.asset);
+    detail = n.config.bankCode ? `${label} → ${n.config.bankCode}` : `${label} → bank`;
   } else {
     icon = "call_split";
     title = "Split";

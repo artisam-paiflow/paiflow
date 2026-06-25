@@ -131,6 +131,20 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   for (const a of actions) {
     if (a.type === "split") {
+      // Dev mode allows leaving recipients empty to fill via API after deploy.
+      if (graph.devMode === true && a.config.recipients.length === 0) {
+        continue;
+      }
+
+      if (a.config.recipients.length === 0) {
+        errors.push({
+          path: `nodes.${a.id}.config.recipients`,
+          message: "Split node must have at least one recipient",
+          friendlyMessage: "Add at least one recipient to the split node.",
+        });
+        continue;
+      }
+
       const modes = new Set(a.config.recipients.map((r) => r.mode));
       if (modes.size > 1) {
         errors.push({
@@ -241,7 +255,10 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       if (parent?.type === "split") {
         const parentAddresses = parent.config.recipients.map((r) => r.address);
         const emailAddresses = n.config.recipients.map((r) => r.address);
-        if (emailAddresses.length !== parentAddresses.length) {
+        // When the split is in dev mode and its recipients are left empty to be
+        // filled via API, we can't validate a 1:1 address mapping yet.
+        const splitFilledViaApi = graph.devMode === true && parentAddresses.length === 0;
+        if (!splitFilledViaApi && emailAddresses.length !== parentAddresses.length) {
           errors.push({
             path: `nodes.${n.id}.config.recipients`,
             message: "Email notify node must have exactly one email per split recipient",
@@ -249,13 +266,15 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
               "Add exactly one email for each address in the split. Remove or fill any blank rows.",
           });
         }
-        for (const addr of parentAddresses) {
-          if (!emailAddresses.includes(addr)) {
-            errors.push({
-              path: `nodes.${n.id}.config.recipients`,
-              message: `Missing email for split recipient ${addr}`,
-              friendlyMessage: `Add an email for split recipient ${addr}.`,
-            });
+        if (!splitFilledViaApi) {
+          for (const addr of parentAddresses) {
+            if (!emailAddresses.includes(addr)) {
+              errors.push({
+                path: `nodes.${n.id}.config.recipients`,
+                message: `Missing email for split recipient ${addr}`,
+                friendlyMessage: `Add an email for split recipient ${addr}.`,
+              });
+            }
           }
         }
       } else if (n.config.recipients.length === 0) {

@@ -113,7 +113,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const graph = FlowGraphSchema.safeParse(d.graphSnapshot);
     const trigger = graph.success ? graph.data.nodes.find(isTrigger) : null;
     const asset =
-      trigger?.type === "on_receive" ? trigger.config.asset : ({ kind: "native" } as const);
+      trigger && "asset" in trigger.config ? trigger.config.asset : ({ kind: "native" } as const);
     uri = sep7PaymentUri({ destination: d.contractAddress, asset });
   }
 
