@@ -6,7 +6,7 @@ import {
   preparePayrollSubscribeInvocation,
   prepareSubscriptionSubscribeInvocation,
 } from "@/lib/stellar/invoke";
-import { readSubscriptionSubscriber } from "@/lib/stellar/relayer";
+import { readSubscriptionSubscriberNullable } from "@/lib/stellar/relayer";
 import { stellarPassphrase } from "@/lib/env";
 
 type PipelineNode = {
@@ -45,7 +45,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     let employerAddress: string;
 
     if (isDev) {
-      employerAddress = await readSubscriptionSubscriber(payrollNode.contractAddress);
+      employerAddress =
+        (await readSubscriptionSubscriberNullable(payrollNode.contractAddress)) ?? "";
     } else {
       const paramsSnapshot = d.paramsSnapshot as Array<{
         nodeId: string;

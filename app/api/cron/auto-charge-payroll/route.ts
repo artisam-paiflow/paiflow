@@ -17,7 +17,7 @@ import {
   readSubscriptionIsCancelled,
   readSubscriptionNextChargeAt,
   readSubscriptionAmountPerPeriod,
-  readSubscriptionSubscriber,
+  readSubscriptionSubscriberNullable,
   readSubscriptionAsset,
   readSubscriptionRelayer,
   readSplitterDevRecipients,
@@ -49,7 +49,8 @@ function isExpectedSkipError(message: string): boolean {
     message.includes("MissingValue") ||
     message.includes("insufficient") ||
     message.includes("Insufficient") ||
-    message.includes("PayrollEnded")
+    message.includes("PayrollEnded") ||
+    message.includes("NotConfigured")
   );
 }
 
@@ -114,10 +115,13 @@ async function chargeDevPayrollDeployment(
   }
 
   const [subscriber, asset, amountPerPeriod] = await Promise.all([
-    readSubscriptionSubscriber(subscriptionContractAddress),
+    readSubscriptionSubscriberNullable(subscriptionContractAddress),
     readSubscriptionAsset(subscriptionContractAddress),
     readSubscriptionAmountPerPeriod(subscriptionContractAddress),
   ]);
+  if (!subscriber) {
+    throw new Error("NotConfigured");
+  }
 
   const allowance = await readTokenAllowance({
     tokenContractAddress: asset,

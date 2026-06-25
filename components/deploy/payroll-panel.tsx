@@ -35,8 +35,10 @@ export default function PayrollPanel({
   graph: FlowGraph;
 }) {
   const [allowance, setAllowance] = useState<bigint | null>(null);
+  const [allowanceError, setAllowanceError] = useState<string | null>(null);
   const [allowanceAmount, setAllowanceAmount] = useState("");
   const [employer, setEmployer] = useState<string | null>(null);
+  const [employerConfigured, setEmployerConfigured] = useState<boolean | null>(null);
   const [asset, setAsset] = useState<Asset | null>(null);
   const [isCancelled, setIsCancelled] = useState<boolean | null>(null);
   const [recipients, setRecipients] = useState<PayrollRecipient[]>([]);
@@ -48,21 +50,36 @@ export default function PayrollPanel({
     let cancelled = false;
     fetch(`/api/deployments/${deploymentId}/payroll-allowance`)
       .then(async (res) => {
-        if (!res.ok) return;
+        if (!res.ok) {
+          const json = (await res.json().catch(() => ({}))) as {
+            error?: { message?: string };
+          };
+          if (!cancelled) {
+            setAllowanceError(json.error?.message ?? `Failed to load allowance (${res.status})`);
+          }
+          return;
+        }
         const json = (await res.json()) as {
           data: {
             allowance: string;
-            employer: string;
+            employer: string | null;
             asset: Asset;
+            employerConfigured: boolean;
           };
         };
         if (!cancelled) {
           setAllowance(BigInt(json.data.allowance));
+          setAllowanceError(null);
           setEmployer(json.data.employer);
+          setEmployerConfigured(json.data.employerConfigured);
           setAsset(json.data.asset);
         }
       })
-      .catch(() => null);
+      .catch((err) => {
+        if (!cancelled) {
+          setAllowanceError(err instanceof Error ? err.message : "Failed to load allowance");
+        }
+      });
     return () => {
       cancelled = true;
     };
@@ -158,7 +175,9 @@ export default function PayrollPanel({
       </p>
       <div className="text-body-md space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-4">
-          {allowance !== null && asset ? (
+          {allowanceError ? (
+            <span className="text-error font-mono text-xs">{allowanceError}</span>
+          ) : allowance !== null && asset ? (
             <div>
               <div className="text-label-sm text-on-surface-variant font-mono uppercase">
                 Current allowance
@@ -189,6 +208,7 @@ export default function PayrollPanel({
               variant="secondary"
               size="sm"
               className="!py-1 !text-xs"
+              disabled={employerConfigured === false}
               prepare={async () => {
                 const amount = allowanceAmount.trim();
                 if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
@@ -226,6 +246,13 @@ export default function PayrollPanel({
             />
           </div>
         </div>
+
+        {employerConfigured === false && (
+          <div className="rounded border border-amber-900 bg-amber-950/20 p-3 text-xs text-amber-300">
+            <strong>Employer not configured.</strong> For dev payroll, set the employer address via
+            the payroll API before granting allowance.
+          </div>
+        )}
 
         {employer && (
           <div>

@@ -648,6 +648,75 @@ export async function readSubscriptionSubscriber(contractAddress: string): Promi
   return readSubscriptionAddress(contractAddress, "subscriber");
 }
 
+export async function readSubscriptionSubscriberNullable(
+  contractAddress: string,
+): Promise<string | null> {
+  const server = sorobanRpc();
+
+  const source = stellarRelayerAddress();
+  if (!source) {
+    throw new AppError("INTERNAL", "STELLAR_RELAYER_ADDRESS is not configured");
+  }
+
+  let sourceAcct;
+  try {
+    sourceAcct = await server.getAccount(source);
+  } catch (err) {
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Relayer account ${source} is not funded or does not exist`,
+    );
+  }
+
+  const contractIdBytes = decodeContractAddress(contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName: "subscriber",
+      args: [],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `subscriber() simulation failed for ${contractAddress}: ${sim.error}`,
+    );
+  }
+  if (!sim.result?.retval) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `subscriber() simulation returned no result for ${contractAddress}`,
+    );
+  }
+
+  const retval = sim.result.retval;
+  if (retval.switch().value === xdr.ScValType.scvVoid().value) {
+    return null;
+  }
+
+  const value = scValToNative(retval);
+  if (typeof value === "string") return value;
+  try {
+    return (value as { toString(): string }).toString();
+  } catch {
+    throw new AppError("UPSTREAM_RPC", `Unexpected subscriber() type for ${contractAddress}`);
+  }
+}
+
 export async function readSubscriptionAsset(contractAddress: string): Promise<string> {
   return readSubscriptionAddress(contractAddress, "asset");
 }

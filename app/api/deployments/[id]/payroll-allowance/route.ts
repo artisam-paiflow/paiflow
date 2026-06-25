@@ -6,7 +6,7 @@ import {
   readPayrollEmployer,
   readPayrollAsset,
   readTokenAllowance,
-  readSubscriptionSubscriber,
+  readSubscriptionSubscriberNullable,
   readSubscriptionAsset,
 } from "@/lib/stellar/relayer";
 import { prepareTokenApproveInvocation } from "@/lib/stellar/invoke";
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     const [owner, asset] = isDev
       ? await Promise.all([
-          readSubscriptionSubscriber(payrollNode.contractAddress),
+          readSubscriptionSubscriberNullable(payrollNode.contractAddress),
           readSubscriptionAsset(payrollNode.contractAddress),
         ])
       : await Promise.all([
@@ -81,11 +81,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       throw new AppError("VALIDATION", "Payroll asset mismatch");
     }
 
-    const allowance = await readTokenAllowance({
-      tokenContractAddress: asset,
-      owner,
-      spender: payrollNode.contractAddress,
-    });
+    const allowance = owner
+      ? await readTokenAllowance({
+          tokenContractAddress: asset,
+          owner,
+          spender: payrollNode.contractAddress,
+        })
+      : 0n;
 
     return NextResponse.json({
       data: {
@@ -94,6 +96,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         asset: configuredAsset,
         allowance: allowance.toString(),
         networkPassphrase: stellarPassphrase(),
+        employerConfigured: owner !== null,
       },
     });
   });
@@ -122,13 +125,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const [owner, asset] = isDev
       ? await Promise.all([
-          readSubscriptionSubscriber(payrollNode.contractAddress),
+          readSubscriptionSubscriberNullable(payrollNode.contractAddress),
           readSubscriptionAsset(payrollNode.contractAddress),
         ])
       : await Promise.all([
           readPayrollEmployer(payrollNode.contractAddress),
           readPayrollAsset(payrollNode.contractAddress),
         ]);
+
+    if (!owner) {
+      throw new AppError(
+        "VALIDATION",
+        "Employer is not configured yet. Set the employer via the payroll API before granting allowance.",
+      );
+    }
 
     const paramsSnapshot = d.paramsSnapshot as Array<{
       nodeId: string;
