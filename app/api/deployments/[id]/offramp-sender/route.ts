@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import type { TemplateKind } from "@prisma/client";
 
 const SenderSchema = z.object({
   firstName: z.string().min(1).max(128),
@@ -26,14 +27,29 @@ const SenderSchema = z.object({
 
 const PostSchema = SenderSchema;
 
-async function requirePayrollDeployment(id: string, userId: string) {
+const OFFRAMP_TEMPLATE_KINDS: TemplateKind[] = ["PAYROLL", "CASH_OUT", "CASH_OUT_DEV"];
+
+type PipelineNodeSnapshot = {
+  nodeId: string;
+  contractAddress: string;
+  templateKind: TemplateKind;
+};
+
+async function requireOffRampDeployment(id: string, userId: string) {
   const d = await db.deployment.findFirst({
     where: { id, ownerId: userId },
     include: { flow: { select: { templateKind: true } } },
   });
   if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
-  if (d.flow.templateKind !== "PAYROLL") {
-    throw new AppError("VALIDATION", "Deployment is not a payroll");
+
+  // Payroll deployments are always allowed.
+  if (d.flow.templateKind === "PAYROLL") return d;
+
+  // Cash-out deployments are identified by their pipeline snapshot.
+  const pipeline = (d.pipelineSnapshot as PipelineNodeSnapshot[] | null) ?? [];
+  const hasOffRampNode = pipeline.some((n) => OFFRAMP_TEMPLATE_KINDS.includes(n.templateKind));
+  if (!hasOffRampNode) {
+    throw new AppError("VALIDATION", "Deployment has no off-ramp sink");
   }
   return d;
 }
@@ -42,7 +58,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   return withErrorHandler(async () => {
     const user = await requireSession();
     const { id } = await ctx.params;
-    await requirePayrollDeployment(id, user.id);
+    await requireOffRampDeployment(id, user.id);
 
     const profile = await db.offRampSenderProfile.findUnique({
       where: { deploymentId: id },
@@ -56,7 +72,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   return withErrorHandler(async () => {
     const user = await requireSession();
     const { id } = await ctx.params;
-    await requirePayrollDeployment(id, user.id);
+    await requireOffRampDeployment(id, user.id);
 
     const body = PostSchema.parse(await req.json());
 

@@ -8,6 +8,7 @@ import LiveBalances from "./live-balances";
 import ContractCallButton from "./contract-call-button";
 import SubscriptionRelayerPanel from "./subscription-relayer-panel";
 import PayrollPanel from "./payroll-panel";
+import OffRampSenderForm from "@/components/payroll/offramp-sender-form";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { assetLabel, isTrigger } from "@/lib/flows/schema";
 import { formatStroops } from "@/lib/utils";
@@ -215,6 +216,10 @@ export default function DeploymentView({
   const isSubscription = !!subscriptionNode;
   const payrollNode = pipeline?.find((n) => n.templateKind === "PAYROLL");
   const isPayroll = !!payrollNode;
+  const cashOutNode = pipeline?.find(
+    (n) => n.templateKind === "CASH_OUT" || n.templateKind === "CASH_OUT_DEV",
+  );
+  const isCashOut = !!cashOutNode;
   const triggerNode = graph?.nodes.find(isTrigger);
   const pauseAllowed =
     triggerNode?.type === "on_schedule" ? (triggerNode.config.pauseAllowed ?? true) : true;
@@ -502,6 +507,19 @@ export default function DeploymentView({
               network={network}
               graph={graph}
             />
+          )}
+          {isCashOut && !isPayroll && (
+            <div className="glass-panel mt-md p-md rounded-xl">
+              <div className="mb-3">
+                <p className="text-label-sm text-on-surface-variant font-mono uppercase">
+                  / OFF-RAMP SENDER KYC
+                </p>
+                <p className="text-on-surface-variant mt-1 font-mono text-xs">
+                  PDAX requires sender details for every fiat withdrawal, including cash-out.
+                </p>
+              </div>
+              <OffRampSenderForm deploymentId={deploymentId} />
+            </div>
           )}
           {isStreamer && streamerNode.contractAddress && network && pauseAllowed && (
             <div className="mt-md flex items-center gap-3">
