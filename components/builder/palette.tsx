@@ -101,6 +101,7 @@ const TEMPLATES: Template[] = [
         employer: "PENDING:employer",
         intervalAmount: 1,
         intervalUnit: "week",
+        fillScheduleViaApi: false,
       },
     }),
   },

@@ -132,6 +132,7 @@ export const PayrollTrigger = z.object({
     intervalUnit: z.enum(["minute", "hour", "day", "week", "month"]).default("week"),
     endsAt: z.string().datetime().optional(),
     occurrences: z.number().int().positive().optional(),
+    fillScheduleViaApi: z.boolean().default(false),
   }),
 });
 
@@ -223,6 +224,18 @@ export function migrateFlowGraph(raw: unknown): unknown {
               ...node.config,
               intervalAmount: 1,
               intervalUnit: "day",
+            },
+          };
+        }
+      }
+      if (node.type === "payroll" && node.config && typeof node.config === "object") {
+        const cfg = node.config as { fillScheduleViaApi?: unknown };
+        if (cfg.fillScheduleViaApi === undefined) {
+          return {
+            ...node,
+            config: {
+              ...node.config,
+              fillScheduleViaApi: false,
             },
           };
         }

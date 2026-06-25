@@ -499,6 +499,7 @@ describe("flowToParams", () => {
             intervalAmount: 1,
             intervalUnit: "week",
             occurrences: 4,
+            fillScheduleViaApi: false,
           },
         },
         {
@@ -543,6 +544,7 @@ describe("flowToParams", () => {
               intervalAmount: 1,
               intervalUnit: "week",
               occurrences: 4,
+              fillScheduleViaApi: false,
             },
           },
           {
@@ -598,6 +600,7 @@ describe("flowToParams", () => {
             intervalAmount: 1,
             intervalUnit: "week",
             occurrences: 4,
+            fillScheduleViaApi: false,
           },
         },
         {

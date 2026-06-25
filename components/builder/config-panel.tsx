@@ -1082,113 +1082,143 @@ export default function ConfigPanel({
               intervalUnit?: "minute" | "hour" | "day" | "week" | "month";
               endsAt?: string;
               occurrences?: number;
+              fillScheduleViaApi?: boolean;
             };
             const amount = cfg.intervalAmount ?? 1;
             const unit = cfg.intervalUnit ?? "week";
             return (
               <>
-                <Field label="Interval">
-                  <div className="flex gap-2">
+                {devMode && (
+                  <label className="flex cursor-pointer items-center justify-between rounded border border-amber-800/40 bg-amber-950/10 px-3 py-2">
+                    <span className="text-xs text-amber-300">
+                      Fill schedule via API after deploy
+                    </span>
                     <input
-                      className="input w-20 text-right"
-                      type="number"
-                      min={1}
-                      value={amount}
-                      onChange={(e) => {
-                        const v = Math.max(1, Math.floor(Number(e.target.value) || 1));
+                      type="checkbox"
+                      checked={cfg.fillScheduleViaApi ?? false}
+                      onChange={(e) =>
                         onChange({
                           ...node,
-                          config: { ...cfg, intervalAmount: v, intervalUnit: unit },
-                        } as FlowNode);
-                      }}
-                    />
-                    <select
-                      className="input flex-1"
-                      value={unit}
-                      onChange={(e) => {
-                        const newUnit = e.target.value as typeof unit;
-                        onChange({
-                          ...node,
-                          config: { ...cfg, intervalAmount: amount, intervalUnit: newUnit },
-                        } as FlowNode);
-                      }}
-                    >
-                      <option value="minute">Minute(s)</option>
-                      <option value="hour">Hour(s)</option>
-                      <option value="day">Day(s)</option>
-                      <option value="week">Week(s)</option>
-                      <option value="month">Month(s)</option>
-                    </select>
-                  </div>
-                </Field>
-                <Field label="Ends at — optional">
-                  <div className="flex gap-1">
-                    <input
-                      className="input"
-                      type="datetime-local"
-                      value={
-                        cfg.endsAt
-                          ? formatIsoForTimezone(
-                              cfg.endsAt,
-                              Intl.DateTimeFormat().resolvedOptions().timeZone,
-                            )
-                          : ""
+                          config: { ...cfg, fillScheduleViaApi: e.target.checked },
+                        } as FlowNode)
                       }
-                      onChange={(e) => {
-                        const local = e.target.value;
-                        onChange({
-                          ...node,
-                          config: {
-                            ...cfg,
-                            endsAt: local
-                              ? isoFromLocalAndTimezone(
-                                  local,
+                    />
+                  </label>
+                )}
+
+                {devMode && cfg.fillScheduleViaApi ? (
+                  <div className="flex items-center gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 font-mono text-[12px] text-amber-300">
+                    <span className="material-symbols-outlined text-[14px]">tune</span>
+                    Schedule set via the API after deploy
+                  </div>
+                ) : (
+                  <>
+                    <Field label="Interval">
+                      <div className="flex gap-2">
+                        <input
+                          className="input w-20 text-right"
+                          type="number"
+                          min={1}
+                          value={amount}
+                          onChange={(e) => {
+                            const v = Math.max(1, Math.floor(Number(e.target.value) || 1));
+                            onChange({
+                              ...node,
+                              config: { ...cfg, intervalAmount: v, intervalUnit: unit },
+                            } as FlowNode);
+                          }}
+                        />
+                        <select
+                          className="input flex-1"
+                          value={unit}
+                          onChange={(e) => {
+                            const newUnit = e.target.value as typeof unit;
+                            onChange({
+                              ...node,
+                              config: { ...cfg, intervalAmount: amount, intervalUnit: newUnit },
+                            } as FlowNode);
+                          }}
+                        >
+                          <option value="minute">Minute(s)</option>
+                          <option value="hour">Hour(s)</option>
+                          <option value="day">Day(s)</option>
+                          <option value="week">Week(s)</option>
+                          <option value="month">Month(s)</option>
+                        </select>
+                      </div>
+                    </Field>
+                    <Field label="Ends at — optional">
+                      <div className="flex gap-1">
+                        <input
+                          className="input"
+                          type="datetime-local"
+                          value={
+                            cfg.endsAt
+                              ? formatIsoForTimezone(
+                                  cfg.endsAt,
                                   Intl.DateTimeFormat().resolvedOptions().timeZone,
                                 )
-                              : undefined,
-                            occurrences: undefined,
-                          },
-                        } as FlowNode);
-                      }}
-                    />
-                    {cfg.endsAt && (
-                      <button
-                        type="button"
-                        onClick={() =>
+                              : ""
+                          }
+                          onChange={(e) => {
+                            const local = e.target.value;
+                            onChange({
+                              ...node,
+                              config: {
+                                ...cfg,
+                                endsAt: local
+                                  ? isoFromLocalAndTimezone(
+                                      local,
+                                      Intl.DateTimeFormat().resolvedOptions().timeZone,
+                                    )
+                                  : undefined,
+                                occurrences: undefined,
+                              },
+                            } as FlowNode);
+                          }}
+                        />
+                        {cfg.endsAt && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onChange({
+                                ...node,
+                                config: { ...cfg, endsAt: undefined },
+                              } as FlowNode)
+                            }
+                            className="rounded border border-zinc-700 px-2 text-zinc-400 hover:text-red-300"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    </Field>
+                    <Field label="Occurrences — optional">
+                      <input
+                        className="input"
+                        type="number"
+                        min="1"
+                        placeholder="e.g. 5"
+                        value={cfg.occurrences ?? ""}
+                        onChange={(e) =>
                           onChange({
                             ...node,
-                            config: { ...cfg, endsAt: undefined },
+                            config: {
+                              ...cfg,
+                              endsAt: undefined,
+                              occurrences: e.target.value ? Number(e.target.value) : undefined,
+                            },
                           } as FlowNode)
                         }
-                        className="rounded border border-zinc-700 px-2 text-zinc-400 hover:text-red-300"
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                </Field>
-                <Field label="Occurrences — optional">
-                  <input
-                    className="input"
-                    type="number"
-                    min="1"
-                    placeholder="e.g. 5"
-                    value={cfg.occurrences ?? ""}
-                    onChange={(e) =>
-                      onChange({
-                        ...node,
-                        config: {
-                          ...cfg,
-                          endsAt: undefined,
-                          occurrences: e.target.value ? Number(e.target.value) : undefined,
-                        },
-                      } as FlowNode)
-                    }
-                  />
-                </Field>
+                      />
+                    </Field>
+                  </>
+                )}
+
                 <div className="rounded border border-zinc-800 bg-zinc-900/50 p-2 text-xs text-zinc-400">
-                  Connect a Split action with fixed amounts to set employee salaries. The payroll
-                  contract will pull the total from the employer each period and distribute it.
+                  Connect a Split action with fixed amounts to set employee salaries, or leave the
+                  Split recipients empty in dev mode to configure salaries via the API. The payroll
+                  contract pulls the total from the employer each period and distributes it.
                 </div>
               </>
             );

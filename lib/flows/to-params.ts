@@ -433,7 +433,7 @@ export function flowToPipeline(
     // If the configured start time is already in the past (common when a flow
     // was created minutes ago and is only being deployed now), start the stream
     // at the current time so short streams aren't already over on deploy.
-    const start =
+    let start =
       trigger.type === "on_schedule"
         ? Math.max(nowSeconds, Math.floor(new Date(trigger.config.startsAt).getTime() / 1000))
         : nowSeconds;
@@ -447,14 +447,25 @@ export function flowToPipeline(
         intervalUnit: "minute" | "hour" | "day" | "week" | "month";
         endsAt?: string;
         occurrences?: number;
+        fillScheduleViaApi?: boolean;
       };
-      intervalSeconds = intervalToSeconds(cfg.intervalAmount, cfg.intervalUnit);
-      if (cfg.endsAt) {
-        end = Math.floor(new Date(cfg.endsAt).getTime() / 1000);
-      } else if (cfg.occurrences) {
-        end = start + cfg.occurrences * intervalSeconds;
+      const fillScheduleViaApi = trigger.type === "payroll" && cfg.fillScheduleViaApi;
+
+      if (fillScheduleViaApi) {
+        // Deploy with a far-future placeholder schedule; the real schedule is
+        // set via the API after deploy.
+        intervalSeconds = intervalToSeconds(1, "day");
+        start = nowSeconds + 60 * 60 * 24 * 365 * 10;
+        end = start + 60 * 60 * 24 * 365;
       } else {
-        end = start + 60 * 60 * 24 * 30;
+        intervalSeconds = intervalToSeconds(cfg.intervalAmount, cfg.intervalUnit);
+        if (cfg.endsAt) {
+          end = Math.floor(new Date(cfg.endsAt).getTime() / 1000);
+        } else if (cfg.occurrences) {
+          end = start + cfg.occurrences * intervalSeconds;
+        } else {
+          end = start + 60 * 60 * 24 * 30;
+        }
       }
     } else {
       end = computeStreamerEndTs(trigger, start);
@@ -529,6 +540,10 @@ export function flowToPipeline(
     if (trigger.type === "payroll") {
       const recipients = toPayrollRecipients(action);
       const amountPerPeriod = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n).toString();
+      // In dev mode an empty split recipient list means the salaries will be
+      // configured via the API after deploy. Use a minimal positive placeholder
+      // so the subscription contract deploys successfully.
+      const devAmountPlaceholder = devMode && recipients.length === 0 ? "1" : amountPerPeriod;
 
       if (devMode) {
         // Decompose payroll into the dev preset: SUBSCRIPTION_DEV pulls from the
@@ -543,7 +558,7 @@ export function flowToPipeline(
             subscriber: isPendingAddress(trigger.config.employer)
               ? undefined
               : trigger.config.employer,
-            amountPerPeriodStroops: amountPerPeriod,
+            amountPerPeriodStroops: devAmountPlaceholder,
             relayer: relayerAddress,
             startTs: start,
             endTs: end,
