@@ -142,7 +142,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     initialGraph.edges.map((e) => edgeWithColors(e, initialGraph.nodes)),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
