@@ -157,16 +157,75 @@ export default function PayrollPanel({
         EMPLOYER MUST APPROVE ALLOWANCE FOR RECURRING PAYROLL PULLS.
       </p>
       <div className="text-body-md space-y-3">
-        {allowance !== null && asset && (
-          <div>
-            <div className="text-label-sm text-on-surface-variant font-mono uppercase">
-              Current allowance
-            </div>
-            <div className="text-on-surface mt-1 font-mono text-[12px]">
-              {formatStroops(allowance.toString())} {assetLabel(asset)}
-            </div>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="Amount"
+              value={allowanceAmount}
+              onChange={(e) => setAllowanceAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+              className="border-outline-variant/40 bg-surface-container w-28 rounded border px-2 py-1.5 font-mono text-xs"
+            />
+            <ContractCallButton
+              deploymentId={deploymentId}
+              network={network}
+              label="GRANT ALLOWANCE"
+              busyLabel="GRANTING…"
+              icon="lock_open"
+              variant="secondary"
+              size="sm"
+              prepare={async () => {
+                const amount = allowanceAmount.trim();
+                if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
+                  throw new Error("Enter a positive amount to approve");
+                }
+                const res = await fetch(`/api/deployments/${deploymentId}/payroll-allowance`, {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ amount: tokenAmountToStroops(amount) }),
+                });
+                const json = (await res.json()) as {
+                  data?: { unsignedXdr: string; networkPassphrase: string };
+                  error?: { message?: string };
+                };
+                if (!res.ok) throw new Error(json.error?.message ?? "Unknown error");
+                const data = json.data;
+                if (!data) throw new Error("Prepare failed");
+                return { xdr: data.unsignedXdr, networkPassphrase: data.networkPassphrase };
+              }}
+              submit={async (signedXdr) => {
+                const res = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ signedXdr }),
+                });
+                const json = (await res.json()) as { data: { txHash: string } };
+                if (!res.ok) throw new Error("Submit failed");
+                return { txHash: json.data.txHash };
+              }}
+              onSuccess={() => {
+                setAllowanceAmount("");
+                setTick((t) => t + 1);
+                toast.success("Allowance granted");
+              }}
+            />
           </div>
-        )}
+
+          {allowance !== null && asset ? (
+            <div className="text-right">
+              <div className="text-label-sm text-on-surface-variant font-mono uppercase">
+                Current allowance
+              </div>
+              <div className="text-on-surface mt-1 font-mono text-[12px]">
+                {formatStroops(allowance.toString())} {assetLabel(asset)}
+              </div>
+            </div>
+          ) : (
+            <span className="text-on-surface-variant font-mono text-xs">Loading allowance…</span>
+          )}
+        </div>
+
         {employer && (
           <div>
             <div className="text-label-sm text-on-surface-variant font-mono uppercase">
@@ -247,60 +306,6 @@ export default function PayrollPanel({
       */}
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            inputMode="decimal"
-            placeholder="Amount"
-            value={allowanceAmount}
-            onChange={(e) => setAllowanceAmount(e.target.value.replace(/[^0-9.]/g, ""))}
-            className="border-outline-variant/40 bg-surface-container w-28 rounded border px-2 py-1.5 font-mono text-xs"
-          />
-          <ContractCallButton
-            deploymentId={deploymentId}
-            network={network}
-            label="GRANT ALLOWANCE"
-            busyLabel="GRANTING…"
-            icon="lock_open"
-            variant="secondary"
-            size="sm"
-            prepare={async () => {
-              const amount = allowanceAmount.trim();
-              if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
-                throw new Error("Enter a positive amount to approve");
-              }
-              const res = await fetch(`/api/deployments/${deploymentId}/payroll-allowance`, {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ amount: tokenAmountToStroops(amount) }),
-              });
-              const json = (await res.json()) as {
-                data?: { unsignedXdr: string; networkPassphrase: string };
-                error?: { message?: string };
-              };
-              if (!res.ok) throw new Error(json.error?.message ?? "Unknown error");
-              const data = json.data;
-              if (!data) throw new Error("Prepare failed");
-              return { xdr: data.unsignedXdr, networkPassphrase: data.networkPassphrase };
-            }}
-            submit={async (signedXdr) => {
-              const res = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ signedXdr }),
-              });
-              const json = (await res.json()) as { data: { txHash: string } };
-              if (!res.ok) throw new Error("Submit failed");
-              return { txHash: json.data.txHash };
-            }}
-            onSuccess={() => {
-              setAllowanceAmount("");
-              setTick((t) => t + 1);
-              toast.success("Allowance granted");
-            }}
-          />
-        </div>
-
         <ContractCallButton
           deploymentId={deploymentId}
           network={network}
