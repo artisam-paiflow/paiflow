@@ -24,10 +24,10 @@ type SenderProfile = {
 };
 
 const EMPTY: SenderProfile = {
-  firstName: "",
-  middleName: "",
-  lastName: "",
-  countryOrigin: "",
+  firstName: "Bob",
+  middleName: "n.a.",
+  lastName: "Marley",
+  countryOrigin: "Philippines",
   addressLineOne: "",
   addressLineTwo: "",
   city: "",
@@ -39,7 +39,7 @@ const EMPTY: SenderProfile = {
   nationalIdentityNumber: "",
   dob: "",
   placeOfBirth: "",
-  sourceOfFunds: "",
+  sourceOfFunds: "Business Income",
   email: "",
 };
 
