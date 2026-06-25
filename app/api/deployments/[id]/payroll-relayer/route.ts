@@ -6,8 +6,23 @@ import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode } from "@prisma/client";
-import { preparePayrollSetRelayerInvocation } from "@/lib/stellar/invoke";
-import { readPayrollRelayer } from "@/lib/stellar/relayer";
+import {
+  preparePayrollSetRelayerInvocation,
+  prepareSubscriptionSetRelayerInvocation,
+} from "@/lib/stellar/invoke";
+import { readPayrollRelayer, readSubscriptionRelayer } from "@/lib/stellar/relayer";
+
+type PipelineNode = {
+  nodeId: string;
+  contractAddress: string;
+  templateKind: string;
+};
+
+const PAYROLL_KINDS = new Set(["PAYROLL", "SUBSCRIPTION_DEV"]);
+
+function findPayrollNode(pipeline: PipelineNode[] | null): PipelineNode | null {
+  return pipeline?.find((n) => PAYROLL_KINDS.has(n.templateKind)) ?? null;
+}
 
 const PostSchema = z.object({
   mode: z.enum(["PLATFORM", "USER", "MANUAL"]),
@@ -66,15 +81,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       throw new AppError("VALIDATION", "Deployment is not a payroll");
     }
 
-    const pipeline = d.pipelineSnapshot as Array<{
-      nodeId: string;
-      contractAddress: string;
-      templateKind: string;
-    }> | null;
-    const payrollNode = pipeline?.find((n) => n.templateKind === "PAYROLL");
+    const pipeline = d.pipelineSnapshot as PipelineNode[] | null;
+    const payrollNode = findPayrollNode(pipeline);
     if (!payrollNode?.contractAddress) {
       throw new AppError("VALIDATION", "Payroll contract address not available");
     }
+    const isDev = payrollNode.templateKind === "SUBSCRIPTION_DEV";
 
     const platformRelayer = stellarRelayerAddress();
 
@@ -111,7 +123,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     let onChainRelayer: string | null = null;
     try {
-      onChainRelayer = await readPayrollRelayer(payrollNode.contractAddress);
+      onChainRelayer = isDev
+        ? await readSubscriptionRelayer(payrollNode.contractAddress)
+        : await readPayrollRelayer(payrollNode.contractAddress);
     } catch {
       onChainRelayer = d.chargeRelayerAddress;
     }
@@ -124,11 +138,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       if (!d.sourceAccount) {
         throw new AppError("VALIDATION", "Deployment source account is not available");
       }
-      const { xdr } = await preparePayrollSetRelayerInvocation({
-        contractAddress: payrollNode.contractAddress,
-        adminAddress: d.sourceAccount,
-        newRelayerAddress,
-      });
+      const { xdr } = isDev
+        ? await prepareSubscriptionSetRelayerInvocation({
+            contractAddress: payrollNode.contractAddress,
+            adminAddress: d.sourceAccount,
+            newRelayerAddress: newRelayerAddress,
+          })
+        : await preparePayrollSetRelayerInvocation({
+            contractAddress: payrollNode.contractAddress,
+            adminAddress: d.sourceAccount,
+            newRelayerAddress: newRelayerAddress,
+          });
       setRelayerXdr = xdr;
     }
 

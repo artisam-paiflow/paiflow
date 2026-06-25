@@ -6,7 +6,7 @@ import ContractCallButton from "./contract-call-button";
 import SubscriptionRelayerPanel from "./subscription-relayer-panel";
 import OffRampSenderForm from "@/components/payroll/offramp-sender-form";
 import type { FlowGraph } from "@/lib/flows/schema";
-import { assetLabel } from "@/lib/flows/schema";
+import { assetLabel, tokenAmountToStroops } from "@/lib/flows/schema";
 import { formatStroops } from "@/lib/utils";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import type { Asset } from "@/lib/flows/schema";
@@ -35,6 +35,7 @@ export default function PayrollPanel({
   graph: FlowGraph;
 }) {
   const [allowance, setAllowance] = useState<bigint | null>(null);
+  const [allowanceAmount, setAllowanceAmount] = useState("");
   const [employer, setEmployer] = useState<string | null>(null);
   const [asset, setAsset] = useState<Asset | null>(null);
   const [isCancelled, setIsCancelled] = useState<boolean | null>(null);
@@ -241,9 +242,65 @@ export default function PayrollPanel({
         </div>
       </div>
 
+      {/* Hidden for now — dev payroll always uses the platform relayer.
       <SubscriptionRelayerPanel deploymentId={deploymentId} network={network} kind="payroll" />
+      */}
 
       <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            inputMode="decimal"
+            placeholder="Amount"
+            value={allowanceAmount}
+            onChange={(e) => setAllowanceAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+            className="border-outline-variant/40 bg-surface-container w-28 rounded border px-2 py-1.5 font-mono text-xs"
+          />
+          <ContractCallButton
+            deploymentId={deploymentId}
+            network={network}
+            label="GRANT ALLOWANCE"
+            busyLabel="GRANTING…"
+            icon="lock_open"
+            variant="secondary"
+            size="sm"
+            prepare={async () => {
+              const amount = allowanceAmount.trim();
+              if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
+                throw new Error("Enter a positive amount to approve");
+              }
+              const res = await fetch(`/api/deployments/${deploymentId}/payroll-allowance`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ amount: tokenAmountToStroops(amount) }),
+              });
+              const json = (await res.json()) as {
+                data?: { unsignedXdr: string; networkPassphrase: string };
+                error?: { message?: string };
+              };
+              if (!res.ok) throw new Error(json.error?.message ?? "Unknown error");
+              const data = json.data;
+              if (!data) throw new Error("Prepare failed");
+              return { xdr: data.unsignedXdr, networkPassphrase: data.networkPassphrase };
+            }}
+            submit={async (signedXdr) => {
+              const res = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ signedXdr }),
+              });
+              const json = (await res.json()) as { data: { txHash: string } };
+              if (!res.ok) throw new Error("Submit failed");
+              return { txHash: json.data.txHash };
+            }}
+            onSuccess={() => {
+              setAllowanceAmount("");
+              setTick((t) => t + 1);
+              toast.success("Allowance granted");
+            }}
+          />
+        </div>
+
         <ContractCallButton
           deploymentId={deploymentId}
           network={network}
@@ -275,6 +332,22 @@ export default function PayrollPanel({
             });
             const json = (await res.json()) as { data: { txHash: string } };
             if (!res.ok) throw new Error("Submit failed");
+
+            // Book-keep the manual charge so off-ramp jobs can be created.
+            const recordRes = await fetch(`/api/deployments/${deploymentId}/payroll-record-run`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+            });
+            const recordJson = (await recordRes.json()) as {
+              data?: { offRampJobIds?: string[]; offRampError?: string };
+              error?: { message?: string };
+            };
+            if (!recordRes.ok) {
+              console.warn("Failed to record payroll run:", recordJson.error?.message);
+            } else if (recordJson.data?.offRampError) {
+              console.warn("Off-ramp job creation failed:", recordJson.data.offRampError);
+            }
+
             return { txHash: json.data.txHash };
           }}
           onSuccess={() => {

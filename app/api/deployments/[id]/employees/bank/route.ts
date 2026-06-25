@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
-import { requireSession } from "@/lib/auth";
+import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { audit } from "@/lib/audit";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const BankDetailSchema = z.object({
   address: z.string().refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address"),
@@ -14,9 +16,10 @@ const BankDetailSchema = z.object({
 
 const PostSchema = BankDetailSchema;
 
-async function requirePayrollDeployment(id: string, userId: string) {
+async function requirePayrollDeployment(id: string, userId: string | null) {
+  const where = userId ? { id, ownerId: userId } : { id };
   const d = await db.deployment.findFirst({
-    where: { id, ownerId: userId },
+    where,
     include: { flow: { select: { templateKind: true } } },
   });
   if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
@@ -28,9 +31,9 @@ async function requirePayrollDeployment(id: string, userId: string) {
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
-    const user = await requireSession();
+    const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
-    await requirePayrollDeployment(id, user.id);
+    await requirePayrollDeployment(id, user?.id ?? null);
 
     const employees = await db.employee.findMany({
       where: { deploymentId: id },
@@ -54,20 +57,26 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
-    const user = await requireSession();
+    const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
-    await requirePayrollDeployment(id, user.id);
+    const rlKey = user ? `employee-bank:${user.id}` : `employee-bank:machine:${clientIp(req)}`;
+    const rl = await rateLimit(rlKey, 60, 60);
+    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many bank detail updates");
+    await requirePayrollDeployment(id, user?.id ?? null);
 
     const body = PostSchema.parse(await req.json());
 
-    const employee = await db.employee.findUnique({
+    const employee = await db.employee.upsert({
       where: { deploymentId_address: { deploymentId: id, address: body.address } },
+      create: {
+        deploymentId: id,
+        address: body.address,
+        amountStroops: "0",
+      },
+      update: {},
     });
-    if (!employee) {
-      throw new AppError("NOT_FOUND", "Employee not found");
-    }
 
-    await db.employeeBankDetail.upsert({
+    const bankDetail = await db.employeeBankDetail.upsert({
       where: { employeeId: employee.id },
       create: {
         employeeId: employee.id,
@@ -82,15 +91,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       },
     });
 
-    return NextResponse.json({ data: { success: true } });
+    await audit({
+      action: "DEV_UPDATE_BANK",
+      userId: user?.id ?? null,
+      metadata: { deploymentId: id, address: body.address },
+    });
+
+    return NextResponse.json({ data: { success: true, bankDetail } });
   });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
-    const user = await requireSession();
+    const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
-    await requirePayrollDeployment(id, user.id);
+    const rlKey = user ? `employee-bank:${user.id}` : `employee-bank:machine:${clientIp(req)}`;
+    const rl = await rateLimit(rlKey, 60, 60);
+    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many bank detail updates");
+    await requirePayrollDeployment(id, user?.id ?? null);
 
     const { searchParams } = new URL(req.url);
     const address = searchParams.get("address");
@@ -108,6 +126,12 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
 
     await db.employeeBankDetail.delete({
       where: { employeeId: employee.id },
+    });
+
+    await audit({
+      action: "DEV_UPDATE_BANK",
+      userId: user?.id ?? null,
+      metadata: { deploymentId: id, address },
     });
 
     return NextResponse.json({ data: { success: true } });

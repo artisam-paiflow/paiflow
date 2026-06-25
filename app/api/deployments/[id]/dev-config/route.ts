@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireSession } from "@/lib/auth";
+import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import type { PipelineSnapshotNode } from "@/lib/flows/pipeline-snapshot";
 import { readDevIsConfigured } from "@/lib/stellar/dev-mutate";
@@ -13,10 +13,10 @@ const DEV_KINDS = new Set(["PAYER_DEV", "SPLITTER_DEV", "SUBSCRIPTION_DEV"]);
  */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
-    const user = await requireSession();
+    const { user } = await requireDevAuth(_req);
     const { id } = await ctx.params;
 
-    const d = await db.deployment.findFirst({ where: { id, ownerId: user.id } });
+    const d = await db.deployment.findFirst({ where: user ? { id, ownerId: user.id } : { id } });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
 
     const snapshot = (d.pipelineSnapshot as PipelineSnapshotNode[] | null) ?? [];

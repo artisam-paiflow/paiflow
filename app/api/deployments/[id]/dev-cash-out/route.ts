@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireSession } from "@/lib/auth";
+import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { findPipelineNode } from "@/lib/flows/pipeline-snapshot";
 import { updateBankByRelayer } from "@/lib/stellar/dev-mutate";
 import type { FlowGraph } from "@/lib/flows/schema";
@@ -28,13 +28,14 @@ const BodySchema = z.object({
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
-    const user = await requireSession();
+    const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
-    const rl = await rateLimit(`dev-mutate:${user.id}`, 30, 60);
+    const rlKey = user ? `dev-mutate:${user.id}` : `dev-mutate:machine:${clientIp(req)}`;
+    const rl = await rateLimit(rlKey, 30, 60);
     if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many dev mutations");
     const body = BodySchema.parse(await req.json());
 
-    const d = await db.deployment.findFirst({ where: { id, ownerId: user.id } });
+    const d = await db.deployment.findFirst({ where: user ? { id, ownerId: user.id } : { id } });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
 
     const node = findPipelineNode(d.pipelineSnapshot, "CASH_OUT_DEV", body.nodeId);
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     await audit({
       action: "DEV_UPDATE_BANK",
-      userId: user.id,
+      userId: user?.id ?? null,
       metadata: { deploymentId: d.id, nodeId: node.nodeId, txHash: result.txHash },
     });
 

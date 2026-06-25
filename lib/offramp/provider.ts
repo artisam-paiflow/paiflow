@@ -47,6 +47,8 @@ export interface OffRampPayoutRequest {
   bankCode: string;
   employeeId?: string | null;
   payrollRunId?: string | null;
+  /** Unique job id used as the provider transaction identifier. */
+  jobId: string;
   sender: PdaxSenderProfile;
   jobSource: OffRampJobSource;
 }

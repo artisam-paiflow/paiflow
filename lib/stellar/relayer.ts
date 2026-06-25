@@ -951,6 +951,94 @@ export async function readPayrollRecipients(contractAddress: string): Promise<Pa
   });
 }
 
+export type SplitterDevRecipient = {
+  address: string;
+  bps: number;
+  amount: string;
+};
+
+export async function readSplitterDevRecipients(
+  contractAddress: string,
+): Promise<SplitterDevRecipient[]> {
+  const server = sorobanRpc();
+
+  const source = stellarRelayerAddress();
+  if (!source) {
+    throw new AppError("INTERNAL", "STELLAR_RELAYER_ADDRESS is not configured");
+  }
+
+  let sourceAcct;
+  try {
+    sourceAcct = await server.getAccount(source);
+  } catch (err) {
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Relayer account ${source} is not funded or does not exist`,
+    );
+  }
+
+  const contractIdBytes = decodeContractAddress(contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName: "recipients",
+      args: [],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `recipients() simulation failed for ${contractAddress}: ${sim.error}`,
+    );
+  }
+  if (!sim.result?.retval) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `recipients() simulation returned no result for ${contractAddress}`,
+    );
+  }
+
+  const value = scValToNative(sim.result.retval);
+  if (!Array.isArray(value)) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `Unexpected recipients() type for ${contractAddress}: ${typeof value}`,
+    );
+  }
+
+  return value.map((r: unknown) => {
+    const item = r as {
+      address: string | { toString(): string };
+      bps: number | bigint | { toString(): string };
+      amount: bigint | string | { toString(): string };
+    };
+    const address = typeof item.address === "string" ? item.address : item.address.toString();
+    const bpsRaw =
+      typeof item.bps === "number"
+        ? item.bps
+        : Number(typeof item.bps === "string" ? item.bps : item.bps.toString());
+    const amount =
+      typeof item.amount === "string"
+        ? item.amount
+        : (item.amount as { toString(): string }).toString();
+    return { address, bps: bpsRaw, amount };
+  });
+}
+
 export async function preparePayrollChargeByRelayerTx(
   contractAddress: string,
 ): Promise<{ xdr: string; txHash: string }> {

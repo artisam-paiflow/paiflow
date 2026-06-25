@@ -20,16 +20,20 @@ function nodeLabel(n: FlowNode): string {
       return `HTTP Webhook (${assetLabel(n.config.asset)})`;
     case "subscription":
       return `Subscription (${assetLabel(n.config.asset)})`;
+    case "payroll":
+      return `Payroll (${assetLabel(n.config.asset)})`;
     case "oracle":
       return `Oracle (${assetLabel(n.config.asset)})`;
     case "pay":
       return "Pay";
     case "split":
-      return `Split (${n.config.recipients.length})`;
+      return n.config.recipients.length > 0 ? `Split (${n.config.recipients.length})` : "Split";
     case "swap":
       return `Swap (${assetLabel(n.config.assetIn)} → ${assetLabel(n.config.assetOut)})`;
     case "yield":
       return `Yield (${assetLabel(n.config.asset)})`;
+    case "cash_out":
+      return `Cash Out (${assetLabel(n.config.asset)})`;
     case "email_notify":
       return `Email (${n.config.recipients.length})`;
     case "condition":

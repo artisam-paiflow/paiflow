@@ -173,6 +173,7 @@ export async function POST(req: NextRequest) {
           bankCode: bankDetail.bankCode,
           employeeId: job.employeeId ?? undefined,
           payrollRunId: job.payrollRunId ?? undefined,
+          jobId: job.id,
           sender: {
             firstName: sender.firstName,
             middleName: sender.middleName,

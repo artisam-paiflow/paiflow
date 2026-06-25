@@ -1,4 +1,5 @@
 import "server-only";
+import type { NextRequest } from "next/server";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
@@ -148,6 +149,14 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     username: (session.user as { username?: string }).username ?? "",
     role: ((session.user as { role?: Role }).role ?? Role.USER) as Role,
   };
+}
+
+export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionUser | null }> {
+  const secret = env().DEV_API_SECRET;
+  if (secret && req.headers.get("x-dev-api-secret") === secret) {
+    return { user: null };
+  }
+  return { user: await requireSession() };
 }
 
 export async function requireSession(opts?: { role?: Role }): Promise<SessionUser> {

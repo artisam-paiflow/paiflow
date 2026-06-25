@@ -2,8 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import { preparePayrollUnsubscribeInvocation } from "@/lib/stellar/invoke";
+import {
+  preparePayrollUnsubscribeInvocation,
+  prepareSubscriptionUnsubscribeInvocation,
+} from "@/lib/stellar/invoke";
+import { readSubscriptionSubscriber } from "@/lib/stellar/relayer";
 import { stellarPassphrase } from "@/lib/env";
+
+type PipelineNode = {
+  nodeId: string;
+  contractAddress: string;
+  templateKind: string;
+};
+
+const PAYROLL_KINDS = new Set(["PAYROLL", "SUBSCRIPTION_DEV"]);
+
+function findPayrollNode(pipeline: PipelineNode[] | null): PipelineNode | null {
+  return pipeline?.find((n) => PAYROLL_KINDS.has(n.templateKind)) ?? null;
+}
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
@@ -19,33 +35,42 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       throw new AppError("VALIDATION", "Deployment is not a payroll");
     }
 
-    const pipeline = d.pipelineSnapshot as Array<{
-      nodeId: string;
-      contractAddress: string;
-      templateKind: string;
-    }> | null;
-    const payrollNode = pipeline?.find((n) => n.templateKind === "PAYROLL");
+    const pipeline = d.pipelineSnapshot as PipelineNode[] | null;
+    const payrollNode = findPayrollNode(pipeline);
     if (!payrollNode?.contractAddress) {
       throw new AppError("VALIDATION", "Payroll contract address not available");
     }
 
-    const paramsSnapshot = d.paramsSnapshot as Array<{
-      nodeId: string;
-      templateKind: string;
-      params: { kind: string; employer?: string };
-    }> | null;
-    const payrollParams = paramsSnapshot?.find(
-      (n) => n.templateKind === "PAYROLL" && n.params.kind === "payroll_trigger",
-    );
-    const employerAddress = payrollParams?.params?.employer;
+    const isDev = payrollNode.templateKind === "SUBSCRIPTION_DEV";
+    let employerAddress: string;
+
+    if (isDev) {
+      employerAddress = await readSubscriptionSubscriber(payrollNode.contractAddress);
+    } else {
+      const paramsSnapshot = d.paramsSnapshot as Array<{
+        nodeId: string;
+        templateKind: string;
+        params: { kind: string; employer?: string };
+      }> | null;
+      const payrollParams = paramsSnapshot?.find(
+        (n) => n.templateKind === "PAYROLL" && n.params.kind === "payroll_trigger",
+      );
+      employerAddress = payrollParams?.params?.employer ?? "";
+    }
+
     if (!employerAddress) {
       throw new AppError("VALIDATION", "Employer address not available");
     }
 
-    const { xdr } = await preparePayrollUnsubscribeInvocation({
-      contractAddress: payrollNode.contractAddress,
-      employerAddress,
-    });
+    const { xdr } = isDev
+      ? await prepareSubscriptionUnsubscribeInvocation({
+          contractAddress: payrollNode.contractAddress,
+          subscriberAddress: employerAddress,
+        })
+      : await preparePayrollUnsubscribeInvocation({
+          contractAddress: payrollNode.contractAddress,
+          employerAddress,
+        });
 
     return NextResponse.json({
       data: {

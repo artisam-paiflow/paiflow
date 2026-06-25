@@ -214,7 +214,9 @@ export default function DeploymentView({
   const isStreamer = !!streamerNode;
   const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
   const isSubscription = !!subscriptionNode;
-  const payrollNode = pipeline?.find((n) => n.templateKind === "PAYROLL");
+  const payrollNode = pipeline?.find(
+    (n) => n.templateKind === "PAYROLL" || n.templateKind === "SUBSCRIPTION_DEV",
+  );
   const isPayroll = !!payrollNode;
   const cashOutNode = pipeline?.find(
     (n) => n.templateKind === "CASH_OUT" || n.templateKind === "CASH_OUT_DEV",
@@ -787,7 +789,7 @@ export default function DeploymentView({
                   </div>
                 </div>
               </>
-            ) : isSubscription ? null : (
+            ) : isSubscription || payrollNode?.templateKind === "SUBSCRIPTION_DEV" ? null : (
               <>
                 <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
                   SCAN WITH FREIGHTER WALLET · SET AMOUNT IN TRIGGER PAGE.

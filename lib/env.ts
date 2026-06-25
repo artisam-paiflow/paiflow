@@ -104,6 +104,10 @@ const EnvSchema = z.object({
   OFFRAMP_TREASURY_ADDRESS_MAINNET: optionalString,
 
   CRON_SECRET: optionalString,
+  // Secret token for machine-to-machine calls to the /api/deployments/:id/dev-*
+  // endpoints. When present, callers can authenticate by sending the header
+  // x-dev-api-secret: <token> instead of a user session.
+  DEV_API_SECRET: optionalString,
   SENTRY_DSN: optionalString,
   HIBP_CHECK_ENABLED: boolish,
 

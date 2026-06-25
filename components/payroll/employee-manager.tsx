@@ -122,10 +122,25 @@ export default function EmployeeManager({
         }),
       });
       const json = (await res.json()) as {
-        data?: { unsignedXdr: string; networkPassphrase: string };
+        data?: {
+          unsignedXdr?: string;
+          networkPassphrase?: string;
+          txHash?: string;
+        };
         error?: { message?: string };
       };
       if (!res.ok) throw new Error(json.error?.message ?? "Failed to prepare update");
+      const data = json.data;
+      if (!data) throw new Error("Prepare failed");
+
+      if (data.txHash) {
+        toast.success("Employees updated on-chain");
+        return;
+      }
+
+      if (!data.unsignedXdr || !data.networkPassphrase) {
+        throw new Error("Missing transaction payload");
+      }
 
       const { kit } = await import("@/components/deploy/wallet-kit").then((m) =>
         m.getWalletKit("testnet"),
@@ -134,9 +149,9 @@ export default function EmployeeManager({
         onWalletSelected: async (wallet: { id: string; name: string }) => {
           kit.setWallet(wallet.id);
           const { address } = await kit.getAddress();
-          const { signedTxXdr } = await kit.signTransaction(json.data!.unsignedXdr, {
+          const { signedTxXdr } = await kit.signTransaction(data.unsignedXdr, {
             address,
-            networkPassphrase: json.data!.networkPassphrase,
+            networkPassphrase: data.networkPassphrase,
           });
           const submitRes = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
             method: "POST",

@@ -154,7 +154,7 @@ export class PdaxOffRampProvider implements OffRampProvider {
     const sender = request.sender;
     const isCashOut = request.jobSource === "CASH_OUT";
     const body = {
-      identifier: request.payrollRunId ?? crypto.randomUUID(),
+      identifier: request.jobId,
       sender_first_name: sender.firstName,
       sender_middle_name: sender.middleName || "n.a.",
       sender_last_name: sender.lastName,
@@ -179,7 +179,7 @@ export class PdaxOffRampProvider implements OffRampProvider {
       beneficiary_bank_code: request.bankCode,
       beneficiary_account_name: request.accountName,
       beneficiary_account_number: request.accountNumber,
-      purpose: isCashOut ? "Business Transaction" : "Employee Remittance",
+      purpose: isCashOut ? "Business Transaction" : "Business Expense/Employee Remittance",
       relationship_of_sender_to_beneficiary: isCashOut ? "Myself" : "Business",
       currency: request.fiatCurrency,
       amount: request.fiatAmount,
