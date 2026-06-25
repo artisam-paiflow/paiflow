@@ -60,6 +60,7 @@ export async function getPdaxAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${tokens.accessToken}`,
+    access_token: tokens.accessToken,
   };
 
   if (tokens.idToken) {
