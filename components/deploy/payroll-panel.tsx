@@ -158,6 +158,19 @@ export default function PayrollPanel({
       </p>
       <div className="text-body-md space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-4">
+          {allowance !== null && asset ? (
+            <div>
+              <div className="text-label-sm text-on-surface-variant font-mono uppercase">
+                Current allowance
+              </div>
+              <div className="text-on-surface mt-1 font-mono text-[12px]">
+                {formatStroops(allowance.toString())} {assetLabel(asset)}
+              </div>
+            </div>
+          ) : (
+            <span className="text-on-surface-variant font-mono text-xs">Loading allowance…</span>
+          )}
+
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -175,6 +188,7 @@ export default function PayrollPanel({
               icon="lock_open"
               variant="secondary"
               size="sm"
+              className="!text-xs"
               prepare={async () => {
                 const amount = allowanceAmount.trim();
                 if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
@@ -211,19 +225,6 @@ export default function PayrollPanel({
               }}
             />
           </div>
-
-          {allowance !== null && asset ? (
-            <div className="text-right">
-              <div className="text-label-sm text-on-surface-variant font-mono uppercase">
-                Current allowance
-              </div>
-              <div className="text-on-surface mt-1 font-mono text-[12px]">
-                {formatStroops(allowance.toString())} {assetLabel(asset)}
-              </div>
-            </div>
-          ) : (
-            <span className="text-on-surface-variant font-mono text-xs">Loading allowance…</span>
-          )}
         </div>
 
         {employer && (
