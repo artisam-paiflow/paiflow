@@ -223,7 +223,19 @@ export type CashOutDevNodeParams = {
   accountName: string;
   accountNumber: string;
   bankCode: string;
-  treasury: string; // off-ramp treasury the USDC is sunk to
+  treasury: string; // off-ramp treasury the asset is sunk to
+  relayer?: string;
+  nextStepNodeIds: string[]; // always empty — cash_out is terminal
+};
+
+export type CashOutNodeParams = {
+  kind: "cash_out";
+  asset: Asset;
+  // Bank destination is immutable after deploy; validation requires it at design time.
+  accountName: string;
+  accountNumber: string;
+  bankCode: string;
+  treasury: string;
   relayer?: string;
   nextStepNodeIds: string[]; // always empty — cash_out is terminal
 };
@@ -246,7 +258,8 @@ export type PipelineNodeParams =
   | PayerDevNodeParams
   | SplitterDevNodeParams
   | SubscriptionDevTriggerNodeParams
-  | CashOutDevNodeParams;
+  | CashOutDevNodeParams
+  | CashOutNodeParams;
 
 export type PipelineNode = {
   nodeId: string;
@@ -765,14 +778,29 @@ function contractActionToPipelineNode(
 
   switch (action.type) {
     case "cash_out": {
-      // Dev-only terminal sink — no immutable counterpart. Bank details may be
-      // blank ("") at deploy time and filled via the API. Always deploys as the
-      // mutable CASH_OUT_DEV contract (validation guarantees devMode is on).
+      // Dev mode: mutable CASH_OUT_DEV allows blank bank details filled via API.
+      // Non-dev: immutable CASH_OUT bakes the bank destination into the contract.
+      if (devMode) {
+        return {
+          nodeId: action.id,
+          templateKind: TemplateKind.CASH_OUT_DEV,
+          params: {
+            kind: "cash_out_dev",
+            asset: action.config.asset,
+            accountName: action.config.accountName ?? "",
+            accountNumber: action.config.accountNumber ?? "",
+            bankCode: action.config.bankCode ?? "",
+            treasury: treasuryAddress ?? relayerAddress ?? "",
+            relayer: relayerAddress,
+            nextStepNodeIds: [],
+          },
+        };
+      }
       return {
         nodeId: action.id,
-        templateKind: TemplateKind.CASH_OUT_DEV,
+        templateKind: TemplateKind.CASH_OUT,
         params: {
-          kind: "cash_out_dev",
+          kind: "cash_out",
           asset: action.config.asset,
           accountName: action.config.accountName ?? "",
           accountNumber: action.config.accountNumber ?? "",

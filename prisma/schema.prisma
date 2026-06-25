@@ -32,6 +32,7 @@ enum TemplateKind {
   SPLITTER_DEV
   SUBSCRIPTION_DEV
   CASH_OUT_DEV
+  CASH_OUT
 }
 
 enum DeploymentStatus {

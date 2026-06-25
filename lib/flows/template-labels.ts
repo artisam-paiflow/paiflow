@@ -20,6 +20,7 @@ export const TEMPLATE_LABELS: Record<TemplateKind, string> = {
   SPLITTER_DEV: "Splitter (dev)",
   SUBSCRIPTION_DEV: "Subscription (dev)",
   CASH_OUT_DEV: "Cash Out (dev)",
+  CASH_OUT: "Cash Out",
 };
 
 export const TEMPLATE_DESCRIPTIONS: Record<TemplateKind, string> = {
@@ -46,4 +47,6 @@ export const TEMPLATE_DESCRIPTIONS: Record<TemplateKind, string> = {
     "Mutable subscription: subscriber, amount and schedule can be set or changed via the API.",
   CASH_OUT_DEV:
     "Terminal cash-out: moves on-chain funds to the off-ramp treasury for fiat bank delivery via PDAX. Bank details are set via the API.",
+  CASH_OUT:
+    "Terminal cash-out: moves on-chain funds to the off-ramp treasury for fiat bank delivery via PDAX. Bank details are locked at deploy time.",
 };

@@ -233,4 +233,36 @@ describe("dev-mode pipeline resolver", () => {
       throw new Error("expected cash_out_dev");
     }
   });
+
+  it("maps cash_out -> CASH_OUT in non-dev mode with bank details", () => {
+    const graph = parse({
+      devMode: false,
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "c",
+          type: "cash_out",
+          config: {
+            asset: { kind: "native" },
+            accountName: "Juan",
+            accountNumber: "123",
+            bankCode: "BASECPH",
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "c" }],
+    });
+    const pipeline = flowToPipeline(graph, RELAYER, ADDR_B);
+    const cashOut = pipeline.find((n) => n.nodeId === "c")!;
+    expect(cashOut.templateKind).toBe(TemplateKind.CASH_OUT);
+    expect(cashOut.params.kind).toBe("cash_out");
+    if (cashOut.params.kind === "cash_out") {
+      expect(cashOut.params.treasury).toBe(ADDR_B);
+      expect(cashOut.params.relayer).toBe(RELAYER);
+      expect(cashOut.params.nextStepNodeIds).toHaveLength(0);
+      expect(cashOut.params.bankCode).toBe("BASECPH");
+    } else {
+      throw new Error("expected cash_out");
+    }
+  });
 });

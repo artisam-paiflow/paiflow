@@ -44,7 +44,9 @@ export function resolveCashOutAsset(
 ): Asset | null {
   if (!graph || !pipeline) return null;
   const snapshot = pipeline.find(
-    (p) => p.contractAddress === contractAddress && p.templateKind === "CASH_OUT_DEV",
+    (p) =>
+      p.contractAddress === contractAddress &&
+      (p.templateKind === "CASH_OUT_DEV" || p.templateKind === "CASH_OUT"),
   );
   if (!snapshot) return null;
   const node = graph.nodes.find(

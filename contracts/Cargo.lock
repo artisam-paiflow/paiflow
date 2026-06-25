@@ -247,6 +247,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "cash_out"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "cash_out_dev"
 version = "0.1.0"
 dependencies = [

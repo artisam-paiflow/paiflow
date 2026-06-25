@@ -472,6 +472,7 @@ function getRegistry(templateKind: TemplateKind): EventRegistry {
     case TemplateKind.MULTISIG:
       return MULTISIG_REGISTRY;
     case TemplateKind.CASH_OUT_DEV:
+    case TemplateKind.CASH_OUT:
       return CASH_OUT_DEV_REGISTRY;
     default:
       return {};
