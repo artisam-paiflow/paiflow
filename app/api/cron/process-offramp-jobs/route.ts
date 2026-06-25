@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
       });
 
       let asset: Asset | null = null;
+      let currentStatus: OffRampPayoutJobStatus = OffRampPayoutJobStatus.RUNNING;
 
       try {
         const bankDetail = {
@@ -140,6 +141,7 @@ export async function POST(req: NextRequest) {
           status: OffRampPayoutJobStatus.QUOTED,
           providerQuote: quote as unknown as Prisma.InputJsonValue,
         });
+        currentStatus = OffRampPayoutJobStatus.QUOTED;
 
         // 2. Execute trade using the firm quote.
         const trade = await provider.executeTrade({
@@ -158,6 +160,7 @@ export async function POST(req: NextRequest) {
           status: OffRampPayoutJobStatus.INITIATED,
           tradeRef: trade.providerRef,
         });
+        currentStatus = OffRampPayoutJobStatus.INITIATED;
 
         // 3. Withdraw PHP to beneficiary bank account.
         const payout = await provider.initiatePayout({
@@ -253,7 +256,7 @@ export async function POST(req: NextRequest) {
             status: "failed",
             error: message,
           });
-        } else if (isPreTradeFailure(job.status) && job.sourceAddress && asset) {
+        } else if (isPreTradeFailure(currentStatus) && job.sourceAddress && asset) {
           // Refund policy: before the trade executes, the crypto is still in the
           // treasury. Refund to the on-chain source address using the same asset
           // the job was meant to off-ramp.

@@ -66,7 +66,7 @@ export class PdaxOffRampProvider implements OffRampProvider {
       side: "sell",
       quote_currency: params.assetCode,
       base_currency: params.fiatCurrency,
-      currency: params.fiatCurrency,
+      currency: params.assetCode,
       quantity,
     };
 
@@ -79,31 +79,31 @@ export class PdaxOffRampProvider implements OffRampProvider {
       throw new Error(`PDAX quote failed: ${res.status} ${await res.text()}`);
     }
 
-    const data = (await res.json()) as {
+    const payload = parsePdaxResponse(await res.json()) as {
       quote_id: string;
       expires_at: string;
       quote_currency: string;
       base_currency: string;
       side: string;
-      base_quantity: string;
-      price: string;
-      total_amount: string;
+      base_quantity: string | number;
+      price: string | number;
+      total_amount: string | number;
     };
 
-    const amountIn = decimalToStroops(data.base_quantity, STELLAR_DECIMALS);
-    const amountOut = decimalToSmallest(data.total_amount, 2);
+    const amountIn = decimalToStroops(payload.base_quantity, STELLAR_DECIMALS);
+    const amountOut = decimalToSmallest(payload.total_amount, 2);
 
     return {
-      id: data.quote_id,
+      id: payload.quote_id,
       amountIn,
       amountOut,
-      fiatAmount: data.total_amount,
-      fiatCurrency: data.base_currency,
-      expiresAt: new Date(data.expires_at),
+      fiatAmount: String(payload.total_amount),
+      fiatCurrency: payload.base_currency,
+      expiresAt: new Date(payload.expires_at),
       metadata: {
-        price: data.price,
-        side: data.side,
-        quoteCurrency: data.quote_currency,
+        price: payload.price,
+        side: payload.side,
+        quoteCurrency: payload.quote_currency,
       },
     };
   }
@@ -124,28 +124,28 @@ export class PdaxOffRampProvider implements OffRampProvider {
       throw new Error(`PDAX trade failed: ${res.status} ${await res.text()}`);
     }
 
-    const data = (await res.json()) as {
+    const payload = parsePdaxResponse(await res.json()) as {
       order_id: number;
       status: string;
       quote_currency: string;
       base_currency: string;
       side: string;
-      base_quantity: string;
-      price: string;
-      total_amount: string;
+      base_quantity: string | number;
+      price: string | number;
+      total_amount: string | number;
       created_at: string;
       updated_at: string;
     };
 
     return {
-      providerRef: data.order_id.toString(),
-      status: normalizeOrderStatus(data.status),
+      providerRef: payload.order_id.toString(),
+      status: normalizeOrderStatus(payload.status),
       metadata: {
-        baseQuantity: data.base_quantity,
-        totalAmount: data.total_amount,
-        price: data.price,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
+        baseQuantity: payload.base_quantity,
+        totalAmount: payload.total_amount,
+        price: payload.price,
+        createdAt: payload.created_at,
+        updatedAt: payload.updated_at,
       },
     };
   }
@@ -172,15 +172,15 @@ export class PdaxOffRampProvider implements OffRampProvider {
       sender_place_of_birth: sender.placeOfBirth,
       source_of_funds: sender.sourceOfFunds,
       sender_email: sender.email,
-      fee_type: "SENDER",
+      fee_type: "Sender",
       beneficiary_first_name: request.accountName.split(" ")[0] ?? request.accountName,
       beneficiary_middle_name: "n.a.",
       beneficiary_last_name: request.accountName.split(" ").slice(1).join(" ") || "n.a.",
       beneficiary_bank_code: request.bankCode,
       beneficiary_account_name: request.accountName,
       beneficiary_account_number: request.accountNumber,
-      purpose: isCashOut ? "CASH_OUT" : "PAYROLL",
-      relationship_of_sender_to_beneficiary: isCashOut ? "SELF" : "EMPLOYER",
+      purpose: isCashOut ? "Business Transaction" : "Employee Remittance",
+      relationship_of_sender_to_beneficiary: isCashOut ? "Myself" : "Business",
       currency: request.fiatCurrency,
       amount: request.fiatAmount,
       method: "PAY-TO-ACCOUNT-REAL-TIME",
@@ -195,26 +195,26 @@ export class PdaxOffRampProvider implements OffRampProvider {
       throw new Error(`PDAX fiat withdraw failed: ${res.status} ${await res.text()}`);
     }
 
-    const data = (await res.json()) as {
+    const payload = parsePdaxResponse(await res.json()) as {
       request_id: string;
       identifier: string;
       reference_number: string;
-      amount: string;
+      amount: string | number;
       method: string;
-      fee: string;
+      fee: string | number;
       status: string;
       retry_methods?: string;
     };
 
     return {
-      providerRef: data.identifier,
-      status: normalizeTransactionStatus(data.status),
+      providerRef: payload.identifier,
+      status: normalizeTransactionStatus(payload.status),
       metadata: {
-        requestId: data.request_id,
-        referenceNumber: data.reference_number,
-        amount: data.amount,
-        method: data.method,
-        fee: data.fee,
+        requestId: payload.request_id,
+        referenceNumber: payload.reference_number,
+        amount: payload.amount,
+        method: payload.method,
+        fee: payload.fee,
       },
     };
   }
@@ -265,6 +265,17 @@ function normalizeTransactionStatus(status: string): "PENDING" | "COMPLETED" | "
   return "PENDING";
 }
 
+/**
+ * PDAX Institution API wraps successful responses as `{ data: ..., status: "success" }`.
+ * Some endpoints return the inner object directly in sandbox/UAT. Unwrap when present.
+ */
+function parsePdaxResponse<T>(json: unknown): T {
+  if (json && typeof json === "object" && "data" in json) {
+    return (json as { data: T }).data;
+  }
+  return json as T;
+}
+
 function stroopsToDecimal(stroops: string, decimals: number): string {
   const value = BigInt(stroops);
   const sign = value < 0n ? "-" : "";
@@ -275,13 +286,14 @@ function stroopsToDecimal(stroops: string, decimals: number): string {
   return frac ? `${sign}${whole}.${frac}` : `${sign}${whole}`;
 }
 
-function decimalToStroops(decimal: string, decimals: number): string {
-  const [whole = "0", frac = ""] = decimal.replace(/^-/, "").split(".");
+function decimalToStroops(decimal: string | number, decimals: number): string {
+  const decimalStr = typeof decimal === "number" ? decimal.toString() : decimal;
+  const [whole = "0", frac = ""] = decimalStr.replace(/^-/, "").split(".");
   const padded = frac.slice(0, decimals).padEnd(decimals, "0");
-  const sign = decimal.startsWith("-") ? "-" : "";
+  const sign = decimalStr.startsWith("-") ? "-" : "";
   return `${sign}${whole}${padded}`.replace(/^0+(?=\d)/, "");
 }
 
-function decimalToSmallest(decimal: string, decimals: number): string {
+function decimalToSmallest(decimal: string | number, decimals: number): string {
   return decimalToStroops(decimal, decimals);
 }

@@ -16,7 +16,7 @@ function baseUrl(): string {
 }
 
 async function getCredential(provider: string): Promise<{
-  accessToken: string;
+  accessToken?: string;
   idToken?: string | null;
   refreshToken?: string | null;
   username?: string;
@@ -28,7 +28,7 @@ async function getCredential(provider: string): Promise<{
   });
   if (row) {
     return {
-      accessToken: row.accessToken,
+      accessToken: row.accessToken || undefined,
       idToken: row.idToken ?? undefined,
       refreshToken: row.refreshToken ?? undefined,
       username: row.username,
@@ -37,14 +37,73 @@ async function getCredential(provider: string): Promise<{
     };
   }
 
-  // Fallback to env vars for one-off deployments / migration.
+  // Fallback to env vars. Allow bootstrap from refresh token + username even
+  // when no access token is set yet; ensurePdaxTokens will refresh.
+  const username = env().OFFRAMP_USERNAME;
+  const refreshToken = env().OFFRAMP_REFRESH_TOKEN;
   const accessToken = env().OFFRAMP_ACCESS_TOKEN;
-  if (!accessToken) return null;
+  if (!username || !refreshToken) return null;
   return {
-    accessToken,
+    accessToken: accessToken || undefined,
     idToken: env().OFFRAMP_ID_TOKEN ?? undefined,
-    refreshToken: env().OFFRAMP_REFRESH_TOKEN ?? undefined,
-    username: env().OFFRAMP_USERNAME ?? undefined,
+    refreshToken,
+    username,
+  };
+}
+
+/**
+ * Return true if the stored token looks expired or incomplete. PDAX access/id
+ * tokens are short-lived (~10 minutes). We refresh proactively rather than
+ * waiting for a 401, because the cron and payout paths should not fail on a
+ * race with token expiry.
+ */
+function shouldRefresh(tokens: {
+  accessToken?: string;
+  idToken?: string | null;
+  expiresAt?: Date | null;
+}): boolean {
+  if (!tokens.accessToken || !tokens.idToken) return true;
+  if (!tokens.expiresAt) return true;
+  // Refresh if expires within 2 minutes.
+  return tokens.expiresAt.getTime() - Date.now() < 2 * 60 * 1000;
+}
+
+/**
+ * Ensure we have a valid PDAX access token, refreshing from the stored refresh
+ * token if necessary. Throws if no usable token can be obtained.
+ */
+async function ensurePdaxTokens(): Promise<{
+  accessToken: string;
+  idToken?: string;
+  refreshToken?: string;
+  username?: string;
+}> {
+  const tokens = await getCredential("pdax");
+  if (!tokens) {
+    throw new Error(
+      "PDAX credentials are not configured. Set OFFRAMP_USERNAME and OFFRAMP_REFRESH_TOKEN (and optionally OFFRAMP_ACCESS_TOKEN / OFFRAMP_ID_TOKEN).",
+    );
+  }
+
+  if (!shouldRefresh(tokens)) {
+    return {
+      accessToken: tokens.accessToken!,
+      idToken: tokens.idToken ?? undefined,
+      refreshToken: tokens.refreshToken ?? undefined,
+      username: tokens.username,
+    };
+  }
+
+  const refreshed = await refreshPdaxAccessToken();
+  if (!refreshed) {
+    throw new Error("PDAX access token is missing/expired and refresh failed");
+  }
+
+  return {
+    accessToken: refreshed.accessToken,
+    idToken: refreshed.idToken,
+    refreshToken: tokens.refreshToken ?? undefined,
+    username: tokens.username,
   };
 }
 
@@ -52,10 +111,7 @@ async function getCredential(provider: string): Promise<{
  * Build the header object used by every PDAX Institution request.
  */
 export async function getPdaxAuthHeaders(): Promise<Record<string, string>> {
-  const tokens = await getCredential("pdax");
-  if (!tokens) {
-    throw new Error("PDAX access token is not configured");
-  }
+  const tokens = await ensurePdaxTokens();
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -128,13 +184,19 @@ export async function refreshPdaxAccessToken(): Promise<{
   }
 
   try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (tokens.accessToken) {
+      headers.Authorization = `Bearer ${tokens.accessToken}`;
+    }
+    if (tokens.idToken) {
+      headers["id_token"] = tokens.idToken;
+    }
+
     const res = await fetch(`${baseUrl()}/pdax-institution/v1/refresh-token`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${tokens.accessToken}`,
-        ...(tokens.idToken ? { id_token: tokens.idToken } : {}),
-      },
+      headers,
       body: JSON.stringify({
         username: tokens.username,
         refreshToken: tokens.refreshToken,
@@ -170,6 +232,7 @@ export async function refreshPdaxAccessToken(): Promise<{
       ...(data.refresh_token || data.refreshToken
         ? { refreshToken: data.refresh_token ?? data.refreshToken }
         : {}),
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
 
     log.info("PDAX access token refreshed successfully");
@@ -192,5 +255,8 @@ export async function setPdaxCredential(opts: {
   apiUrl?: string | null;
   expiresAt?: Date | null;
 }): Promise<void> {
-  await persistTokens(opts);
+  await persistTokens({
+    ...opts,
+    expiresAt: opts.expiresAt ?? new Date(Date.now() + 10 * 60 * 1000),
+  });
 }

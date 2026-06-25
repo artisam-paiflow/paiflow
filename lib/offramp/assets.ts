@@ -34,26 +34,48 @@ export function offRampAssetDecimals(_asset: Asset): number {
 
 /**
  * Find the cash_out node in the saved graph that corresponds to the given
- * CASH_OUT_DEV contract address. Returns null if the deployment has no graph
- * snapshot or the node cannot be matched.
+ * source address. The source address may be the cash_out contract itself, or it
+ * may be an upstream contract (e.g. a deposit trigger) that forwards to the
+ * cash_out node. We first try a direct match, then walk the graph edges from the
+ * source node to find a connected cash_out node.
  */
 export function resolveCashOutAsset(
   graph: FlowGraph | null,
   pipeline: PipelineNodeSnapshot[] | null,
-  contractAddress: string,
+  sourceAddress: string,
 ): Asset | null {
   if (!graph || !pipeline) return null;
-  const snapshot = pipeline.find(
+
+  // Direct match: sourceAddress is the cash_out contract.
+  const directSnapshot = pipeline.find(
     (p) =>
-      p.contractAddress === contractAddress &&
+      p.contractAddress === sourceAddress &&
       (p.templateKind === "CASH_OUT_DEV" || p.templateKind === "CASH_OUT"),
   );
-  if (!snapshot) return null;
-  const node = graph.nodes.find(
-    (n): n is Extract<FlowNode, { type: "cash_out" }> =>
-      n.type === "cash_out" && n.id === snapshot.nodeId,
+  if (directSnapshot) {
+    const node = graph.nodes.find(
+      (n): n is Extract<FlowNode, { type: "cash_out" }> =>
+        n.type === "cash_out" && n.id === directSnapshot.nodeId,
+    );
+    if (node) return node.config.asset ?? null;
+  }
+
+  // Indirect match: sourceAddress is an upstream node (e.g. deposit trigger).
+  // Find its graph node id via the pipeline, then follow outgoing edges to the
+  // cash_out node.
+  const sourceSnapshot = pipeline.find((p) => p.contractAddress === sourceAddress);
+  if (!sourceSnapshot) return null;
+
+  const targetIds = new Set(
+    graph.edges.filter((edge) => edge.source === sourceSnapshot.nodeId).map((edge) => edge.target),
   );
-  return node?.config.asset ?? null;
+
+  const cashOutNode = graph.nodes.find(
+    (n): n is Extract<FlowNode, { type: "cash_out" }> =>
+      n.type === "cash_out" && targetIds.has(n.id),
+  );
+
+  return cashOutNode?.config.asset ?? null;
 }
 
 /**
