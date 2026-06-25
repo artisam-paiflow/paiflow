@@ -188,7 +188,7 @@ export default function PayrollPanel({
               icon="lock_open"
               variant="secondary"
               size="sm"
-              className="!text-xs"
+              className="!py-1 !text-xs"
               prepare={async () => {
                 const amount = allowanceAmount.trim();
                 if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
