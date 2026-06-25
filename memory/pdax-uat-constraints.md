@@ -25,6 +25,15 @@ PDAX UAT environment constraints for the APAC Stellar Hackathon:
 - `BASECPH` — Security Bank Corporation
 - `BACTBPH` — CTBC Bank Philippines Corporation
 
+## UAT test beneficiary bank accounts
+
+Use these valid sandbox account numbers, or the bank rail rejects with ISO 20022
+reason `AC01` (incorrect account number) — the withdraw request is accepted but
+the bank bounces it:
+
+- `BASECPH` → `0000042001461`
+- `BACTBPH` → `001700062270`
+
 ## Application
 
 Default env vars in `lib/env.ts` and `lib/offramp/provider.ts` already match these constraints:
