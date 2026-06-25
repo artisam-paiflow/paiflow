@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { OffRampPayoutJobStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import { env } from "@/lib/env";
 import { log } from "@/lib/log";
 import { withErrorHandler } from "@/lib/errors";
 import { getOffRampProvider } from "@/lib/offramp/provider";
@@ -12,6 +14,18 @@ export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const ip = clientIp(req);
     await enforceRateLimit({ key: `webhook:offramp:${ip}`, limit: 60, windowSeconds: 60 });
+
+    // PDAX does not sign webhooks, so authenticity is enforced with a shared
+    // token in the registered URL (?token=...). When OFFRAMP_WEBHOOK_SECRET is
+    // set, a request without a matching token is rejected.
+    const expectedToken = env().OFFRAMP_WEBHOOK_SECRET;
+    if (expectedToken) {
+      const provided = req.nextUrl.searchParams.get("token") ?? "";
+      if (!constantTimeEquals(provided, expectedToken)) {
+        log.warn({ ip }, "Off-ramp webhook rejected: invalid token");
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    }
 
     const signature = req.headers.get("x-signature") ?? undefined;
     const payload = await req.json();
@@ -70,3 +84,11 @@ const TERMINAL_OFFRAMP_STATUSES: OffRampPayoutJobStatus[] = [
   OffRampPayoutJobStatus.FAILED,
   OffRampPayoutJobStatus.CANCELLED,
 ];
+
+// Constant-time string comparison that does not leak length via early return.
+function constantTimeEquals(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
+}

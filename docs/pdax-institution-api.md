@@ -287,7 +287,10 @@ id_token: <id-token>
 
 ## Webhook registration
 
-Register your URL to receive webhook events for fiat transactions.
+Register your URL to receive webhook events for fiat transactions. Use
+`event_type: "fiat"` — the off-ramp settlement signal (`WITHDRAWAL` reaching
+`COMPLETED`/`FAILED`) is a fiat event. The crypto sell leg is confirmed
+synchronously by the `POST /trade` response, so no crypto webhook is needed.
 
 ```http
 POST /pdax-institution/v1/config/webhook
@@ -302,6 +305,19 @@ Content-Type: application/json
 | ------------------ | ------ | -------- | ------------------------------ |
 | `event_type`       | string | yes      | `fiat`                         |
 | `webhook_endpoint` | string | yes      | Your deployed webhook endpoint |
+
+The app's handler is `POST /api/webhooks/offramp`. PDAX does not sign webhook
+payloads, so authenticity is enforced with a shared token in the registered
+URL. Set `OFFRAMP_WEBHOOK_SECRET` and register the endpoint with a matching
+`?token=` query param:
+
+```
+webhook_endpoint = https://<your-app-domain>/api/webhooks/offramp?token=<OFFRAMP_WEBHOOK_SECRET>
+```
+
+When `OFFRAMP_WEBHOOK_SECRET` is set, requests without a matching `token` are
+rejected with `401`. When it is unset, the token check is skipped (the handler
+still rate-limits and only acts on events matching a known pending job).
 
 ### Webhook payload — Fiat Event Data
 
