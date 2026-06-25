@@ -6,6 +6,7 @@ import {
   ReactFlowProvider,
   Background,
   Controls,
+  MiniMap,
   applyNodeChanges,
   applyEdgeChanges,
   addEdge,
@@ -562,6 +563,15 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
             >
               <Background gap={16} size={1} color="#27272a" />
               <Controls position="top-left" className="!top-3 !left-3" />
+              <MiniMap
+                position="bottom-right"
+                pannable
+                zoomable
+                bgColor="#09090b"
+                maskColor="rgba(9, 9, 11, 0.6)"
+                nodeColor={(n) => nodeBorderColor(n.data?.node as FlowNode | undefined)}
+                className="!border !border-zinc-800"
+              />
             </ReactFlow>
           </div>
         </div>
