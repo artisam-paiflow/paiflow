@@ -18,8 +18,10 @@ app database via **Admin → Off-ramp** (`/admin/offramp`).
 | Expires at    | no       | ISO timestamp for informational use.               |
 
 Environment variables (`OFFRAMP_USERNAME`, `OFFRAMP_ACCESS_TOKEN`,
-`OFFRAMP_ID_TOKEN`, `OFFRAMP_REFRESH_TOKEN`) are still read as a fallback, but
-they are not recommended for tokens that rotate every ~10 minutes.
+`OFFRAMP_ID_TOKEN`, `OFFRAMP_REFRESH_TOKEN`) are still read as a fallback. The
+refresh token lasts ~30 days, so it can live in env for a short-lived event.
+Access/id tokens rotate every ~10 minutes, so they are best kept in the database
+where the admin UI can update them without a redeploy.
 
 Authentication:
 
