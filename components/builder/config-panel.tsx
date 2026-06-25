@@ -1053,7 +1053,16 @@ export default function ConfigPanel({
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
           />
-          <Field label="Employer address (G… or PENDING:)">
+          <ApiFillField
+            label="Employer address (G… or PENDING:)"
+            devMode={devMode}
+            active={isApiFillAddress(node.config.employer)}
+            onActivate={() =>
+              onChange({ ...node, config: { ...node.config, employer: API_FILL_ADDRESS } })
+            }
+            onDeactivate={() => onChange({ ...node, config: { ...node.config, employer: "" } })}
+            hint="Employer set via the API after deploy"
+          >
             <AddressInput
               value={node.config.employer}
               onChange={(employer) =>
@@ -1066,7 +1075,7 @@ export default function ConfigPanel({
               addressBook={addressBook}
               onAddressBookChange={refreshAddressBook}
             />
-          </Field>
+          </ApiFillField>
           {(() => {
             const cfg = node.config as {
               intervalAmount?: number;
