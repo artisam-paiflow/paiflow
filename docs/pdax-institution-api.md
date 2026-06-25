@@ -2,6 +2,21 @@
 
 Base URL: `https://api.pdax.ph` (confirm UAT base URL with PDAX).
 
+## Configuration
+
+The app defaults to a built-in mock off-ramp provider. To use the real PDAX API,
+set `OFFRAMP_PROVIDER=pdax` and provide your PDAX Institution credentials:
+
+| Env variable             | Required | Description                                        |
+| ------------------------ | -------- | -------------------------------------------------- |
+| `OFFRAMP_PROVIDER`       | yes      | Set to `pdax` (default is `mock`).                 |
+| `OFFRAMP_API_URL`        | no       | Override base URL, e.g. PDAX UAT sandbox.          |
+| `OFFRAMP_USERNAME`       | yes      | PDAX account username.                             |
+| `OFFRAMP_ACCESS_TOKEN`   | yes      | Current PDAX access token.                         |
+| `OFFRAMP_ID_TOKEN`       | yes      | Current PDAX id token (sent as `id_token` header). |
+| `OFFRAMP_REFRESH_TOKEN`  | yes      | Used to refresh the access token when it expires.  |
+| `OFFRAMP_WEBHOOK_SECRET` | no       | Secret for validating PDAX webhooks.               |
+
 Authentication:
 
 - All endpoints require two headers:
