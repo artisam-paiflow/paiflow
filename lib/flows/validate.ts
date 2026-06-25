@@ -295,20 +295,12 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
   }
 
-  // Cash-out nodes are dev-only terminal sinks: funds leave the chain, so they
-  // cannot feed another node, must receive funds from an upstream node, and only
-  // exist in dev-mode (parameterized) flows.
+  // Cash-out nodes are terminal sinks: funds leave the chain, so they cannot
+  // feed another node and must receive funds from an upstream node. Bank details
+  // may be left blank in dev mode (filled via API after deploy), but must be set
+  // at design time in non-dev mode.
   for (const n of graph.nodes) {
     if (n.type !== "cash_out") continue;
-
-    if (graph.devMode !== true) {
-      errors.push({
-        path: `nodes.${n.id}`,
-        message: "Cash-out nodes are only available in dev mode",
-        friendlyMessage:
-          "Cash-out is a dev-mode feature. Turn on dev mode to use a cash-out node, or remove it.",
-      });
-    }
 
     const hasOutgoing = graph.edges.some((e) => e.source === n.id);
     if (hasOutgoing) {
@@ -328,6 +320,30 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         friendlyMessage:
           "Connect a pay or split step into the cash-out node so it has funds to send to the bank.",
       });
+    }
+
+    if (graph.devMode !== true) {
+      if (!n.config.accountName || n.config.accountName.trim().length === 0) {
+        errors.push({
+          path: `nodes.${n.id}.config.accountName`,
+          message: "Cash-out account name is required in non-dev mode",
+          friendlyMessage: "Enter the beneficiary account name for the cash-out node.",
+        });
+      }
+      if (!n.config.accountNumber || n.config.accountNumber.trim().length === 0) {
+        errors.push({
+          path: `nodes.${n.id}.config.accountNumber`,
+          message: "Cash-out account number is required in non-dev mode",
+          friendlyMessage: "Enter the beneficiary account number for the cash-out node.",
+        });
+      }
+      if (!n.config.bankCode) {
+        errors.push({
+          path: `nodes.${n.id}.config.bankCode`,
+          message: "Cash-out bank is required in non-dev mode",
+          friendlyMessage: "Select a bank for the cash-out node.",
+        });
+      }
     }
   }
 

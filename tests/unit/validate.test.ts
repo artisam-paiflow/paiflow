@@ -870,10 +870,49 @@ describe("validateFlow", () => {
     expect(r.ok).toBe(true);
   });
 
-  it("rejects cash_out without dev mode", () => {
+  it("accepts cash_out without dev mode when bank details are provided", () => {
     const r = validateFlow({
       nodes: [
         { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
+          },
+        },
+        {
+          id: "c",
+          type: "cash_out",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            accountName: "Juan",
+            accountNumber: "123",
+            bankCode: "BASECPH",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "a", target: "c" },
+      ],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects cash_out without dev mode when bank details are blank", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
+          },
+        },
         {
           id: "c",
           type: "cash_out",
@@ -885,7 +924,10 @@ describe("validateFlow", () => {
           },
         },
       ],
-      edges: [{ id: "e1", source: "t", target: "c" }],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "a", target: "c" },
+      ],
     });
     expect(r.ok).toBe(false);
   });

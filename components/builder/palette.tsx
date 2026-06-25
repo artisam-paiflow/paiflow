@@ -208,7 +208,7 @@ const TEMPLATES: Template[] = [
     }),
   },
   {
-    group: "Dev",
+    group: "Actions",
     label: "Cash Out",
     icon: "payments",
     make: () => ({
@@ -240,10 +240,14 @@ export default function Palette({
   onToggleCollapse,
   devMode,
 }: Props) {
-  // Dev-only nodes (cash_out) appear only while dev mode is on.
-  const groups: Template["group"][] = devMode
-    ? ["Triggers", "Actions", "Logic", "Dev"]
-    : ["Triggers", "Actions", "Logic"];
+  // Dev-only palette items (nodes with no immutable counterpart) appear only
+  // when at least one exists. Currently Cash Out lives under Actions, so no
+  // separate Dev section is rendered.
+  const devTemplates = TEMPLATES.filter((t) => t.group === "Dev");
+  const groups: Template["group"][] =
+    devTemplates.length > 0
+      ? ["Triggers", "Actions", "Logic", "Dev"]
+      : ["Triggers", "Actions", "Logic"];
   const headingId = useId();
   const hasTrigger = flowNodes.some(isTrigger);
   const templateLabel = templateKind ? TEMPLATE_LABELS[templateKind] : null;

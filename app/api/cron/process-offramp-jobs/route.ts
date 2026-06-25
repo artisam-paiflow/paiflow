@@ -10,8 +10,11 @@ import {
   cancelPendingOffRampJobs,
 } from "@/lib/offramp/jobs";
 import { getOffRampProvider, offRampAssetCode, offRampFiatCurrency } from "@/lib/offramp/provider";
+import { resolveCashOutAsset, resolvePayrollAsset } from "@/lib/offramp/assets";
 import { refundFromTreasury } from "@/lib/stellar/dev-mutate";
 import { assetContractId } from "@/lib/stellar/assets";
+import type { FlowGraph } from "@/lib/flows/schema";
+import type { Asset } from "@/lib/flows/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -41,12 +44,34 @@ function isKnownSkipError(message: string): boolean {
 
 /**
  * True if the failure happened before the PDAX trade executed.
- * At that point USDC is still in the treasury and can be refunded to the source
- * address. Once the trade has executed (INITIATED or beyond) the crypto is gone,
- * so we retry the withdrawal rather than refunding.
+ * At that point the crypto is still in the treasury and can be refunded to the
+ * source address. Once the trade has executed (INITIATED or beyond) the crypto
+ * is gone, so we retry the withdrawal rather than refunding.
  */
 function isPreTradeFailure(status: OffRampPayoutJobStatus): boolean {
   return status === OffRampPayoutJobStatus.PENDING || status === OffRampPayoutJobStatus.RUNNING;
+}
+
+type PipelineNodeSnapshot = {
+  nodeId: string;
+  contractAddress: string;
+  templateKind: string;
+};
+
+function resolveJobAsset(job: {
+  source: OffRampJobSource;
+  sourceAddress: string | null;
+  deployment: { graphSnapshot: Prisma.JsonValue; pipelineSnapshot: Prisma.JsonValue } | null;
+}): Asset | null {
+  const deployment = job.deployment;
+  if (!deployment) return null;
+  const graph = deployment.graphSnapshot as FlowGraph | null;
+  const pipeline = deployment.pipelineSnapshot as PipelineNodeSnapshot[] | null;
+  if (job.source === OffRampJobSource.CASH_OUT) {
+    if (!job.sourceAddress) return null;
+    return resolveCashOutAsset(graph, pipeline, job.sourceAddress);
+  }
+  return resolvePayrollAsset(graph);
 }
 
 export async function POST(req: NextRequest) {
@@ -80,6 +105,8 @@ export async function POST(req: NextRequest) {
         status: OffRampPayoutJobStatus.RUNNING,
       });
 
+      let asset: Asset | null = null;
+
       try {
         const bankDetail = {
           accountName: job.bankAccountName,
@@ -95,12 +122,17 @@ export async function POST(req: NextRequest) {
           throw new Error("No sender profile for deployment");
         }
 
+        asset = resolveJobAsset(job);
+        if (!asset) {
+          throw new Error("Could not resolve off-ramp asset from deployment graph");
+        }
+
         const provider = getOffRampProvider();
 
-        // 1. Firm quote: USDCXLM -> PHP
+        // 1. Firm quote: crypto -> PHP
         const quote = await provider.quote({
           amountStroops: job.amountStroops,
-          assetCode: offRampAssetCode(),
+          assetCode: offRampAssetCode(asset),
           fiatCurrency: offRampFiatCurrency(),
         });
 
@@ -221,16 +253,14 @@ export async function POST(req: NextRequest) {
             status: "failed",
             error: message,
           });
-        } else if (isPreTradeFailure(job.status) && job.sourceAddress) {
-          // Refund policy: before the trade executes, USDC is still in the
-          // treasury. Refund to the on-chain source address.
+        } else if (isPreTradeFailure(job.status) && job.sourceAddress && asset) {
+          // Refund policy: before the trade executes, the crypto is still in the
+          // treasury. Refund to the on-chain source address using the same asset
+          // the job was meant to off-ramp.
           const refund = await refundFromTreasury({
             destination: job.sourceAddress,
             amountStroops: job.amountStroops,
-            assetContractAddress: assetContractId({
-              kind: "known",
-              symbol: "USDC",
-            }),
+            assetContractAddress: assetContractId(asset),
           });
           const refundStatus =
             refund.status === "SUCCESS"

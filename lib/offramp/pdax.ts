@@ -15,7 +15,8 @@ import {
 } from "./provider";
 
 const PDAX_API_TIMEOUT_MS = 30_000;
-const USDC_DECIMALS = 7;
+// All supported Stellar assets (XLM, USDC) use 7 decimal places.
+const STELLAR_DECIMALS = 7;
 
 export class PdaxOffRampProvider implements OffRampProvider {
   readonly name = "pdax";
@@ -60,7 +61,7 @@ export class PdaxOffRampProvider implements OffRampProvider {
     assetCode: string;
     fiatCurrency: string;
   }): Promise<OffRampQuote> {
-    const quantity = stroopsToDecimal(params.amountStroops, USDC_DECIMALS);
+    const quantity = stroopsToDecimal(params.amountStroops, STELLAR_DECIMALS);
     const body = {
       side: "sell",
       quote_currency: params.assetCode,
@@ -89,7 +90,7 @@ export class PdaxOffRampProvider implements OffRampProvider {
       total_amount: string;
     };
 
-    const amountIn = decimalToStroops(data.base_quantity, USDC_DECIMALS);
+    const amountIn = decimalToStroops(data.base_quantity, STELLAR_DECIMALS);
     const amountOut = decimalToSmallest(data.total_amount, 2);
 
     return {

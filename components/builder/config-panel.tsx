@@ -1321,7 +1321,10 @@ export default function ConfigPanel({
             <span className="material-symbols-outlined text-[14px]">payments</span>
             <span>
               Terminal cash-out. Funds leave the chain to the off-ramp treasury, then a bank payout
-              is made via PDAX. Bank details can be left blank and filled via the API after deploy.
+              is made via PDAX.{" "}
+              {devMode
+                ? "Bank details can be left blank and filled via the API after deploy."
+                : "Bank details must be set before deploy."}
             </span>
           </div>
           <AssetField
@@ -1367,7 +1370,9 @@ export default function ConfigPanel({
                 } as FlowNode)
               }
             >
-              <option value="">— set via API after deploy —</option>
+              <option value="">
+                {devMode ? "— set via API after deploy —" : "— select bank —"}
+              </option>
               <option value="BASECPH">BASECPH — BDO</option>
               <option value="BACTBPH">BACTBPH — BPI</option>
             </select>

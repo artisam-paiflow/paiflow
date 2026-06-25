@@ -1,8 +1,10 @@
 import "server-only";
 import { env } from "@/lib/env";
+import type { Asset } from "@/lib/flows/schema";
 import { MockOffRampProvider } from "./mock";
 import { PdaxOffRampProvider } from "./pdax";
 import type { OffRampJobSource } from "@prisma/client";
+import { offRampAssetCode as resolveAssetCode, offRampNetwork as resolveNetwork } from "./assets";
 
 export interface OffRampQuote {
   id: string;
@@ -110,7 +112,8 @@ export function getOffRampProvider(): OffRampProvider {
   }
 }
 
-export function offRampAssetCode(): string {
+export function offRampAssetCode(asset?: Asset): string {
+  if (asset) return resolveAssetCode(asset);
   return env().OFFRAMP_ASSET_CODE ?? "USDCXLM";
 }
 
@@ -118,7 +121,8 @@ export function offRampFiatCurrency(): string {
   return "PHP";
 }
 
-export function offRampNetwork(): string {
+export function offRampNetwork(asset?: Asset): string {
+  if (asset) return resolveNetwork(asset);
   return env().OFFRAMP_NETWORK ?? "XLM_USDC_T_CEKS";
 }
 
