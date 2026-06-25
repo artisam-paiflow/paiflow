@@ -507,6 +507,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   const isReceiveLike = isOnReceive || isWebhookLike;
   const isPayOrSplit = action.type === "pay" || action.type === "split";
   const isSwapOrYield = action.type === "swap" || action.type === "yield";
+  const isCashOut = action.type === "cash_out";
 
   if (isWebhookLike && hasCondition && condition.config.kind !== "multisig") {
     return {
@@ -533,6 +534,8 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     templateKind = TemplateKind.STREAMER;
   } else if (isOnReceive && isPayOrSplit) {
     templateKind = TemplateKind.SPLITTER;
+  } else if (isOnReceive && isCashOut) {
+    templateKind = TemplateKind.CASH_OUT;
   } else if (isOnReceive && isSwapOrYield) {
     templateKind = TemplateKind.SPLITTER;
   } else if (isWebhookLike && isPayOrSplit) {
@@ -548,7 +551,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         {
           path: "nodes",
           message:
-            "Unsupported trigger/action combination. Supported: on_receive with pay/split/swap/yield, webhook/web2_webhook/oracle with pay/split/swap/yield/multisig, schedule-like triggers (on_schedule, subscription) with pay/split, payroll with pay/split, or any with a compatible condition.",
+            "Unsupported trigger/action combination. Supported: on_receive with pay/split/swap/yield/cash_out, webhook/web2_webhook/oracle with pay/split/swap/yield/multisig, schedule-like triggers (on_schedule, subscription) with pay/split, payroll with pay/split, or any with a compatible condition.",
           friendlyMessage: FRIENDLY.UNSUPPORTED_COMBO,
         },
       ],
