@@ -52,16 +52,17 @@ const TEMPLATES: Template[] = [
       },
     }),
   },
-  {
-    group: "Triggers",
-    label: "Webhook",
-    icon: "webhook",
-    make: () => ({
-      id: makeId("webhook"),
-      type: "webhook",
-      config: { asset: { kind: "known", symbol: "USDC" }, relayer: "PENDING:relayer" },
-    }),
-  },
+  // Hidden: non-HTTP Webhook trigger (relayer-authorized). Use "HTTP Webhook" instead.
+  // {
+  //   group: "Triggers",
+  //   label: "Webhook",
+  //   icon: "webhook",
+  //   make: () => ({
+  //     id: makeId("webhook"),
+  //     type: "webhook",
+  //     config: { asset: { kind: "known", symbol: "USDC" }, relayer: "PENDING:relayer" },
+  //   }),
+  // },
   {
     group: "Triggers",
     label: "HTTP Webhook",
@@ -88,16 +89,17 @@ const TEMPLATES: Template[] = [
       },
     }),
   },
-  {
-    group: "Triggers",
-    label: "Oracle",
-    icon: "online_prediction",
-    make: () => ({
-      id: makeId("oracle"),
-      type: "oracle",
-      config: { asset: { kind: "known", symbol: "USDC" }, threshold: "100" },
-    }),
-  },
+  // Hidden: Oracle trigger.
+  // {
+  //   group: "Triggers",
+  //   label: "Oracle",
+  //   icon: "online_prediction",
+  //   make: () => ({
+  //     id: makeId("oracle"),
+  //     type: "oracle",
+  //     config: { asset: { kind: "known", symbol: "USDC" }, threshold: "100" },
+  //   }),
+  // },
   {
     group: "Actions",
     label: "Pay",
@@ -154,19 +156,20 @@ const TEMPLATES: Template[] = [
       },
     }),
   },
-  {
-    group: "Actions",
-    label: "Yield",
-    icon: "savings",
-    make: () => ({
-      id: makeId("yield"),
-      type: "yield",
-      config: {
-        asset: { kind: "known", symbol: "USDC" },
-        vault: "PENDING:vault",
-      },
-    }),
-  },
+  // Hidden: Yield action.
+  // {
+  //   group: "Actions",
+  //   label: "Yield",
+  //   icon: "savings",
+  //   make: () => ({
+  //     id: makeId("yield"),
+  //     type: "yield",
+  //     config: {
+  //       asset: { kind: "known", symbol: "USDC" },
+  //       vault: "PENDING:vault",
+  //     },
+  //   }),
+  // },
   {
     group: "Actions",
     label: "Email Notify",

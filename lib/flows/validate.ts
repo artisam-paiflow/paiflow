@@ -40,8 +40,8 @@ const FRIENDLY = {
     `The percentages for your split don't add up to 100% (currently ${got / 100}%). Adjust them to total 100%.`,
   DUPLICATE_ADDRESS: (addr: string) =>
     `The address ${addr} appears more than once in your split recipients. Each recipient should only appear once.`,
-  ACTION_UNREACHABLE: (id: string) =>
-    `"${id}" isn't connected to anything. Connect it to the trigger or another step.`,
+  ACTION_UNREACHABLE: (label: string) =>
+    `${label} isn't connected to anything. Connect it to the trigger or another step.`,
   UNSUPPORTED_COMBO:
     "This trigger/action combination isn't supported. You can use: receive→pay, receive→split, schedule→pay, schedule→split, or add a condition to any of these.",
   MISSING_EDGE_SOURCE: (eid: string, src: string) =>
@@ -55,6 +55,66 @@ const FRIENDLY = {
   ASSET_CONFLICT:
     "This step can receive different assets depending on which path funds arrive through. Make sure every path leading into it carries the same asset, or add a swap so they match before merging.",
 } as const;
+
+// A short, self-describing name for a node, mirroring what the canvas shows so
+// the user can locate the offending step instead of decoding a raw id like
+// "swap-8j756t".
+function nodeDescriptor(n: FlowNode): string {
+  switch (n.type) {
+    case "on_receive":
+      return "Receive trigger";
+    case "on_schedule":
+      return "Schedule trigger";
+    case "webhook":
+      return "Webhook trigger";
+    case "web2_webhook":
+      return "HTTP Webhook trigger";
+    case "subscription":
+      return "Subscription trigger";
+    case "oracle":
+      return "Oracle trigger";
+    case "pay":
+      return `Pay (${assetLabel(n.config.asset)})`;
+    case "split":
+      return `Split (${n.config.recipients.length} recipient${
+        n.config.recipients.length === 1 ? "" : "s"
+      })`;
+    case "swap":
+      return `Swap (${assetLabel(n.config.assetIn)} → ${assetLabel(n.config.assetOut)})`;
+    case "yield":
+      return `Yield (${assetLabel(n.config.asset)})`;
+    case "email_notify":
+      return "Email notify";
+    case "condition":
+      return "Condition";
+    default:
+      return (n as FlowNode).type;
+  }
+}
+
+// Build human-friendly labels for every node. When two nodes share the same
+// descriptor (e.g. two "Swap (XLM → USDC)" steps), they're numbered so the user
+// can still tell them apart.
+function buildNodeLabels(graph: FlowGraph): Map<string, string> {
+  const totals = new Map<string, number>();
+  for (const n of graph.nodes) {
+    const d = nodeDescriptor(n);
+    totals.set(d, (totals.get(d) ?? 0) + 1);
+  }
+  const seen = new Map<string, number>();
+  const labels = new Map<string, string>();
+  for (const n of graph.nodes) {
+    const d = nodeDescriptor(n);
+    if ((totals.get(d) ?? 0) > 1) {
+      const idx = (seen.get(d) ?? 0) + 1;
+      seen.set(d, idx);
+      labels.set(n.id, `${d} #${idx}`);
+    } else {
+      labels.set(n.id, d);
+    }
+  }
+  return labels;
+}
 
 export function assetsEqual(a: Asset, b: Asset): boolean {
   if (a.kind !== b.kind) return false;
@@ -176,6 +236,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   const pendingLabels = new Set<string>();
 
   const nodesById = new Map<string, FlowNode>(graph.nodes.map((n) => [n.id, n]));
+  const nodeLabels = buildNodeLabels(graph);
 
   for (const e of graph.edges) {
     if (!nodesById.has(e.source)) {
@@ -433,7 +494,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         errors.push({
           path: `nodes.${a.id}`,
           message: `Action ${a.id} is not reachable from the trigger`,
-          friendlyMessage: FRIENDLY.ACTION_UNREACHABLE(a.id),
+          friendlyMessage: FRIENDLY.ACTION_UNREACHABLE(nodeLabels.get(a.id) ?? a.id),
         });
       }
     }

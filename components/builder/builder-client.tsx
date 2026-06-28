@@ -44,6 +44,10 @@ const edgeTypes = {
   straight: AnimatedStraightEdge,
 };
 
+// Max validation issues shown inline in the English Preview before collapsing
+// the rest behind a "view all" modal.
+const MAX_VISIBLE_ERRORS = 2;
+
 type BuilderProps = {
   flowId: string;
   initialName: string;
@@ -149,6 +153,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
   const [hasAnimated, setHasAnimated] = useState(false);
+  const [errorsModalOpen, setErrorsModalOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [addressBook, setAddressBook] = useState<AddressEntry[]>([]);
 
@@ -444,6 +449,21 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const pipeline = validation.ok ? validation.pipeline : undefined;
   const errors = validation.ok ? [] : validation.errors;
 
+  // Close the validation-issues modal on Escape, or once issues no longer
+  // overflow the inline preview (e.g. the user fixed them while it was open).
+  useEffect(() => {
+    if (!errorsModalOpen) return;
+    if (errors.length <= MAX_VISIBLE_ERRORS) {
+      setErrorsModalOpen(false);
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setErrorsModalOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [errorsModalOpen, errors.length]);
+
   return (
     <>
       <div
@@ -510,11 +530,21 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
               <div className="text-body-md text-on-surface mt-1 line-clamp-2">{english}</div>
               {!isValid && errors.length > 0 && (
                 <div className="mt-2 space-y-1">
-                  {errors.map((e, i) => (
+                  {errors.slice(0, MAX_VISIBLE_ERRORS).map((e, i) => (
                     <div key={i} className="text-label-sm text-error font-mono">
                       {e.friendlyMessage}
                     </div>
                   ))}
+                  {errors.length > MAX_VISIBLE_ERRORS && (
+                    <button
+                      type="button"
+                      onClick={() => setErrorsModalOpen(true)}
+                      className="text-label-sm text-error hover:text-error/80 font-mono underline underline-offset-2 transition-colors"
+                    >
+                      +{errors.length - MAX_VISIBLE_ERRORS} more{" "}
+                      {errors.length - MAX_VISIBLE_ERRORS === 1 ? "issue" : "issues"} — view all
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -592,6 +622,51 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         collapsed={chatCollapsed}
         onToggleCollapse={() => setChatCollapsed((v) => !v)}
       />
+
+      {/* Validation issues modal — scrollable list of all errors */}
+      {errorsModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setErrorsModalOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Validation issues"
+            className="bg-background-1 relative flex max-h-[80vh] w-full max-w-lg flex-col rounded-2xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-zinc-800 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-error text-xl">error</span>
+                <h3 className="text-label-lg text-on-background font-bold">
+                  {errors.length} validation {errors.length === 1 ? "issue" : "issues"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setErrorsModalOpen(false)}
+                aria-label="Close"
+                className="text-on-background/60 hover:text-on-background flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-zinc-800"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
+              {errors.map((e, i) => (
+                <div key={i} className="bg-background-2/50 rounded-lg px-3 py-2">
+                  <div className="text-label-sm text-error font-mono">{e.friendlyMessage}</div>
+                  {e.path && (
+                    <div className="text-label-sm text-on-background/40 mt-0.5 font-mono">
+                      {e.path}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
