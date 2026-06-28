@@ -304,7 +304,7 @@ model PayrollRun {
   status       PayrollRunStatus @default(PENDING)
   attemptCount Int              @default(0)
   lastError    String?
-  txHash       String?
+  txHash       String?          @unique
   totalStroops String
   chargedAt    DateTime?
   createdAt    DateTime         @default(now())

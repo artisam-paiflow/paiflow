@@ -12,6 +12,9 @@ type Credential = {
   apiUrl?: string | null;
   expiresAt?: string | null;
   updatedAt?: string;
+  hasAccessToken?: boolean;
+  hasIdToken?: boolean;
+  hasRefreshToken?: boolean;
 };
 
 const EMPTY: Credential = {
@@ -35,7 +38,11 @@ export default function OffRampCredentialForm() {
         if (!res.ok) throw new Error("Failed to load credentials");
         const json = (await res.json()) as { data: { credential: Credential | null } };
         if (json.data.credential) {
-          setCred({ ...EMPTY, ...json.data.credential });
+          const { accessToken, idToken, refreshToken, ...safe } = json.data.credential;
+          setCred({ ...EMPTY, ...safe });
+          if (safe.hasAccessToken || safe.hasIdToken || safe.hasRefreshToken) {
+            toast.info("Credentials are saved. Re-enter tokens only if you want to update them.");
+          }
         }
       })
       .catch((err) =>

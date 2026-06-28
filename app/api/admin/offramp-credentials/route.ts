@@ -3,12 +3,12 @@ import { z } from "zod";
 import { Role } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
-import { withErrorHandler } from "@/lib/errors";
+import { AppError, withErrorHandler } from "@/lib/errors";
 import { setPdaxCredential } from "@/lib/offramp/pdax-auth";
 
 const CredentialSchema = z.object({
   username: z.string().min(1).max(256),
-  accessToken: z.string().min(1),
+  accessToken: z.string().optional().nullable(),
   idToken: z.string().optional().nullable(),
   refreshToken: z.string().optional().nullable(),
   apiUrl: z.string().url().optional().nullable(),
@@ -32,12 +32,12 @@ export async function GET(_req: NextRequest) {
         credential: {
           provider: credential.provider,
           username: credential.username,
-          accessToken: credential.accessToken,
-          idToken: credential.idToken,
-          refreshToken: credential.refreshToken,
           apiUrl: credential.apiUrl,
           expiresAt: credential.expiresAt?.toISOString() ?? null,
           updatedAt: credential.updatedAt.toISOString(),
+          hasAccessToken: Boolean(credential.accessToken),
+          hasIdToken: Boolean(credential.idToken),
+          hasRefreshToken: Boolean(credential.refreshToken),
         },
       },
     });
@@ -50,11 +50,22 @@ export async function POST(req: NextRequest) {
 
     const body = CredentialSchema.parse(await req.json());
 
+    const existing = await db.offRampProviderCredential.findUnique({
+      where: { provider: "pdax" },
+    });
+
+    const accessToken = body.accessToken?.trim() || existing?.accessToken;
+    const idToken = body.idToken?.trim() || existing?.idToken;
+    const refreshToken = body.refreshToken?.trim() || existing?.refreshToken;
+    if (!accessToken) {
+      throw new AppError("VALIDATION", "Access token is required");
+    }
+
     await setPdaxCredential({
       username: body.username,
-      accessToken: body.accessToken,
-      idToken: body.idToken,
-      refreshToken: body.refreshToken,
+      accessToken,
+      idToken,
+      refreshToken,
       apiUrl: body.apiUrl,
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
     });

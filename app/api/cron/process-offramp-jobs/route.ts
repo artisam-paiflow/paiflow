@@ -149,6 +149,7 @@ export async function POST(req: NextRequest) {
           amountStroops: job.amountStroops,
           employeeId: job.employeeId ?? undefined,
           payrollRunId: job.payrollRunId ?? undefined,
+          jobId: job.id,
           jobSource: job.source,
         });
 
@@ -336,5 +337,3 @@ export async function POST(req: NextRequest) {
     });
   });
 }
-
-export const GET = POST;

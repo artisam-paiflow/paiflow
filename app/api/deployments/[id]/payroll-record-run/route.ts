@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -11,6 +12,10 @@ import {
   readSubscriptionAmountPerPeriod,
 } from "@/lib/stellar/relayer";
 import { PayrollRunStatus } from "@prisma/client";
+
+const PostSchema = z.object({
+  txHash: z.string().min(1, "txHash is required"),
+});
 
 /**
  * Record a manually-triggered payroll run and create off-ramp jobs.
@@ -26,6 +31,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
+    const body = PostSchema.parse(await req.json());
 
     const rlKey = user ? `payroll-record:${user.id}` : `payroll-record:machine:${clientIp(req)}`;
     const rl = await rateLimit(rlKey, 30, 60);
@@ -39,6 +45,26 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
     if (d.flow.templateKind !== "PAYROLL") {
       throw new AppError("VALIDATION", "Deployment is not a payroll");
+    }
+
+    // Idempotency: a retry with the same txHash returns the existing run.
+    const existingRun = await db.payrollRun.findUnique({
+      where: { txHash: body.txHash },
+      include: {
+        payouts: { include: { offRampJobs: { select: { id: true } } } },
+        offRampJobs: { select: { id: true } },
+      },
+    });
+    if (existingRun) {
+      const existingJobIds = existingRun.offRampJobs.map((j) => j.id);
+      return NextResponse.json({
+        data: {
+          payrollRunId: existingRun.id,
+          payoutCount: existingRun.payouts.length,
+          offRampJobIds: existingJobIds,
+          idempotent: true,
+        },
+      });
     }
 
     const pipeline = d.pipelineSnapshot as Array<{
@@ -88,6 +114,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         status: PayrollRunStatus.CHARGED,
         totalStroops: totalStroops.toString(),
         chargedAt: now,
+        txHash: body.txHash,
       },
     });
 
@@ -109,6 +136,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           payrollRunId: run.id,
           employeeId: employee.id,
           amountStroops: r.amount,
+          txHash: body.txHash,
         },
       });
     }

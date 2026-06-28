@@ -25,6 +25,8 @@ export interface OffRampTradeRequest {
   amountStroops: string;
   employeeId?: string | null;
   payrollRunId?: string | null;
+  /** Stable id used for provider-side idempotency. */
+  jobId: string;
   jobSource: OffRampJobSource;
 }
 

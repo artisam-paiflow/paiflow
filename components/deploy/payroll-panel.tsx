@@ -388,6 +388,7 @@ export default function PayrollPanel({
             const recordRes = await fetch(`/api/deployments/${deploymentId}/payroll-record-run`, {
               method: "POST",
               headers: { "content-type": "application/json" },
+              body: JSON.stringify({ txHash: json.data.txHash }),
             });
             const recordJson = (await recordRes.json()) as {
               data?: { offRampJobIds?: string[]; offRampError?: string };

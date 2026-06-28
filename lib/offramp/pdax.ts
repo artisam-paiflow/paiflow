@@ -112,7 +112,7 @@ export class PdaxOffRampProvider implements OffRampProvider {
     const body = {
       quote_id: request.quoteId,
       side: "sell",
-      idempotency_id: crypto.randomUUID(),
+      idempotency_id: `job-${request.jobId}`,
     };
 
     const res = await this.fetchWithRetry(`${this.baseUrl()}/pdax-institution/v1/trade`, {

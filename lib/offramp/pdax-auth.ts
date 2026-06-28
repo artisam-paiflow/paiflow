@@ -136,10 +136,6 @@ async function persistTokens(
     expiresAt: Date | null;
   }>,
 ): Promise<void> {
-  const existing = await db.offRampProviderCredential.findUnique({
-    where: { provider: "pdax" },
-  });
-
   const data = {
     ...(updates.username !== undefined && { username: updates.username }),
     ...(updates.accessToken !== undefined && { accessToken: updates.accessToken }),
@@ -149,23 +145,19 @@ async function persistTokens(
     ...(updates.expiresAt !== undefined && { expiresAt: updates.expiresAt }),
   };
 
-  if (existing) {
-    await db.offRampProviderCredential.update({
-      where: { provider: "pdax" },
-      data,
-    });
-  } else {
-    await db.offRampProviderCredential.create({
-      data: {
-        provider: "pdax",
-        username: updates.username ?? env().OFFRAMP_USERNAME ?? "",
-        accessToken: updates.accessToken ?? env().OFFRAMP_ACCESS_TOKEN ?? "",
-        idToken: updates.idToken ?? env().OFFRAMP_ID_TOKEN,
-        refreshToken: updates.refreshToken ?? env().OFFRAMP_REFRESH_TOKEN,
-        apiUrl: updates.apiUrl ?? env().OFFRAMP_API_URL,
-      },
-    });
-  }
+  await db.offRampProviderCredential.upsert({
+    where: { provider: "pdax" },
+    create: {
+      provider: "pdax",
+      username: updates.username ?? env().OFFRAMP_USERNAME ?? "",
+      accessToken: updates.accessToken ?? env().OFFRAMP_ACCESS_TOKEN ?? "",
+      idToken: updates.idToken ?? env().OFFRAMP_ID_TOKEN,
+      refreshToken: updates.refreshToken ?? env().OFFRAMP_REFRESH_TOKEN,
+      apiUrl: updates.apiUrl ?? env().OFFRAMP_API_URL,
+      expiresAt: updates.expiresAt,
+    },
+    update: data,
+  });
 }
 
 /**

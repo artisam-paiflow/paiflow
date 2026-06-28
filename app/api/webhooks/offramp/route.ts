@@ -4,7 +4,7 @@ import { OffRampPayoutJobStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
-import { withErrorHandler } from "@/lib/errors";
+import { AppError, withErrorHandler } from "@/lib/errors";
 import { getOffRampProvider } from "@/lib/offramp/provider";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 
@@ -16,10 +16,17 @@ export async function POST(req: NextRequest) {
     await enforceRateLimit({ key: `webhook:offramp:${ip}`, limit: 60, windowSeconds: 60 });
 
     // PDAX does not sign webhooks, so authenticity is enforced with a shared
-    // token in the registered URL (?token=...). When OFFRAMP_WEBHOOK_SECRET is
-    // set, a request without a matching token is rejected.
+    // token in the registered URL (?token=...). The secret is required in
+    // production. Use OFFRAMP_WEBHOOK_SECRET=skip to explicitly disable the
+    // check in local development.
     const expectedToken = env().OFFRAMP_WEBHOOK_SECRET;
-    if (expectedToken) {
+    const isProduction = env().NODE_ENV === "production";
+
+    if (isProduction && !expectedToken) {
+      throw new AppError("INTERNAL", "OFFRAMP_WEBHOOK_SECRET is required in production");
+    }
+
+    if (expectedToken && expectedToken !== "skip") {
       const provided = req.nextUrl.searchParams.get("token") ?? "";
       if (!constantTimeEquals(provided, expectedToken)) {
         log.warn({ ip }, "Off-ramp webhook rejected: invalid token");
@@ -85,10 +92,17 @@ const TERMINAL_OFFRAMP_STATUSES: OffRampPayoutJobStatus[] = [
   OffRampPayoutJobStatus.CANCELLED,
 ];
 
-// Constant-time string comparison that does not leak length via early return.
+// Constant-time string comparison on fixed-length padded buffers.
 function constantTimeEquals(a: string, b: string): boolean {
   const aBuf = Buffer.from(a);
   const bBuf = Buffer.from(b);
-  if (aBuf.length !== bBuf.length) return false;
-  return timingSafeEqual(aBuf, bBuf);
+  const len = Math.max(aBuf.length, bBuf.length);
+  if (len === 0) {
+    return aBuf.length === bBuf.length;
+  }
+  const aPadded = Buffer.alloc(len, 0);
+  const bPadded = Buffer.alloc(len, 0);
+  aBuf.copy(aPadded);
+  bBuf.copy(bPadded);
+  return timingSafeEqual(aPadded, bPadded);
 }

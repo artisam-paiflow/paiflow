@@ -45,27 +45,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const splitterDevNode = pipeline?.find((n) => n.templateKind === "SPLITTER_DEV");
     const subscriptionDevNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION_DEV");
 
-    // Sync employee records to match the new recipient list, regardless of on-chain path.
-    const newAddresses = new Set(body.recipients.map((r) => r.address));
-    await db.employee.deleteMany({
-      where: { deploymentId: d.id, address: { notIn: [...newAddresses] } },
-    });
-    for (const r of body.recipients) {
-      await db.employee.upsert({
-        where: { deploymentId_address: { deploymentId: d.id, address: r.address } },
-        create: {
-          deploymentId: d.id,
-          address: r.address,
-          amountStroops: r.amount,
-          label: r.label,
-        },
-        update: {
-          amountStroops: r.amount,
-          label: r.label,
-        },
-      });
-    }
-
+    // Execute the on-chain mutation first. Only after it succeeds do we mirror
+    // the change into the Employee table. This prevents DB/chain divergence if
+    // the on-chain call fails.
     if (payrollNode?.contractAddress) {
       if (!d.sourceAccount) {
         throw new AppError("VALIDATION", "Deployment source account is not available");
@@ -76,6 +58,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         adminAddress: d.sourceAccount,
         recipients: body.recipients.map((r) => ({ address: r.address, amount: r.amount })),
       });
+
+      await syncEmployees(d.id, body.recipients);
 
       return NextResponse.json({
         data: {
@@ -113,11 +97,42 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
     }
 
+    await syncEmployees(d.id, body.recipients);
+
     return NextResponse.json({
       data: {
         txHash: result.txHash,
         contractAddress: splitterDevNode.contractAddress,
       },
     });
+  });
+}
+
+async function syncEmployees(
+  deploymentId: string,
+  recipients: Array<{ address: string; amount: string; label?: string }>,
+) {
+  const newAddresses = new Set(recipients.map((r) => r.address));
+
+  await db.$transaction(async (tx) => {
+    await tx.employee.deleteMany({
+      where: { deploymentId, address: { notIn: [...newAddresses] } },
+    });
+
+    for (const r of recipients) {
+      await tx.employee.upsert({
+        where: { deploymentId_address: { deploymentId, address: r.address } },
+        create: {
+          deploymentId,
+          address: r.address,
+          amountStroops: r.amount,
+          label: r.label,
+        },
+        update: {
+          amountStroops: r.amount,
+          label: r.label,
+        },
+      });
+    }
   });
 }
