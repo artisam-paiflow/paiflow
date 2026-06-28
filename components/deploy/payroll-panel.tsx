@@ -39,6 +39,8 @@ export default function PayrollPanel({
   const [allowanceAmount, setAllowanceAmount] = useState("");
   const [employer, setEmployer] = useState<string | null>(null);
   const [employerConfigured, setEmployerConfigured] = useState<boolean | null>(null);
+  const [amountPerPeriod, setAmountPerPeriod] = useState<bigint | null>(null);
+  const [allowanceCoversPeriod, setAllowanceCoversPeriod] = useState<boolean | null>(null);
   const [asset, setAsset] = useState<Asset | null>(null);
   const [isCancelled, setIsCancelled] = useState<boolean | null>(null);
   const [recipients, setRecipients] = useState<PayrollRecipient[]>([]);
@@ -65,6 +67,8 @@ export default function PayrollPanel({
             employer: string | null;
             asset: Asset;
             employerConfigured: boolean;
+            amountPerPeriod: string;
+            allowanceCoversPeriod: boolean;
           };
         };
         if (!cancelled) {
@@ -73,6 +77,8 @@ export default function PayrollPanel({
           setEmployer(json.data.employer);
           setEmployerConfigured(json.data.employerConfigured);
           setAsset(json.data.asset);
+          setAmountPerPeriod(BigInt(json.data.amountPerPeriod));
+          setAllowanceCoversPeriod(json.data.allowanceCoversPeriod);
         }
       })
       .catch((err) => {
@@ -253,6 +259,18 @@ export default function PayrollPanel({
             the payroll API before granting allowance.
           </div>
         )}
+
+        {employerConfigured !== false &&
+          allowanceCoversPeriod === false &&
+          amountPerPeriod !== null &&
+          amountPerPeriod > 0n &&
+          asset && (
+            <div className="rounded border border-amber-900 bg-amber-950/20 p-3 text-xs text-amber-300">
+              <strong>Allowance below one period.</strong> The current allowance is less than the
+              per-period payout of {formatStroops(amountPerPeriod.toString())} {assetLabel(asset)}.
+              Grant at least this much so the next charge can pull successfully.
+            </div>
+          )}
 
         {employer && (
           <div>

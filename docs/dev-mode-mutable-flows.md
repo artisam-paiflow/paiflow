@@ -84,8 +84,13 @@ Payroll today is a monolith bundling three concerns. They map onto dev nodes:
   `receive_and_forward(... step ...)`, which transfers to the next step's
   address within the same tx. Decomposed payroll must deploy as a chained
   pipeline so atomic pull→distribute is preserved.
-  - [ ] Confirm the factory pipeline chains `onSchedule_dev → splitter_dev` in a
-        single transaction.
+  - [x] **DONE.** The factory chains `subscription_dev → splitter_dev` in one
+        tx: `flowToPipeline` wires `nextStepNodeIds`
+        (`lib/flows/to-params.ts`, covered by `tests/unit/to-params.test.ts`
+        "decomposes a dev-mode payroll into SUBSCRIPTION_DEV → SPLITTER_DEV"),
+        and `subscription_dev`'s `execute_charge` pulls from the employer then
+        forwards to each next step via `receive_and_forward` in the same
+        transaction.
 
 ## 2.2 — Fiat conversion is an OFF-RAMP, not a swapper rewrite ⚠️
 
@@ -125,9 +130,12 @@ Reuses `OffRampPayoutJob` / `OffRampSenderProfile` / `EmployeeBankDetail`.
 **deliver value as fiat to a bank via PDAX** — used two ways. Standalone
 conversion is just a payer_dev with a single bank recipient.
 
-- [ ] **Decouple `OffRampPayoutJob` from payroll.** It currently includes
-      `employee` / `payrollPayout` / `payrollRun` (payroll-specific). To serve
-      payer/splitter it must reference a generic (deployment, recipient, amount).
+- [x] **DONE — `OffRampPayoutJob` decoupled from payroll.** It now carries a
+      generic `(source, deploymentId, sourceAddress, amountStroops, bank*)`
+      reference (`OffRampJobSource` defaults to `PAYROLL` for back-compat); the
+      payroll-specific `employeeId` / `payrollPayoutId` / `payrollRunId`
+      relations are now nullable, so payer/splitter cash-outs reuse the same job
+      (`prisma/schema.prisma`).
 
 ## Costs of going fiat (why dev-variant-only is correct)
 
@@ -230,5 +238,8 @@ modifying existing ones. Scope limited to the three nodes that benefit:
       `ContractTemplate(kind, network)` unique key) assumes a 1:1 kind→hash
       mapping. A boolean flag would force one kind to resolve to two hashes. - Add `SPLITTER_DEV`, `PAYER_DEV`, `SUBSCRIPTION_DEV` (or `_MUTABLE`). - Flow node `type` stays `"split"` / `"pay"` / `"subscription"` — UI,
       schema, validation shared. - A node/flow-level `mutable: true` marker selects the variant. - Deploy resolver: `mutable ? SPLITTER_DEV : SPLITTER`. - [x] **RESOLVED:** naming = `_DEV`. Marker is derived per-node from the
-      per-flow `devMode` flag (see Q2), not a manual per-node field. - [ ] Setter auth: payroll uses **admin** (deployer) for mutations +
-      **relayer** key for execution. Confirm same for split/pay/schedule.
+      per-flow `devMode` flag (see Q2), not a manual per-node field. - [x] **DONE.** Setter auth confirmed identical across all dev variants:
+      `subscription_dev`, `splitter_dev`, `payer_dev` and `cash_out_dev` gate
+      mutations behind `require_admin_or_relayer` (admin OR relayer), while
+      execution stays dual-auth (`charge` admin vs `charge_by_relayer`). The
+      relayer key can both fill values and trigger execution.

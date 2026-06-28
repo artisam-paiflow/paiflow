@@ -5,9 +5,11 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import {
   readPayrollEmployer,
   readPayrollAsset,
+  readPayrollRecipients,
   readTokenAllowance,
   readSubscriptionSubscriberNullable,
   readSubscriptionAsset,
+  readSubscriptionAmountPerPeriod,
 } from "@/lib/stellar/relayer";
 import { prepareTokenApproveInvocation } from "@/lib/stellar/invoke";
 import { assetContractId } from "@/lib/stellar/assets";
@@ -66,14 +68,18 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       symbol: "USDC",
     };
 
-    const [owner, asset] = isDev
+    const [owner, asset, amountPerPeriod] = isDev
       ? await Promise.all([
           readSubscriptionSubscriberNullable(payrollNode.contractAddress),
           readSubscriptionAsset(payrollNode.contractAddress),
+          readSubscriptionAmountPerPeriod(payrollNode.contractAddress),
         ])
       : await Promise.all([
           readPayrollEmployer(payrollNode.contractAddress),
           readPayrollAsset(payrollNode.contractAddress),
+          readPayrollRecipients(payrollNode.contractAddress).then((recipients) =>
+            recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n),
+          ),
         ]);
 
     // Sanity check: the on-chain asset should match the configured asset.
@@ -95,6 +101,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         employer: owner,
         asset: configuredAsset,
         allowance: allowance.toString(),
+        amountPerPeriod: amountPerPeriod.toString(),
+        // True when the granted allowance covers at least one full period's
+        // payout. Lets the UI flag "top up your allowance" after a salary raise.
+        allowanceCoversPeriod: amountPerPeriod > 0n && allowance >= amountPerPeriod,
         networkPassphrase: stellarPassphrase(),
         employerConfigured: owner !== null,
       },
@@ -123,15 +133,32 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     const isDev = payrollNode.templateKind === "SUBSCRIPTION_DEV";
 
-    const [owner, asset] = isDev
-      ? await Promise.all([
-          readSubscriptionSubscriberNullable(payrollNode.contractAddress),
-          readSubscriptionAsset(payrollNode.contractAddress),
-        ])
-      : await Promise.all([
-          readPayrollEmployer(payrollNode.contractAddress),
-          readPayrollAsset(payrollNode.contractAddress),
-        ]);
+    // Read the employer, asset and the live per-period amount straight from the
+    // contract. The deploy-time params snapshot goes stale once salaries are
+    // filled / changed via the API (dev payrolls deploy with a placeholder
+    // amount), so the suggested allowance must come from on-chain state.
+    let owner: string | null;
+    let asset: string;
+    let configuredAmount: string;
+    if (isDev) {
+      const [subscriber, devAsset, amountPerPeriod] = await Promise.all([
+        readSubscriptionSubscriberNullable(payrollNode.contractAddress),
+        readSubscriptionAsset(payrollNode.contractAddress),
+        readSubscriptionAmountPerPeriod(payrollNode.contractAddress),
+      ]);
+      owner = subscriber;
+      asset = devAsset;
+      configuredAmount = amountPerPeriod.toString();
+    } else {
+      const [employer, payrollAsset, recipients] = await Promise.all([
+        readPayrollEmployer(payrollNode.contractAddress),
+        readPayrollAsset(payrollNode.contractAddress),
+        readPayrollRecipients(payrollNode.contractAddress),
+      ]);
+      owner = employer;
+      asset = payrollAsset;
+      configuredAmount = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n).toString();
+    }
 
     if (!owner) {
       throw new AppError(
@@ -140,17 +167,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       );
     }
 
-    const paramsSnapshot = d.paramsSnapshot as Array<{
-      nodeId: string;
-      templateKind: string;
-      params: { kind: string; amountPerPeriodStroops?: string };
-    }> | null;
-    const expectedKind = isDev ? "subscription_dev_trigger" : "payroll_trigger";
-    const expectedTemplate = isDev ? "SUBSCRIPTION_DEV" : "PAYROLL";
-    const payrollParams = paramsSnapshot?.find(
-      (n) => n.templateKind === expectedTemplate && n.params.kind === expectedKind,
-    );
-    const configuredAmount = payrollParams?.params?.amountPerPeriodStroops ?? "0";
     const requestedAmount = parseBodyAmount(await req.json()) ?? configuredAmount;
 
     const currentAllowance = await readTokenAllowance({
