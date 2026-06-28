@@ -6,6 +6,7 @@ import {
   ReactFlowProvider,
   Background,
   Controls,
+  MiniMap,
   applyNodeChanges,
   applyEdgeChanges,
   addEdge,
@@ -161,7 +162,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     initialGraph.edges.map((e) => edgeWithColors(e, initialGraph.nodes)),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
@@ -186,13 +187,13 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     const stored = localStorage.getItem("sidebarCollapsed");
     if (stored === "true") {
       setSidebarCollapsed(true);
+    } else if (stored === null && window.matchMedia("(max-width: 767px)").matches) {
+      // No explicit preference yet: default collapsed on narrow viewports so the
+      // canvas isn't squeezed to nothing by a fixed 260px sidebar.
+      setSidebarCollapsed(true);
     }
     setReady(true);
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem("sidebarCollapsed", String(sidebarCollapsed));
-  }, [sidebarCollapsed]);
 
   const graph: FlowGraph = useMemo(
     () => ({
@@ -486,7 +487,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           collapsed={sidebarCollapsed}
           devMode={devMode}
           onToggleCollapse={() => {
-            setSidebarCollapsed((v) => !v);
+            setSidebarCollapsed((v) => {
+              const next = !v;
+              localStorage.setItem("sidebarCollapsed", String(next));
+              return next;
+            });
             setHasAnimated(true);
           }}
         />
@@ -610,6 +615,15 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
             >
               <Background gap={16} size={1} color="#27272a" />
               <Controls position="top-left" className="!top-3 !left-3" />
+              <MiniMap
+                position="bottom-right"
+                pannable
+                zoomable
+                bgColor="#09090b"
+                maskColor="rgba(9, 9, 11, 0.6)"
+                nodeColor={(n) => nodeBorderColor(n.data?.node as FlowNode | undefined)}
+                className="!border !border-zinc-800"
+              />
             </ReactFlow>
           </div>
         </div>

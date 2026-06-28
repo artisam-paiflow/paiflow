@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function LoginForm({ from, error }: { from?: string; error?: string }) {
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function onSubmit(formData: FormData) {
     setSubmitting(true);
@@ -37,10 +39,22 @@ export default function LoginForm({ from, error }: { from?: string; error?: stri
       <Field
         label="Password"
         name="password"
-        type="password"
+        type={showPassword ? "text" : "password"}
         autoComplete="current-password"
         required
         minLength={1}
+        trailingAction={
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            className="text-on-surface-variant hover:text-on-surface absolute top-1/2 right-2 translate-y-[calc(-50%+3px)]"
+          >
+            <span className="material-symbols-outlined text-[16px]">
+              {showPassword ? "visibility" : "visibility_off"}
+            </span>
+          </button>
+        }
       />
 
       <button
@@ -67,6 +81,7 @@ function Field({
   maxLength,
   pattern,
   helper,
+  trailingAction,
 }: {
   label: string;
   name: string;
@@ -77,22 +92,29 @@ function Field({
   maxLength?: number;
   pattern?: string;
   helper?: string;
+  trailingAction?: React.ReactNode;
 }) {
   return (
     <label className="group grid gap-1.5">
       <span className="text-label-sm text-on-surface-variant group-focus-within:text-primary font-mono uppercase transition-colors">
         {label}
       </span>
-      <input
-        name={name}
-        type={type}
-        autoComplete={autoComplete}
-        required={required}
-        minLength={minLength}
-        maxLength={maxLength}
-        pattern={pattern}
-        className="border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline-variant focus:border-primary focus:ring-primary w-full rounded border px-3 py-2 font-mono text-[14px] focus:ring-1 focus:outline-none"
-      />
+      <div className="relative">
+        <input
+          name={name}
+          type={type}
+          autoComplete={autoComplete}
+          required={required}
+          minLength={minLength}
+          maxLength={maxLength}
+          pattern={pattern}
+          className={cn(
+            "border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline-variant focus:border-primary focus:ring-primary w-full rounded border px-3 py-2 font-mono text-[14px] focus:ring-1 focus:outline-none",
+            trailingAction && "pr-9",
+          )}
+        />
+        {trailingAction}
+      </div>
       {helper ? (
         <span className="text-label-sm text-on-surface-variant/70 font-mono">{helper}</span>
       ) : null}

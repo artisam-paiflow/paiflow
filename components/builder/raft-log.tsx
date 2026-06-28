@@ -528,7 +528,7 @@ export default function RaftLog({
       {/* Expanded slide-in panel */}
       <div
         id="ai-panel"
-        className={`fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-[360px] transform border-l border-zinc-800 bg-zinc-950 shadow-2xl transition-transform duration-300 ease-out ${
+        className={`fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-full transform border-l border-zinc-800 bg-zinc-950 shadow-2xl transition-transform duration-300 ease-out sm:w-[360px] ${
           collapsed ? "translate-x-full" : "translate-x-0"
         }`}
       >

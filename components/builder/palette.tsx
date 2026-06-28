@@ -261,8 +261,11 @@ export default function Palette({
           onClick={onToggleCollapse}
           className="text-on-surface-variant hover:bg-surface-container-high/50 hover:text-on-surface flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
           title="Expand sidebar"
+          aria-label="Expand sidebar"
         >
-          <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-[20px]">
+            chevron_right
+          </span>
         </button>
       </aside>
     );
@@ -277,8 +280,11 @@ export default function Palette({
         onClick={onToggleCollapse}
         className="text-on-surface-variant hover:bg-surface-container-high/50 hover:text-on-surface absolute top-3 right-2 flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
         title="Collapse sidebar"
+        aria-label="Collapse sidebar"
       >
-        <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+        <span aria-hidden="true" className="material-symbols-outlined text-[18px]">
+          chevron_left
+        </span>
       </button>
       <section aria-label="Pipeline architecture" className="mb-md">
         <div className="text-label-sm text-on-surface-variant font-mono">
@@ -292,7 +298,10 @@ export default function Palette({
                   {TEMPLATE_LABELS[kind]}
                 </span>
                 {i < pipeline.length - 1 && (
-                  <span className="material-symbols-outlined text-on-surface-variant text-[14px]">
+                  <span
+                    aria-hidden="true"
+                    className="material-symbols-outlined text-on-surface-variant text-[14px]"
+                  >
                     arrow_forward
                   </span>
                 )}
@@ -346,12 +355,16 @@ export default function Palette({
                       }`}
                     >
                       <span
+                        aria-hidden="true"
                         className={`material-symbols-outlined text-[16px] ${t.tone} opacity-90`}
                       >
                         {tpl.icon}
                       </span>
                       {tpl.label}
-                      <span className="material-symbols-outlined text-outline-variant group-hover:text-primary ml-auto text-[14px] transition-colors">
+                      <span
+                        aria-hidden="true"
+                        className="material-symbols-outlined text-outline-variant group-hover:text-primary ml-auto text-[14px] transition-colors"
+                      >
                         add
                       </span>
                     </button>
