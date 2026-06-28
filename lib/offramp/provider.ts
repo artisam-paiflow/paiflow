@@ -116,7 +116,7 @@ export function getOffRampProvider(): OffRampProvider {
 
 export function offRampAssetCode(asset?: Asset): string {
   if (asset) return resolveAssetCode(asset);
-  return env().OFFRAMP_ASSET_CODE ?? "USDCXLM";
+  return env().OFFRAMP_ASSET_CODE ?? "USDC";
 }
 
 export function offRampFiatCurrency(): string {

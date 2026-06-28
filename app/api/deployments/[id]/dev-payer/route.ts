@@ -14,17 +14,21 @@ const BodySchema = z
     nodeId: z.string().optional(),
     recipient: z
       .string()
-      .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address"),
-    mode: z.enum(["fixed", "percentage"]).default("fixed"),
+      .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address")
+      .optional(),
+    mode: z.enum(["fixed", "percentage"]).optional(),
     amountStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string").optional(),
     percentage: z.number().min(0).max(100).optional(),
   })
   .refine(
     (b) =>
       b.mode === "percentage"
-        ? b.percentage !== undefined && b.percentage > 0
-        : !!b.amountStroops && b.amountStroops !== "0",
-    { message: "Provide amountStroops for fixed mode or percentage for percentage mode" },
+        ? b.percentage === undefined || b.percentage > 0
+        : b.amountStroops === undefined || b.amountStroops !== "0",
+    {
+      message:
+        "Provide a positive amountStroops for fixed mode or a positive percentage for percentage mode",
+    },
   );
 
 /**
@@ -44,8 +48,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const node = findPipelineNode(d.pipelineSnapshot, "PAYER_DEV", body.nodeId);
 
-    const percentageBps = body.mode === "percentage" ? Math.round((body.percentage ?? 0) * 100) : 0;
-    const amountStroops = body.mode === "percentage" ? "0" : (body.amountStroops ?? "0");
+    const percentageBps =
+      body.mode === "percentage" && body.percentage !== undefined
+        ? Math.round(body.percentage * 100)
+        : undefined;
+    const amountStroops =
+      body.mode === "fixed" && body.amountStroops !== undefined
+        ? body.amountStroops
+        : body.mode === "percentage"
+          ? "0"
+          : undefined;
 
     const result = await updatePaymentByRelayer(node.contractAddress, {
       recipient: body.recipient,

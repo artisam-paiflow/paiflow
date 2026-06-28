@@ -10,13 +10,14 @@ export type PipelineNodeSnapshot = {
 
 /**
  * Map a Pinkraft asset to the PDAX Institution API quote currency.
- * PDAX UAT supports XLM and USDCXLM for the Stellar network.
+ * Production PDAX wallets use USDC; the hackathon UAT environment used
+ * USDCXLM. Override per environment with OFFRAMP_ASSET_CODE.
  */
 export function offRampAssetCode(asset: Asset): string {
   if (asset.kind === "native") return "XLM";
-  if (asset.kind === "known" && asset.symbol === "USDC") return "USDCXLM";
+  if (asset.kind === "known" && asset.symbol === "USDC") return "USDC";
   // Custom / unknown assets fall back to the env default.
-  return env().OFFRAMP_ASSET_CODE ?? "USDCXLM";
+  return env().OFFRAMP_ASSET_CODE ?? "USDC";
 }
 
 /**

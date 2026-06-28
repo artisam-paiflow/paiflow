@@ -6,6 +6,10 @@ import type { FlowNode } from "@/lib/flows/schema";
 import { assetLabel, isAction } from "@/lib/flows/schema";
 import { formatAmount } from "@/lib/utils";
 
+function isApiFillAddress(addr: string): boolean {
+  return addr === "PENDING:__api__";
+}
+
 type ActionNodeData = {
   node: FlowNode;
   label: string;
@@ -26,7 +30,14 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
     icon = "payments";
     title = "Pay";
     const label = assetLabel(n.config.asset);
-    if (n.config.fullAmount) {
+    const recipientDeferred = isApiFillAddress(n.config.recipient);
+    if (recipientDeferred && n.config.fillValueViaApi) {
+      detail = `${label} · payment via API`;
+    } else if (recipientDeferred) {
+      detail = `${label} · recipient via API`;
+    } else if (n.config.fillValueViaApi) {
+      detail = `${label} · value via API`;
+    } else if (n.config.fullAmount) {
       detail = `Full amount ${label}`;
     } else if (n.config.mode === "percentage" && n.config.percentage !== undefined) {
       detail = `${n.config.percentage}% ${label}`;
@@ -53,7 +64,11 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
   } else {
     icon = "call_split";
     title = "Split";
-    detail = `${n.config.recipients.length} recipients`;
+    if (isMutable && n.config.recipients.length === 0) {
+      detail = "recipients via API";
+    } else {
+      detail = `${n.config.recipients.length} recipient${n.config.recipients.length === 1 ? "" : "s"}`;
+    }
   }
 
   const canHaveChildren = n.type !== "email_notify" && n.type !== "cash_out";
@@ -82,16 +97,16 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
         </span>
         {isMutable ? (
           <span
-            className="text-label-sm inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[9px] tracking-[0.08em]"
+            className="inline-flex items-center gap-0.5 rounded border px-1 py-px font-mono text-[7px] leading-none font-medium tracking-wider"
             style={{
-              borderColor: "rgba(255, 186, 32, 0.4)",
-              backgroundColor: "rgba(255, 186, 32, 0.12)",
+              borderColor: "rgba(255, 186, 32, 0.35)",
+              backgroundColor: "rgba(255, 186, 32, 0.10)",
               color: "#ffba20",
             }}
             title="Deploys as a mutable _DEV contract — fill recipient/amount via the API after deploy"
           >
-            <span className="material-symbols-outlined text-[11px]">tune</span>
-            MUTABLE
+            <span className="material-symbols-outlined text-[9px]">tune</span>
+            DEV
           </span>
         ) : (
           <span className="status-dot-live h-1.5 w-1.5" />

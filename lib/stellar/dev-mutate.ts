@@ -151,16 +151,80 @@ function relayerAddressOrThrow(): string {
 
 // ── PAYER_DEV ───────────────────────────────────────────────────────────────
 
-export function updatePaymentByRelayer(
+async function readPayerDevPayment(contractAddress: string): Promise<{
+  recipient?: string;
+  amountStroops: string;
+  percentageBps: number;
+}> {
+  const server = sorobanRpc();
+  const source = relayerAddressOrThrow();
+  let sourceAcct;
+  try {
+    sourceAcct = await server.getAccount(source);
+  } catch {
+    throw new AppError("INSUFFICIENT_FUNDS", `Relayer account ${source} is not funded`);
+  }
+
+  const buildTx = (functionName: string) =>
+    new TransactionBuilder(sourceAcct, {
+      fee: BASE_FEE,
+      networkPassphrase: stellarPassphrase(),
+    })
+      .addOperation(
+        Operation.invokeContractFunction({
+          contract: contractAddress,
+          function: functionName,
+          args: [],
+        }),
+      )
+      .setTimeout(30)
+      .build();
+
+  const read = async (functionName: string) => {
+    const sim = await server.simulateTransaction(buildTx(functionName));
+    if (rpc.Api.isSimulationError(sim) || !sim.result?.retval) {
+      throw new AppError(
+        "UPSTREAM_RPC",
+        `${functionName}() simulation failed for ${contractAddress}`,
+      );
+    }
+    return sim.result.retval;
+  };
+
+  const recipientVal = await read("recipient");
+  const amountVal = await read("configured_amount");
+  const bpsVal = await read("percentage_bps");
+
+  const recipientNative = scValToNative(recipientVal) as string | null | undefined;
+  const amountNative = scValToNative(amountVal) as bigint | number | string;
+  const bpsNative = scValToNative(bpsVal) as number;
+
+  return {
+    recipient: recipientNative ? String(recipientNative) : undefined,
+    amountStroops: String(amountNative),
+    percentageBps: bpsNative,
+  };
+}
+
+export async function updatePaymentByRelayer(
   contractAddress: string,
-  opts: { recipient: string; amountStroops: string; percentageBps: number },
+  opts: { recipient?: string; amountStroops?: string; percentageBps?: number },
 ): Promise<DevMutateResult> {
+  const current = await readPayerDevPayment(contractAddress);
+  const recipient = opts.recipient ?? current.recipient;
+  const amountStroops = opts.amountStroops ?? current.amountStroops;
+  const percentageBps = opts.percentageBps ?? current.percentageBps;
+
+  if (!recipient) {
+    throw new AppError("VALIDATION", "Recipient is required for update_payment");
+  }
+
   const caller = relayerAddressOrThrow();
   return invokeByRelayer(contractAddress, "update_payment", [
     addr(caller),
-    addr(opts.recipient),
-    i128(opts.amountStroops),
-    u32(opts.percentageBps),
+    addr(recipient),
+    i128(amountStroops),
+    u32(percentageBps),
   ]);
 }
 

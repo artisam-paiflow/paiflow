@@ -311,7 +311,7 @@ export function pipelineNodeConstructorArgs(
         addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
         addr(assetContractId(params.asset)),
         optAddr(params.recipient),
-        i128(params.amountStroops),
+        i128(params.amountStroops ?? "0"),
         u32(params.percentageBps ?? 0),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
         addr(parentAddress),

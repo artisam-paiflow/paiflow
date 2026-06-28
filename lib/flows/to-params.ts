@@ -188,8 +188,8 @@ export type PayerDevNodeParams = {
   kind: "payer_dev";
   asset: Asset;
   recipient?: string; // undefined => blank, configure via API
-  amountStroops: string;
-  mode: "fixed" | "percentage";
+  amountStroops?: string; // undefined => blank, configure via API
+  mode?: "fixed" | "percentage"; // undefined => blank, configure via API
   percentageBps?: number;
   relayer?: string;
   nextStepNodeIds: string[];
@@ -866,6 +866,9 @@ function contractActionToPipelineNode(
             nextStepNodeIds,
           },
         };
+        if (action.config.fillValueViaApi) {
+          return devBase;
+        }
         if (action.config.fullAmount) {
           return {
             ...devBase,

@@ -204,6 +204,34 @@ const PAYER_REGISTRY: EventRegistry = {
       return recipient ? { asset, recipient, amount } : { asset, amount };
     },
   },
+  payment_updated: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      if (!admin || value === null) return { admin };
+      let recipient: ScValNative | undefined;
+      let amount: ScValNative | undefined;
+      let percentageBps: ScValNative | undefined;
+      if (Array.isArray(value)) {
+        const v = value as ScValNative[];
+        [recipient, amount, percentageBps] = v;
+      } else if (typeof value === "object") {
+        const v = value as Record<string, ScValNative>;
+        recipient = v[0];
+        amount = v[1];
+        percentageBps = v[2];
+      }
+      return { admin, recipient, amount, percentageBps };
+    },
+  },
+  set_asset: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      const asset = value ?? null;
+      return admin ? { admin, asset } : null;
+    },
+  },
 };
 
 const SWAPPER_REGISTRY: EventRegistry = {
@@ -350,6 +378,44 @@ const PAYROLL_REGISTRY: EventRegistry = {
       const admin = topics[1] ?? null;
       const relayer = value ?? null;
       return admin && relayer !== null ? { admin, relayer } : null;
+    },
+  },
+  subscriber_updated: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      const subscriber = value ?? null;
+      return admin ? { admin, subscriber } : null;
+    },
+  },
+  amount_updated: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      const amount = value ?? null;
+      return admin ? { admin, amount } : null;
+    },
+  },
+  schedule_updated: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      if (!admin || value === null) return null;
+      let startTime: ScValNative | undefined;
+      let intervalSeconds: ScValNative | undefined;
+      let endTime: ScValNative | undefined;
+      if (Array.isArray(value)) {
+        const v = value as ScValNative[];
+        [startTime, intervalSeconds, endTime] = v;
+      } else if (typeof value === "object") {
+        const v = value as Record<string, ScValNative>;
+        startTime = v[0];
+        intervalSeconds = v[1];
+        endTime = v[2];
+      }
+      return startTime !== undefined && intervalSeconds !== undefined && endTime !== undefined
+        ? { admin, startTime, intervalSeconds, endTime }
+        : { admin };
     },
   },
 };

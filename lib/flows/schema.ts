@@ -152,17 +152,18 @@ export const PayAction = z.object({
     .object({
       recipient: stellarAccount,
       asset: AssetSchema,
-      mode: z.enum(["fixed", "percentage"]).default("fixed"),
+      mode: z.enum(["fixed", "percentage"]).optional(),
       amountStroops: z
         .string()
         .regex(/^\d+$/, "Amount must be a positive integer string")
         .optional(),
       percentage: z.number().min(0).max(100).optional(),
       fullAmount: z.boolean().default(false),
+      fillValueViaApi: z.boolean().optional(),
     })
     .refine(
       (c) => {
-        if (c.fullAmount) return true;
+        if (c.fullAmount || c.fillValueViaApi) return true;
         if (c.mode === "fixed") return !!c.amountStroops && c.amountStroops !== "0";
         if (c.mode === "percentage") return c.percentage !== undefined && c.percentage > 0;
         return false;
@@ -236,6 +237,25 @@ export function migrateFlowGraph(raw: unknown): unknown {
             config: {
               ...node.config,
               fillScheduleViaApi: false,
+            },
+          };
+        }
+      }
+      if (node.type === "pay" && node.config && typeof node.config === "object") {
+        const cfg = node.config as { fillValueViaApi?: unknown; mode?: unknown };
+        const updates: Record<string, unknown> = {};
+        if (cfg.fillValueViaApi === undefined) {
+          updates.fillValueViaApi = false;
+        }
+        if (cfg.mode === undefined) {
+          updates.mode = "fixed";
+        }
+        if (Object.keys(updates).length > 0) {
+          return {
+            ...node,
+            config: {
+              ...node.config,
+              ...updates,
             },
           };
         }

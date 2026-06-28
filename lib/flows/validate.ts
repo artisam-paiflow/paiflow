@@ -208,7 +208,15 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       if (isPendingAddress(a.config.recipient)) {
         pendingLabels.add(a.config.recipient.slice(8) || "unnamed");
       }
-      if (!a.config.fullAmount) {
+      if (a.config.fillValueViaApi && graph.devMode !== true) {
+        errors.push({
+          path: `nodes.${a.id}.config.fillValueViaApi`,
+          message: "Fill value via API is only allowed in dev mode",
+          friendlyMessage: "Turn on dev mode to fill the payment value via API after deploy.",
+        });
+      }
+      const valueDeferred = graph.devMode === true && a.config.fillValueViaApi;
+      if (!valueDeferred && !a.config.fullAmount) {
         if (
           a.config.mode === "fixed" &&
           (!a.config.amountStroops || a.config.amountStroops === "0")

@@ -42,9 +42,9 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
   } else if (n.type === "payroll") {
     icon = "group";
     title = "Payroll";
-    const intervalAmount = n.config.intervalAmount ?? 1;
-    const intervalUnit = n.config.intervalUnit ?? "week";
-    detail = `${assetLabel(n.config.asset)} / ${intervalAmount} ${intervalUnit}`;
+    detail = n.config.fillScheduleViaApi
+      ? `${assetLabel(n.config.asset)} · schedule via API`
+      : `${assetLabel(n.config.asset)} / ${n.config.intervalAmount ?? 1} ${n.config.intervalUnit ?? "week"}`;
   } else if (n.type === "oracle") {
     icon = "online_prediction";
     title = "Oracle";
@@ -80,16 +80,16 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
         </span>
         {isMutable ? (
           <span
-            className="text-label-sm inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[9px] tracking-[0.08em]"
+            className="inline-flex items-center gap-0.5 rounded border px-1 py-px font-mono text-[7px] leading-none font-medium tracking-wider"
             style={{
-              borderColor: "rgba(255, 186, 32, 0.4)",
-              backgroundColor: "rgba(255, 186, 32, 0.12)",
+              borderColor: "rgba(255, 186, 32, 0.35)",
+              backgroundColor: "rgba(255, 186, 32, 0.10)",
               color: "#ffba20",
             }}
             title="Deploys as a mutable _DEV contract — fill subscriber/amount/schedule via the API after deploy"
           >
-            <span className="material-symbols-outlined text-[11px]">tune</span>
-            MUTABLE
+            <span className="material-symbols-outlined text-[9px]">tune</span>
+            DEV
           </span>
         ) : (
           <span className="status-dot-deploy h-1.5 w-1.5" />

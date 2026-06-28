@@ -81,10 +81,14 @@ export function flowToEnglish(graph: FlowGraph): string {
 
   let actionText: string;
   if (action.type === "pay") {
-    const who = isPendingAddress(action.config.recipient)
-      ? "(needs address)"
-      : shortAddr(action.config.recipient);
-    if (action.config.fullAmount) {
+    const who = isApiFillAddress(action.config.recipient)
+      ? "(recipient set via API)"
+      : isPendingAddress(action.config.recipient)
+        ? "(needs address)"
+        : shortAddr(action.config.recipient);
+    if (action.config.fillValueViaApi) {
+      actionText = `pay ${assetLabel(action.config.asset)} to ${who} (value set via API)`;
+    } else if (action.config.fullAmount) {
       actionText = `pay full incoming ${assetLabel(action.config.asset)} to ${who}`;
     } else if (action.config.mode === "percentage") {
       actionText = `pay ${action.config.percentage}% of incoming ${assetLabel(

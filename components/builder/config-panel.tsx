@@ -376,6 +376,13 @@ export default function ConfigPanel({
 
       {node.type === "pay" && (
         <>
+          <AssetField
+            asset={node.config.asset}
+            onChange={(asset) =>
+              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
+            }
+          />
+
           <ApiFillField
             label="Recipient (G… or PENDING:)"
             devMode={devMode}
@@ -400,114 +407,127 @@ export default function ConfigPanel({
             />
           </ApiFillField>
 
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={node.config.fullAmount}
-              onChange={(e) => {
-                const fullAmount = e.target.checked;
-                onChange({
-                  ...node,
-                  config: {
-                    ...node.config,
-                    fullAmount,
-                    mode: fullAmount ? "percentage" : (node.config.mode ?? "fixed"),
-                    percentage: fullAmount ? 100 : node.config.percentage,
-                  },
-                } as FlowNode);
-              }}
-            />
-            <span className="text-xs text-zinc-400">Send full amount</span>
-          </label>
+          {devMode && (
+            <label className="flex cursor-pointer items-center justify-between rounded border border-amber-800/40 bg-amber-950/10 px-3 py-2">
+              <span className="text-xs text-amber-300">
+                Fill payment value via API after deploy
+              </span>
+              <input
+                type="checkbox"
+                checked={node.config.fillValueViaApi}
+                onChange={(e) =>
+                  onChange({
+                    ...node,
+                    config: { ...node.config, fillValueViaApi: e.target.checked },
+                  } as FlowNode)
+                }
+              />
+            </label>
+          )}
 
-          {!node.config.fullAmount && (
+          {node.config.fillValueViaApi ? (
+            <div className="flex items-center gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 font-mono text-[12px] text-amber-300">
+              <span className="material-symbols-outlined text-[14px]">tune</span>
+              Payment value set via the API after deploy
+            </div>
+          ) : (
             <>
-              <Field label="Mode">
-                <select
-                  className="input"
-                  value={node.config.mode}
-                  onChange={(e) =>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={node.config.fullAmount}
+                  onChange={(e) => {
+                    const fullAmount = e.target.checked;
                     onChange({
                       ...node,
                       config: {
                         ...node.config,
-                        mode: e.target.value as "fixed" | "percentage",
+                        fullAmount,
+                        mode: fullAmount ? "percentage" : (node.config.mode ?? "fixed"),
+                        percentage: fullAmount ? 100 : node.config.percentage,
                       },
-                    } as FlowNode)
-                  }
-                >
-                  <option value="fixed">Fixed amount</option>
-                  <option value="percentage">Percentage</option>
-                </select>
-              </Field>
+                    } as FlowNode);
+                  }}
+                />
+                <span className="text-xs text-zinc-400">Send full amount</span>
+              </label>
 
-              {node.config.mode === "fixed" && (
-                <Field label={`Amount (${assetLabel(node.config.asset)})`}>
-                  <input
-                    className="input"
-                    value={
-                      node.config.amountStroops ? formatStroops(node.config.amountStroops) : ""
-                    }
-                    onChange={(e) =>
-                      onChange({
-                        ...node,
-                        config: {
-                          ...node.config,
-                          amountStroops: tokenAmountToStroops(e.target.value),
-                        },
-                      })
-                    }
-                  />
-                  {node.config.amountStroops && (
-                    <div className="mt-0.5 text-[11px] text-zinc-500">
-                      = {stroopsToDisplay(node.config.amountStroops, node.config.asset)}
-                    </div>
-                  )}
-                  <ApiFillHint
-                    show={
-                      devMode && (!node.config.amountStroops || node.config.amountStroops === "0")
-                    }
-                  >
-                    Leave empty to set the amount via the API after deploy.
-                  </ApiFillHint>
-                </Field>
-              )}
-
-              {node.config.mode === "percentage" && (
-                <Field label="Percentage">
-                  <div className="relative">
-                    <input
-                      className="input pr-6"
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={node.config.percentage ?? ""}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
+              {!node.config.fullAmount && (
+                <>
+                  <Field label="Mode">
+                    <select
+                      className="input"
+                      value={node.config.mode}
+                      onChange={(e) =>
                         onChange({
                           ...node,
                           config: {
                             ...node.config,
-                            percentage: isNaN(v) ? 0 : Math.min(100, Math.max(0, v)),
+                            mode: e.target.value as "fixed" | "percentage",
                           },
-                        });
-                      }}
-                    />
-                    <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[11px] text-zinc-500">
-                      %
-                    </span>
-                  </div>
-                </Field>
+                        } as FlowNode)
+                      }
+                    >
+                      <option value="fixed">Fixed amount</option>
+                      <option value="percentage">Percentage</option>
+                    </select>
+                  </Field>
+
+                  {node.config.mode === "fixed" && (
+                    <Field label={`Amount (${assetLabel(node.config.asset)})`}>
+                      <input
+                        className="input"
+                        value={
+                          node.config.amountStroops ? formatStroops(node.config.amountStroops) : ""
+                        }
+                        onChange={(e) =>
+                          onChange({
+                            ...node,
+                            config: {
+                              ...node.config,
+                              amountStroops: tokenAmountToStroops(e.target.value),
+                            },
+                          })
+                        }
+                      />
+                      {node.config.amountStroops && (
+                        <div className="mt-0.5 text-[11px] text-zinc-500">
+                          = {stroopsToDisplay(node.config.amountStroops, node.config.asset)}
+                        </div>
+                      )}
+                    </Field>
+                  )}
+
+                  {node.config.mode === "percentage" && (
+                    <Field label="Percentage">
+                      <div className="relative">
+                        <input
+                          className="input pr-6"
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={node.config.percentage ?? ""}
+                          onChange={(e) => {
+                            const v = Number(e.target.value);
+                            onChange({
+                              ...node,
+                              config: {
+                                ...node.config,
+                                percentage: isNaN(v) ? 0 : Math.min(100, Math.max(0, v)),
+                              },
+                            });
+                          }}
+                        />
+                        <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[11px] text-zinc-500">
+                          %
+                        </span>
+                      </div>
+                    </Field>
+                  )}
+                </>
               )}
             </>
           )}
-
-          <AssetField
-            asset={node.config.asset}
-            onChange={(asset) =>
-              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
-            }
-          />
         </>
       )}
 
