@@ -8,13 +8,11 @@ type Credential = {
   username: string;
   accessToken: string;
   idToken?: string | null;
-  refreshToken?: string | null;
   apiUrl?: string | null;
   expiresAt?: string | null;
   updatedAt?: string;
   hasAccessToken?: boolean;
   hasIdToken?: boolean;
-  hasRefreshToken?: boolean;
 };
 
 const EMPTY: Credential = {
@@ -22,7 +20,6 @@ const EMPTY: Credential = {
   username: "",
   accessToken: "",
   idToken: "",
-  refreshToken: "",
   apiUrl: "",
   expiresAt: "",
 };
@@ -38,9 +35,9 @@ export default function OffRampCredentialForm() {
         if (!res.ok) throw new Error("Failed to load credentials");
         const json = (await res.json()) as { data: { credential: Credential | null } };
         if (json.data.credential) {
-          const { accessToken, idToken, refreshToken, ...safe } = json.data.credential;
+          const { accessToken, idToken, ...safe } = json.data.credential;
           setCred({ ...EMPTY, ...safe });
-          if (safe.hasAccessToken || safe.hasIdToken || safe.hasRefreshToken) {
+          if (safe.hasAccessToken || safe.hasIdToken) {
             toast.info("Credentials are saved. Re-enter tokens only if you want to update them.");
           }
         }
@@ -71,7 +68,6 @@ export default function OffRampCredentialForm() {
           username: cred.username,
           accessToken: cred.accessToken,
           idToken: cred.idToken || null,
-          refreshToken: cred.refreshToken || null,
           apiUrl: cred.apiUrl || null,
           expiresAt: cred.expiresAt || null,
         }),
@@ -117,12 +113,6 @@ export default function OffRampCredentialForm() {
         label="ID token"
         value={cred.idToken ?? ""}
         onChange={(v) => update({ idToken: v })}
-        type="password"
-      />
-      <Field
-        label="Refresh token"
-        value={cred.refreshToken ?? ""}
-        onChange={(v) => update({ refreshToken: v })}
         type="password"
       />
       <Field

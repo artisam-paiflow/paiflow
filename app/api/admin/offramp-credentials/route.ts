@@ -10,7 +10,6 @@ const CredentialSchema = z.object({
   username: z.string().min(1).max(256),
   accessToken: z.string().optional().nullable(),
   idToken: z.string().optional().nullable(),
-  refreshToken: z.string().optional().nullable(),
   apiUrl: z.string().url().optional().nullable(),
   expiresAt: z.string().datetime().optional().nullable(),
 });
@@ -37,7 +36,6 @@ export async function GET(_req: NextRequest) {
           updatedAt: credential.updatedAt.toISOString(),
           hasAccessToken: Boolean(credential.accessToken),
           hasIdToken: Boolean(credential.idToken),
-          hasRefreshToken: Boolean(credential.refreshToken),
         },
       },
     });
@@ -56,7 +54,6 @@ export async function POST(req: NextRequest) {
 
     const accessToken = body.accessToken?.trim() || existing?.accessToken;
     const idToken = body.idToken?.trim() || existing?.idToken;
-    const refreshToken = body.refreshToken?.trim() || existing?.refreshToken;
     if (!accessToken) {
       throw new AppError("VALIDATION", "Access token is required");
     }
@@ -65,7 +62,6 @@ export async function POST(req: NextRequest) {
       username: body.username,
       accessToken,
       idToken,
-      refreshToken,
       apiUrl: body.apiUrl,
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
     });
