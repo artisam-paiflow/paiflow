@@ -290,6 +290,7 @@ export async function POST(req: NextRequest) {
       }
 
       let contractAddress = "";
+      let payrollRunId: string | null = null;
       try {
         if (isDev) {
           contractAddress = subscriptionDevNode!.contractAddress;
@@ -383,8 +384,11 @@ export async function POST(req: NextRequest) {
             totalStroops: totalAmount.toString(),
           },
         });
+        payrollRunId = payrollRun.id;
 
         let chargedCount = 0;
+        const chargeTxHashes: string[] = [];
+
         if (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM) {
           for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
             const submit = await withRelayerLock(async () => {
@@ -394,6 +398,7 @@ export async function POST(req: NextRequest) {
 
             if (submit.status === "SUCCESS") {
               chargedCount++;
+              chargeTxHashes.push(submit.txHash);
 
               for (const r of recipients) {
                 const employee = await db.employee.upsert({
@@ -430,6 +435,13 @@ export async function POST(req: NextRequest) {
           }
         } else {
           if (!d.chargeRelayerUrl || !d.chargeRelayerAddress) {
+            await db.payrollRun.update({
+              where: { id: payrollRun.id },
+              data: {
+                status: PayrollRunStatus.FAILED,
+                lastError: "USER relayer mode missing url or address",
+              },
+            });
             results.push({
               deploymentId: d.id,
               contractAddress,
@@ -475,12 +487,17 @@ export async function POST(req: NextRequest) {
               errorMessage?: string;
             };
 
+            let chargeTxHash: string | undefined;
             if (json.status === "SUCCESS" && json.txHash) {
               chargedCount++;
+              chargeTxHashes.push(json.txHash);
+              chargeTxHash = json.txHash;
             } else if (json.status === "PENDING" && json.signedXdr) {
               const submit = await submitPayrollChargeByRelayerTx(json.signedXdr);
               if (submit.status === "SUCCESS") {
                 chargedCount++;
+                chargeTxHashes.push(submit.txHash);
+                chargeTxHash = submit.txHash;
               } else {
                 throw new Error(submit.errorMessage ?? "User relayer submission failed");
               }
@@ -488,43 +505,86 @@ export async function POST(req: NextRequest) {
               throw new Error(json.errorMessage ?? "User relayer did not return success");
             }
 
+            if (chargeTxHash) {
+              for (const r of recipients) {
+                const employee = await db.employee.upsert({
+                  where: {
+                    deploymentId_address: {
+                      deploymentId: d.id,
+                      address: r.address,
+                    },
+                  },
+                  create: {
+                    deploymentId: d.id,
+                    address: r.address,
+                    amountStroops: r.amount,
+                  },
+                  update: {
+                    amountStroops: r.amount,
+                  },
+                });
+                await db.payrollPayout.create({
+                  data: {
+                    payrollRunId: payrollRun.id,
+                    employeeId: employee.id,
+                    amountStroops: r.amount,
+                    txHash: chargeTxHash,
+                  },
+                });
+              }
+            }
+
             const next = await readPayrollNextChargeAt(contractAddress);
             if (new Date(Number(next) * 1000) > new Date()) break;
           }
         }
 
-        const next = await readPayrollNextChargeAt(contractAddress);
-        await db.deployment.update({
-          where: { id: d.id },
-          data: {
-            lastChargedAt: new Date(),
-            nextChargeAt: new Date(Number(next) * 1000),
-          },
-        });
-
-        await db.payrollRun.update({
-          where: { id: payrollRun.id },
-          data: {
-            status: PayrollRunStatus.CHARGED,
-            chargedAt: new Date(),
-          },
-        });
-
-        if (d.offRampEnabled) {
-          try {
-            const created = await createOffRampJobsForPayrollRun(db, payrollRun.id);
-            log.info(
-              { deploymentId: d.id, payrollRunId: payrollRun.id, created: created.length },
-              "Created off-ramp jobs for payroll run",
-            );
-          } catch (offRampErr) {
-            const message = offRampErr instanceof Error ? offRampErr.message : String(offRampErr);
-            log.warn(
-              { deploymentId: d.id, payrollRunId: payrollRun.id, error: message },
-              "Failed to create off-ramp jobs for payroll run",
-            );
-          }
+        if (chargedCount === 0) {
+          await db.payrollRun.update({
+            where: { id: payrollRun.id },
+            data: { status: PayrollRunStatus.FAILED, lastError: "No charges executed" },
+          });
+          results.push({
+            deploymentId: d.id,
+            contractAddress,
+            status: "skipped",
+            error: "No charges executed",
+          });
+          continue;
         }
+
+        const next = await readPayrollNextChargeAt(contractAddress);
+        await db.$transaction(async (tx) => {
+          await tx.deployment.update({
+            where: { id: d.id },
+            data: {
+              lastChargedAt: new Date(),
+              nextChargeAt: new Date(Number(next) * 1000),
+            },
+          });
+
+          await tx.payrollRun.update({
+            where: { id: payrollRun.id },
+            data: {
+              status: PayrollRunStatus.CHARGED,
+              chargedAt: new Date(),
+              txHash: chargeTxHashes[0] ?? null,
+            },
+          });
+
+          if (d.offRampEnabled) {
+            await createOffRampJobsForPayrollRun(tx, payrollRun.id);
+          }
+        });
+
+        log.info(
+          {
+            deploymentId: d.id,
+            payrollRunId: payrollRun.id,
+            chargeTxHashes: chargeTxHashes.length,
+          },
+          "Created payroll run and off-ramp jobs",
+        );
 
         if (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM) {
           platformCharged += chargedCount;
@@ -534,6 +594,20 @@ export async function POST(req: NextRequest) {
         results.push({ deploymentId: d.id, contractAddress, status: "charged" });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+
+        if (payrollRunId) {
+          try {
+            await db.payrollRun.update({
+              where: { id: payrollRunId },
+              data: { status: PayrollRunStatus.FAILED, lastError: message },
+            });
+          } catch (updateErr) {
+            log.warn(
+              { deploymentId: d.id, payrollRunId, error: String(updateErr) },
+              "Failed to mark payroll run as FAILED",
+            );
+          }
+        }
 
         if (isExpectedSkipError(message)) {
           results.push({

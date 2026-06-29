@@ -1003,12 +1003,39 @@ async function pollEventsWithStartLedger(
             bankAccountName: bank.accountName,
             bankAccountNumber: bank.accountNumber,
             bankCode: bank.bankCode,
-          }).catch((err) => {
-            log.warn(
-              { err, deploymentId, eventId: created.id },
-              "cash_out event job creation failed",
-            );
-          });
+          })
+            .then((job) => {
+              log.info(
+                { deploymentId, eventId: created.id, jobId: job.id },
+                "cash_out off-ramp job created",
+              );
+            })
+            .catch(async (err) => {
+              const message = err instanceof Error ? err.message : String(err);
+              log.warn(
+                { err, deploymentId, eventId: created.id },
+                "cash_out event job creation failed; writing dead-letter record",
+              );
+              try {
+                await db.cashOutJobFailure.create({
+                  data: {
+                    deploymentId,
+                    contractEventId: created.id,
+                    sourceAddress: source,
+                    amountStroops: amount,
+                    bankAccountName: bank.accountName,
+                    bankAccountNumber: bank.accountNumber,
+                    bankCode: bank.bankCode,
+                    error: message,
+                  },
+                });
+              } catch (deadLetterErr) {
+                log.warn(
+                  { err: deadLetterErr, deploymentId, eventId: created.id },
+                  "cash_out dead-letter insert failed",
+                );
+              }
+            });
         } else {
           log.warn(
             {

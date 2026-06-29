@@ -11,6 +11,8 @@ export const TERMINAL_OFFRAMP_STATUSES: OffRampPayoutJobStatus[] = [
   OffRampPayoutJobStatus.CANCELLED,
 ];
 
+type PrismaLike = PrismaClient | Prisma.TransactionClient;
+
 /**
  * Return pending or running off-ramp jobs that are due, oldest first.
  *
@@ -71,7 +73,7 @@ export async function rescheduleOffRampJob(
  * has bank details configured. Skips employees without bank details and
  * employees that already have a job for this payout.
  */
-export async function createOffRampJobsForPayrollRun(prisma: PrismaClient, payrollRunId: string) {
+export async function createOffRampJobsForPayrollRun(prisma: PrismaLike, payrollRunId: string) {
   const run = await prisma.payrollRun.findUnique({
     where: { id: payrollRunId },
     include: {
