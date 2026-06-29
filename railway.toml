@@ -30,3 +30,13 @@ command = "curl -fsSL -H \"x-cron-secret: $CRON_SECRET\" https://$RAILWAY_PUBLIC
 name = "auto-charge-subscriptions"
 schedule = "* * * * *"
 command = "curl -fsSL -H \"x-cron-secret: $CRON_SECRET\" https://$RAILWAY_PUBLIC_DOMAIN/api/cron/auto-charge-subscriptions || true"
+
+[[deploy.cron]]
+name = "auto-charge-payroll"
+schedule = "* * * * *"
+command = "curl -fsSL -X POST -H \"x-cron-secret: $CRON_SECRET\" https://$RAILWAY_PUBLIC_DOMAIN/api/cron/auto-charge-payroll || true"
+
+[[deploy.cron]]
+name = "process-offramp-jobs"
+schedule = "*/2 * * * *"
+command = "curl -fsSL -X POST -H \"x-cron-secret: $CRON_SECRET\" https://$RAILWAY_PUBLIC_DOMAIN/api/cron/process-offramp-jobs || true"

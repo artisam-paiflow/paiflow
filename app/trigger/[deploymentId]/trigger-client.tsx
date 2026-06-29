@@ -13,6 +13,7 @@ export default function TriggerClient({
   network,
   graph,
   isDeposit,
+  assetLabel,
 }: {
   deploymentId: string;
   contractAddress: string;
@@ -20,6 +21,7 @@ export default function TriggerClient({
   network: "testnet" | "mainnet";
   graph: FlowGraph | null;
   isDeposit?: boolean;
+  assetLabel?: string;
 }) {
   const [amount, setAmount] = useState("");
   const [amountSet, setAmountSet] = useState(false);
@@ -76,7 +78,7 @@ export default function TriggerClient({
 
           <div>
             <div className="text-label-sm text-on-surface-variant font-mono uppercase">
-              Amount (XLM)
+              Amount {assetLabel ? `(${assetLabel})` : ""}
             </div>
             <input
               className="input mt-1 w-full"

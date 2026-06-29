@@ -27,6 +27,12 @@ enum TemplateKind {
   SWAPPER
   YIELD
   PAYER
+  PAYROLL
+  PAYER_DEV
+  SPLITTER_DEV
+  SUBSCRIPTION_DEV
+  CASH_OUT_DEV
+  CASH_OUT
 }
 
 enum DeploymentStatus {
@@ -53,6 +59,28 @@ enum ChargeRelayerMode {
   MANUAL
 }
 
+enum OffRampJobSource {
+  PAYROLL
+  CASH_OUT
+}
+
+enum OffRampPayoutJobStatus {
+  PENDING
+  RUNNING
+  QUOTED
+  INITIATED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum PayrollRunStatus {
+  PENDING
+  CHARGED
+  FAILED
+  CANCELLED
+}
+
 enum EventKind {
   RECEIVE
   PAYOUT
@@ -65,6 +93,8 @@ enum EventKind {
   FORWARD
   RETRIEVE
   ALLOWANCE
+  RECIPIENT_UPDATED
+  CASH_OUT
 }
 
 model User {
@@ -197,12 +227,18 @@ model Deployment {
   nextChargeAt          DateTime?
   lastChargedAt         DateTime?
   chargeEndAt           DateTime?
+  offRampEnabled        Boolean           @default(false)
 
   flow   Flow            @relation(fields: [flowId], references: [id], onDelete: Restrict)
   owner  User            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   events ContractEvent[]
   cursor EventCursor?
   streamerClaimJobs StreamerClaimJob[]
+  employees Employee[]
+  payrollRuns PayrollRun[]
+  offRampPayoutJobs OffRampPayoutJob[]
+  offRampSenderProfile OffRampSenderProfile?
+  cashOutJobFailures CashOutJobFailure[]
 
   @@index([ownerId, createdAt(sort: Desc)])
   @@index([status])
@@ -230,6 +266,153 @@ model StreamerClaimJob {
   @@index([contractAddress, status])
 }
 
+model Employee {
+  id            String   @id @default(uuid()) @db.Uuid
+  deploymentId  String   @db.Uuid
+  address       String
+  amountStroops String
+  label         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  payouts    PayrollPayout[]
+  bankDetail EmployeeBankDetail?
+  offRampJobs OffRampPayoutJob[]
+
+  @@unique([deploymentId, address])
+  @@index([deploymentId])
+}
+
+model EmployeeBankDetail {
+  id            String   @id @default(uuid()) @db.Uuid
+  employeeId    String   @db.Uuid @unique
+  accountName   String
+  accountNumber String
+  bankCode      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+model PayrollRun {
+  id           String           @id @default(uuid()) @db.Uuid
+  deploymentId String           @db.Uuid
+  runAt        DateTime
+  status       PayrollRunStatus @default(PENDING)
+  attemptCount Int              @default(0)
+  lastError    String?
+  txHash       String?          @unique
+  totalStroops String
+  chargedAt    DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  payouts    PayrollPayout[]
+  offRampJobs OffRampPayoutJob[]
+
+  @@index([deploymentId, runAt])
+  @@index([status, runAt])
+}
+
+model PayrollPayout {
+  id            String   @id @default(uuid()) @db.Uuid
+  payrollRunId  String   @db.Uuid
+  employeeId    String   @db.Uuid
+  amountStroops String
+  txHash        String?
+  createdAt     DateTime @default(now())
+
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  offRampJobs OffRampPayoutJob[]
+
+  @@index([payrollRunId])
+  @@index([employeeId])
+}
+
+model OffRampPayoutJob {
+  id                String                 @id @default(uuid()) @db.Uuid
+  source            OffRampJobSource       @default(PAYROLL)
+  deploymentId      String                 @db.Uuid
+  sourceAddress     String?
+  amountStroops     String
+  bankAccountName   String?
+  bankAccountNumber String?
+  bankCode          String?
+  payrollRunId      String?                @db.Uuid
+  employeeId        String?                @db.Uuid
+  payrollPayoutId   String?                @db.Uuid
+  status            OffRampPayoutJobStatus @default(PENDING)
+  providerRef       String?                // withdrawal identifier
+  tradeRef          String?                // order/trade reference
+  requestId         String?                // provider request id
+  providerQuote     Json?
+  runAt             DateTime
+  attemptCount      Int                    @default(0)
+  lastError         String?
+  completedAt       DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  deployment    Deployment     @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  payrollRun    PayrollRun?    @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee      Employee?      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  payrollPayout PayrollPayout? @relation(fields: [payrollPayoutId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@index([deploymentId])
+  @@index([payrollRunId])
+  @@index([employeeId])
+  @@index([providerRef])
+  @@index([tradeRef])
+  @@index([requestId])
+}
+
+model OffRampSenderProfile {
+  id                      String   @id @default(uuid()) @db.Uuid
+  deploymentId            String   @db.Uuid @unique
+  firstName               String
+  middleName              String   @default("n.a.")
+  lastName                String
+  countryOrigin           String
+  addressLineOne          String?
+  addressLineTwo          String?
+  city                    String?
+  province                String?
+  country                 String?
+  zipCode                 String?
+  phoneNumber             String?
+  nationality             String?
+  nationalIdentityNumber  String?
+  dob                     String?  // mm-dd-yyyy
+  placeOfBirth            String?
+  sourceOfFunds           String
+  email                   String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+
+  @@index([deploymentId])
+}
+
+model OffRampProviderCredential {
+  id          String   @id @default(uuid()) @db.Uuid
+  provider    String   @unique
+  username    String
+  accessToken String
+  idToken     String?
+  apiUrl      String?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model ContractEvent {
   id           String     @id @default(uuid()) @db.Uuid
   deploymentId String     @db.Uuid
@@ -243,6 +426,7 @@ model ContractEvent {
 
   deployment        Deployment           @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
   emailNotifications EmailNotification[]
+  cashOutJobFailure CashOutJobFailure?
 
   @@index([deploymentId, occurredAt(sort: Desc)])
 }
@@ -283,6 +467,26 @@ model AuditLog {
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([action, createdAt(sort: Desc)])
+}
+
+model CashOutJobFailure {
+  id                String    @id @default(uuid()) @db.Uuid
+  deploymentId      String    @db.Uuid
+  contractEventId   String    @db.Uuid @unique
+  sourceAddress     String
+  amountStroops     String
+  bankAccountName   String
+  bankAccountNumber String
+  bankCode          String
+  error             String?
+  retriedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  deployment    Deployment    @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  contractEvent ContractEvent @relation(fields: [contractEventId], references: [id], onDelete: Cascade)
+
+  @@index([deploymentId, createdAt])
 }
 
 model FileAsset {

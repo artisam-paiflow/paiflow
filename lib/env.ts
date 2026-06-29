@@ -75,6 +75,18 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_YIELD_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_PAYER_TESTNET: optionalWasmHash,
   STELLAR_WASM_HASH_PAYER_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_PAYROLL_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_PAYROLL_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_PAYER_DEV_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_PAYER_DEV_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SPLITTER_DEV_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SPLITTER_DEV_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SUBSCRIPTION_DEV_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_SUBSCRIPTION_DEV_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_CASH_OUT_DEV_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_CASH_OUT_DEV_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_CASH_OUT_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_CASH_OUT_MAINNET: optionalWasmHash,
   STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
   STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
 
@@ -85,7 +97,17 @@ const EnvSchema = z.object({
   STELLAR_RELAYER_SECRET_KEY: optionalString,
   STELLAR_RELAYER_ADDRESS: optionalString,
 
+  // ---- Off-ramp treasury ----
+  // Relayer-controlled holding address that cash_out nodes sink USDC to before
+  // the off-chain PDAX leg. When unset, the relayer address is used.
+  OFFRAMP_TREASURY_ADDRESS_TESTNET: optionalString,
+  OFFRAMP_TREASURY_ADDRESS_MAINNET: optionalString,
+
   CRON_SECRET: optionalString,
+  // Secret token for machine-to-machine calls to the /api/deployments/:id/dev-*
+  // endpoints. When present, callers can authenticate by sending the header
+  // x-dev-api-secret: <token> instead of a user session.
+  DEV_API_SECRET: optionalString,
   SENTRY_DSN: optionalString,
   HIBP_CHECK_ENABLED: boolish,
 
@@ -97,6 +119,23 @@ const EnvSchema = z.object({
   GROQ_MODEL: optionalString,
   GROQ_STT_MODEL_PRIMARY: optionalString,
   GROQ_STT_MODEL_FALLBACK: optionalString,
+
+  // ---- Off-ramp provider (e.g. PDAX) ----
+  OFFRAMP_PROVIDER: z.enum(["pdax", "mock"]).default("mock"),
+  OFFRAMP_API_URL: optionalString,
+  // PDAX uses Bearer tokens. ACCESS_TOKEN is the current access token;
+  // REFRESH_TOKEN + USERNAME are used to obtain a new access token when it
+  // expires. OFFRAMP_API_KEY and OFFRAMP_ID_TOKEN are legacy fields kept for
+  // backwards compatibility but are not used for Bearer auth.
+  OFFRAMP_API_KEY: optionalString,
+  OFFRAMP_ACCESS_TOKEN: optionalString,
+  OFFRAMP_REFRESH_TOKEN: optionalString,
+  OFFRAMP_USERNAME: optionalString,
+  OFFRAMP_ID_TOKEN: optionalString,
+  OFFRAMP_WEBHOOK_SECRET: optionalString,
+  OFFRAMP_ASSET_CODE: optionalString,
+  OFFRAMP_NETWORK: optionalString,
+  OFFRAMP_CHANNEL: optionalString,
 
   // ---- Email (Resend) ----
   // Optional in dev — when RESEND_API_KEY is unset, `lib/mail.ts` logs the
@@ -191,7 +230,13 @@ export function stellarWasmHash(
     | "MULTISIG"
     | "SWAPPER"
     | "YIELD"
-    | "PAYER",
+    | "PAYER"
+    | "PAYROLL"
+    | "PAYER_DEV"
+    | "SPLITTER_DEV"
+    | "SUBSCRIPTION_DEV"
+    | "CASH_OUT_DEV"
+    | "CASH_OUT",
 ): string | undefined {
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
@@ -212,4 +257,15 @@ export function stellarRelayerSecretKey(): string | undefined {
 
 export function stellarRelayerAddress(): string | undefined {
   return env().STELLAR_RELAYER_ADDRESS;
+}
+
+/**
+ * Address that cash_out nodes sink USDC to before the off-chain PDAX leg.
+ * Falls back to the relayer address when no dedicated treasury is configured.
+ */
+export function offRampTreasuryAddress(): string | undefined {
+  const e = env();
+  const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
+  const key = `OFFRAMP_TREASURY_ADDRESS_${suffix}` as keyof EnvShape;
+  return (e[key] as string | undefined) ?? e.STELLAR_RELAYER_ADDRESS;
 }
