@@ -99,11 +99,14 @@ export async function createOffRampJobsForPayrollRun(prisma: PrismaLike, payroll
     if (!bankDetail) continue;
     if (payout.offRampJobs.length > 0) continue;
 
+    const isFiat = payout.employee.payoutMode === "FIAT";
     const job = await prisma.offRampPayoutJob.create({
       data: {
-        source: OffRampJobSource.PAYROLL,
+        source: isFiat ? OffRampJobSource.CASH_OUT : OffRampJobSource.PAYROLL,
         deploymentId: run.deploymentId,
-        sourceAddress: run.deployment.contractAddress ?? undefined,
+        sourceAddress: isFiat
+          ? (payout.employee.cashOutContractAddress ?? undefined)
+          : (run.deployment.contractAddress ?? undefined),
         payrollRunId: run.id,
         employeeId: payout.employeeId,
         payrollPayoutId: payout.id,

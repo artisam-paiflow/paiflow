@@ -7,6 +7,7 @@ const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const ADDR_B = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 const RELAYER = "GDRELAYER7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5XYZ";
 const PENDING = "PENDING:alice";
+const CASHOUT_ADDR = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM";
 
 function parse(graph: unknown) {
   return FlowGraphSchema.parse(graph);
@@ -263,6 +264,66 @@ describe("dev-mode pipeline resolver", () => {
       expect(cashOut.params.bankCode).toBe("BASECPH");
     } else {
       throw new Error("expected cash_out");
+    }
+  });
+
+  it("maps payroll dev split fiat recipients to CASH_OUT_DEV terminals", () => {
+    const graph = parse({
+      devMode: true,
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_B,
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "100", payoutMode: "crypto" },
+              {
+                address: CASHOUT_ADDR,
+                mode: "fixed",
+                amountStroops: "200",
+                payoutMode: "fiat",
+              },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    const pipeline = flowToPipeline(graph, RELAYER, ADDR_B);
+
+    const sub = pipeline.find((n) => n.nodeId === "t")!;
+    expect(sub.templateKind).toBe(TemplateKind.SUBSCRIPTION_DEV);
+
+    const split = pipeline.find((n) => n.nodeId === "a")!;
+    expect(split.templateKind).toBe(TemplateKind.SPLITTER_DEV);
+    if (split.params.kind === "splitter_dev") {
+      expect(split.params.recipients).toHaveLength(2);
+      const crypto = split.params.recipients.find((r) => r.address === ADDR_A);
+      const fiat = split.params.recipients.find((r) => r.address !== ADDR_A);
+      expect(crypto?.isCashOut).toBe(false);
+      expect(fiat?.isCashOut).toBe(true);
+      expect(fiat?.amount).toBe("200");
+    } else {
+      throw new Error("expected splitter_dev");
+    }
+
+    const cashOut = pipeline.find((n) => n.templateKind === TemplateKind.CASH_OUT_DEV);
+    expect(cashOut).toBeDefined();
+    expect(cashOut!.nodeId).toMatch(/^a-cashout-/);
+    if (cashOut!.params.kind === "cash_out_dev") {
+      expect(cashOut!.params.parentNodeId).toBe(split.nodeId);
+      expect(cashOut!.params.treasury).toBe(ADDR_B);
     }
   });
 });

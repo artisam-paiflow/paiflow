@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { Address, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import { Address, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { constructorArgs, pipelineNodeConstructorArgs } from "@/lib/stellar/scval";
 
 vi.mock("@/lib/stellar/assets", () => ({
@@ -149,6 +149,39 @@ describe("pipelineNodeConstructorArgs", () => {
     expect(args[7]!).toEqual(new Address(ADDR2).toScVal());
     expect(args[8]!.switch()).toBe(xdr.ScValType.scvBool());
     expect(args[9]!.switch()).toBe(xdr.ScValType.scvBool());
+  });
+
+  it("encodes splitter_dev recipients with is_cash_out", () => {
+    const args = pipelineNodeConstructorArgs(
+      {
+        kind: "splitter_dev",
+        asset: { kind: "known", symbol: "USDC" },
+        recipients: [
+          { address: ADDR, bps: 0, amount: "100", isCashOut: false },
+          { address: ADDR2, bps: 0, amount: "200", isCashOut: true },
+        ],
+        minAmountStroops: "0",
+        nextStepNodeIds: [],
+      },
+      ADDR,
+      ADDR2,
+      {},
+    );
+
+    expect(args).toHaveLength(7);
+    const recipientsScVal = args[3]!;
+    expect(recipientsScVal.switch()).toBe(xdr.ScValType.scvVec());
+
+    const vec = recipientsScVal.value() as xdr.ScVal[];
+    expect(vec).toHaveLength(2);
+
+    const entries = vec.map((entry) => {
+      const map = entry.value() as xdr.ScMapEntry[];
+      return Object.fromEntries(map.map((e) => [scValToNative(e.key()), scValToNative(e.val())]));
+    });
+
+    expect(entries[0]).toMatchObject({ address: ADDR, amount: 100n, bps: 0, is_cash_out: false });
+    expect(entries[1]).toMatchObject({ address: ADDR2, amount: 200n, bps: 0, is_cash_out: true });
   });
 
   it("throws when parent is missing for a child node", () => {

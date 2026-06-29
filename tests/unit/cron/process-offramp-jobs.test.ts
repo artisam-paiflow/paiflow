@@ -33,6 +33,7 @@ const { mockDb, mockEnv, mockProvider, mockJobs, mockAssets, mockDevMutate } = v
 
   const mockDevMutate = {
     refundFromTreasury: vi.fn(),
+    getTreasuryBalance: vi.fn(),
   };
 
   return { mockDb, mockEnv, mockProvider, mockJobs, mockAssets, mockDevMutate };
@@ -184,6 +185,61 @@ describe("process-offramp-jobs", () => {
           attemptCount: { increment: 1 },
         }),
       }),
+    );
+  });
+
+  it("verifies treasury sink before trading for CASH_OUT jobs", async () => {
+    const job = {
+      ...baseJob,
+      source: OffRampJobSource.CASH_OUT,
+      sourceAddress: "CCashOut",
+    };
+    mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
+    mockAssets.resolveCashOutAsset.mockReturnValue({ kind: "known", symbol: "USDC" });
+    mockDevMutate.getTreasuryBalance.mockResolvedValue(BigInt(job.amountStroops));
+    mockProvider.quote.mockResolvedValue({
+      id: "quote-1",
+      amountIn: job.amountStroops,
+      amountOut: "580000",
+      fiatAmount: "58.00",
+      fiatCurrency: "PHP",
+      expiresAt: new Date(),
+    });
+    mockProvider.executeTrade.mockResolvedValue({
+      providerRef: "trade-1",
+      status: "PENDING",
+    });
+    mockProvider.initiatePayout.mockResolvedValue({
+      providerRef: "payout-1",
+      status: "COMPLETED",
+    });
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    expect(json.data.completed).toBe(1);
+    expect(mockDevMutate.getTreasuryBalance).toHaveBeenCalledWith("CASSET");
+    expect(mockProvider.quote).toHaveBeenCalled();
+  });
+
+  it("fails and refunds CASH_OUT jobs when treasury sink is missing", async () => {
+    const job = {
+      ...baseJob,
+      source: OffRampJobSource.CASH_OUT,
+      sourceAddress: "CCashOut",
+    };
+    mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
+    mockAssets.resolveCashOutAsset.mockReturnValue({ kind: "known", symbol: "USDC" });
+    mockDevMutate.getTreasuryBalance.mockResolvedValue(0n);
+    mockDevMutate.refundFromTreasury.mockResolvedValue({ status: "SUCCESS", txHash: "tx-1" });
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    expect(json.data.failed).toBe(1);
+    expect(mockProvider.quote).not.toHaveBeenCalled();
+    expect(mockDevMutate.refundFromTreasury).toHaveBeenCalledWith(
+      expect.objectContaining({ destination: "CCashOut", amountStroops: job.amountStroops }),
     );
   });
 

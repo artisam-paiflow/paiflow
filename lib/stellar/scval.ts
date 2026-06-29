@@ -63,6 +63,28 @@ function recipientsVec(
   );
 }
 
+function devRecipientsVec(
+  recipients: Array<{ address: string; bps: number; amount: string; isCashOut?: boolean }>,
+  nodeAddresses: Record<string, string>,
+): xdr.ScVal {
+  return xdr.ScVal.scvVec(
+    recipients.map((r) =>
+      xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({
+          key: symbol("address"),
+          val: addr(nodeAddresses[r.address] ?? r.address),
+        }),
+        new xdr.ScMapEntry({ key: symbol("amount"), val: i128(r.amount) }),
+        new xdr.ScMapEntry({ key: symbol("bps"), val: u32(r.bps) }),
+        new xdr.ScMapEntry({
+          key: symbol("is_cash_out"),
+          val: bool(r.isCashOut ?? false),
+        }),
+      ]),
+    ),
+  );
+}
+
 function payrollRecipientsVec(recipients: Array<{ address: string; amount: string }>): xdr.ScVal {
   return xdr.ScVal.scvVec(
     recipients.map((r) =>
@@ -325,7 +347,7 @@ export function pipelineNodeConstructorArgs(
         addr(admin),
         addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
         addr(assetContractId(params.asset)),
-        recipientsVec(params.recipients),
+        devRecipientsVec(params.recipients, nodeAddresses),
         i128(params.minAmountStroops),
         addr(parentAddress),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),

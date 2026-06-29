@@ -168,12 +168,25 @@ async function chargeDevPayrollDeployment(
       },
     });
 
+    const existingEmployees = await db.employee.findMany({
+      where: { deploymentId: d.id },
+    });
+    const employeeByCashOut = new Map(
+      existingEmployees
+        .filter((e) => e.cashOutContractAddress)
+        .map((e) => [e.cashOutContractAddress!, e]),
+    );
+    const employeeByWallet = new Map(existingEmployees.map((e) => [e.address, e]));
+
     for (const r of recipientRows) {
+      const existing = employeeByCashOut.get(r.address) ?? employeeByWallet.get(r.address);
+      const walletAddress = existing?.address ?? r.address;
+
       const employee = await db.employee.upsert({
-        where: { deploymentId_address: { deploymentId: d.id, address: r.address } },
+        where: { deploymentId_address: { deploymentId: d.id, address: walletAddress } },
         create: {
           deploymentId: d.id,
-          address: r.address,
+          address: walletAddress,
           amountStroops: r.amount,
         },
         update: {

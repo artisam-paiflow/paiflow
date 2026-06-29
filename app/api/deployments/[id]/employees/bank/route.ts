@@ -6,6 +6,7 @@ import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { updateBankByRelayer } from "@/lib/stellar/dev-mutate";
 
 const BankDetailSchema = z.object({
   address: z.string().refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address"),
@@ -42,6 +43,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     const data = employees.map((e) => ({
       address: e.address,
+      payoutMode: e.payoutMode,
+      cashOutContractAddress: e.cashOutContractAddress,
       bankDetail: e.bankDetail
         ? {
             accountName: e.bankDetail.accountName,
@@ -91,13 +94,31 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       },
     });
 
+    // If this employee is configured for fiat payout, mirror the bank details
+    // onto the on-chain CASH_OUT_DEV contract so it can sink funds to treasury.
+    let cashOutTxHash: string | null = null;
+    if (employee.payoutMode === "FIAT" && employee.cashOutContractAddress) {
+      const update = await updateBankByRelayer(employee.cashOutContractAddress, {
+        accountName: body.accountName,
+        accountNumber: body.accountNumber,
+        bankCode: body.bankCode,
+      });
+      if (update.status !== "SUCCESS") {
+        throw new AppError(
+          "UPSTREAM_RPC",
+          update.errorMessage ?? "Failed to update cash-out bank details",
+        );
+      }
+      cashOutTxHash = update.txHash;
+    }
+
     await audit({
       action: "DEV_UPDATE_BANK",
       userId: user?.id ?? null,
-      metadata: { deploymentId: id, address: body.address },
+      metadata: { deploymentId: id, address: body.address, cashOutTxHash },
     });
 
-    return NextResponse.json({ data: { success: true, bankDetail } });
+    return NextResponse.json({ data: { success: true, bankDetail, cashOutTxHash } });
   });
 }
 

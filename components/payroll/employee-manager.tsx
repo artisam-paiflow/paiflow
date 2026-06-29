@@ -6,11 +6,13 @@ import { StrKey } from "@stellar/stellar-sdk";
 import { formatStroops, formatAmount } from "@/lib/utils";
 import type { Asset } from "@/lib/flows/schema";
 import { assetLabel } from "@/lib/flows/schema";
+import { usePollTxStatus } from "@/lib/hooks/use-poll-tx-status";
 
 type Employee = {
   address: string;
   amount: string;
   label?: string;
+  payoutMode?: "crypto" | "fiat";
 };
 
 type BankDetail = {
@@ -31,18 +33,37 @@ export default function EmployeeManager({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingBanks, setSavingBanks] = useState(false);
+  const pollTxStatus = usePollTxStatus();
 
   useEffect(() => {
     Promise.all([
       fetch(`/api/deployments/${deploymentId}/payroll-recipients`).then(async (res) => {
         if (!res.ok) throw new Error("Failed to load employees");
-        const json = (await res.json()) as { data: { recipients: Employee[] } };
-        return json.data.recipients.map((r) => ({ ...r, label: r.label ?? "" }));
+        const json = (await res.json()) as {
+          data: {
+            recipients: Array<{
+              address: string;
+              amount: string;
+              label?: string;
+              payoutMode?: "crypto" | "fiat";
+            }>;
+          };
+        };
+        return json.data.recipients.map((r) => ({
+          ...r,
+          label: r.label ?? "",
+          payoutMode: r.payoutMode ?? "crypto",
+        }));
       }),
       fetch(`/api/deployments/${deploymentId}/employees/bank`).then(async (res) => {
         if (!res.ok) throw new Error("Failed to load bank details");
         const json = (await res.json()) as {
-          data: Array<{ address: string; bankDetail: BankDetail | null }>;
+          data: Array<{
+            address: string;
+            bankDetail: BankDetail | null;
+            payoutMode?: "crypto" | "fiat";
+            cashOutContractAddress?: string | null;
+          }>;
         };
         const map: Record<string, BankDetail | null> = {};
         for (const item of json.data) {
@@ -63,6 +84,10 @@ export default function EmployeeManager({
 
   const updateEmployee = (index: number, patch: Partial<Employee>) => {
     setEmployees((prev) => prev.map((e, i) => (i === index ? { ...e, ...patch } : e)));
+  };
+
+  const updatePayoutMode = (index: number, mode: "crypto" | "fiat") => {
+    setEmployees((prev) => prev.map((e, i) => (i === index ? { ...e, payoutMode: mode } : e)));
   };
 
   const updateBankDetail = (address: string, patch: Partial<BankDetail>) => {
@@ -118,6 +143,8 @@ export default function EmployeeManager({
             address: e.address,
             amount: e.amount,
             label: e.label || undefined,
+            payoutMode: e.payoutMode ?? "crypto",
+            bankDetail: bankDetails[e.address] ?? undefined,
           })),
         }),
       });
@@ -126,12 +153,26 @@ export default function EmployeeManager({
           unsignedXdr?: string;
           networkPassphrase?: string;
           txHash?: string;
+          txHashes?: string[];
         };
         error?: { message?: string };
       };
       if (!res.ok) throw new Error(json.error?.message ?? "Failed to prepare update");
       const data = json.data;
       if (!data) throw new Error("Prepare failed");
+
+      if (data.txHashes) {
+        toast.info("Transactions submitted. Waiting for confirmation...");
+        const results = await Promise.all(
+          data.txHashes.map((txHash) => pollTxStatus(deploymentId, txHash)),
+        );
+        const failed = results.find((r) => r.status === "FAILED");
+        if (failed) {
+          throw new Error(failed.errorMessage ?? "Transaction failed on the network");
+        }
+        toast.success("Employees updated on-chain");
+        return;
+      }
 
       if (data.txHash) {
         toast.success("Employees updated on-chain");
@@ -234,6 +275,8 @@ export default function EmployeeManager({
             bank.accountName.trim() || bank.accountNumber.trim() || bank.bankCode.trim(),
           );
 
+          const isFiat = e.payoutMode === "fiat";
+
           return (
             <div key={i} className="space-y-2 rounded border border-zinc-800 bg-zinc-950 p-3">
               <div className="grid grid-cols-[1fr_1fr_120px_40px] gap-2">
@@ -283,35 +326,51 @@ export default function EmployeeManager({
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-on-surface-variant text-[16px]">
-                  account_balance
-                </span>
-                <span className="text-label-sm text-on-surface-variant font-mono uppercase">
-                  {fiatEnabled ? "Fiat payout enabled" : "Fiat payout"}
-                </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-on-surface-variant text-[16px]">
+                    account_balance
+                  </span>
+                  <select
+                    className="input bg-surface-container text-xs"
+                    value={e.payoutMode ?? "crypto"}
+                    onChange={(ev) => updatePayoutMode(i, ev.target.value as "crypto" | "fiat")}
+                  >
+                    <option value="crypto">Crypto wallet</option>
+                    <option value="fiat">Fiat bank</option>
+                  </select>
+                </div>
+                {isFiat && (
+                  <span className="text-label-sm text-on-surface-variant font-mono uppercase">
+                    {fiatEnabled ? "Fiat payout enabled" : "Enter bank details"}
+                  </span>
+                )}
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <input
-                  className="input"
-                  placeholder="Account name"
-                  value={bank.accountName}
-                  onChange={(ev) => updateBankDetail(e.address, { accountName: ev.target.value })}
-                />
-                <input
-                  className="input font-mono"
-                  placeholder="Account number"
-                  value={bank.accountNumber}
-                  onChange={(ev) => updateBankDetail(e.address, { accountNumber: ev.target.value })}
-                />
-                <input
-                  className="input font-mono"
-                  placeholder="Bank code"
-                  value={bank.bankCode}
-                  onChange={(ev) => updateBankDetail(e.address, { bankCode: ev.target.value })}
-                />
-              </div>
+              {isFiat && (
+                <div className="grid grid-cols-3 gap-2">
+                  <input
+                    className="input"
+                    placeholder="Account name"
+                    value={bank.accountName}
+                    onChange={(ev) => updateBankDetail(e.address, { accountName: ev.target.value })}
+                  />
+                  <input
+                    className="input font-mono"
+                    placeholder="Account number"
+                    value={bank.accountNumber}
+                    onChange={(ev) =>
+                      updateBankDetail(e.address, { accountNumber: ev.target.value })
+                    }
+                  />
+                  <input
+                    className="input font-mono"
+                    placeholder="Bank code"
+                    value={bank.bankCode}
+                    onChange={(ev) => updateBankDetail(e.address, { bankCode: ev.target.value })}
+                  />
+                </div>
+              )}
             </div>
           );
         })}
