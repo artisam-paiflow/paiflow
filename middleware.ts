@@ -23,6 +23,11 @@ const PUBLIC_PATHS = [
   /^\/trigger\/[^/]+$/,
   /^\/api\/deployments\/[^/]+\/trigger$/,
   /^\/api\/deployments\/[^/]+\/submit-trigger$/,
+  // Machine-auth endpoints handle their own secret-token auth inside the route.
+  /^\/api\/deployments\/[^/]+\/dev-.*$/,
+  /^\/api\/deployments\/[^/]+\/payroll-record-run$/,
+  /^\/api\/deployments\/[^/]+\/offramp-.*$/,
+  /^\/api\/deployments\/[^/]+\/employees\/bank$/,
 ];
 
 function isPublic(pathname: string): boolean {

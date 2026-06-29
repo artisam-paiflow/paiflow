@@ -36,6 +36,155 @@ describe("validateFlow", () => {
     }
   });
 
+  it("accepts a payroll → split (fixed) flow as PAYROLL", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "60000000" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "40000000" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.PAYROLL);
+      expect(r.pipeline).toEqual([TemplateKind.PAYROLL]);
+    }
+  });
+
+  it("decomposes a dev-mode payroll pipeline to SUBSCRIPTION_DEV → SPLITTER_DEV", () => {
+    const r = validateFlow({
+      devMode: true,
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "60000000" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "40000000" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      // Flow-level label stays PAYROLL; the deploy pipeline is the dev preset.
+      expect(r.templateKind).toBe(TemplateKind.PAYROLL);
+      expect(r.pipeline).toEqual([TemplateKind.SUBSCRIPTION_DEV, TemplateKind.SPLITTER_DEV]);
+    }
+  });
+
+  it("allows dev-mode split with empty recipients to fill via API after deploy", () => {
+    const r = validateFlow({
+      devMode: true,
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.SPLITTER);
+      expect(r.pipeline).toEqual([TemplateKind.DEPOSIT_TRIGGER, TemplateKind.SPLITTER_DEV]);
+    }
+  });
+
+  it("rejects non-dev split with empty recipients", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects payroll → split with percentage recipients", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "percentage", bps: 6000 },
+              { address: ADDR_B, mode: "percentage", bps: 4000 },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+  });
+
   it("rejects bps that don't sum to 10000", () => {
     const r = validateFlow({
       nodes: [
@@ -323,14 +472,14 @@ describe("validateFlow", () => {
         {
           id: "t",
           type: "web2_webhook",
-          config: { asset: { kind: "known", symbol: "USDC" } },
+          config: { asset: { kind: "native" } },
         },
         {
           id: "a",
           type: "swap",
           config: {
-            assetIn: { kind: "known", symbol: "USDC" },
-            assetOut: { kind: "native" },
+            assetIn: { kind: "native" },
+            assetOut: { kind: "known", symbol: "USDC" },
             rateBps: 9500,
           },
         },
@@ -690,6 +839,134 @@ describe("validateFlow", () => {
     expect(r.ok).toBe(false);
   });
 
+  it("accepts dev-mode on_receive → split → cash_out", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
+          },
+        },
+        {
+          id: "c",
+          type: "cash_out",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            accountName: "Juan",
+            accountNumber: "123",
+            bankCode: "BASECPH",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "a", target: "c" },
+      ],
+      devMode: true,
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("accepts cash_out without dev mode when bank details are provided", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
+          },
+        },
+        {
+          id: "c",
+          type: "cash_out",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            accountName: "Juan",
+            accountNumber: "123",
+            bankCode: "BASECPH",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "a", target: "c" },
+      ],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects cash_out without dev mode when bank details are blank", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
+          },
+        },
+        {
+          id: "c",
+          type: "cash_out",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            accountName: "",
+            accountNumber: "",
+            bankCode: "",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "a", target: "c" },
+      ],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects cash_out with outgoing edges", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "c",
+          type: "cash_out",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            accountName: "",
+            accountNumber: "",
+            bankCode: "",
+          },
+        },
+        {
+          id: "x",
+          type: "pay",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipient: ADDR_A,
+            mode: "fixed",
+            amountStroops: "100",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "c" },
+        { id: "e2", source: "c", target: "x" },
+      ],
+      devMode: true,
+    });
+    expect(r.ok).toBe(false);
+  });
+
   // ── asset enforcement hardening (#225) ──
   it("rejects on_receive XLM → pay USDC", () => {
     const r = validateFlow({
@@ -963,7 +1240,12 @@ describe("computeAssetFlow", () => {
         {
           id: "a",
           type: "pay",
-          config: { recipient: ADDR_A, amountStroops: "10", asset: { kind: "native" } },
+          config: {
+            recipient: ADDR_A,
+            mode: "fixed",
+            amountStroops: "10",
+            asset: { kind: "native" },
+          },
         },
       ],
       edges: [{ id: "e1", source: "t", target: "a" }],
@@ -987,7 +1269,12 @@ describe("computeAssetFlow", () => {
         {
           id: "a",
           type: "pay",
-          config: { recipient: ADDR_A, amountStroops: "10", asset: { kind: "native" } },
+          config: {
+            recipient: ADDR_A,
+            mode: "fixed",
+            amountStroops: "10",
+            asset: { kind: "native" },
+          },
         },
       ],
       edges: [{ id: "e1", source: "t", target: "a" }],
@@ -1012,7 +1299,12 @@ describe("computeAssetFlow", () => {
         {
           id: "a",
           type: "pay",
-          config: { recipient: ADDR_A, amountStroops: "10", asset: { kind: "native" } },
+          config: {
+            recipient: ADDR_A,
+            mode: "fixed",
+            amountStroops: "10",
+            asset: { kind: "native" },
+          },
         },
       ],
       edges: [
@@ -1031,7 +1323,12 @@ describe("computeAssetFlow", () => {
         {
           id: "a",
           type: "pay",
-          config: { recipient: ADDR_A, amountStroops: "10", asset: { kind: "native" } },
+          config: {
+            recipient: ADDR_A,
+            mode: "fixed",
+            amountStroops: "10",
+            asset: { kind: "native" },
+          },
         },
       ],
       edges: [],
@@ -1065,7 +1362,12 @@ describe("computeAssetFlow", () => {
         {
           id: "a",
           type: "pay",
-          config: { recipient: ADDR_A, amountStroops: "10", asset: { kind: "native" } },
+          config: {
+            recipient: ADDR_A,
+            mode: "fixed",
+            amountStroops: "10",
+            asset: { kind: "native" },
+          },
         },
       ],
       edges: [
@@ -1094,7 +1396,12 @@ describe("computeAssetFlow", () => {
         {
           id: "a",
           type: "pay",
-          config: { recipient: ADDR_A, amountStroops: "10", asset: { kind: "native" } },
+          config: {
+            recipient: ADDR_A,
+            mode: "fixed",
+            amountStroops: "10",
+            asset: { kind: "native" },
+          },
         },
       ],
       edges: [

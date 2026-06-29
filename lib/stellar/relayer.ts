@@ -648,6 +648,75 @@ export async function readSubscriptionSubscriber(contractAddress: string): Promi
   return readSubscriptionAddress(contractAddress, "subscriber");
 }
 
+export async function readSubscriptionSubscriberNullable(
+  contractAddress: string,
+): Promise<string | null> {
+  const server = sorobanRpc();
+
+  const source = stellarRelayerAddress();
+  if (!source) {
+    throw new AppError("INTERNAL", "STELLAR_RELAYER_ADDRESS is not configured");
+  }
+
+  let sourceAcct;
+  try {
+    sourceAcct = await server.getAccount(source);
+  } catch (err) {
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Relayer account ${source} is not funded or does not exist`,
+    );
+  }
+
+  const contractIdBytes = decodeContractAddress(contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName: "subscriber",
+      args: [],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `subscriber() simulation failed for ${contractAddress}: ${sim.error}`,
+    );
+  }
+  if (!sim.result?.retval) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `subscriber() simulation returned no result for ${contractAddress}`,
+    );
+  }
+
+  const retval = sim.result.retval;
+  if (retval.switch().value === xdr.ScValType.scvVoid().value) {
+    return null;
+  }
+
+  const value = scValToNative(retval);
+  if (typeof value === "string") return value;
+  try {
+    return (value as { toString(): string }).toString();
+  } catch {
+    throw new AppError("UPSTREAM_RPC", `Unexpected subscriber() type for ${contractAddress}`);
+  }
+}
+
 export async function readSubscriptionAsset(contractAddress: string): Promise<string> {
   return readSubscriptionAddress(contractAddress, "asset");
 }
@@ -715,4 +784,423 @@ async function readSubscriptionAddress(
   } catch {
     throw new AppError("UPSTREAM_RPC", `Unexpected ${functionName}() type for ${contractAddress}`);
   }
+}
+
+async function readPayrollValue<T>(
+  contractAddress: string,
+  functionName: string,
+  expectedType: string,
+): Promise<T> {
+  const server = sorobanRpc();
+
+  const source = stellarRelayerAddress();
+  if (!source) {
+    throw new AppError("INTERNAL", "STELLAR_RELAYER_ADDRESS is not configured");
+  }
+
+  let sourceAcct;
+  try {
+    sourceAcct = await server.getAccount(source);
+  } catch (err) {
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Relayer account ${source} is not funded or does not exist`,
+    );
+  }
+
+  const contractIdBytes = decodeContractAddress(contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName,
+      args: [],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `${functionName}() simulation failed for ${contractAddress}: ${sim.error}`,
+    );
+  }
+  if (!sim.result?.retval) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `${functionName}() simulation returned no result for ${contractAddress}`,
+    );
+  }
+
+  const value = scValToNative(sim.result.retval);
+  if (typeof value !== expectedType) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `Unexpected ${functionName}() type for ${contractAddress}: ${typeof value}`,
+    );
+  }
+
+  return value as T;
+}
+
+async function readPayrollAddress(contractAddress: string, functionName: string): Promise<string> {
+  const server = sorobanRpc();
+
+  const source = stellarRelayerAddress();
+  if (!source) {
+    throw new AppError("INTERNAL", "STELLAR_RELAYER_ADDRESS is not configured");
+  }
+
+  let sourceAcct;
+  try {
+    sourceAcct = await server.getAccount(source);
+  } catch (err) {
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Relayer account ${source} is not funded or does not exist`,
+    );
+  }
+
+  const contractIdBytes = decodeContractAddress(contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName,
+      args: [],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `${functionName}() simulation failed for ${contractAddress}: ${sim.error}`,
+    );
+  }
+  if (!sim.result?.retval) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `${functionName}() simulation returned no result for ${contractAddress}`,
+    );
+  }
+
+  const value = scValToNative(sim.result.retval);
+  if (typeof value === "string") return value;
+  try {
+    return (value as { toString(): string }).toString();
+  } catch {
+    throw new AppError("UPSTREAM_RPC", `Unexpected ${functionName}() type for ${contractAddress}`);
+  }
+}
+
+export async function readPayrollIsCancelled(contractAddress: string): Promise<boolean> {
+  return readPayrollValue<boolean>(contractAddress, "is_cancelled", "boolean");
+}
+
+export async function readPayrollNextChargeAt(contractAddress: string): Promise<bigint> {
+  return readPayrollValue<bigint>(contractAddress, "next_charge_at", "bigint");
+}
+
+export async function readPayrollIntervalSeconds(contractAddress: string): Promise<bigint> {
+  return readPayrollValue<bigint>(contractAddress, "interval_seconds", "bigint");
+}
+
+export async function readPayrollRelayer(contractAddress: string): Promise<string> {
+  return readPayrollAddress(contractAddress, "relayer");
+}
+
+export async function readPayrollEmployer(contractAddress: string): Promise<string> {
+  return readPayrollAddress(contractAddress, "employer");
+}
+
+export async function readPayrollAsset(contractAddress: string): Promise<string> {
+  return readPayrollAddress(contractAddress, "asset");
+}
+
+export type PayrollRecipient = {
+  address: string;
+  amount: string;
+};
+
+export async function readPayrollRecipients(contractAddress: string): Promise<PayrollRecipient[]> {
+  const server = sorobanRpc();
+
+  const source = stellarRelayerAddress();
+  if (!source) {
+    throw new AppError("INTERNAL", "STELLAR_RELAYER_ADDRESS is not configured");
+  }
+
+  let sourceAcct;
+  try {
+    sourceAcct = await server.getAccount(source);
+  } catch (err) {
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Relayer account ${source} is not funded or does not exist`,
+    );
+  }
+
+  const contractIdBytes = decodeContractAddress(contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName: "recipients",
+      args: [],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `recipients() simulation failed for ${contractAddress}: ${sim.error}`,
+    );
+  }
+  if (!sim.result?.retval) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `recipients() simulation returned no result for ${contractAddress}`,
+    );
+  }
+
+  const value = scValToNative(sim.result.retval);
+  if (!Array.isArray(value)) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `Unexpected recipients() type for ${contractAddress}: ${typeof value}`,
+    );
+  }
+
+  return value.map((r: unknown) => {
+    const item = r as {
+      address: string | { toString(): string };
+      amount: bigint | string | { toString(): string };
+    };
+    const address = typeof item.address === "string" ? item.address : item.address.toString();
+    const amount =
+      typeof item.amount === "string"
+        ? item.amount
+        : (item.amount as { toString(): string }).toString();
+    return { address, amount };
+  });
+}
+
+export type SplitterDevRecipient = {
+  address: string;
+  bps: number;
+  amount: string;
+};
+
+export async function readSplitterDevRecipients(
+  contractAddress: string,
+): Promise<SplitterDevRecipient[]> {
+  const server = sorobanRpc();
+
+  const source = stellarRelayerAddress();
+  if (!source) {
+    throw new AppError("INTERNAL", "STELLAR_RELAYER_ADDRESS is not configured");
+  }
+
+  let sourceAcct;
+  try {
+    sourceAcct = await server.getAccount(source);
+  } catch (err) {
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Relayer account ${source} is not funded or does not exist`,
+    );
+  }
+
+  const contractIdBytes = decodeContractAddress(contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName: "recipients",
+      args: [],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `recipients() simulation failed for ${contractAddress}: ${sim.error}`,
+    );
+  }
+  if (!sim.result?.retval) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `recipients() simulation returned no result for ${contractAddress}`,
+    );
+  }
+
+  const value = scValToNative(sim.result.retval);
+  if (!Array.isArray(value)) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `Unexpected recipients() type for ${contractAddress}: ${typeof value}`,
+    );
+  }
+
+  return value.map((r: unknown) => {
+    const item = r as {
+      address: string | { toString(): string };
+      bps: number | bigint | { toString(): string };
+      amount: bigint | string | { toString(): string };
+    };
+    const address = typeof item.address === "string" ? item.address : item.address.toString();
+    const bpsRaw =
+      typeof item.bps === "number"
+        ? item.bps
+        : Number(typeof item.bps === "string" ? item.bps : item.bps.toString());
+    const amount =
+      typeof item.amount === "string"
+        ? item.amount
+        : (item.amount as { toString(): string }).toString();
+    return { address, bps: bpsRaw, amount };
+  });
+}
+
+export async function preparePayrollChargeByRelayerTx(
+  contractAddress: string,
+): Promise<{ xdr: string; txHash: string }> {
+  const secret = stellarRelayerSecretKey();
+  if (!secret) {
+    throw new AppError("INTERNAL", "STELLAR_RELAYER_SECRET_KEY is not configured");
+  }
+
+  const server = sorobanRpc();
+  const relayerKeypair = Keypair.fromSecret(secret);
+  const relayerAddress = relayerKeypair.publicKey();
+
+  let sourceAcct;
+  try {
+    sourceAcct = await server.getAccount(relayerAddress);
+  } catch (err) {
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Relayer account ${relayerAddress} is not funded or does not exist`,
+    );
+  }
+
+  const contractIdBytes = decodeContractAddress(contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName: "charge_by_relayer",
+      args: [],
+    }),
+  );
+
+  const op = Operation.invokeHostFunction({ func: hostFunction });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(180)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `Soroban simulate failed for ${contractAddress}: ${sim.error}`,
+    );
+  }
+
+  const assembled = rpc.assembleTransaction(tx, sim).build();
+  assembled.sign(relayerKeypair);
+
+  return { xdr: assembled.toXDR(), txHash: assembled.hash().toString("hex") };
+}
+
+export async function submitPayrollChargeByRelayerTx(xdr: string): Promise<{
+  status: "SUCCESS" | "FAILED";
+  txHash: string;
+  errorMessage?: string;
+}> {
+  const server = sorobanRpc();
+  const tx = TransactionBuilder.fromXDR(xdr, stellarPassphrase());
+  const send = await server.sendTransaction(tx);
+
+  if (send.status === "ERROR") {
+    return {
+      status: "FAILED",
+      txHash: send.hash,
+      errorMessage: `sendTransaction error: ${JSON.stringify(send.errorResult?.result?.()) ?? send.status}`,
+    };
+  }
+
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const got = await server.getTransaction(send.hash);
+    if (got.status === "SUCCESS") {
+      return { status: "SUCCESS", txHash: send.hash };
+    }
+    if (got.status === "FAILED") {
+      return {
+        status: "FAILED",
+        txHash: send.hash,
+        errorMessage: "Transaction failed on the network",
+      };
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+
+  return {
+    status: "FAILED",
+    txHash: send.hash,
+    errorMessage: "Timed out waiting for finality",
+  };
 }

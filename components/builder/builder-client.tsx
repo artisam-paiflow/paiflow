@@ -52,11 +52,13 @@ const MINIMAP_NODE_LABELS: Record<FlowNode["type"], string> = {
   webhook: "Webhook",
   web2_webhook: "HTTP Webhook",
   subscription: "Subscription",
+  payroll: "Payroll",
   oracle: "Oracle",
   pay: "Pay",
   split: "Split",
   swap: "Swap",
   yield: "Yield",
+  cash_out: "Cash Out",
   email_notify: "Email",
   condition: "Condition",
 };
@@ -75,6 +77,7 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
     case "webhook":
     case "web2_webhook":
     case "subscription":
+    case "payroll":
     case "oracle":
       type = "trigger";
       break;
@@ -83,6 +86,7 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
     case "swap":
     case "yield":
     case "email_notify":
+    case "cash_out":
       type = "action";
       break;
     case "condition":
@@ -101,6 +105,22 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
   };
 }
 
+/** Node types that deploy as a mutable `_DEV` contract variant when dev mode is on. */
+function hasDevCounterpart(n: FlowNode | undefined): boolean {
+  if (!n) return false;
+  return n.type === "pay" || n.type === "split" || n.type === "subscription";
+}
+
+/**
+ * Node types that deploy as a mutable contract in dev mode — either a `_DEV`
+ * counterpart of an immutable node, or a dev-only node (cash_out), or a
+ * trigger that decomposes into dev nodes (payroll → SUBSCRIPTION_DEV →
+ * SPLITTER_DEV). Drives the amber MUTABLE badge on the canvas.
+ */
+function isMutableInDevMode(n: FlowNode | undefined): boolean {
+  return hasDevCounterpart(n) || n?.type === "payroll" || n?.type === "cash_out";
+}
+
 function nodeBorderColor(n: FlowNode | undefined): string {
   if (!n) return "#71717a";
   switch (n.type) {
@@ -109,6 +129,7 @@ function nodeBorderColor(n: FlowNode | undefined): string {
     case "webhook":
     case "web2_webhook":
     case "subscription":
+    case "payroll":
     case "oracle":
       return "#98cbff";
     case "pay":
@@ -169,6 +190,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [errorsModalOpen, setErrorsModalOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [addressBook, setAddressBook] = useState<AddressEntry[]>([]);
+  const [devMode, setDevMode] = useState<boolean>(initialGraph.devMode ?? false);
 
   const refreshAddressBook = useCallback(async () => {
     const r = await fetch("/api/address-book");
@@ -197,8 +219,9 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
     () => ({
       nodes: flowNodes,
       edges: rfEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+      devMode,
     }),
-    [flowNodes, rfEdges],
+    [flowNodes, rfEdges, devMode],
   );
 
   const validation = useMemo(() => validateFlow(graph), [graph]);
@@ -554,6 +577,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           templateKind={templateKind}
           pipeline={pipeline}
           collapsed={sidebarCollapsed}
+          devMode={devMode}
           onToggleCollapse={() => {
             setSidebarCollapsed((v) => {
               const next = !v;
@@ -582,6 +606,28 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
               className="text-headline-sm text-on-surface max-w-[40ch] min-w-[12ch] flex-1 border-0 bg-transparent px-0 py-1 font-semibold tracking-[-0.01em] outline-none focus:outline-none"
               style={{ fieldSizing: "content" } as React.CSSProperties}
             />
+            <button
+              type="button"
+              role="switch"
+              aria-checked={devMode}
+              onClick={() => setDevMode((v) => !v)}
+              title={
+                devMode
+                  ? "Dev mode ON — pay / split / subscription nodes deploy as mutable variants you fill via the API"
+                  : "Dev mode OFF — recipients and amounts are fixed at design time"
+              }
+              className={cn(
+                "text-label-sm inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors",
+                devMode
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant hover:text-on-surface",
+              )}
+            >
+              <span className="material-symbols-outlined text-[16px]">
+                {devMode ? "toggle_on" : "toggle_off"}
+              </span>
+              Dev mode
+            </button>
           </div>
 
           {/* Row 2: English Preview */}
@@ -640,15 +686,19 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
             )}
 
             <ReactFlow
-              nodes={rfNodes.map((n) => ({
-                ...n,
-                data: {
-                  ...n.data,
-                  label: nodeLabel(flowNodes.find((f) => f.id === n.id)),
-                  node: flowNodes.find((f) => f.id === n.id) ?? n.data.node,
-                },
-                selected: n.id === selectedId,
-              }))}
+              nodes={rfNodes.map((n) => {
+                const fn = flowNodes.find((f) => f.id === n.id);
+                return {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    label: nodeLabel(fn),
+                    node: fn ?? n.data.node,
+                    isMutable: devMode && isMutableInDevMode(fn),
+                  },
+                  selected: n.id === selectedId,
+                };
+              })}
               edges={rfEdges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
@@ -759,6 +809,8 @@ function nodeLabel(n: FlowNode | undefined): string {
       return `HTTP Webhook (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "subscription":
       return `Subscription (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+    case "payroll":
+      return `Payroll (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "oracle":
       return `Oracle (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "pay":
@@ -771,6 +823,8 @@ function nodeLabel(n: FlowNode | undefined): string {
       return `Yield`;
     case "email_notify":
       return `Email (${n.config.recipients.length})`;
+    case "cash_out":
+      return `Cash Out${n.config.bankCode ? ` (${n.config.bankCode})` : ""}`;
     case "condition":
       return `Condition (${n.config.kind})`;
   }

@@ -129,6 +129,7 @@ function getTriggerAsset(t: FlowNode): Asset | null {
     t.type === "webhook" ||
     t.type === "web2_webhook" ||
     t.type === "subscription" ||
+    t.type === "payroll" ||
     t.type === "oracle"
   ) {
     return t.config.asset;
@@ -276,6 +277,20 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   for (const a of actions) {
     if (a.type === "split") {
+      // Dev mode allows leaving recipients empty to fill via API after deploy.
+      if (graph.devMode === true && a.config.recipients.length === 0) {
+        continue;
+      }
+
+      if (a.config.recipients.length === 0) {
+        errors.push({
+          path: `nodes.${a.id}.config.recipients`,
+          message: "Split node must have at least one recipient",
+          friendlyMessage: "Add at least one recipient to the split node.",
+        });
+        continue;
+      }
+
       const modes = new Set(a.config.recipients.map((r) => r.mode));
       if (modes.size > 1) {
         errors.push({
@@ -339,7 +354,15 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       if (isPendingAddress(a.config.recipient)) {
         pendingLabels.add(a.config.recipient.slice(8) || "unnamed");
       }
-      if (!a.config.fullAmount) {
+      if (a.config.fillValueViaApi && graph.devMode !== true) {
+        errors.push({
+          path: `nodes.${a.id}.config.fillValueViaApi`,
+          message: "Fill value via API is only allowed in dev mode",
+          friendlyMessage: "Turn on dev mode to fill the payment value via API after deploy.",
+        });
+      }
+      const valueDeferred = graph.devMode === true && a.config.fillValueViaApi;
+      if (!valueDeferred && !a.config.fullAmount) {
         if (
           a.config.mode === "fixed" &&
           (!a.config.amountStroops || a.config.amountStroops === "0")
@@ -386,7 +409,10 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       if (parent?.type === "split") {
         const parentAddresses = parent.config.recipients.map((r) => r.address);
         const emailAddresses = n.config.recipients.map((r) => r.address);
-        if (emailAddresses.length !== parentAddresses.length) {
+        // When the split is in dev mode and its recipients are left empty to be
+        // filled via API, we can't validate a 1:1 address mapping yet.
+        const splitFilledViaApi = graph.devMode === true && parentAddresses.length === 0;
+        if (!splitFilledViaApi && emailAddresses.length !== parentAddresses.length) {
           errors.push({
             path: `nodes.${n.id}.config.recipients`,
             message: "Email notify node must have exactly one email per split recipient",
@@ -394,13 +420,15 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
               "Add exactly one email for each address in the split. Remove or fill any blank rows.",
           });
         }
-        for (const addr of parentAddresses) {
-          if (!emailAddresses.includes(addr)) {
-            errors.push({
-              path: `nodes.${n.id}.config.recipients`,
-              message: `Missing email for split recipient ${addr}`,
-              friendlyMessage: `Add an email for split recipient ${addr}.`,
-            });
+        if (!splitFilledViaApi) {
+          for (const addr of parentAddresses) {
+            if (!emailAddresses.includes(addr)) {
+              errors.push({
+                path: `nodes.${n.id}.config.recipients`,
+                message: `Missing email for split recipient ${addr}`,
+                friendlyMessage: `Add an email for split recipient ${addr}.`,
+              });
+            }
           }
         }
       } else if (n.config.recipients.length === 0) {
@@ -416,6 +444,58 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
           path: `nodes.${n.id}.config.subject`,
           message: "Email notify node requires a subject",
           friendlyMessage: "Add a subject line to the email notify node.",
+        });
+      }
+    }
+  }
+
+  // Cash-out nodes are terminal sinks: funds leave the chain, so they cannot
+  // feed another node and must receive funds from an upstream node. Bank details
+  // may be left blank in dev mode (filled via API after deploy), but must be set
+  // at design time in non-dev mode.
+  for (const n of graph.nodes) {
+    if (n.type !== "cash_out") continue;
+
+    const hasOutgoing = graph.edges.some((e) => e.source === n.id);
+    if (hasOutgoing) {
+      errors.push({
+        path: `nodes.${n.id}`,
+        message: "Cash-out node cannot have outgoing edges",
+        friendlyMessage:
+          "Cash-out is a final step — its output leaves the chain. Remove any connections coming out of it.",
+      });
+    }
+
+    const hasIncoming = graph.edges.some((e) => e.target === n.id);
+    if (!hasIncoming) {
+      errors.push({
+        path: `nodes.${n.id}`,
+        message: "Cash-out node must receive funds from an upstream node",
+        friendlyMessage:
+          "Connect a pay or split step into the cash-out node so it has funds to send to the bank.",
+      });
+    }
+
+    if (graph.devMode !== true) {
+      if (!n.config.accountName || n.config.accountName.trim().length === 0) {
+        errors.push({
+          path: `nodes.${n.id}.config.accountName`,
+          message: "Cash-out account name is required in non-dev mode",
+          friendlyMessage: "Enter the beneficiary account name for the cash-out node.",
+        });
+      }
+      if (!n.config.accountNumber || n.config.accountNumber.trim().length === 0) {
+        errors.push({
+          path: `nodes.${n.id}.config.accountNumber`,
+          message: "Cash-out account number is required in non-dev mode",
+          friendlyMessage: "Enter the beneficiary account number for the cash-out node.",
+        });
+      }
+      if (!n.config.bankCode) {
+        errors.push({
+          path: `nodes.${n.id}.config.bankCode`,
+          message: "Cash-out bank is required in non-dev mode",
+          friendlyMessage: "Select a bank for the cash-out node.",
         });
       }
     }
@@ -463,7 +543,6 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
   }
 
-  // Trigger must be a root (no incoming edges)
   const trigger = triggers[0];
   if (trigger) {
     const hasIncoming = graph.edges.some((e) => e.target === trigger.id);
@@ -473,6 +552,32 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         message: "Trigger node must have no incoming edges",
         friendlyMessage: FRIENDLY.NO_INCOMING_EDGES_TO_TRIGGER,
       });
+    }
+  }
+
+  // Payroll flows must use fixed amounts so the contract can compute the
+  // exact pull amount per period.
+  if (trigger?.type === "payroll") {
+    for (const a of contractActions) {
+      if (a.type === "split") {
+        const modes = new Set(a.config.recipients.map((r) => r.mode));
+        if (modes.has("percentage")) {
+          errors.push({
+            path: `nodes.${a.id}.config.recipients`,
+            message: "Payroll split must use fixed amounts, not percentages",
+            friendlyMessage:
+              "Payroll distributions must be fixed salary amounts. Switch all recipients to fixed amounts.",
+          });
+        }
+      }
+      if (a.type === "pay" && a.config.mode === "percentage") {
+        errors.push({
+          path: `nodes.${a.id}.config.mode`,
+          message: "Payroll pay node must use fixed amount, not percentage",
+          friendlyMessage:
+            "Payroll distributions must be fixed salary amounts. Switch the pay node to a fixed amount.",
+        });
+      }
     }
   }
 
@@ -552,6 +657,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   const isReceiveLike = isOnReceive || isWebhookLike;
   const isPayOrSplit = action.type === "pay" || action.type === "split";
   const isSwapOrYield = action.type === "swap" || action.type === "yield";
+  const isCashOut = action.type === "cash_out";
 
   if (isWebhookLike && hasCondition && condition.config.kind !== "multisig") {
     return {
@@ -572,10 +678,14 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     templateKind = TemplateKind.CONDITIONAL;
   } else if (trigger!.type === "subscription" && isPayOrSplit) {
     templateKind = TemplateKind.SUBSCRIPTION;
+  } else if (trigger!.type === "payroll" && isPayOrSplit) {
+    templateKind = TemplateKind.PAYROLL;
   } else if (trigger!.type === "on_schedule" && isPayOrSplit) {
     templateKind = TemplateKind.STREAMER;
   } else if (isOnReceive && isPayOrSplit) {
     templateKind = TemplateKind.SPLITTER;
+  } else if (isOnReceive && isCashOut) {
+    templateKind = TemplateKind.CASH_OUT;
   } else if (isOnReceive && isSwapOrYield) {
     templateKind = TemplateKind.SPLITTER;
   } else if (isWebhookLike && isPayOrSplit) {
@@ -591,7 +701,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         {
           path: "nodes",
           message:
-            "Unsupported trigger/action combination. Supported: on_receive with pay/split/swap/yield, webhook/web2_webhook/oracle with pay/split/swap/yield/multisig, schedule-like triggers (on_schedule, subscription) with pay/split, or any with a compatible condition.",
+            "Unsupported trigger/action combination. Supported: on_receive with pay/split/swap/yield/cash_out, webhook/web2_webhook/oracle with pay/split/swap/yield/multisig, schedule-like triggers (on_schedule, subscription) with pay/split, payroll with pay/split, or any with a compatible condition.",
           friendlyMessage: FRIENDLY.UNSUPPORTED_COMBO,
         },
       ],

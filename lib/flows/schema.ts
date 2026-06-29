@@ -27,6 +27,9 @@ export function getPendingLabels(graph: FlowGraph): string[] {
     if (n.type === "subscription" && isPendingAddress(n.config.subscriber)) {
       labels.add(n.config.subscriber.slice(PENDING_PREFIX.length) || "unnamed");
     }
+    if (n.type === "payroll" && isPendingAddress(n.config.employer)) {
+      labels.add(n.config.employer.slice(PENDING_PREFIX.length) || "unnamed");
+    }
     if (n.type === "yield" && isPendingAddress(n.config.vault)) {
       labels.add(n.config.vault.slice(PENDING_PREFIX.length) || "unnamed");
     }
@@ -119,6 +122,20 @@ export const SubscriptionTrigger = z.object({
   }),
 });
 
+export const PayrollTrigger = z.object({
+  id: z.string().min(1),
+  type: z.literal("payroll"),
+  config: z.object({
+    asset: AssetSchema,
+    employer: stellarAccount,
+    intervalAmount: z.number().int().positive().default(1),
+    intervalUnit: z.enum(["minute", "hour", "day", "week", "month"]).default("week"),
+    endsAt: z.string().datetime().optional(),
+    occurrences: z.number().int().positive().optional(),
+    fillScheduleViaApi: z.boolean().default(false),
+  }),
+});
+
 export const OracleTrigger = z.object({
   id: z.string().min(1),
   type: z.literal("oracle"),
@@ -135,17 +152,18 @@ export const PayAction = z.object({
     .object({
       recipient: stellarAccount,
       asset: AssetSchema,
-      mode: z.enum(["fixed", "percentage"]).default("fixed"),
+      mode: z.enum(["fixed", "percentage"]).optional(),
       amountStroops: z
         .string()
         .regex(/^\d+$/, "Amount must be a positive integer string")
         .optional(),
       percentage: z.number().min(0).max(100).optional(),
       fullAmount: z.boolean().default(false),
+      fillValueViaApi: z.boolean().optional(),
     })
     .refine(
       (c) => {
-        if (c.fullAmount) return true;
+        if (c.fullAmount || c.fillValueViaApi) return true;
         if (c.mode === "fixed") return !!c.amountStroops && c.amountStroops !== "0";
         if (c.mode === "percentage") return c.percentage !== undefined && c.percentage > 0;
         return false;
@@ -211,6 +229,37 @@ export function migrateFlowGraph(raw: unknown): unknown {
           };
         }
       }
+      if (node.type === "payroll" && node.config && typeof node.config === "object") {
+        const cfg = node.config as { fillScheduleViaApi?: unknown };
+        if (cfg.fillScheduleViaApi === undefined) {
+          return {
+            ...node,
+            config: {
+              ...node.config,
+              fillScheduleViaApi: false,
+            },
+          };
+        }
+      }
+      if (node.type === "pay" && node.config && typeof node.config === "object") {
+        const cfg = node.config as { fillValueViaApi?: unknown; mode?: unknown };
+        const updates: Record<string, unknown> = {};
+        if (cfg.fillValueViaApi === undefined) {
+          updates.fillValueViaApi = false;
+        }
+        if (cfg.mode === undefined) {
+          updates.mode = "fixed";
+        }
+        if (Object.keys(updates).length > 0) {
+          return {
+            ...node,
+            config: {
+              ...node.config,
+              ...updates,
+            },
+          };
+        }
+      }
       return n;
     }),
   };
@@ -233,7 +282,10 @@ export const SplitAction = z.object({
   type: z.literal("split"),
   config: z.object({
     asset: AssetSchema,
-    recipients: z.array(SplitRecipient).min(1).max(20),
+    // Empty recipients are allowed in dev mode; "fill via API after deploy" uses
+    // an empty list as its sentinel. validateFlow enforces at least one recipient
+    // for non-dev flows.
+    recipients: z.array(SplitRecipient).min(0).max(20),
     amountPerIntervalStroops: z
       .string()
       .regex(/^\d+$/, "Amount must be a positive integer string")
@@ -281,6 +333,17 @@ export const EmailNotifyAction = z.object({
   }),
 });
 
+export const CashOutAction = z.object({
+  id: z.string().min(1),
+  type: z.literal("cash_out"),
+  config: z.object({
+    asset: AssetSchema,
+    accountName: z.string().default(""),
+    accountNumber: z.string().default(""),
+    bankCode: z.string().default(""),
+  }),
+});
+
 export const ConditionLogic = z.object({
   id: z.string().min(1),
   type: z.literal("condition"),
@@ -317,12 +380,14 @@ export const FlowNodeSchema = z.discriminatedUnion("type", [
   WebhookTrigger,
   Web2WebhookTrigger,
   SubscriptionTrigger,
+  PayrollTrigger,
   OracleTrigger,
   PayAction,
   SplitAction,
   SwapAction,
   YieldAction,
   EmailNotifyAction,
+  CashOutAction,
   ConditionLogic,
 ]);
 export type FlowNode = z.infer<typeof FlowNodeSchema>;
@@ -337,6 +402,11 @@ export type FlowEdge = z.infer<typeof FlowEdgeSchema>;
 export const FlowGraphSchema = z.object({
   nodes: z.array(FlowNodeSchema).max(40),
   edges: z.array(FlowEdgeSchema).max(80),
+  // Dev mode turns this flow into a parameterized one: nodes with a dev
+  // counterpart (pay, split, subscription) deploy as their mutable `_DEV`
+  // variant whose recipients / amounts / schedule can be left blank at design
+  // time and filled or changed later via the API.
+  devMode: z.boolean().optional(),
 });
 export type FlowGraph = z.infer<typeof FlowGraphSchema>;
 
@@ -356,13 +426,15 @@ export type TriggerNode =
   | z.infer<typeof WebhookTrigger>
   | z.infer<typeof Web2WebhookTrigger>
   | z.infer<typeof SubscriptionTrigger>
+  | z.infer<typeof PayrollTrigger>
   | z.infer<typeof OracleTrigger>;
 export type ActionNode =
   | z.infer<typeof PayAction>
   | z.infer<typeof SplitAction>
   | z.infer<typeof SwapAction>
   | z.infer<typeof YieldAction>
-  | z.infer<typeof EmailNotifyAction>;
+  | z.infer<typeof EmailNotifyAction>
+  | z.infer<typeof CashOutAction>;
 export type LogicNode = z.infer<typeof ConditionLogic>;
 
 export type ContractActionNode = Exclude<ActionNode, { type: "email_notify" }>;
@@ -374,6 +446,7 @@ export function isTrigger(n: FlowNode): n is TriggerNode {
     n.type === "webhook" ||
     n.type === "web2_webhook" ||
     n.type === "subscription" ||
+    n.type === "payroll" ||
     n.type === "oracle"
   );
 }
@@ -383,11 +456,18 @@ export function isAction(n: FlowNode): n is ActionNode {
     n.type === "split" ||
     n.type === "swap" ||
     n.type === "yield" ||
-    n.type === "email_notify"
+    n.type === "email_notify" ||
+    n.type === "cash_out"
   );
 }
 export function isContractAction(n: FlowNode): n is ContractActionNode {
-  return n.type === "pay" || n.type === "split" || n.type === "swap" || n.type === "yield";
+  return (
+    n.type === "pay" ||
+    n.type === "split" ||
+    n.type === "swap" ||
+    n.type === "yield" ||
+    n.type === "cash_out"
+  );
 }
 export function isLogic(n: FlowNode): n is LogicNode {
   return n.type === "condition";
@@ -432,6 +512,17 @@ export function sourceAmountStroops(graph: FlowGraph): string | undefined {
   }
   if (trigger?.type === "subscription" && trigger.config.amountPerPeriodStroops) {
     return trigger.config.amountPerPeriodStroops;
+  }
+  if (trigger?.type === "payroll") {
+    const action = graph.nodes.find(
+      (n): n is Extract<FlowNode, { type: "split" }> => n.type === "split",
+    );
+    if (action) {
+      const total = action.config.recipients
+        .filter((r) => r.mode === "fixed")
+        .reduce((sum, r) => sum + BigInt(r.amountStroops), 0n);
+      if (total > 0n) return total.toString();
+    }
   }
   const condition = graph.nodes.find(isLogic);
   if (condition?.type === "condition") {

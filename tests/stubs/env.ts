@@ -39,6 +39,16 @@ type EnvShape = {
   AI_MODEL: string | undefined;
   GROQ_API_KEY: string | undefined;
   GROQ_MODEL: string | undefined;
+  OFFRAMP_PROVIDER: "pdax" | "mock";
+  OFFRAMP_API_URL: string | undefined;
+  OFFRAMP_ACCESS_TOKEN: string | undefined;
+  OFFRAMP_REFRESH_TOKEN: string | undefined;
+  OFFRAMP_USERNAME: string | undefined;
+  OFFRAMP_ID_TOKEN: string | undefined;
+  OFFRAMP_WEBHOOK_SECRET: string | undefined;
+  OFFRAMP_ASSET_CODE: string | undefined;
+  OFFRAMP_NETWORK: string | undefined;
+  OFFRAMP_CHANNEL: string | undefined;
 };
 
 let active: StellarNetworkName = "testnet";
@@ -87,6 +97,16 @@ function build(): EnvShape {
     AI_MODEL: undefined,
     GROQ_API_KEY: undefined,
     GROQ_MODEL: undefined,
+    OFFRAMP_PROVIDER: "mock",
+    OFFRAMP_API_URL: undefined,
+    OFFRAMP_ACCESS_TOKEN: undefined,
+    OFFRAMP_REFRESH_TOKEN: undefined,
+    OFFRAMP_USERNAME: undefined,
+    OFFRAMP_ID_TOKEN: undefined,
+    OFFRAMP_WEBHOOK_SECRET: undefined,
+    OFFRAMP_ASSET_CODE: undefined,
+    OFFRAMP_NETWORK: undefined,
+    OFFRAMP_CHANNEL: undefined,
   };
 }
 

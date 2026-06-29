@@ -9,6 +9,10 @@ import {
   assetLabel,
 } from "./schema";
 
+function isApiFillAddress(addr: string): boolean {
+  return addr === "PENDING:__api__";
+}
+
 function intervalLabel(amount: number, unit: string): string {
   if (amount === 1) {
     return `every ${unit}`;
@@ -54,6 +58,16 @@ export function flowToEnglish(graph: FlowGraph): string {
     triggerText = `When HTTP webhook fires for ${assetLabel(trigger.config.asset)}`;
   } else if (trigger.type === "subscription") {
     triggerText = `When subscription pulls ${formatStroops(trigger.config.amountPerPeriodStroops)} ${assetLabel(trigger.config.asset)} ${intervalLabel(trigger.config.intervalAmount ?? 1, trigger.config.intervalUnit ?? "day")}`;
+  } else if (trigger.type === "payroll") {
+    const employer = isApiFillAddress(trigger.config.employer)
+      ? "(employer set via API)"
+      : isPendingAddress(trigger.config.employer)
+        ? "(needs employer address)"
+        : shortAddr(trigger.config.employer);
+    const schedule = trigger.config.fillScheduleViaApi
+      ? "(schedule set via API)"
+      : intervalLabel(trigger.config.intervalAmount ?? 1, trigger.config.intervalUnit ?? "week");
+    triggerText = `When payroll pulls from ${employer} ${schedule}`;
   } else if (trigger.type === "oracle") {
     triggerText = `When oracle price meets threshold (${trigger.config.threshold}) for ${assetLabel(trigger.config.asset)}`;
   } else {
@@ -67,10 +81,14 @@ export function flowToEnglish(graph: FlowGraph): string {
 
   let actionText: string;
   if (action.type === "pay") {
-    const who = isPendingAddress(action.config.recipient)
-      ? "(needs address)"
-      : shortAddr(action.config.recipient);
-    if (action.config.fullAmount) {
+    const who = isApiFillAddress(action.config.recipient)
+      ? "(recipient set via API)"
+      : isPendingAddress(action.config.recipient)
+        ? "(needs address)"
+        : shortAddr(action.config.recipient);
+    if (action.config.fillValueViaApi) {
+      actionText = `pay ${assetLabel(action.config.asset)} to ${who} (value set via API)`;
+    } else if (action.config.fullAmount) {
       actionText = `pay full incoming ${assetLabel(action.config.asset)} to ${who}`;
     } else if (action.config.mode === "percentage") {
       actionText = `pay ${action.config.percentage}% of incoming ${assetLabel(
@@ -88,6 +106,9 @@ export function flowToEnglish(graph: FlowGraph): string {
       ? "(needs address)"
       : shortAddr(action.config.vault);
     actionText = `deposit ${assetLabel(action.config.asset)} into yield vault ${vault}`;
+  } else if (action.type === "cash_out") {
+    const bank = action.config.bankCode ? `bank ${action.config.bankCode}` : "a bank (set via API)";
+    actionText = `cash out ${assetLabel(action.config.asset)} to ${bank} via off-ramp`;
   } else {
     const mode = action.config.recipients[0]?.mode ?? "percentage";
     const assetStr = assetLabel(action.config.asset);

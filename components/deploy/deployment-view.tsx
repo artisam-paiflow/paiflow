@@ -7,6 +7,8 @@ import { LiveEvents, type Evt } from "./live-events";
 import LiveBalances from "./live-balances";
 import ContractCallButton from "./contract-call-button";
 import SubscriptionRelayerPanel from "./subscription-relayer-panel";
+import PayrollPanel from "./payroll-panel";
+import OffRampSenderForm from "@/components/payroll/offramp-sender-form";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { assetLabel, isTrigger } from "@/lib/flows/schema";
 import { formatStroops } from "@/lib/utils";
@@ -212,6 +214,14 @@ export default function DeploymentView({
   const isStreamer = !!streamerNode;
   const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
   const isSubscription = !!subscriptionNode;
+  const payrollNode = pipeline?.find(
+    (n) => n.templateKind === "PAYROLL" || n.templateKind === "SUBSCRIPTION_DEV",
+  );
+  const isPayroll = !!payrollNode;
+  const cashOutNode = pipeline?.find(
+    (n) => n.templateKind === "CASH_OUT" || n.templateKind === "CASH_OUT_DEV",
+  );
+  const isCashOut = !!cashOutNode;
   const triggerNode = graph?.nodes.find(isTrigger);
   const pauseAllowed =
     triggerNode?.type === "on_schedule" ? (triggerNode.config.pauseAllowed ?? true) : true;
@@ -492,6 +502,27 @@ export default function DeploymentView({
               </div>
             </div>
           )}
+          {isPayroll && payrollNode?.contractAddress && network && graph && (
+            <PayrollPanel
+              deploymentId={deploymentId}
+              contractAddress={payrollNode.contractAddress}
+              network={network}
+              graph={graph}
+            />
+          )}
+          {isCashOut && !isPayroll && (
+            <div className="glass-panel mt-md p-md rounded-xl">
+              <div className="mb-3">
+                <p className="text-label-sm text-on-surface-variant font-mono uppercase">
+                  / OFF-RAMP SENDER KYC
+                </p>
+                <p className="text-on-surface-variant mt-1 font-mono text-xs">
+                  PDAX requires sender details for every fiat withdrawal, including cash-out.
+                </p>
+              </div>
+              <OffRampSenderForm deploymentId={deploymentId} />
+            </div>
+          )}
           {isStreamer && streamerNode.contractAddress && network && pauseAllowed && (
             <div className="mt-md flex items-center gap-3">
               {isPaused ? (
@@ -758,7 +789,7 @@ export default function DeploymentView({
                   </div>
                 </div>
               </>
-            ) : isSubscription ? null : (
+            ) : isSubscription || payrollNode?.templateKind === "SUBSCRIPTION_DEV" ? null : (
               <>
                 <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
                   SCAN WITH FREIGHTER WALLET · SET AMOUNT IN TRIGGER PAGE.

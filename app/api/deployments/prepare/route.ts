@@ -11,7 +11,7 @@ import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { preparePipelineDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
-import { stellarWasmHash, stellarRelayerAddress } from "@/lib/env";
+import { stellarWasmHash, stellarRelayerAddress, offRampTreasuryAddress } from "@/lib/env";
 
 const PrepareSchema = z.object({
   flowId: z.string().uuid(),
@@ -44,8 +44,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Dev-mode flows are allowed to deploy with blank (pending) recipients —
+    // that is the whole point: deploy now, fill the values via the API later.
+    // The mutable contracts deploy "not yet configured" and guard execution.
     const pending = getPendingLabels(graph);
-    if (pending.length > 0) {
+    if (!graph.devMode && pending.length > 0) {
       throw new AppError(
         "VALIDATION",
         `Cannot deploy: these recipients need Stellar addresses first: ${pending.join(", ")}. Resolve them in the flow editor before deploying.`,
@@ -61,7 +64,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const pipeline = flowToPipeline(v.graph, relayerAddress);
+    const pipeline = flowToPipeline(v.graph, relayerAddress, offRampTreasuryAddress());
 
     // Ensure every pipeline node has a corresponding WASM template on-chain.
     const deployNodes = await Promise.all(

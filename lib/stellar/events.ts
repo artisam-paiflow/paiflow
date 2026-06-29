@@ -7,12 +7,13 @@ import { db } from "@/lib/db";
 import { redis, eventChannel } from "@/lib/redis";
 import { log } from "@/lib/log";
 import { assetContractId } from "@/lib/stellar/assets";
-import { assetLabel, type FlowGraph } from "@/lib/flows/schema";
+import { assetLabel, type FlowGraph, type FlowNode } from "@/lib/flows/schema";
 import { stellarPassphrase } from "@/lib/env";
 import {
   sendEmailNotificationsForEvent,
   type PipelineNodeSnapshot,
 } from "@/lib/flows/notifications";
+import { createCashOutJob } from "@/lib/offramp/jobs";
 
 // Paranoia buffer: when polling events for the first time we start a few
 // ledgers before the deployment transaction to avoid missing events emitted
@@ -203,6 +204,34 @@ const PAYER_REGISTRY: EventRegistry = {
       return recipient ? { asset, recipient, amount } : { asset, amount };
     },
   },
+  payment_updated: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      if (!admin || value === null) return { admin };
+      let recipient: ScValNative | undefined;
+      let amount: ScValNative | undefined;
+      let percentageBps: ScValNative | undefined;
+      if (Array.isArray(value)) {
+        const v = value as ScValNative[];
+        [recipient, amount, percentageBps] = v;
+      } else if (typeof value === "object") {
+        const v = value as Record<string, ScValNative>;
+        recipient = v[0];
+        amount = v[1];
+        percentageBps = v[2];
+      }
+      return { admin, recipient, amount, percentageBps };
+    },
+  },
+  set_asset: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      const asset = value ?? null;
+      return admin ? { admin, asset } : null;
+    },
+  },
 };
 
 const SWAPPER_REGISTRY: EventRegistry = {
@@ -304,6 +333,111 @@ const SUBSCRIPTION_REGISTRY: EventRegistry = {
   },
 };
 
+const PAYROLL_REGISTRY: EventRegistry = {
+  charge: {
+    kind: EventKind.RECEIVE,
+    decode: (topics, value) => {
+      const employer = topics[1] ?? null;
+      const amount = value ?? null;
+      return employer && amount !== null ? { employer, amount } : null;
+    },
+  },
+  payout: {
+    kind: EventKind.PAYOUT,
+    decode: (topics, value) => {
+      const employer = topics[1] ?? null;
+      const recipients = value ?? null;
+      return employer && recipients !== null ? { employer, recipients } : null;
+    },
+  },
+  recipient_updated: {
+    kind: EventKind.RECIPIENT_UPDATED,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      const recipients = value ?? null;
+      return admin && recipients !== null ? { admin, recipients } : null;
+    },
+  },
+  cancel: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics) => {
+      const employer = topics[1] ?? null;
+      return employer ? { employer } : null;
+    },
+  },
+  subscribe: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics) => {
+      const employer = topics[1] ?? null;
+      return employer ? { employer } : null;
+    },
+  },
+  set_relayer: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      const relayer = value ?? null;
+      return admin && relayer !== null ? { admin, relayer } : null;
+    },
+  },
+  subscriber_updated: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      const subscriber = value ?? null;
+      return admin ? { admin, subscriber } : null;
+    },
+  },
+  amount_updated: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      const amount = value ?? null;
+      return admin ? { admin, amount } : null;
+    },
+  },
+  schedule_updated: {
+    kind: EventKind.STATUS_CHANGE,
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      if (!admin || value === null) return null;
+      let startTime: ScValNative | undefined;
+      let intervalSeconds: ScValNative | undefined;
+      let endTime: ScValNative | undefined;
+      if (Array.isArray(value)) {
+        const v = value as ScValNative[];
+        [startTime, intervalSeconds, endTime] = v;
+      } else if (typeof value === "object") {
+        const v = value as Record<string, ScValNative>;
+        startTime = v[0];
+        intervalSeconds = v[1];
+        endTime = v[2];
+      }
+      return startTime !== undefined && intervalSeconds !== undefined && endTime !== undefined
+        ? { admin, startTime, intervalSeconds, endTime }
+        : { admin };
+    },
+  },
+};
+
+const CASH_OUT_DEV_REGISTRY: EventRegistry = {
+  cash_out: {
+    kind: EventKind.CASH_OUT,
+    decode: (topics, value) => {
+      const source = topics[1] ?? null;
+      const amount = value ?? null;
+      return source && amount !== null ? { source, amount } : null;
+    },
+  },
+  bank_updated: {
+    kind: EventKind.RECIPIENT_UPDATED,
+    decode: (topics) => {
+      const admin = topics[1] ?? null;
+      return admin ? { admin } : null;
+    },
+  },
+};
+
 const ORACLE_REGISTRY: EventRegistry = {
   execute: {
     kind: EventKind.RECEIVE,
@@ -393,6 +527,8 @@ function getRegistry(templateKind: TemplateKind): EventRegistry {
       return WEBHOOK_REGISTRY;
     case TemplateKind.SUBSCRIPTION:
       return SUBSCRIPTION_REGISTRY;
+    case TemplateKind.PAYROLL:
+      return PAYROLL_REGISTRY;
     case TemplateKind.ORACLE:
       return ORACLE_REGISTRY;
     case TemplateKind.ROUTER:
@@ -401,6 +537,9 @@ function getRegistry(templateKind: TemplateKind): EventRegistry {
       return TIMELOCK_REGISTRY;
     case TemplateKind.MULTISIG:
       return MULTISIG_REGISTRY;
+    case TemplateKind.CASH_OUT_DEV:
+    case TemplateKind.CASH_OUT:
+      return CASH_OUT_DEV_REGISTRY;
     default:
       return {};
   }
@@ -845,6 +984,72 @@ async function pollEventsWithStartLedger(
         log.warn({ deploymentId, eventId: ev.id }, "event publisher: no redis client");
       }
 
+      // Fire-and-forget: cash_out events spawn off-ramp jobs so the PDAX leg
+      // can run asynchronously.
+      if (kind === EventKind.CASH_OUT) {
+        const bank = findCashOutBank(graph, contractAddress, pipeline ?? []);
+        const source = typeof resolvedData?.source === "string" ? resolvedData.source : null;
+        const amount =
+          typeof resolvedData?.amount === "bigint"
+            ? resolvedData.amount.toString()
+            : typeof resolvedData?.amount === "string"
+              ? resolvedData.amount
+              : null;
+        if (bank && source && amount) {
+          createCashOutJob(db, {
+            deploymentId,
+            sourceAddress: source,
+            amountStroops: amount,
+            bankAccountName: bank.accountName,
+            bankAccountNumber: bank.accountNumber,
+            bankCode: bank.bankCode,
+          })
+            .then((job) => {
+              log.info(
+                { deploymentId, eventId: created.id, jobId: job.id },
+                "cash_out off-ramp job created",
+              );
+            })
+            .catch(async (err) => {
+              const message = err instanceof Error ? err.message : String(err);
+              log.warn(
+                { err, deploymentId, eventId: created.id },
+                "cash_out event job creation failed; writing dead-letter record",
+              );
+              try {
+                await db.cashOutJobFailure.create({
+                  data: {
+                    deploymentId,
+                    contractEventId: created.id,
+                    sourceAddress: source,
+                    amountStroops: amount,
+                    bankAccountName: bank.accountName,
+                    bankAccountNumber: bank.accountNumber,
+                    bankCode: bank.bankCode,
+                    error: message,
+                  },
+                });
+              } catch (deadLetterErr) {
+                log.warn(
+                  { err: deadLetterErr, deploymentId, eventId: created.id },
+                  "cash_out dead-letter insert failed",
+                );
+              }
+            });
+        } else {
+          log.warn(
+            {
+              deploymentId,
+              eventId: created.id,
+              hasBank: !!bank,
+              hasSource: !!source,
+              hasAmount: !!amount,
+            },
+            "cash_out event missing bank/source/amount; skipping off-ramp job",
+          );
+        }
+      }
+
       // Fire-and-forget: email notify decorators attached to this pipeline node.
       sendEmailNotificationsForEvent({
         deploymentId,
@@ -876,6 +1081,37 @@ type PipelineNode = {
   contractAddress: string;
   templateKind: TemplateKind;
 };
+
+type CashOutBank = {
+  accountName: string;
+  accountNumber: string;
+  bankCode: string;
+};
+
+/**
+ * Locate the bank details configured for the cash_out node that owns
+ * `contractAddress`. We match by address in the pipeline snapshot, then look up
+ * the corresponding `cash_out` node in the saved graph snapshot.
+ */
+function findCashOutBank(
+  graph: FlowGraph | null,
+  contractAddress: string,
+  pipeline: PipelineNodeSnapshot[],
+): CashOutBank | null {
+  if (!graph) return null;
+  const snapshot = pipeline.find((p) => p.contractAddress === contractAddress);
+  if (!snapshot) return null;
+  const node = graph.nodes.find(
+    (n): n is Extract<FlowNode, { type: "cash_out" }> =>
+      n.type === "cash_out" && n.id === snapshot.nodeId,
+  );
+  if (!node || !node.config.bankCode) return null;
+  return {
+    accountName: node.config.accountName,
+    accountNumber: node.config.accountNumber,
+    bankCode: node.config.bankCode,
+  };
+}
 
 export async function pollEventsFor(deploymentId: string): Promise<number> {
   const deployment = await db.deployment.findUnique({

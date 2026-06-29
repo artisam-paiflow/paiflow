@@ -3,18 +3,24 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { FlowNode } from "@/lib/flows/schema";
-import { isAction } from "@/lib/flows/schema";
+import { assetLabel, isAction } from "@/lib/flows/schema";
 import { formatAmount } from "@/lib/utils";
+
+function isApiFillAddress(addr: string): boolean {
+  return addr === "PENDING:__api__";
+}
 
 type ActionNodeData = {
   node: FlowNode;
   label: string;
+  isMutable?: boolean;
 };
 
 function ActionNodeComponent({ data, selected }: NodeProps) {
   const d = data as ActionNodeData;
   const n = d.node;
   if (!isAction(n)) return null;
+  const isMutable = d.isMutable === true;
 
   let icon: string;
   let title: string;
@@ -23,61 +29,60 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
   if (n.type === "pay") {
     icon = "payments";
     title = "Pay";
-    const assetLabel =
-      n.config.asset.kind === "known"
-        ? n.config.asset.symbol
-        : n.config.asset.kind === "native"
-          ? "XLM"
-          : n.config.asset.code;
-    if (n.config.fullAmount) {
-      detail = `Full amount ${assetLabel}`;
+    const label = assetLabel(n.config.asset);
+    const recipientDeferred = isApiFillAddress(n.config.recipient);
+    if (recipientDeferred && n.config.fillValueViaApi) {
+      detail = `${label} · payment via API`;
+    } else if (recipientDeferred) {
+      detail = `${label} · recipient via API`;
+    } else if (n.config.fillValueViaApi) {
+      detail = `${label} · value via API`;
+    } else if (n.config.fullAmount) {
+      detail = `Full amount ${label}`;
     } else if (n.config.mode === "percentage" && n.config.percentage !== undefined) {
-      detail = `${n.config.percentage}% ${assetLabel}`;
+      detail = `${n.config.percentage}% ${label}`;
     } else {
-      detail = `${formatAmount(n.config.amountStroops || "0")} ${assetLabel}`;
+      detail = `${formatAmount(n.config.amountStroops || "0")} ${label}`;
     }
   } else if (n.type === "swap") {
     icon = "swap_horiz";
     title = "Swap";
-    const inLabel =
-      n.config.assetIn.kind === "known"
-        ? n.config.assetIn.symbol
-        : n.config.assetIn.kind === "native"
-          ? "XLM"
-          : n.config.assetIn.code;
-    const outLabel =
-      n.config.assetOut.kind === "known"
-        ? n.config.assetOut.symbol
-        : n.config.assetOut.kind === "native"
-          ? "XLM"
-          : n.config.assetOut.code;
-    detail = `${inLabel} → ${outLabel} @ ${(n.config.rateBps / 100).toFixed(0)}%`;
+    detail = `${assetLabel(n.config.assetIn)} → ${assetLabel(n.config.assetOut)} @ ${(n.config.rateBps / 100).toFixed(0)}%`;
   } else if (n.type === "yield") {
     icon = "savings";
     title = "Yield";
-    const assetLabel =
-      n.config.asset.kind === "known"
-        ? n.config.asset.symbol
-        : n.config.asset.kind === "native"
-          ? "XLM"
-          : n.config.asset.code;
-    detail = `deposit ${assetLabel}`;
+    detail = `deposit ${assetLabel(n.config.asset)}`;
   } else if (n.type === "email_notify") {
     icon = "mail";
     title = "Email Notify";
     detail = `${n.config.recipients.length} recipient${n.config.recipients.length === 1 ? "" : "s"}`;
+  } else if (n.type === "cash_out") {
+    icon = "payments";
+    title = "Cash Out";
+    const label = assetLabel(n.config.asset);
+    detail = n.config.bankCode ? `${label} → ${n.config.bankCode}` : `${label} → bank`;
   } else {
     icon = "call_split";
     title = "Split";
-    detail = `${n.config.recipients.length} recipients`;
+    if (isMutable && n.config.recipients.length === 0) {
+      detail = "recipients via API";
+    } else {
+      detail = `${n.config.recipients.length} recipient${n.config.recipients.length === 1 ? "" : "s"}`;
+    }
   }
 
-  const canHaveChildren = n.type !== "email_notify";
+  const canHaveChildren = n.type !== "email_notify" && n.type !== "cash_out";
 
   return (
     <div
       className={`glass-panel relative min-w-[200px] rounded-xl ${selected ? "neon-glow" : ""}`}
-      style={{ borderColor: selected ? undefined : "rgba(255, 177, 196, 0.3)" }}
+      style={{
+        borderColor: selected
+          ? undefined
+          : isMutable
+            ? "rgba(255, 186, 32, 0.55)"
+            : "rgba(255, 177, 196, 0.3)",
+      }}
     >
       <Handle
         type="target"
@@ -90,7 +95,22 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
           <span className="material-symbols-outlined text-[14px]">{icon}</span>
           ACTION
         </span>
-        <span className="status-dot-live h-1.5 w-1.5" />
+        {isMutable ? (
+          <span
+            className="inline-flex items-center gap-0.5 rounded border px-1 py-px font-mono text-[7px] leading-none font-medium tracking-wider"
+            style={{
+              borderColor: "rgba(255, 186, 32, 0.35)",
+              backgroundColor: "rgba(255, 186, 32, 0.10)",
+              color: "#ffba20",
+            }}
+            title="Deploys as a mutable _DEV contract — fill recipient/amount via the API after deploy"
+          >
+            <span className="material-symbols-outlined text-[9px]">tune</span>
+            DEV
+          </span>
+        ) : (
+          <span className="status-dot-live h-1.5 w-1.5" />
+        )}
       </div>
 
       <div className="px-3 py-2.5">
