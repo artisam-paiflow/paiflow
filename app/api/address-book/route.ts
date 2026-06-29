@@ -26,6 +26,18 @@ export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const body = CreateSchema.parse(await req.json());
+
+    // Block saving the same wallet under a second label. Two contacts pointing
+    // at one address are ambiguous and confusing (issue #243). Updating an
+    // existing label's address is still fine — only a *different* label
+    // claiming an address already in use is rejected.
+    const dupAddress = await db.addressBookEntry.findFirst({
+      where: { ownerId: user.id, address: body.address, NOT: { label: body.label } },
+    });
+    if (dupAddress) {
+      throw new AppError("CONFLICT", `This address is already saved as "${dupAddress.label}".`);
+    }
+
     const entry = await db.addressBookEntry.upsert({
       where: { ownerId_label: { ownerId: user.id, label: body.label } },
       update: { address: body.address },

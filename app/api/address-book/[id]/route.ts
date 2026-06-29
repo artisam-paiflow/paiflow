@@ -42,6 +42,18 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
       }
     }
 
+    if (body.address && body.address !== existing.address) {
+      const addressConflict = await db.addressBookEntry.findFirst({
+        where: { ownerId: user.id, address: body.address, NOT: { id } },
+      });
+      if (addressConflict) {
+        throw new AppError(
+          "CONFLICT",
+          `This address is already saved as "${addressConflict.label}".`,
+        );
+      }
+    }
+
     const updated = await db.addressBookEntry.update({
       where: { id },
       data: {

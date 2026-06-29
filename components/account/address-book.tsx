@@ -58,6 +58,11 @@ export default function AddressBookManager() {
       setFormError(addrError);
       return;
     }
+    const dup = entries.find((en) => en.address === address && en.label !== label);
+    if (dup) {
+      setFormError(`This address is already saved as "${dup.label}".`);
+      return;
+    }
     setBusy(true);
     setFormError(null);
     try {
@@ -90,6 +95,11 @@ export default function AddressBookManager() {
     }
     if (!entries.some((e) => e.id === editingId)) {
       setEditError("Contact not found");
+      return;
+    }
+    const dup = entries.find((en) => en.address === address && en.id !== editingId);
+    if (dup) {
+      setEditError(`This address is already saved as "${dup.label}".`);
       return;
     }
     setBusy(true);
