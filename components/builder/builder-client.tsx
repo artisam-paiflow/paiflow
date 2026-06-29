@@ -611,6 +611,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
               }}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
+              deleteKeyCode={["Backspace", "Delete"]}
               fitView
             >
               <Background gap={16} size={1} color="#27272a" />
