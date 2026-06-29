@@ -141,6 +141,20 @@ export async function POST(req: NextRequest) {
               `Treasury balance ${treasuryBalance.toString()} is less than job amount ${job.amountStroops}; cash-out sink not confirmed`,
             );
           }
+
+          // In PDAX UAT, Stellar USDC (USDCXLM) deposits are disabled, so the
+          // on-chain treasury cannot directly fund the trade. The employer must
+          // pre-fund the PDAX institutional balance with USDC off-chain. The
+          // treasury sink is still verified above as the bookkeeping proof.
+          log.info(
+            {
+              jobId: job.id,
+              sourceAddress: job.sourceAddress,
+              amountStroops: job.amountStroops,
+              treasuryBalance: treasuryBalance.toString(),
+            },
+            "Cash-out sink confirmed; trade will be funded by pre-funded PDAX balance",
+          );
         }
 
         // 1. Firm quote: crypto -> PHP

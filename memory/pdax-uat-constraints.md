@@ -1,6 +1,6 @@
 ---
 name: pdax-uat-constraints
-description: PDAX UAT asset/network/bank/payout constraints for APAC Stellar Hackathon integration
+description: PDAX UAT asset/network/bank/payout constraints for fiat off-ramp
 metadata:
   type: reference
 ---
@@ -10,7 +10,13 @@ PDAX UAT environment constraints for the APAC Stellar Hackathon:
 ## Supported assets
 
 - `XLM` — Stellar Lumens
-- `USDCXLM` — USD Coin (Stellar Network)
+- `USDC` — USD Coin (the PDAX UAT institutional wallet asset, **not** Stellar USDC / USDCXLM)
+
+> `USDCXLM` is **disabled** in PDAX UAT. The on-chain treasury holds Stellar
+> USDC (USDCXLM), but it cannot be deposited into PDAX UAT. For hackathon/UAT
+> demos the PDAX institutional balance must be **pre-funded with USDC** off-chain.
+> The on-chain sink to the treasury is kept as the bookkeeping proof of the
+> intended off-ramp amount.
 
 ## Supported network
 
@@ -36,12 +42,15 @@ the bank bounces it:
 
 ## Application
 
-Default env vars in `lib/env.ts` and `lib/offramp/provider.ts` already match these constraints:
+Default env vars in `lib/env.ts` and `lib/offramp/provider.ts` should match
+these constraints:
 
-- `OFFRAMP_ASSET_CODE=USDCXLM`
+- `OFFRAMP_ASSET_CODE=USDC`
 - `OFFRAMP_NETWORK=XLM_USDC_T_CEKS`
 - `OFFRAMP_CHANNEL=InstaPay`
 
-For hackathon testing, employee bank details should use bank codes `BASECPH` or `BACTBPH` only.
+For hackathon testing, employee bank details should use bank codes `BASECPH` or
+`BACTBPH` only, and the PDAX institutional account must be pre-funded with USDC
+before any off-ramp jobs run.
 
 Related: [[pdax-institution-api]]

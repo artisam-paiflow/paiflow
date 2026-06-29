@@ -148,8 +148,9 @@ never in the trustless immutable contracts:
   leg succeeds but PDAX fails.
 - **KYC.** Bank recipients require a verified `OffRampSenderProfile` on the
   deployer.
-- **Hard PDAX constraints** (`pdax-uat-constraints`): only `USDCXLM` + `XLM`,
-  testnet (`XLM_USDC_T_CEKS`), `InstaPay`, two banks (`BASECPH`, `BACTBPH`).
+- **Hard PDAX constraints** (`pdax-uat-constraints`): UAT institutional wallet
+  uses `USDC` (Stellar USDC / `USDCXLM` deposits are disabled), network
+  `XLM_USDC_T_CEKS`, `InstaPay`, two banks (`BASECPH`, `BACTBPH`).
 
 ## Phase 2 decision (resolved): dedicated terminal "cash-out" node — option (b)
 
@@ -179,8 +180,8 @@ chain is its own explicit step.
 - Still requires **decoupling `OffRampPayoutJob` from payroll** (generic
   deployment/recipient/amount reference).
 - Inherits all fiat costs: refund/retry policy on PDAX failure, KYC
-  (`OffRampSenderProfile`), PDAX constraints (`USDCXLM`/`XLM`, InstaPay,
-  `BASECPH`/`BACTBPH`).
+  (`OffRampSenderProfile`), PDAX constraints (UAT wallet uses `USDC`;
+  `USDCXLM` deposits disabled, `InstaPay`, `BASECPH`/`BACTBPH`).
 
 ### Open sub-questions for the cash-out node
 
