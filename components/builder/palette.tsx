@@ -24,6 +24,9 @@ type Template = {
   label: string;
   icon: string;
   group: "Triggers" | "Actions" | "Logic" | "Dev";
+  // Hidden templates stay in source (typechecked, easy to re-enable) but are
+  // filtered out of the palette. Use this instead of commenting entries out.
+  hidden?: boolean;
   make: () => FlowNode;
 };
 
@@ -54,16 +57,17 @@ const TEMPLATES: Template[] = [
     }),
   },
   // Hidden: non-HTTP Webhook trigger (relayer-authorized). Use "HTTP Webhook" instead.
-  // {
-  //   group: "Triggers",
-  //   label: "Webhook",
-  //   icon: "webhook",
-  //   make: () => ({
-  //     id: makeId("webhook"),
-  //     type: "webhook",
-  //     config: { asset: { kind: "known", symbol: "USDC" }, relayer: "PENDING:relayer" },
-  //   }),
-  // },
+  {
+    group: "Triggers",
+    label: "Webhook",
+    icon: "webhook",
+    hidden: true,
+    make: () => ({
+      id: makeId("webhook"),
+      type: "webhook",
+      config: { asset: { kind: "known", symbol: "USDC" }, relayer: "PENDING:relayer" },
+    }),
+  },
   {
     group: "Triggers",
     label: "HTTP Webhook",
@@ -107,16 +111,17 @@ const TEMPLATES: Template[] = [
     }),
   },
   // Hidden: Oracle trigger.
-  // {
-  //   group: "Triggers",
-  //   label: "Oracle",
-  //   icon: "online_prediction",
-  //   make: () => ({
-  //     id: makeId("oracle"),
-  //     type: "oracle",
-  //     config: { asset: { kind: "known", symbol: "USDC" }, threshold: "100" },
-  //   }),
-  // },
+  {
+    group: "Triggers",
+    label: "Oracle",
+    icon: "online_prediction",
+    hidden: true,
+    make: () => ({
+      id: makeId("oracle"),
+      type: "oracle",
+      config: { asset: { kind: "known", symbol: "USDC" }, threshold: "100" },
+    }),
+  },
   {
     group: "Actions",
     label: "Pay",
@@ -174,19 +179,20 @@ const TEMPLATES: Template[] = [
     }),
   },
   // Hidden: Yield action.
-  // {
-  //   group: "Actions",
-  //   label: "Yield",
-  //   icon: "savings",
-  //   make: () => ({
-  //     id: makeId("yield"),
-  //     type: "yield",
-  //     config: {
-  //       asset: { kind: "known", symbol: "USDC" },
-  //       vault: "PENDING:vault",
-  //     },
-  //   }),
-  // },
+  {
+    group: "Actions",
+    label: "Yield",
+    icon: "savings",
+    hidden: true,
+    make: () => ({
+      id: makeId("yield"),
+      type: "yield",
+      config: {
+        asset: { kind: "known", symbol: "USDC" },
+        vault: "PENDING:vault",
+      },
+    }),
+  },
   {
     group: "Actions",
     label: "Email Notify",
@@ -342,7 +348,7 @@ export default function Palette({
               {g.toUpperCase()}
             </div>
             <div className="mt-2 grid gap-1.5">
-              {TEMPLATES.filter((tpl) => tpl.group === g).map((tpl) => {
+              {TEMPLATES.filter((tpl) => tpl.group === g && !tpl.hidden).map((tpl) => {
                 const isTriggerBlock = g === "Triggers";
                 const disabled = isTriggerBlock && hasTrigger;
 

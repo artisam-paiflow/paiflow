@@ -71,6 +71,8 @@ function nodeDescriptor(n: FlowNode): string {
       return "HTTP Webhook trigger";
     case "subscription":
       return "Subscription trigger";
+    case "payroll":
+      return "Payroll";
     case "oracle":
       return "Oracle trigger";
     case "pay":
@@ -83,6 +85,8 @@ function nodeDescriptor(n: FlowNode): string {
       return `Swap (${assetLabel(n.config.assetIn)} → ${assetLabel(n.config.assetOut)})`;
     case "yield":
       return `Yield (${assetLabel(n.config.asset)})`;
+    case "cash_out":
+      return "Cash Out";
     case "email_notify":
       return "Email notify";
     case "condition":
