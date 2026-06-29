@@ -119,6 +119,38 @@ describe("flowToEnglish", () => {
     expect(out).toContain("pay 2 XLM");
   });
 
+  it("formats an on_schedule start as a readable date, not a raw ISO timestamp", () => {
+    const out = flowToEnglish({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "hour",
+            startsAt: "2026-06-25T05:25:13.993Z",
+            timeZone: "UTC",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR,
+            amountStroops: "20000000",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("every hour starting June 25, 2026 at 5:25 AM");
+    expect(out).not.toContain("2026-06-25T05:25:13.993Z");
+    expect(out).not.toContain("T05:25");
+  });
+
   it("describes a scheduled split (streamer)", () => {
     const out = flowToEnglish({
       nodes: [
