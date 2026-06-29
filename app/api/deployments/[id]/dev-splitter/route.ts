@@ -48,6 +48,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       address: r.address,
       bps: r.mode === "percentage" ? (r.bps ?? 0) : 0,
       amount: r.mode === "fixed" ? (r.amountStroops ?? "0") : "0",
+      isCashOut: false,
     }));
 
     const result = await updateRecipientsByRelayer(node.contractAddress, recipients);

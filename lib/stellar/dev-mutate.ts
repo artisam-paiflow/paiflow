@@ -1,4 +1,5 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
 import {
   Address,
   BASE_FEE,
@@ -11,7 +12,13 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 import { sorobanRpc } from "./client";
-import { stellarPassphrase, stellarRelayerAddress, stellarRelayerSecretKey } from "@/lib/env";
+import {
+  offRampTreasuryAddress,
+  stellarPassphrase,
+  stellarRelayerAddress,
+  stellarRelayerSecretKey,
+  stellarWasmHash,
+} from "@/lib/env";
 import { AppError } from "@/lib/errors";
 
 /**
@@ -22,7 +29,12 @@ import { AppError } from "@/lib/errors";
  * API without the deployer signing each change.
  */
 
-export type DevRecipient = { address: string; bps: number; amount: string };
+export type DevRecipient = {
+  address: string;
+  bps: number;
+  amount: string;
+  isCashOut?: boolean;
+};
 
 export type DevMutateResult = {
   status: "SUCCESS" | "FAILED";
@@ -54,6 +66,10 @@ function string(s: string): xdr.ScVal {
   return nativeToScVal(s, { type: "string" });
 }
 
+function bool(b: boolean): xdr.ScVal {
+  return nativeToScVal(b, { type: "bool" });
+}
+
 function recipientsVec(recipients: DevRecipient[]): xdr.ScVal {
   return xdr.ScVal.scvVec(
     recipients.map((r) =>
@@ -61,6 +77,7 @@ function recipientsVec(recipients: DevRecipient[]): xdr.ScVal {
         new xdr.ScMapEntry({ key: symbol("address"), val: addr(r.address) }),
         new xdr.ScMapEntry({ key: symbol("amount"), val: i128(r.amount) }),
         new xdr.ScMapEntry({ key: symbol("bps"), val: u32(r.bps) }),
+        new xdr.ScMapEntry({ key: symbol("is_cash_out"), val: bool(r.isCashOut ?? false) }),
       ]),
     ),
   );
@@ -74,12 +91,14 @@ function relayerKeypair(): Keypair {
   return Keypair.fromSecret(secret);
 }
 
+type PendingTx = { status: "PENDING"; txHash: string };
+
 /** Build, simulate, sign (relayer) and submit a contract invocation. */
-async function invokeByRelayer(
+async function buildAndSendByRelayer(
   contractAddress: string,
   functionName: string,
   args: xdr.ScVal[],
-): Promise<DevMutateResult> {
+): Promise<PendingTx> {
   const server = sorobanRpc();
   const kp = relayerKeypair();
 
@@ -120,27 +139,38 @@ async function invokeByRelayer(
 
   const send = await server.sendTransaction(assembled);
   if (send.status === "ERROR") {
-    return {
-      status: "FAILED",
-      txHash: send.hash,
-      errorMessage: `sendTransaction error: ${JSON.stringify(send.errorResult?.result?.()) ?? send.status}`,
-    };
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `sendTransaction error: ${JSON.stringify(send.errorResult?.result?.()) ?? send.status}`,
+    );
   }
+
+  return { status: "PENDING", txHash: send.hash };
+}
+
+/** Build, simulate, sign (relayer), submit, and wait for finality. */
+async function invokeByRelayer(
+  contractAddress: string,
+  functionName: string,
+  args: xdr.ScVal[],
+): Promise<DevMutateResult> {
+  const { txHash } = await buildAndSendByRelayer(contractAddress, functionName, args);
+  const server = sorobanRpc();
 
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
-    const got = await server.getTransaction(send.hash);
-    if (got.status === "SUCCESS") return { status: "SUCCESS", txHash: send.hash };
+    const got = await server.getTransaction(txHash);
+    if (got.status === "SUCCESS") return { status: "SUCCESS", txHash };
     if (got.status === "FAILED") {
       return {
         status: "FAILED",
-        txHash: send.hash,
+        txHash,
         errorMessage: "Transaction failed on the network",
       };
     }
     await new Promise((r) => setTimeout(r, 1500));
   }
-  return { status: "FAILED", txHash: send.hash, errorMessage: "Timed out waiting for finality" };
+  return { status: "FAILED", txHash, errorMessage: "Timed out waiting for finality" };
 }
 
 function relayerAddressOrThrow(): string {
@@ -249,6 +279,18 @@ export function updateRecipientsByRelayer(
   ]);
 }
 
+/** Submit an update_recipients call and return immediately with a pending txHash. */
+export function submitUpdateRecipientsByRelayer(
+  contractAddress: string,
+  recipients: DevRecipient[],
+): Promise<PendingTx> {
+  const caller = relayerAddressOrThrow();
+  return buildAndSendByRelayer(contractAddress, "update_recipients", [
+    addr(caller),
+    recipientsVec(recipients),
+  ]);
+}
+
 // ── SUBSCRIPTION_DEV ──────────────────────────────────────────────────────────
 
 export function updateSubscriberByRelayer(
@@ -267,6 +309,15 @@ export function setSubscriptionAmountByRelayer(
   return invokeByRelayer(contractAddress, "set_amount", [addr(caller), i128(amountStroops)]);
 }
 
+/** Submit a set_amount call and return immediately with a pending txHash. */
+export function submitSetSubscriptionAmountByRelayer(
+  contractAddress: string,
+  amountStroops: string,
+): Promise<PendingTx> {
+  const caller = relayerAddressOrThrow();
+  return buildAndSendByRelayer(contractAddress, "set_amount", [addr(caller), i128(amountStroops)]);
+}
+
 export function updateScheduleByRelayer(
   contractAddress: string,
   opts: { startTs: number; intervalSeconds: number; endTs: number },
@@ -282,6 +333,114 @@ export function updateScheduleByRelayer(
 
 // ── CASH_OUT_DEV ──────────────────────────────────────────────────────────────
 
+export type DeployCashOutDevResult = {
+  status: "SUCCESS" | "FAILED";
+  txHash: string;
+  contractAddress?: string;
+  errorMessage?: string;
+};
+
+export async function deployCashOutDevByRelayer(opts: {
+  adminAddress: string;
+  assetContractAddress: string;
+  treasury: string;
+  parent: string;
+  accountName?: string;
+  accountNumber?: string;
+  bankCode?: string;
+}): Promise<DeployCashOutDevResult> {
+  const wasmHash = stellarWasmHash("CASH_OUT_DEV");
+  if (!wasmHash) {
+    throw new AppError("INTERNAL", "CASH_OUT_DEV WASM hash is not configured");
+  }
+
+  const server = sorobanRpc();
+  const kp = relayerKeypair();
+  let sourceAcct;
+  try {
+    sourceAcct = await server.getAccount(kp.publicKey());
+  } catch {
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Relayer account ${kp.publicKey()} is not funded or does not exist`,
+    );
+  }
+
+  const salt = randomBytes(32);
+  const args = [
+    addr(opts.adminAddress),
+    addr(kp.publicKey()),
+    addr(opts.assetContractAddress),
+    addr(opts.treasury),
+    addr(opts.parent),
+    string(opts.accountName ?? ""),
+    string(opts.accountNumber ?? ""),
+    string(opts.bankCode ?? ""),
+  ];
+
+  const op = Operation.createCustomContract({
+    address: new Address(kp.publicKey()),
+    wasmHash: Buffer.from(wasmHash, "hex"),
+    salt,
+    constructorArgs: args,
+  });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(180)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError("UPSTREAM_RPC", `CASH_OUT_DEV deploy simulation failed: ${sim.error}`);
+  }
+
+  const assembled = rpc.assembleTransaction(tx, sim).build();
+  assembled.sign(kp);
+
+  const send = await server.sendTransaction(assembled);
+  if (send.status === "ERROR") {
+    return {
+      status: "FAILED",
+      txHash: send.hash,
+      errorMessage: `sendTransaction error: ${JSON.stringify(send.errorResult?.result?.()) ?? send.status}`,
+    };
+  }
+
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const got = await server.getTransaction(send.hash);
+    if (got.status === "SUCCESS") {
+      let contractAddress: string | undefined;
+      try {
+        const retval = got.returnValue;
+        if (retval && retval.switch().name === "scvAddress") {
+          contractAddress = Address.fromScAddress(retval.address()).toString();
+        }
+      } catch {
+        contractAddress = undefined;
+      }
+      return { status: "SUCCESS", txHash: send.hash, contractAddress };
+    }
+    if (got.status === "FAILED") {
+      return {
+        status: "FAILED",
+        txHash: send.hash,
+        errorMessage: "Deploy transaction failed on the network",
+      };
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  return {
+    status: "FAILED",
+    txHash: send.hash,
+    errorMessage: "Timed out waiting for finality",
+  };
+}
+
 export function updateBankByRelayer(
   contractAddress: string,
   opts: { accountName: string; accountNumber: string; bankCode: string },
@@ -296,6 +455,48 @@ export function updateBankByRelayer(
 }
 
 // ── Treasury refund ───────────────────────────────────────────────────────────
+
+/**
+ * Read the off-ramp treasury balance for a Stellar asset contract.
+ * Used by the off-ramp cron to confirm a cash-out sink happened before trading.
+ */
+export async function getTreasuryBalance(assetContractAddress: string): Promise<bigint> {
+  const treasury = offRampTreasuryAddress();
+  if (!treasury) {
+    throw new AppError("INTERNAL", "Off-ramp treasury address is not configured");
+  }
+
+  const server = sorobanRpc();
+  const source = relayerAddressOrThrow();
+
+  let sourceAcct;
+  try {
+    sourceAcct = await server.getAccount(source);
+  } catch {
+    throw new AppError("INSUFFICIENT_FUNDS", `Relayer account ${source} is not funded`);
+  }
+
+  const op = Operation.invokeContractFunction({
+    contract: assetContractAddress,
+    function: "balance",
+    args: [addr(treasury)],
+  });
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(op)
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim) || !sim.result?.retval) {
+    throw new AppError("UPSTREAM_RPC", `balance simulation failed for ${assetContractAddress}`);
+  }
+
+  return BigInt(scValToNative(sim.result.retval));
+}
 
 /**
  * Refund USDC from the off-ramp treasury back to an on-chain source address.

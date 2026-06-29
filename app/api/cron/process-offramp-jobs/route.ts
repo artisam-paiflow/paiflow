@@ -11,7 +11,7 @@ import {
 } from "@/lib/offramp/jobs";
 import { getOffRampProvider, offRampAssetCode, offRampFiatCurrency } from "@/lib/offramp/provider";
 import { resolveCashOutAsset, resolvePayrollAsset } from "@/lib/offramp/assets";
-import { refundFromTreasury } from "@/lib/stellar/dev-mutate";
+import { refundFromTreasury, getTreasuryBalance } from "@/lib/stellar/dev-mutate";
 import { assetContractId } from "@/lib/stellar/assets";
 import type { FlowGraph } from "@/lib/flows/schema";
 import type { Asset } from "@/lib/flows/schema";
@@ -129,6 +129,19 @@ export async function POST(req: NextRequest) {
         }
 
         const provider = getOffRampProvider();
+
+        // For cash-out jobs, confirm the on-chain sink actually reached the
+        // treasury before we quote or trade. If the splitter did not invoke
+        // receive_and_forward, the treasury will be underfunded and the trade
+        // would silently draw from the employer's PDAX balance instead.
+        if (job.source === OffRampJobSource.CASH_OUT) {
+          const treasuryBalance = await getTreasuryBalance(assetContractId(asset));
+          if (treasuryBalance < BigInt(job.amountStroops)) {
+            throw new Error(
+              `Treasury balance ${treasuryBalance.toString()} is less than job amount ${job.amountStroops}; cash-out sink not confirmed`,
+            );
+          }
+        }
 
         // 1. Firm quote: crypto -> PHP
         const quote = await provider.quote({

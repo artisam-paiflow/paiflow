@@ -53,7 +53,7 @@ function symbol(s: string): xdr.ScVal {
 }
 
 function recipientsVec(
-  recipients: Array<{ address: string; bps: number; amount: string }>,
+  recipients: Array<{ address: string; bps: number; amount: string; isCashOut?: boolean }>,
 ): xdr.ScVal {
   return xdr.ScVal.scvVec(
     recipients.map((r) =>
@@ -61,6 +61,10 @@ function recipientsVec(
         new xdr.ScMapEntry({ key: symbol("address"), val: addr(r.address) }),
         new xdr.ScMapEntry({ key: symbol("amount"), val: i128(r.amount) }),
         new xdr.ScMapEntry({ key: symbol("bps"), val: nativeToScVal(r.bps, { type: "u32" }) }),
+        new xdr.ScMapEntry({
+          key: symbol("is_cash_out"),
+          val: nativeToScVal(r.isCashOut ?? false, { type: "bool" }),
+        }),
       ]),
     ),
   );
@@ -128,8 +132,8 @@ async function main() {
   const tx4 = await invoke(SPLITTER_CONTRACT, "update_recipients", [
     addr(relayer),
     recipientsVec([
-      { address: RECIPIENT_A, bps: 0, amount: RECIPIENT_SHARE_STROOPS },
-      { address: RECIPIENT_B, bps: 0, amount: RECIPIENT_SHARE_STROOPS },
+      { address: RECIPIENT_A, bps: 0, amount: RECIPIENT_SHARE_STROOPS, isCashOut: false },
+      { address: RECIPIENT_B, bps: 0, amount: RECIPIENT_SHARE_STROOPS, isCashOut: false },
     ]),
   ]);
   console.log("update_recipients tx:", tx4);
