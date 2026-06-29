@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 //! CASH_OUT — immutable terminal "leave the chain" sink.
 //!
 //! Production counterpart to `cash_out_dev`. It receives the configured asset,
@@ -90,7 +91,9 @@ impl CashOut {
         env.storage().instance().set(&Key::Parent, &parent);
         env.storage().instance().set(&Key::Paused, &false);
         env.storage().instance().set(&Key::Version, &VERSION);
-        env.storage().instance().set(&Key::AccountName, &account_name);
+        env.storage()
+            .instance()
+            .set(&Key::AccountName, &account_name);
         env.storage()
             .instance()
             .set(&Key::AccountNumber, &account_number);
@@ -107,7 +110,7 @@ impl CashOut {
         }
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         let client = token::Client::new(&env, &asset);
-        client.transfer(&from, &env.current_contract_address(), &amount);
+        client.transfer(&from, env.current_contract_address(), &amount);
         sink_to_treasury(&env, &asset, amount, &from);
     }
 

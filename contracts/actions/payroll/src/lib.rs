@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
     Address, Env, Symbol, Vec,
@@ -77,9 +78,13 @@ impl Payroll {
         env.storage().instance().set(&Key::Version, &VERSION);
         env.storage().instance().set(&Key::Cancelled, &false);
         env.storage().instance().set(&Key::StartTime, &start_time);
-        env.storage().instance().set(&Key::IntervalSeconds, &interval_seconds);
+        env.storage()
+            .instance()
+            .set(&Key::IntervalSeconds, &interval_seconds);
         env.storage().instance().set(&Key::EndTime, &end_time);
-        env.storage().instance().set(&Key::NextChargeAt, &start_time);
+        env.storage()
+            .instance()
+            .set(&Key::NextChargeAt, &start_time);
     }
 
     pub fn charge(env: Env) {
@@ -117,7 +122,12 @@ impl Payroll {
         let employer: Address = env.storage().instance().get(&Key::Employer).unwrap();
         employer.require_auth();
 
-        if env.storage().instance().get(&Key::Cancelled).unwrap_or(false) {
+        if env
+            .storage()
+            .instance()
+            .get(&Key::Cancelled)
+            .unwrap_or(false)
+        {
             panic_with_error!(&env, Error::AlreadyCancelled);
         }
 
@@ -137,7 +147,12 @@ impl Payroll {
         let employer: Address = env.storage().instance().get(&Key::Employer).unwrap();
         employer.require_auth();
 
-        if !env.storage().instance().get(&Key::Cancelled).unwrap_or(false) {
+        if !env
+            .storage()
+            .instance()
+            .get(&Key::Cancelled)
+            .unwrap_or(false)
+        {
             panic_with_error!(&env, Error::NotCancelled);
         }
 
@@ -177,7 +192,10 @@ impl Payroll {
     }
 
     pub fn is_cancelled(env: Env) -> bool {
-        env.storage().instance().get(&Key::Cancelled).unwrap_or(false)
+        env.storage()
+            .instance()
+            .get(&Key::Cancelled)
+            .unwrap_or(false)
     }
 
     pub fn relayer(env: Env) -> Address {
@@ -215,7 +233,12 @@ fn total_amount(env: &Env) -> i128 {
 }
 
 fn execute_charge(env: &Env) {
-    if env.storage().instance().get(&Key::Cancelled).unwrap_or(false) {
+    if env
+        .storage()
+        .instance()
+        .get(&Key::Cancelled)
+        .unwrap_or(false)
+    {
         panic_with_error!(env, Error::AlreadyCancelled);
     }
 
@@ -254,10 +277,12 @@ fn execute_charge(env: &Env) {
     );
 
     #[allow(deprecated)]
-    env.events().publish((symbol_short!("charge"), employer.clone()), amount);
+    env.events()
+        .publish((symbol_short!("charge"), employer.clone()), amount);
 
     #[allow(deprecated)]
-    env.events().publish((symbol_short!("payout"), employer), recipients);
+    env.events()
+        .publish((symbol_short!("payout"), employer), recipients);
 }
 
 #[cfg(test)]
@@ -315,7 +340,8 @@ mod test {
             recipient(&env, bob.clone(), 100),
         ];
 
-        let (contract_id, asset) = deploy_contract(&env, admin, employer.clone(), relayer, recipients);
+        let (contract_id, asset) =
+            deploy_contract(&env, admin, employer.clone(), relayer, recipients);
         let token = token::Client::new(&env, &asset);
 
         // Mint and approve funds for the employer.
@@ -344,7 +370,8 @@ mod test {
         let alice = Address::generate(&env);
 
         let recipients = vec![&env, recipient(&env, alice.clone(), 200)];
-        let (contract_id, asset) = deploy_contract(&env, admin, employer.clone(), relayer.clone(), recipients);
+        let (contract_id, asset) =
+            deploy_contract(&env, admin, employer.clone(), relayer.clone(), recipients);
         let token = token::Client::new(&env, &asset);
 
         token::StellarAssetClient::new(&env, &asset).mint(&employer, &1000);
@@ -376,7 +403,8 @@ mod test {
             recipient(&env, bob.clone(), 100),
         ];
 
-        let (contract_id, asset) = deploy_contract(&env, admin.clone(), employer.clone(), relayer, recipients);
+        let (contract_id, asset) =
+            deploy_contract(&env, admin.clone(), employer.clone(), relayer, recipients);
         let token = token::Client::new(&env, &asset);
         token::StellarAssetClient::new(&env, &asset).mint(&employer, &1000);
         token.approve(&employer, &contract_id, &1000, &(START_TIME as u32 + 100));
@@ -408,7 +436,8 @@ mod test {
         let alice = Address::generate(&env);
 
         let recipients = vec![&env, recipient(&env, alice, 200)];
-        let (contract_id, asset) = deploy_contract(&env, admin, employer.clone(), relayer, recipients);
+        let (contract_id, asset) =
+            deploy_contract(&env, admin, employer.clone(), relayer, recipients);
         let token = token::Client::new(&env, &asset);
 
         token::StellarAssetClient::new(&env, &asset).mint(&employer, &1000);

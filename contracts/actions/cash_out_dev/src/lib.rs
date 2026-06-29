@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 //! CASH_OUT_DEV — a terminal "leave the chain" sink for dev-mode flows.
 //!
 //! Unlike the swapper (which converts at a fixed on-chain rate against pre-funded
@@ -99,7 +100,9 @@ impl CashOutDev {
         env.storage().instance().set(&Key::Version, &VERSION);
         // Blank bank details are allowed at deploy time; the contract reports
         // "not configured" until `update_bank` fills all three fields.
-        env.storage().instance().set(&Key::AccountName, &account_name);
+        env.storage()
+            .instance()
+            .set(&Key::AccountName, &account_name);
         env.storage()
             .instance()
             .set(&Key::AccountNumber, &account_number);
@@ -118,7 +121,7 @@ impl CashOutDev {
         }
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         let client = token::Client::new(&env, &asset);
-        client.transfer(&from, &env.current_contract_address(), &amount);
+        client.transfer(&from, env.current_contract_address(), &amount);
         sink_to_treasury(&env, &asset, amount, &from);
     }
 
@@ -171,7 +174,9 @@ impl CashOutDev {
         if account_name.is_empty() || account_number.is_empty() || bank_code.is_empty() {
             panic_with_error!(&env, Error::InvalidBank);
         }
-        env.storage().instance().set(&Key::AccountName, &account_name);
+        env.storage()
+            .instance()
+            .set(&Key::AccountName, &account_name);
         env.storage()
             .instance()
             .set(&Key::AccountNumber, &account_number);

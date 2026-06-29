@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 //! SPLITTER_DEV — the mutable / parameterized variant of the `splitter` action.
 //!
 //! Same execution interface as `splitter` (`distribute`, `execute_step`,
@@ -181,10 +182,8 @@ impl SplitterDev {
             .instance()
             .set(&Key::AccumulatedBalance, &0i128);
         #[allow(deprecated)]
-        env.events().publish(
-            (Symbol::new(&env, "recipient_updated"), caller),
-            recipients,
-        );
+        env.events()
+            .publish((Symbol::new(&env, "recipient_updated"), caller), recipients);
     }
 
     pub fn set_relayer(env: Env, new_relayer: Address) {

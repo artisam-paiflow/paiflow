@@ -92,7 +92,9 @@ impl SubscriptionDev {
             .instance()
             .set(&Key::IntervalSeconds, &interval_seconds);
         env.storage().instance().set(&Key::EndTime, &end_time);
-        env.storage().instance().set(&Key::NextChargeAt, &start_time);
+        env.storage()
+            .instance()
+            .set(&Key::NextChargeAt, &start_time);
     }
 
     pub fn charge(env: Env) {
@@ -157,7 +159,9 @@ impl SubscriptionDev {
             .instance()
             .set(&Key::IntervalSeconds, &interval_seconds);
         env.storage().instance().set(&Key::EndTime, &end_time);
-        env.storage().instance().set(&Key::NextChargeAt, &start_time);
+        env.storage()
+            .instance()
+            .set(&Key::NextChargeAt, &start_time);
         #[allow(deprecated)]
         env.events().publish(
             (Symbol::new(&env, "schedule_updated"), caller),
@@ -305,7 +309,11 @@ fn is_configured(env: &Env) -> bool {
         .instance()
         .get(&Key::AmountPerPeriod)
         .unwrap_or(0);
-    let interval: u64 = env.storage().instance().get(&Key::IntervalSeconds).unwrap_or(0);
+    let interval: u64 = env
+        .storage()
+        .instance()
+        .get(&Key::IntervalSeconds)
+        .unwrap_or(0);
     let start: u64 = env.storage().instance().get(&Key::StartTime).unwrap_or(0);
     let end: u64 = env.storage().instance().get(&Key::EndTime).unwrap_or(0);
     amount > 0 && interval > 0 && end > start
@@ -566,14 +574,8 @@ mod test {
         env.mock_all_auths();
 
         let subscriber = Address::generate(&env);
-        let (contract_id, _asset, admin, _relayer) = deploy(
-            &env,
-            Some(subscriber),
-            200,
-            START_TIME,
-            INTERVAL,
-            END_TIME,
-        );
+        let (contract_id, _asset, admin, _relayer) =
+            deploy(&env, Some(subscriber), 200, START_TIME, INTERVAL, END_TIME);
         let client = SubscriptionDevClient::new(&env, &contract_id);
         client.update_schedule(&admin, &5000, &120, &20_000);
         assert_eq!(client.start_time(), 5000);

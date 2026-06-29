@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 //! PAYER_DEV — the mutable / parameterized variant of the `payer` action.
 //!
 //! Behaves exactly like `payer` at execution time (same `execute_step` /
