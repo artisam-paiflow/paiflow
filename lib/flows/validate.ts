@@ -275,6 +275,14 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
       const seen = new Set<string>();
       for (const r of a.config.recipients) {
+        if (r.payoutMode === "fiat" && graph.devMode !== true) {
+          errors.push({
+            path: `nodes.${a.id}.config.recipients`,
+            message: "Fiat payout mode is only allowed in dev mode",
+            friendlyMessage:
+              "Fiat cash-out recipients require dev mode so the cash-out contract can be deployed after design time.",
+          });
+        }
         if (isPendingAddress(r.address)) {
           pendingLabels.add(r.label ?? "unnamed");
         } else {

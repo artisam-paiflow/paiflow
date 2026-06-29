@@ -106,6 +106,30 @@ describe("validateFlow", () => {
     }
   });
 
+  it("rejects fiat payout mode outside dev mode", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "known", symbol: "USDC" } },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "100", payoutMode: "fiat" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+  });
+
   it("allows dev-mode split with empty recipients to fill via API after deploy", () => {
     const r = validateFlow({
       devMode: true,

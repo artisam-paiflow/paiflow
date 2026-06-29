@@ -1,31 +1,13 @@
 import { PrismaClient, OffRampPayoutJobStatus } from "@prisma/client";
-
 const db = new PrismaClient();
-
-async function main() {
-  const args = process.argv.slice(2);
-  const ids = args.filter((arg) => arg.length > 0);
-
-  if (ids.length === 0) {
-    console.error("Usage: pnpm tsx scripts/reset-offramp-jobs.ts <job-id-1> [<job-id-2> ...]");
-    process.exit(1);
-  }
-
+(async () => {
   const result = await db.offRampPayoutJob.updateMany({
-    where: { id: { in: ids }, status: OffRampPayoutJobStatus.FAILED },
-    data: {
-      status: OffRampPayoutJobStatus.PENDING,
-      attemptCount: 0,
-      lastError: null,
-      runAt: new Date(),
+    where: {
+      deploymentId: "9cefd7fd-8e2a-4b6d-86f7-7de439e5ba4b",
+      status: OffRampPayoutJobStatus.FAILED,
     },
+    data: { status: OffRampPayoutJobStatus.PENDING, lastError: null, attemptCount: 0 },
   });
-  console.log("Reset failed jobs:", result.count);
-}
-
-main()
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  })
-  .finally(() => db.$disconnect());
+  console.log("reset", result.count, "jobs");
+  await db.$disconnect();
+})();

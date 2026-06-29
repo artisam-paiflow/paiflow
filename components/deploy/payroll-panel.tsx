@@ -15,6 +15,7 @@ type PayrollRecipient = {
   address: string;
   amount: string;
   label?: string | null;
+  payoutMode?: "crypto" | "fiat";
 };
 
 type BankDetail = {
@@ -172,7 +173,7 @@ export default function PayrollPanel({
     toast.success(next ? "Fiat off-ramp enabled" : "Fiat off-ramp disabled");
   };
 
-  const fiatCount = recipients.filter((r) => bankDetails[r.address]).length;
+  const fiatCount = recipients.filter((r) => r.payoutMode === "fiat").length;
 
   return (
     <div className="mt-md space-y-md">
@@ -240,8 +241,12 @@ export default function PayrollPanel({
                   headers: { "content-type": "application/json" },
                   body: JSON.stringify({ signedXdr }),
                 });
-                const json = (await res.json()) as { data: { txHash: string } };
-                if (!res.ok) throw new Error("Submit failed");
+                const json = (await res.json()) as {
+                  data?: { txHash: string };
+                  error?: { message?: string };
+                };
+                if (!res.ok) throw new Error(json.error?.message ?? "Submit failed");
+                if (!json.data) throw new Error("Submit response missing txHash");
                 return { txHash: json.data.txHash };
               }}
               onSuccess={() => {
@@ -291,7 +296,7 @@ export default function PayrollPanel({
             {recipients.map((r) => (
               <div key={r.address} className="flex justify-between gap-2">
                 <span className="flex items-center gap-1.5 break-all">
-                  {bankDetails[r.address] && (
+                  {r.payoutMode === "fiat" && (
                     <span className="material-symbols-outlined text-on-surface-variant text-[14px]">
                       account_balance
                     </span>
@@ -381,8 +386,12 @@ export default function PayrollPanel({
               headers: { "content-type": "application/json" },
               body: JSON.stringify({ signedXdr }),
             });
-            const json = (await res.json()) as { data: { txHash: string } };
-            if (!res.ok) throw new Error("Submit failed");
+            const json = (await res.json()) as {
+              data?: { txHash: string };
+              error?: { message?: string };
+            };
+            if (!res.ok) throw new Error(json.error?.message ?? "Submit failed");
+            if (!json.data) throw new Error("Submit response missing txHash");
 
             // Book-keep the manual charge so off-ramp jobs can be created.
             const recordRes = await fetch(`/api/deployments/${deploymentId}/payroll-record-run`, {
@@ -446,8 +455,12 @@ export default function PayrollPanel({
                 headers: { "content-type": "application/json" },
                 body: JSON.stringify({ signedXdr }),
               });
-              const json = (await res.json()) as { data: { txHash: string } };
-              if (!res.ok) throw new Error("Submit failed");
+              const json = (await res.json()) as {
+                data?: { txHash: string };
+                error?: { message?: string };
+              };
+              if (!res.ok) throw new Error(json.error?.message ?? "Submit failed");
+              if (!json.data) throw new Error("Submit response missing txHash");
               return { txHash: json.data.txHash };
             }}
             onSuccess={() => {
@@ -485,8 +498,12 @@ export default function PayrollPanel({
                 headers: { "content-type": "application/json" },
                 body: JSON.stringify({ signedXdr }),
               });
-              const json = (await res.json()) as { data: { txHash: string } };
-              if (!res.ok) throw new Error("Submit failed");
+              const json = (await res.json()) as {
+                data?: { txHash: string };
+                error?: { message?: string };
+              };
+              if (!res.ok) throw new Error(json.error?.message ?? "Submit failed");
+              if (!json.data) throw new Error("Submit response missing txHash");
               return { txHash: json.data.txHash };
             }}
             onSuccess={() => {

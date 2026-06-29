@@ -266,14 +266,21 @@ model StreamerClaimJob {
   @@index([contractAddress, status])
 }
 
+enum EmployeePayoutMode {
+  CRYPTO
+  FIAT
+}
+
 model Employee {
-  id            String   @id @default(uuid()) @db.Uuid
-  deploymentId  String   @db.Uuid
-  address       String
-  amountStroops String
-  label         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                     String            @id @default(uuid()) @db.Uuid
+  deploymentId           String            @db.Uuid
+  address                String
+  amountStroops          String
+  label                  String?
+  payoutMode             EmployeePayoutMode @default(CRYPTO)
+  cashOutContractAddress String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
 
   deployment Deployment      @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
   payouts    PayrollPayout[]
@@ -282,6 +289,7 @@ model Employee {
 
   @@unique([deploymentId, address])
   @@index([deploymentId])
+  @@index([cashOutContractAddress])
 }
 
 model EmployeeBankDetail {

@@ -48,6 +48,10 @@ function validAddress(s: string): boolean {
   return StrKey.isValidEd25519PublicKey(s) || isPendingAddress(s);
 }
 
+function validSplitRecipientAddress(s: string): boolean {
+  return StrKey.isValidEd25519PublicKey(s) || StrKey.isValidContract(s) || isPendingAddress(s);
+}
+
 export const AssetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("native") }),
   z.object({
@@ -63,6 +67,9 @@ export const AssetSchema = z.discriminatedUnion("kind", [
 export type Asset = z.infer<typeof AssetSchema>;
 
 const stellarAccount = z.string().refine((s) => validAddress(s), "Invalid Stellar address");
+const splitRecipientAddress = z
+  .string()
+  .refine((s) => validSplitRecipientAddress(s), "Invalid Stellar address");
 
 export const OnReceiveTrigger = z.object({
   id: z.string().min(1),
@@ -173,20 +180,35 @@ export const PayAction = z.object({
 });
 
 const SplitRecipientBase = z.object({
-  address: stellarAccount,
+  address: splitRecipientAddress,
   label: z.string().max(64).optional(),
+  payoutMode: z.enum(["crypto", "fiat"]).optional(),
 });
 
-export const SplitRecipient = z.discriminatedUnion("mode", [
-  SplitRecipientBase.extend({
-    mode: z.literal("percentage"),
-    bps: z.number().int().min(1).max(10_000),
-  }),
-  SplitRecipientBase.extend({
-    mode: z.literal("fixed"),
-    amountStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
-  }),
-]);
+export const SplitRecipient = z
+  .discriminatedUnion("mode", [
+    SplitRecipientBase.extend({
+      mode: z.literal("percentage"),
+      bps: z.number().int().min(1).max(10_000),
+    }),
+    SplitRecipientBase.extend({
+      mode: z.literal("fixed"),
+      amountStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
+    }),
+  ])
+  .refine(
+    (r) => {
+      if (StrKey.isValidContract(r.address)) {
+        return r.payoutMode === "fiat";
+      }
+      return r.payoutMode !== "fiat";
+    },
+    {
+      message:
+        "Contract addresses (C...) must use fiat payout; wallet addresses (G...) must use crypto payout.",
+      path: ["address"],
+    },
+  );
 export type SplitRecipient = z.infer<typeof SplitRecipient>;
 
 // Backward compatibility: older flows stored recipients with `bps` but no

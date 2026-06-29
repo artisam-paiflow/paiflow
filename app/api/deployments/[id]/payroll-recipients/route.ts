@@ -48,7 +48,21 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const subscriptionDevNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION_DEV");
 
     if (payrollNode?.contractAddress) {
-      const recipients = await readPayrollRecipients(payrollNode.contractAddress);
+      const rawRecipients = await readPayrollRecipients(payrollNode.contractAddress);
+      const employees = await db.employee.findMany({
+        where: { deploymentId: id },
+      });
+      const byWallet = new Map(employees.map((e) => [e.address, e]));
+      const recipients = rawRecipients.map((r) => {
+        const employee = byWallet.get(r.address);
+        const payoutMode: "crypto" | "fiat" = employee?.payoutMode === "FIAT" ? "fiat" : "crypto";
+        return {
+          address: r.address,
+          amount: r.amount,
+          payoutMode,
+          label: employee?.label ?? undefined,
+        };
+      });
       return NextResponse.json({
         data: {
           recipients,
@@ -66,7 +80,36 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (subscriptionDevNode?.contractAddress) {
       totalStroops = await readSubscriptionAmountPerPeriod(subscriptionDevNode.contractAddress);
     }
-    const recipients = raw.map((r) => computeDevAmount(r, totalStroops));
+    const chainRecipients = raw.map((r) => computeDevAmount(r, totalStroops));
+
+    const employees = await db.employee.findMany({
+      where: { deploymentId: id },
+    });
+    const byWallet = new Map(employees.map((e) => [e.address, e]));
+    const byCashOut = new Map(
+      employees.filter((e) => e.cashOutContractAddress).map((e) => [e.cashOutContractAddress!, e]),
+    );
+
+    const recipients = chainRecipients.map((r) => {
+      const fiatEmployee = byCashOut.get(r.address);
+      if (fiatEmployee) {
+        return {
+          address: fiatEmployee.address,
+          amount: r.amount,
+          payoutMode: "fiat" as const,
+          label: fiatEmployee.label ?? undefined,
+        };
+      }
+      const cryptoEmployee = byWallet.get(r.address);
+      const payoutMode: "crypto" | "fiat" =
+        cryptoEmployee?.payoutMode === "FIAT" ? "fiat" : "crypto";
+      return {
+        address: r.address,
+        amount: r.amount,
+        payoutMode,
+        label: cryptoEmployee?.label ?? undefined,
+      };
+    });
 
     return NextResponse.json({
       data: {

@@ -6,6 +6,7 @@ import type {
   FlowGraph,
   FlowNode,
   LogicNode,
+  SplitRecipient,
   TriggerNode,
 } from "./schema";
 import {
@@ -23,6 +24,7 @@ export type PipelineRecipient = {
   address: string;
   bps: number;
   amount: string;
+  isCashOut?: boolean;
 };
 
 export type SplitterParams = {
@@ -226,6 +228,7 @@ export type CashOutDevNodeParams = {
   treasury: string; // off-ramp treasury the asset is sunk to
   relayer?: string;
   nextStepNodeIds: string[]; // always empty — cash_out is terminal
+  parentNodeId?: string; // set when generated as a terminal for a splitter recipient
 };
 
 export type CashOutNodeParams = {
@@ -238,6 +241,7 @@ export type CashOutNodeParams = {
   treasury: string;
   relayer?: string;
   nextStepNodeIds: string[]; // always empty — cash_out is terminal
+  parentNodeId?: string;
 };
 
 export type PipelineNodeParams =
@@ -279,10 +283,11 @@ function toRecipients(action: ContractActionNode): PipelineRecipient[] {
       address: r.address,
       bps: r.mode === "percentage" ? r.bps : 0,
       amount: r.mode === "fixed" ? r.amountStroops : "0",
+      isCashOut: r.payoutMode === "fiat",
     }));
   }
   if (action.type === "pay") {
-    return [{ address: action.config.recipient, bps: TOTAL_BPS, amount: "0" }];
+    return [{ address: action.config.recipient, bps: TOTAL_BPS, amount: "0", isCashOut: false }];
   }
   return [];
 }
@@ -297,6 +302,7 @@ function toPayrollRecipients(action: ContractActionNode): PipelineRecipient[] {
       address: r.address,
       bps: 0,
       amount: r.mode === "fixed" ? r.amountStroops : "0",
+      isCashOut: r.payoutMode === "fiat",
     }));
   }
   if (action.type === "pay") {
@@ -305,6 +311,7 @@ function toPayrollRecipients(action: ContractActionNode): PipelineRecipient[] {
         address: action.config.recipient,
         bps: 0,
         amount: action.config.amountStroops ?? "0",
+        isCashOut: false,
       },
     ];
   }
@@ -549,6 +556,39 @@ export function flowToPipeline(
         // Decompose payroll into the dev preset: SUBSCRIPTION_DEV pulls from the
         // employer each period, then forwards atomically to SPLITTER_DEV which
         // distributes the fixed salaries in the same transaction.
+        //
+        // Fiat employees get a per-recipient CASH_OUT_DEV terminal node. The
+        // splitter sends their fixed share to that contract, which sinks it to
+        // the treasury and emits a cash_out event for the off-ramp cron.
+        const cashOutNodes: PipelineNode[] = [];
+        const actionWithCashOut: ContractActionNode = { ...action };
+        if (actionWithCashOut.type === "split") {
+          const transformedRecipients = actionWithCashOut.config.recipients.map((r, index) => {
+            if (r.payoutMode !== "fiat") return r;
+            const nodeId = `${action.id}-cashout-${index}`;
+            cashOutNodes.push({
+              nodeId,
+              templateKind: TemplateKind.CASH_OUT_DEV,
+              params: {
+                kind: "cash_out_dev",
+                asset: trigger.config.asset,
+                accountName: "",
+                accountNumber: "",
+                bankCode: "",
+                treasury: treasuryAddress ?? relayerAddress ?? "",
+                relayer: relayerAddress,
+                nextStepNodeIds: [],
+                parentNodeId: action.id,
+              },
+            });
+            return { ...r, address: nodeId } as SplitRecipient;
+          });
+          actionWithCashOut.config = {
+            ...actionWithCashOut.config,
+            recipients: transformedRecipients,
+          };
+        }
+
         pipeline.push({
           nodeId: trigger.id,
           templateKind: TemplateKind.SUBSCRIPTION_DEV,
@@ -568,7 +608,7 @@ export function flowToPipeline(
         });
 
         const seenActions = new Set<string>();
-        const actionQueue: ContractActionNode[] = [action];
+        const actionQueue: ContractActionNode[] = [actionWithCashOut];
         while (actionQueue.length > 0) {
           const current = actionQueue.shift()!;
           if (seenActions.has(current.id)) continue;
@@ -590,6 +630,8 @@ export function flowToPipeline(
             }
           }
         }
+
+        pipeline.push(...cashOutNodes);
         return pipeline;
       }
 
