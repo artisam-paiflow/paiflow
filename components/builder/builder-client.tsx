@@ -392,7 +392,19 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
   function addNode(node: FlowNode) {
     setFlowNodes((arr) => [...arr, node]);
-    setRfNodes((arr) => [...arr, nodeToReactFlow(node, arr.length)]);
+    setRfNodes((arr) => {
+      const rf = nodeToReactFlow(node, arr.length);
+      // An index-based position can collide with an existing node once
+      // deletions reshuffle the array — e.g. deleting a flow's trigger then
+      // adding a new one both resolve to the same slot, stacking the new
+      // trigger on top of the action node (issue #239). Drop the new node
+      // below the lowest existing node so its card never lands on another.
+      if (arr.length > 0) {
+        const maxY = Math.max(...arr.map((n) => n.position.y));
+        rf.position = { x: rf.position.x, y: maxY + 120 };
+      }
+      return [...arr, rf];
+    });
   }
 
   function updateNode(updated: FlowNode) {
