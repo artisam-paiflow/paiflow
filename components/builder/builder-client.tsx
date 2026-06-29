@@ -15,6 +15,7 @@ import {
   type Connection,
   type NodeChange,
   type EdgeChange,
+  type MiniMapNodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
@@ -42,6 +43,24 @@ const nodeTypes = {
 
 const edgeTypes = {
   straight: AnimatedStraightEdge,
+};
+
+// Short, human-readable labels drawn on each node in the minimap.
+const MINIMAP_NODE_LABELS: Record<FlowNode["type"], string> = {
+  on_receive: "On Receive",
+  on_schedule: "On Schedule",
+  webhook: "Webhook",
+  web2_webhook: "HTTP Webhook",
+  subscription: "Subscription",
+  payroll: "Payroll",
+  oracle: "Oracle",
+  pay: "Pay",
+  split: "Split",
+  swap: "Swap",
+  yield: "Yield",
+  cash_out: "Cash Out",
+  email_notify: "Email",
+  condition: "Condition",
 };
 
 type BuilderProps = {
@@ -168,6 +187,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
   const [hasAnimated, setHasAnimated] = useState(false);
+  const [errorsModalOpen, setErrorsModalOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [addressBook, setAddressBook] = useState<AddressEntry[]>([]);
   const [devMode, setDevMode] = useState<boolean>(initialGraph.devMode ?? false);
@@ -212,6 +232,63 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   }, [graph]);
 
   const selectedNode = flowNodes.find((n) => n.id === selectedId) ?? null;
+
+  // Custom minimap renderer: draw the node rectangle with its type name on top
+  // (e.g. "Pay", "Split", "On Receive") so the minimap reads as labelled
+  // content instead of solid blocks. The renderer only receives a node id, so
+  // we look the node up via a ref kept in sync with the latest graph — that
+  // lets the component identity stay stable.
+  const nodeLookup = useMemo(() => new Map(flowNodes.map((n) => [n.id, n])), [flowNodes]);
+  const nodeLookupRef = useRef(nodeLookup);
+  nodeLookupRef.current = nodeLookup;
+
+  const MinimapNode = useMemo(
+    () =>
+      function MinimapNode({ id, x, y, width, height, selected }: MiniMapNodeProps) {
+        const node = nodeLookupRef.current.get(id);
+        const color = nodeBorderColor(node);
+        const label = node ? MINIMAP_NODE_LABELS[node.type] : "Node";
+        const radius = Math.min(12, height * 0.18);
+        const fontSize = Math.min(height * 0.5, 26);
+        // Only clamp the text width when the label would actually overflow, so
+        // short labels ("Pay", "Split") render at natural size instead of being
+        // stretched edge-to-edge.
+        const maxTextWidth = width * 0.86;
+        const approxTextWidth = label.length * fontSize * 0.6;
+        const constrainWidth = approxTextWidth > maxTextWidth;
+        return (
+          <g shapeRendering="geometricPrecision">
+            <rect
+              x={x}
+              y={y}
+              width={width}
+              height={height}
+              rx={radius}
+              ry={radius}
+              fill={color}
+              fillOpacity={0.16}
+              stroke={color}
+              strokeOpacity={selected ? 1 : 0.7}
+              strokeWidth={selected ? 6 : 3}
+            />
+            <text
+              x={x + width / 2}
+              y={y + height / 2}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill={color}
+              fontSize={fontSize}
+              fontWeight={600}
+              textLength={constrainWidth ? maxTextWidth : undefined}
+              lengthAdjust={constrainWidth ? "spacingAndGlyphs" : undefined}
+            >
+              {label}
+            </text>
+          </g>
+        );
+      },
+    [],
+  );
 
   // Autosave with 800ms debounce (from develop)
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -465,6 +542,21 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const pipeline = validation.ok ? validation.pipeline : undefined;
   const errors = validation.ok ? [] : validation.errors;
 
+  // Close the validation-issues modal on Escape, or once all issues are fixed
+  // while it's open.
+  useEffect(() => {
+    if (!errorsModalOpen) return;
+    if (errors.length === 0) {
+      setErrorsModalOpen(false);
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setErrorsModalOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [errorsModalOpen, errors.length]);
+
   return (
     <>
       <div
@@ -550,17 +642,24 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                     valid pipeline
                   </span>
                 )}
+                {!isValid && errors.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setErrorsModalOpen(true)}
+                    aria-label={`${errors.length} validation ${
+                      errors.length === 1 ? "issue" : "issues"
+                    } — view details`}
+                    title="View validation issues"
+                    className="bg-error/10 border-error/30 text-error hover:bg-error/20 ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[16px] leading-none">
+                      error
+                    </span>
+                    <span className="text-label-sm font-semibold">{errors.length}</span>
+                  </button>
+                )}
               </div>
               <div className="text-body-md text-on-surface mt-1 line-clamp-2">{english}</div>
-              {!isValid && errors.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {errors.map((e, i) => (
-                    <div key={i} className="text-label-sm text-error font-mono">
-                      {e.friendlyMessage}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
@@ -621,7 +720,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                 zoomable
                 bgColor="#09090b"
                 maskColor="rgba(9, 9, 11, 0.6)"
-                nodeColor={(n) => nodeBorderColor(n.data?.node as FlowNode | undefined)}
+                nodeComponent={MinimapNode}
                 className="!border !border-zinc-800"
               />
             </ReactFlow>
@@ -640,6 +739,59 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         collapsed={chatCollapsed}
         onToggleCollapse={() => setChatCollapsed((v) => !v)}
       />
+
+      {/* Validation issues modal — scrollable list of all errors */}
+      {errorsModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setErrorsModalOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Validation issues"
+            className="bg-background-1 relative flex max-h-[80vh] w-full max-w-lg flex-col rounded-2xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-zinc-800 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-error text-xl">error</span>
+                <h3 className="text-label-lg text-on-background font-bold">
+                  {errors.length} validation {errors.length === 1 ? "issue" : "issues"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setErrorsModalOpen(false)}
+                aria-label="Close"
+                className="text-on-background/60 hover:text-on-background flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-zinc-800"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
+              {errors.map((e, i) => {
+                const [head, ...rest] = e.friendlyMessage.split(/(?<=\.)\s+/);
+                const guidance = rest.join(" ");
+                return (
+                  <div
+                    key={i}
+                    className="border-error/15 bg-background-2/50 flex items-start gap-2.5 rounded-lg border-l-2 px-3 py-2"
+                  >
+                    <span className="material-symbols-outlined text-error mt-0.5 text-[17px] leading-none">
+                      error
+                    </span>
+                    <p className="text-label-sm leading-snug">
+                      <span className="text-on-background font-medium">{head}</span>
+                      {guidance && <span className="text-on-background/55"> {guidance}</span>}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
