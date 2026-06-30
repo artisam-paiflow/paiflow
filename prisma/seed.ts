@@ -103,18 +103,30 @@ async function main() {
       },
     },
     {
-      kind: TemplateKind.PAYER,
-      envKey: `STELLAR_WASM_HASH_PAYER_${networkSuffix}`,
+      kind: TemplateKind.SUBSCRIPTION,
+      envKey: `STELLAR_WASM_HASH_SUBSCRIPTION_${networkSuffix}`,
       abi: {
         functions: [
           "__constructor",
           "execute_step",
-          "cancel",
-          "balance",
-          "configured_amount",
-          "recipient",
+          "subscribe",
+          "unsubscribe",
+          "charge",
+          "is_cancelled",
+          "next_charge_at",
+          "subscriber",
+          "amount_per_period",
+          "asset",
         ],
-        events: ["pay", "cancel", "forward"],
+        events: ["charge", "subscribe", "unsubscribe"],
+      },
+    },
+    {
+      kind: TemplateKind.CASH_OUT,
+      envKey: `STELLAR_WASM_HASH_CASH_OUT_${networkSuffix}`,
+      abi: {
+        functions: ["__constructor", "execute_step", "cash_out", "set_bank", "bank"],
+        events: ["cash_out"],
       },
     },
   ];

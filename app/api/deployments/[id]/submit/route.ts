@@ -8,7 +8,7 @@ import { audit } from "@/lib/audit";
 import { redis, eventChannel } from "@/lib/redis";
 import { submitDeployTx } from "@/lib/stellar/deploy";
 import { stellarRelayerAddress } from "@/lib/env";
-import { ChargeRelayerMode } from "@prisma/client";
+import { ChargeRelayerMode, EmployeePayoutMode } from "@prisma/client";
 import { scheduleNextStreamerClaimJob } from "@/lib/streamer-jobs";
 import { log } from "@/lib/log";
 import type { StreamerParams } from "@/lib/flows/to-params";
@@ -57,36 +57,42 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         : null;
 
       const isSubscription = deployment.flow?.templateKind === "SUBSCRIPTION";
-      const subscriptionSchedule: {
+      const isPayroll = deployment.flow?.templateKind === "PAYROLL";
+      const schedule: {
         chargeRelayerMode?: ChargeRelayerMode;
         chargeRelayerAddress?: string | null;
         nextChargeAt?: Date | null;
         chargeEndAt?: Date | null;
       } = {};
-      if (isSubscription) {
+      if (isSubscription || isPayroll) {
         const paramsPipeline = deployment.paramsSnapshot as Array<{
           nodeId: string;
           templateKind: string;
           params: Record<string, unknown>;
         }> | null;
-        const subNode = paramsPipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
+        // The schedule node carries the relayer / start / end the auto-charge
+        // cron needs. A subscription deploys as SUBSCRIPTION or (dev mode)
+        // SUBSCRIPTION_DEV; a payroll deploys as PAYROLL (monolith), as
+        // SUBSCRIPTION_DEV (dev), or as SUBSCRIPTION (immutable non-dev).
+        const scheduleKinds = isSubscription
+          ? ["SUBSCRIPTION", "SUBSCRIPTION_DEV"]
+          : ["PAYROLL", "SUBSCRIPTION_DEV", "SUBSCRIPTION"];
+        const scheduleNode = paramsPipeline?.find((n) => scheduleKinds.includes(n.templateKind));
         const streamerNode = paramsPipeline?.find((n) => n.templateKind === "STREAMER");
         const relayer =
-          typeof subNode?.params?.relayer === "string" ? subNode.params.relayer : null;
+          typeof scheduleNode?.params?.relayer === "string" ? scheduleNode.params.relayer : null;
         const startTs =
-          typeof subNode?.params?.startTs === "number"
-            ? subNode.params.startTs
+          typeof scheduleNode?.params?.startTs === "number"
+            ? scheduleNode.params.startTs
             : Math.floor(Date.now() / 1000);
         const platformRelayer = stellarRelayerAddress();
-        subscriptionSchedule.chargeRelayerMode =
+        schedule.chargeRelayerMode =
           platformRelayer && relayer === platformRelayer
             ? ChargeRelayerMode.PLATFORM
             : ChargeRelayerMode.MANUAL;
-        subscriptionSchedule.chargeRelayerAddress = relayer;
-        subscriptionSchedule.nextChargeAt = new Date(
-          Math.max(startTs, Math.floor(Date.now() / 1000)) * 1000,
-        );
-        subscriptionSchedule.chargeEndAt =
+        schedule.chargeRelayerAddress = relayer;
+        schedule.nextChargeAt = new Date(Math.max(startTs, Math.floor(Date.now() / 1000)) * 1000);
+        schedule.chargeEndAt =
           typeof streamerNode?.params?.endTs === "number"
             ? new Date(streamerNode.params.endTs * 1000)
             : null;
@@ -100,7 +106,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           contractAddress,
           confirmedAt: new Date(),
           ...(webhookSecret ? { webhookSecret } : {}),
-          ...subscriptionSchedule,
+          ...schedule,
         },
       });
 
@@ -160,6 +166,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         userId: user.id,
         metadata: { deploymentId: id, txHash: result.txHash },
       });
+
+      // Immutable non-dev payrolls bake recipients into the SPLITTER at deploy
+      // time, so we must create Employee rows now so later charges can generate
+      // off-ramp jobs for fiat employees.
+      if (isPayroll) {
+        await createPayrollEmployees(id);
+      }
+
       return NextResponse.json({
         data: {
           status: "CONFIRMED",
@@ -191,5 +205,96 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       },
       { status: 502 },
     );
+  });
+}
+
+async function createPayrollEmployees(deploymentId: string) {
+  const deployment = await db.deployment.findUnique({
+    where: { id: deploymentId },
+    include: { flow: { select: { templateKind: true } } },
+  });
+  if (!deployment || deployment.flow?.templateKind !== "PAYROLL") return;
+
+  const pipeline = (deployment.pipelineSnapshot ?? []) as Array<{
+    nodeId: string;
+    contractAddress: string;
+    templateKind: string;
+  }>;
+
+  // Only the new immutable non-dev decomposition needs Employee rows created
+  // here. Legacy PAYROLL employees are created via payroll-update-recipients,
+  // and dev-mode payroll employees are created/updated via the same API.
+  const hasPayroll = pipeline.some((n) => n.templateKind === "PAYROLL");
+  const hasDev = pipeline.some(
+    (n) => n.templateKind === "SUBSCRIPTION_DEV" || n.templateKind === "SPLITTER_DEV",
+  );
+  const hasSubscription = pipeline.some((n) => n.templateKind === "SUBSCRIPTION");
+  const hasSplitter = pipeline.some((n) => n.templateKind === "SPLITTER");
+  if (hasPayroll || hasDev || !hasSubscription || !hasSplitter) return;
+
+  // Idempotency: if employees already exist for this deployment, don't recreate.
+  const existingCount = await db.employee.count({ where: { deploymentId } });
+  if (existingCount > 0) return;
+
+  const graph = deployment.graphSnapshot as {
+    nodes: Array<{
+      id: string;
+      type: string;
+      config?: {
+        recipients?: Array<{
+          address: string;
+          mode?: string;
+          amountStroops?: string;
+          label?: string;
+          payoutMode?: string;
+          accountName?: string;
+          accountNumber?: string;
+          bankCode?: string;
+        }>;
+      };
+    }>;
+  } | null;
+  const splitNode = graph?.nodes.find((n) => n.type === "split");
+  if (!splitNode?.config?.recipients?.length) return;
+
+  const cashOutByNodeId = new Map<string, string>();
+  for (const node of pipeline) {
+    if (node.templateKind === "CASH_OUT") {
+      cashOutByNodeId.set(node.nodeId, node.contractAddress);
+    }
+  }
+
+  const recipients = splitNode.config.recipients;
+
+  await db.$transaction(async (tx) => {
+    for (let i = 0; i < recipients.length; i++) {
+      const r = recipients[i];
+      if (!r) continue;
+      const isFiat = r.payoutMode === "fiat";
+      const cashOutNodeId = `${splitNode.id}-cashout-${i}`;
+      const cashOutAddress = isFiat ? (cashOutByNodeId.get(cashOutNodeId) ?? null) : null;
+
+      const employee = await tx.employee.create({
+        data: {
+          deploymentId,
+          address: r.address,
+          amountStroops: r.amountStroops ?? "0",
+          label: r.label,
+          payoutMode: isFiat ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
+          cashOutContractAddress: cashOutAddress,
+        },
+      });
+
+      if (isFiat && r.accountName && r.accountNumber && r.bankCode) {
+        await tx.employeeBankDetail.create({
+          data: {
+            employeeId: employee.id,
+            accountName: r.accountName,
+            accountNumber: r.accountNumber,
+            bankCode: r.bankCode,
+          },
+        });
+      }
+    }
   });
 }

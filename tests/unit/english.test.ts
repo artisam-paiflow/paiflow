@@ -119,6 +119,38 @@ describe("flowToEnglish", () => {
     expect(out).toContain("pay 2 XLM");
   });
 
+  it("formats an on_schedule start as a readable date, not a raw ISO timestamp", () => {
+    const out = flowToEnglish({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "hour",
+            startsAt: "2026-06-25T05:25:13.993Z",
+            timeZone: "UTC",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR,
+            amountStroops: "20000000",
+            asset: { kind: "native" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("every hour starting June 25, 2026 at 5:25 AM");
+    expect(out).not.toContain("2026-06-25T05:25:13.993Z");
+    expect(out).not.toContain("T05:25");
+  });
+
   it("describes a scheduled split (streamer)", () => {
     const out = flowToEnglish({
       nodes: [
@@ -276,5 +308,98 @@ describe("flowToEnglish", () => {
     });
     expect(out).toContain("When HTTP webhook fires for USDC");
     expect(out).toContain("swap XLM to USDC at 95% rate");
+  });
+
+  it("describes a subscription trigger with interval", () => {
+    const out = flowToEnglish({
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            subscriber: ADDR,
+            amountPerPeriodStroops: "10000000",
+            intervalAmount: 1,
+            intervalUnit: "minute",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "10000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("When subscription pulls 1 USDC every minute");
+    expect(out).toContain("pay 1 USDC");
+  });
+
+  it("describes a subscription trigger with plural interval", () => {
+    const out = flowToEnglish({
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            subscriber: ADDR,
+            amountPerPeriodStroops: "10000000",
+            intervalAmount: 5,
+            intervalUnit: "day",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "10000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("When subscription pulls 1 USDC every 5 days");
+  });
+
+  it("describes a dev-mode payroll trigger with API-filled employer and schedule", () => {
+    const out = flowToEnglish({
+      devMode: true,
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: "PENDING:__api__",
+            intervalAmount: 5,
+            intervalUnit: "minute",
+            fillScheduleViaApi: true,
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("When payroll pulls from (employer set via API) (schedule set via API)");
+    expect(out).not.toContain("every 5 minutes");
   });
 });

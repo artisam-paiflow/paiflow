@@ -41,6 +41,13 @@ export default async function AdminHome() {
             <span className="material-symbols-outlined text-[16px]">deployed_code</span>
             CONTRACT TEMPLATES
           </Link>
+          <Link
+            href="/admin/offramp"
+            className="border-outline-variant/40 bg-surface-container-low/40 text-label-md text-on-surface-variant hover:border-primary/40 hover:text-on-surface inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors"
+          >
+            <span className="material-symbols-outlined text-[16px]">account_balance</span>
+            OFF-RAMP
+          </Link>
         </nav>
 
         <section className="mt-md gap-md grid grid-cols-1 md:grid-cols-3">

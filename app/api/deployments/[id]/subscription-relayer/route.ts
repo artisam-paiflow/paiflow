@@ -7,6 +7,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { stellarRelayerAddress } from "@/lib/env";
 import { ChargeRelayerMode } from "@prisma/client";
 import { prepareSubscriptionSetRelayerInvocation } from "@/lib/stellar/invoke";
+import { readSubscriptionRelayer } from "@/lib/stellar/relayer";
 import { stellarPassphrase } from "@/lib/env";
 
 const PostSchema = z.object({
@@ -112,8 +113,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       },
     });
 
+    let onChainRelayer: string | null = null;
+    try {
+      onChainRelayer = await readSubscriptionRelayer(subscriptionNode.contractAddress);
+    } catch {
+      // Contract may not be live yet (e.g. PENDING_SIGNATURE). Fall back to
+      // the previously-persisted DB value so we still produce an XDR when the
+      // desired relayer differs from what we last recorded.
+      onChainRelayer = d.chargeRelayerAddress;
+    }
+
     const needsOnChainUpdate =
-      body.mode !== "MANUAL" && newRelayerAddress && newRelayerAddress !== d.chargeRelayerAddress;
+      body.mode !== "MANUAL" && newRelayerAddress && newRelayerAddress !== onChainRelayer;
 
     let setRelayerXdr: string | undefined;
     if (needsOnChainUpdate) {

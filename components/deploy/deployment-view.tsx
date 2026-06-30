@@ -7,6 +7,8 @@ import { LiveEvents, type Evt } from "./live-events";
 import LiveBalances from "./live-balances";
 import ContractCallButton from "./contract-call-button";
 import SubscriptionRelayerPanel from "./subscription-relayer-panel";
+import PayrollPanel from "./payroll-panel";
+import OffRampSenderForm from "@/components/payroll/offramp-sender-form";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { assetLabel, isTrigger } from "@/lib/flows/schema";
 import { formatStroops } from "@/lib/utils";
@@ -66,7 +68,8 @@ export default function DeploymentView({
           data.kind === "CLAIM" ||
           data.kind === "CANCEL" ||
           data.kind === "SHORTFALL" ||
-          data.kind === "FORWARD"
+          data.kind === "FORWARD" ||
+          data.kind === "ALLOWANCE"
         ) {
           balanceChanges += 1;
         }
@@ -211,6 +214,14 @@ export default function DeploymentView({
   const isStreamer = !!streamerNode;
   const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
   const isSubscription = !!subscriptionNode;
+  const payrollNode = pipeline?.find(
+    (n) => n.templateKind === "PAYROLL" || n.templateKind === "SUBSCRIPTION_DEV",
+  );
+  const isPayroll = !!payrollNode;
+  const cashOutNode = pipeline?.find(
+    (n) => n.templateKind === "CASH_OUT" || n.templateKind === "CASH_OUT_DEV",
+  );
+  const isCashOut = !!cashOutNode;
   const triggerNode = graph?.nodes.find(isTrigger);
   const pauseAllowed =
     triggerNode?.type === "on_schedule" ? (triggerNode.config.pauseAllowed ?? true) : true;
@@ -229,10 +240,16 @@ export default function DeploymentView({
       .then(async (res) => {
         if (!res.ok) return;
         const json = (await res.json()) as {
-          data: { allowance: string; subscriber: string; asset: { kind: string } };
+          data: {
+            allowance: string;
+            subscriber: string;
+            asset: { kind: string };
+            isCancelled: boolean;
+          };
         };
         if (!cancelled) {
           setAllowance(BigInt(json.data.allowance));
+          setIsCancelled(json.data.isCancelled);
         }
       })
       .catch(() => {
@@ -384,51 +401,127 @@ export default function DeploymentView({
                     setBalanceTick((t) => t + 1);
                   }}
                 />
-                <ContractCallButton
-                  deploymentId={deploymentId}
-                  network={network}
-                  label="UNSUBSCRIBE"
-                  busyLabel="UNSUBSCRIBING…"
-                  icon="cancel"
-                  variant="danger"
-                  size="sm"
-                  prepare={async (address) => {
-                    const res = await fetch(
-                      `/api/deployments/${deploymentId}/subscription-unsubscribe`,
-                      {
+                {isCancelled === null ? (
+                  <button
+                    disabled
+                    className="bg-surface-variant text-on-surface-variant inline-flex cursor-not-allowed items-center gap-1.5 rounded px-3 py-1.5 font-mono text-xs opacity-60"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">sync</span>
+                    LOADING…
+                  </button>
+                ) : isCancelled ? (
+                  <ContractCallButton
+                    deploymentId={deploymentId}
+                    network={network}
+                    label="SUBSCRIBE"
+                    busyLabel="SUBSCRIBING…"
+                    icon="check_circle"
+                    variant="secondary"
+                    size="sm"
+                    prepare={async (address) => {
+                      const res = await fetch(
+                        `/api/deployments/${deploymentId}/subscription-subscribe`,
+                        {
+                          method: "POST",
+                          headers: { "content-type": "application/json" },
+                          body: JSON.stringify({ userAddress: address }),
+                        },
+                      );
+                      const json = (await res.json()) as {
+                        data?: { xdr: string; networkPassphrase: string };
+                        error?: { message?: string };
+                      };
+                      if (!res.ok) {
+                        throw new Error(json.error?.message ?? "Unknown error");
+                      }
+                      const data = json.data;
+                      if (!data) throw new Error("Prepare failed");
+                      return { xdr: data.xdr, networkPassphrase: data.networkPassphrase };
+                    }}
+                    submit={async (signedXdr) => {
+                      const res = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
                         method: "POST",
                         headers: { "content-type": "application/json" },
-                        body: JSON.stringify({ userAddress: address }),
-                      },
-                    );
-                    const json = (await res.json()) as {
-                      data?: { xdr: string; networkPassphrase: string };
-                      error?: { message?: string };
-                    };
-                    if (!res.ok) {
-                      throw new Error(json.error?.message ?? "Unknown error");
-                    }
-                    const data = json.data;
-                    if (!data) throw new Error("Prepare failed");
-                    return { xdr: data.xdr, networkPassphrase: data.networkPassphrase };
-                  }}
-                  submit={async (signedXdr) => {
-                    const res = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
-                      method: "POST",
-                      headers: { "content-type": "application/json" },
-                      body: JSON.stringify({ signedXdr }),
-                    });
-                    const json = (await res.json()) as { data: { txHash: string } };
-                    if (!res.ok) throw new Error("Submit failed");
-                    return { txHash: json.data.txHash };
-                  }}
-                  onSuccess={() => {
-                    setIsCancelled(true);
-                    setAllowance(0n);
-                    setBalanceTick((t) => t + 1);
-                  }}
-                />
+                        body: JSON.stringify({ signedXdr }),
+                      });
+                      const json = (await res.json()) as { data: { txHash: string } };
+                      if (!res.ok) throw new Error("Submit failed");
+                      return { txHash: json.data.txHash };
+                    }}
+                    onSuccess={() => {
+                      setIsCancelled(false);
+                      setBalanceTick((t) => t + 1);
+                    }}
+                  />
+                ) : (
+                  <ContractCallButton
+                    deploymentId={deploymentId}
+                    network={network}
+                    label="UNSUBSCRIBE"
+                    busyLabel="UNSUBSCRIBING…"
+                    icon="cancel"
+                    variant="danger"
+                    size="sm"
+                    prepare={async (address) => {
+                      const res = await fetch(
+                        `/api/deployments/${deploymentId}/subscription-unsubscribe`,
+                        {
+                          method: "POST",
+                          headers: { "content-type": "application/json" },
+                          body: JSON.stringify({ userAddress: address }),
+                        },
+                      );
+                      const json = (await res.json()) as {
+                        data?: { xdr: string; networkPassphrase: string };
+                        error?: { message?: string };
+                      };
+                      if (!res.ok) {
+                        throw new Error(json.error?.message ?? "Unknown error");
+                      }
+                      const data = json.data;
+                      if (!data) throw new Error("Prepare failed");
+                      return { xdr: data.xdr, networkPassphrase: data.networkPassphrase };
+                    }}
+                    submit={async (signedXdr) => {
+                      const res = await fetch(`/api/deployments/${deploymentId}/submit-invoke`, {
+                        method: "POST",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ signedXdr }),
+                      });
+                      const json = (await res.json()) as { data: { txHash: string } };
+                      if (!res.ok) throw new Error("Submit failed");
+                      return { txHash: json.data.txHash };
+                    }}
+                    onSuccess={() => {
+                      setIsCancelled(true);
+                      setAllowance(0n);
+                      setBalanceTick((t) => t + 1);
+                    }}
+                  />
+                )}
               </div>
+            </div>
+          )}
+          {isPayroll && payrollNode?.contractAddress && network && graph && (
+            <PayrollPanel
+              deploymentId={deploymentId}
+              contractAddress={payrollNode.contractAddress}
+              network={network}
+              graph={graph}
+              pipeline={pipeline}
+            />
+          )}
+          {isCashOut && !isPayroll && (
+            <div className="glass-panel mt-md p-md rounded-xl">
+              <div className="mb-3">
+                <p className="text-label-sm text-on-surface-variant font-mono uppercase">
+                  / OFF-RAMP SENDER KYC
+                </p>
+                <p className="text-on-surface-variant mt-1 font-mono text-xs">
+                  PDAX requires sender details for every fiat withdrawal, including cash-out.
+                </p>
+              </div>
+              <OffRampSenderForm deploymentId={deploymentId} />
             </div>
           )}
           {isStreamer && streamerNode.contractAddress && network && pauseAllowed && (
@@ -697,7 +790,7 @@ export default function DeploymentView({
                   </div>
                 </div>
               </>
-            ) : (
+            ) : isSubscription || payrollNode?.templateKind === "SUBSCRIPTION_DEV" ? null : (
               <>
                 <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
                   SCAN WITH FREIGHTER WALLET · SET AMOUNT IN TRIGGER PAGE.

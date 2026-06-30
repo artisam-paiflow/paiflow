@@ -13,6 +13,7 @@ type Props = {
   pipeline?: TemplateKind[];
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  devMode?: boolean;
 };
 
 function makeId(prefix: string) {
@@ -22,7 +23,10 @@ function makeId(prefix: string) {
 type Template = {
   label: string;
   icon: string;
-  group: "Triggers" | "Actions" | "Logic";
+  group: "Triggers" | "Actions" | "Logic" | "Dev";
+  // Hidden templates stay in source (typechecked, easy to re-enable) but are
+  // filtered out of the palette. Use this instead of commenting entries out.
+  hidden?: boolean;
   make: () => FlowNode;
 };
 
@@ -52,10 +56,12 @@ const TEMPLATES: Template[] = [
       },
     }),
   },
+  // Hidden: non-HTTP Webhook trigger (relayer-authorized). Use "HTTP Webhook" instead.
   {
     group: "Triggers",
     label: "Webhook",
     icon: "webhook",
+    hidden: true,
     make: () => ({
       id: makeId("webhook"),
       type: "webhook",
@@ -90,8 +96,26 @@ const TEMPLATES: Template[] = [
   },
   {
     group: "Triggers",
+    label: "Payroll",
+    icon: "group",
+    make: () => ({
+      id: makeId("payroll"),
+      type: "payroll",
+      config: {
+        asset: { kind: "known", symbol: "USDC" },
+        employer: "PENDING:employer",
+        intervalAmount: 1,
+        intervalUnit: "week",
+        fillScheduleViaApi: false,
+      },
+    }),
+  },
+  // Hidden: Oracle trigger.
+  {
+    group: "Triggers",
     label: "Oracle",
     icon: "online_prediction",
+    hidden: true,
     make: () => ({
       id: makeId("oracle"),
       type: "oracle",
@@ -154,10 +178,12 @@ const TEMPLATES: Template[] = [
       },
     }),
   },
+  // Hidden: Yield action.
   {
     group: "Actions",
     label: "Yield",
     icon: "savings",
+    hidden: true,
     make: () => ({
       id: makeId("yield"),
       type: "yield",
@@ -191,12 +217,28 @@ const TEMPLATES: Template[] = [
       config: { kind: "amount_gt", amountStroops: "10000000" },
     }),
   },
+  {
+    group: "Actions",
+    label: "Cash Out",
+    icon: "payments",
+    make: () => ({
+      id: makeId("cashout"),
+      type: "cash_out",
+      config: {
+        asset: { kind: "known", symbol: "USDC" },
+        accountName: "",
+        accountNumber: "",
+        bankCode: "",
+      },
+    }),
+  },
 ];
 
 const GROUP_TONE: Record<Template["group"], { tone: string; dot: string }> = {
   Triggers: { tone: "text-secondary", dot: "bg-secondary" },
   Actions: { tone: "text-primary", dot: "bg-primary" },
   Logic: { tone: "text-tertiary", dot: "bg-tertiary" },
+  Dev: { tone: "text-amber-400", dot: "bg-amber-400" },
 };
 
 export default function Palette({
@@ -206,8 +248,16 @@ export default function Palette({
   pipeline,
   collapsed,
   onToggleCollapse,
+  devMode,
 }: Props) {
-  const groups: Template["group"][] = ["Triggers", "Actions", "Logic"];
+  // Dev-only palette items (nodes with no immutable counterpart) appear only
+  // when at least one exists. Currently Cash Out lives under Actions, so no
+  // separate Dev section is rendered.
+  const devTemplates = TEMPLATES.filter((t) => t.group === "Dev");
+  const groups: Template["group"][] =
+    devTemplates.length > 0
+      ? ["Triggers", "Actions", "Logic", "Dev"]
+      : ["Triggers", "Actions", "Logic"];
   const headingId = useId();
   const hasTrigger = flowNodes.some(isTrigger);
   const templateLabel = templateKind ? TEMPLATE_LABELS[templateKind] : null;
@@ -220,8 +270,11 @@ export default function Palette({
           onClick={onToggleCollapse}
           className="text-on-surface-variant hover:bg-surface-container-high/50 hover:text-on-surface flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
           title="Expand sidebar"
+          aria-label="Expand sidebar"
         >
-          <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-[20px]">
+            chevron_right
+          </span>
         </button>
       </aside>
     );
@@ -236,8 +289,11 @@ export default function Palette({
         onClick={onToggleCollapse}
         className="text-on-surface-variant hover:bg-surface-container-high/50 hover:text-on-surface absolute top-3 right-2 flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
         title="Collapse sidebar"
+        aria-label="Collapse sidebar"
       >
-        <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+        <span aria-hidden="true" className="material-symbols-outlined text-[18px]">
+          chevron_left
+        </span>
       </button>
       <section aria-label="Pipeline architecture" className="mb-md">
         <div className="text-label-sm text-on-surface-variant font-mono">
@@ -251,7 +307,10 @@ export default function Palette({
                   {TEMPLATE_LABELS[kind]}
                 </span>
                 {i < pipeline.length - 1 && (
-                  <span className="material-symbols-outlined text-on-surface-variant text-[14px]">
+                  <span
+                    aria-hidden="true"
+                    className="material-symbols-outlined text-on-surface-variant text-[14px]"
+                  >
                     arrow_forward
                   </span>
                 )}
@@ -289,7 +348,7 @@ export default function Palette({
               {g.toUpperCase()}
             </div>
             <div className="mt-2 grid gap-1.5">
-              {TEMPLATES.filter((tpl) => tpl.group === g).map((tpl) => {
+              {TEMPLATES.filter((tpl) => tpl.group === g && !tpl.hidden).map((tpl) => {
                 const isTriggerBlock = g === "Triggers";
                 const disabled = isTriggerBlock && hasTrigger;
 
@@ -305,12 +364,16 @@ export default function Palette({
                       }`}
                     >
                       <span
+                        aria-hidden="true"
                         className={`material-symbols-outlined text-[16px] ${t.tone} opacity-90`}
                       >
                         {tpl.icon}
                       </span>
                       {tpl.label}
-                      <span className="material-symbols-outlined text-outline-variant group-hover:text-primary ml-auto text-[14px] transition-colors">
+                      <span
+                        aria-hidden="true"
+                        className="material-symbols-outlined text-outline-variant group-hover:text-primary ml-auto text-[14px] transition-colors"
+                      >
                         add
                       </span>
                     </button>

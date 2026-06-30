@@ -74,6 +74,16 @@ const KIND_META: Record<string, { label: string; color: string; icon: string }> 
     color: "border-success/30 bg-success/10 text-success",
     icon: "play_arrow",
   },
+  ALLOWANCE: {
+    label: "ALLOWANCE",
+    color: "border-success/30 bg-success/10 text-success",
+    icon: "approval",
+  },
+  RECIPIENT_UPDATED: {
+    label: "UPDATED",
+    color: "border-tertiary/30 bg-tertiary/10 text-tertiary",
+    icon: "edit",
+  },
 };
 
 const TOTAL_BPS = 10000n;
@@ -151,6 +161,7 @@ const MEANINGFUL_EVENT_KEYS = new Set([
   "from",
   "subscriber",
   "admin",
+  "employer",
   "contract",
   "recipient",
   "recipients",
@@ -168,6 +179,10 @@ const MEANINGFUL_EVENT_KEYS = new Set([
   "assetOut",
   "price",
   "tookPathA",
+  "relayer",
+  "startTime",
+  "intervalSeconds",
+  "endTime",
 ]);
 
 function hasMeaningfulEventData(d: Record<string, unknown> | null): boolean {
@@ -259,12 +274,12 @@ function sumRecipientAmounts(recipients: Recipient[]): string | undefined {
 }
 
 function formatAsset(asset: unknown): string {
-  if (!asset) return "XLM";
+  if (!asset) return "—";
   if (asset && typeof asset === "object" && "kind" in asset) {
     try {
       return assetLabel(asset as Asset);
     } catch {
-      return "XLM";
+      return "—";
     }
   }
   const str = String(asset);
@@ -393,6 +408,7 @@ function EventDetails({
       const from = d?.from ?? d?.subscriber ?? d?.address;
       const amount = d?.amount;
       const asset = d?.asset;
+      const displayAsset = asset ?? getActionAsset(graph);
       const vault = d?.vault;
       const price = d?.price;
 
@@ -403,7 +419,7 @@ function EventDetails({
               <>
                 Deposited{" "}
                 <span className="text-primary font-medium">
-                  {formatAmountWithAsset(amount, asset)}
+                  {formatAmountWithAsset(amount, displayAsset)}
                 </span>{" "}
                 to vault <AddressValue addr={vault} />
               </>
@@ -411,7 +427,7 @@ function EventDetails({
               <>
                 Received{" "}
                 <span className="text-primary font-medium">
-                  {formatAmountWithAsset(amount, asset)}
+                  {formatAmountWithAsset(amount, displayAsset)}
                 </span>{" "}
                 from <AddressValue addr={from} />
               </>
@@ -419,7 +435,7 @@ function EventDetails({
               <>
                 Received{" "}
                 <span className="text-primary font-medium">
-                  {formatAmountWithAsset(amount, asset)}
+                  {formatAmountWithAsset(amount, displayAsset)}
                 </span>
               </>
             )}
@@ -440,8 +456,8 @@ function EventDetails({
                 <AddressValue addr={vault} />
               </DetailField>
             )}
-            {asset !== undefined && asset !== null && (
-              <DetailField label="Asset">{formatAsset(asset)}</DetailField>
+            {displayAsset !== undefined && displayAsset !== null && (
+              <DetailField label="Asset">{formatAsset(displayAsset)}</DetailField>
             )}
             {price !== undefined && price !== null && (
               <DetailField label="Price">{String(price)}</DetailField>
@@ -455,7 +471,9 @@ function EventDetails({
       const admin = d?.admin;
       const contract = d?.contract;
       const asset = d?.asset;
+      const displayAsset = asset ?? getActionAsset(graph);
       const amount = d?.amount ?? d?.amountOut ?? d?.balance ?? d?.payment;
+      const displayAmount = isNonEmptyString(amount) ? amount : fallbackTotal;
       const assetIn = d?.assetIn;
       const assetOut = d?.assetOut;
       const amountIn = d?.amountIn;
@@ -476,7 +494,7 @@ function EventDetails({
       const shareTotal = effectiveTotal
         ? sumRecipientAmounts(computeRecipientShares(effectiveTotal, recipients))
         : undefined;
-      const displayAmount = isNonEmptyString(amount)
+      const payoutDisplayAmount = isNonEmptyString(amount)
         ? amount
         : (effectiveTotal ?? shareTotal ?? sumRecipientAmounts(recipients));
 
@@ -544,7 +562,7 @@ function EventDetails({
             <div className="text-body-sm text-on-surface">
               Paid{" "}
               <span className="text-primary font-medium">
-                {formatAmountWithAsset(amount, asset)}
+                {formatAmountWithAsset(displayAmount, displayAsset)}
               </span>{" "}
               to <AddressValue addr={recipient} />
             </div>
@@ -552,8 +570,8 @@ function EventDetails({
               <DetailField label="To">
                 <AddressValue addr={recipient} />
               </DetailField>
-              {asset !== undefined && asset !== null && (
-                <DetailField label="Asset">{formatAsset(asset)}</DetailField>
+              {displayAsset !== undefined && displayAsset !== null && (
+                <DetailField label="Asset">{formatAsset(displayAsset)}</DetailField>
               )}
             </div>
           </div>
@@ -566,7 +584,7 @@ function EventDetails({
             <div className="text-body-sm text-on-surface">
               Paid out{" "}
               <span className="text-primary font-medium">
-                {formatAmountWithAsset(displayAmount, asset)}
+                {formatAmountWithAsset(payoutDisplayAmount, displayAsset)}
               </span>{" "}
               to <span className="font-medium">{recipients.length}</span> recipient
               {recipients.length === 1 ? "" : "s"}
@@ -585,8 +603,10 @@ function EventDetails({
               <DetailField label="Recipients" fullWidth>
                 <RecipientList
                   recipients={recipients}
-                  totalAmount={isNonEmptyString(displayAmount) ? displayAmount : undefined}
-                  asset={asset}
+                  totalAmount={
+                    isNonEmptyString(payoutDisplayAmount) ? payoutDisplayAmount : undefined
+                  }
+                  asset={displayAsset}
                 />
               </DetailField>
             </div>
@@ -601,31 +621,21 @@ function EventDetails({
               <>
                 Released{" "}
                 <span className="text-primary font-medium">
-                  {formatAmountWithAsset(amount, asset)}
-                </span>{" "}
-                to admin <AddressValue addr={admin} />
+                  {formatAmountWithAsset(displayAmount, displayAsset)}
+                </span>
               </>
             ) : contract ? (
               <>
                 Forwarded{" "}
                 <span className="text-primary font-medium">
-                  {formatAmountWithAsset(amount, asset)}
-                </span>{" "}
-                from contract <AddressValue addr={contract} />
-              </>
-            ) : from ? (
-              <>
-                Paid out{" "}
-                <span className="text-primary font-medium">
-                  {formatAmountWithAsset(amount, asset)}
-                </span>{" "}
-                from <AddressValue addr={from} />
+                  {formatAmountWithAsset(displayAmount, displayAsset)}
+                </span>
               </>
             ) : (
               <>
                 Paid out{" "}
                 <span className="text-primary font-medium">
-                  {formatAmountWithAsset(amount, asset)}
+                  {formatAmountWithAsset(displayAmount, displayAsset)}
                 </span>
               </>
             )}
@@ -646,8 +656,8 @@ function EventDetails({
                 <AddressValue addr={contract} />
               </DetailField>
             )}
-            {asset !== undefined && asset !== null && (
-              <DetailField label="Asset">{formatAsset(asset)}</DetailField>
+            {displayAsset !== undefined && displayAsset !== null && (
+              <DetailField label="Asset">{formatAsset(displayAsset)}</DetailField>
             )}
           </div>
         </div>
@@ -753,8 +763,158 @@ function EventDetails({
         </div>
       );
     }
+    case "ALLOWANCE": {
+      const from = d?.from ?? d?.subscriber ?? d?.address;
+      const spender = d?.spender;
+      const amount = d?.amount;
+      const asset = d?.asset;
+
+      return (
+        <div className="space-y-2">
+          <div className="text-body-sm text-on-surface">
+            Approved{" "}
+            <span className="text-primary font-medium">{formatAmountWithAsset(amount, asset)}</span>{" "}
+            for recurring charges
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+            {isNonEmptyString(from) && (
+              <DetailField label="Subscriber">
+                <AddressValue addr={from} />
+              </DetailField>
+            )}
+            {isNonEmptyString(spender) && (
+              <DetailField label="Spender">
+                <AddressValue addr={spender} />
+              </DetailField>
+            )}
+            {asset !== undefined && asset !== null && (
+              <DetailField label="Asset">{formatAsset(asset)}</DetailField>
+            )}
+          </div>
+        </div>
+      );
+    }
+    case "RECIPIENT_UPDATED": {
+      const topic = getEventTopic(evt);
+      const recipients = normalizeRecipients(d?.recipients);
+      return (
+        <div className="space-y-1">
+          <div className="text-body-sm text-on-surface">
+            {topic === "bank_updated" ? "Bank details updated" : "Recipient details updated"}
+          </div>
+          {recipients.length > 0 && (
+            <div className="text-body-sm text-on-surface-variant">
+              <RecipientList recipients={recipients} asset={getActionAsset(graph)} />
+            </div>
+          )}
+        </div>
+      );
+    }
     case "STATUS_CHANGE": {
-      const signer = d?.signer ?? d?.address;
+      const topic = getEventTopic(evt);
+      const signer = d?.signer;
+      const updateTopics = new Set([
+        "subscriber_updated",
+        "amount_updated",
+        "schedule_updated",
+        "payment_updated",
+        "set_asset",
+      ]);
+
+      if (topic && updateTopics.has(topic)) {
+        const title =
+          topic === "subscriber_updated"
+            ? "Subscriber updated"
+            : topic === "amount_updated"
+              ? "Amount updated"
+              : topic === "schedule_updated"
+                ? "Schedule updated"
+                : topic === "payment_updated"
+                  ? "Payment updated"
+                  : topic === "set_asset"
+                    ? "Asset updated"
+                    : "Details updated";
+        return (
+          <div className="space-y-1">
+            <div className="text-body-sm text-on-surface">{title}</div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {isNonEmptyString(d?.subscriber) && (
+                <DetailField label="Subscriber">
+                  <AddressValue addr={String(d.subscriber)} />
+                </DetailField>
+              )}
+              {d?.amount !== undefined && d?.amount !== null && (
+                <DetailField label="Amount">
+                  {formatAmountWithAsset(d.amount, getActionAsset(graph))}
+                </DetailField>
+              )}
+              {d?.startTime !== undefined && d?.startTime !== null && (
+                <DetailField label="Start">
+                  {new Date(Number(d.startTime) * 1000).toLocaleString()}
+                </DetailField>
+              )}
+              {d?.intervalSeconds !== undefined && d?.intervalSeconds !== null && (
+                <DetailField label="Interval">{String(d.intervalSeconds)}s</DetailField>
+              )}
+              {d?.endTime !== undefined && d?.endTime !== null && (
+                <DetailField label="End">
+                  {new Date(Number(d.endTime) * 1000).toLocaleString()}
+                </DetailField>
+              )}
+              {isNonEmptyString(d?.recipient) && (
+                <DetailField label="Recipient">
+                  <AddressValue addr={String(d.recipient)} />
+                </DetailField>
+              )}
+              {d?.asset !== undefined && d?.asset !== null && (
+                <DetailField label="Asset">{formatAsset(d.asset)}</DetailField>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (topic === "set_relayer") {
+        return (
+          <div className="space-y-1">
+            <div className="text-body-sm text-on-surface">Relayer updated</div>
+            {isNonEmptyString(d?.relayer) && (
+              <div className="text-body-sm text-on-surface-variant">
+                <AddressValue addr={String(d.relayer)} />
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      if (topic === "subscribe") {
+        const subscriber = d?.employer ?? d?.subscriber;
+        return (
+          <div className="space-y-1">
+            <div className="text-body-sm text-on-surface">Subscription resumed</div>
+            {isNonEmptyString(subscriber) && (
+              <div className="text-body-sm text-on-surface-variant">
+                <AddressValue addr={String(subscriber)} />
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      if (topic === "cancel") {
+        const subscriber = d?.employer ?? d?.subscriber;
+        return (
+          <div className="space-y-1">
+            <div className="text-body-sm text-on-surface">Subscription cancelled</div>
+            {isNonEmptyString(subscriber) && (
+              <div className="text-body-sm text-on-surface-variant">
+                <AddressValue addr={String(subscriber)} />
+              </div>
+            )}
+          </div>
+        );
+      }
+
       return (
         <div className="space-y-2">
           <div className="text-body-sm text-on-surface">

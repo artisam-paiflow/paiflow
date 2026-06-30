@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
 import type { FlowNode, FlowGraph, Asset } from "@/lib/flows/schema";
 import {
   isPendingAddress,
@@ -17,6 +18,18 @@ import {
 import { cn, formatStroops } from "@/lib/utils";
 import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
+import { computeAssetFlow, assetsEqual } from "@/lib/flows/validate";
+
+/**
+ * Sentinel for an address field a developer chose to leave blank at design time
+ * and fill via the API after deploy (dev mode only). It is a `PENDING:` value, so
+ * `isPendingAddress` recognizes it and the deploy resolver encodes it as a blank
+ * (`None` / `ScVal::Void`) on the matching `_DEV` contract.
+ */
+const API_FILL_ADDRESS = "PENDING:__api__";
+function isApiFillAddress(addr: string): boolean {
+  return addr === API_FILL_ADDRESS;
+}
 
 const TIMEZONES = [
   "UTC",
@@ -98,6 +111,11 @@ export default function ConfigPanel({
   refreshAddressBook,
   className,
 }: Props) {
+  const expectedAsset = useMemo(
+    () => (node ? (computeAssetFlow(graph).get(node.id) ?? null) : null),
+    [graph, node],
+  );
+
   if (!node) {
     return (
       <aside
@@ -111,6 +129,7 @@ export default function ConfigPanel({
   const trigger = graph.nodes.find(isTrigger);
   const triggerType = trigger?.type ?? null;
   const sourceAmount = sourceAmountStroops(graph);
+  const devMode = graph.devMode === true;
 
   return (
     <aside
@@ -364,7 +383,24 @@ export default function ConfigPanel({
 
       {node.type === "pay" && (
         <>
-          <Field label="Recipient (G… or PENDING:)">
+          <AssetField
+            asset={node.config.asset}
+            onChange={(asset) =>
+              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
+            }
+            expectedAsset={expectedAsset}
+          />
+
+          <ApiFillField
+            label="Recipient (G… or PENDING:)"
+            devMode={devMode}
+            active={isApiFillAddress(node.config.recipient)}
+            onActivate={() =>
+              onChange({ ...node, config: { ...node.config, recipient: API_FILL_ADDRESS } })
+            }
+            onDeactivate={() => onChange({ ...node, config: { ...node.config, recipient: "" } })}
+            hint="Recipient set via the API after deploy"
+          >
             <AddressInput
               value={node.config.recipient}
               onChange={(recipient) =>
@@ -377,109 +413,129 @@ export default function ConfigPanel({
               addressBook={addressBook}
               onAddressBookChange={refreshAddressBook}
             />
-          </Field>
+          </ApiFillField>
 
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={node.config.fullAmount}
-              onChange={(e) => {
-                const fullAmount = e.target.checked;
-                onChange({
-                  ...node,
-                  config: {
-                    ...node.config,
-                    fullAmount,
-                    mode: fullAmount ? "percentage" : (node.config.mode ?? "fixed"),
-                    percentage: fullAmount ? 100 : node.config.percentage,
-                  },
-                } as FlowNode);
-              }}
-            />
-            <span className="text-xs text-zinc-400">Send full amount</span>
-          </label>
+          {devMode && (
+            <label className="flex cursor-pointer items-center justify-between rounded border border-amber-800/40 bg-amber-950/10 px-3 py-2">
+              <span className="text-xs text-amber-300">
+                Fill payment value via API after deploy
+              </span>
+              <input
+                type="checkbox"
+                checked={node.config.fillValueViaApi}
+                onChange={(e) =>
+                  onChange({
+                    ...node,
+                    config: { ...node.config, fillValueViaApi: e.target.checked },
+                  } as FlowNode)
+                }
+              />
+            </label>
+          )}
 
-          {!node.config.fullAmount && (
+          {node.config.fillValueViaApi ? (
+            <div className="flex items-center gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 font-mono text-[12px] text-amber-300">
+              <span className="material-symbols-outlined text-[14px]">tune</span>
+              Payment value set via the API after deploy
+            </div>
+          ) : (
             <>
-              <Field label="Mode">
-                <select
-                  className="input"
-                  value={node.config.mode}
-                  onChange={(e) =>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={node.config.fullAmount}
+                  onChange={(e) => {
+                    const fullAmount = e.target.checked;
                     onChange({
                       ...node,
                       config: {
                         ...node.config,
-                        mode: e.target.value as "fixed" | "percentage",
+                        fullAmount,
+                        mode: fullAmount ? "percentage" : (node.config.mode ?? "fixed"),
+                        percentage: fullAmount ? 100 : node.config.percentage,
                       },
-                    } as FlowNode)
-                  }
-                >
-                  <option value="fixed">Fixed amount</option>
-                  <option value="percentage">Percentage</option>
-                </select>
-              </Field>
+                    } as FlowNode);
+                  }}
+                />
+                <span className="text-xs text-zinc-400">Send full amount</span>
+              </label>
 
-              {node.config.mode === "fixed" && (
-                <Field label={`Amount (${assetLabel(node.config.asset)})`}>
-                  <input
-                    className="input"
-                    value={
-                      node.config.amountStroops ? formatStroops(node.config.amountStroops) : ""
-                    }
-                    onChange={(e) =>
-                      onChange({
-                        ...node,
-                        config: {
-                          ...node.config,
-                          amountStroops: tokenAmountToStroops(e.target.value),
-                        },
-                      })
-                    }
-                  />
-                  {node.config.amountStroops && (
-                    <div className="mt-0.5 text-[11px] text-zinc-500">
-                      = {stroopsToDisplay(node.config.amountStroops, node.config.asset)}
-                    </div>
-                  )}
-                </Field>
-              )}
-
-              {node.config.mode === "percentage" && (
-                <Field label="Percentage">
-                  <div className="relative">
-                    <input
-                      className="input pr-6"
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={node.config.percentage ?? ""}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
+              {!node.config.fullAmount && (
+                <>
+                  <Field label="Mode">
+                    <select
+                      className="input"
+                      value={node.config.mode}
+                      onChange={(e) =>
                         onChange({
                           ...node,
                           config: {
                             ...node.config,
-                            percentage: isNaN(v) ? 0 : Math.min(100, Math.max(0, v)),
+                            mode: e.target.value as "fixed" | "percentage",
                           },
-                        });
-                      }}
-                    />
-                    <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[11px] text-zinc-500">
-                      %
-                    </span>
-                  </div>
-                </Field>
+                        } as FlowNode)
+                      }
+                    >
+                      <option value="fixed">Fixed amount</option>
+                      <option value="percentage">Percentage</option>
+                    </select>
+                  </Field>
+
+                  {node.config.mode === "fixed" && (
+                    <Field label={`Amount (${assetLabel(node.config.asset)})`}>
+                      <input
+                        className="input"
+                        value={
+                          node.config.amountStroops ? formatStroops(node.config.amountStroops) : ""
+                        }
+                        onChange={(e) =>
+                          onChange({
+                            ...node,
+                            config: {
+                              ...node.config,
+                              amountStroops: tokenAmountToStroops(e.target.value),
+                            },
+                          })
+                        }
+                      />
+                      {node.config.amountStroops && (
+                        <div className="mt-0.5 text-[11px] text-zinc-500">
+                          = {stroopsToDisplay(node.config.amountStroops, node.config.asset)}
+                        </div>
+                      )}
+                    </Field>
+                  )}
+
+                  {node.config.mode === "percentage" && (
+                    <Field label="Percentage">
+                      <div className="relative">
+                        <input
+                          className="input pr-6"
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={node.config.percentage ?? ""}
+                          onChange={(e) => {
+                            const v = Number(e.target.value);
+                            onChange({
+                              ...node,
+                              config: {
+                                ...node.config,
+                                percentage: isNaN(v) ? 0 : Math.min(100, Math.max(0, v)),
+                              },
+                            });
+                          }}
+                        />
+                        <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[11px] text-zinc-500">
+                          %
+                        </span>
+                      </div>
+                    </Field>
+                  )}
+                </>
               )}
             </>
           )}
-
-          <AssetField
-            asset={node.config.asset}
-            onChange={(asset) =>
-              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
-            }
-          />
         </>
       )}
 
@@ -490,7 +546,38 @@ export default function ConfigPanel({
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
+            expectedAsset={expectedAsset}
           />
+
+          {devMode && (
+            <label className="flex cursor-pointer items-center justify-between rounded border border-amber-800/40 bg-amber-950/10 px-3 py-2">
+              <span className="text-xs text-amber-300">Fill recipients via API after deploy</span>
+              <input
+                type="checkbox"
+                checked={node.config.recipients.length === 0}
+                onChange={(e) =>
+                  onChange({
+                    ...node,
+                    config: {
+                      ...node.config,
+                      recipients: e.target.checked
+                        ? []
+                        : [{ address: "", mode: "percentage" as const, bps: 0 }],
+                    },
+                  } as FlowNode)
+                }
+              />
+            </label>
+          )}
+
+          {devMode && node.config.recipients.length === 0 ? (
+            <div className="flex items-center gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 font-mono text-[12px] text-amber-300">
+              <span className="material-symbols-outlined text-[14px]">tune</span>
+              Recipients set via the API after deploy
+            </div>
+          ) : (
+            <></>
+          )}
 
           {triggerType === "on_schedule" && (
             <Field label={`Amount per interval (${assetLabel(node.config.asset)})`}>
@@ -524,6 +611,9 @@ export default function ConfigPanel({
 
           {(() => {
             const splitNode = node as Extract<FlowNode, { type: "split" }>;
+            // In dev mode an empty recipients list means "fill via API"; the
+            // banner above already covers it, so skip the editor entirely.
+            if (devMode && splitNode.config.recipients.length === 0) return null;
             const mode = splitNode.config.recipients[0]?.mode ?? "percentage";
             const totalFixed = splitTotalFixedStroops(splitNode.config.recipients);
             const minAmount =
@@ -693,6 +783,88 @@ export default function ConfigPanel({
                           )}
                         </div>
                       </div>
+
+                      {triggerType === "payroll" && (
+                        <div className="space-y-2 pt-1">
+                          <Field label="Payout mode">
+                            <select
+                              className="input text-xs"
+                              value={r.payoutMode ?? "crypto"}
+                              onChange={(e) => {
+                                const mode = e.target.value as "crypto" | "fiat";
+                                updateRecipient(
+                                  i,
+                                  mode === "fiat" && !devMode
+                                    ? {
+                                        ...r,
+                                        payoutMode: mode,
+                                        accountName: r.accountName ?? "",
+                                        accountNumber: r.accountNumber ?? "",
+                                        bankCode: r.bankCode ?? "",
+                                      }
+                                    : { ...r, payoutMode: mode },
+                                );
+                              }}
+                            >
+                              <option value="crypto">Crypto (wallet)</option>
+                              <option value="fiat">Fiat (bank transfer)</option>
+                            </select>
+                          </Field>
+
+                          {r.payoutMode === "fiat" && !devMode && (
+                            <>
+                              <Field label="Account name">
+                                <input
+                                  className="input text-xs"
+                                  value={r.accountName ?? ""}
+                                  placeholder="Juan Dela Cruz"
+                                  onChange={(e) =>
+                                    updateRecipient(i, {
+                                      ...r,
+                                      accountName: e.target.value,
+                                    } as SplitRecipient)
+                                  }
+                                />
+                              </Field>
+                              <Field label="Account number">
+                                <input
+                                  className="input text-xs"
+                                  value={r.accountNumber ?? ""}
+                                  placeholder="1234567890"
+                                  onChange={(e) =>
+                                    updateRecipient(i, {
+                                      ...r,
+                                      accountNumber: e.target.value,
+                                    } as SplitRecipient)
+                                  }
+                                />
+                              </Field>
+                              <Field label="Bank">
+                                <select
+                                  className="input text-xs"
+                                  value={r.bankCode ?? ""}
+                                  onChange={(e) =>
+                                    updateRecipient(i, {
+                                      ...r,
+                                      bankCode: e.target.value,
+                                    } as SplitRecipient)
+                                  }
+                                >
+                                  <option value="">— select bank —</option>
+                                  <option value="BASECPH">BASECPH — BDO</option>
+                                  <option value="BACTBPH">BACTBPH — BPI</option>
+                                </select>
+                              </Field>
+                            </>
+                          )}
+
+                          {r.payoutMode === "fiat" && devMode && (
+                            <div className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-300">
+                              Bank details configured via API after deploy.
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -822,7 +994,16 @@ export default function ConfigPanel({
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
           />
-          <Field label="Subscriber address (G… or PENDING:)">
+          <ApiFillField
+            label="Subscriber address (G… or PENDING:)"
+            devMode={devMode}
+            active={isApiFillAddress(node.config.subscriber)}
+            onActivate={() =>
+              onChange({ ...node, config: { ...node.config, subscriber: API_FILL_ADDRESS } })
+            }
+            onDeactivate={() => onChange({ ...node, config: { ...node.config, subscriber: "" } })}
+            hint="Subscriber set via the API after deploy"
+          >
             <AddressInput
               value={node.config.subscriber}
               onChange={(subscriber) =>
@@ -835,7 +1016,7 @@ export default function ConfigPanel({
               addressBook={addressBook}
               onAddressBookChange={refreshAddressBook}
             />
-          </Field>
+          </ApiFillField>
           <Field label={`Amount per period (${assetLabel(node.config.asset)})`}>
             <input
               className="input"
@@ -850,6 +1031,14 @@ export default function ConfigPanel({
                 })
               }
             />
+            <ApiFillHint
+              show={
+                devMode &&
+                (!node.config.amountPerPeriodStroops || node.config.amountPerPeriodStroops === "0")
+              }
+            >
+              Leave empty to set the amount via the API after deploy.
+            </ApiFillHint>
           </Field>
           {(() => {
             const cfg = node.config as {
@@ -967,6 +1156,187 @@ export default function ConfigPanel({
         </>
       )}
 
+      {node.type === "payroll" && (
+        <>
+          <AssetField
+            asset={node.config.asset}
+            onChange={(asset) =>
+              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
+            }
+          />
+          <ApiFillField
+            label="Employer address (G… or PENDING:)"
+            devMode={devMode}
+            active={isApiFillAddress(node.config.employer)}
+            onActivate={() =>
+              onChange({ ...node, config: { ...node.config, employer: API_FILL_ADDRESS } })
+            }
+            onDeactivate={() => onChange({ ...node, config: { ...node.config, employer: "" } })}
+            hint="Employer set via the API after deploy"
+          >
+            <AddressInput
+              value={node.config.employer}
+              onChange={(employer) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, employer },
+                })
+              }
+              pending={isPendingAddress(node.config.employer)}
+              addressBook={addressBook}
+              onAddressBookChange={refreshAddressBook}
+            />
+          </ApiFillField>
+          {(() => {
+            const cfg = node.config as {
+              intervalAmount?: number;
+              intervalUnit?: "minute" | "hour" | "day" | "week" | "month";
+              endsAt?: string;
+              occurrences?: number;
+              fillScheduleViaApi?: boolean;
+            };
+            const amount = cfg.intervalAmount ?? 1;
+            const unit = cfg.intervalUnit ?? "week";
+            return (
+              <>
+                {devMode && (
+                  <label className="flex cursor-pointer items-center justify-between rounded border border-amber-800/40 bg-amber-950/10 px-3 py-2">
+                    <span className="text-xs text-amber-300">
+                      Fill schedule via API after deploy
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={cfg.fillScheduleViaApi ?? false}
+                      onChange={(e) =>
+                        onChange({
+                          ...node,
+                          config: { ...cfg, fillScheduleViaApi: e.target.checked },
+                        } as FlowNode)
+                      }
+                    />
+                  </label>
+                )}
+
+                {devMode && cfg.fillScheduleViaApi ? (
+                  <div className="flex items-center gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 font-mono text-[12px] text-amber-300">
+                    <span className="material-symbols-outlined text-[14px]">tune</span>
+                    Schedule set via the API after deploy
+                  </div>
+                ) : (
+                  <>
+                    <Field label="Interval">
+                      <div className="flex gap-2">
+                        <input
+                          className="input w-20 text-right"
+                          type="number"
+                          min={1}
+                          value={amount}
+                          onChange={(e) => {
+                            const v = Math.max(1, Math.floor(Number(e.target.value) || 1));
+                            onChange({
+                              ...node,
+                              config: { ...cfg, intervalAmount: v, intervalUnit: unit },
+                            } as FlowNode);
+                          }}
+                        />
+                        <select
+                          className="input flex-1"
+                          value={unit}
+                          onChange={(e) => {
+                            const newUnit = e.target.value as typeof unit;
+                            onChange({
+                              ...node,
+                              config: { ...cfg, intervalAmount: amount, intervalUnit: newUnit },
+                            } as FlowNode);
+                          }}
+                        >
+                          <option value="minute">Minute(s)</option>
+                          <option value="hour">Hour(s)</option>
+                          <option value="day">Day(s)</option>
+                          <option value="week">Week(s)</option>
+                          <option value="month">Month(s)</option>
+                        </select>
+                      </div>
+                    </Field>
+                    <Field label="Ends at — optional">
+                      <div className="flex gap-1">
+                        <input
+                          className="input"
+                          type="datetime-local"
+                          value={
+                            cfg.endsAt
+                              ? formatIsoForTimezone(
+                                  cfg.endsAt,
+                                  Intl.DateTimeFormat().resolvedOptions().timeZone,
+                                )
+                              : ""
+                          }
+                          onChange={(e) => {
+                            const local = e.target.value;
+                            onChange({
+                              ...node,
+                              config: {
+                                ...cfg,
+                                endsAt: local
+                                  ? isoFromLocalAndTimezone(
+                                      local,
+                                      Intl.DateTimeFormat().resolvedOptions().timeZone,
+                                    )
+                                  : undefined,
+                                occurrences: undefined,
+                              },
+                            } as FlowNode);
+                          }}
+                        />
+                        {cfg.endsAt && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onChange({
+                                ...node,
+                                config: { ...cfg, endsAt: undefined },
+                              } as FlowNode)
+                            }
+                            className="rounded border border-zinc-700 px-2 text-zinc-400 hover:text-red-300"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    </Field>
+                    <Field label="Occurrences — optional">
+                      <input
+                        className="input"
+                        type="number"
+                        min="1"
+                        placeholder="e.g. 5"
+                        value={cfg.occurrences ?? ""}
+                        onChange={(e) =>
+                          onChange({
+                            ...node,
+                            config: {
+                              ...cfg,
+                              endsAt: undefined,
+                              occurrences: e.target.value ? Number(e.target.value) : undefined,
+                            },
+                          } as FlowNode)
+                        }
+                      />
+                    </Field>
+                  </>
+                )}
+
+                <div className="rounded border border-zinc-800 bg-zinc-900/50 p-2 text-xs text-zinc-400">
+                  Connect a Split action with fixed amounts to set employee salaries, or leave the
+                  Split recipients empty in dev mode to configure salaries via the API. The payroll
+                  contract pulls the total from the employer each period and distributes it.
+                </div>
+              </>
+            );
+          })()}
+        </>
+      )}
+
       {node.type === "oracle" && (
         <>
           <AssetField
@@ -995,22 +1365,21 @@ export default function ConfigPanel({
 
       {node.type === "swap" && (
         <>
-          <Field label="Asset In">
-            <AssetSimpleSelect
-              asset={node.config.assetIn}
-              onChange={(assetIn) =>
-                onChange({ ...node, config: { ...node.config, assetIn } } as FlowNode)
-              }
-            />
-          </Field>
-          <Field label="Asset Out">
-            <AssetSimpleSelect
-              asset={node.config.assetOut}
-              onChange={(assetOut) =>
-                onChange({ ...node, config: { ...node.config, assetOut } } as FlowNode)
-              }
-            />
-          </Field>
+          <AssetSimpleSelect
+            label="Asset In"
+            asset={node.config.assetIn}
+            onChange={(assetIn) =>
+              onChange({ ...node, config: { ...node.config, assetIn } } as FlowNode)
+            }
+            expectedAsset={expectedAsset}
+          />
+          <AssetSimpleSelect
+            label="Asset Out"
+            asset={node.config.assetOut}
+            onChange={(assetOut) =>
+              onChange({ ...node, config: { ...node.config, assetOut } } as FlowNode)
+            }
+          />
           <Field label="Rate (basis points, 1–10000)">
             <input
               className="input"
@@ -1043,6 +1412,7 @@ export default function ConfigPanel({
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
+            expectedAsset={expectedAsset}
           />
           <Field label="Vault address (G… or PENDING:)">
             <AddressInput
@@ -1092,6 +1462,82 @@ export default function ConfigPanel({
             />
           </Field>
           <EmailVariablesHint graph={graph} nodeId={node.id} />
+        </>
+      )}
+
+      {node.type === "cash_out" && (
+        <>
+          <div className="flex items-start gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-300">
+            <span className="material-symbols-outlined text-[14px]">payments</span>
+            <span>
+              Terminal cash-out. Funds leave the chain to the off-ramp treasury, then a bank payout
+              is made via PDAX.{" "}
+              {devMode
+                ? "Bank details can be left blank and filled via the API after deploy."
+                : "Bank details must be set before deploy."}
+            </span>
+          </div>
+          <AssetField
+            asset={node.config.asset}
+            onChange={(asset) =>
+              onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
+            }
+          />
+          <Field label="Account name">
+            <input
+              className="input"
+              value={node.config.accountName}
+              placeholder="Juan Dela Cruz"
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, accountName: e.target.value },
+                } as FlowNode)
+              }
+            />
+          </Field>
+          <Field label="Account number">
+            <input
+              className="input"
+              value={node.config.accountNumber}
+              placeholder="1234567890"
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, accountNumber: e.target.value },
+                } as FlowNode)
+              }
+            />
+          </Field>
+          <Field label="Bank">
+            <select
+              className="input"
+              value={node.config.bankCode}
+              onChange={(e) =>
+                onChange({
+                  ...node,
+                  config: { ...node.config, bankCode: e.target.value },
+                } as FlowNode)
+              }
+            >
+              <option value="">
+                {devMode ? "— set via API after deploy —" : "— select bank —"}
+              </option>
+              <option value="BASECPH">BASECPH — BDO</option>
+              <option value="BACTBPH">BACTBPH — BPI</option>
+            </select>
+          </Field>
+          <ApiFillHint
+            show={
+              devMode &&
+              !node.config.accountName &&
+              !node.config.accountNumber &&
+              !node.config.bankCode
+            }
+          >
+            Leave the bank fields empty to fill them via the API after deploy. The contract deploys
+            &ldquo;not configured&rdquo; and guards execution until they are set.
+          </ApiFillHint>
         </>
       )}
 
@@ -1333,13 +1779,70 @@ export default function ConfigPanel({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <label className="grid gap-1">
       <span className="text-xs text-zinc-400">{label}</span>
       {children}
     </label>
   );
+}
+
+/**
+ * A field with an explicit "Fill via API" affordance, shown only in dev mode.
+ * When the toggle is on, the input is replaced by a banner and the underlying
+ * value is the blank sentinel; the developer fills it through the API after
+ * deploy. Outside dev mode it renders as a plain `Field`.
+ */
+function ApiFillField({
+  label,
+  devMode,
+  active,
+  onActivate,
+  onDeactivate,
+  hint = "Set via the API after deploy",
+  children,
+}: {
+  label: string;
+  devMode: boolean;
+  active: boolean;
+  onActivate: () => void;
+  onDeactivate: () => void;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  if (!devMode) {
+    return <Field label={label}>{children}</Field>;
+  }
+  return (
+    <div className="grid gap-1">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-zinc-400">{label}</span>
+        <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-amber-400">
+          <input
+            type="checkbox"
+            checked={active}
+            onChange={(e) => (e.target.checked ? onActivate() : onDeactivate())}
+          />
+          Fill via API
+        </label>
+      </div>
+      {active ? (
+        <div className="flex items-center gap-1.5 rounded border border-amber-800/40 bg-amber-950/20 px-3 py-2 font-mono text-[12px] text-amber-300">
+          <span className="material-symbols-outlined text-[14px]">tune</span>
+          {hint}
+        </div>
+      ) : (
+        children
+      )}
+    </div>
+  );
+}
+
+/** Inline amber hint shown under an already-emptyable field in dev mode. */
+function ApiFillHint({ show, children }: { show: boolean; children: React.ReactNode }) {
+  if (!show) return null;
+  return <div className="mt-0.5 text-[11px] text-amber-400/80">{children}</div>;
 }
 
 function EmailVariablesHint({ graph, nodeId }: { graph: FlowGraph; nodeId: string }) {
@@ -1477,18 +1980,75 @@ function EmailRecipientsField({
   );
 }
 
-function AssetField({
+function AssetOptionInfoIcon({ expectedAsset }: { expectedAsset: Asset }) {
+  return (
+    <span
+      className="material-symbols-outlined cursor-help text-[14px] text-zinc-500"
+      title={`Only ${assetLabel(expectedAsset)} can be picked here — that's the asset flowing into this step. Add or change a swap node upstream to use a different asset.`}
+    >
+      info
+    </span>
+  );
+}
+
+type SimpleAsset =
+  | { kind: "native" }
+  | { kind: "known"; symbol: "USDC" }
+  | { kind: "custom"; code: string; issuer: string };
+
+function AssetFieldLabel({
+  label,
+  expectedAsset,
+}: {
+  label: React.ReactNode;
+  expectedAsset?: Asset | null;
+}) {
+  if (!expectedAsset) return <>{label}</>;
+  return (
+    <span className="inline-flex items-center gap-1">
+      {label}
+      <AssetOptionInfoIcon expectedAsset={expectedAsset} />
+    </span>
+  );
+}
+
+/**
+ * The dropdown below only offers native/USDC. When the upstream trigger
+ * carries a custom asset, neither option is valid — rather than disabling
+ * both and leaving the field dead, show the required asset read-only and
+ * force the node's config to match it, since there is no other value the
+ * user could legitimately pick.
+ */
+function AssetSelectOrReadout({
+  label,
   asset,
   onChange,
+  expectedAsset,
 }: {
-  asset:
-    | { kind: "native" }
-    | { kind: "known"; symbol: "USDC" }
-    | { kind: "custom"; code: string; issuer: string };
-  onChange: (a: typeof asset) => void;
+  label: React.ReactNode;
+  asset: SimpleAsset;
+  onChange: (a: SimpleAsset) => void;
+  expectedAsset?: Asset | null;
 }) {
+  useEffect(() => {
+    if (expectedAsset?.kind === "custom" && !assetsEqual(expectedAsset, asset)) {
+      onChange(expectedAsset);
+    }
+  }, [expectedAsset, asset, onChange]);
+
+  if (expectedAsset?.kind === "custom") {
+    return (
+      <Field label={<AssetFieldLabel label={label} expectedAsset={expectedAsset} />}>
+        <div className="input flex items-center text-zinc-400">{assetLabel(expectedAsset)}</div>
+      </Field>
+    );
+  }
+
+  const nativeDisabled = !!expectedAsset && !assetsEqual(expectedAsset, { kind: "native" });
+  const usdcDisabled =
+    !!expectedAsset && !assetsEqual(expectedAsset, { kind: "known", symbol: "USDC" });
   return (
-    <Field label="Asset">
+    <Field label={<AssetFieldLabel label={label} expectedAsset={expectedAsset} />}>
       <select
         className="input"
         value={asset.kind === "known" ? `known:${asset.symbol}` : asset.kind}
@@ -1498,36 +2058,54 @@ function AssetField({
           else if (v === "known:USDC") onChange({ kind: "known", symbol: "USDC" });
         }}
       >
-        <option value="known:USDC">USDC</option>
-        <option value="native">XLM (native)</option>
+        <option value="known:USDC" disabled={usdcDisabled}>
+          USDC
+        </option>
+        <option value="native" disabled={nativeDisabled}>
+          XLM (native)
+        </option>
       </select>
     </Field>
   );
 }
 
-function AssetSimpleSelect({
+function AssetField({
   asset,
   onChange,
+  expectedAsset,
 }: {
-  asset:
-    | { kind: "native" }
-    | { kind: "known"; symbol: "USDC" }
-    | { kind: "custom"; code: string; issuer: string };
-  onChange: (a: typeof asset) => void;
+  asset: SimpleAsset;
+  onChange: (a: SimpleAsset) => void;
+  expectedAsset?: Asset | null;
 }) {
   return (
-    <select
-      className="input"
-      value={asset.kind === "known" ? `known:${asset.symbol}` : asset.kind}
-      onChange={(e) => {
-        const v = e.target.value;
-        if (v === "native") onChange({ kind: "native" });
-        else if (v === "known:USDC") onChange({ kind: "known", symbol: "USDC" });
-      }}
-    >
-      <option value="known:USDC">USDC</option>
-      <option value="native">XLM (native)</option>
-    </select>
+    <AssetSelectOrReadout
+      label="Asset"
+      asset={asset}
+      onChange={onChange}
+      expectedAsset={expectedAsset}
+    />
+  );
+}
+
+function AssetSimpleSelect({
+  label,
+  asset,
+  onChange,
+  expectedAsset,
+}: {
+  label: string;
+  asset: SimpleAsset;
+  onChange: (a: SimpleAsset) => void;
+  expectedAsset?: Asset | null;
+}) {
+  return (
+    <AssetSelectOrReadout
+      label={label}
+      asset={asset}
+      onChange={onChange}
+      expectedAsset={expectedAsset}
+    />
   );
 }
 

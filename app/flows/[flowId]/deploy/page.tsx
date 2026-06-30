@@ -3,10 +3,15 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
-import { FlowGraphSchema } from "@/lib/flows/schema";
+import { FlowGraphSchema, type Asset, assetLabel } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToEnglish } from "@/lib/flows/english";
-import { flowToPipeline, getStreamerPreviewFromPipeline } from "@/lib/flows/to-params";
+import {
+  flowToPipeline,
+  getStreamerPreviewFromPipeline,
+  getSubscriptionPreviewFromPipeline,
+  getPayrollPreviewFromPipeline,
+} from "@/lib/flows/to-params";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
 import DeployReview from "@/components/deploy/deploy-review";
 import { env } from "@/lib/env";
@@ -34,27 +39,67 @@ export default async function DeployReviewPage({
     intervalLabel: string;
     startDate: string;
     endDate: string;
+    asset: Asset;
+    apiFilled: {
+      amount: boolean;
+      schedule: boolean;
+    };
   } | null = null;
+  const isSubscriptionTrigger = graph.data!.nodes.some((n) => n.type === "subscription");
+  const isPayrollTrigger = graph.data!.nodes.some((n) => n.type === "payroll");
   if (pipeline) {
-    const sp = getStreamerPreviewFromPipeline(flowToPipeline(graph.data!));
+    const sp =
+      getStreamerPreviewFromPipeline(flowToPipeline(graph.data!)) ??
+      getSubscriptionPreviewFromPipeline(flowToPipeline(graph.data!)) ??
+      getPayrollPreviewFromPipeline(flowToPipeline(graph.data!));
     if (sp) {
-      const triggerNode = graph.data!.nodes.find((n) => n.type === "on_schedule") as
+      const triggerNode = graph.data!.nodes.find(
+        (n) => n.type === "on_schedule" || n.type === "subscription" || n.type === "payroll",
+      ) as
         | {
-            type: "on_schedule";
-            config: { intervalAmount?: number; intervalUnit?: string; interval?: string };
+            type: "on_schedule" | "subscription" | "payroll";
+            config: {
+              intervalAmount?: number;
+              intervalUnit?: string;
+              interval?: string;
+              fillScheduleViaApi?: boolean;
+              employer?: string;
+            };
           }
         | undefined;
+      const fillScheduleViaApi =
+        triggerNode?.type === "payroll" ? (triggerNode.config.fillScheduleViaApi ?? false) : false;
       const intervalAmount = triggerNode?.config.intervalAmount ?? 1;
       const intervalUnit =
         triggerNode?.config.intervalUnit ?? triggerNode?.config.interval ?? "hour";
-      const intervalLabel =
-        intervalAmount === 1 ? `every ${intervalUnit}` : `every ${intervalAmount} ${intervalUnit}s`;
+      const intervalLabel = fillScheduleViaApi
+        ? "(set via API)"
+        : intervalAmount === 1
+          ? `every ${intervalUnit}`
+          : `every ${intervalAmount} ${intervalUnit}s`;
+
+      const action = graph.data!.nodes.find(
+        (n) => n.type === "pay" || n.type === "split" || n.type === "swap" || n.type === "yield",
+      );
+      const asset: Asset =
+        action?.type === "swap"
+          ? action.config.assetIn
+          : (action?.config.asset ?? { kind: "native" });
+
+      const fillAmountViaApi =
+        isPayrollTrigger && action?.type === "split" && action.config.recipients.length === 0;
+
       streamerPreview = {
-        totalStroops: sp.totalStroops,
+        totalStroops: fillAmountViaApi ? "(set via API)" : sp.totalStroops,
         durationSecs: sp.durationSecs,
         intervalLabel,
-        startDate: new Date(sp.startTs * 1000).toISOString(),
-        endDate: new Date(sp.endTs * 1000).toISOString(),
+        startDate: fillScheduleViaApi ? "(set via API)" : new Date(sp.startTs * 1000).toISOString(),
+        endDate: fillScheduleViaApi ? "(set via API)" : new Date(sp.endTs * 1000).toISOString(),
+        asset,
+        apiFilled: {
+          amount: fillAmountViaApi,
+          schedule: fillScheduleViaApi,
+        },
       };
     }
   }
@@ -139,17 +184,36 @@ export default async function DeployReviewPage({
         {streamerPreview && (
           <section className="mt-4 rounded-xl border border-amber-900 bg-amber-950/20 p-4">
             <div className="text-[10px] font-medium tracking-wide text-amber-400 uppercase">
-              Streamer funding required
+              {isSubscriptionTrigger
+                ? "Subscription schedule"
+                : isPayrollTrigger
+                  ? "Payroll schedule"
+                  : "Streamer funding required"}
             </div>
             <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
               <div>
-                <div className="text-xs text-zinc-400">Total vest amount</div>
+                <div className="text-xs text-zinc-400">
+                  {isSubscriptionTrigger || isPayrollTrigger
+                    ? "Total pull amount"
+                    : "Total vest amount"}
+                </div>
                 <div className="font-mono text-lg text-amber-200">
-                  {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()} XLM
+                  {streamerPreview.apiFilled.amount ? (
+                    streamerPreview.totalStroops
+                  ) : (
+                    <>
+                      {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()}{" "}
+                      {assetLabel(streamerPreview.asset)}
+                    </>
+                  )}
                 </div>
               </div>
               <div>
-                <div className="text-xs text-zinc-400">Vesting interval</div>
+                <div className="text-xs text-zinc-400">
+                  {isSubscriptionTrigger || isPayrollTrigger
+                    ? "Billing interval"
+                    : "Vesting interval"}
+                </div>
                 <div className="font-mono text-lg text-amber-200">
                   {streamerPreview.intervalLabel}
                 </div>
@@ -164,12 +228,29 @@ export default async function DeployReviewPage({
               </div>
             </div>
             <p className="mt-3 text-xs text-amber-300">
-              This contract will vest{" "}
-              <strong>
-                {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()} XLM
-              </strong>{" "}
-              over its lifetime. You must top up the contract with sufficient funds for claims to
-              succeed.
+              {isSubscriptionTrigger || isPayrollTrigger ? (
+                <>
+                  This {isPayrollTrigger ? "payroll" : "subscription"} will pull{" "}
+                  <strong>
+                    {streamerPreview.apiFilled.amount
+                      ? streamerPreview.totalStroops
+                      : `${(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()} ${assetLabel(streamerPreview.asset)}`}
+                  </strong>{" "}
+                  from the {isPayrollTrigger ? "employer" : "subscriber"} over its lifetime. The{" "}
+                  {isPayrollTrigger ? "employer" : "subscriber"} must maintain sufficient token
+                  allowance for each charge to succeed.
+                </>
+              ) : (
+                <>
+                  This contract will vest{" "}
+                  <strong>
+                    {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()}{" "}
+                    {assetLabel(streamerPreview.asset)}
+                  </strong>{" "}
+                  over its lifetime. You must top up the contract with sufficient funds for claims
+                  to succeed.
+                </>
+              )}
             </p>
           </section>
         )}

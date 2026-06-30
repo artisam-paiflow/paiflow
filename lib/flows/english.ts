@@ -9,11 +9,41 @@ import {
   assetLabel,
 } from "./schema";
 
+function isApiFillAddress(addr: string): boolean {
+  return addr === "PENDING:__api__";
+}
+
 function intervalLabel(amount: number, unit: string): string {
   if (amount === 1) {
     return `every ${unit}`;
   }
   return `every ${amount} ${unit}s`;
+}
+
+/**
+ * Format an On Schedule trigger's `startsAt` as human-readable text (e.g.
+ * "June 25, 2026 at 1:25 PM") instead of leaking the raw ISO timestamp into the
+ * English preview. Date and time are formatted separately and joined with "at"
+ * so the wording is deterministic across ICU versions. Falls back to the raw
+ * string if the value isn't a parseable date.
+ */
+function formatScheduleStart(iso: string, timeZone?: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const tz = timeZone || "UTC";
+  const date = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: tz,
+  }).format(d);
+  const time = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: tz,
+  }).format(d);
+  return `${date} at ${time}`;
 }
 
 function describeCondition(c: Extract<FlowNode, { type: "condition" }>, asset?: Asset): string {
@@ -53,7 +83,17 @@ export function flowToEnglish(graph: FlowGraph): string {
   } else if (trigger.type === "web2_webhook") {
     triggerText = `When HTTP webhook fires for ${assetLabel(trigger.config.asset)}`;
   } else if (trigger.type === "subscription") {
-    triggerText = `When subscription pulls ${formatStroops(trigger.config.amountPerPeriodStroops)} ${assetLabel(trigger.config.asset)}`;
+    triggerText = `When subscription pulls ${formatStroops(trigger.config.amountPerPeriodStroops)} ${assetLabel(trigger.config.asset)} ${intervalLabel(trigger.config.intervalAmount ?? 1, trigger.config.intervalUnit ?? "day")}`;
+  } else if (trigger.type === "payroll") {
+    const employer = isApiFillAddress(trigger.config.employer)
+      ? "(employer set via API)"
+      : isPendingAddress(trigger.config.employer)
+        ? "(needs employer address)"
+        : shortAddr(trigger.config.employer);
+    const schedule = trigger.config.fillScheduleViaApi
+      ? "(schedule set via API)"
+      : intervalLabel(trigger.config.intervalAmount ?? 1, trigger.config.intervalUnit ?? "week");
+    triggerText = `When payroll pulls from ${employer} ${schedule}`;
   } else if (trigger.type === "oracle") {
     triggerText = `When oracle price meets threshold (${trigger.config.threshold}) for ${assetLabel(trigger.config.asset)}`;
   } else {
@@ -61,16 +101,28 @@ export function flowToEnglish(graph: FlowGraph): string {
       intervalAmount?: number;
       intervalUnit?: string;
       interval?: string;
+      startsAt?: string;
+      timeZone?: string;
     };
-    triggerText = `${intervalLabel(sched.intervalAmount ?? 1, sched.intervalUnit ?? sched.interval ?? "hour")} starting ${trigger.config.startsAt}`;
+    const interval = intervalLabel(
+      sched.intervalAmount ?? 1,
+      sched.intervalUnit ?? sched.interval ?? "hour",
+    );
+    triggerText = sched.startsAt
+      ? `${interval} starting ${formatScheduleStart(sched.startsAt, sched.timeZone)}`
+      : interval;
   }
 
   let actionText: string;
   if (action.type === "pay") {
-    const who = isPendingAddress(action.config.recipient)
-      ? "(needs address)"
-      : shortAddr(action.config.recipient);
-    if (action.config.fullAmount) {
+    const who = isApiFillAddress(action.config.recipient)
+      ? "(recipient set via API)"
+      : isPendingAddress(action.config.recipient)
+        ? "(needs address)"
+        : shortAddr(action.config.recipient);
+    if (action.config.fillValueViaApi) {
+      actionText = `pay ${assetLabel(action.config.asset)} to ${who} (value set via API)`;
+    } else if (action.config.fullAmount) {
       actionText = `pay full incoming ${assetLabel(action.config.asset)} to ${who}`;
     } else if (action.config.mode === "percentage") {
       actionText = `pay ${action.config.percentage}% of incoming ${assetLabel(
@@ -88,6 +140,9 @@ export function flowToEnglish(graph: FlowGraph): string {
       ? "(needs address)"
       : shortAddr(action.config.vault);
     actionText = `deposit ${assetLabel(action.config.asset)} into yield vault ${vault}`;
+  } else if (action.type === "cash_out") {
+    const bank = action.config.bankCode ? `bank ${action.config.bankCode}` : "a bank (set via API)";
+    actionText = `cash out ${assetLabel(action.config.asset)} to ${bank} via off-ramp`;
   } else {
     const mode = action.config.recipients[0]?.mode ?? "percentage";
     const assetStr = assetLabel(action.config.asset);

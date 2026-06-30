@@ -57,6 +57,7 @@ export default function Topbar({ username }: { username: string }) {
                   }`}
                 >
                   <span
+                    aria-hidden="true"
                     className={`material-symbols-outlined text-[16px] ${active ? "filled" : ""}`}
                   >
                     {item.icon}
@@ -74,11 +75,14 @@ export default function Topbar({ username }: { username: string }) {
               onClick={() => setOpen((v) => !v)}
               aria-expanded={open}
               aria-haspopup="true"
+              aria-label={username}
               className="border-outline-variant/30 bg-surface-container-low/60 text-label-sm text-on-surface-variant hover:border-primary/40 hover:text-on-surface inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors"
             >
-              <span className="material-symbols-outlined text-[14px]">person</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-[14px]">
+                person
+              </span>
               <span className="hidden sm:inline">{username}</span>
-              <span className="material-symbols-outlined text-[14px]">
+              <span aria-hidden="true" className="material-symbols-outlined text-[14px]">
                 {open ? "expand_less" : "expand_more"}
               </span>
             </button>
@@ -98,7 +102,9 @@ export default function Topbar({ username }: { username: string }) {
                           : "text-on-surface hover:bg-surface-container-high/40"
                       }`}
                     >
-                      <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
+                      <span aria-hidden="true" className="material-symbols-outlined text-[16px]">
+                        {item.icon}
+                      </span>
                       {item.label}
                     </Link>
                   );
@@ -108,7 +114,9 @@ export default function Topbar({ username }: { username: string }) {
                   onClick={() => signOut({ callbackUrl: "/" })}
                   className="text-label-sm text-error hover:bg-error-container/30 inline-flex w-full items-center gap-2 rounded-lg px-3 py-2 font-mono transition-colors"
                 >
-                  <span className="material-symbols-outlined text-[16px]">logout</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-[16px]">
+                    logout
+                  </span>
                   SIGN OUT
                 </button>
               </div>

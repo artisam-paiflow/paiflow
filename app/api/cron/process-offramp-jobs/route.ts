@@ -1,0 +1,366 @@
+import { NextRequest, NextResponse } from "next/server";
+import { OffRampJobSource, OffRampPayoutJobStatus, type Prisma } from "@prisma/client";
+import { db } from "@/lib/db";
+import { env } from "@/lib/env";
+import { log } from "@/lib/log";
+import { AppError, withErrorHandler } from "@/lib/errors";
+import {
+  getDueOffRampJobs,
+  rescheduleOffRampJob,
+  cancelPendingOffRampJobs,
+} from "@/lib/offramp/jobs";
+import { getOffRampProvider, offRampAssetCode, offRampFiatCurrency } from "@/lib/offramp/provider";
+import { resolveCashOutAsset, resolvePayrollAsset } from "@/lib/offramp/assets";
+import { refundFromTreasury, getTreasuryBalance } from "@/lib/stellar/dev-mutate";
+import { assetContractId } from "@/lib/stellar/assets";
+import type { FlowGraph } from "@/lib/flows/schema";
+import type { Asset } from "@/lib/flows/schema";
+
+export const dynamic = "force-dynamic";
+
+const MAX_RETRY_ATTEMPTS = 3;
+
+function isRetryableError(message: string): boolean {
+  return (
+    message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("rate limit") ||
+    message.includes("RateLimit") ||
+    message.includes("ECONNRESET") ||
+    message.includes("ETIMEDOUT") ||
+    message.includes("fetch failed")
+  );
+}
+
+function isKnownSkipError(message: string): boolean {
+  return (
+    message.includes("No bank details") ||
+    message.includes("No sender profile") ||
+    message.includes("Invalid bank") ||
+    message.includes("Unsupported bank") ||
+    message.includes("Invalid account")
+  );
+}
+
+/**
+ * True if the failure happened before the PDAX trade executed.
+ * At that point the crypto is still in the treasury and can be refunded to the
+ * source address. Once the trade has executed (INITIATED or beyond) the crypto
+ * is gone, so we retry the withdrawal rather than refunding.
+ */
+function isPreTradeFailure(status: OffRampPayoutJobStatus): boolean {
+  return status === OffRampPayoutJobStatus.PENDING || status === OffRampPayoutJobStatus.RUNNING;
+}
+
+type PipelineNodeSnapshot = {
+  nodeId: string;
+  contractAddress: string;
+  templateKind: string;
+};
+
+function resolveJobAsset(job: {
+  source: OffRampJobSource;
+  sourceAddress: string | null;
+  deployment: { graphSnapshot: Prisma.JsonValue; pipelineSnapshot: Prisma.JsonValue } | null;
+}): Asset | null {
+  const deployment = job.deployment;
+  if (!deployment) return null;
+  const graph = deployment.graphSnapshot as FlowGraph | null;
+  const pipeline = deployment.pipelineSnapshot as PipelineNodeSnapshot[] | null;
+  if (job.source === OffRampJobSource.CASH_OUT) {
+    if (!job.sourceAddress) return null;
+    return resolveCashOutAsset(graph, pipeline, job.sourceAddress);
+  }
+  return resolvePayrollAsset(graph);
+}
+
+export async function POST(req: NextRequest) {
+  return withErrorHandler(async () => {
+    const secret = env().CRON_SECRET;
+    if (secret && req.headers.get("x-cron-secret") !== secret) {
+      throw new AppError("FORBIDDEN", "Bad cron secret");
+    }
+
+    const jobs = await getDueOffRampJobs(db, 50);
+    const results: Array<{
+      jobId: string;
+      status: "quoted" | "traded" | "initiated" | "completed" | "skipped" | "failed" | "cancelled";
+      error?: string;
+    }> = [];
+
+    for (const job of jobs) {
+      const deployment = job.deployment;
+
+      if (!deployment || deployment.status !== "CONFIRMED") {
+        await cancelPendingOffRampJobs(db, job.deploymentId);
+        results.push({
+          jobId: job.id,
+          status: "cancelled",
+          error: "Deployment no longer CONFIRMED",
+        });
+        continue;
+      }
+
+      await rescheduleOffRampJob(db, job.id, {
+        status: OffRampPayoutJobStatus.RUNNING,
+      });
+
+      let asset: Asset | null = null;
+      let currentStatus: OffRampPayoutJobStatus = OffRampPayoutJobStatus.RUNNING;
+
+      try {
+        const bankDetail = {
+          accountName: job.bankAccountName,
+          accountNumber: job.bankAccountNumber,
+          bankCode: job.bankCode,
+        };
+        if (!bankDetail.accountName || !bankDetail.accountNumber || !bankDetail.bankCode) {
+          throw new Error("No bank details for off-ramp job");
+        }
+
+        const sender = deployment.offRampSenderProfile;
+        if (!sender) {
+          throw new Error("No sender profile for deployment");
+        }
+
+        asset = resolveJobAsset(job);
+        if (!asset) {
+          throw new Error("Could not resolve off-ramp asset from deployment graph");
+        }
+
+        const provider = getOffRampProvider();
+
+        // For cash-out jobs, confirm the on-chain sink actually reached the
+        // treasury before we quote or trade. If the splitter did not invoke
+        // receive_and_forward, the treasury will be underfunded and the trade
+        // would silently draw from the employer's PDAX balance instead.
+        if (job.source === OffRampJobSource.CASH_OUT) {
+          const treasuryBalance = await getTreasuryBalance(assetContractId(asset));
+          if (treasuryBalance < BigInt(job.amountStroops)) {
+            throw new Error(
+              `Treasury balance ${treasuryBalance.toString()} is less than job amount ${job.amountStroops}; cash-out sink not confirmed`,
+            );
+          }
+
+          // In PDAX UAT, Stellar USDC (USDCXLM) deposits are disabled, so the
+          // on-chain treasury cannot directly fund the trade. The employer must
+          // pre-fund the PDAX institutional balance with USDC off-chain. The
+          // treasury sink is still verified above as the bookkeeping proof.
+          log.info(
+            {
+              jobId: job.id,
+              sourceAddress: job.sourceAddress,
+              amountStroops: job.amountStroops,
+              treasuryBalance: treasuryBalance.toString(),
+            },
+            "Cash-out sink confirmed; trade will be funded by pre-funded PDAX balance",
+          );
+        }
+
+        // 1. Firm quote: crypto -> PHP
+        const quote = await provider.quote({
+          amountStroops: job.amountStroops,
+          assetCode: offRampAssetCode(asset),
+          fiatCurrency: offRampFiatCurrency(),
+        });
+
+        await rescheduleOffRampJob(db, job.id, {
+          status: OffRampPayoutJobStatus.QUOTED,
+          providerQuote: quote as unknown as Prisma.InputJsonValue,
+        });
+        currentStatus = OffRampPayoutJobStatus.QUOTED;
+
+        // 2. Execute trade using the firm quote.
+        const trade = await provider.executeTrade({
+          quoteId: quote.id,
+          amountStroops: job.amountStroops,
+          employeeId: job.employeeId ?? undefined,
+          payrollRunId: job.payrollRunId ?? undefined,
+          jobId: job.id,
+          jobSource: job.source,
+        });
+
+        if (trade.status === "FAILED") {
+          throw new Error("Provider trade returned FAILED");
+        }
+
+        await rescheduleOffRampJob(db, job.id, {
+          status: OffRampPayoutJobStatus.INITIATED,
+          tradeRef: trade.providerRef,
+        });
+        currentStatus = OffRampPayoutJobStatus.INITIATED;
+
+        // 3. Withdraw PHP to beneficiary bank account.
+        const payout = await provider.initiatePayout({
+          tradeRef: trade.providerRef,
+          amountStroops: job.amountStroops,
+          fiatAmount: quote.fiatAmount,
+          fiatCurrency: quote.fiatCurrency,
+          accountName: bankDetail.accountName,
+          accountNumber: bankDetail.accountNumber,
+          bankCode: bankDetail.bankCode,
+          employeeId: job.employeeId ?? undefined,
+          payrollRunId: job.payrollRunId ?? undefined,
+          jobId: job.id,
+          sender: {
+            firstName: sender.firstName,
+            middleName: sender.middleName,
+            lastName: sender.lastName,
+            countryOrigin: sender.countryOrigin,
+            addressLineOne: sender.addressLineOne,
+            addressLineTwo: sender.addressLineTwo,
+            city: sender.city,
+            province: sender.province,
+            country: sender.country,
+            zipCode: sender.zipCode,
+            phoneNumber: sender.phoneNumber,
+            nationality: sender.nationality,
+            nationalIdentityNumber: sender.nationalIdentityNumber,
+            dob: sender.dob,
+            placeOfBirth: sender.placeOfBirth,
+            sourceOfFunds: sender.sourceOfFunds,
+            email: sender.email,
+          },
+          jobSource: job.source,
+        });
+
+        if (payout.status === "FAILED") {
+          throw new Error("Provider payout returned FAILED");
+        }
+
+        const terminalStatus =
+          payout.status === "COMPLETED"
+            ? OffRampPayoutJobStatus.COMPLETED
+            : OffRampPayoutJobStatus.INITIATED;
+
+        await rescheduleOffRampJob(db, job.id, {
+          status: terminalStatus,
+          providerRef: payout.providerRef,
+          completedAt: payout.status === "COMPLETED" ? new Date() : null,
+        });
+
+        log.info(
+          {
+            jobId: job.id,
+            source: job.source,
+            payrollRunId: job.payrollRunId,
+            tradeRef: trade.providerRef,
+            providerRef: payout.providerRef,
+            status: terminalStatus,
+          },
+          "Off-ramp payout initiated",
+        );
+
+        const resultStatus = payout.status === "COMPLETED" ? "completed" : ("initiated" as const);
+        results.push({
+          jobId: job.id,
+          status: resultStatus,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+
+        if (isKnownSkipError(message)) {
+          await rescheduleOffRampJob(db, job.id, {
+            status: OffRampPayoutJobStatus.CANCELLED,
+            lastError: message,
+          });
+          results.push({
+            jobId: job.id,
+            status: "skipped",
+            error: message,
+          });
+        } else if (isRetryableError(message) && job.attemptCount < MAX_RETRY_ATTEMPTS) {
+          const retryAt = new Date(Date.now() + 60_000 * (job.attemptCount + 1));
+          await db.offRampPayoutJob.update({
+            where: { id: job.id },
+            data: {
+              status: OffRampPayoutJobStatus.PENDING,
+              runAt: retryAt,
+              lastError: message,
+              attemptCount: { increment: 1 },
+            },
+          });
+          results.push({
+            jobId: job.id,
+            status: "failed",
+            error: message,
+          });
+        } else if (isPreTradeFailure(currentStatus) && job.sourceAddress && asset) {
+          // Refund policy: before the trade executes, the crypto is still in the
+          // treasury. Refund to the on-chain source address using the same asset
+          // the job was meant to off-ramp.
+          const refund = await refundFromTreasury({
+            destination: job.sourceAddress,
+            amountStroops: job.amountStroops,
+            assetContractAddress: assetContractId(asset),
+          });
+          const refundStatus =
+            refund.status === "SUCCESS"
+              ? OffRampPayoutJobStatus.FAILED
+              : OffRampPayoutJobStatus.CANCELLED;
+          log.warn(
+            {
+              jobId: job.id,
+              source: job.source,
+              sourceAddress: job.sourceAddress,
+              amountStroops: job.amountStroops,
+              refundStatus: refund.status,
+              error: message,
+            },
+            "Off-ramp payout failed pre-trade; refunded treasury to source",
+          );
+          await rescheduleOffRampJob(db, job.id, {
+            status: refundStatus,
+            lastError: `${message}; refund ${refund.status}`,
+          });
+          results.push({
+            jobId: job.id,
+            status: "failed",
+            error: `${message}; refund ${refund.status}`,
+          });
+        } else {
+          log.warn(
+            {
+              jobId: job.id,
+              source: job.source,
+              payrollRunId: job.payrollRunId,
+              error: message,
+            },
+            "Off-ramp payout failed",
+          );
+          await rescheduleOffRampJob(db, job.id, {
+            status: OffRampPayoutJobStatus.FAILED,
+            lastError: message,
+          });
+          results.push({
+            jobId: job.id,
+            status: "failed",
+            error: message,
+          });
+        }
+      }
+    }
+
+    const quoted = results.filter((r) => r.status === "quoted").length;
+    const traded = results.filter((r) => r.status === "traded").length;
+    const initiated = results.filter((r) => r.status === "initiated").length;
+    const completed = results.filter((r) => r.status === "completed").length;
+    const skipped = results.filter((r) => r.status === "skipped").length;
+    const failed = results.filter((r) => r.status === "failed").length;
+    const cancelled = results.filter((r) => r.status === "cancelled").length;
+
+    return NextResponse.json({
+      data: {
+        quoted,
+        traded,
+        initiated,
+        completed,
+        skipped,
+        failed,
+        cancelled,
+        processed: jobs.length,
+        details: results,
+      },
+    });
+  });
+}

@@ -150,7 +150,11 @@ export async function preparePipelineDeployTx(opts: {
   // 3. Build NodeBlueprint SCVals for each node.
   const blueprintVals: xdr.ScVal[] = [];
   for (const p of pipeline) {
-    const parentNodeId = parentByNode.get(p.nodeId);
+    const parentNodeId =
+      parentByNode.get(p.nodeId) ??
+      (p.params.kind === "cash_out_dev" || p.params.kind === "cash_out"
+        ? p.params.parentNodeId
+        : undefined);
     let parentAddress: string | undefined;
     if (parentNodeId && nodeAddresses[parentNodeId]) {
       parentAddress = nodeAddresses[parentNodeId];

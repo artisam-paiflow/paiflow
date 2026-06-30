@@ -18,9 +18,11 @@ type RelayerConfig = {
 export default function SubscriptionRelayerPanel({
   deploymentId,
   network,
+  kind = "subscription",
 }: {
   deploymentId: string;
   network: StellarNetwork;
+  kind?: "subscription" | "payroll";
 }) {
   const [config, setConfig] = useState<RelayerConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,7 +39,7 @@ export default function SubscriptionRelayerPanel({
 
   const fetchConfig = async () => {
     try {
-      const res = await fetch(`/api/deployments/${deploymentId}/subscription-relayer`);
+      const res = await fetch(`/api/deployments/${deploymentId}/${kind}-relayer`);
       if (!res.ok) throw new Error("Failed to load relayer config");
       const json = (await res.json()) as { data: RelayerConfig };
       setConfig(json.data);
@@ -65,7 +67,7 @@ export default function SubscriptionRelayerPanel({
         payload.token = token || undefined;
         payload.relayerAddress = relayerAddress;
       }
-      const res = await fetch(`/api/deployments/${deploymentId}/subscription-relayer`, {
+      const res = await fetch(`/api/deployments/${deploymentId}/${kind}-relayer`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),

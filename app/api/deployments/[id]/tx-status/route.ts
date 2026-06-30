@@ -4,6 +4,9 @@ import { sorobanRpc } from "@/lib/stellar/client";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
+import { db } from "@/lib/db";
+import { recordAllowanceEvent } from "@/lib/stellar/events";
+import type { FlowGraph } from "@/lib/flows/schema";
 
 const QuerySchema = z.object({
   txHash: z.string().min(1),
@@ -29,6 +32,28 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         ip,
         metadata: { deploymentId: id, txHash },
       });
+
+      const envelopeXdr = (got as any).envelopeXdr as string | undefined;
+      if (envelopeXdr) {
+        try {
+          const deployment = await db.deployment.findUnique({
+            where: { id },
+            select: { graphSnapshot: true },
+          });
+          const graph = deployment?.graphSnapshot as FlowGraph | null;
+          await recordAllowanceEvent({
+            deploymentId: id,
+            envelopeXdr,
+            txHash,
+            ledger: got.ledger,
+            occurredAt: new Date((got as any).ledgerClosedAt ?? Date.now()),
+            graph,
+          });
+        } catch {
+          // Never fail the status check because of synthetic event bookkeeping.
+        }
+      }
+
       return NextResponse.json({ data: { status: "SUCCESS", txHash } });
     }
 

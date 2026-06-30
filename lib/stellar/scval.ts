@@ -7,6 +7,13 @@ function addr(a: string): xdr.ScVal {
   return new Address(a).toScVal();
 }
 
+// Soroban `Option<Address>`: None serializes as ScVal::Void, Some(addr) as the
+// address itself. Used by the dev contracts whose recipient / subscriber may be
+// left blank at deploy time.
+function optAddr(a: string | undefined): xdr.ScVal {
+  return a && a.length > 0 ? addr(a) : xdr.ScVal.scvVoid();
+}
+
 function i128(n: string | bigint): xdr.ScVal {
   return nativeToScVal(typeof n === "bigint" ? n : BigInt(n), { type: "i128" });
 }
@@ -51,6 +58,42 @@ function recipientsVec(
         }),
         new xdr.ScMapEntry({ key: symbol("amount"), val: i128(r.amount) }),
         new xdr.ScMapEntry({ key: symbol("bps"), val: u32(r.bps) }),
+      ]),
+    ),
+  );
+}
+
+function devRecipientsVec(
+  recipients: Array<{ address: string; bps: number; amount: string; isCashOut?: boolean }>,
+  nodeAddresses: Record<string, string>,
+): xdr.ScVal {
+  return xdr.ScVal.scvVec(
+    recipients.map((r) =>
+      xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({
+          key: symbol("address"),
+          val: addr(nodeAddresses[r.address] ?? r.address),
+        }),
+        new xdr.ScMapEntry({ key: symbol("amount"), val: i128(r.amount) }),
+        new xdr.ScMapEntry({ key: symbol("bps"), val: u32(r.bps) }),
+        new xdr.ScMapEntry({
+          key: symbol("is_cash_out"),
+          val: bool(r.isCashOut ?? false),
+        }),
+      ]),
+    ),
+  );
+}
+
+function payrollRecipientsVec(recipients: Array<{ address: string; amount: string }>): xdr.ScVal {
+  return xdr.ScVal.scvVec(
+    recipients.map((r) =>
+      xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({
+          key: symbol("address"),
+          val: addr(r.address),
+        }),
+        new xdr.ScMapEntry({ key: symbol("amount"), val: i128(r.amount) }),
       ]),
     ),
   );
@@ -214,6 +257,19 @@ export function pipelineNodeConstructorArgs(
         addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
         u64(params.startTs),
         u64(params.intervalSeconds),
+        u64(params.endTs),
+      ];
+    }
+    case "payroll_trigger": {
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        addr(params.employer),
+        payrollRecipientsVec(params.recipients),
+        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
+        u64(params.startTs),
+        u64(params.intervalSeconds),
+        u64(params.endTs),
       ];
     }
     case "oracle_trigger": {
@@ -266,6 +322,81 @@ export function pipelineNodeConstructorArgs(
         u32(params.percentageBps ?? 0),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
         addr(parentAddress),
+      ];
+    }
+    case "payer_dev": {
+      if (!parentAddress) throw new Error("Payer dev requires a parent address");
+      // __constructor(admin, relayer, asset, recipient: Option<Address>,
+      //               amount, percentage_bps, next_steps, parent)
+      return [
+        addr(admin),
+        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
+        addr(assetContractId(params.asset)),
+        optAddr(params.recipient),
+        i128(params.amountStroops ?? "0"),
+        u32(params.percentageBps ?? 0),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        addr(parentAddress),
+      ];
+    }
+    case "splitter_dev": {
+      if (!parentAddress) throw new Error("Splitter dev requires a parent address");
+      // __constructor(admin, relayer, asset, recipients, min_amount, parent,
+      //               next_steps)
+      return [
+        addr(admin),
+        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
+        addr(assetContractId(params.asset)),
+        devRecipientsVec(params.recipients, nodeAddresses),
+        i128(params.minAmountStroops),
+        addr(parentAddress),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+      ];
+    }
+    case "subscription_dev_trigger": {
+      // __constructor(admin, asset, subscriber: Option<Address>,
+      //               amount_per_period, next_steps, relayer, start_time,
+      //               interval_seconds, end_time)
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        optAddr(params.subscriber),
+        i128(params.amountPerPeriodStroops),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
+        u64(params.startTs),
+        u64(params.intervalSeconds),
+        u64(params.endTs),
+      ];
+    }
+    case "cash_out": {
+      if (!parentAddress) throw new Error("Cash out requires a parent address");
+      // __constructor(admin, relayer, asset, treasury, parent,
+      //               account_name, account_number, bank_code)
+      return [
+        addr(admin),
+        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
+        addr(assetContractId(params.asset)),
+        addr(params.treasury && params.treasury.length > 0 ? params.treasury : admin),
+        addr(parentAddress),
+        string(params.accountName),
+        string(params.accountNumber),
+        string(params.bankCode),
+      ];
+    }
+    case "cash_out_dev": {
+      if (!parentAddress) throw new Error("Cash out dev requires a parent address");
+      // __constructor(admin, relayer, asset, treasury, parent,
+      //               account_name, account_number, bank_code)
+      return [
+        addr(admin),
+        addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
+        addr(assetContractId(params.asset)),
+        addr(params.treasury && params.treasury.length > 0 ? params.treasury : admin),
+        addr(parentAddress),
+        string(params.accountName),
+        string(params.accountNumber),
+        string(params.bankCode),
       ];
     }
   }

@@ -5,6 +5,7 @@ import { sourceAmountStroops, bpsToPct, pctToBps } from "@/lib/flows/schema";
 
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const ADDR_B = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
+const RELAYER = "GDRELAYER7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5XYZ";
 
 function splitGraph(opts?: {
   minAmount?: string;
@@ -487,6 +488,210 @@ describe("flowToParams", () => {
     expect(pipeline.map((n) => n.nodeId)).toEqual(["t", "a"]);
   });
 
+  it("produces payroll pipeline (payroll trigger → split with fixed amounts)", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+            occurrences: 4,
+            fillScheduleViaApi: false,
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "60000000", label: "Alice" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "40000000", label: "Bob" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(2);
+    const [sub, split] = pipeline;
+    expect(sub!.templateKind).toBe(TemplateKind.SUBSCRIPTION);
+    expect(sub!.params.kind).toBe("subscription_trigger");
+    if (sub!.params.kind === "subscription_trigger") {
+      expect(sub!.params.subscriber).toBe(ADDR_A);
+      expect(sub!.params.amountPerPeriodStroops).toBe("100000000");
+      expect(sub!.params.intervalSeconds).toBe(60 * 60 * 24 * 7);
+      expect(sub!.params.nextStepNodeIds).toEqual(["a"]);
+    }
+    expect(split!.templateKind).toBe(TemplateKind.SPLITTER);
+    expect(split!.params.kind).toBe("splitter");
+    if (split!.params.kind === "splitter") {
+      expect(split!.params.recipients).toHaveLength(2);
+      expect(split!.params.recipients[0]!.amount).toBe("60000000");
+      expect(split!.params.recipients[1]!.amount).toBe("40000000");
+    }
+  });
+
+  it("decomposes a dev-mode payroll into SUBSCRIPTION_DEV → SPLITTER_DEV", () => {
+    const pipeline = flowToPipeline(
+      {
+        devMode: true,
+        nodes: [
+          {
+            id: "t",
+            type: "payroll",
+            config: {
+              asset: { kind: "known", symbol: "USDC" },
+              employer: ADDR_A,
+              intervalAmount: 1,
+              intervalUnit: "week",
+              occurrences: 4,
+              fillScheduleViaApi: false,
+            },
+          },
+          {
+            id: "a",
+            type: "split",
+            config: {
+              asset: { kind: "known", symbol: "USDC" },
+              recipients: [
+                { address: ADDR_A, mode: "fixed", amountStroops: "60000000", label: "Alice" },
+                { address: ADDR_B, mode: "fixed", amountStroops: "40000000", label: "Bob" },
+              ],
+            },
+          },
+        ],
+        edges: [{ id: "e", source: "t", target: "a" }],
+      },
+      "GRELAYER000000000000000000000000000000000000000000000000",
+    );
+
+    expect(pipeline).toHaveLength(2);
+    const [sub, split] = pipeline;
+    // Employer pull leg.
+    expect(sub!.nodeId).toBe("t");
+    expect(sub!.templateKind).toBe(TemplateKind.SUBSCRIPTION_DEV);
+    expect(sub!.params.kind).toBe("subscription_dev_trigger");
+    if (sub!.params.kind === "subscription_dev_trigger") {
+      expect(sub!.params.subscriber).toBe(ADDR_A);
+      expect(sub!.params.amountPerPeriodStroops).toBe("100000000");
+      expect(sub!.params.intervalSeconds).toBe(60 * 60 * 24 * 7);
+      expect(sub!.params.nextStepNodeIds).toEqual(["a"]);
+    }
+    // Distribution leg — fixed salaries.
+    expect(split!.nodeId).toBe("a");
+    expect(split!.templateKind).toBe(TemplateKind.SPLITTER_DEV);
+    expect(split!.params.kind).toBe("splitter_dev");
+    if (split!.params.kind === "splitter_dev") {
+      expect(split!.params.recipients).toHaveLength(2);
+      expect(split!.params.recipients[0]!.amount).toBe("60000000");
+      expect(split!.params.recipients[1]!.amount).toBe("40000000");
+    }
+  });
+
+  it("decomposes non-dev payroll into SUBSCRIPTION → SPLITTER", () => {
+    const pipeline = flowToPipeline({
+      devMode: false,
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+            occurrences: 4,
+            fillScheduleViaApi: false,
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "60000000", label: "Alice" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(2);
+    expect(pipeline[0]!.templateKind).toBe(TemplateKind.SUBSCRIPTION);
+    expect(pipeline[1]!.templateKind).toBe(TemplateKind.SPLITTER);
+  });
+
+  it("decomposes non-dev payroll with fiat recipients into SUBSCRIPTION → SPLITTER → CASH_OUT", () => {
+    const pipeline = flowToPipeline(
+      {
+        devMode: false,
+        nodes: [
+          {
+            id: "t",
+            type: "payroll",
+            config: {
+              asset: { kind: "known", symbol: "USDC" },
+              employer: ADDR_A,
+              intervalAmount: 1,
+              intervalUnit: "week",
+              occurrences: 4,
+              fillScheduleViaApi: false,
+            },
+          },
+          {
+            id: "a",
+            type: "split",
+            config: {
+              asset: { kind: "known", symbol: "USDC" },
+              recipients: [
+                { address: ADDR_A, mode: "fixed", amountStroops: "60000000", payoutMode: "crypto" },
+                {
+                  address: ADDR_B,
+                  mode: "fixed",
+                  amountStroops: "40000000",
+                  payoutMode: "fiat",
+                  accountName: "Bob",
+                  accountNumber: "1234567890",
+                  bankCode: "BASECPH",
+                },
+              ],
+            },
+          },
+        ],
+        edges: [{ id: "e", source: "t", target: "a" }],
+      },
+      RELAYER,
+      ADDR_B,
+    );
+
+    expect(pipeline).toHaveLength(3);
+    const [sub, split, cashOut] = pipeline;
+    expect(sub!.templateKind).toBe(TemplateKind.SUBSCRIPTION);
+    expect(split!.templateKind).toBe(TemplateKind.SPLITTER);
+    expect(cashOut!.templateKind).toBe(TemplateKind.CASH_OUT);
+
+    if (split && split.params.kind === "splitter") {
+      const fiatRecipient = split.params.recipients.find((r) => r.isCashOut);
+      expect(fiatRecipient).toBeDefined();
+      expect(fiatRecipient!.address).toMatch(/^a-cashout-/);
+      expect(fiatRecipient!.amount).toBe("40000000");
+    }
+
+    if (cashOut && cashOut.params.kind === "cash_out") {
+      expect(cashOut!.params.accountName).toBe("Bob");
+      expect(cashOut!.params.accountNumber).toBe("1234567890");
+      expect(cashOut!.params.bankCode).toBe("BASECPH");
+      expect(cashOut!.params.treasury).toBe(ADDR_B);
+      expect(cashOut!.params.parentNodeId).toBe("a");
+    }
+  });
+
   it("keeps email_notify out of nextStepNodeIds", () => {
     const pipeline = flowToPipeline({
       nodes: [
@@ -611,7 +816,7 @@ describe("sourceAmountStroops", () => {
 });
 
 describe("flowToPipeline", () => {
-  it("produces subscription_trigger → streamer for subscription → pay", () => {
+  it("produces subscription_trigger → payer for subscription → pay", () => {
     const pipeline = flowToPipeline({
       nodes: [
         {
@@ -650,12 +855,11 @@ describe("flowToPipeline", () => {
     expect(subParams.relayer).toBeUndefined();
     expect(subParams.intervalSeconds).toBe(3600);
     expect(subParams.startTs).toBeGreaterThan(0);
-    expect(pipeline[1]!.templateKind).toBe("STREAMER");
-    expect(pipeline[1]!.params.kind).toBe("streamer");
-    if (pipeline[1]!.params.kind === "streamer") {
-      expect(pipeline[1]!.params.intervalSeconds).toBe(3600);
-      expect(pipeline[1]!.params.amountPerIntervalStroops).toBe("1000000");
-      expect(pipeline[1]!.params.endTs).toBeGreaterThan(pipeline[1]!.params.startTs);
+    expect(pipeline[1]!.templateKind).toBe("PAYER");
+    expect(pipeline[1]!.params.kind).toBe("payer");
+    if (pipeline[1]!.params.kind === "payer") {
+      expect(pipeline[1]!.params.recipient).toBe(ADDR_B);
+      expect(pipeline[1]!.params.amountStroops).toBe("1000000");
     }
   });
 

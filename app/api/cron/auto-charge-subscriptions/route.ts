@@ -11,6 +11,7 @@ import {
   readSubscriptionAmountPerPeriod,
   readSubscriptionSubscriber,
   readSubscriptionAsset,
+  readSubscriptionRelayer,
   readTokenAllowance,
 } from "@/lib/stellar/relayer";
 import { prepareSubscriptionChargeByRelayerUnsigned } from "@/lib/stellar/invoke";
@@ -65,9 +66,11 @@ export async function POST(req: NextRequest) {
     const deployments = await db.deployment.findMany({
       where: {
         status: "CONFIRMED",
+        flow: { templateKind: { not: "PAYROLL" } },
         chargeRelayerMode: { in: [ChargeRelayerMode.PLATFORM, ChargeRelayerMode.USER] },
         OR: [{ nextChargeAt: { lte: now } }, { nextChargeAt: null }],
       },
+      include: { flow: { select: { templateKind: true } } },
     });
 
     const results: ResultDetail[] = [];
@@ -80,7 +83,12 @@ export async function POST(req: NextRequest) {
         contractAddress: string;
         templateKind: string;
       }> | null;
-      const node = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
+      // Match the immutable SUBSCRIPTION trigger and the mutable
+      // SUBSCRIPTION_DEV variant used by dev-mode subscriptions. PAYROLL flows
+      // are handled exclusively by the auto-charge-payroll cron.
+      const node = pipeline?.find(
+        (n) => n.templateKind === "SUBSCRIPTION" || n.templateKind === "SUBSCRIPTION_DEV",
+      );
       const contractAddress = node?.contractAddress;
       if (!contractAddress) {
         results.push({
@@ -141,6 +149,23 @@ export async function POST(req: NextRequest) {
             contractAddress,
             status: "skipped",
             error: "Insufficient allowance",
+          });
+          continue;
+        }
+
+        // Verify the configured relayer matches the on-chain relayer so we
+        // don't waste fees on transactions that will fail auth.
+        const onChainRelayer = await readSubscriptionRelayer(contractAddress);
+        const expectedRelayer =
+          d.chargeRelayerMode === ChargeRelayerMode.PLATFORM
+            ? stellarRelayerAddress()
+            : d.chargeRelayerAddress;
+        if (expectedRelayer && onChainRelayer !== expectedRelayer) {
+          results.push({
+            deploymentId: d.id,
+            contractAddress,
+            status: "skipped",
+            error: `Relayer mismatch: on-chain ${onChainRelayer}, configured ${expectedRelayer}`,
           });
           continue;
         }

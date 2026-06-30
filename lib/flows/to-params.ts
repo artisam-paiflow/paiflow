@@ -6,6 +6,7 @@ import type {
   FlowGraph,
   FlowNode,
   LogicNode,
+  SplitRecipient,
   TriggerNode,
 } from "./schema";
 import {
@@ -13,6 +14,7 @@ import {
   isLogic,
   isTrigger,
   isContractAction,
+  isPendingAddress,
   pctToBps,
   sourceAmountStroops,
   TOTAL_BPS,
@@ -22,6 +24,7 @@ export type PipelineRecipient = {
   address: string;
   bps: number;
   amount: string;
+  isCashOut?: boolean;
 };
 
 export type SplitterParams = {
@@ -119,6 +122,20 @@ export type SubscriptionTriggerNodeParams = {
   amountPerPeriodStroops: string;
   relayer?: string;
   startTs: number;
+  endTs: number;
+  intervalSeconds: number;
+  nextStepNodeIds: string[];
+};
+
+export type PayrollTriggerNodeParams = {
+  kind: "payroll_trigger";
+  asset: Asset;
+  employer: string;
+  amountPerPeriodStroops: string;
+  recipients: PipelineRecipient[];
+  relayer?: string;
+  startTs: number;
+  endTs: number;
   intervalSeconds: number;
   nextStepNodeIds: string[];
 };
@@ -163,6 +180,70 @@ export type PayerNodeParams = {
   nextStepNodeIds: string[];
 };
 
+// ── Dev-mode (mutable / parameterized) node params ──────────────────────────
+// These map to the PAYER_DEV / SPLITTER_DEV / SUBSCRIPTION_DEV contracts whose
+// recipient / subscriber may be left blank (`undefined`) at deploy time and
+// filled later via the API. All carry the relayer so the backend key can both
+// trigger execution and mutate the params.
+
+export type PayerDevNodeParams = {
+  kind: "payer_dev";
+  asset: Asset;
+  recipient?: string; // undefined => blank, configure via API
+  amountStroops?: string; // undefined => blank, configure via API
+  mode?: "fixed" | "percentage"; // undefined => blank, configure via API
+  percentageBps?: number;
+  relayer?: string;
+  nextStepNodeIds: string[];
+};
+
+export type SplitterDevNodeParams = {
+  kind: "splitter_dev";
+  asset: Asset;
+  recipients: PipelineRecipient[]; // may be empty => blank, configure via API
+  minAmountStroops: string;
+  relayer?: string;
+  nextStepNodeIds: string[];
+};
+
+export type SubscriptionDevTriggerNodeParams = {
+  kind: "subscription_dev_trigger";
+  asset: Asset;
+  subscriber?: string; // undefined => blank, configure via API
+  amountPerPeriodStroops: string;
+  relayer?: string;
+  startTs: number;
+  endTs: number;
+  intervalSeconds: number;
+  nextStepNodeIds: string[];
+};
+
+export type CashOutDevNodeParams = {
+  kind: "cash_out_dev";
+  asset: Asset;
+  // Bank destination — blank ("") at deploy time, filled via the API later.
+  accountName: string;
+  accountNumber: string;
+  bankCode: string;
+  treasury: string; // off-ramp treasury the asset is sunk to
+  relayer?: string;
+  nextStepNodeIds: string[]; // always empty — cash_out is terminal
+  parentNodeId?: string; // set when generated as a terminal for a splitter recipient
+};
+
+export type CashOutNodeParams = {
+  kind: "cash_out";
+  asset: Asset;
+  // Bank destination is immutable after deploy; validation requires it at design time.
+  accountName: string;
+  accountNumber: string;
+  bankCode: string;
+  treasury: string;
+  relayer?: string;
+  nextStepNodeIds: string[]; // always empty — cash_out is terminal
+  parentNodeId?: string;
+};
+
 export type PipelineNodeParams =
   | DepositTriggerNodeParams
   | SplitterNodeParams
@@ -172,11 +253,17 @@ export type PipelineNodeParams =
   | TimelockNodeParams
   | WebhookTriggerNodeParams
   | SubscriptionTriggerNodeParams
+  | PayrollTriggerNodeParams
   | OracleTriggerNodeParams
   | MultisigNodeParams
   | SwapperNodeParams
   | YieldNodeParams
-  | PayerNodeParams;
+  | PayerNodeParams
+  | PayerDevNodeParams
+  | SplitterDevNodeParams
+  | SubscriptionDevTriggerNodeParams
+  | CashOutDevNodeParams
+  | CashOutNodeParams;
 
 export type PipelineNode = {
   nodeId: string;
@@ -196,10 +283,37 @@ function toRecipients(action: ContractActionNode): PipelineRecipient[] {
       address: r.address,
       bps: r.mode === "percentage" ? r.bps : 0,
       amount: r.mode === "fixed" ? r.amountStroops : "0",
+      isCashOut: r.payoutMode === "fiat",
     }));
   }
   if (action.type === "pay") {
-    return [{ address: action.config.recipient, bps: TOTAL_BPS, amount: "0" }];
+    return [{ address: action.config.recipient, bps: TOTAL_BPS, amount: "0", isCashOut: false }];
+  }
+  return [];
+}
+
+/**
+ * Payroll stores the fixed salary amount per recipient in the contract, so the
+ * amount field must be populated for both split and pay actions.
+ */
+function toPayrollRecipients(action: ContractActionNode): PipelineRecipient[] {
+  if (action.type === "split") {
+    return action.config.recipients.map((r) => ({
+      address: r.address,
+      bps: 0,
+      amount: r.mode === "fixed" ? r.amountStroops : "0",
+      isCashOut: r.payoutMode === "fiat",
+    }));
+  }
+  if (action.type === "pay") {
+    return [
+      {
+        address: action.config.recipient,
+        bps: 0,
+        amount: action.config.amountStroops ?? "0",
+        isCashOut: false,
+      },
+    ];
   }
   return [];
 }
@@ -300,25 +414,33 @@ function streamerAmountPerInterval(
  * relationships are expressed as nodeId references so the deploy layer can
  * wire deterministic addresses later.
  */
-export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): PipelineNode[] {
+export function flowToPipeline(
+  graph: FlowGraph,
+  relayerAddress?: string,
+  treasuryAddress?: string,
+): PipelineNode[] {
   const trigger = graph.nodes.find(isTrigger)!;
   const actions = graph.nodes.filter(isAction);
   const contractActions = actions.filter(isContractAction);
   const conditions = graph.nodes.filter(isLogic);
   const children = getPipelineChildren(graph);
+  const devMode = graph.devMode === true;
   const pipeline: PipelineNode[] = [];
 
-  // ── schedule-like flows (on_schedule, subscription) ──────────────────
-  if (trigger.type === "on_schedule" || trigger.type === "subscription") {
+  // ── schedule-like flows (on_schedule, subscription, payroll) ─────────
+  if (
+    trigger.type === "on_schedule" ||
+    trigger.type === "subscription" ||
+    trigger.type === "payroll"
+  ) {
     const action = contractActions[0]!;
-    const recipients = toRecipients(action);
     const asset = getAsset(action);
 
     const nowSeconds = Math.floor(Date.now() / 1000);
     // If the configured start time is already in the past (common when a flow
     // was created minutes ago and is only being deployed now), start the stream
     // at the current time so short streams aren't already over on deploy.
-    const start =
+    let start =
       trigger.type === "on_schedule"
         ? Math.max(nowSeconds, Math.floor(new Date(trigger.config.startsAt).getTime() / 1000))
         : nowSeconds;
@@ -326,20 +448,31 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
     let end: number;
     let intervalSeconds: number;
 
-    if (trigger.type === "subscription") {
+    if (trigger.type === "subscription" || trigger.type === "payroll") {
       const cfg = trigger.config as {
         intervalAmount: number;
         intervalUnit: "minute" | "hour" | "day" | "week" | "month";
         endsAt?: string;
         occurrences?: number;
+        fillScheduleViaApi?: boolean;
       };
-      intervalSeconds = intervalToSeconds(cfg.intervalAmount, cfg.intervalUnit);
-      if (cfg.endsAt) {
-        end = Math.floor(new Date(cfg.endsAt).getTime() / 1000);
-      } else if (cfg.occurrences) {
-        end = start + cfg.occurrences * intervalSeconds;
+      const fillScheduleViaApi = trigger.type === "payroll" && cfg.fillScheduleViaApi;
+
+      if (fillScheduleViaApi) {
+        // Deploy with a far-future placeholder schedule; the real schedule is
+        // set via the API after deploy.
+        intervalSeconds = intervalToSeconds(1, "day");
+        start = nowSeconds + 60 * 60 * 24 * 365 * 10;
+        end = start + 60 * 60 * 24 * 365;
       } else {
-        end = start + 60 * 60 * 24 * 30;
+        intervalSeconds = intervalToSeconds(cfg.intervalAmount, cfg.intervalUnit);
+        if (cfg.endsAt) {
+          end = Math.floor(new Date(cfg.endsAt).getTime() / 1000);
+        } else if (cfg.occurrences) {
+          end = start + cfg.occurrences * intervalSeconds;
+        } else {
+          end = start + 60 * 60 * 24 * 30;
+        }
       }
     } else {
       end = computeStreamerEndTs(trigger, start);
@@ -347,22 +480,240 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
     }
 
     if (trigger.type === "subscription") {
+      if (devMode) {
+        pipeline.push({
+          nodeId: trigger.id,
+          templateKind: TemplateKind.SUBSCRIPTION_DEV,
+          params: {
+            kind: "subscription_dev_trigger",
+            asset: trigger.config.asset,
+            subscriber: isPendingAddress(trigger.config.subscriber)
+              ? undefined
+              : trigger.config.subscriber,
+            amountPerPeriodStroops: trigger.config.amountPerPeriodStroops,
+            relayer: relayerAddress,
+            startTs: start,
+            endTs: end,
+            intervalSeconds,
+            nextStepNodeIds: children.get(trigger.id) ?? [],
+          },
+        });
+      } else {
+        pipeline.push({
+          nodeId: trigger.id,
+          templateKind: TemplateKind.SUBSCRIPTION,
+          params: {
+            kind: "subscription_trigger",
+            asset: trigger.config.asset,
+            subscriber: trigger.config.subscriber,
+            amountPerPeriodStroops: trigger.config.amountPerPeriodStroops,
+            relayer: relayerAddress,
+            startTs: start,
+            endTs: end,
+            intervalSeconds,
+            nextStepNodeIds: children.get(trigger.id) ?? [],
+          },
+        });
+      }
+
+      // Subscription pulls are forwarded to standard action contracts that
+      // implement receive_and_forward (payer, splitter, swapper, yield).
+      const seenActions = new Set<string>();
+      const actionQueue: ContractActionNode[] = [action];
+      while (actionQueue.length > 0) {
+        const current = actionQueue.shift()!;
+        if (seenActions.has(current.id)) continue;
+        seenActions.add(current.id);
+        pipeline.push(
+          contractActionToPipelineNode(
+            current,
+            trigger,
+            children,
+            devMode,
+            relayerAddress,
+            treasuryAddress,
+          ),
+        );
+        for (const childId of children.get(current.id) ?? []) {
+          const childNode = graph.nodes.find((n) => n.id === childId);
+          if (childNode && isContractAction(childNode) && !seenActions.has(childNode.id)) {
+            actionQueue.push(childNode);
+          }
+        }
+      }
+      return pipeline;
+    }
+
+    if (trigger.type === "payroll") {
+      const recipients = toPayrollRecipients(action);
+      const amountPerPeriod = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n).toString();
+      // In dev mode an empty split recipient list means the salaries will be
+      // configured via the API after deploy. Use a minimal positive placeholder
+      // so the subscription contract deploys successfully.
+      const devAmountPlaceholder = devMode && recipients.length === 0 ? "1" : amountPerPeriod;
+
+      if (devMode) {
+        // Decompose payroll into the dev preset: SUBSCRIPTION_DEV pulls from the
+        // employer each period, then forwards atomically to SPLITTER_DEV which
+        // distributes the fixed salaries in the same transaction.
+        //
+        // Fiat employees get a per-recipient CASH_OUT_DEV terminal node. The
+        // splitter sends their fixed share to that contract, which sinks it to
+        // the treasury and emits a cash_out event for the off-ramp cron.
+        const cashOutNodes: PipelineNode[] = [];
+        const actionWithCashOut: ContractActionNode = { ...action };
+        if (actionWithCashOut.type === "split") {
+          const transformedRecipients = actionWithCashOut.config.recipients.map((r, index) => {
+            if (r.payoutMode !== "fiat") return r;
+            const nodeId = `${action.id}-cashout-${index}`;
+            cashOutNodes.push({
+              nodeId,
+              templateKind: TemplateKind.CASH_OUT_DEV,
+              params: {
+                kind: "cash_out_dev",
+                asset: trigger.config.asset,
+                accountName: "",
+                accountNumber: "",
+                bankCode: "",
+                treasury: treasuryAddress ?? relayerAddress ?? "",
+                relayer: relayerAddress,
+                nextStepNodeIds: [],
+                parentNodeId: action.id,
+              },
+            });
+            return { ...r, address: nodeId } as SplitRecipient;
+          });
+          actionWithCashOut.config = {
+            ...actionWithCashOut.config,
+            recipients: transformedRecipients,
+          };
+        }
+
+        pipeline.push({
+          nodeId: trigger.id,
+          templateKind: TemplateKind.SUBSCRIPTION_DEV,
+          params: {
+            kind: "subscription_dev_trigger",
+            asset: trigger.config.asset,
+            subscriber: isPendingAddress(trigger.config.employer)
+              ? undefined
+              : trigger.config.employer,
+            amountPerPeriodStroops: devAmountPlaceholder,
+            relayer: relayerAddress,
+            startTs: start,
+            endTs: end,
+            intervalSeconds,
+            nextStepNodeIds: children.get(trigger.id) ?? [],
+          },
+        });
+
+        const seenActions = new Set<string>();
+        const actionQueue: ContractActionNode[] = [actionWithCashOut];
+        while (actionQueue.length > 0) {
+          const current = actionQueue.shift()!;
+          if (seenActions.has(current.id)) continue;
+          seenActions.add(current.id);
+          pipeline.push(
+            contractActionToPipelineNode(
+              current,
+              trigger,
+              children,
+              true,
+              relayerAddress,
+              treasuryAddress,
+            ),
+          );
+          for (const childId of children.get(current.id) ?? []) {
+            const childNode = graph.nodes.find((n) => n.id === childId);
+            if (childNode && isContractAction(childNode) && !seenActions.has(childNode.id)) {
+              actionQueue.push(childNode);
+            }
+          }
+        }
+
+        pipeline.push(...cashOutNodes);
+        return pipeline;
+      }
+
+      // Non-dev payroll mirrors the dev decomposition but uses immutable
+      // contracts: SUBSCRIPTION pulls from the employer, SPLITTER distributes
+      // fixed salaries, and each fiat employee gets a dedicated CASH_OUT sink
+      // with bank details baked in at deploy time.
+      const cashOutNodes: PipelineNode[] = [];
+      const actionWithCashOut: ContractActionNode = { ...action };
+      if (actionWithCashOut.type === "split") {
+        const transformedRecipients = actionWithCashOut.config.recipients.map((r, index) => {
+          if (r.payoutMode !== "fiat") return r;
+          const nodeId = `${action.id}-cashout-${index}`;
+          cashOutNodes.push({
+            nodeId,
+            templateKind: TemplateKind.CASH_OUT,
+            params: {
+              kind: "cash_out",
+              asset: trigger.config.asset,
+              accountName: r.accountName ?? "",
+              accountNumber: r.accountNumber ?? "",
+              bankCode: r.bankCode ?? "",
+              treasury: treasuryAddress ?? relayerAddress ?? "",
+              relayer: relayerAddress,
+              nextStepNodeIds: [],
+              parentNodeId: action.id,
+            },
+          });
+          return { ...r, address: nodeId } as SplitRecipient;
+        });
+        actionWithCashOut.config = {
+          ...actionWithCashOut.config,
+          recipients: transformedRecipients,
+        };
+      }
+
       pipeline.push({
         nodeId: trigger.id,
         templateKind: TemplateKind.SUBSCRIPTION,
         params: {
           kind: "subscription_trigger",
           asset: trigger.config.asset,
-          subscriber: trigger.config.subscriber,
-          amountPerPeriodStroops: trigger.config.amountPerPeriodStroops,
+          subscriber: trigger.config.employer,
+          amountPerPeriodStroops: amountPerPeriod,
           relayer: relayerAddress,
           startTs: start,
+          endTs: end,
           intervalSeconds,
           nextStepNodeIds: children.get(trigger.id) ?? [],
         },
       });
+
+      const seenActions = new Set<string>();
+      const actionQueue: ContractActionNode[] = [actionWithCashOut];
+      while (actionQueue.length > 0) {
+        const current = actionQueue.shift()!;
+        if (seenActions.has(current.id)) continue;
+        seenActions.add(current.id);
+        pipeline.push(
+          contractActionToPipelineNode(
+            current,
+            trigger,
+            children,
+            false,
+            relayerAddress,
+            treasuryAddress,
+          ),
+        );
+        for (const childId of children.get(current.id) ?? []) {
+          const childNode = graph.nodes.find((n) => n.id === childId);
+          if (childNode && isContractAction(childNode) && !seenActions.has(childNode.id)) {
+            actionQueue.push(childNode);
+          }
+        }
+      }
+
+      pipeline.push(...cashOutNodes);
+      return pipeline;
     }
 
+    // on_schedule flows use the streamer contract as the action because the
+    // streamer itself drives the release schedule.
     const amountPerInterval = streamerAmountPerInterval(action, trigger, intervalSeconds);
     pipeline.push({
       nodeId: action.id,
@@ -370,14 +721,13 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
       params: {
         kind: "streamer",
         asset,
-        recipients,
+        recipients: toRecipients(action),
         amountPerIntervalStroops: amountPerInterval,
         intervalSeconds,
         startTs: start,
         endTs: end,
-        pauseAllowed: trigger.type === "on_schedule" ? (trigger.config.pauseAllowed ?? true) : true,
-        retrieveAllowed:
-          trigger.type === "on_schedule" ? (trigger.config.retrieveAllowed ?? false) : false,
+        pauseAllowed: trigger.config.pauseAllowed ?? true,
+        retrieveAllowed: trigger.config.retrieveAllowed ?? false,
       },
     });
     return pipeline;
@@ -508,7 +858,16 @@ export function flowToPipeline(graph: FlowGraph, relayerAddress?: string): Pipel
       if (seenActions.has(current.id)) continue;
       seenActions.add(current.id);
 
-      pipeline.push(contractActionToPipelineNode(current, trigger, children));
+      pipeline.push(
+        contractActionToPipelineNode(
+          current,
+          trigger,
+          children,
+          devMode,
+          relayerAddress,
+          treasuryAddress,
+        ),
+      );
 
       for (const childId of children.get(current.id) ?? []) {
         const childNode = graph.nodes.find((n) => n.id === childId);
@@ -526,10 +885,47 @@ function contractActionToPipelineNode(
   action: ContractActionNode,
   trigger: TriggerNode,
   children: Map<string, string[]>,
+  devMode = false,
+  relayerAddress?: string,
+  treasuryAddress?: string,
 ): PipelineNode {
   const nextStepNodeIds = children.get(action.id) ?? [];
 
   switch (action.type) {
+    case "cash_out": {
+      // Dev mode: mutable CASH_OUT_DEV allows blank bank details filled via API.
+      // Non-dev: immutable CASH_OUT bakes the bank destination into the contract.
+      if (devMode) {
+        return {
+          nodeId: action.id,
+          templateKind: TemplateKind.CASH_OUT_DEV,
+          params: {
+            kind: "cash_out_dev",
+            asset: action.config.asset,
+            accountName: action.config.accountName ?? "",
+            accountNumber: action.config.accountNumber ?? "",
+            bankCode: action.config.bankCode ?? "",
+            treasury: treasuryAddress ?? relayerAddress ?? "",
+            relayer: relayerAddress,
+            nextStepNodeIds: [],
+          },
+        };
+      }
+      return {
+        nodeId: action.id,
+        templateKind: TemplateKind.CASH_OUT,
+        params: {
+          kind: "cash_out",
+          asset: action.config.asset,
+          accountName: action.config.accountName ?? "",
+          accountNumber: action.config.accountNumber ?? "",
+          bankCode: action.config.bankCode ?? "",
+          treasury: treasuryAddress ?? relayerAddress ?? "",
+          relayer: relayerAddress,
+          nextStepNodeIds: [],
+        },
+      };
+    }
     case "swap":
       return {
         nodeId: action.id,
@@ -554,6 +950,57 @@ function contractActionToPipelineNode(
         },
       };
     case "pay": {
+      // Dev variant: mutable recipient/amount, blank-capable.
+      if (devMode) {
+        const recipient = isPendingAddress(action.config.recipient)
+          ? undefined
+          : action.config.recipient;
+        const devBase = {
+          nodeId: action.id,
+          templateKind: TemplateKind.PAYER_DEV,
+          params: {
+            kind: "payer_dev" as const,
+            asset: getAsset(action),
+            recipient,
+            relayer: relayerAddress,
+            nextStepNodeIds,
+          },
+        };
+        if (action.config.fillValueViaApi) {
+          return devBase;
+        }
+        if (action.config.fullAmount) {
+          return {
+            ...devBase,
+            params: {
+              ...devBase.params,
+              amountStroops: "0",
+              mode: "percentage" as const,
+              percentageBps: 10_000,
+            },
+          };
+        }
+        if (action.config.mode === "percentage") {
+          return {
+            ...devBase,
+            params: {
+              ...devBase.params,
+              amountStroops: "0",
+              mode: "percentage" as const,
+              percentageBps: pctToBps(action.config.percentage ?? 0),
+            },
+          };
+        }
+        return {
+          ...devBase,
+          params: {
+            ...devBase.params,
+            amountStroops: action.config.amountStroops ?? "0",
+            mode: "fixed" as const,
+          },
+        };
+      }
+
       const base = {
         nodeId: action.id,
         templateKind: TemplateKind.PAYER,
@@ -601,6 +1048,26 @@ function contractActionToPipelineNode(
     case "split": {
       const minAmountStroops =
         trigger.type === "on_receive" ? (trigger.config.minAmountStroops ?? "0") : "0";
+
+      // Dev variant: mutable recipients, blank-capable. Pending recipients are
+      // dropped so the contract deploys "not yet configured" and is filled via
+      // the API; pre-filled (concrete) recipients must still be valid.
+      if (devMode) {
+        const recipients = toRecipients(action).filter((r) => !isPendingAddress(r.address));
+        return {
+          nodeId: action.id,
+          templateKind: TemplateKind.SPLITTER_DEV,
+          params: {
+            kind: "splitter_dev",
+            asset: getAsset(action),
+            recipients,
+            minAmountStroops,
+            relayer: relayerAddress,
+            nextStepNodeIds,
+          },
+        };
+      }
+
       return {
         nodeId: action.id,
         templateKind: TemplateKind.SPLITTER,
@@ -624,6 +1091,95 @@ export function getStreamerPreviewFromPipeline(pipeline: PipelineNode[]) {
   const intervals = Math.floor(durationSecs / intervalSeconds);
   const totalStroops = (BigInt(amountPerIntervalStroops) * BigInt(intervals)).toString();
   return { amountPerIntervalStroops, intervalSeconds, startTs, endTs, durationSecs, totalStroops };
+}
+
+export function getSubscriptionPreviewFromPipeline(pipeline: PipelineNode[]) {
+  const sub = pipeline.find((n) => n.templateKind === TemplateKind.SUBSCRIPTION);
+  if (!sub || sub.params.kind !== "subscription_trigger") return null;
+  const { amountPerPeriodStroops, intervalSeconds, startTs, endTs } = sub.params;
+  const durationSecs = endTs - startTs;
+  const intervals = Math.floor(durationSecs / intervalSeconds);
+  const totalStroops = (BigInt(amountPerPeriodStroops) * BigInt(intervals)).toString();
+  return { amountPerPeriodStroops, intervalSeconds, startTs, endTs, durationSecs, totalStroops };
+}
+
+export function getPayrollPreviewFromPipeline(pipeline: PipelineNode[]) {
+  const payroll = pipeline.find((n) => n.templateKind === TemplateKind.PAYROLL);
+  if (payroll && payroll.params.kind === "payroll_trigger") {
+    const { amountPerPeriodStroops, recipients, intervalSeconds, startTs, endTs } = payroll.params;
+    const durationSecs = endTs - startTs;
+    const intervals = Math.floor(durationSecs / intervalSeconds);
+    const totalStroops = (BigInt(amountPerPeriodStroops) * BigInt(intervals)).toString();
+    return {
+      amountPerPeriodStroops,
+      recipients,
+      intervalSeconds,
+      startTs,
+      endTs,
+      durationSecs,
+      totalStroops,
+    };
+  }
+
+  // Dev-mode decomposition: SUBSCRIPTION_DEV (employer pull) → SPLITTER_DEV (distribution).
+  const subDev = pipeline.find((n) => n.templateKind === TemplateKind.SUBSCRIPTION_DEV);
+  const splitDev = pipeline.find((n) => n.templateKind === TemplateKind.SPLITTER_DEV);
+  if (
+    subDev &&
+    subDev.params.kind === "subscription_dev_trigger" &&
+    splitDev &&
+    splitDev.params.kind === "splitter_dev"
+  ) {
+    const { amountPerPeriodStroops, intervalSeconds, startTs, endTs } = subDev.params;
+    const durationSecs = endTs - startTs;
+    const intervals = Math.floor(durationSecs / intervalSeconds);
+    const totalStroops = (BigInt(amountPerPeriodStroops) * BigInt(intervals)).toString();
+    const recipients = splitDev.params.recipients.map((r) => ({
+      address: r.address,
+      bps: r.bps,
+      amount: r.amount,
+    }));
+    return {
+      amountPerPeriodStroops,
+      recipients,
+      intervalSeconds,
+      startTs,
+      endTs,
+      durationSecs,
+      totalStroops,
+    };
+  }
+
+  // Immutable non-dev decomposition: SUBSCRIPTION → SPLITTER → optional CASH_OUT.
+  const sub = pipeline.find((n) => n.templateKind === TemplateKind.SUBSCRIPTION);
+  const split = pipeline.find((n) => n.templateKind === TemplateKind.SPLITTER);
+  if (
+    sub &&
+    sub.params.kind === "subscription_trigger" &&
+    split &&
+    split.params.kind === "splitter"
+  ) {
+    const { amountPerPeriodStroops, intervalSeconds, startTs, endTs } = sub.params;
+    const durationSecs = endTs - startTs;
+    const intervals = Math.floor(durationSecs / intervalSeconds);
+    const totalStroops = (BigInt(amountPerPeriodStroops) * BigInt(intervals)).toString();
+    const recipients = split.params.recipients.map((r) => ({
+      address: r.address,
+      bps: r.bps,
+      amount: r.amount,
+    }));
+    return {
+      amountPerPeriodStroops,
+      recipients,
+      intervalSeconds,
+      startTs,
+      endTs,
+      durationSecs,
+      totalStroops,
+    };
+  }
+
+  return null;
 }
 
 /**
