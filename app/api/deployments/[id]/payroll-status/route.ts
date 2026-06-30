@@ -10,10 +10,14 @@ type PipelineNode = {
   templateKind: string;
 };
 
-const PAYROLL_KINDS = new Set(["PAYROLL", "SUBSCRIPTION_DEV"]);
+const PAYROLL_KINDS = new Set(["PAYROLL", "SUBSCRIPTION_DEV", "SUBSCRIPTION"]);
 
 function findPayrollNode(pipeline: PipelineNode[] | null): PipelineNode | null {
   return pipeline?.find((n) => PAYROLL_KINDS.has(n.templateKind)) ?? null;
+}
+
+function isSubscriptionLike(templateKind: string): boolean {
+  return templateKind === "SUBSCRIPTION" || templateKind === "SUBSCRIPTION_DEV";
 }
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -36,8 +40,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       throw new AppError("VALIDATION", "Payroll contract address not available");
     }
 
-    const isDev = payrollNode.templateKind === "SUBSCRIPTION_DEV";
-    const isCancelled = isDev
+    const isSubscription = isSubscriptionLike(payrollNode.templateKind);
+    const isCancelled = isSubscription
       ? await readSubscriptionIsCancelled(payrollNode.contractAddress)
       : await readPayrollIsCancelled(payrollNode.contractAddress);
 

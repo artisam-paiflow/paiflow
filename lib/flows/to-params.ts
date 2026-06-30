@@ -635,22 +635,80 @@ export function flowToPipeline(
         return pipeline;
       }
 
+      // Non-dev payroll mirrors the dev decomposition but uses immutable
+      // contracts: SUBSCRIPTION pulls from the employer, SPLITTER distributes
+      // fixed salaries, and each fiat employee gets a dedicated CASH_OUT sink
+      // with bank details baked in at deploy time.
+      const cashOutNodes: PipelineNode[] = [];
+      const actionWithCashOut: ContractActionNode = { ...action };
+      if (actionWithCashOut.type === "split") {
+        const transformedRecipients = actionWithCashOut.config.recipients.map((r, index) => {
+          if (r.payoutMode !== "fiat") return r;
+          const nodeId = `${action.id}-cashout-${index}`;
+          cashOutNodes.push({
+            nodeId,
+            templateKind: TemplateKind.CASH_OUT,
+            params: {
+              kind: "cash_out",
+              asset: trigger.config.asset,
+              accountName: r.accountName ?? "",
+              accountNumber: r.accountNumber ?? "",
+              bankCode: r.bankCode ?? "",
+              treasury: treasuryAddress ?? relayerAddress ?? "",
+              relayer: relayerAddress,
+              nextStepNodeIds: [],
+              parentNodeId: action.id,
+            },
+          });
+          return { ...r, address: nodeId } as SplitRecipient;
+        });
+        actionWithCashOut.config = {
+          ...actionWithCashOut.config,
+          recipients: transformedRecipients,
+        };
+      }
+
       pipeline.push({
         nodeId: trigger.id,
-        templateKind: TemplateKind.PAYROLL,
+        templateKind: TemplateKind.SUBSCRIPTION,
         params: {
-          kind: "payroll_trigger",
+          kind: "subscription_trigger",
           asset: trigger.config.asset,
-          employer: trigger.config.employer,
+          subscriber: trigger.config.employer,
           amountPerPeriodStroops: amountPerPeriod,
-          recipients,
           relayer: relayerAddress,
           startTs: start,
           endTs: end,
           intervalSeconds,
-          nextStepNodeIds: [],
+          nextStepNodeIds: children.get(trigger.id) ?? [],
         },
       });
+
+      const seenActions = new Set<string>();
+      const actionQueue: ContractActionNode[] = [actionWithCashOut];
+      while (actionQueue.length > 0) {
+        const current = actionQueue.shift()!;
+        if (seenActions.has(current.id)) continue;
+        seenActions.add(current.id);
+        pipeline.push(
+          contractActionToPipelineNode(
+            current,
+            trigger,
+            children,
+            false,
+            relayerAddress,
+            treasuryAddress,
+          ),
+        );
+        for (const childId of children.get(current.id) ?? []) {
+          const childNode = graph.nodes.find((n) => n.id === childId);
+          if (childNode && isContractAction(childNode) && !seenActions.has(childNode.id)) {
+            actionQueue.push(childNode);
+          }
+        }
+      }
+
+      pipeline.push(...cashOutNodes);
       return pipeline;
     }
 
@@ -1064,13 +1122,42 @@ export function getPayrollPreviewFromPipeline(pipeline: PipelineNode[]) {
   }
 
   // Dev-mode decomposition: SUBSCRIPTION_DEV (employer pull) → SPLITTER_DEV (distribution).
-  const sub = pipeline.find((n) => n.templateKind === TemplateKind.SUBSCRIPTION_DEV);
-  const split = pipeline.find((n) => n.templateKind === TemplateKind.SPLITTER_DEV);
+  const subDev = pipeline.find((n) => n.templateKind === TemplateKind.SUBSCRIPTION_DEV);
+  const splitDev = pipeline.find((n) => n.templateKind === TemplateKind.SPLITTER_DEV);
+  if (
+    subDev &&
+    subDev.params.kind === "subscription_dev_trigger" &&
+    splitDev &&
+    splitDev.params.kind === "splitter_dev"
+  ) {
+    const { amountPerPeriodStroops, intervalSeconds, startTs, endTs } = subDev.params;
+    const durationSecs = endTs - startTs;
+    const intervals = Math.floor(durationSecs / intervalSeconds);
+    const totalStroops = (BigInt(amountPerPeriodStroops) * BigInt(intervals)).toString();
+    const recipients = splitDev.params.recipients.map((r) => ({
+      address: r.address,
+      bps: r.bps,
+      amount: r.amount,
+    }));
+    return {
+      amountPerPeriodStroops,
+      recipients,
+      intervalSeconds,
+      startTs,
+      endTs,
+      durationSecs,
+      totalStroops,
+    };
+  }
+
+  // Immutable non-dev decomposition: SUBSCRIPTION → SPLITTER → optional CASH_OUT.
+  const sub = pipeline.find((n) => n.templateKind === TemplateKind.SUBSCRIPTION);
+  const split = pipeline.find((n) => n.templateKind === TemplateKind.SPLITTER);
   if (
     sub &&
-    sub.params.kind === "subscription_dev_trigger" &&
+    sub.params.kind === "subscription_trigger" &&
     split &&
-    split.params.kind === "splitter_dev"
+    split.params.kind === "splitter"
   ) {
     const { amountPerPeriodStroops, intervalSeconds, startTs, endTs } = sub.params;
     const durationSecs = endTs - startTs;

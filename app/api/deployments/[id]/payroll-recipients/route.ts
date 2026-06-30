@@ -5,6 +5,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import {
   readPayrollRecipients,
   readSplitterDevRecipients,
+  readSplitterRecipients,
   readSubscriptionAmountPerPeriod,
 } from "@/lib/stellar/relayer";
 
@@ -44,8 +45,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     const pipeline = d.pipelineSnapshot as PipelineNode[] | null;
     const payrollNode = pipeline?.find((n) => n.templateKind === "PAYROLL");
-    const splitterNode = pipeline?.find((n) => n.templateKind === "SPLITTER_DEV");
-    const subscriptionDevNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION_DEV");
+    const splitterNode = pipeline?.find(
+      (n) => n.templateKind === "SPLITTER_DEV" || n.templateKind === "SPLITTER",
+    );
+    const subscriptionNode = pipeline?.find(
+      (n) => n.templateKind === "SUBSCRIPTION_DEV" || n.templateKind === "SUBSCRIPTION",
+    );
 
     if (payrollNode?.contractAddress) {
       const rawRecipients = await readPayrollRecipients(payrollNode.contractAddress);
@@ -75,10 +80,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       throw new AppError("VALIDATION", "Payroll recipient contract address not available");
     }
 
-    const raw = await readSplitterDevRecipients(splitterNode.contractAddress);
+    const isDev = splitterNode.templateKind === "SPLITTER_DEV";
+    const raw = isDev
+      ? await readSplitterDevRecipients(splitterNode.contractAddress)
+      : await readSplitterRecipients(splitterNode.contractAddress);
     let totalStroops = 0n;
-    if (subscriptionDevNode?.contractAddress) {
-      totalStroops = await readSubscriptionAmountPerPeriod(subscriptionDevNode.contractAddress);
+    if (subscriptionNode?.contractAddress) {
+      totalStroops = await readSubscriptionAmountPerPeriod(subscriptionNode.contractAddress);
     }
     const chainRecipients = raw.map((r) => computeDevAmount(r, totalStroops));
 
