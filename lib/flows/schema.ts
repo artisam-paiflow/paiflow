@@ -183,6 +183,12 @@ const SplitRecipientBase = z.object({
   address: splitRecipientAddress,
   label: z.string().max(64).optional(),
   payoutMode: z.enum(["crypto", "fiat"]).optional(),
+  // Bank destination for fiat payouts. Required at design time for immutable
+  // payroll flows; optional for dev-mode / mutable flows that configure them
+  // via API after deploy.
+  accountName: z.string().optional(),
+  accountNumber: z.string().optional(),
+  bankCode: z.string().optional(),
 });
 
 export const SplitRecipient = z
@@ -198,14 +204,17 @@ export const SplitRecipient = z
   ])
   .refine(
     (r) => {
+      // Contract addresses are always fiat destinations (cash-out contracts).
       if (StrKey.isValidContract(r.address)) {
         return r.payoutMode === "fiat";
       }
-      return r.payoutMode !== "fiat";
+      // Wallet addresses may be crypto or, in payroll contexts, fiat with bank
+      // details. The more specific "wallet + fiat" rules are enforced in
+      // validateFlow depending on trigger type and dev mode.
+      return true;
     },
     {
-      message:
-        "Contract addresses (C...) must use fiat payout; wallet addresses (G...) must use crypto payout.",
+      message: "Contract addresses (C...) must use fiat payout.",
       path: ["address"],
     },
   );

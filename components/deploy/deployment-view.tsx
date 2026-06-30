@@ -508,6 +508,7 @@ export default function DeploymentView({
               contractAddress={payrollNode.contractAddress}
               network={network}
               graph={graph}
+              pipeline={pipeline}
             />
           )}
           {isCashOut && !isPayroll && (

@@ -987,7 +987,7 @@ async function pollEventsWithStartLedger(
       // Fire-and-forget: cash_out events spawn off-ramp jobs so the PDAX leg
       // can run asynchronously.
       if (kind === EventKind.CASH_OUT) {
-        const bank = findCashOutBank(graph, contractAddress, pipeline ?? []);
+        const bank = await findCashOutBank(deploymentId, graph, contractAddress, pipeline ?? []);
         const source = typeof resolvedData?.source === "string" ? resolvedData.source : null;
         const amount =
           typeof resolvedData?.amount === "bigint"
@@ -1093,24 +1093,45 @@ type CashOutBank = {
  * `contractAddress`. We match by address in the pipeline snapshot, then look up
  * the corresponding `cash_out` node in the saved graph snapshot.
  */
-function findCashOutBank(
+async function findCashOutBank(
+  deploymentId: string,
   graph: FlowGraph | null,
   contractAddress: string,
   pipeline: PipelineNodeSnapshot[],
-): CashOutBank | null {
-  if (!graph) return null;
-  const snapshot = pipeline.find((p) => p.contractAddress === contractAddress);
-  if (!snapshot) return null;
-  const node = graph.nodes.find(
-    (n): n is Extract<FlowNode, { type: "cash_out" }> =>
-      n.type === "cash_out" && n.id === snapshot.nodeId,
-  );
-  if (!node || !node.config.bankCode) return null;
-  return {
-    accountName: node.config.accountName,
-    accountNumber: node.config.accountNumber,
-    bankCode: node.config.bankCode,
-  };
+): Promise<CashOutBank | null> {
+  if (graph) {
+    const snapshot = pipeline.find((p) => p.contractAddress === contractAddress);
+    if (snapshot) {
+      const node = graph.nodes.find(
+        (n): n is Extract<FlowNode, { type: "cash_out" }> =>
+          n.type === "cash_out" && n.id === snapshot.nodeId,
+      );
+      if (node?.config.bankCode) {
+        return {
+          accountName: node.config.accountName,
+          accountNumber: node.config.accountNumber,
+          bankCode: node.config.bankCode,
+        };
+      }
+    }
+  }
+
+  // Auto-generated CASH_OUT nodes for immutable payroll flows exist in the
+  // pipeline snapshot but not in the graph snapshot. Fall back to the Employee
+  // table, which is populated at deploy time for those employees.
+  const employee = await db.employee.findFirst({
+    where: { deploymentId, cashOutContractAddress: contractAddress },
+    include: { bankDetail: true },
+  });
+  if (employee?.bankDetail) {
+    return {
+      accountName: employee.bankDetail.accountName,
+      accountNumber: employee.bankDetail.accountNumber,
+      bankCode: employee.bankDetail.bankCode,
+    };
+  }
+
+  return null;
 }
 
 export async function pollEventsFor(deploymentId: string): Promise<number> {

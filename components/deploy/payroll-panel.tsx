@@ -29,11 +29,13 @@ export default function PayrollPanel({
   contractAddress,
   network,
   graph,
+  pipeline,
 }: {
   deploymentId: string;
   contractAddress: string;
   network: StellarNetwork;
   graph: FlowGraph;
+  pipeline?: Array<{ nodeId: string; contractAddress: string; templateKind: string }> | null;
 }) {
   const [allowance, setAllowance] = useState<bigint | null>(null);
   const [allowanceError, setAllowanceError] = useState<string | null>(null);
@@ -157,6 +159,19 @@ export default function PayrollPanel({
   }, [deploymentId, tick]);
 
   const total = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);
+
+  // Immutable non-dev payrolls deploy SUBSCRIPTION → SPLITTER → CASH_OUT.
+  // They do not include the legacy PAYROLL monolith or dev-mode _DEV contracts.
+  const isImmutablePayroll = (() => {
+    if (!pipeline) return false;
+    const hasPayroll = pipeline.some((n) => n.templateKind === "PAYROLL");
+    const hasDev = pipeline.some(
+      (n) => n.templateKind === "SUBSCRIPTION_DEV" || n.templateKind === "SPLITTER_DEV",
+    );
+    const hasSubscription = pipeline.some((n) => n.templateKind === "SUBSCRIPTION");
+    const hasSplitter = pipeline.some((n) => n.templateKind === "SPLITTER");
+    return !hasPayroll && !hasDev && hasSubscription && hasSplitter;
+  })();
 
   const toggleOffRamp = async () => {
     const next = !offRampEnabled;
@@ -286,8 +301,15 @@ export default function PayrollPanel({
           </div>
         )}
         <div>
-          <div className="text-label-sm text-on-surface-variant font-mono uppercase">
-            Employees ({recipients.length})
+          <div className="flex items-center gap-2">
+            <div className="text-label-sm text-on-surface-variant font-mono uppercase">
+              Employees ({recipients.length})
+            </div>
+            {isImmutablePayroll && (
+              <span className="border-primary/30 bg-primary/10 text-label-sm text-primary rounded border px-1.5 py-0.5 font-mono">
+                Immutable
+              </span>
+            )}
           </div>
           <div className="text-on-surface mt-1 space-y-1 font-mono text-[12px]">
             {recipients.length === 0 && (
@@ -313,12 +335,14 @@ export default function PayrollPanel({
             Total per period: {formatStroops(total.toString())} {asset ? assetLabel(asset) : ""}
           </div>
         </div>
-        <a
-          href={`/payroll/${deploymentId}/employees`}
-          className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 inline-block rounded border px-3 py-1.5 font-mono text-xs transition-colors"
-        >
-          MANAGE EMPLOYEES
-        </a>
+        {!isImmutablePayroll && (
+          <a
+            href={`/payroll/${deploymentId}/employees`}
+            className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 inline-block rounded border px-3 py-1.5 font-mono text-xs transition-colors"
+          >
+            MANAGE EMPLOYEES
+          </a>
+        )}
 
         <div className="space-y-3 rounded border border-zinc-800 bg-zinc-900/50 p-3">
           <div className="flex items-center justify-between">

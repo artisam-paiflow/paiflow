@@ -24,10 +24,14 @@ type PipelineNode = {
   templateKind: string;
 };
 
-const PAYROLL_KINDS = new Set(["PAYROLL", "SUBSCRIPTION_DEV"]);
+const PAYROLL_KINDS = new Set(["PAYROLL", "SUBSCRIPTION_DEV", "SUBSCRIPTION"]);
 
 function findPayrollNode(pipeline: PipelineNode[] | null): PipelineNode | null {
   return pipeline?.find((n) => PAYROLL_KINDS.has(n.templateKind)) ?? null;
+}
+
+function isSubscriptionLike(templateKind: string): boolean {
+  return templateKind === "SUBSCRIPTION" || templateKind === "SUBSCRIPTION_DEV";
 }
 
 function parseBodyAmount(body: unknown): string | null {
@@ -57,7 +61,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (!payrollNode?.contractAddress) {
       throw new AppError("VALIDATION", "Payroll contract address not available");
     }
-    const isDev = payrollNode.templateKind === "SUBSCRIPTION_DEV";
+    const isSubscription = isSubscriptionLike(payrollNode.templateKind);
 
     const graph = d.graphSnapshot as {
       nodes: Array<{ type: string; config?: { asset?: Asset } }>;
@@ -68,7 +72,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       symbol: "USDC",
     };
 
-    const [owner, asset, amountPerPeriod] = isDev
+    const [owner, asset, amountPerPeriod] = isSubscription
       ? await Promise.all([
           readSubscriptionSubscriberNullable(payrollNode.contractAddress),
           readSubscriptionAsset(payrollNode.contractAddress),
@@ -131,7 +135,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!payrollNode?.contractAddress) {
       throw new AppError("VALIDATION", "Payroll contract address not available");
     }
-    const isDev = payrollNode.templateKind === "SUBSCRIPTION_DEV";
+    const isSubscription = isSubscriptionLike(payrollNode.templateKind);
 
     // Read the employer, asset and the live per-period amount straight from the
     // contract. The deploy-time params snapshot goes stale once salaries are
@@ -140,7 +144,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     let owner: string | null;
     let asset: string;
     let configuredAmount: string;
-    if (isDev) {
+    if (isSubscription) {
       const [subscriber, devAsset, amountPerPeriod] = await Promise.all([
         readSubscriptionSubscriberNullable(payrollNode.contractAddress),
         readSubscriptionAsset(payrollNode.contractAddress),

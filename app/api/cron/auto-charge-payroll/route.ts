@@ -21,6 +21,7 @@ import {
   readSubscriptionAsset,
   readSubscriptionRelayer,
   readSplitterDevRecipients,
+  readSplitterRecipients,
 } from "@/lib/stellar/relayer";
 import { preparePayrollChargeByRelayerUnsigned } from "@/lib/stellar/invoke";
 import { withRelayerLock } from "@/lib/stellar/client";
@@ -54,12 +55,15 @@ function isExpectedSkipError(message: string): boolean {
   );
 }
 
-async function buildDevRecipientRows(
+async function buildSubscriptionRecipientRows(
   splitterContractAddress: string,
   subscriptionContractAddress: string,
+  readRecipients: (
+    addr: string,
+  ) => Promise<Array<{ address: string; bps: number; amount: string }>>,
 ): Promise<Array<{ address: string; amount: string }>> {
   const [raw, totalStroops] = await Promise.all([
-    readSplitterDevRecipients(splitterContractAddress),
+    readRecipients(splitterContractAddress),
     readSubscriptionAmountPerPeriod(subscriptionContractAddress),
   ]);
   return raw.map((r) => {
@@ -77,7 +81,7 @@ async function buildDevRecipientRows(
   });
 }
 
-async function chargeDevPayrollDeployment(
+async function chargeSubscriptionPayrollDeployment(
   d: {
     id: string;
     offRampEnabled: boolean;
@@ -86,6 +90,9 @@ async function chargeDevPayrollDeployment(
   subscriptionContractAddress: string,
   splitterContractAddress: string,
   now: Date,
+  readRecipients: (
+    addr: string,
+  ) => Promise<Array<{ address: string; bps: number; amount: string }>>,
 ): Promise<number> {
   if (d.chargeEndAt && d.chargeEndAt <= now) {
     await db.deployment.update({
@@ -152,9 +159,10 @@ async function chargeDevPayrollDeployment(
       throw new Error(submit.errorMessage ?? "Subscription charge submission failed");
     }
 
-    const recipientRows = await buildDevRecipientRows(
+    const recipientRows = await buildSubscriptionRecipientRows(
       splitterContractAddress,
       subscriptionContractAddress,
+      readRecipients,
     );
     const totalStroops = recipientRows.reduce((sum, r) => sum + BigInt(r.amount), 0n);
 
@@ -284,18 +292,24 @@ export async function POST(req: NextRequest) {
       const payrollNode = pipeline?.find((n) => n.templateKind === "PAYROLL");
       const subscriptionDevNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION_DEV");
       const splitterDevNode = pipeline?.find((n) => n.templateKind === "SPLITTER_DEV");
+      const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
+      const splitterNode = pipeline?.find((n) => n.templateKind === "SPLITTER");
 
       const isMonolithic =
         payrollNode?.contractAddress &&
         (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM ||
           d.chargeRelayerMode === ChargeRelayerMode.USER);
       const isDev = subscriptionDevNode?.contractAddress && splitterDevNode?.contractAddress;
+      const isSubscriptionLike = subscriptionNode?.contractAddress && splitterNode?.contractAddress;
 
-      if (!isMonolithic && !isDev) {
+      if (!isMonolithic && !isDev && !isSubscriptionLike) {
         results.push({
           deploymentId: d.id,
           contractAddress:
-            payrollNode?.contractAddress ?? subscriptionDevNode?.contractAddress ?? "",
+            payrollNode?.contractAddress ??
+            subscriptionDevNode?.contractAddress ??
+            subscriptionNode?.contractAddress ??
+            "",
           status: "skipped",
           error: "No chargeable payroll contract in pipeline",
         });
@@ -307,13 +321,32 @@ export async function POST(req: NextRequest) {
       try {
         if (isDev) {
           contractAddress = subscriptionDevNode!.contractAddress;
-          const devChargedCount = await chargeDevPayrollDeployment(
+          const devChargedCount = await chargeSubscriptionPayrollDeployment(
             d,
             contractAddress,
             splitterDevNode!.contractAddress,
             now,
+            readSplitterDevRecipients,
           );
           platformCharged += devChargedCount;
+          results.push({
+            deploymentId: d.id,
+            contractAddress,
+            status: "charged",
+          });
+          continue;
+        }
+
+        if (isSubscriptionLike) {
+          contractAddress = subscriptionNode!.contractAddress;
+          const chargedCount = await chargeSubscriptionPayrollDeployment(
+            d,
+            contractAddress,
+            splitterNode!.contractAddress,
+            now,
+            readSplitterRecipients,
+          );
+          platformCharged += chargedCount;
           results.push({
             deploymentId: d.id,
             contractAddress,

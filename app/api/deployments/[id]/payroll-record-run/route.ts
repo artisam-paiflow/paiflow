@@ -9,6 +9,7 @@ import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
 import {
   readPayrollRecipients,
   readSplitterDevRecipients,
+  readSplitterRecipients,
   readSubscriptionAmountPerPeriod,
 } from "@/lib/stellar/relayer";
 import { PayrollRunStatus } from "@prisma/client";
@@ -74,18 +75,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }> | null;
 
     const payrollNode = pipeline?.find((n) => n.templateKind === "PAYROLL");
-    const splitterDevNode = pipeline?.find((n) => n.templateKind === "SPLITTER_DEV");
-    const subscriptionDevNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION_DEV");
+    const splitterNode = pipeline?.find(
+      (n) => n.templateKind === "SPLITTER_DEV" || n.templateKind === "SPLITTER",
+    );
+    const subscriptionNode = pipeline?.find(
+      (n) => n.templateKind === "SUBSCRIPTION_DEV" || n.templateKind === "SUBSCRIPTION",
+    );
 
     let recipientRows: Array<{ address: string; amount: string }> = [];
 
     if (payrollNode?.contractAddress) {
       recipientRows = await readPayrollRecipients(payrollNode.contractAddress);
-    } else if (splitterDevNode?.contractAddress) {
-      const raw = await readSplitterDevRecipients(splitterDevNode.contractAddress);
+    } else if (splitterNode?.contractAddress) {
+      const isDev = splitterNode.templateKind === "SPLITTER_DEV";
+      const raw = isDev
+        ? await readSplitterDevRecipients(splitterNode.contractAddress)
+        : await readSplitterRecipients(splitterNode.contractAddress);
       let totalStroops = 0n;
-      if (subscriptionDevNode?.contractAddress) {
-        totalStroops = await readSubscriptionAmountPerPeriod(subscriptionDevNode.contractAddress);
+      if (subscriptionNode?.contractAddress) {
+        totalStroops = await readSubscriptionAmountPerPeriod(subscriptionNode.contractAddress);
       }
       recipientRows = raw.map((r) => {
         const fixed = BigInt(r.amount);

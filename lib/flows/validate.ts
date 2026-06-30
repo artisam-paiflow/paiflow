@@ -1,4 +1,5 @@
 import { TemplateKind } from "@prisma/client";
+import { StrKey } from "@stellar/stellar-sdk";
 import {
   FlowGraphSchema,
   type FlowGraph,
@@ -340,14 +341,38 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
       const seen = new Set<string>();
       for (const r of a.config.recipients) {
-        if (r.payoutMode === "fiat" && graph.devMode !== true) {
+        const isWallet = StrKey.isValidEd25519PublicKey(r.address);
+        const isFiat = r.payoutMode === "fiat";
+        const triggerType = triggers[0]?.type;
+
+        // Non-payroll flows: only contract addresses may be fiat (they point to
+        // an explicit cash-out node downstream). Wallet addresses must be crypto.
+        if (triggerType !== "payroll" && isWallet && isFiat) {
           errors.push({
             path: `nodes.${a.id}.config.recipients`,
-            message: "Fiat payout mode is only allowed in dev mode",
+            message: "Wallet addresses cannot use fiat payout outside payroll flows",
             friendlyMessage:
-              "Fiat cash-out recipients require dev mode so the cash-out contract can be deployed after design time.",
+              "Only contract addresses (C...) can be fiat recipients in this flow. Use a cash-out node for off-ramp, or switch the address to crypto.",
           });
         }
+
+        // Payroll flows: immutable (non-dev) fiat recipients must carry bank
+        // details at design time. Dev mode may leave them blank and configure
+        // later via the API.
+        if (triggerType === "payroll" && isFiat && graph.devMode !== true) {
+          const missing = [];
+          if (!r.accountName?.trim()) missing.push("account name");
+          if (!r.accountNumber?.trim()) missing.push("account number");
+          if (!r.bankCode?.trim()) missing.push("bank code");
+          if (missing.length) {
+            errors.push({
+              path: `nodes.${a.id}.config.recipients`,
+              message: `Fiat payroll recipient is missing ${missing.join(", ")}`,
+              friendlyMessage: `Enter the ${missing.join(", ")} for this fiat employee.`,
+            });
+          }
+        }
+
         if (isPendingAddress(r.address)) {
           pendingLabels.add(r.label ?? "unnamed");
         } else {

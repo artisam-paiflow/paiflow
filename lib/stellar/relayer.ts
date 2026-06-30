@@ -1108,6 +1108,14 @@ export async function readSplitterDevRecipients(
   });
 }
 
+export async function readSplitterRecipients(
+  contractAddress: string,
+): Promise<SplitterDevRecipient[]> {
+  // The immutable splitter exposes the same recipients() shape as the dev
+  // splitter: { address, bps, amount }[].
+  return readSplitterDevRecipients(contractAddress);
+}
+
 export async function preparePayrollChargeByRelayerTx(
   contractAddress: string,
 ): Promise<{ xdr: string; txHash: string }> {

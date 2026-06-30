@@ -783,6 +783,88 @@ export default function ConfigPanel({
                           )}
                         </div>
                       </div>
+
+                      {triggerType === "payroll" && (
+                        <div className="space-y-2 pt-1">
+                          <Field label="Payout mode">
+                            <select
+                              className="input text-xs"
+                              value={r.payoutMode ?? "crypto"}
+                              onChange={(e) => {
+                                const mode = e.target.value as "crypto" | "fiat";
+                                updateRecipient(
+                                  i,
+                                  mode === "fiat" && !devMode
+                                    ? {
+                                        ...r,
+                                        payoutMode: mode,
+                                        accountName: r.accountName ?? "",
+                                        accountNumber: r.accountNumber ?? "",
+                                        bankCode: r.bankCode ?? "",
+                                      }
+                                    : { ...r, payoutMode: mode },
+                                );
+                              }}
+                            >
+                              <option value="crypto">Crypto (wallet)</option>
+                              <option value="fiat">Fiat (bank transfer)</option>
+                            </select>
+                          </Field>
+
+                          {r.payoutMode === "fiat" && !devMode && (
+                            <>
+                              <Field label="Account name">
+                                <input
+                                  className="input text-xs"
+                                  value={r.accountName ?? ""}
+                                  placeholder="Juan Dela Cruz"
+                                  onChange={(e) =>
+                                    updateRecipient(i, {
+                                      ...r,
+                                      accountName: e.target.value,
+                                    } as SplitRecipient)
+                                  }
+                                />
+                              </Field>
+                              <Field label="Account number">
+                                <input
+                                  className="input text-xs"
+                                  value={r.accountNumber ?? ""}
+                                  placeholder="1234567890"
+                                  onChange={(e) =>
+                                    updateRecipient(i, {
+                                      ...r,
+                                      accountNumber: e.target.value,
+                                    } as SplitRecipient)
+                                  }
+                                />
+                              </Field>
+                              <Field label="Bank">
+                                <select
+                                  className="input text-xs"
+                                  value={r.bankCode ?? ""}
+                                  onChange={(e) =>
+                                    updateRecipient(i, {
+                                      ...r,
+                                      bankCode: e.target.value,
+                                    } as SplitRecipient)
+                                  }
+                                >
+                                  <option value="">— select bank —</option>
+                                  <option value="BASECPH">BASECPH — BDO</option>
+                                  <option value="BACTBPH">BACTBPH — BPI</option>
+                                </select>
+                              </Field>
+                            </>
+                          )}
+
+                          {r.payoutMode === "fiat" && devMode && (
+                            <div className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-300">
+                              Bank details configured via API after deploy.
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

@@ -57,6 +57,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const payrollNode = pipeline?.find((n) => n.templateKind === "PAYROLL");
     const splitterDevNode = pipeline?.find((n) => n.templateKind === "SPLITTER_DEV");
     const subscriptionDevNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION_DEV");
+    const splitterNode = pipeline?.find((n) => n.templateKind === "SPLITTER");
+    const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
+
+    // Immutable non-dev payrolls bake recipients into the on-chain SPLITTER at
+    // deploy time and cannot be changed afterwards.
+    if (splitterNode?.contractAddress && !payrollNode && !splitterDevNode) {
+      throw new AppError(
+        "VALIDATION",
+        "This payroll is immutable. Recipients cannot be updated after deploy.",
+      );
+    }
 
     // Execute the on-chain mutation first. Only after it succeeds do we mirror
     // the change into the Employee table. This prevents DB/chain divergence if

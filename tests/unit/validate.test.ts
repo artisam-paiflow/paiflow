@@ -65,8 +65,9 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
+      // Flow-level label stays PAYROLL; the deploy pipeline is the immutable preset.
       expect(r.templateKind).toBe(TemplateKind.PAYROLL);
-      expect(r.pipeline).toEqual([TemplateKind.PAYROLL]);
+      expect(r.pipeline).toEqual([TemplateKind.SUBSCRIPTION, TemplateKind.SPLITTER]);
     }
   });
 
@@ -121,6 +122,85 @@ describe("validateFlow", () => {
             asset: { kind: "known", symbol: "USDC" },
             recipients: [
               { address: ADDR_A, mode: "fixed", amountStroops: "100", payoutMode: "fiat" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("accepts non-dev payroll with fiat recipients when bank details are provided", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              {
+                address: ADDR_B,
+                mode: "fixed",
+                amountStroops: "10000000",
+                payoutMode: "fiat",
+                accountName: "Bob",
+                accountNumber: "1234567890",
+                bankCode: "BASECPH",
+              },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.PAYROLL);
+      expect(r.pipeline).toEqual([
+        TemplateKind.SUBSCRIPTION,
+        TemplateKind.SPLITTER,
+        TemplateKind.CASH_OUT,
+      ]);
+    }
+  });
+
+  it("rejects non-dev payroll fiat recipients missing bank details", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              {
+                address: ADDR_B,
+                mode: "fixed",
+                amountStroops: "10000000",
+                payoutMode: "fiat",
+              },
             ],
           },
         },
