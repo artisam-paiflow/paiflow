@@ -134,7 +134,11 @@ export default function ConfigPanel({
   return (
     <aside
       className={cn(
-        "space-y-4 overflow-y-auto border-l border-zinc-800 bg-zinc-950 p-4 text-sm",
+        // Cap to the viewport and scroll internally so a tall panel (e.g. the
+        // splitter) never grows the page or clips the sidebar. The cap matches
+        // the floating wrapper in builder-client so the aside actually scrolls
+        // instead of overflowing and being clipped.
+        "max-h-[calc(100vh-160px)] space-y-4 overflow-y-auto border-l border-zinc-800 bg-zinc-950 p-4 text-sm",
         className,
       )}
     >
