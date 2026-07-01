@@ -2,8 +2,10 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import {
   Address,
+  Asset,
   BASE_FEE,
   Keypair,
+  Memo,
   Operation,
   TransactionBuilder,
   nativeToScVal,
@@ -11,7 +13,7 @@ import {
   scValToNative,
   xdr,
 } from "@stellar/stellar-sdk";
-import { sorobanRpc } from "./client";
+import { horizon, sorobanRpc, withRelayerLock } from "./client";
 import {
   offRampTreasuryAddress,
   stellarPassphrase,
@@ -496,6 +498,88 @@ export async function getTreasuryBalance(assetContractAddress: string): Promise<
   }
 
   return BigInt(scValToNative(sim.result.retval));
+}
+
+function formatStroopsToXlm(stroops: string): string {
+  const padded = stroops.padStart(8, "0");
+  const integer = padded.slice(0, -7) || "0";
+  const fraction = padded.slice(-7);
+  return `${integer}.${fraction}`;
+}
+
+function parseMemoId(memo: string): string {
+  const trimmed = memo.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    throw new AppError("VALIDATION", `PDAX deposit memo must be numeric, got: ${memo}`);
+  }
+  // Stellar memo IDs are uint64; keep them as strings to avoid precision loss.
+  return trimmed;
+}
+
+/**
+ * Deposit native XLM from the relayer/treasury account to a provider deposit
+ * address with a numeric memo/tag. Used for the native XLM -> PHP off-ramp flow
+ * where the provider requires a memo to credit the institutional balance.
+ */
+export async function depositNativeToProvider(opts: {
+  destination: string;
+  memo: string;
+  amountStroops: string;
+}): Promise<DevMutateResult> {
+  const kp = relayerKeypair();
+  const source = kp.publicKey();
+  const memoId = parseMemoId(opts.memo);
+
+  const server = horizon();
+  const submitResult = await withRelayerLock(async () => {
+    const account = await server.loadAccount(source);
+    const tx = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: stellarPassphrase(),
+    })
+      .addOperation(
+        Operation.payment({
+          destination: opts.destination,
+          asset: Asset.native(),
+          amount: formatStroopsToXlm(opts.amountStroops),
+        }),
+      )
+      .addMemo(Memo.id(memoId))
+      .setTimeout(180)
+      .build();
+    tx.sign(kp);
+    return server.submitTransaction(tx);
+  });
+
+  const txHash = submitResult.hash;
+  if (!submitResult.successful) {
+    return {
+      status: "FAILED",
+      txHash,
+      errorMessage: `submitTransaction failed: ${JSON.stringify(submitResult)}`,
+    };
+  }
+
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    try {
+      const tx = await server.transactions().transaction(txHash).call();
+      if (tx.successful) return { status: "SUCCESS", txHash };
+      return {
+        status: "FAILED",
+        txHash,
+        errorMessage: `Deposit transaction failed on network: ${JSON.stringify(tx.result_meta_xdr)}`,
+      };
+    } catch {
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+
+  return {
+    status: "FAILED",
+    txHash,
+    errorMessage: "Timed out waiting for deposit finality",
+  };
 }
 
 /**

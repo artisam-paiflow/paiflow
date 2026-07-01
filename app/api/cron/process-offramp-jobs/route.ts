@@ -11,7 +11,12 @@ import {
 } from "@/lib/offramp/jobs";
 import { getOffRampProvider, offRampAssetCode, offRampFiatCurrency } from "@/lib/offramp/provider";
 import { resolveCashOutAsset, resolvePayrollAsset } from "@/lib/offramp/assets";
-import { refundFromTreasury, getTreasuryBalance } from "@/lib/stellar/dev-mutate";
+import { offRampPdaxDepositConfig } from "@/lib/env";
+import {
+  getTreasuryBalance,
+  refundFromTreasury,
+  depositNativeToProvider,
+} from "@/lib/stellar/dev-mutate";
 import { assetContractId } from "@/lib/stellar/assets";
 import type { FlowGraph } from "@/lib/flows/schema";
 import type { Asset } from "@/lib/flows/schema";
@@ -150,19 +155,58 @@ export async function POST(req: NextRequest) {
             );
           }
 
-          // In PDAX UAT, Stellar USDC (USDCXLM) deposits are disabled, so the
-          // on-chain treasury cannot directly fund the trade. The employer must
-          // pre-fund the PDAX institutional balance with USDC off-chain. The
-          // treasury sink is still verified above as the bookkeeping proof.
-          log.info(
-            {
-              jobId: job.id,
-              sourceAddress: job.sourceAddress,
-              amountStroops: job.amountStroops,
-              treasuryBalance: treasuryBalance.toString(),
-            },
-            "Cash-out sink confirmed; trade will be funded by pre-funded PDAX balance",
-          );
+          if (asset.kind === "native") {
+            // Native XLM deposits are enabled in PDAX UAT. Forward the job
+            // amount from the relayer treasury to the PDAX deposit address with
+            // the required memo/tag so the trade is funded by the on-chain sink.
+            const pdax = offRampPdaxDepositConfig();
+            if (pdax.address && pdax.memo) {
+              log.info(
+                {
+                  jobId: job.id,
+                  sourceAddress: job.sourceAddress,
+                  amountStroops: job.amountStroops,
+                  treasuryBalance: treasuryBalance.toString(),
+                  pdaxAddress: pdax.address,
+                  pdaxMemo: pdax.memo,
+                },
+                "Depositing XLM from treasury to PDAX",
+              );
+              const deposit = await depositNativeToProvider({
+                destination: pdax.address,
+                memo: pdax.memo,
+                amountStroops: job.amountStroops,
+              });
+              if (deposit.status !== "SUCCESS") {
+                throw new Error(`PDAX XLM deposit failed: ${deposit.errorMessage}`);
+              }
+              log.info({ jobId: job.id, txHash: deposit.txHash }, "PDAX XLM deposit confirmed");
+            } else {
+              log.warn(
+                {
+                  jobId: job.id,
+                  sourceAddress: job.sourceAddress,
+                  amountStroops: job.amountStroops,
+                  treasuryBalance: treasuryBalance.toString(),
+                },
+                "Native XLM cash-out sink confirmed but PDAX deposit address/memo not configured; trade will draw from pre-funded balance",
+              );
+            }
+          } else {
+            // For non-native assets (e.g. Stellar USDC in PDAX UAT), on-chain
+            // deposits may be disabled, so the trade draws from the employer's
+            // pre-funded provider balance. The treasury sink is still verified
+            // above as the bookkeeping proof.
+            log.info(
+              {
+                jobId: job.id,
+                sourceAddress: job.sourceAddress,
+                amountStroops: job.amountStroops,
+                treasuryBalance: treasuryBalance.toString(),
+              },
+              "Cash-out sink confirmed; trade will be funded by pre-funded provider balance",
+            );
+          }
         }
 
         // 1. Firm quote: crypto -> PHP

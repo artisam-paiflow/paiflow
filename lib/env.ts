@@ -103,6 +103,14 @@ const EnvSchema = z.object({
   OFFRAMP_TREASURY_ADDRESS_TESTNET: optionalString,
   OFFRAMP_TREASURY_ADDRESS_MAINNET: optionalString,
 
+  // PDAX deposit address and memo/tag for native XLM off-ramp deposits.
+  // When set, process-offramp-jobs will forward XLM from the treasury to PDAX
+  // before executing the trade. Required only for the XLM -> PHP flow.
+  OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET: optionalString,
+  OFFRAMP_PDAX_DEPOSIT_ADDRESS_MAINNET: optionalString,
+  OFFRAMP_PDAX_DEPOSIT_MEMO_TESTNET: optionalString,
+  OFFRAMP_PDAX_DEPOSIT_MEMO_MAINNET: optionalString,
+
   CRON_SECRET: optionalString,
   // Secret token for machine-to-machine calls to the /api/deployments/:id/dev-*
   // endpoints. When present, callers can authenticate by sending the header
@@ -268,4 +276,23 @@ export function offRampTreasuryAddress(): string | undefined {
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
   const key = `OFFRAMP_TREASURY_ADDRESS_${suffix}` as keyof EnvShape;
   return (e[key] as string | undefined) ?? e.STELLAR_RELAYER_ADDRESS;
+}
+
+/**
+ * PDAX deposit credentials for native XLM off-ramps. When both address and memo
+ * are configured, the cron will deposit job XLM from the treasury to PDAX before
+ * quoting/trading. Memo is the numeric tag PDAX requires to credit the deposit.
+ */
+export function offRampPdaxDepositConfig(): {
+  address: string | undefined;
+  memo: string | undefined;
+} {
+  const e = env();
+  const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
+  const addressKey = `OFFRAMP_PDAX_DEPOSIT_ADDRESS_${suffix}` as keyof EnvShape;
+  const memoKey = `OFFRAMP_PDAX_DEPOSIT_MEMO_${suffix}` as keyof EnvShape;
+  return {
+    address: e[addressKey] as string | undefined,
+    memo: e[memoKey] as string | undefined,
+  };
 }

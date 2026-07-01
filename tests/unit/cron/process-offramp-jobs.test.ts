@@ -1,46 +1,56 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { OffRampPayoutJobStatus, OffRampJobSource } from "@prisma/client";
 
-const { mockDb, mockEnv, mockProvider, mockJobs, mockAssets, mockDevMutate } = vi.hoisted(() => {
-  const mockDb = {
-    offRampPayoutJob: {
-      update: vi.fn(),
-    },
-  };
+const { mockDb, mockEnv, mockProvider, mockJobs, mockAssets, mockDevMutate, mockEnvHelpers } =
+  vi.hoisted(() => {
+    const mockDb = {
+      offRampPayoutJob: {
+        update: vi.fn(),
+      },
+    };
 
-  const mockEnv = {
-    CRON_SECRET: "cron-secret",
-    OFFRAMP_PROVIDER: "pdax",
-  };
+    const mockEnv = {
+      CRON_SECRET: "cron-secret",
+      OFFRAMP_PROVIDER: "pdax",
+    };
 
-  const mockProvider = {
-    name: "pdax",
-    quote: vi.fn(),
-    executeTrade: vi.fn(),
-    initiatePayout: vi.fn(),
-  };
+    const mockProvider = {
+      name: "pdax",
+      quote: vi.fn(),
+      executeTrade: vi.fn(),
+      initiatePayout: vi.fn(),
+    };
 
-  const mockJobs = {
-    getDueOffRampJobs: vi.fn(),
-    rescheduleOffRampJob: vi.fn(),
-    cancelPendingOffRampJobs: vi.fn(),
-  };
+    const mockJobs = {
+      getDueOffRampJobs: vi.fn(),
+      rescheduleOffRampJob: vi.fn(),
+      cancelPendingOffRampJobs: vi.fn(),
+    };
 
-  const mockAssets = {
-    resolveCashOutAsset: vi.fn(),
-    resolvePayrollAsset: vi.fn(),
-  };
+    const mockAssets = {
+      resolveCashOutAsset: vi.fn(),
+      resolvePayrollAsset: vi.fn(),
+    };
 
-  const mockDevMutate = {
-    refundFromTreasury: vi.fn(),
-    getTreasuryBalance: vi.fn(),
-  };
+    const mockDevMutate = {
+      refundFromTreasury: vi.fn(),
+      getTreasuryBalance: vi.fn(),
+      depositNativeToProvider: vi.fn(),
+    };
 
-  return { mockDb, mockEnv, mockProvider, mockJobs, mockAssets, mockDevMutate };
-});
+    const mockEnvHelpers = {
+      address: undefined as string | undefined,
+      memo: undefined as string | undefined,
+    };
+
+    return { mockDb, mockEnv, mockProvider, mockJobs, mockAssets, mockDevMutate, mockEnvHelpers };
+  });
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
-vi.mock("@/lib/env", () => ({ env: () => mockEnv }));
+vi.mock("@/lib/env", () => ({
+  env: () => mockEnv,
+  offRampPdaxDepositConfig: () => mockEnvHelpers,
+}));
 vi.mock("@/lib/log", () => ({ log: { warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/offramp/jobs", () => mockJobs);
 vi.mock("@/lib/offramp/provider", () => ({
@@ -114,6 +124,8 @@ const baseJob = {
 describe("process-offramp-jobs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEnvHelpers.address = undefined;
+    mockEnvHelpers.memo = undefined;
   });
 
   it("rejects requests without the cron secret", async () => {
@@ -241,6 +253,53 @@ describe("process-offramp-jobs", () => {
     expect(mockDevMutate.refundFromTreasury).toHaveBeenCalledWith(
       expect.objectContaining({ destination: "CCashOut", amountStroops: job.amountStroops }),
     );
+  });
+
+  it("deposits native XLM to PDAX before trading for CASH_OUT jobs", async () => {
+    const job = {
+      ...baseJob,
+      source: OffRampJobSource.CASH_OUT,
+      sourceAddress: "CCashOut",
+    };
+    mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
+    mockAssets.resolveCashOutAsset.mockReturnValue({ kind: "native" });
+    mockDevMutate.getTreasuryBalance.mockResolvedValue(BigInt(job.amountStroops));
+    mockEnvHelpers.address = "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G";
+    mockEnvHelpers.memo = "3777239912";
+    mockDevMutate.depositNativeToProvider.mockResolvedValue({
+      status: "SUCCESS",
+      txHash: "dep-tx-1",
+    });
+    mockProvider.quote.mockResolvedValue({
+      id: "quote-1",
+      amountIn: job.amountStroops,
+      amountOut: "580000",
+      fiatAmount: "58.00",
+      fiatCurrency: "PHP",
+      expiresAt: new Date(),
+    });
+    mockProvider.executeTrade.mockResolvedValue({
+      providerRef: "trade-1",
+      status: "PENDING",
+    });
+    mockProvider.initiatePayout.mockResolvedValue({
+      providerRef: "payout-1",
+      status: "COMPLETED",
+    });
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    expect(json.data.completed).toBe(1);
+    expect(mockDevMutate.depositNativeToProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destination: "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G",
+        memo: "3777239912",
+        amountStroops: job.amountStroops,
+      }),
+    );
+    expect(mockProvider.quote).toHaveBeenCalled();
+    expect(mockProvider.executeTrade).toHaveBeenCalled();
   });
 
   it("cancels jobs for non-confirmed deployments", async () => {
