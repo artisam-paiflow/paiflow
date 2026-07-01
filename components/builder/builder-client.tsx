@@ -654,25 +654,43 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                     valid pipeline
                   </span>
                 )}
-                {!isValid && errors.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setErrorsModalOpen(true)}
-                    aria-label={`${errors.length} validation ${
-                      errors.length === 1 ? "issue" : "issues"
-                    } — view details`}
-                    title="View validation issues"
-                    className="bg-error/10 border-error/30 text-error hover:bg-error/20 ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-[16px] leading-none">
-                      error
-                    </span>
-                    <span className="text-label-sm font-semibold">{errors.length}</span>
-                  </button>
-                )}
               </div>
               <div className="text-body-md text-on-surface mt-1 line-clamp-2">{english}</div>
             </div>
+
+            {/* Prominent validation-error banner — an invalid flow must be
+                impossible to miss, so it gets a full error-tinted banner that
+                surfaces the first issue inline rather than a subtle corner
+                badge. "View all N issues" opens the full modal list. */}
+            {!isValid && errors.length > 0 && (
+              <div
+                role="alert"
+                className="bg-error-container/25 border-error/40 text-on-error-container mt-2 flex max-w-2xl items-start gap-3 rounded-xl border px-4 py-3"
+              >
+                <span className="material-symbols-outlined text-error mt-0.5 text-[20px] leading-none">
+                  error
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-label-md text-error font-semibold">
+                    {errors.length} validation {errors.length === 1 ? "issue" : "issues"} — this
+                    flow can&apos;t deploy yet
+                  </div>
+                  <p className="text-body-md text-on-error-container/90 mt-0.5 line-clamp-2">
+                    {errors[0]!.friendlyMessage}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setErrorsModalOpen(true)}
+                  aria-label={`View all ${errors.length} validation ${
+                    errors.length === 1 ? "issue" : "issues"
+                  }`}
+                  className="bg-error/15 border-error/40 text-error hover:bg-error/25 text-label-sm shrink-0 self-center rounded-lg border px-2.5 py-1 font-semibold transition-colors"
+                >
+                  {errors.length > 1 ? `View all ${errors.length}` : "Details"}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Row 3: Canvas */}
