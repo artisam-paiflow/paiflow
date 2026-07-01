@@ -61,6 +61,7 @@ type PipelineNodeSnapshot = {
 function resolveJobAsset(job: {
   source: OffRampJobSource;
   sourceAddress: string | null;
+  employeeId: string | null;
   deployment: { graphSnapshot: Prisma.JsonValue; pipelineSnapshot: Prisma.JsonValue } | null;
 }): Asset | null {
   const deployment = job.deployment;
@@ -69,7 +70,14 @@ function resolveJobAsset(job: {
   const pipeline = deployment.pipelineSnapshot as PipelineNodeSnapshot[] | null;
   if (job.source === OffRampJobSource.CASH_OUT) {
     if (!job.sourceAddress) return null;
-    return resolveCashOutAsset(graph, pipeline, job.sourceAddress);
+    const asset = resolveCashOutAsset(graph, pipeline, job.sourceAddress);
+    if (asset) return asset;
+    // Dev-mode payrolls generate CASH_OUT_DEV sinks on demand. Those sinks are
+    // not (yet) reflected as `cash_out` nodes in the saved graph snapshot, but
+    // the job was created from an employee payout so the payroll asset is the
+    // correct off-ramp asset.
+    if (job.employeeId) return resolvePayrollAsset(graph);
+    return null;
   }
   return resolvePayrollAsset(graph);
 }
