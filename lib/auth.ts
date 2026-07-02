@@ -186,7 +186,10 @@ export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionU
 export async function requireDevApiToken(req: NextRequest): Promise<SessionUser> {
   const raw =
     req.headers.get("x-dev-api-secret") ??
-    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
+    req.headers
+      .get("authorization")
+      ?.replace(/^Bearer\s+/i, "")
+      .trim() ??
     null;
 
   if (raw) {

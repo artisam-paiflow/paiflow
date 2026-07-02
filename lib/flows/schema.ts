@@ -65,12 +65,12 @@ export const AssetSchema = z.discriminatedUnion("kind", [
     // while still rejecting codes that contain no usable characters.
     code: z
       .string()
-      .max(12, "Asset code must be 12 characters or fewer")
       .transform((code) => code.replace(/[^A-Za-z0-9]/g, "").slice(0, 12))
       .refine(
         (code) => code.length >= 1,
         "Asset code must contain at least one alphanumeric character",
-      ),
+      )
+      .refine((code) => code.length <= 12, "Asset code must be 12 characters or fewer"),
     issuer: z.string().refine((s) => validAddress(s), "Invalid issuer"),
   }),
 ]);

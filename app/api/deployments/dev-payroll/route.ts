@@ -63,7 +63,9 @@ function parseAsset(input: string): Asset {
   if (upper === "USDC") {
     return AssetSchema.parse({ kind: "known", symbol: "USDC" });
   }
-  const [code, issuer] = trimmed.split(":");
+  const [rawCode, rawIssuer] = trimmed.split(":");
+  const code = rawCode?.trim();
+  const issuer = rawIssuer?.trim();
   if (code && issuer) {
     return AssetSchema.parse({ kind: "custom", code, issuer });
   }
@@ -298,6 +300,36 @@ export async function POST(req: NextRequest) {
     // On-chain rejection: the tx was submitted but did not succeed. Record the
     // attempted hash for reconciliation, then fail.
     if (result.status !== "SUCCESS") {
+      const isTimeout = result.errorMessage === "Timed out waiting for finality";
+      if (isTimeout) {
+        // The tx was accepted by the network but finality polling timed out.
+        // Keep the row BUILDING so the idempotency key is not poisoned with a
+        // false FAILED status; persist the txHash for reconciliation.
+        await db.deployment
+          .update({
+            where: { id: deployment.id },
+            data: {
+              deployTxHash: result.txHash || null,
+              errorMessage: result.errorMessage,
+            },
+          })
+          .catch(() => {});
+        return NextResponse.json(
+          {
+            data: {
+              deploymentId: deployment.id,
+              status: "BUILDING",
+              network,
+              deployTxHash: result.txHash || null,
+              subscriptionDevContractAddress: null,
+              splitterDevContractAddress: null,
+              message: "Deployment transaction submitted; waiting for finality",
+            },
+          },
+          { status: 202 },
+        );
+      }
+
       await db.deployment
         .update({
           where: { id: deployment.id },
