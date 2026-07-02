@@ -6,6 +6,7 @@ import { env } from "@/lib/env";
 import { log } from "@/lib/log";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { getOffRampProvider } from "@/lib/offramp/provider";
+import { rescheduleOffRampJob } from "@/lib/offramp/jobs";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -64,12 +65,9 @@ export async function POST(req: NextRequest) {
           ? OffRampPayoutJobStatus.FAILED
           : OffRampPayoutJobStatus.INITIATED;
 
-    await db.offRampPayoutJob.update({
-      where: { id: job.id },
-      data: {
-        status,
-        completedAt: status === OffRampPayoutJobStatus.COMPLETED ? new Date() : undefined,
-      },
+    await rescheduleOffRampJob(db, job.id, {
+      status,
+      completedAt: status === OffRampPayoutJobStatus.COMPLETED ? new Date() : undefined,
     });
 
     log.info(

@@ -316,6 +316,8 @@ model PayrollRun {
   txHash       String?          @unique
   totalStroops String
   chargedAt    DateTime?
+  failedAt     DateTime?
+  cancelledAt  DateTime?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
@@ -367,6 +369,10 @@ model OffRampPayoutJob {
   attemptCount      Int                    @default(0)
   lastError         String?
   completedAt       DateTime?
+  quotedAt          DateTime?
+  initiatedAt       DateTime?
+  failedAt          DateTime?
+  cancelledAt       DateTime?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
