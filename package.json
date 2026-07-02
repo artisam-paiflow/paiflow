@@ -23,6 +23,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
+    "dev-token:create": "tsx scripts/create-dev-api-token.ts",
     "contracts:build": "cd contracts && cargo build --release --target wasm32v1-none",
     "contracts:upload": "tsx scripts/upload-wasm.ts",
     "contracts:upload:testnet": "tsx scripts/upload-wasm.ts --network=testnet",

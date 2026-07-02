@@ -1,4 +1,5 @@
 import "server-only";
+import crypto from "crypto";
 import type { NextRequest } from "next/server";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
@@ -157,6 +158,40 @@ export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionU
     return { user: null };
   }
   return { user: await requireSession() };
+}
+
+/**
+ * Resolve a per-developer API token to the Pinkraft user that owns it. Machine
+ * endpoints that CREATE owned rows (e.g. the dev-payroll deploy) cannot use the
+ * shared `x-dev-api-secret` because it carries no owner. The caller presents the
+ * token in the `x-dev-api-secret` header (or `Authorization: Bearer <token>`);
+ * we match its SHA-256 hash against an active `DevApiToken` row and return the
+ * mapped user. A logged-in session is accepted as a fallback so the endpoint is
+ * still reachable from the app.
+ */
+export async function requireDevApiToken(req: NextRequest): Promise<SessionUser> {
+  const raw =
+    req.headers.get("x-dev-api-secret") ??
+    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
+    null;
+
+  if (raw) {
+    const tokenHash = crypto.createHash("sha256").update(raw).digest("hex");
+    const token = await db.devApiToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+    if (token && !token.revokedAt && token.user.isActive) {
+      // Best-effort last-used stamp; never block the request on it.
+      db.devApiToken
+        .update({ where: { id: token.id }, data: { lastUsedAt: new Date() } })
+        .catch(() => {});
+      return { id: token.user.id, username: token.user.username, role: token.user.role };
+    }
+  }
+
+  // Fall back to an interactive session (e.g. calling from the app UI).
+  return requireSession();
 }
 
 export async function requireSession(opts?: { role?: Role }): Promise<SessionUser> {

@@ -2,6 +2,7 @@ import "server-only";
 import {
   Address,
   BASE_FEE,
+  Keypair,
   Operation,
   TransactionBuilder,
   hash,
@@ -10,7 +11,12 @@ import {
 } from "@stellar/stellar-sdk";
 import { randomBytes } from "node:crypto";
 import { sorobanRpc, horizon } from "./client";
-import { stellarFactoryAddress, stellarPassphrase, stellarRelayerAddress } from "@/lib/env";
+import {
+  stellarFactoryAddress,
+  stellarPassphrase,
+  stellarRelayerAddress,
+  stellarRelayerSecretKey,
+} from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import type { ContractParams, PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
 import type { FlowGraph } from "@/lib/flows/schema";
@@ -278,6 +284,42 @@ export async function submitDeployTx(signedXdr: string): Promise<SubmitResult> {
     await new Promise((r) => setTimeout(r, 1500));
   }
   return { status: "FAILED", txHash: send.hash, errorMessage: "Timed out waiting for finality" };
+}
+
+export type RelayerPipelineDeployResult = SubmitResult & {
+  pipeline: PreparedPipelineDeploy["pipeline"];
+};
+
+/**
+ * Deploy a pipeline where the RELAYER is the deployer/admin and the signer.
+ *
+ * The on-chain factory derives each contract address from `source + salt` and
+ * calls `source.require_auth()`, so a fully machine-driven deploy (no user
+ * wallet in the loop) must use the relayer as `source`. The relayer key signs
+ * and submits the assembled tx; the returned contract addresses are therefore
+ * derived from the relayer address, not the employer.
+ */
+export async function deployPipelineByRelayer(opts: {
+  graph: FlowGraph;
+  nodes: PipelineDeployNode[];
+}): Promise<RelayerPipelineDeployResult> {
+  const secret = stellarRelayerSecretKey();
+  if (!secret) {
+    throw new AppError("INTERNAL", "STELLAR_RELAYER_SECRET_KEY is not configured");
+  }
+  const relayerKeypair = Keypair.fromSecret(secret);
+
+  const prepared = await preparePipelineDeployTx({
+    sourceAccount: relayerKeypair.publicKey(),
+    graph: opts.graph,
+    nodes: opts.nodes,
+  });
+
+  const tx = TransactionBuilder.fromXDR(prepared.xdr, stellarPassphrase());
+  tx.sign(relayerKeypair);
+
+  const result = await submitDeployTx(tx.toXDR());
+  return { ...result, pipeline: prepared.pipeline };
 }
 
 function extractCreatedContract(tx: rpc.Api.GetSuccessfulTransactionResponse): string | null {
