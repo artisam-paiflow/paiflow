@@ -134,18 +134,29 @@ export default function AddressInput({
       </div>
 
       {showSave && isValid && (
-        <div className="glass-panel absolute z-30 mt-1 w-full rounded-lg border p-2 shadow-[0_8px_24px_-4px_rgba(0,0,0,0.6)]">
+        <div className="border-outline-variant/50 bg-surface-container-high absolute z-30 mt-1 w-full rounded-lg border p-3 shadow-[0_8px_24px_-4px_rgba(0,0,0,0.7)]">
           <div className="text-label-sm text-on-surface-variant mb-1.5 font-mono uppercase">
             Save to address book
           </div>
-          <div className="flex gap-2">
-            <input
-              value={saveLabel}
-              onChange={(e) => setSaveLabel(e.target.value)}
-              placeholder="Label e.g. Alice"
-              className="border-outline-variant/40 bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-primary min-w-0 flex-1 rounded border px-2 py-1.5 font-mono text-[13px] focus:ring-1 focus:outline-none"
-              autoFocus
-            />
+          <input
+            value={saveLabel}
+            onChange={(e) => setSaveLabel(e.target.value)}
+            placeholder="Label e.g. Alice"
+            className="border-outline-variant/40 bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-primary w-full rounded border px-2 py-1.5 font-mono text-[13px] focus:ring-1 focus:outline-none"
+            autoFocus
+          />
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setShowSave(false);
+                setSaveLabel("");
+              }}
+              disabled={saveBusy}
+              className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:bg-surface-container-high/40 shrink-0 rounded border px-2.5 py-1.5 font-mono transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              CANCEL
+            </button>
             <button
               type="button"
               onClick={saveToAddressBook}
@@ -154,22 +165,11 @@ export default function AddressInput({
             >
               {saveBusy ? "SAVING…" : "SAVE"}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowSave(false);
-                setSaveLabel("");
-              }}
-              disabled={saveBusy}
-              className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:bg-surface-container-high/40 shrink-0 rounded border px-2.5 py-1.5 font-mono transition-colors"
-            >
-              CANCEL
-            </button>
           </div>
         </div>
       )}
 
-      {focused && addressBook.length > 0 && (
+      {focused && !showSave && addressBook.length > 0 && (
         <div className="glass-panel absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border py-1 shadow-[0_8px_24px_-4px_rgba(0,0,0,0.6)]">
           {addressBook.map((entry) => (
             <button
@@ -190,7 +190,7 @@ export default function AddressInput({
         </div>
       )}
 
-      {focused && addressBook.length === 0 && (
+      {focused && !showSave && addressBook.length === 0 && (
         <div className="glass-panel absolute z-20 mt-1 w-full rounded-lg border px-3 py-2 shadow-[0_8px_24px_-4px_rgba(0,0,0,0.6)]">
           <div className="text-label-sm text-on-surface-variant font-mono">NO SAVED CONTACTS.</div>
         </div>
