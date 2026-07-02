@@ -24,6 +24,10 @@ import { ChargeRelayerMode, TemplateKind } from "@prisma/client";
 const TEN_YEARS_SECONDS = 60 * 60 * 24 * 365 * 10;
 
 const BodySchema = z.object({
+  // Required client-supplied key that makes this deploy idempotent per owner. A
+  // retry with the same key returns the existing deployment rather than paying
+  // to deploy a second, independent set of contracts.
+  idempotencyKey: z.string().min(8).max(255),
   sourceAccount: z
     .string()
     .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar account"),
@@ -65,6 +69,37 @@ function parseAsset(input: string): Asset {
   );
 }
 
+/** Read a node's deployed contract address out of a stored pipeline snapshot. */
+function pipelineAddress(snapshot: unknown, kind: TemplateKind): string | null {
+  if (!Array.isArray(snapshot)) return null;
+  const node = snapshot.find(
+    (p) =>
+      p != null && typeof p === "object" && (p as { templateKind?: unknown }).templateKind === kind,
+  ) as { contractAddress?: unknown } | undefined;
+  return typeof node?.contractAddress === "string" ? node.contractAddress : null;
+}
+
+/** Shape the JSON response from a Deployment row (used by fresh + replay). */
+function deploymentResponse(d: {
+  id: string;
+  status: string;
+  network: string;
+  pipelineSnapshot: unknown;
+  createdAt: Date;
+}) {
+  return {
+    deploymentId: d.id,
+    status: d.status,
+    network: d.network,
+    subscriptionDevContractAddress: pipelineAddress(
+      d.pipelineSnapshot,
+      TemplateKind.SUBSCRIPTION_DEV,
+    ),
+    splitterDevContractAddress: pipelineAddress(d.pipelineSnapshot, TemplateKind.SPLITTER_DEV),
+    createdAt: d.createdAt.toISOString(),
+  };
+}
+
 /**
  * Deploy a dev-mode payroll pipeline (SUBSCRIPTION_DEV → SPLITTER_DEV) for a
  * machine caller. The relayer signs and submits the deployment; recipients,
@@ -87,6 +122,19 @@ export async function POST(req: NextRequest) {
         "VALIDATION",
         `Network mismatch: requested ${body.network} but this backend is pinned to ${network}.`,
       );
+    }
+
+    // Idempotent replay: a retry with the same key returns the existing
+    // deployment (whatever its status) instead of deploying a second,
+    // independent set of contracts. To re-attempt a genuinely FAILED deploy,
+    // the caller must supply a new idempotency key.
+    const existing = await db.deployment.findUnique({
+      where: {
+        ownerId_idempotencyKey: { ownerId: user.id, idempotencyKey: body.idempotencyKey },
+      },
+    });
+    if (existing) {
+      return NextResponse.json({ data: deploymentResponse(existing) });
     }
 
     const relayerAddress = stellarRelayerAddress();
@@ -177,17 +225,35 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const deployment = await db.deployment.create({
-      data: {
-        flowId: flow.id,
-        ownerId: user.id,
-        network,
-        status: "BUILDING",
-        graphSnapshot: graph as object,
-        paramsSnapshot: pipeline as object,
-        sourceAccount: body.sourceAccount,
-      },
-    });
+    // Claim the idempotency key by creating the row before any on-chain work.
+    // If a concurrent request with the same key already won the unique index,
+    // drop this orphan flow and replay the winner — no second deploy happens.
+    let deployment: Awaited<ReturnType<typeof db.deployment.create>>;
+    try {
+      deployment = await db.deployment.create({
+        data: {
+          flowId: flow.id,
+          ownerId: user.id,
+          network,
+          status: "BUILDING",
+          graphSnapshot: graph as object,
+          paramsSnapshot: pipeline as object,
+          sourceAccount: body.sourceAccount,
+          idempotencyKey: body.idempotencyKey,
+        },
+      });
+    } catch (err) {
+      if ((err as { code?: string }).code === "P2002") {
+        await db.flow.delete({ where: { id: flow.id } }).catch(() => {});
+        const winner = await db.deployment.findUnique({
+          where: {
+            ownerId_idempotencyKey: { ownerId: user.id, idempotencyKey: body.idempotencyKey },
+          },
+        });
+        if (winner) return NextResponse.json({ data: deploymentResponse(winner) });
+      }
+      throw err;
+    }
 
     // Phase 1 — submit on-chain. A throw here (prepare/sign/network) means no
     // successful, fee-paying transaction was produced, so it is safe to mark
@@ -228,7 +294,6 @@ export async function POST(req: NextRequest) {
     const subscriptionNode = result.pipeline.find(
       (p) => p.templateKind === TemplateKind.SUBSCRIPTION_DEV,
     );
-    const splitterNode = result.pipeline.find((p) => p.templateKind === TemplateKind.SPLITTER_DEV);
 
     let confirmed: Awaited<ReturnType<typeof db.deployment.update>>;
     try {
@@ -273,15 +338,6 @@ export async function POST(req: NextRequest) {
       metadata: { deploymentId: deployment.id, txHash: result.txHash, network },
     }).catch(() => {});
 
-    return NextResponse.json({
-      data: {
-        deploymentId: confirmed.id,
-        status: "CONFIRMED" as const,
-        network,
-        subscriptionDevContractAddress: subscriptionNode?.contractAddress ?? null,
-        splitterDevContractAddress: splitterNode?.contractAddress ?? null,
-        createdAt: confirmed.createdAt.toISOString(),
-      },
-    });
+    return NextResponse.json({ data: deploymentResponse(confirmed) });
   });
 }
