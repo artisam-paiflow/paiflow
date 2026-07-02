@@ -6,7 +6,7 @@ import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
-import { findPipelineNode } from "@/lib/flows/pipeline-snapshot";
+import { findPipelineNode, type PipelineSnapshotNode } from "@/lib/flows/pipeline-snapshot";
 import {
   updateRecipientsByRelayer,
   submitUpdateRecipientsByRelayer,
@@ -15,7 +15,8 @@ import { prepareDevCashOutRecipients } from "@/lib/stellar/cash-out";
 import { syncEmployees } from "@/lib/employees";
 import { assetContractId } from "@/lib/stellar/assets";
 import { offRampTreasuryAddress } from "@/lib/env";
-import type { FlowGraph } from "@/lib/flows/schema";
+import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
+import { TemplateKind } from "@prisma/client";
 
 const RecipientSchema = z
   .object({
@@ -108,6 +109,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
 
     const graph = (d.graphSnapshot ?? null) as FlowGraph | null;
+    const pipeline = ((d.pipelineSnapshot ?? []) as PipelineSnapshotNode[]).slice();
     const splitNode = graph?.nodes.find((n) => n.type === "split");
     if (!splitNode?.config.asset) {
       throw new AppError("VALIDATION", "Payroll asset not found in graph snapshot");
@@ -154,6 +156,44 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       })),
       cashOutByInputAddress,
     );
+
+    // Persist any CASH_OUT_DEV sinks into the deployment snapshot so later
+    // dev-cash-out mutations can find them by nodeId.
+    if (graph) {
+      for (const [address, contractAddress] of cashOutByInputAddress) {
+        const nodeId = `cash-out-${address}`;
+        const recipient = body.recipients.find((r) => r.address === address);
+        if (!graph.nodes.some((n) => n.id === nodeId && n.type === "cash_out")) {
+          graph.nodes.push({
+            id: nodeId,
+            type: "cash_out",
+            config: {
+              asset: splitNode.config.asset,
+              accountName: recipient?.bankDetail?.accountName ?? "",
+              accountNumber: recipient?.bankDetail?.accountNumber ?? "",
+              bankCode: recipient?.bankDetail?.bankCode ?? "",
+            },
+          } as Extract<FlowNode, { type: "cash_out" }>);
+        }
+        if (
+          !pipeline.some((p) => p.nodeId === nodeId && p.templateKind === TemplateKind.CASH_OUT_DEV)
+        ) {
+          pipeline.push({
+            nodeId,
+            templateKind: TemplateKind.CASH_OUT_DEV,
+            contractAddress,
+          });
+        }
+      }
+
+      await db.deployment.update({
+        where: { id: d.id },
+        data: {
+          graphSnapshot: graph as object,
+          pipelineSnapshot: pipeline as object,
+        },
+      });
+    }
 
     await audit({
       action: "DEV_UPDATE_RECIPIENTS",

@@ -7,6 +7,7 @@ const { mockDb, mockEnv, mockAuth, mockRelayer } = vi.hoisted(() => {
     ),
     deployment: {
       findFirst: vi.fn(),
+      update: vi.fn(),
     },
     employee: {
       findMany: vi.fn(),
