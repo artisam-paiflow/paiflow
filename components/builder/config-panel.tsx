@@ -692,6 +692,13 @@ export default function ConfigPanel({
                                 address,
                               } as SplitRecipient)
                             }
+                            onSelectEntry={(entry) =>
+                              updateRecipient(i, {
+                                ...r,
+                                address: entry.address,
+                                label: entry.label || r.label,
+                              } as SplitRecipient)
+                            }
                             pending={isPendingAddress(r.address)}
                             addressBook={addressBook}
                             onAddressBookChange={refreshAddressBook}

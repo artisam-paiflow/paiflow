@@ -14,6 +14,13 @@ export type AddressInputProps = {
   pending?: boolean;
   addressBook?: AddressEntry[];
   onAddressBookChange?: () => void;
+  /**
+   * Called when an entry is picked from the address book, with the full entry
+   * (address + label). Lets callers that track an associated label (e.g. split
+   * recipients) update it alongside the address. When provided, this replaces
+   * the plain `onChange(address)` call for address-book selections.
+   */
+  onSelectEntry?: (entry: AddressEntry) => void;
 };
 
 export default function AddressInput({
@@ -23,6 +30,7 @@ export default function AddressInput({
   pending,
   addressBook = [],
   onAddressBookChange,
+  onSelectEntry,
 }: AddressInputProps) {
   const [focused, setFocused] = useState(false);
   const [showSave, setShowSave] = useState(false);
@@ -87,7 +95,11 @@ export default function AddressInput({
   }
 
   function selectEntry(entry: AddressEntry) {
-    onChange(entry.address);
+    if (onSelectEntry) {
+      onSelectEntry(entry);
+    } else {
+      onChange(entry.address);
+    }
     setFocused(false);
   }
 
