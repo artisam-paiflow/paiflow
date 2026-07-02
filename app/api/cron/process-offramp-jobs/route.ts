@@ -8,10 +8,16 @@ import {
   getDueOffRampJobs,
   rescheduleOffRampJob,
   cancelPendingOffRampJobs,
+  claimOffRampJob,
 } from "@/lib/offramp/jobs";
 import { getOffRampProvider, offRampAssetCode, offRampFiatCurrency } from "@/lib/offramp/provider";
 import { resolveCashOutAsset, resolvePayrollAsset } from "@/lib/offramp/assets";
-import { refundFromTreasury, getTreasuryBalance } from "@/lib/stellar/dev-mutate";
+import { offRampPdaxDepositConfig } from "@/lib/env";
+import {
+  getTreasuryBalance,
+  refundFromTreasury,
+  depositNativeToProvider,
+} from "@/lib/stellar/dev-mutate";
 import { assetContractId } from "@/lib/stellar/assets";
 import type { FlowGraph } from "@/lib/flows/schema";
 import type { Asset } from "@/lib/flows/schema";
@@ -61,6 +67,7 @@ type PipelineNodeSnapshot = {
 function resolveJobAsset(job: {
   source: OffRampJobSource;
   sourceAddress: string | null;
+  employeeId: string | null;
   deployment: { graphSnapshot: Prisma.JsonValue; pipelineSnapshot: Prisma.JsonValue } | null;
 }): Asset | null {
   const deployment = job.deployment;
@@ -69,7 +76,14 @@ function resolveJobAsset(job: {
   const pipeline = deployment.pipelineSnapshot as PipelineNodeSnapshot[] | null;
   if (job.source === OffRampJobSource.CASH_OUT) {
     if (!job.sourceAddress) return null;
-    return resolveCashOutAsset(graph, pipeline, job.sourceAddress);
+    const asset = resolveCashOutAsset(graph, pipeline, job.sourceAddress);
+    if (asset) return asset;
+    // Dev-mode payrolls generate CASH_OUT_DEV sinks on demand. Those sinks are
+    // not (yet) reflected as `cash_out` nodes in the saved graph snapshot, but
+    // the job was created from an employee payout so the payroll asset is the
+    // correct off-ramp asset.
+    if (job.employeeId) return resolvePayrollAsset(graph);
+    return null;
   }
   return resolvePayrollAsset(graph);
 }
@@ -101,9 +115,20 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      await rescheduleOffRampJob(db, job.id, {
-        status: OffRampPayoutJobStatus.RUNNING,
-      });
+      // Atomically claim the job for this run. For a PENDING job this flips it
+      // to RUNNING once; for a stale RUNNING job (a crashed/timed-out prior run
+      // whose lease expired) this re-claims it via an exact-lease CAS. Either
+      // way only one overlapping cron run wins — this prevents double-processing
+      // (and, for native XLM cash-outs, a real on-chain double deposit).
+      const claimed = await claimOffRampJob(db, job.id, job.status, job.lockedAt);
+      if (!claimed) {
+        results.push({
+          jobId: job.id,
+          status: "skipped",
+          error: "Job already claimed by another run",
+        });
+        continue;
+      }
 
       let asset: Asset | null = null;
       let currentStatus: OffRampPayoutJobStatus = OffRampPayoutJobStatus.RUNNING;
@@ -142,19 +167,111 @@ export async function POST(req: NextRequest) {
             );
           }
 
-          // In PDAX UAT, Stellar USDC (USDCXLM) deposits are disabled, so the
-          // on-chain treasury cannot directly fund the trade. The employer must
-          // pre-fund the PDAX institutional balance with USDC off-chain. The
-          // treasury sink is still verified above as the bookkeeping proof.
-          log.info(
-            {
-              jobId: job.id,
-              sourceAddress: job.sourceAddress,
-              amountStroops: job.amountStroops,
-              treasuryBalance: treasuryBalance.toString(),
-            },
-            "Cash-out sink confirmed; trade will be funded by pre-funded PDAX balance",
-          );
+          if (asset.kind === "native") {
+            // Native XLM deposits are enabled in PDAX UAT. Forward the job
+            // amount from the relayer treasury to the PDAX deposit address with
+            // the required memo/tag so the trade is funded by the on-chain sink.
+            const pdax = offRampPdaxDepositConfig();
+            const hasAddress = Boolean(pdax.address);
+            const hasMemo = Boolean(pdax.memo);
+            if (hasAddress !== hasMemo) {
+              // Half-configured: exactly one of address/memo is set. Falling
+              // through here would silently draw the trade from the employer's
+              // pre-funded balance instead of depositing the on-chain sink, so
+              // fail hard rather than move real funds under a wrong assumption.
+              // (No deposit has happened, so the pre-trade refund path returns
+              // the treasury funds to the source address.)
+              throw new Error(
+                "PDAX native XLM deposit is half-configured: set BOTH deposit address and memo, or neither",
+              );
+            }
+            if (pdax.address && pdax.memo) {
+              if (job.pdaxDepositTxHash) {
+                // Idempotency: a prior run already deposited to PDAX. Do NOT
+                // deposit again (the balance guard alone cannot catch this when
+                // the treasury is a separate/pooled address), just proceed to
+                // quote/trade against the already-deposited funds.
+                log.info(
+                  { jobId: job.id, txHash: job.pdaxDepositTxHash },
+                  "PDAX XLM deposit already completed; skipping re-deposit",
+                );
+              } else {
+                log.info(
+                  {
+                    jobId: job.id,
+                    sourceAddress: job.sourceAddress,
+                    amountStroops: job.amountStroops,
+                    treasuryBalance: treasuryBalance.toString(),
+                    pdaxAddress: pdax.address,
+                    pdaxMemo: pdax.memo,
+                  },
+                  "Depositing XLM from treasury to PDAX",
+                );
+                const deposit = await depositNativeToProvider({
+                  destination: pdax.address,
+                  memo: pdax.memo,
+                  amountStroops: job.amountStroops,
+                });
+                if (deposit.status === "UNKNOWN") {
+                  // Ambiguous outcome: Horizon submit threw and we could not
+                  // confirm whether the payment landed. Do NOT retry (could
+                  // double-deposit) and do NOT refund (funds may have already
+                  // left). Fail for manual review.
+                  const error = `PDAX XLM deposit outcome unknown; verify tx ${deposit.txHash} before retrying or refunding`;
+                  log.warn({ jobId: job.id, txHash: deposit.txHash }, error);
+                  await rescheduleOffRampJob(db, job.id, {
+                    status: OffRampPayoutJobStatus.FAILED,
+                    lastError: error,
+                  });
+                  results.push({
+                    jobId: job.id,
+                    status: "failed",
+                    error,
+                  });
+                  continue;
+                }
+                if (deposit.status !== "SUCCESS") {
+                  throw new Error(`PDAX XLM deposit failed: ${deposit.errorMessage}`);
+                }
+                // Update the in-memory job BEFORE persisting so that a DB write
+                // failure in rescheduleOffRampJob doesn't cause the catch handler
+                // to refund funds that already left for PDAX.
+                job.pdaxDepositTxHash = deposit.txHash;
+                // Persist the deposit tx BEFORE quote/trade so any downstream
+                // failure + retry detects "already deposited" and never
+                // re-deposits or refunds from the treasury.
+                await rescheduleOffRampJob(db, job.id, {
+                  status: OffRampPayoutJobStatus.RUNNING,
+                  pdaxDepositTxHash: deposit.txHash,
+                });
+                log.info({ jobId: job.id, txHash: deposit.txHash }, "PDAX XLM deposit confirmed");
+              }
+            } else {
+              log.warn(
+                {
+                  jobId: job.id,
+                  sourceAddress: job.sourceAddress,
+                  amountStroops: job.amountStroops,
+                  treasuryBalance: treasuryBalance.toString(),
+                },
+                "Native XLM cash-out sink confirmed but PDAX deposit address/memo not configured; trade will draw from pre-funded balance",
+              );
+            }
+          } else {
+            // For non-native assets (e.g. Stellar USDC in PDAX UAT), on-chain
+            // deposits may be disabled, so the trade draws from the employer's
+            // pre-funded provider balance. The treasury sink is still verified
+            // above as the bookkeeping proof.
+            log.info(
+              {
+                jobId: job.id,
+                sourceAddress: job.sourceAddress,
+                amountStroops: job.amountStroops,
+                treasuryBalance: treasuryBalance.toString(),
+              },
+              "Cash-out sink confirmed; trade will be funded by pre-funded provider balance",
+            );
+          }
         }
 
         // 1. Firm quote: crypto -> PHP
@@ -285,10 +402,20 @@ export async function POST(req: NextRequest) {
             status: "failed",
             error: message,
           });
-        } else if (isPreTradeFailure(currentStatus) && job.sourceAddress && asset) {
+        } else if (
+          isPreTradeFailure(currentStatus) &&
+          job.sourceAddress &&
+          asset &&
+          !job.pdaxDepositTxHash
+        ) {
           // Refund policy: before the trade executes, the crypto is still in the
           // treasury. Refund to the on-chain source address using the same asset
           // the job was meant to off-ramp.
+          //
+          // NOTE: skipped when `pdaxDepositTxHash` is set — for native XLM jobs
+          // the funds have already left the treasury for PDAX, so refunding from
+          // the treasury would draw down pooled/other jobs' balances. Those jobs
+          // fall through to the generic FAILED branch below for manual recovery.
           const refund = await refundFromTreasury({
             destination: job.sourceAddress,
             amountStroops: job.amountStroops,

@@ -1,5 +1,5 @@
 import "server-only";
-import { Keypair } from "@stellar/stellar-sdk";
+import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
 
 const optionalString = z
@@ -13,6 +13,28 @@ const optionalWasmHash = z
   .transform((v) => (v && v.length > 0 ? v : undefined))
   .refine((v) => v === undefined || /^[0-9a-f]{64}$/i.test(v), {
     message: "WASM hash must be a 64-character hex string",
+  });
+
+// Stellar memo IDs are numeric (uint64). Kept as a string to avoid precision
+// loss; validated at config load so a swapped/misconfigured PDAX memo fails at
+// startup rather than mid-way through a live off-ramp job.
+const optionalNumericMemo = z
+  .string()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined))
+  .refine((v) => v === undefined || /^\d+$/.test(v), {
+    message: "PDAX deposit memo must be a numeric string (Stellar memo id)",
+  });
+
+// PDAX deposit address must be a well-formed Stellar account (ed25519 G-address).
+// Validated at config load so a typo'd/truncated address fails at startup rather
+// than only when a live native-XLM deposit is attempted mid-job.
+const optionalStellarAddress = z
+  .string()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined))
+  .refine((v) => v === undefined || StrKey.isValidEd25519PublicKey(v), {
+    message: "PDAX deposit address must be a valid Stellar ed25519 public key (G...)",
   });
 
 const boolish = z
@@ -102,6 +124,14 @@ const EnvSchema = z.object({
   // the off-chain PDAX leg. When unset, the relayer address is used.
   OFFRAMP_TREASURY_ADDRESS_TESTNET: optionalString,
   OFFRAMP_TREASURY_ADDRESS_MAINNET: optionalString,
+
+  // PDAX deposit address and memo/tag for native XLM off-ramp deposits.
+  // When set, process-offramp-jobs will forward XLM from the treasury to PDAX
+  // before executing the trade. Required only for the XLM -> PHP flow.
+  OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET: optionalStellarAddress,
+  OFFRAMP_PDAX_DEPOSIT_ADDRESS_MAINNET: optionalStellarAddress,
+  OFFRAMP_PDAX_DEPOSIT_MEMO_TESTNET: optionalNumericMemo,
+  OFFRAMP_PDAX_DEPOSIT_MEMO_MAINNET: optionalNumericMemo,
 
   CRON_SECRET: optionalString,
   // Secret token for machine-to-machine calls to the /api/deployments/:id/dev-*
@@ -268,4 +298,23 @@ export function offRampTreasuryAddress(): string | undefined {
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
   const key = `OFFRAMP_TREASURY_ADDRESS_${suffix}` as keyof EnvShape;
   return (e[key] as string | undefined) ?? e.STELLAR_RELAYER_ADDRESS;
+}
+
+/**
+ * PDAX deposit credentials for native XLM off-ramps. When both address and memo
+ * are configured, the cron will deposit job XLM from the treasury to PDAX before
+ * quoting/trading. Memo is the numeric tag PDAX requires to credit the deposit.
+ */
+export function offRampPdaxDepositConfig(): {
+  address: string | undefined;
+  memo: string | undefined;
+} {
+  const e = env();
+  const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
+  const addressKey = `OFFRAMP_PDAX_DEPOSIT_ADDRESS_${suffix}` as keyof EnvShape;
+  const memoKey = `OFFRAMP_PDAX_DEPOSIT_MEMO_${suffix}` as keyof EnvShape;
+  return {
+    address: e[addressKey] as string | undefined,
+    memo: e[memoKey] as string | undefined,
+  };
 }

@@ -1,46 +1,58 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { OffRampPayoutJobStatus, OffRampJobSource } from "@prisma/client";
 
-const { mockDb, mockEnv, mockProvider, mockJobs, mockAssets, mockDevMutate } = vi.hoisted(() => {
-  const mockDb = {
-    offRampPayoutJob: {
-      update: vi.fn(),
-    },
-  };
+const { mockDb, mockEnv, mockProvider, mockJobs, mockAssets, mockDevMutate, mockEnvHelpers } =
+  vi.hoisted(() => {
+    const mockDb = {
+      offRampPayoutJob: {
+        update: vi.fn(),
+        updateMany: vi.fn(),
+      },
+    };
 
-  const mockEnv = {
-    CRON_SECRET: "cron-secret",
-    OFFRAMP_PROVIDER: "pdax",
-  };
+    const mockEnv = {
+      CRON_SECRET: "cron-secret",
+      OFFRAMP_PROVIDER: "pdax",
+    };
 
-  const mockProvider = {
-    name: "pdax",
-    quote: vi.fn(),
-    executeTrade: vi.fn(),
-    initiatePayout: vi.fn(),
-  };
+    const mockProvider = {
+      name: "pdax",
+      quote: vi.fn(),
+      executeTrade: vi.fn(),
+      initiatePayout: vi.fn(),
+    };
 
-  const mockJobs = {
-    getDueOffRampJobs: vi.fn(),
-    rescheduleOffRampJob: vi.fn(),
-    cancelPendingOffRampJobs: vi.fn(),
-  };
+    const mockJobs = {
+      getDueOffRampJobs: vi.fn(),
+      rescheduleOffRampJob: vi.fn(),
+      cancelPendingOffRampJobs: vi.fn(),
+      claimOffRampJob: vi.fn(),
+    };
 
-  const mockAssets = {
-    resolveCashOutAsset: vi.fn(),
-    resolvePayrollAsset: vi.fn(),
-  };
+    const mockAssets = {
+      resolveCashOutAsset: vi.fn(),
+      resolvePayrollAsset: vi.fn(),
+    };
 
-  const mockDevMutate = {
-    refundFromTreasury: vi.fn(),
-    getTreasuryBalance: vi.fn(),
-  };
+    const mockDevMutate = {
+      refundFromTreasury: vi.fn(),
+      getTreasuryBalance: vi.fn(),
+      depositNativeToProvider: vi.fn(),
+    };
 
-  return { mockDb, mockEnv, mockProvider, mockJobs, mockAssets, mockDevMutate };
-});
+    const mockEnvHelpers = {
+      address: undefined as string | undefined,
+      memo: undefined as string | undefined,
+    };
+
+    return { mockDb, mockEnv, mockProvider, mockJobs, mockAssets, mockDevMutate, mockEnvHelpers };
+  });
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
-vi.mock("@/lib/env", () => ({ env: () => mockEnv }));
+vi.mock("@/lib/env", () => ({
+  env: () => mockEnv,
+  offRampPdaxDepositConfig: () => mockEnvHelpers,
+}));
 vi.mock("@/lib/log", () => ({ log: { warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/offramp/jobs", () => mockJobs);
 vi.mock("@/lib/offramp/provider", () => ({
@@ -78,8 +90,10 @@ const baseJob = {
   providerRef: null,
   tradeRef: null,
   requestId: null,
+  pdaxDepositTxHash: null,
   providerQuote: null,
   runAt: new Date(),
+  lockedAt: null,
   attemptCount: 0,
   lastError: null,
   completedAt: null,
@@ -114,6 +128,9 @@ const baseJob = {
 describe("process-offramp-jobs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEnvHelpers.address = undefined;
+    mockEnvHelpers.memo = undefined;
+    mockJobs.claimOffRampJob.mockResolvedValue(true);
   });
 
   it("rejects requests without the cron secret", async () => {
@@ -150,7 +167,15 @@ describe("process-offramp-jobs", () => {
       expect.objectContaining({ quoteId: "quote-1", jobId: "job-1" }),
     );
     expect(mockProvider.initiatePayout).toHaveBeenCalled();
-    expect(mockJobs.rescheduleOffRampJob).toHaveBeenCalledTimes(4);
+    // RUNNING is now claimed atomically via claimOffRampJob; the remaining
+    // reschedules are QUOTED, INITIATED, and the terminal status.
+    expect(mockJobs.claimOffRampJob).toHaveBeenCalledWith(
+      mockDb,
+      "job-1",
+      OffRampPayoutJobStatus.PENDING,
+      null,
+    );
+    expect(mockJobs.rescheduleOffRampJob).toHaveBeenCalledTimes(3);
   });
 
   it("refunds treasury on pre-trade failure", async () => {
@@ -241,6 +266,220 @@ describe("process-offramp-jobs", () => {
     expect(mockDevMutate.refundFromTreasury).toHaveBeenCalledWith(
       expect.objectContaining({ destination: "CCashOut", amountStroops: job.amountStroops }),
     );
+  });
+
+  it("deposits native XLM to PDAX before trading for CASH_OUT jobs", async () => {
+    const job = {
+      ...baseJob,
+      source: OffRampJobSource.CASH_OUT,
+      sourceAddress: "CCashOut",
+    };
+    mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
+    mockAssets.resolveCashOutAsset.mockReturnValue({ kind: "native" });
+    mockDevMutate.getTreasuryBalance.mockResolvedValue(BigInt(job.amountStroops));
+    mockEnvHelpers.address = "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G";
+    mockEnvHelpers.memo = "3777239912";
+    mockDevMutate.depositNativeToProvider.mockResolvedValue({
+      status: "SUCCESS",
+      txHash: "dep-tx-1",
+    });
+    mockProvider.quote.mockResolvedValue({
+      id: "quote-1",
+      amountIn: job.amountStroops,
+      amountOut: "580000",
+      fiatAmount: "58.00",
+      fiatCurrency: "PHP",
+      expiresAt: new Date(),
+    });
+    mockProvider.executeTrade.mockResolvedValue({
+      providerRef: "trade-1",
+      status: "PENDING",
+    });
+    mockProvider.initiatePayout.mockResolvedValue({
+      providerRef: "payout-1",
+      status: "COMPLETED",
+    });
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    expect(json.data.completed).toBe(1);
+    expect(mockDevMutate.depositNativeToProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destination: "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G",
+        memo: "3777239912",
+        amountStroops: job.amountStroops,
+      }),
+    );
+    expect(mockProvider.quote).toHaveBeenCalled();
+    expect(mockProvider.executeTrade).toHaveBeenCalled();
+  });
+
+  it("fails hard on half-configured PDAX deposit env (address without memo)", async () => {
+    const job = {
+      ...baseJob,
+      source: OffRampJobSource.CASH_OUT,
+      sourceAddress: "CCashOut",
+    };
+    mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
+    mockAssets.resolveCashOutAsset.mockReturnValue({ kind: "native" });
+    mockDevMutate.getTreasuryBalance.mockResolvedValue(BigInt(job.amountStroops));
+    // Only the address is set — an invalid config for a native XLM off-ramp.
+    mockEnvHelpers.address = "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G";
+    mockEnvHelpers.memo = undefined;
+    mockDevMutate.refundFromTreasury.mockResolvedValue({ status: "SUCCESS", txHash: "refund-1" });
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    // Must not silently draw from the pre-funded balance: no deposit, no trade.
+    expect(mockDevMutate.depositNativeToProvider).not.toHaveBeenCalled();
+    expect(mockProvider.quote).not.toHaveBeenCalled();
+    expect(json.data.failed).toBe(1);
+    // No deposit happened, so the treasury funds are refunded to source.
+    expect(mockDevMutate.refundFromTreasury).toHaveBeenCalled();
+  });
+
+  it("fails without refunding when the PDAX deposit itself fails", async () => {
+    // Deposit failed => XLM never left the treasury, so a refund IS appropriate
+    // (funds are still recoverable on-chain). Quote/trade must not run.
+    const job = {
+      ...baseJob,
+      source: OffRampJobSource.CASH_OUT,
+      sourceAddress: "CCashOut",
+    };
+    mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
+    mockAssets.resolveCashOutAsset.mockReturnValue({ kind: "native" });
+    mockDevMutate.getTreasuryBalance.mockResolvedValue(BigInt(job.amountStroops));
+    mockEnvHelpers.address = "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G";
+    mockEnvHelpers.memo = "3777239912";
+    mockDevMutate.depositNativeToProvider.mockResolvedValue({
+      status: "FAILED",
+      txHash: "dep-tx-1",
+      errorMessage: "horizon rejected",
+    });
+    mockDevMutate.refundFromTreasury.mockResolvedValue({ status: "SUCCESS", txHash: "tx-1" });
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    expect(json.data.failed).toBe(1);
+    expect(mockProvider.quote).not.toHaveBeenCalled();
+    // Funds still in treasury: refund back to the on-chain source.
+    expect(mockDevMutate.refundFromTreasury).toHaveBeenCalledWith(
+      expect.objectContaining({ destination: "CCashOut" }),
+    );
+  });
+
+  it("skips re-depositing when the job already has a PDAX deposit tx", async () => {
+    const job = {
+      ...baseJob,
+      source: OffRampJobSource.CASH_OUT,
+      sourceAddress: "CCashOut",
+      pdaxDepositTxHash: "prior-dep-tx",
+    };
+    mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
+    mockAssets.resolveCashOutAsset.mockReturnValue({ kind: "native" });
+    mockDevMutate.getTreasuryBalance.mockResolvedValue(BigInt(job.amountStroops));
+    mockEnvHelpers.address = "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G";
+    mockEnvHelpers.memo = "3777239912";
+    mockProvider.quote.mockResolvedValue({
+      id: "quote-1",
+      amountIn: job.amountStroops,
+      amountOut: "580000",
+      fiatAmount: "58.00",
+      fiatCurrency: "PHP",
+      expiresAt: new Date(),
+    });
+    mockProvider.executeTrade.mockResolvedValue({ providerRef: "trade-1", status: "PENDING" });
+    mockProvider.initiatePayout.mockResolvedValue({ providerRef: "payout-1", status: "COMPLETED" });
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    expect(json.data.completed).toBe(1);
+    expect(mockDevMutate.depositNativeToProvider).not.toHaveBeenCalled();
+    expect(mockProvider.quote).toHaveBeenCalled();
+  });
+
+  it("does not refund from treasury when a post-deposit step fails", async () => {
+    // Deposit SUCCEEDED (funds already in PDAX). A later pre-trade failure must
+    // NOT trigger a treasury refund, which would draw from pooled/other funds.
+    const job = {
+      ...baseJob,
+      source: OffRampJobSource.CASH_OUT,
+      sourceAddress: "CCashOut",
+    };
+    mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
+    mockAssets.resolveCashOutAsset.mockReturnValue({ kind: "native" });
+    mockDevMutate.getTreasuryBalance.mockResolvedValue(BigInt(job.amountStroops));
+    mockEnvHelpers.address = "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G";
+    mockEnvHelpers.memo = "3777239912";
+    mockDevMutate.depositNativeToProvider.mockResolvedValue({
+      status: "SUCCESS",
+      txHash: "dep-tx-1",
+    });
+    mockProvider.quote.mockRejectedValue(new Error("PDAX quote rejected"));
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    expect(json.data.failed).toBe(1);
+    expect(mockDevMutate.depositNativeToProvider).toHaveBeenCalledTimes(1);
+    expect(mockDevMutate.refundFromTreasury).not.toHaveBeenCalled();
+  });
+
+  it("fails without retry or refund when the PDAX deposit outcome is unknown", async () => {
+    // Horizon submit threw and we could not confirm whether the XLM landed.
+    // The job must be failed for manual review: no retry (could double-deposit)
+    // and no refund (funds may already be at PDAX).
+    const job = {
+      ...baseJob,
+      source: OffRampJobSource.CASH_OUT,
+      sourceAddress: "CCashOut",
+    };
+    mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
+    mockAssets.resolveCashOutAsset.mockReturnValue({ kind: "native" });
+    mockDevMutate.getTreasuryBalance.mockResolvedValue(BigInt(job.amountStroops));
+    mockEnvHelpers.address = "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G";
+    mockEnvHelpers.memo = "3777239912";
+    mockDevMutate.depositNativeToProvider.mockResolvedValue({
+      status: "UNKNOWN",
+      txHash: "dep-tx-ambiguous",
+      errorMessage: "timeout",
+    });
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    expect(json.data.failed).toBe(1);
+    expect(mockProvider.quote).not.toHaveBeenCalled();
+    expect(mockDevMutate.refundFromTreasury).not.toHaveBeenCalled();
+    expect(mockJobs.rescheduleOffRampJob).toHaveBeenCalledWith(
+      mockDb,
+      "job-1",
+      expect.objectContaining({
+        status: OffRampPayoutJobStatus.FAILED,
+        lastError: expect.stringContaining("dep-tx-ambiguous"),
+      }),
+    );
+  });
+
+  it("skips a job already claimed by another run", async () => {
+    const job = {
+      ...baseJob,
+      source: OffRampJobSource.CASH_OUT,
+      sourceAddress: "CCashOut",
+    };
+    mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
+    mockJobs.claimOffRampJob.mockResolvedValue(false);
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    expect(json.data.skipped).toBe(1);
+    expect(mockDevMutate.getTreasuryBalance).not.toHaveBeenCalled();
+    expect(mockProvider.quote).not.toHaveBeenCalled();
   });
 
   it("cancels jobs for non-confirmed deployments", async () => {

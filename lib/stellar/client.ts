@@ -62,7 +62,15 @@ export function decodeContractAddress(addr: string): Buffer {
 }
 
 // Global promise chain to serialize submissions from the shared relayer account.
-// This prevents txBadSeq races between concurrent requests and the auto-release cron.
+// It serializes account-load -> sign -> submit so concurrent async work in THIS
+// process cannot interleave on the same sequence number (txBadSeq).
+//
+// SCOPE: this is an in-process, in-memory lock only — not a distributed lock.
+// Each process/replica has its own `relayerQueue`, so if the app runs more than
+// one instance (or a separate cron process) they can still race the relayer's
+// sequence number against each other. Single-process/single-replica deployments
+// are fully covered; multi-replica setups need a real distributed lock (or a
+// dedicated single signer) on top of this.
 let relayerQueue = Promise.resolve<unknown>(undefined);
 
 export async function withRelayerLock<T>(fn: () => Promise<T>): Promise<T> {

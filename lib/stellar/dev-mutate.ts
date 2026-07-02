@@ -2,8 +2,11 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import {
   Address,
+  Asset,
   BASE_FEE,
+  Horizon,
   Keypair,
+  Memo,
   Operation,
   TransactionBuilder,
   nativeToScVal,
@@ -11,7 +14,7 @@ import {
   scValToNative,
   xdr,
 } from "@stellar/stellar-sdk";
-import { sorobanRpc } from "./client";
+import { horizon, sorobanRpc, withRelayerLock } from "@/lib/stellar/client";
 import {
   offRampTreasuryAddress,
   stellarPassphrase,
@@ -38,6 +41,18 @@ export type DevRecipient = {
 
 export type DevMutateResult = {
   status: "SUCCESS" | "FAILED";
+  txHash: string;
+  errorMessage?: string;
+};
+
+/**
+ * Result of depositing native XLM to a provider. The `UNKNOWN` status is used
+ * when Horizon's submit call threw (timeout, connection reset, proxy error)
+ * and we cannot confirm whether the transaction landed. Callers must NOT
+ * retry or refund blindly on UNKNOWN — the funds may have already left.
+ */
+export type NativeDepositResult = {
+  status: "SUCCESS" | "FAILED" | "UNKNOWN";
   txHash: string;
   errorMessage?: string;
 };
@@ -102,42 +117,48 @@ async function buildAndSendByRelayer(
   const server = sorobanRpc();
   const kp = relayerKeypair();
 
-  let sourceAcct;
-  try {
-    sourceAcct = await server.getAccount(kp.publicKey());
-  } catch {
-    throw new AppError(
-      "INSUFFICIENT_FUNDS",
-      `Relayer account ${kp.publicKey()} is not funded or does not exist`,
-    );
-  }
+  // Serialize account-load -> sign -> submit against the shared relayer account
+  // so concurrent invocations in this process don't race the same sequence
+  // number (txBadSeq). See withRelayerLock for its in-process-only scope.
+  const send = await withRelayerLock(async () => {
+    let sourceAcct;
+    try {
+      sourceAcct = await server.getAccount(kp.publicKey());
+    } catch {
+      throw new AppError(
+        "INSUFFICIENT_FUNDS",
+        `Relayer account ${kp.publicKey()} is not funded or does not exist`,
+      );
+    }
 
-  const op = Operation.invokeContractFunction({
-    contract: contractAddress,
-    function: functionName,
-    args,
+    const op = Operation.invokeContractFunction({
+      contract: contractAddress,
+      function: functionName,
+      args,
+    });
+
+    const tx = new TransactionBuilder(sourceAcct, {
+      fee: BASE_FEE,
+      networkPassphrase: stellarPassphrase(),
+    })
+      .addOperation(op)
+      .setTimeout(180)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim)) {
+      throw new AppError(
+        "UPSTREAM_RPC",
+        `${functionName}() simulation failed for ${contractAddress}: ${sim.error}`,
+      );
+    }
+
+    const assembled = rpc.assembleTransaction(tx, sim).build();
+    assembled.sign(kp);
+
+    return server.sendTransaction(assembled);
   });
 
-  const tx = new TransactionBuilder(sourceAcct, {
-    fee: BASE_FEE,
-    networkPassphrase: stellarPassphrase(),
-  })
-    .addOperation(op)
-    .setTimeout(180)
-    .build();
-
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError(
-      "UPSTREAM_RPC",
-      `${functionName}() simulation failed for ${contractAddress}: ${sim.error}`,
-    );
-  }
-
-  const assembled = rpc.assembleTransaction(tx, sim).build();
-  assembled.sign(kp);
-
-  const send = await server.sendTransaction(assembled);
   if (send.status === "ERROR") {
     throw new AppError(
       "UPSTREAM_RPC",
@@ -356,15 +377,6 @@ export async function deployCashOutDevByRelayer(opts: {
 
   const server = sorobanRpc();
   const kp = relayerKeypair();
-  let sourceAcct;
-  try {
-    sourceAcct = await server.getAccount(kp.publicKey());
-  } catch {
-    throw new AppError(
-      "INSUFFICIENT_FUNDS",
-      `Relayer account ${kp.publicKey()} is not funded or does not exist`,
-    );
-  }
 
   const salt = randomBytes(32);
   const args = [
@@ -378,30 +390,44 @@ export async function deployCashOutDevByRelayer(opts: {
     string(opts.bankCode ?? ""),
   ];
 
-  const op = Operation.createCustomContract({
-    address: new Address(kp.publicKey()),
-    wasmHash: Buffer.from(wasmHash, "hex"),
-    salt,
-    constructorArgs: args,
+  // Serialize account-load -> sign -> submit against the shared relayer account.
+  const send = await withRelayerLock(async () => {
+    let sourceAcct;
+    try {
+      sourceAcct = await server.getAccount(kp.publicKey());
+    } catch {
+      throw new AppError(
+        "INSUFFICIENT_FUNDS",
+        `Relayer account ${kp.publicKey()} is not funded or does not exist`,
+      );
+    }
+
+    const op = Operation.createCustomContract({
+      address: new Address(kp.publicKey()),
+      wasmHash: Buffer.from(wasmHash, "hex"),
+      salt,
+      constructorArgs: args,
+    });
+
+    const tx = new TransactionBuilder(sourceAcct, {
+      fee: BASE_FEE,
+      networkPassphrase: stellarPassphrase(),
+    })
+      .addOperation(op)
+      .setTimeout(180)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim)) {
+      throw new AppError("UPSTREAM_RPC", `CASH_OUT_DEV deploy simulation failed: ${sim.error}`);
+    }
+
+    const assembled = rpc.assembleTransaction(tx, sim).build();
+    assembled.sign(kp);
+
+    return server.sendTransaction(assembled);
   });
 
-  const tx = new TransactionBuilder(sourceAcct, {
-    fee: BASE_FEE,
-    networkPassphrase: stellarPassphrase(),
-  })
-    .addOperation(op)
-    .setTimeout(180)
-    .build();
-
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `CASH_OUT_DEV deploy simulation failed: ${sim.error}`);
-  }
-
-  const assembled = rpc.assembleTransaction(tx, sim).build();
-  assembled.sign(kp);
-
-  const send = await server.sendTransaction(assembled);
   if (send.status === "ERROR") {
     return {
       status: "FAILED",
@@ -498,6 +524,130 @@ export async function getTreasuryBalance(assetContractAddress: string): Promise<
   return BigInt(scValToNative(sim.result.retval));
 }
 
+function formatStroopsToXlm(stroops: string): string {
+  const padded = stroops.padStart(8, "0");
+  const integer = padded.slice(0, -7) || "0";
+  const fraction = padded.slice(-7);
+  return `${integer}.${fraction}`;
+}
+
+function parseMemoId(memo: string): string {
+  const trimmed = memo.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    throw new AppError("VALIDATION", `PDAX deposit memo must be numeric, got: ${memo}`);
+  }
+  // Stellar memo IDs are uint64; keep them as strings to avoid precision loss.
+  return trimmed;
+}
+
+/**
+ * Poll Horizon for a transaction by hash, with a short deadline to give the
+ * ledger time to ingest a tx that was accepted around the same time a submit
+ * timeout or network error occurred.
+ */
+async function lookupHorizonTransaction(
+  server: Horizon.Server,
+  txHash: string,
+  maxWaitMs = 10_000,
+): Promise<{ successful: boolean } | null> {
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    try {
+      const record = await server.transactions().transaction(txHash).call();
+      if (record && typeof record.successful === "boolean") {
+        return { successful: record.successful };
+      }
+    } catch {
+      // Transaction may not have been ingested yet, or Horizon returned a
+      // transient error. Keep polling briefly.
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return null;
+}
+
+/**
+ * Deposit native XLM from the relayer/treasury account to a provider deposit
+ * address with a numeric memo/tag. Used for the native XLM -> PHP off-ramp flow
+ * where the provider requires a memo to credit the institutional balance.
+ *
+ * Horizon's submitTransaction can throw (timeout, connection reset, proxy 5xx)
+ * even when the transaction was accepted by the network. When that happens we
+ * look up the built transaction by its hash before returning, so the caller can
+ * distinguish "confirmed failed" from "unknown/possibly succeeded" and avoid
+ * retrying or refunding in the latter case.
+ */
+export async function depositNativeToProvider(opts: {
+  destination: string;
+  memo: string;
+  amountStroops: string;
+}): Promise<NativeDepositResult> {
+  const kp = relayerKeypair();
+  const source = kp.publicKey();
+  const memoId = parseMemoId(opts.memo);
+  const server = horizon();
+
+  let builtTxHash: string | undefined;
+
+  try {
+    const submitResult = await withRelayerLock(async () => {
+      const account = await server.loadAccount(source);
+      const tx = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: stellarPassphrase(),
+      })
+        .addOperation(
+          Operation.payment({
+            destination: opts.destination,
+            asset: Asset.native(),
+            amount: formatStroopsToXlm(opts.amountStroops),
+          }),
+        )
+        .addMemo(Memo.id(memoId))
+        .setTimeout(180)
+        .build();
+      tx.sign(kp);
+      builtTxHash = tx.hash().toString("hex");
+      return server.submitTransaction(tx);
+    });
+
+    if (!submitResult.successful) {
+      return {
+        status: "FAILED",
+        txHash: submitResult.hash,
+        errorMessage: `submitTransaction failed: ${JSON.stringify(submitResult)}`,
+      };
+    }
+    return { status: "SUCCESS", txHash: submitResult.hash };
+  } catch (err) {
+    const txHash = builtTxHash;
+    if (txHash) {
+      // We built and signed the tx, so the error happened at submit time.
+      // Horizon may have accepted the tx even though the client threw (timeout,
+      // connection reset, proxy error), so look it up before giving up.
+      const found = await lookupHorizonTransaction(server, txHash);
+      if (found) {
+        return found.successful
+          ? { status: "SUCCESS", txHash }
+          : { status: "FAILED", txHash, errorMessage: "Transaction failed on the network" };
+      }
+      return {
+        status: "UNKNOWN",
+        txHash,
+        errorMessage: `Deposit submission failed with ambiguous outcome: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+    // Error happened before we built/signed the tx (e.g. loadAccount failed),
+    // so no payment could have been submitted. Report a genuine failure so the
+    // caller can retry or refund as appropriate.
+    return {
+      status: "FAILED",
+      txHash: "",
+      errorMessage: `Deposit preparation failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
 /**
  * Refund USDC from the off-ramp treasury back to an on-chain source address.
  * Used when the PDAX off-ramp fails before the trade executes, so the crypto is
@@ -511,39 +661,43 @@ export async function refundFromTreasury(opts: {
   const kp = relayerKeypair();
   const server = sorobanRpc();
 
-  let sourceAcct;
-  try {
-    sourceAcct = await server.getAccount(kp.publicKey());
-  } catch {
-    throw new AppError(
-      "INSUFFICIENT_FUNDS",
-      `Relayer account ${kp.publicKey()} is not funded or does not exist`,
-    );
-  }
+  // Serialize account-load -> sign -> submit against the shared relayer account.
+  const send = await withRelayerLock(async () => {
+    let sourceAcct;
+    try {
+      sourceAcct = await server.getAccount(kp.publicKey());
+    } catch {
+      throw new AppError(
+        "INSUFFICIENT_FUNDS",
+        `Relayer account ${kp.publicKey()} is not funded or does not exist`,
+      );
+    }
 
-  const op = Operation.invokeContractFunction({
-    contract: opts.assetContractAddress,
-    function: "transfer",
-    args: [addr(kp.publicKey()), addr(opts.destination), i128(opts.amountStroops)],
+    const op = Operation.invokeContractFunction({
+      contract: opts.assetContractAddress,
+      function: "transfer",
+      args: [addr(kp.publicKey()), addr(opts.destination), i128(opts.amountStroops)],
+    });
+
+    const tx = new TransactionBuilder(sourceAcct, {
+      fee: BASE_FEE,
+      networkPassphrase: stellarPassphrase(),
+    })
+      .addOperation(op)
+      .setTimeout(180)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim)) {
+      throw new AppError("UPSTREAM_RPC", `treasury refund simulation failed: ${sim.error}`);
+    }
+
+    const assembled = rpc.assembleTransaction(tx, sim).build();
+    assembled.sign(kp);
+
+    return server.sendTransaction(assembled);
   });
 
-  const tx = new TransactionBuilder(sourceAcct, {
-    fee: BASE_FEE,
-    networkPassphrase: stellarPassphrase(),
-  })
-    .addOperation(op)
-    .setTimeout(180)
-    .build();
-
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `treasury refund simulation failed: ${sim.error}`);
-  }
-
-  const assembled = rpc.assembleTransaction(tx, sim).build();
-  assembled.sign(kp);
-
-  const send = await server.sendTransaction(assembled);
   if (send.status === "ERROR") {
     return {
       status: "FAILED",
