@@ -93,6 +93,7 @@ const baseJob = {
   pdaxDepositTxHash: null,
   providerQuote: null,
   runAt: new Date(),
+  lockedAt: null,
   attemptCount: 0,
   lastError: null,
   completedAt: null,
@@ -172,6 +173,7 @@ describe("process-offramp-jobs", () => {
       mockDb,
       "job-1",
       OffRampPayoutJobStatus.PENDING,
+      null,
     );
     expect(mockJobs.rescheduleOffRampJob).toHaveBeenCalledTimes(3);
   });

@@ -362,6 +362,7 @@ model OffRampPayoutJob {
   pdaxDepositTxHash String?                // native-XLM->PDAX deposit tx (idempotency guard)
   providerQuote     Json?
   runAt             DateTime
+  lockedAt          DateTime?              // lease stamp for the atomic RUNNING claim (see claimOffRampJob)
   attemptCount      Int                    @default(0)
   lastError         String?
   completedAt       DateTime?

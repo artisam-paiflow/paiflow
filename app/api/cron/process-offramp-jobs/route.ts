@@ -115,11 +115,12 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Atomically claim the job by flipping it to RUNNING only if it is still
-      // in the status we read it with. If another overlapping cron run already
-      // claimed it, skip — this prevents double-processing (and, for native XLM
-      // cash-outs, a real on-chain double deposit).
-      const claimed = await claimOffRampJob(db, job.id, job.status);
+      // Atomically claim the job for this run. For a PENDING job this flips it
+      // to RUNNING once; for a stale RUNNING job (a crashed/timed-out prior run
+      // whose lease expired) this re-claims it via an exact-lease CAS. Either
+      // way only one overlapping cron run wins — this prevents double-processing
+      // (and, for native XLM cash-outs, a real on-chain double deposit).
+      const claimed = await claimOffRampJob(db, job.id, job.status, job.lockedAt);
       if (!claimed) {
         results.push({
           jobId: job.id,
