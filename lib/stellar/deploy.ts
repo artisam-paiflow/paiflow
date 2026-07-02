@@ -10,7 +10,7 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 import { randomBytes } from "node:crypto";
-import { sorobanRpc, horizon } from "./client";
+import { sorobanRpc, horizon, withRelayerLock } from "./client";
 import {
   stellarFactoryAddress,
   stellarPassphrase,
@@ -309,17 +309,24 @@ export async function deployPipelineByRelayer(opts: {
   }
   const relayerKeypair = Keypair.fromSecret(secret);
 
-  const prepared = await preparePipelineDeployTx({
-    sourceAccount: relayerKeypair.publicKey(),
-    graph: opts.graph,
-    nodes: opts.nodes,
+  // Serialize the relayer's sequence-number lifecycle (fetch → sign → submit)
+  // against every other relayer-signing path (auto-charge crons, auto-release,
+  // streamer jobs, webhook execute). Without this lock, two concurrent deploys
+  // — or a deploy racing a cron — reuse the same sequence number and one gets
+  // txBadSeq.
+  return withRelayerLock(async () => {
+    const prepared = await preparePipelineDeployTx({
+      sourceAccount: relayerKeypair.publicKey(),
+      graph: opts.graph,
+      nodes: opts.nodes,
+    });
+
+    const tx = TransactionBuilder.fromXDR(prepared.xdr, stellarPassphrase());
+    tx.sign(relayerKeypair);
+
+    const result = await submitDeployTx(tx.toXDR());
+    return { ...result, pipeline: prepared.pipeline };
   });
-
-  const tx = TransactionBuilder.fromXDR(prepared.xdr, stellarPassphrase());
-  tx.sign(relayerKeypair);
-
-  const result = await submitDeployTx(tx.toXDR());
-  return { ...result, pipeline: prepared.pipeline };
 }
 
 function extractCreatedContract(tx: rpc.Api.GetSuccessfulTransactionResponse): string | null {
