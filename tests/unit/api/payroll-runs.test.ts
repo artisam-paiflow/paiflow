@@ -15,6 +15,10 @@ const { mockDb } = vi.hoisted(() => {
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/auth", () => ({ requireDevAuth: vi.fn(async () => ({ user: null })) }));
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimit: vi.fn(async () => ({ ok: true })),
+  clientIp: vi.fn(() => "127.0.0.1"),
+}));
 
 import { GET as listGET } from "@/app/api/deployments/[id]/payroll-runs/route";
 import { GET as detailGET } from "@/app/api/deployments/[id]/payroll-runs/[runId]/route";
@@ -156,7 +160,7 @@ describe("GET payroll-runs (list)", () => {
     const json = await res.json();
 
     expect(json.data).toHaveLength(2);
-    expect(json.nextCursor).toBe("r2");
+    expect(json.nextCursor).toBe("r1"); // last returned row, not the popped lookahead
   });
 
   it("404s when the deployment is not found", async () => {

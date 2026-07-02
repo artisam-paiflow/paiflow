@@ -3,10 +3,11 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import {
   RunListResponseSchema,
   countCompletedPayouts,
-  type PayoutForSerialize,
+  type PayoutStatusInput,
 } from "@/lib/payroll/run-serialize";
 
 const Query = z.object({
@@ -27,10 +28,19 @@ const isUuid = (v: string) => z.string().uuid().safeParse(v).success;
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
+
+    const rlKey = user
+      ? `payroll-runs-list:${user.id}`
+      : `payroll-runs-list:machine:${clientIp(req)}`;
+    const rl = await rateLimit(rlKey, 60, 60);
+    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many payroll run list requests");
+
     const { id } = await ctx.params;
     if (!isUuid(id)) throw new AppError("NOT_FOUND", "Deployment not found");
 
     const deployment = await db.deployment.findFirst({
+      // Machine callers authenticated via x-dev-api-secret are trusted to access
+      // any deployment; this matches the trust model of payroll-record-run.
       where: user ? { id, ownerId: user.id } : { id },
       select: { id: true },
     });
@@ -46,13 +56,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       include: {
         payouts: {
           select: {
-            id: true,
-            employeeId: true,
-            amountStroops: true,
             txHash: true,
-            employee: { select: { label: true, address: true, payoutMode: true } },
+            employee: { select: { payoutMode: true } },
             offRampJobs: {
-              select: { status: true, lastError: true, completedAt: true },
+              select: { status: true },
               orderBy: { createdAt: "desc" },
               take: 1,
             },
@@ -61,10 +68,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       },
     });
 
-    const nextCursor = runs.length > q.limit ? runs.pop()!.id : null;
+    const hasMore = runs.length > q.limit;
+    if (hasMore) runs.pop(); // drop the lookahead row; it is not part of this page
+    const nextCursor = hasMore ? runs.at(-1)!.id : null;
 
     const data = runs.map((run) => {
-      const payouts = run.payouts as PayoutForSerialize[];
+      const payouts = run.payouts as PayoutStatusInput[];
       return {
         id: run.id,
         status: run.status,

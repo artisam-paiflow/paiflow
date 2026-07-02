@@ -88,12 +88,18 @@ export const RunDetailResponseSchema = z.object({
 export type RunListResponse = z.infer<typeof RunListResponseSchema>;
 export type RunDetailResponse = z.infer<typeof RunDetailResponseSchema>;
 
+/** Minimal shape needed to derive a payout's status. */
+export type PayoutStatusInput = {
+  txHash: string | null;
+  employee: { payoutMode: EmployeePayoutMode };
+  offRampJobs: { status: OffRampPayoutJobStatus }[];
+};
+
 /** Minimal shape needed to serialize a payout row. */
-export type PayoutForSerialize = {
+export type PayoutForSerialize = PayoutStatusInput & {
   id: string;
   employeeId: string;
   amountStroops: string;
-  txHash: string | null;
   employee: { label: string | null; address: string; payoutMode: EmployeePayoutMode };
   offRampJobs: {
     status: OffRampPayoutJobStatus;
@@ -119,7 +125,7 @@ export function serializePayout(payout: PayoutForSerialize): z.infer<typeof RunP
 }
 
 /** Count payouts whose derived status is COMPLETED. */
-export function countCompletedPayouts(payouts: PayoutForSerialize[]): number {
+export function countCompletedPayouts(payouts: PayoutStatusInput[]): number {
   return payouts.reduce(
     (n, p) =>
       n +

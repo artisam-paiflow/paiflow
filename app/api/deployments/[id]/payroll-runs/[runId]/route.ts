@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import {
   RunDetailResponseSchema,
   serializePayout,
@@ -23,11 +24,20 @@ export async function GET(
 ) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
+
+    const rlKey = user
+      ? `payroll-runs-detail:${user.id}`
+      : `payroll-runs-detail:machine:${clientIp(req)}`;
+    const rl = await rateLimit(rlKey, 60, 60);
+    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many payroll run detail requests");
+
     const { id, runId } = await ctx.params;
     if (!isUuid(id)) throw new AppError("NOT_FOUND", "Deployment not found");
     if (!isUuid(runId)) throw new AppError("NOT_FOUND", "Payroll run not found");
 
     const deployment = await db.deployment.findFirst({
+      // Machine callers authenticated via x-dev-api-secret are trusted to access
+      // any deployment; this matches the trust model of payroll-record-run.
       where: user ? { id, ownerId: user.id } : { id },
       select: { id: true },
     });
