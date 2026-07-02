@@ -166,8 +166,12 @@ export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionU
  * shared `x-dev-api-secret` because it carries no owner. The caller presents the
  * token in the `x-dev-api-secret` header (or `Authorization: Bearer <token>`);
  * we match its SHA-256 hash against an active `DevApiToken` row and return the
- * mapped user. A logged-in session is accepted as a fallback so the endpoint is
- * still reachable from the app.
+ * mapped user.
+ *
+ * This is token-only auth: there is no interactive-session fallback. The route
+ * it guards signs and submits a relayer-funded on-chain deploy, so it must not
+ * be reachable by an arbitrary logged-in user — only by a caller holding a
+ * minted `DevApiToken` (see scripts/create-dev-api-token.ts).
  */
 export async function requireDevApiToken(req: NextRequest): Promise<SessionUser> {
   const raw =
@@ -190,8 +194,7 @@ export async function requireDevApiToken(req: NextRequest): Promise<SessionUser>
     }
   }
 
-  // Fall back to an interactive session (e.g. calling from the app UI).
-  return requireSession();
+  throw new AppError("UNAUTHENTICATED", "A valid developer API token is required");
 }
 
 export async function requireSession(opts?: { role?: Role }): Promise<SessionUser> {
