@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -7,6 +8,10 @@ import {
   serializePayout,
   type PayoutForSerialize,
 } from "@/lib/payroll/run-serialize";
+
+/** A malformed (non-UUID) path segment can't match any row; treat it as
+ * not-found rather than letting it reach Prisma and surface as a generic 500. */
+const isUuid = (v: string) => z.string().uuid().safeParse(v).success;
 
 /**
  * Return a single payroll run with its per-payout status, including off-ramp
@@ -19,6 +24,8 @@ export async function GET(
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
     const { id, runId } = await ctx.params;
+    if (!isUuid(id)) throw new AppError("NOT_FOUND", "Deployment not found");
+    if (!isUuid(runId)) throw new AppError("NOT_FOUND", "Payroll run not found");
 
     const deployment = await db.deployment.findFirst({
       where: user ? { id, ownerId: user.id } : { id },

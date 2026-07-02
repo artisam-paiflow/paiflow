@@ -19,6 +19,10 @@ vi.mock("@/lib/auth", () => ({ requireDevAuth: vi.fn(async () => ({ user: null }
 import { GET as listGET } from "@/app/api/deployments/[id]/payroll-runs/route";
 import { GET as detailGET } from "@/app/api/deployments/[id]/payroll-runs/[runId]/route";
 
+// Path params are UUID-validated by the routes, so tests must use real UUIDs.
+const DEP_ID = "11111111-1111-1111-1111-111111111111";
+const RUN_ID = "22222222-2222-2222-2222-222222222222";
+
 function makeRequest(url: string, secret = "dev-secret") {
   return {
     url,
@@ -40,22 +44,28 @@ function payout(overrides: Partial<PayoutForSerialize> = {}): PayoutForSerialize
 
 describe("derivePayoutStatus", () => {
   it("is PENDING without a charge tx", () => {
-    expect(derivePayoutStatus(null, null)).toBe("PENDING");
-    expect(derivePayoutStatus(null, "COMPLETED")).toBe("PENDING");
+    expect(derivePayoutStatus("CRYPTO", null, null)).toBe("PENDING");
+    expect(derivePayoutStatus("FIAT", null, "COMPLETED")).toBe("PENDING");
   });
 
   it("is COMPLETED for a pure-crypto payout with a tx", () => {
-    expect(derivePayoutStatus("tx", null)).toBe("COMPLETED");
+    expect(derivePayoutStatus("CRYPTO", "tx", null)).toBe("COMPLETED");
+  });
+
+  it("is SENT (not COMPLETED) for a FIAT payout charged but with no off-ramp job yet", () => {
+    // Job creation is best-effort and can be skipped/swallowed; the fiat leg
+    // is what completes the payout, so it must never read COMPLETED here.
+    expect(derivePayoutStatus("FIAT", "tx", null)).toBe("SENT");
   });
 
   it("mirrors the off-ramp job lifecycle", () => {
-    expect(derivePayoutStatus("tx", "PENDING")).toBe("SENT");
-    expect(derivePayoutStatus("tx", "RUNNING")).toBe("SENT");
-    expect(derivePayoutStatus("tx", "QUOTED")).toBe("SENT");
-    expect(derivePayoutStatus("tx", "INITIATED")).toBe("SENT");
-    expect(derivePayoutStatus("tx", "COMPLETED")).toBe("COMPLETED");
-    expect(derivePayoutStatus("tx", "FAILED")).toBe("FAILED");
-    expect(derivePayoutStatus("tx", "CANCELLED")).toBe("FAILED");
+    expect(derivePayoutStatus("FIAT", "tx", "PENDING")).toBe("SENT");
+    expect(derivePayoutStatus("FIAT", "tx", "RUNNING")).toBe("SENT");
+    expect(derivePayoutStatus("FIAT", "tx", "QUOTED")).toBe("SENT");
+    expect(derivePayoutStatus("FIAT", "tx", "INITIATED")).toBe("SENT");
+    expect(derivePayoutStatus("FIAT", "tx", "COMPLETED")).toBe("COMPLETED");
+    expect(derivePayoutStatus("FIAT", "tx", "FAILED")).toBe("FAILED");
+    expect(derivePayoutStatus("FIAT", "tx", "CANCELLED")).toBe("FAILED");
   });
 });
 
@@ -67,6 +77,11 @@ describe("countCompletedPayouts", () => {
       payout({
         txHash: "tx",
         offRampJobs: [{ status: "FAILED", lastError: "x", completedAt: null }],
+      }),
+      payout({
+        // FIAT charged but no off-ramp job → SENT, not counted
+        txHash: "tx",
+        employee: { label: "Fi", address: "GFIAT", payoutMode: "FIAT" },
       }),
     ];
     expect(countCompletedPayouts(payouts)).toBe(1);
@@ -100,8 +115,8 @@ describe("GET payroll-runs (list)", () => {
     // limit defaults to 20; return 2 runs (< limit) → no nextCursor
     mockDb.payrollRun.findMany.mockResolvedValue([makeRun("r1"), makeRun("r2")]);
 
-    const res = await listGET(makeRequest("https://x/api/deployments/dep-1/payroll-runs"), {
-      params: Promise.resolve({ id: "dep-1" }),
+    const res = await listGET(makeRequest(`https://x/api/deployments/${DEP_ID}/payroll-runs`), {
+      params: Promise.resolve({ id: DEP_ID }),
     });
     const json = await res.json();
 
@@ -132,9 +147,12 @@ describe("GET payroll-runs (list)", () => {
     }));
     mockDb.payrollRun.findMany.mockResolvedValue(rows);
 
-    const res = await listGET(makeRequest("https://x/api/deployments/dep-1/payroll-runs?limit=2"), {
-      params: Promise.resolve({ id: "dep-1" }),
-    });
+    const res = await listGET(
+      makeRequest(`https://x/api/deployments/${DEP_ID}/payroll-runs?limit=2`),
+      {
+        params: Promise.resolve({ id: DEP_ID }),
+      },
+    );
     const json = await res.json();
 
     expect(json.data).toHaveLength(2);
@@ -143,10 +161,18 @@ describe("GET payroll-runs (list)", () => {
 
   it("404s when the deployment is not found", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(null);
-    const res = await listGET(makeRequest("https://x/api/deployments/nope/payroll-runs"), {
-      params: Promise.resolve({ id: "nope" }),
+    const res = await listGET(makeRequest(`https://x/api/deployments/${DEP_ID}/payroll-runs`), {
+      params: Promise.resolve({ id: DEP_ID }),
     });
     expect(res.status).toBe(404);
+  });
+
+  it("404s on a malformed (non-UUID) deployment id without touching the db", async () => {
+    const res = await listGET(makeRequest("https://x/api/deployments/not-a-uuid/payroll-runs"), {
+      params: Promise.resolve({ id: "not-a-uuid" }),
+    });
+    expect(res.status).toBe(404);
+    expect(mockDb.deployment.findFirst).not.toHaveBeenCalled();
   });
 });
 
@@ -181,9 +207,12 @@ describe("GET payroll-runs/:runId (detail)", () => {
       ],
     });
 
-    const res = await detailGET(makeRequest("https://x/api/deployments/dep-1/payroll-runs/run-1"), {
-      params: Promise.resolve({ id: "dep-1", runId: "run-1" }),
-    });
+    const res = await detailGET(
+      makeRequest(`https://x/api/deployments/${DEP_ID}/payroll-runs/${RUN_ID}`),
+      {
+        params: Promise.resolve({ id: DEP_ID, runId: RUN_ID }),
+      },
+    );
     const json = await res.json();
 
     expect(json.id).toBe("run-1");
@@ -205,12 +234,28 @@ describe("GET payroll-runs/:runId (detail)", () => {
   });
 
   it("404s when the run does not belong to the deployment", async () => {
-    mockDb.deployment.findFirst.mockResolvedValue({ id: "dep-1" });
+    mockDb.deployment.findFirst.mockResolvedValue({ id: DEP_ID });
     mockDb.payrollRun.findFirst.mockResolvedValue(null);
 
-    const res = await detailGET(makeRequest("https://x/api/deployments/dep-1/payroll-runs/other"), {
-      params: Promise.resolve({ id: "dep-1", runId: "other" }),
-    });
+    const res = await detailGET(
+      makeRequest(
+        `https://x/api/deployments/${DEP_ID}/payroll-runs/33333333-3333-3333-3333-333333333333`,
+      ),
+      {
+        params: Promise.resolve({ id: DEP_ID, runId: "33333333-3333-3333-3333-333333333333" }),
+      },
+    );
     expect(res.status).toBe(404);
+  });
+
+  it("404s on a malformed (non-UUID) runId without touching the db", async () => {
+    const res = await detailGET(
+      makeRequest(`https://x/api/deployments/${DEP_ID}/payroll-runs/not-a-uuid`),
+      {
+        params: Promise.resolve({ id: DEP_ID, runId: "not-a-uuid" }),
+      },
+    );
+    expect(res.status).toBe(404);
+    expect(mockDb.deployment.findFirst).not.toHaveBeenCalled();
   });
 });

@@ -14,18 +14,26 @@ export type PayoutStatus = "PENDING" | "SENT" | "COMPLETED" | "FAILED";
 const OFFRAMP_TERMINAL_FAIL: ReadonlySet<OffRampPayoutJobStatus> = new Set(["FAILED", "CANCELLED"]);
 
 /**
- * Derive a payout's status from its on-chain charge tx and off-ramp job.
+ * Derive a payout's status from its payout mode, on-chain charge tx, and
+ * off-ramp job.
  *
  * - No charge tx yet → PENDING.
  * - Off-ramp job present → mirror its lifecycle (crypto is sent, fiat pending).
- * - No off-ramp job (pure crypto) → COMPLETED once the charge tx exists.
+ * - No off-ramp job:
+ *   - CRYPTO → COMPLETED (the charge tx is the whole payout).
+ *   - FIAT → SENT, not COMPLETED. A FIAT payout can be charged on-chain but
+ *     have no off-ramp job yet — job creation is best-effort and swallows
+ *     failures, and a deployment may have `offRampEnabled = false`. The fiat
+ *     leg is what completes the payout, so without a completed job it is still
+ *     in flight, never done.
  */
 export function derivePayoutStatus(
+  mode: EmployeePayoutMode,
   txHash: string | null,
   offRampJobStatus: OffRampPayoutJobStatus | null,
 ): PayoutStatus {
   if (!txHash) return "PENDING";
-  if (offRampJobStatus === null) return "COMPLETED";
+  if (offRampJobStatus === null) return mode === "FIAT" ? "SENT" : "COMPLETED";
   if (offRampJobStatus === "COMPLETED") return "COMPLETED";
   if (OFFRAMP_TERMINAL_FAIL.has(offRampJobStatus)) return "FAILED";
   return "SENT";
@@ -102,7 +110,7 @@ export function serializePayout(payout: PayoutForSerialize): z.infer<typeof RunP
     employeeLabel: payout.employee.label ?? payout.employee.address,
     amountStroops: payout.amountStroops,
     mode: payout.employee.payoutMode,
-    status: derivePayoutStatus(payout.txHash, job?.status ?? null),
+    status: derivePayoutStatus(payout.employee.payoutMode, payout.txHash, job?.status ?? null),
     txHash: payout.txHash,
     completedAt: job?.completedAt?.toISOString() ?? null,
     offRampJobStatus: job?.status ?? null,
@@ -114,7 +122,11 @@ export function serializePayout(payout: PayoutForSerialize): z.infer<typeof RunP
 export function countCompletedPayouts(payouts: PayoutForSerialize[]): number {
   return payouts.reduce(
     (n, p) =>
-      n + (derivePayoutStatus(p.txHash, p.offRampJobs[0]?.status ?? null) === "COMPLETED" ? 1 : 0),
+      n +
+      (derivePayoutStatus(p.employee.payoutMode, p.txHash, p.offRampJobs[0]?.status ?? null) ===
+      "COMPLETED"
+        ? 1
+        : 0),
     0,
   );
 }

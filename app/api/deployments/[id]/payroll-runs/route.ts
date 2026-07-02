@@ -14,6 +14,10 @@ const Query = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+/** A malformed (non-UUID) id can't match any row; treat it as not-found rather
+ * than letting it reach Prisma and surface as a generic 500. */
+const isUuid = (v: string) => z.string().uuid().safeParse(v).success;
+
 /**
  * List a deployment's payroll runs, newest first, with per-run payout counts.
  *
@@ -24,6 +28,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
+    if (!isUuid(id)) throw new AppError("NOT_FOUND", "Deployment not found");
 
     const deployment = await db.deployment.findFirst({
       where: user ? { id, ownerId: user.id } : { id },
