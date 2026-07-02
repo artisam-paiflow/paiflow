@@ -60,12 +60,17 @@ export const AssetSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("custom"),
-    // Stellar asset codes are 1-12 alphanumeric ASCII chars. Enforce it here so
-    // bad input fails as a clean validation error instead of an opaque 500 deep
-    // in contract-arg building.
+    // Stellar asset codes are 1-12 alphanumeric ASCII chars. Normalize on parse
+    // so older saved flows with non-alphanumeric codes load instead of crashing,
+    // while still rejecting codes that contain no usable characters.
     code: z
       .string()
-      .regex(/^[A-Za-z0-9]{1,12}$/, "Asset code must be 1-12 alphanumeric characters"),
+      .max(12, "Asset code must be 12 characters or fewer")
+      .transform((code) => code.replace(/[^A-Za-z0-9]/g, "").slice(0, 12))
+      .refine(
+        (code) => code.length >= 1,
+        "Asset code must contain at least one alphanumeric character",
+      ),
     issuer: z.string().refine((s) => validAddress(s), "Invalid issuer"),
   }),
 ]);

@@ -118,12 +118,47 @@ export type PreparedPipelineDeploy = {
   }>;
 };
 
-/** Build & simulate a pipeline deployment tx via the on-chain factory. */
-export async function preparePipelineDeployTx(opts: {
-  sourceAccount: string;
-  graph: FlowGraph;
-  nodes: PipelineDeployNode[];
-}): Promise<PreparedPipelineDeploy> {
+type PipelinePlan = {
+  nodes: Array<{
+    nodeId: string;
+    templateKind: string;
+    wasmHash: string;
+    params: PipelineNodeParams;
+    salt: Buffer;
+    contractAddress: string;
+  }>;
+  parentByNode: Map<string, string>;
+  nodeAddresses: Record<string, string>;
+};
+
+function buildPipelinePlan(
+  sourceAccount: string,
+  graph: FlowGraph,
+  nodes: PipelineDeployNode[],
+): PipelinePlan {
+  const pipeline = nodes.map((n) => {
+    const salt = randomBytes(32);
+    const contractAddress = computeContractAddress(sourceAccount, salt);
+    return { ...n, salt, contractAddress };
+  });
+
+  const nodeAddresses: Record<string, string> = {};
+  for (const p of pipeline) {
+    nodeAddresses[p.nodeId] = p.contractAddress;
+  }
+
+  const parentByNode = new Map<string, string>();
+  for (const e of graph.edges) {
+    parentByNode.set(e.target, e.source);
+  }
+
+  return { nodes: pipeline, parentByNode, nodeAddresses };
+}
+
+async function preparePipelineDeployTxFromPlan(
+  sourceAccount: string,
+  plan: PipelinePlan,
+): Promise<PreparedPipelineDeploy> {
   const server = sorobanRpc();
   const factoryAddress = stellarFactoryAddress();
   if (!factoryAddress) {
@@ -133,40 +168,21 @@ export async function preparePipelineDeployTx(opts: {
     );
   }
 
-  const sourceAcct = await server.getAccount(opts.sourceAccount);
+  const sourceAcct = await server.getAccount(sourceAccount);
 
-  // 1. Generate salts & compute deterministic addresses for every node.
-  const pipeline = opts.nodes.map((n) => {
-    const salt = randomBytes(32);
-    const contractAddress = computeContractAddress(opts.sourceAccount, salt);
-    return { ...n, salt, contractAddress };
-  });
-
-  const nodeAddresses: Record<string, string> = {};
-  for (const p of pipeline) {
-    nodeAddresses[p.nodeId] = p.contractAddress;
-  }
-
-  // 2. Determine parent relationships from the graph edges.
-  const parentByNode = new Map<string, string>();
-  for (const e of opts.graph.edges) {
-    parentByNode.set(e.target, e.source);
-  }
-
-  // 3. Build NodeBlueprint SCVals for each node.
   const blueprintVals: xdr.ScVal[] = [];
-  for (const p of pipeline) {
+  for (const p of plan.nodes) {
     const parentNodeId =
-      parentByNode.get(p.nodeId) ??
+      plan.parentByNode.get(p.nodeId) ??
       (p.params.kind === "cash_out_dev" || p.params.kind === "cash_out"
         ? p.params.parentNodeId
         : undefined);
     let parentAddress: string | undefined;
-    if (parentNodeId && nodeAddresses[parentNodeId]) {
-      parentAddress = nodeAddresses[parentNodeId];
+    if (parentNodeId && plan.nodeAddresses[parentNodeId]) {
+      parentAddress = plan.nodeAddresses[parentNodeId];
     } else if (p.params.kind !== "deposit_trigger") {
       // Standalone contracts (e.g. streamer with on_schedule) use admin as parent.
-      parentAddress = opts.sourceAccount;
+      parentAddress = sourceAccount;
     }
 
     // Inject the global relayer address into timelock nodes so the backend
@@ -176,25 +192,24 @@ export async function preparePipelineDeployTx(opts: {
     if (params.kind === "timelock") {
       params = {
         ...params,
-        relayer: stellarRelayerAddress() ?? opts.sourceAccount,
+        relayer: stellarRelayerAddress() ?? sourceAccount,
       };
     }
 
     const args = pipelineNodeConstructorArgs(
       params,
-      opts.sourceAccount,
+      sourceAccount,
       parentAddress,
-      nodeAddresses,
+      plan.nodeAddresses,
     );
 
     blueprintVals.push(nodeBlueprint(p.wasmHash, p.salt, args));
   }
 
-  // 4. Build a single factory invocation.
   const op = Operation.invokeContractFunction({
     contract: factoryAddress,
     function: "deploy_pipeline",
-    args: [new Address(opts.sourceAccount).toScVal(), xdr.ScVal.scvVec(blueprintVals)],
+    args: [new Address(sourceAccount).toScVal(), xdr.ScVal.scvVec(blueprintVals)],
   });
 
   const tx = new TransactionBuilder(sourceAcct, {
@@ -205,7 +220,6 @@ export async function preparePipelineDeployTx(opts: {
     .setTimeout(180)
     .build();
 
-  // 5. Simulate the single-op transaction.
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
     throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
@@ -214,13 +228,23 @@ export async function preparePipelineDeployTx(opts: {
 
   return {
     xdr: assembled.toXDR(),
-    pipeline: pipeline.map((p) => ({
+    pipeline: plan.nodes.map((p) => ({
       nodeId: p.nodeId,
       contractAddress: p.contractAddress,
       salt: p.salt,
       templateKind: p.templateKind,
     })),
   };
+}
+
+/** Build & simulate a pipeline deployment tx via the on-chain factory. */
+export async function preparePipelineDeployTx(opts: {
+  sourceAccount: string;
+  graph: FlowGraph;
+  nodes: PipelineDeployNode[];
+}): Promise<PreparedPipelineDeploy> {
+  const plan = buildPipelinePlan(opts.sourceAccount, opts.graph, opts.nodes);
+  return preparePipelineDeployTxFromPlan(opts.sourceAccount, plan);
 }
 
 function computeContractAddress(sourceAccount: string, salt: Buffer): string {
@@ -304,10 +328,26 @@ export async function deployPipelineByRelayer(opts: {
   nodes: PipelineDeployNode[];
 }): Promise<RelayerPipelineDeployResult> {
   const secret = stellarRelayerSecretKey();
-  if (!secret) {
-    throw new AppError("INTERNAL", "STELLAR_RELAYER_SECRET_KEY is not configured");
+  const relayerAddress = stellarRelayerAddress();
+  if (!secret || !relayerAddress) {
+    throw new AppError(
+      "INTERNAL",
+      "STELLAR_RELAYER_ADDRESS / STELLAR_RELAYER_SECRET_KEY must be configured",
+    );
   }
+
   const relayerKeypair = Keypair.fromSecret(secret);
+  if (relayerKeypair.publicKey() !== relayerAddress) {
+    throw new AppError(
+      "INTERNAL",
+      "STELLAR_RELAYER_SECRET_KEY does not match STELLAR_RELAYER_ADDRESS",
+    );
+  }
+
+  // Build the deterministic part of the pipeline (salts, contract addresses,
+  // parent mapping) outside the global relayer lock so the queued closure does
+  // not retain the request-scoped graph or the relayer keypair.
+  const plan = buildPipelinePlan(relayerAddress, opts.graph, opts.nodes);
 
   // Serialize the relayer's sequence-number lifecycle (fetch → sign → submit)
   // against every other relayer-signing path (auto-charge crons, auto-release,
@@ -315,14 +355,10 @@ export async function deployPipelineByRelayer(opts: {
   // — or a deploy racing a cron — reuse the same sequence number and one gets
   // txBadSeq.
   return withRelayerLock(async () => {
-    const prepared = await preparePipelineDeployTx({
-      sourceAccount: relayerKeypair.publicKey(),
-      graph: opts.graph,
-      nodes: opts.nodes,
-    });
+    const prepared = await preparePipelineDeployTxFromPlan(relayerAddress, plan);
 
     const tx = TransactionBuilder.fromXDR(prepared.xdr, stellarPassphrase());
-    tx.sign(relayerKeypair);
+    tx.sign(Keypair.fromSecret(secret));
 
     const result = await submitDeployTx(tx.toXDR());
     return { ...result, pipeline: prepared.pipeline };

@@ -157,7 +157,17 @@ export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionU
   if (secret && req.headers.get("x-dev-api-secret") === secret) {
     return { user: null };
   }
-  return { user: await requireSession() };
+
+  // Per-developer machine tokens also grant access to dev endpoints; they carry
+  // an owner, unlike the shared secret above.
+  try {
+    return { user: await requireDevApiToken(req) };
+  } catch (err) {
+    if (err instanceof AppError && err.code === "UNAUTHENTICATED") {
+      return { user: await requireSession() };
+    }
+    throw err;
+  }
 }
 
 /**

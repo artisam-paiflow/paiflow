@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { StrKey } from "@stellar/stellar-sdk";
+import { StrKey, Keypair } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
 import { requireDevApiToken } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -22,6 +22,10 @@ import { ChargeRelayerMode, TemplateKind } from "@prisma/client";
 // expire on its own. Recipients and any real end date are configured later via
 // POST /api/deployments/:id/dev-splitter and friends.
 const TEN_YEARS_SECONDS = 60 * 60 * 24 * 365 * 10;
+// If a BUILDING row is older than this we assume the previous deploy worker
+// crashed before any on-chain success and allow a retry with the same
+// idempotency key.
+const BUILDING_TIMEOUT_MS = 5 * 60 * 1000;
 
 const BodySchema = z.object({
   // Required client-supplied key that makes this deploy idempotent per owner. A
@@ -128,20 +132,41 @@ export async function POST(req: NextRequest) {
     // deployment (whatever its status) instead of deploying a second,
     // independent set of contracts. To re-attempt a genuinely FAILED deploy,
     // the caller must supply a new idempotency key.
+    // A stale BUILDING row means a previous worker crashed before any on-chain
+    // success; recover by deleting it and its orphan flow so this request can
+    // safely retry with the same key.
     const existing = await db.deployment.findUnique({
       where: {
         ownerId_idempotencyKey: { ownerId: user.id, idempotencyKey: body.idempotencyKey },
       },
     });
     if (existing) {
-      return NextResponse.json({ data: deploymentResponse(existing) });
+      if (
+        existing.status === "BUILDING" &&
+        Date.now() - existing.createdAt.getTime() > BUILDING_TIMEOUT_MS
+      ) {
+        await db.$transaction([
+          db.deployment.delete({ where: { id: existing.id } }),
+          db.flow.delete({ where: { id: existing.flowId } }),
+        ]);
+      } else {
+        return NextResponse.json({ data: deploymentResponse(existing) });
+      }
     }
 
     const relayerAddress = stellarRelayerAddress();
-    if (!relayerAddress || !stellarRelayerSecretKey()) {
+    const relayerSecret = stellarRelayerSecretKey();
+    if (!relayerAddress || !relayerSecret) {
       throw new AppError(
         "INTERNAL",
         "STELLAR_RELAYER_ADDRESS / STELLAR_RELAYER_SECRET_KEY must be configured to deploy dev-payroll flows.",
+      );
+    }
+    const relayerKeypair = Keypair.fromSecret(relayerSecret);
+    if (relayerKeypair.publicKey() !== relayerAddress) {
+      throw new AppError(
+        "INTERNAL",
+        "STELLAR_RELAYER_SECRET_KEY does not match STELLAR_RELAYER_ADDRESS",
       );
     }
 
@@ -212,39 +237,38 @@ export async function POST(req: NextRequest) {
     // The relayer is the fee payer / deployer; make sure it can pay.
     await checkAccountFunding(relayerAddress);
 
-    // Persist a Flow (owner = mapped token user) so the deployment satisfies its
-    // required foreign keys and the auto-charge cron (which filters on
-    // templateKind = PAYROLL) picks it up.
-    const flow = await db.flow.create({
-      data: {
-        ownerId: user.id,
-        name: body.label ?? "Dev payroll",
-        templateKind: TemplateKind.PAYROLL,
-        graph: graph as object,
-        parameters: {},
-      },
-    });
-
-    // Claim the idempotency key by creating the row before any on-chain work.
-    // If a concurrent request with the same key already won the unique index,
-    // drop this orphan flow and replay the winner — no second deploy happens.
+    // Create the Flow + Deployment atomically so a DB failure never leaves an
+    // orphan Flow. If a concurrent request with the same idempotency key won the
+    // unique index, the transaction rolls back and we replay the winner — no
+    // second deploy happens.
     let deployment: Awaited<ReturnType<typeof db.deployment.create>>;
     try {
-      deployment = await db.deployment.create({
-        data: {
-          flowId: flow.id,
-          ownerId: user.id,
-          network,
-          status: "BUILDING",
-          graphSnapshot: graph as object,
-          paramsSnapshot: pipeline as object,
-          sourceAccount: body.sourceAccount,
-          idempotencyKey: body.idempotencyKey,
-        },
+      [, deployment] = await db.$transaction(async (tx) => {
+        const flow = await tx.flow.create({
+          data: {
+            ownerId: user.id,
+            name: body.label ?? "Dev payroll",
+            templateKind: TemplateKind.PAYROLL,
+            graph: graph as object,
+            parameters: {},
+          },
+        });
+        const d = await tx.deployment.create({
+          data: {
+            flowId: flow.id,
+            ownerId: user.id,
+            network,
+            status: "BUILDING",
+            graphSnapshot: graph as object,
+            paramsSnapshot: pipeline as object,
+            sourceAccount: body.sourceAccount,
+            idempotencyKey: body.idempotencyKey,
+          },
+        });
+        return [flow, d] as const;
       });
     } catch (err) {
       if ((err as { code?: string }).code === "P2002") {
-        await db.flow.delete({ where: { id: flow.id } }).catch(() => {});
         const winner = await db.deployment.findUnique({
           where: {
             ownerId_idempotencyKey: { ownerId: user.id, idempotencyKey: body.idempotencyKey },
@@ -324,6 +348,7 @@ export async function POST(req: NextRequest) {
             status: "CONFIRMED",
             deployTxHash: result.txHash,
             contractAddress: subscriptionNode?.contractAddress ?? null,
+            pipelineSnapshot: result.pipeline as object,
           },
         })
         .catch(() => {});
