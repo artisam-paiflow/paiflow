@@ -184,7 +184,7 @@ describe("payroll-record-run", () => {
     expect(mockDb.payrollRun.create).not.toHaveBeenCalled();
   });
 
-  it("returns offRampError when job creation fails without failing the run", async () => {
+  it("rolls back the run when off-ramp job creation fails", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
     mockDb.payrollRun.findUnique.mockResolvedValue(null);
     mockRelayer.readSplitterDevRecipients.mockResolvedValue([
@@ -201,9 +201,8 @@ describe("payroll-record-run", () => {
     const res = await POST(req, makeContext("dep-1"));
     const json = await res.json();
 
-    expect(res.status).toBe(200);
-    expect(json.data.payrollRunId).toBe("run-3");
-    expect(json.data.offRampJobIds).toEqual([]);
-    expect(json.data.offRampError).toBe("PDAX not configured");
+    expect(res.status).toBe(500);
+    expect(json.error).toBeDefined();
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
   });
 });

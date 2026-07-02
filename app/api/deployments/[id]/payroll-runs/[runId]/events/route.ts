@@ -32,7 +32,7 @@ export async function GET(
 
     const q = FeedQuerySchema.parse(Object.fromEntries(new URL(req.url).searchParams));
 
-    const events = await loadPayrollEvents(deployment.id, run.id);
+    const events = await loadPayrollEvents(deployment.id, run.id, q.limit, q.cursor);
 
     let page;
     try {

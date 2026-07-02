@@ -137,10 +137,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const employeeByWallet = new Map(existingEmployees.map((e) => [e.address, e]));
 
     let offRampJobIds: string[] = [];
-    let offRampError: string | undefined;
 
     // Create payouts and off-ramp jobs in one transaction so the event feed
     // never observes a fiat payout with a txHash but no linked off-ramp job.
+    // If off-ramp job creation fails, the whole transaction rolls back rather
+    // than leaving a partial set of fiat payouts without jobs.
     await db.$transaction(
       async (tx) => {
         for (const r of recipientRows) {
@@ -170,12 +171,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         }
 
         if (d.offRampEnabled) {
-          try {
-            offRampJobIds = await createOffRampJobsForPayrollRun(tx, run.id);
-          } catch (offRampErr) {
-            const message = offRampErr instanceof Error ? offRampErr.message : String(offRampErr);
-            offRampError = message;
-          }
+          offRampJobIds = await createOffRampJobsForPayrollRun(tx, run.id);
         }
       },
       { maxWait: 5000, timeout: 30000 },
@@ -192,7 +188,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         payrollRunId: run.id,
         payoutCount: recipientRows.length,
         offRampJobIds,
-        ...(offRampError ? { offRampError } : {}),
       },
     });
   });

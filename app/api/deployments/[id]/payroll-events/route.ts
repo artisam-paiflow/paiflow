@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     const q = FeedQuerySchema.parse(Object.fromEntries(new URL(req.url).searchParams));
 
-    const events = await loadPayrollEvents(deployment.id);
+    const events = await loadPayrollEvents(deployment.id, undefined, q.limit, q.cursor);
 
     let page;
     try {

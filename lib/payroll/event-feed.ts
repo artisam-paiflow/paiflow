@@ -354,7 +354,7 @@ export function encodeCursor(event: PayrollEvent): string {
   return Buffer.from(`${event.occurredAt.toISOString()}|${event.id}`, "utf8").toString("base64url");
 }
 
-function decodeCursor(cursor: string): { time: number; id: string } | null {
+export function decodeCursor(cursor: string): { time: number; id: string } | null {
   try {
     const raw = Buffer.from(cursor, "base64url").toString("utf8");
     const sep = raw.lastIndexOf("|");
