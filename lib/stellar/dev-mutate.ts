@@ -4,6 +4,7 @@ import {
   Address,
   Asset,
   BASE_FEE,
+  Horizon,
   Keypair,
   Memo,
   Operation,
@@ -13,7 +14,7 @@ import {
   scValToNative,
   xdr,
 } from "@stellar/stellar-sdk";
-import { horizon, sorobanRpc, withRelayerLock } from "./client";
+import { horizon, sorobanRpc, withRelayerLock } from "@/lib/stellar/client";
 import {
   offRampTreasuryAddress,
   stellarPassphrase,
@@ -40,6 +41,18 @@ export type DevRecipient = {
 
 export type DevMutateResult = {
   status: "SUCCESS" | "FAILED";
+  txHash: string;
+  errorMessage?: string;
+};
+
+/**
+ * Result of depositing native XLM to a provider. The `UNKNOWN` status is used
+ * when Horizon's submit call threw (timeout, connection reset, proxy error)
+ * and we cannot confirm whether the transaction landed. Callers must NOT
+ * retry or refund blindly on UNKNOWN — the funds may have already left.
+ */
+export type NativeDepositResult = {
+  status: "SUCCESS" | "FAILED" | "UNKNOWN";
   txHash: string;
   errorMessage?: string;
 };
@@ -528,57 +541,111 @@ function parseMemoId(memo: string): string {
 }
 
 /**
+ * Poll Horizon for a transaction by hash, with a short deadline to give the
+ * ledger time to ingest a tx that was accepted around the same time a submit
+ * timeout or network error occurred.
+ */
+async function lookupHorizonTransaction(
+  server: Horizon.Server,
+  txHash: string,
+  maxWaitMs = 10_000,
+): Promise<{ successful: boolean } | null> {
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    try {
+      const record = await server.transactions().transaction(txHash).call();
+      if (record && typeof record.successful === "boolean") {
+        return { successful: record.successful };
+      }
+    } catch {
+      // Transaction may not have been ingested yet, or Horizon returned a
+      // transient error. Keep polling briefly.
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return null;
+}
+
+/**
  * Deposit native XLM from the relayer/treasury account to a provider deposit
  * address with a numeric memo/tag. Used for the native XLM -> PHP off-ramp flow
  * where the provider requires a memo to credit the institutional balance.
+ *
+ * Horizon's submitTransaction can throw (timeout, connection reset, proxy 5xx)
+ * even when the transaction was accepted by the network. When that happens we
+ * look up the built transaction by its hash before returning, so the caller can
+ * distinguish "confirmed failed" from "unknown/possibly succeeded" and avoid
+ * retrying or refunding in the latter case.
  */
 export async function depositNativeToProvider(opts: {
   destination: string;
   memo: string;
   amountStroops: string;
-}): Promise<DevMutateResult> {
+}): Promise<NativeDepositResult> {
   const kp = relayerKeypair();
   const source = kp.publicKey();
   const memoId = parseMemoId(opts.memo);
-
   const server = horizon();
-  const submitResult = await withRelayerLock(async () => {
-    const account = await server.loadAccount(source);
-    const tx = new TransactionBuilder(account, {
-      fee: BASE_FEE,
-      networkPassphrase: stellarPassphrase(),
-    })
-      .addOperation(
-        Operation.payment({
-          destination: opts.destination,
-          asset: Asset.native(),
-          amount: formatStroopsToXlm(opts.amountStroops),
-        }),
-      )
-      .addMemo(Memo.id(memoId))
-      .setTimeout(180)
-      .build();
-    tx.sign(kp);
-    return server.submitTransaction(tx);
-  });
 
-  const txHash = submitResult.hash;
-  if (!submitResult.successful) {
+  let builtTxHash: string | undefined;
+
+  try {
+    const submitResult = await withRelayerLock(async () => {
+      const account = await server.loadAccount(source);
+      const tx = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: stellarPassphrase(),
+      })
+        .addOperation(
+          Operation.payment({
+            destination: opts.destination,
+            asset: Asset.native(),
+            amount: formatStroopsToXlm(opts.amountStroops),
+          }),
+        )
+        .addMemo(Memo.id(memoId))
+        .setTimeout(180)
+        .build();
+      tx.sign(kp);
+      builtTxHash = tx.hash().toString("hex");
+      return server.submitTransaction(tx);
+    });
+
+    if (!submitResult.successful) {
+      return {
+        status: "FAILED",
+        txHash: submitResult.hash,
+        errorMessage: `submitTransaction failed: ${JSON.stringify(submitResult)}`,
+      };
+    }
+    return { status: "SUCCESS", txHash: submitResult.hash };
+  } catch (err) {
+    const txHash = builtTxHash;
+    if (txHash) {
+      // We built and signed the tx, so the error happened at submit time.
+      // Horizon may have accepted the tx even though the client threw (timeout,
+      // connection reset, proxy error), so look it up before giving up.
+      const found = await lookupHorizonTransaction(server, txHash);
+      if (found) {
+        return found.successful
+          ? { status: "SUCCESS", txHash }
+          : { status: "FAILED", txHash, errorMessage: "Transaction failed on the network" };
+      }
+      return {
+        status: "UNKNOWN",
+        txHash,
+        errorMessage: `Deposit submission failed with ambiguous outcome: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+    // Error happened before we built/signed the tx (e.g. loadAccount failed),
+    // so no payment could have been submitted. Report a genuine failure so the
+    // caller can retry or refund as appropriate.
     return {
       status: "FAILED",
-      txHash,
-      errorMessage: `submitTransaction failed: ${JSON.stringify(submitResult)}`,
+      txHash: "",
+      errorMessage: `Deposit preparation failed: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
-
-  // Horizon's submitTransaction blocks until the transaction is applied to a
-  // ledger, so `submitResult.successful` is the authoritative on-chain result.
-  // We deliberately do NOT re-verify via a separate transactions().transaction()
-  // lookup: that lookup only catches transport errors, so Horizon read-lag or a
-  // transient network blip could report FAILED for a deposit that already
-  // succeeded — and the caller would then refund funds that already left the
-  // treasury.
-  return { status: "SUCCESS", txHash };
 }
 
 /**

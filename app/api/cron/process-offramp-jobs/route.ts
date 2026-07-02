@@ -212,9 +212,31 @@ export async function POST(req: NextRequest) {
                   memo: pdax.memo,
                   amountStroops: job.amountStroops,
                 });
+                if (deposit.status === "UNKNOWN") {
+                  // Ambiguous outcome: Horizon submit threw and we could not
+                  // confirm whether the payment landed. Do NOT retry (could
+                  // double-deposit) and do NOT refund (funds may have already
+                  // left). Fail for manual review.
+                  const error = `PDAX XLM deposit outcome unknown; verify tx ${deposit.txHash} before retrying or refunding`;
+                  log.warn({ jobId: job.id, txHash: deposit.txHash }, error);
+                  await rescheduleOffRampJob(db, job.id, {
+                    status: OffRampPayoutJobStatus.FAILED,
+                    lastError: error,
+                  });
+                  results.push({
+                    jobId: job.id,
+                    status: "failed",
+                    error,
+                  });
+                  continue;
+                }
                 if (deposit.status !== "SUCCESS") {
                   throw new Error(`PDAX XLM deposit failed: ${deposit.errorMessage}`);
                 }
+                // Update the in-memory job BEFORE persisting so that a DB write
+                // failure in rescheduleOffRampJob doesn't cause the catch handler
+                // to refund funds that already left for PDAX.
+                job.pdaxDepositTxHash = deposit.txHash;
                 // Persist the deposit tx BEFORE quote/trade so any downstream
                 // failure + retry detects "already deposited" and never
                 // re-deposits or refunds from the treasury.
@@ -222,7 +244,6 @@ export async function POST(req: NextRequest) {
                   status: OffRampPayoutJobStatus.RUNNING,
                   pdaxDepositTxHash: deposit.txHash,
                 });
-                job.pdaxDepositTxHash = deposit.txHash;
                 log.info({ jobId: job.id, txHash: deposit.txHash }, "PDAX XLM deposit confirmed");
               }
             } else {

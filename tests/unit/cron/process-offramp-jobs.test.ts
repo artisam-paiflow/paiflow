@@ -429,6 +429,42 @@ describe("process-offramp-jobs", () => {
     expect(mockDevMutate.refundFromTreasury).not.toHaveBeenCalled();
   });
 
+  it("fails without retry or refund when the PDAX deposit outcome is unknown", async () => {
+    // Horizon submit threw and we could not confirm whether the XLM landed.
+    // The job must be failed for manual review: no retry (could double-deposit)
+    // and no refund (funds may already be at PDAX).
+    const job = {
+      ...baseJob,
+      source: OffRampJobSource.CASH_OUT,
+      sourceAddress: "CCashOut",
+    };
+    mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
+    mockAssets.resolveCashOutAsset.mockReturnValue({ kind: "native" });
+    mockDevMutate.getTreasuryBalance.mockResolvedValue(BigInt(job.amountStroops));
+    mockEnvHelpers.address = "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G";
+    mockEnvHelpers.memo = "3777239912";
+    mockDevMutate.depositNativeToProvider.mockResolvedValue({
+      status: "UNKNOWN",
+      txHash: "dep-tx-ambiguous",
+      errorMessage: "timeout",
+    });
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    expect(json.data.failed).toBe(1);
+    expect(mockProvider.quote).not.toHaveBeenCalled();
+    expect(mockDevMutate.refundFromTreasury).not.toHaveBeenCalled();
+    expect(mockJobs.rescheduleOffRampJob).toHaveBeenCalledWith(
+      mockDb,
+      "job-1",
+      expect.objectContaining({
+        status: OffRampPayoutJobStatus.FAILED,
+        lastError: expect.stringContaining("dep-tx-ambiguous"),
+      }),
+    );
+  });
+
   it("skips a job already claimed by another run", async () => {
     const job = {
       ...baseJob,
