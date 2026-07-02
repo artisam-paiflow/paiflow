@@ -119,7 +119,7 @@ export default function AllowanceClient({
         </div>
 
         <p className="text-label-sm text-on-surface-variant text-center font-mono">
-          <Link href="/" className="hover:text-primary transition-colors">
+          <Link href="/dashboard" className="hover:text-primary transition-colors">
             Back to Paiflow
           </Link>
         </p>
