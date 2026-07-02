@@ -324,6 +324,7 @@ model PayrollRun {
   offRampJobs OffRampPayoutJob[]
 
   @@index([deploymentId, runAt])
+  @@index([deploymentId, createdAt])
   @@index([status, runAt])
 }
 
