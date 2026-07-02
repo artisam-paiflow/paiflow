@@ -189,20 +189,50 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Phase 1 — submit on-chain. A throw here (prepare/sign/network) means no
+    // successful, fee-paying transaction was produced, so it is safe to mark
+    // the row FAILED.
+    let result: Awaited<ReturnType<typeof deployPipelineByRelayer>>;
     try {
-      const result = await deployPipelineByRelayer({ graph, nodes: deployNodes });
-      if (result.status !== "SUCCESS") {
-        throw new AppError("UPSTREAM_RPC", result.errorMessage ?? "Deployment failed on-chain");
-      }
+      result = await deployPipelineByRelayer({ graph, nodes: deployNodes });
+    } catch (err) {
+      await db.deployment
+        .update({
+          where: { id: deployment.id },
+          data: { status: "FAILED", errorMessage: (err as Error).message },
+        })
+        .catch(() => {});
+      throw err;
+    }
 
-      const subscriptionNode = result.pipeline.find(
-        (p) => p.templateKind === TemplateKind.SUBSCRIPTION_DEV,
-      );
-      const splitterNode = result.pipeline.find(
-        (p) => p.templateKind === TemplateKind.SPLITTER_DEV,
-      );
+    // On-chain rejection: the tx was submitted but did not succeed. Record the
+    // attempted hash for reconciliation, then fail.
+    if (result.status !== "SUCCESS") {
+      await db.deployment
+        .update({
+          where: { id: deployment.id },
+          data: {
+            status: "FAILED",
+            deployTxHash: result.txHash || null,
+            errorMessage: result.errorMessage ?? "Deployment failed on-chain",
+          },
+        })
+        .catch(() => {});
+      throw new AppError("UPSTREAM_RPC", result.errorMessage ?? "Deployment failed on-chain");
+    }
 
-      const confirmed = await db.deployment.update({
+    // Phase 2 — the tx SUCCEEDED on-chain and relayer fees were spent; the
+    // contracts are live. From here the deploy must NEVER be recorded as FAILED:
+    // any bookkeeping error below still preserves the successful tx hash and a
+    // CONFIRMED status so the row can be reconciled to the real deployment.
+    const subscriptionNode = result.pipeline.find(
+      (p) => p.templateKind === TemplateKind.SUBSCRIPTION_DEV,
+    );
+    const splitterNode = result.pipeline.find((p) => p.templateKind === TemplateKind.SPLITTER_DEV);
+
+    let confirmed: Awaited<ReturnType<typeof db.deployment.update>>;
+    try {
+      confirmed = await db.deployment.update({
         where: { id: deployment.id },
         data: {
           status: "CONFIRMED",
@@ -218,33 +248,40 @@ export async function POST(req: NextRequest) {
           chargeEndAt: new Date(endTs * 1000),
         },
       });
-
-      await audit({
-        action: "DEPLOY_DEV_PAYROLL",
-        userId: user.id,
-        metadata: { deploymentId: deployment.id, txHash: result.txHash, network },
-      });
-
-      return NextResponse.json({
-        data: {
-          deploymentId: confirmed.id,
-          status: "CONFIRMED" as const,
-          network,
-          subscriptionDevContractAddress: subscriptionNode?.contractAddress ?? null,
-          splitterDevContractAddress: splitterNode?.contractAddress ?? null,
-          createdAt: confirmed.createdAt.toISOString(),
-        },
-      });
     } catch (err) {
-      // Any failure after the row exists marks it FAILED. The success path
-      // returns above and never reaches here.
+      // The full update failed, but the on-chain deploy succeeded. Best-effort
+      // persist just the successful hash + CONFIRMED status so the row never
+      // misrepresents a live deployment as FAILED, then surface the error.
       await db.deployment
         .update({
           where: { id: deployment.id },
-          data: { status: "FAILED", errorMessage: (err as Error).message },
+          data: {
+            status: "CONFIRMED",
+            deployTxHash: result.txHash,
+            contractAddress: subscriptionNode?.contractAddress ?? null,
+          },
         })
         .catch(() => {});
       throw err;
     }
+
+    // Audit is a non-critical trail; a failure here must not mask the successful
+    // deploy or flip the (already CONFIRMED) row.
+    await audit({
+      action: "DEPLOY_DEV_PAYROLL",
+      userId: user.id,
+      metadata: { deploymentId: deployment.id, txHash: result.txHash, network },
+    }).catch(() => {});
+
+    return NextResponse.json({
+      data: {
+        deploymentId: confirmed.id,
+        status: "CONFIRMED" as const,
+        network,
+        subscriptionDevContractAddress: subscriptionNode?.contractAddress ?? null,
+        splitterDevContractAddress: splitterNode?.contractAddress ?? null,
+        createdAt: confirmed.createdAt.toISOString(),
+      },
+    });
   });
 }
