@@ -79,6 +79,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     if (body.schedule) {
       fail("schedule", await updateScheduleByRelayer(addr, body.schedule));
+
+      // Keep the deployment-level cron fields in sync with the on-chain
+      // schedule so the auto-charge cron picks up the deployment at the
+      // right time after a schedule change.
+      const effectiveStartTs = Math.max(body.schedule.startTs, Math.floor(Date.now() / 1000));
+      await db.deployment.update({
+        where: { id },
+        data: {
+          nextChargeAt: new Date(effectiveStartTs * 1000),
+          chargeEndAt: new Date(body.schedule.endTs * 1000),
+        },
+      });
     }
 
     await audit({

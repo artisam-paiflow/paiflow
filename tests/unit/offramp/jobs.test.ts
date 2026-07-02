@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { OffRampJobSource, OffRampPayoutJobStatus } from "@prisma/client";
-import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
+import { createOffRampJobsForPayrollRun, claimOffRampJob } from "@/lib/offramp/jobs";
 
 type MockPayout = {
   id: string;
@@ -233,5 +233,121 @@ describe("createOffRampJobsForPayrollRun", () => {
     await expect(createOffRampJobsForPayrollRun(prisma, "missing-run")).rejects.toThrow(
       "PayrollRun not found: missing-run",
     );
+  });
+});
+
+/**
+ * Models the DB's single-statement atomic CAS: updateMany matches on the exact
+ * (id, status, lockedAt) and mutates the row in one indivisible step. Because
+ * the mock body has no internal await, JS run-to-completion makes each call
+ * apply fully before the next observes it — the same guarantee the real
+ * `UPDATE ... WHERE` gives, so overlapping claimants race realistically.
+ */
+function makeClaimPrisma(initial: {
+  id: string;
+  status: OffRampPayoutJobStatus;
+  lockedAt: Date | null;
+}) {
+  let row = { ...initial };
+  const updateMany = vi.fn(
+    async ({
+      where,
+      data,
+    }: {
+      where: { id: string; status: OffRampPayoutJobStatus; lockedAt?: Date | null };
+      data: { status?: OffRampPayoutJobStatus; lockedAt?: Date | null };
+    }) => {
+      const lockedAtMatches =
+        where.lockedAt === undefined
+          ? true
+          : where.lockedAt === null
+            ? row.lockedAt === null
+            : row.lockedAt?.getTime() === where.lockedAt.getTime();
+      const matches = row.id === where.id && row.status === where.status && lockedAtMatches;
+      if (!matches) return { count: 0 };
+      row = { ...row, ...data };
+      return { count: 1 };
+    },
+  );
+
+  const prisma = {
+    offRampPayoutJob: { updateMany },
+  } as unknown as import("@prisma/client").PrismaClient;
+
+  return { prisma, updateMany, getRow: () => row };
+}
+
+describe("claimOffRampJob", () => {
+  it("claims a PENDING job via a status CAS and stamps lockedAt", async () => {
+    const { prisma, updateMany, getRow } = makeClaimPrisma({
+      id: "job-1",
+      status: OffRampPayoutJobStatus.PENDING,
+      lockedAt: null,
+    });
+
+    const won = await claimOffRampJob(prisma, "job-1", OffRampPayoutJobStatus.PENDING, null);
+
+    expect(won).toBe(true);
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "job-1", status: OffRampPayoutJobStatus.PENDING },
+        data: expect.objectContaining({ status: OffRampPayoutJobStatus.RUNNING }),
+      }),
+    );
+    expect(getRow().status).toBe(OffRampPayoutJobStatus.RUNNING);
+    expect(getRow().lockedAt).toBeInstanceOf(Date);
+  });
+
+  it("loses the PENDING claim once the job already advanced", async () => {
+    const { prisma } = makeClaimPrisma({
+      id: "job-1",
+      status: OffRampPayoutJobStatus.RUNNING, // already claimed by someone else
+      lockedAt: new Date(),
+    });
+
+    const won = await claimOffRampJob(prisma, "job-1", OffRampPayoutJobStatus.PENDING, null);
+
+    expect(won).toBe(false);
+  });
+
+  it("re-claims a stale RUNNING job via an exact-lockedAt CAS", async () => {
+    const stale = new Date(Date.now() - 60 * 60 * 1000);
+    const { prisma, updateMany, getRow } = makeClaimPrisma({
+      id: "job-1",
+      status: OffRampPayoutJobStatus.RUNNING,
+      lockedAt: stale,
+    });
+
+    const won = await claimOffRampJob(prisma, "job-1", OffRampPayoutJobStatus.RUNNING, stale);
+
+    expect(won).toBe(true);
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "job-1", status: OffRampPayoutJobStatus.RUNNING, lockedAt: stale },
+        data: expect.objectContaining({ lockedAt: expect.any(Date) }),
+      }),
+    );
+    // Lease was refreshed to a newer timestamp.
+    expect(getRow().lockedAt).not.toBe(stale);
+    expect(getRow().lockedAt!.getTime()).toBeGreaterThan(stale.getTime());
+  });
+
+  it("lets only ONE of two overlapping runs re-claim the same RUNNING job", async () => {
+    // Regression for the RUNNING->RUNNING no-op race: both runs read the job as
+    // RUNNING with the same stale lockedAt and try to claim it. Exactly one must
+    // win, or both would call depositNativeToProvider (double XLM deposit).
+    const stale = new Date(Date.now() - 60 * 60 * 1000);
+    const { prisma } = makeClaimPrisma({
+      id: "job-1",
+      status: OffRampPayoutJobStatus.RUNNING,
+      lockedAt: stale,
+    });
+
+    const [a, b] = await Promise.all([
+      claimOffRampJob(prisma, "job-1", OffRampPayoutJobStatus.RUNNING, stale),
+      claimOffRampJob(prisma, "job-1", OffRampPayoutJobStatus.RUNNING, stale),
+    ]);
+
+    expect([a, b].filter(Boolean)).toHaveLength(1);
   });
 });

@@ -326,6 +326,7 @@ model PayrollRun {
   offRampJobs OffRampPayoutJob[]
 
   @@index([deploymentId, runAt])
+  @@index([deploymentId, createdAt])
   @@index([status, runAt])
 }
 
@@ -361,8 +362,10 @@ model OffRampPayoutJob {
   providerRef       String?                // withdrawal identifier
   tradeRef          String?                // order/trade reference
   requestId         String?                // provider request id
+  pdaxDepositTxHash String?                // native-XLM->PDAX deposit tx (idempotency guard)
   providerQuote     Json?
   runAt             DateTime
+  lockedAt          DateTime?              // lease stamp for the atomic RUNNING claim (see claimOffRampJob)
   attemptCount      Int                    @default(0)
   lastError         String?
   completedAt       DateTime?

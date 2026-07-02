@@ -25,9 +25,11 @@ const PUBLIC_PATHS = [
   /^\/api\/deployments\/[^/]+\/submit-trigger$/,
   // Machine-auth endpoints handle their own secret-token auth inside the route.
   /^\/api\/deployments\/[^/]+\/dev-.*$/,
+  /^\/api\/deployments\/[^/]+\/payroll-allowance$/,
   /^\/api\/deployments\/[^/]+\/payroll-record-run$/,
   /^\/api\/deployments\/[^/]+\/payroll-events$/,
   /^\/api\/deployments\/[^/]+\/payroll-runs\/[^/]+\/events$/,
+  /^\/api\/deployments\/[^/]+\/payroll-runs(\/[^/]+)?$/,
   /^\/api\/deployments\/[^/]+\/offramp-.*$/,
   /^\/api\/deployments\/[^/]+\/employees\/bank$/,
 ];

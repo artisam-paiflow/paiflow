@@ -8,12 +8,11 @@ import { preparePayrollUpdateRecipientsInvocation } from "@/lib/stellar/invoke";
 import {
   submitUpdateRecipientsByRelayer,
   submitSetSubscriptionAmountByRelayer,
-  deployCashOutDevByRelayer,
-  updateBankByRelayer,
 } from "@/lib/stellar/dev-mutate";
+import { prepareDevCashOutRecipients } from "@/lib/stellar/cash-out";
+import { syncEmployees } from "@/lib/employees";
 import { stellarPassphrase, offRampTreasuryAddress } from "@/lib/env";
 import { assetContractId } from "@/lib/stellar/assets";
-import { EmployeePayoutMode } from "@prisma/client";
 import type { FlowGraph } from "@/lib/flows/schema";
 
 const RecipientSchema = z.object({
@@ -58,7 +57,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const splitterDevNode = pipeline?.find((n) => n.templateKind === "SPLITTER_DEV");
     const subscriptionDevNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION_DEV");
     const splitterNode = pipeline?.find((n) => n.templateKind === "SPLITTER");
-    const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
 
     // Immutable non-dev payrolls bake recipients into the on-chain SPLITTER at
     // deploy time and cannot be changed afterwards.
@@ -83,7 +81,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         recipients: body.recipients.map((r) => ({ address: r.address, amount: r.amount })),
       });
 
-      await syncEmployees(d.id, body.recipients);
+      await syncEmployees(
+        d.id,
+        body.recipients.map((r) => ({
+          address: r.address,
+          amountStroops: r.amount,
+          label: r.label,
+          payoutMode: r.payoutMode,
+          bankDetail: r.bankDetail,
+        })),
+      );
 
       return NextResponse.json({
         data: {
@@ -112,72 +119,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const existingEmployees = await db.employee.findMany({
       where: { deploymentId: d.id },
+      select: { address: true, cashOutContractAddress: true },
     });
-    const existingByAddress = new Map(existingEmployees.map((e) => [e.address, e]));
 
-    const txHashes: string[] = [];
-    const onChainRecipients: Array<{
-      address: string;
-      amount: string;
-      bps: number;
-      isCashOut: boolean;
-    }> = [];
-
-    // Deploy or reuse CASH_OUT_DEV contracts for fiat employees.
-    for (const r of body.recipients) {
-      if (r.payoutMode !== "fiat") {
-        onChainRecipients.push({
+    const { onChainRecipients, txHashes, cashOutByInputAddress } =
+      await prepareDevCashOutRecipients({
+        splitterContractAddress: splitterDevNode.contractAddress,
+        adminAddress: d.sourceAccount ?? splitterDevNode.contractAddress,
+        assetContractAddress: assetContract,
+        treasury,
+        existingEmployees,
+        inputRecipients: body.recipients.map((r) => ({
           address: r.address,
           amount: r.amount,
           bps: 0,
-          isCashOut: false,
-        });
-        continue;
-      }
-
-      const existing = existingByAddress.get(r.address);
-      let cashOutAddress = existing?.cashOutContractAddress;
-
-      if (!cashOutAddress) {
-        const deploy = await deployCashOutDevByRelayer({
-          adminAddress: d.sourceAccount ?? splitterDevNode.contractAddress,
-          assetContractAddress: assetContract,
-          treasury,
-          parent: splitterDevNode.contractAddress,
-          accountName: r.bankDetail?.accountName,
-          accountNumber: r.bankDetail?.accountNumber,
-          bankCode: r.bankDetail?.bankCode,
-        });
-        if (deploy.status !== "SUCCESS" || !deploy.contractAddress) {
-          throw new AppError(
-            "UPSTREAM_RPC",
-            deploy.errorMessage ?? "Failed to deploy cash-out contract",
-          );
-        }
-        txHashes.push(deploy.txHash);
-        cashOutAddress = deploy.contractAddress;
-      } else if (r.bankDetail) {
-        const update = await updateBankByRelayer(cashOutAddress, {
-          accountName: r.bankDetail.accountName,
-          accountNumber: r.bankDetail.accountNumber,
-          bankCode: r.bankDetail.bankCode,
-        });
-        if (update.status !== "SUCCESS") {
-          throw new AppError(
-            "UPSTREAM_RPC",
-            update.errorMessage ?? "Failed to update cash-out bank details",
-          );
-        }
-        txHashes.push(update.txHash);
-      }
-
-      onChainRecipients.push({
-        address: cashOutAddress,
-        amount: r.amount,
-        bps: 0,
-        isCashOut: true,
+          payoutMode: r.payoutMode,
+          bankDetail: r.bankDetail,
+        })),
       });
-    }
 
     const recipientsResult = await submitUpdateRecipientsByRelayer(
       splitterDevNode.contractAddress,
@@ -196,7 +155,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       txHashes.push(amountResult.txHash);
     }
 
-    await syncEmployees(d.id, body.recipients);
+    await syncEmployees(
+      d.id,
+      body.recipients.map((r) => ({
+        address: r.address,
+        amountStroops: r.amount,
+        label: r.label,
+        payoutMode: r.payoutMode,
+        bankDetail: r.bankDetail,
+      })),
+      cashOutByInputAddress,
+    );
 
     return NextResponse.json({
       data: {
@@ -204,61 +173,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         contractAddress: splitterDevNode.contractAddress,
       },
     });
-  });
-}
-
-async function syncEmployees(
-  deploymentId: string,
-  recipients: Array<{
-    address: string;
-    amount: string;
-    label?: string;
-    payoutMode?: "crypto" | "fiat";
-    bankDetail?: { accountName: string; accountNumber: string; bankCode: string };
-  }>,
-) {
-  const newAddresses = new Set(recipients.map((r) => r.address));
-
-  await db.$transaction(async (tx) => {
-    await tx.employee.deleteMany({
-      where: { deploymentId, address: { notIn: [...newAddresses] } },
-    });
-
-    for (const r of recipients) {
-      const mode = r.payoutMode === "fiat" ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO;
-
-      const employee = await tx.employee.upsert({
-        where: { deploymentId_address: { deploymentId, address: r.address } },
-        create: {
-          deploymentId,
-          address: r.address,
-          amountStroops: r.amount,
-          label: r.label,
-          payoutMode: mode,
-        },
-        update: {
-          amountStroops: r.amount,
-          label: r.label,
-          payoutMode: mode,
-        },
-      });
-
-      if (r.bankDetail) {
-        await tx.employeeBankDetail.upsert({
-          where: { employeeId: employee.id },
-          create: {
-            employeeId: employee.id,
-            accountName: r.bankDetail.accountName,
-            accountNumber: r.bankDetail.accountNumber,
-            bankCode: r.bankDetail.bankCode,
-          },
-          update: {
-            accountName: r.bankDetail.accountName,
-            accountNumber: r.bankDetail.accountNumber,
-            bankCode: r.bankDetail.bankCode,
-          },
-        });
-      }
-    }
   });
 }
