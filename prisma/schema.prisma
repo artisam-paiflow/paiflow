@@ -118,6 +118,25 @@ model User {
   files               FileAsset[]
   addressBookEntries  AddressBookEntry[]
   passwordResetTokens PasswordResetToken[]
+  devApiTokens        DevApiToken[]
+}
+
+/// A per-developer API token that maps a machine caller to a Pinkraft user.
+/// Used by dev-auth endpoints that CREATE owned rows (e.g. dev-payroll deploy)
+/// where the shared `x-dev-api-secret` cannot supply an owner. Only the SHA-256
+/// hash of the token is stored; the plaintext is shown once at creation time.
+model DevApiToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  tokenHash  String    @unique
+  label      String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model PasswordResetToken {
@@ -228,6 +247,10 @@ model Deployment {
   lastChargedAt         DateTime?
   chargeEndAt           DateTime?
   offRampEnabled        Boolean           @default(false)
+  // Client-supplied key that makes deploy creation idempotent per owner. A
+  // retry with the same key returns the existing deployment instead of
+  // deploying a second set of contracts. NULL for endpoints that don't opt in.
+  idempotencyKey        String?
 
   flow   Flow            @relation(fields: [flowId], references: [id], onDelete: Restrict)
   owner  User            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
@@ -240,6 +263,7 @@ model Deployment {
   offRampSenderProfile OffRampSenderProfile?
   cashOutJobFailures CashOutJobFailure[]
 
+  @@unique([ownerId, idempotencyKey])
   @@index([ownerId, createdAt(sort: Desc)])
   @@index([status])
   @@index([status, nextChargeAt])

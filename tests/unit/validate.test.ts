@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateFlow, computeAssetFlow } from "@/lib/flows/validate";
-import { FlowGraphSchema } from "@/lib/flows/schema";
+import { AssetSchema, FlowGraphSchema } from "@/lib/flows/schema";
 import { TemplateKind } from "@prisma/client";
 
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
@@ -1516,5 +1516,20 @@ describe("computeAssetFlow", () => {
     });
     const flow = computeAssetFlow(graph);
     expect(flow.get("a")).toBeNull();
+  });
+});
+
+describe("AssetSchema", () => {
+  it("normalizes a custom asset code by stripping non-alphanumeric chars and capping at 12", () => {
+    const asset = AssetSchema.parse({
+      kind: "custom",
+      code: "MY-ASSET-CODE",
+      issuer: ADDR_A,
+    });
+    expect(asset).toEqual({ kind: "custom", code: "MYASSETCODE", issuer: ADDR_A });
+  });
+
+  it("rejects a custom asset code that normalizes to empty", () => {
+    expect(() => AssetSchema.parse({ kind: "custom", code: "---", issuer: ADDR_A })).toThrow();
   });
 });

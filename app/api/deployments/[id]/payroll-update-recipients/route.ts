@@ -110,7 +110,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     // These submissions return immediately with pending txHashes; the UI polls
     // for finality so the HTTP request doesn't block on network finality.
     const graph = (d.graphSnapshot ?? null) as FlowGraph | null;
-    const asset = graph?.nodes.find((n) => n.type === "payroll")?.config.asset;
+    const asset =
+      graph?.nodes.find((n) => n.type === "payroll")?.config.asset ??
+      graph?.nodes.find((n) => n.type === "subscription")?.config.asset;
     if (!asset) {
       throw new AppError("VALIDATION", "Payroll asset not found in graph snapshot");
     }
