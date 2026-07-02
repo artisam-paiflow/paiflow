@@ -1,5 +1,5 @@
 import "server-only";
-import { Keypair } from "@stellar/stellar-sdk";
+import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
 
 const optionalString = z
@@ -24,6 +24,17 @@ const optionalNumericMemo = z
   .transform((v) => (v && v.length > 0 ? v : undefined))
   .refine((v) => v === undefined || /^\d+$/.test(v), {
     message: "PDAX deposit memo must be a numeric string (Stellar memo id)",
+  });
+
+// PDAX deposit address must be a well-formed Stellar account (ed25519 G-address).
+// Validated at config load so a typo'd/truncated address fails at startup rather
+// than only when a live native-XLM deposit is attempted mid-job.
+const optionalStellarAddress = z
+  .string()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined))
+  .refine((v) => v === undefined || StrKey.isValidEd25519PublicKey(v), {
+    message: "PDAX deposit address must be a valid Stellar ed25519 public key (G...)",
   });
 
 const boolish = z
@@ -117,8 +128,8 @@ const EnvSchema = z.object({
   // PDAX deposit address and memo/tag for native XLM off-ramp deposits.
   // When set, process-offramp-jobs will forward XLM from the treasury to PDAX
   // before executing the trade. Required only for the XLM -> PHP flow.
-  OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET: optionalString,
-  OFFRAMP_PDAX_DEPOSIT_ADDRESS_MAINNET: optionalString,
+  OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET: optionalStellarAddress,
+  OFFRAMP_PDAX_DEPOSIT_ADDRESS_MAINNET: optionalStellarAddress,
   OFFRAMP_PDAX_DEPOSIT_MEMO_TESTNET: optionalNumericMemo,
   OFFRAMP_PDAX_DEPOSIT_MEMO_MAINNET: optionalNumericMemo,
 
