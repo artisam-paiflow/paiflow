@@ -16,6 +16,8 @@ function run(overrides: Partial<RunForEvents> = {}): RunForEvents {
     totalStroops: "1000",
     txHash: "run-tx",
     chargedAt: new Date("2026-01-01T10:00:00Z"),
+    failedAt: null,
+    cancelledAt: null,
     createdAt: new Date("2026-01-01T09:00:00Z"),
     updatedAt: new Date("2026-01-01T10:00:00Z"),
     lastError: null,
@@ -45,6 +47,10 @@ function job(overrides: Partial<OffRampJobForEvents> = {}): OffRampJobForEvents 
     employeeId: "emp-1",
     payrollPayoutId: "payout-1",
     completedAt: new Date("2026-01-01T11:00:00Z"),
+    quotedAt: null,
+    initiatedAt: null,
+    failedAt: null,
+    cancelledAt: null,
     updatedAt: new Date("2026-01-01T11:00:00Z"),
     lastError: null,
     providerRef: "PDAX-123",
@@ -115,6 +121,16 @@ describe("synthesizeEvents", () => {
       [job({ status: "PENDING" }), job({ id: "j2", status: "RUNNING" })],
     );
     expect(events).toEqual([]);
+  });
+
+  it("keeps a FAILED off-ramp event visible after the job is reset to PENDING", () => {
+    const events = synthesizeEvents(
+      [],
+      [job({ status: "PENDING", failedAt: new Date("2026-01-01T11:30:00Z") })],
+    );
+    expect(kinds(events)).toEqual(["OFFRAMP_FAILED"]);
+    const failed = events.find((e) => e.kind === "OFFRAMP_FAILED")!;
+    expect(failed.occurredAt.toISOString()).toBe("2026-01-01T11:30:00.000Z");
   });
 
   it("falls back to employee address when label is null", () => {

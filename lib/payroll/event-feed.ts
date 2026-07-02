@@ -11,10 +11,10 @@ import type { OffRampPayoutJobStatus, PayrollRunStatus } from "@prisma/client";
  *
  * Each synthesized event has a stable `id` of the form `${rowId}:${kind}` so
  * that repeated polls return the same id for the same logical event, and so
- * cursor pagination is deterministic. Because most rows carry only a single
- * mutable `status` column (no per-transition timestamps), off-ramp jobs emit
- * only the event for their *current* terminal status; the best available
- * timestamp is used for `occurredAt`.
+ * cursor pagination is deterministic. Run-level and payout-failed events use
+ * append-only transition timestamps for `occurredAt`. Off-ramp terminal events
+ * (FAILED/CANCELLED/COMPLETED) also persist via append-only timestamps so they
+ * do not vanish when a job is retried or reset.
  */
 
 export const EVENT_KINDS = [
@@ -83,6 +83,8 @@ export type RunForEvents = {
   totalStroops: string;
   txHash: string | null;
   chargedAt: Date | null;
+  failedAt: Date | null;
+  cancelledAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   lastError: string | null;
@@ -97,6 +99,10 @@ export type OffRampJobForEvents = {
   employeeId: string | null;
   payrollPayoutId: string | null;
   completedAt: Date | null;
+  quotedAt: Date | null;
+  initiatedAt: Date | null;
+  failedAt: Date | null;
+  cancelledAt: Date | null;
   updatedAt: Date;
   lastError: string | null;
   providerRef: string | null;
@@ -151,7 +157,7 @@ function runEvents(run: RunForEvents): PayrollEvent[] {
       amountStroops: run.totalStroops,
       txHash: run.txHash,
       message: run.lastError,
-      occurredAt: run.updatedAt,
+      occurredAt: run.failedAt ?? run.updatedAt,
     });
   } else if (run.status === "CANCELLED") {
     events.push({
@@ -161,7 +167,7 @@ function runEvents(run: RunForEvents): PayrollEvent[] {
       amountStroops: run.totalStroops,
       txHash: null,
       message: null,
-      occurredAt: run.updatedAt,
+      occurredAt: run.cancelledAt ?? run.updatedAt,
     });
   }
 
@@ -220,14 +226,14 @@ function payoutEvents(
         occurredAt: payout.createdAt,
       });
     }
-  } else if (run.status === "FAILED") {
+  } else if (run.status === "FAILED" || run.failedAt) {
     events.push({
       ...base,
       id: `${payout.id}:PAYOUT_FAILED`,
       kind: "PAYOUT_FAILED",
       txHash: null,
       message: run.lastError,
-      occurredAt: run.updatedAt,
+      occurredAt: run.failedAt ?? run.updatedAt,
     });
   }
 
@@ -242,28 +248,65 @@ const OFFRAMP_KIND: Partial<Record<OffRampPayoutJobStatus, EventKind>> = {
   CANCELLED: "OFFRAMP_CANCELLED",
 };
 
-/** Event for an off-ramp job's current status (PENDING/RUNNING emit nothing). */
+function offRampMessage(job: OffRampJobForEvents, kind: EventKind): string | null {
+  if (kind === "OFFRAMP_FAILED") return job.lastError;
+  return job.providerRef ? `ref ${job.providerRef}` : null;
+}
+
+/**
+ * Events for an off-ramp job. Terminal events (FAILED/CANCELLED/COMPLETED)
+ * use append-only transition timestamps so a delivered event does not vanish
+ * when a job is retried or reset; non-terminal events reflect the current
+ * status. PENDING/RUNNING emit nothing.
+ */
 function offRampEvents(job: OffRampJobForEvents): PayrollEvent[] {
-  const kind = OFFRAMP_KIND[job.status];
-  if (!kind) return [];
+  const events: PayrollEvent[] = [];
 
-  const message =
-    job.status === "FAILED" ? job.lastError : job.providerRef ? `ref ${job.providerRef}` : null;
+  const base = {
+    payrollRunId: job.payrollRunId,
+    payoutId: job.payrollPayoutId,
+    employeeId: job.employeeId,
+    employeeLabel: employeeLabel(job.employee),
+    amountStroops: job.amountStroops,
+    txHash: null,
+  } as const;
 
-  return [
-    {
+  function push(kind: EventKind, occurredAt: Date, message: string | null) {
+    events.push({
+      ...base,
       id: `${job.id}:${kind}`,
       kind,
-      payrollRunId: job.payrollRunId,
-      payoutId: job.payrollPayoutId,
-      employeeId: job.employeeId,
-      employeeLabel: employeeLabel(job.employee),
-      amountStroops: job.amountStroops,
-      txHash: null,
       message,
-      occurredAt: job.status === "COMPLETED" ? (job.completedAt ?? job.updatedAt) : job.updatedAt,
-    },
-  ];
+      occurredAt,
+    });
+  }
+
+  const currentKind = OFFRAMP_KIND[job.status];
+  if (
+    currentKind &&
+    (job.status === "QUOTED" || job.status === "INITIATED" || job.status === "COMPLETED")
+  ) {
+    const ts =
+      job.status === "QUOTED"
+        ? job.quotedAt
+        : job.status === "INITIATED"
+          ? job.initiatedAt
+          : job.completedAt;
+    push(currentKind, ts ?? job.updatedAt, offRampMessage(job, currentKind));
+  }
+
+  if (job.failedAt || job.status === "FAILED") {
+    push("OFFRAMP_FAILED", job.failedAt ?? job.updatedAt, job.lastError);
+  }
+  if (job.cancelledAt || job.status === "CANCELLED") {
+    push(
+      "OFFRAMP_CANCELLED",
+      job.cancelledAt ?? job.updatedAt,
+      offRampMessage(job, "OFFRAMP_CANCELLED"),
+    );
+  }
+
+  return events;
 }
 
 /**

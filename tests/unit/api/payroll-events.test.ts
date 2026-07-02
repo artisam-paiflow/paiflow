@@ -35,6 +35,8 @@ beforeEach(() => {
       totalStroops: "1000",
       txHash: "run-tx",
       chargedAt: new Date("2026-01-01T10:00:00Z"),
+      failedAt: null,
+      cancelledAt: null,
       createdAt: new Date("2026-01-01T09:00:00Z"),
       updatedAt: new Date("2026-01-01T10:00:00Z"),
       lastError: null,

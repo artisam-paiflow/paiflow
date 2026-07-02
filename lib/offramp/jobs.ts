@@ -62,6 +62,27 @@ export async function rescheduleOffRampJob(
   if (updates.completedAt !== undefined) data.completedAt = updates.completedAt;
   if (updates.attemptCount !== undefined) data.attemptCount = updates.attemptCount;
 
+  // Set append-only transition timestamps on first entry into each state so
+  // the payroll event feed has a stable occurredAt that is not rewritten by
+  // later updates (e.g. retries or error-message changes).
+  const existing = await prisma.offRampPayoutJob.findUnique({
+    where: { id: jobId },
+    select: { quotedAt: true, initiatedAt: true, failedAt: true, cancelledAt: true },
+  });
+
+  if (updates.status === OffRampPayoutJobStatus.QUOTED && !existing?.quotedAt) {
+    data.quotedAt = new Date();
+  }
+  if (updates.status === OffRampPayoutJobStatus.INITIATED && !existing?.initiatedAt) {
+    data.initiatedAt = new Date();
+  }
+  if (updates.status === OffRampPayoutJobStatus.FAILED && !existing?.failedAt) {
+    data.failedAt = new Date();
+  }
+  if (updates.status === OffRampPayoutJobStatus.CANCELLED && !existing?.cancelledAt) {
+    data.cancelledAt = new Date();
+  }
+
   return prisma.offRampPayoutJob.update({
     where: { id: jobId },
     data,
@@ -172,6 +193,7 @@ export async function cancelPendingOffRampJobs(
     data: {
       status: OffRampPayoutJobStatus.CANCELLED,
       lastError: "Deployment is no longer CONFIRMED",
+      cancelledAt: new Date(),
     },
   });
 

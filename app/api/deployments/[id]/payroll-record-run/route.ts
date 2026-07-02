@@ -136,48 +136,50 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     );
     const employeeByWallet = new Map(existingEmployees.map((e) => [e.address, e]));
 
-    for (const r of recipientRows) {
-      const existing = employeeByCashOut.get(r.address) ?? employeeByWallet.get(r.address);
-      const walletAddress = existing?.address ?? r.address;
-
-      const employee = await db.employee.upsert({
-        where: { deploymentId_address: { deploymentId: d.id, address: walletAddress } },
-        create: {
-          deploymentId: d.id,
-          address: walletAddress,
-          amountStroops: r.amount,
-        },
-        update: {
-          amountStroops: r.amount,
-        },
-      });
-
-      await db.payrollPayout.create({
-        data: {
-          payrollRunId: run.id,
-          employeeId: employee.id,
-          amountStroops: r.amount,
-          txHash: body.txHash,
-        },
-      });
-    }
-
     let offRampJobIds: string[] = [];
-    if (d.offRampEnabled) {
-      try {
-        offRampJobIds = await createOffRampJobsForPayrollRun(db, run.id);
-      } catch (offRampErr) {
-        const message = offRampErr instanceof Error ? offRampErr.message : String(offRampErr);
-        return NextResponse.json({
-          data: {
-            payrollRunId: run.id,
-            payoutCount: recipientRows.length,
-            offRampJobIds: [],
-            offRampError: message,
-          },
-        });
-      }
-    }
+    let offRampError: string | undefined;
+
+    // Create payouts and off-ramp jobs in one transaction so the event feed
+    // never observes a fiat payout with a txHash but no linked off-ramp job.
+    await db.$transaction(
+      async (tx) => {
+        for (const r of recipientRows) {
+          const existing = employeeByCashOut.get(r.address) ?? employeeByWallet.get(r.address);
+          const walletAddress = existing?.address ?? r.address;
+
+          const employee = await tx.employee.upsert({
+            where: { deploymentId_address: { deploymentId: d.id, address: walletAddress } },
+            create: {
+              deploymentId: d.id,
+              address: walletAddress,
+              amountStroops: r.amount,
+            },
+            update: {
+              amountStroops: r.amount,
+            },
+          });
+
+          await tx.payrollPayout.create({
+            data: {
+              payrollRunId: run.id,
+              employeeId: employee.id,
+              amountStroops: r.amount,
+              txHash: body.txHash,
+            },
+          });
+        }
+
+        if (d.offRampEnabled) {
+          try {
+            offRampJobIds = await createOffRampJobsForPayrollRun(tx, run.id);
+          } catch (offRampErr) {
+            const message = offRampErr instanceof Error ? offRampErr.message : String(offRampErr);
+            offRampError = message;
+          }
+        }
+      },
+      { maxWait: 5000, timeout: 30000 },
+    );
 
     await audit({
       action: "DEPLOY_INVOKE",
@@ -190,6 +192,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         payrollRunId: run.id,
         payoutCount: recipientRows.length,
         offRampJobIds,
+        ...(offRampError ? { offRampError } : {}),
       },
     });
   });

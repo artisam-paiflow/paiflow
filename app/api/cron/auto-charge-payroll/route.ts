@@ -485,6 +485,7 @@ export async function POST(req: NextRequest) {
               where: { id: payrollRun.id },
               data: {
                 status: PayrollRunStatus.FAILED,
+                failedAt: new Date(),
                 lastError: "USER relayer mode missing url or address",
               },
             });
@@ -588,7 +589,11 @@ export async function POST(req: NextRequest) {
         if (chargedCount === 0) {
           await db.payrollRun.update({
             where: { id: payrollRun.id },
-            data: { status: PayrollRunStatus.FAILED, lastError: "No charges executed" },
+            data: {
+              status: PayrollRunStatus.FAILED,
+              failedAt: new Date(),
+              lastError: "No charges executed",
+            },
           });
           results.push({
             deploymentId: d.id,
@@ -645,7 +650,11 @@ export async function POST(req: NextRequest) {
           try {
             await db.payrollRun.update({
               where: { id: payrollRunId },
-              data: { status: PayrollRunStatus.FAILED, lastError: message },
+              data: {
+                status: PayrollRunStatus.FAILED,
+                failedAt: new Date(),
+                lastError: message,
+              },
             });
           } catch (updateErr) {
             log.warn(

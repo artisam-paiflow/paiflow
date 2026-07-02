@@ -3,6 +3,7 @@ import { PayrollRunStatus } from "@prisma/client";
 
 const { mockDb, mockEnv, mockRelayer, mockJobs } = vi.hoisted(() => {
   const mockDb = {
+    $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockDb)),
     deployment: {
       findFirst: vi.fn(),
     },
@@ -126,6 +127,7 @@ describe("payroll-record-run", () => {
     expect(json.data.payrollRunId).toBe("run-1");
     expect(json.data.payoutCount).toBe(2);
     expect(json.data.offRampJobIds).toEqual(["job-1", "job-2"]);
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
     expect(mockRelayer.readSplitterDevRecipients).toHaveBeenCalledWith("CSplit");
     expect(mockDb.payrollRun.create).toHaveBeenCalledWith(
       expect.objectContaining({
