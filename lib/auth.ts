@@ -1,4 +1,5 @@
 import "server-only";
+import crypto from "crypto";
 import type { NextRequest } from "next/server";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
@@ -156,7 +157,57 @@ export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionU
   if (secret && req.headers.get("x-dev-api-secret") === secret) {
     return { user: null };
   }
-  return { user: await requireSession() };
+
+  // Per-developer machine tokens also grant access to dev endpoints; they carry
+  // an owner, unlike the shared secret above.
+  try {
+    return { user: await requireDevApiToken(req) };
+  } catch (err) {
+    if (err instanceof AppError && err.code === "UNAUTHENTICATED") {
+      return { user: await requireSession() };
+    }
+    throw err;
+  }
+}
+
+/**
+ * Resolve a per-developer API token to the Pinkraft user that owns it. Machine
+ * endpoints that CREATE owned rows (e.g. the dev-payroll deploy) cannot use the
+ * shared `x-dev-api-secret` because it carries no owner. The caller presents the
+ * token in the `x-dev-api-secret` header (or `Authorization: Bearer <token>`);
+ * we match its SHA-256 hash against an active `DevApiToken` row and return the
+ * mapped user.
+ *
+ * This is token-only auth: there is no interactive-session fallback. The route
+ * it guards signs and submits a relayer-funded on-chain deploy, so it must not
+ * be reachable by an arbitrary logged-in user — only by a caller holding a
+ * minted `DevApiToken` (see scripts/create-dev-api-token.ts).
+ */
+export async function requireDevApiToken(req: NextRequest): Promise<SessionUser> {
+  const raw =
+    req.headers.get("x-dev-api-secret") ??
+    req.headers
+      .get("authorization")
+      ?.replace(/^Bearer\s+/i, "")
+      .trim() ??
+    null;
+
+  if (raw) {
+    const tokenHash = crypto.createHash("sha256").update(raw).digest("hex");
+    const token = await db.devApiToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+    if (token && !token.revokedAt && token.user.isActive) {
+      // Best-effort last-used stamp; never block the request on it.
+      db.devApiToken
+        .update({ where: { id: token.id }, data: { lastUsedAt: new Date() } })
+        .catch(() => {});
+      return { id: token.user.id, username: token.user.username, role: token.user.role };
+    }
+  }
+
+  throw new AppError("UNAUTHENTICATED", "A valid developer API token is required");
 }
 
 export async function requireSession(opts?: { role?: Role }): Promise<SessionUser> {

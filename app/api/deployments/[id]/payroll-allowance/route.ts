@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireSession } from "@/lib/auth";
+import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import {
   readPayrollEmployer,
@@ -44,11 +44,11 @@ function parseBodyAmount(body: unknown): string | null {
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
-    const user = await requireSession();
+    const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
 
     const d = await db.deployment.findFirst({
-      where: { id, ownerId: user.id },
+      where: user ? { id, ownerId: user.id } : { id },
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
@@ -118,11 +118,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
-    const user = await requireSession();
+    const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
 
     const d = await db.deployment.findFirst({
-      where: { id, ownerId: user.id },
+      where: user ? { id, ownerId: user.id } : { id },
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");

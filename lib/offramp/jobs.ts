@@ -14,17 +14,38 @@ export const TERMINAL_OFFRAMP_STATUSES: OffRampPayoutJobStatus[] = [
 type PrismaLike = PrismaClient | Prisma.TransactionClient;
 
 /**
+ * How long a RUNNING job's lease is trusted before another cron run may assume
+ * the prior run crashed/timed-out and re-claim it. Must comfortably exceed the
+ * worst-case single-job runtime (deposit finality wait + quote/trade/payout).
+ */
+export const OFFRAMP_JOB_LEASE_MS = 10 * 60 * 1000;
+
+/**
  * Return pending or running off-ramp jobs that are due, oldest first.
  *
- * Jobs are now self-contained: the bank details, deployment, source address, and
+ * PENDING jobs are always eligible. RUNNING jobs are only re-surfaced once their
+ * lease has expired (or was never taken) — an actively-running job whose lease
+ * is still fresh is treated as owned by the in-flight run and left alone, so we
+ * do not race a live money-movement pass. Crashed/timed-out runs are recovered
+ * once their lease goes stale.
+ *
+ * Jobs are self-contained: the bank details, deployment, source address, and
  * job source are stored inline, so the cron does not need the payroll/employee
  * relations (those are optional audit back-pointers now).
  */
 export async function getDueOffRampJobs(prisma: PrismaClient, limit = 50) {
+  const now = new Date();
+  const staleBefore = new Date(now.getTime() - OFFRAMP_JOB_LEASE_MS);
   return prisma.offRampPayoutJob.findMany({
     where: {
-      status: { in: [OffRampPayoutJobStatus.PENDING, OffRampPayoutJobStatus.RUNNING] },
-      runAt: { lte: new Date() },
+      runAt: { lte: now },
+      OR: [
+        { status: OffRampPayoutJobStatus.PENDING },
+        {
+          status: OffRampPayoutJobStatus.RUNNING,
+          OR: [{ lockedAt: null }, { lockedAt: { lte: staleBefore } }],
+        },
+      ],
     },
     orderBy: { runAt: "asc" },
     take: limit,
@@ -46,6 +67,7 @@ export async function rescheduleOffRampJob(
     providerRef?: string | null;
     tradeRef?: string | null;
     requestId?: string | null;
+    pdaxDepositTxHash?: string | null;
     providerQuote?: Prisma.InputJsonValue | null;
     lastError?: string | null;
     completedAt?: Date | null;
@@ -57,15 +79,74 @@ export async function rescheduleOffRampJob(
   if (updates.providerRef !== undefined) data.providerRef = updates.providerRef;
   if (updates.tradeRef !== undefined) data.tradeRef = updates.tradeRef;
   if (updates.requestId !== undefined) data.requestId = updates.requestId;
+  if (updates.pdaxDepositTxHash !== undefined) data.pdaxDepositTxHash = updates.pdaxDepositTxHash;
   if (updates.providerQuote !== undefined) data.providerQuote = updates.providerQuote;
   if (updates.lastError !== undefined) data.lastError = updates.lastError;
   if (updates.completedAt !== undefined) data.completedAt = updates.completedAt;
   if (updates.attemptCount !== undefined) data.attemptCount = updates.attemptCount;
 
+  // Set append-only transition timestamps on first entry into each state so
+  // the payroll event feed has a stable occurredAt that is not rewritten by
+  // later updates (e.g. retries or error-message changes).
+  const existing = await prisma.offRampPayoutJob.findUnique({
+    where: { id: jobId },
+    select: { quotedAt: true, initiatedAt: true, failedAt: true, cancelledAt: true },
+  });
+
+  if (updates.status === OffRampPayoutJobStatus.QUOTED && !existing?.quotedAt) {
+    data.quotedAt = new Date();
+  }
+  if (updates.status === OffRampPayoutJobStatus.INITIATED && !existing?.initiatedAt) {
+    data.initiatedAt = new Date();
+  }
+  if (updates.status === OffRampPayoutJobStatus.FAILED && !existing?.failedAt) {
+    data.failedAt = new Date();
+  }
+  if (updates.status === OffRampPayoutJobStatus.CANCELLED && !existing?.cancelledAt) {
+    data.cancelledAt = new Date();
+  }
+
   return prisma.offRampPayoutJob.update({
     where: { id: jobId },
     data,
   });
+}
+
+/**
+ * Atomically claim a due job for this cron run. Returns true if this caller won
+ * the claim, false if another overlapping run already holds it. This prevents
+ * two workers from both processing the same job (and, for native XLM cash-outs,
+ * double-depositing).
+ *
+ * - PENDING claim: a one-shot CAS on `status`. Only the first caller flips
+ *   PENDING -> RUNNING; the losers no longer match `status: PENDING`.
+ * - RUNNING resume (stale lease): a `status: RUNNING` CAS alone is a no-op
+ *   (RUNNING -> RUNNING matches for every concurrent caller), so we additionally
+ *   match on the exact `lockedAt` the job was read with and bump it. Only the
+ *   first caller's `lockedAt = expectedLockedAt` still matches; the losers see
+ *   the refreshed lease and get `count === 0`.
+ */
+export async function claimOffRampJob(
+  prisma: PrismaClient,
+  jobId: string,
+  fromStatus: OffRampPayoutJobStatus,
+  expectedLockedAt: Date | null,
+): Promise<boolean> {
+  const now = new Date();
+
+  if (fromStatus === OffRampPayoutJobStatus.PENDING) {
+    const result = await prisma.offRampPayoutJob.updateMany({
+      where: { id: jobId, status: OffRampPayoutJobStatus.PENDING },
+      data: { status: OffRampPayoutJobStatus.RUNNING, lockedAt: now },
+    });
+    return result.count === 1;
+  }
+
+  const result = await prisma.offRampPayoutJob.updateMany({
+    where: { id: jobId, status: OffRampPayoutJobStatus.RUNNING, lockedAt: expectedLockedAt },
+    data: { lockedAt: now },
+  });
+  return result.count === 1;
 }
 
 /**
@@ -172,6 +253,7 @@ export async function cancelPendingOffRampJobs(
     data: {
       status: OffRampPayoutJobStatus.CANCELLED,
       lastError: "Deployment is no longer CONFIRMED",
+      cancelledAt: new Date(),
     },
   });
 

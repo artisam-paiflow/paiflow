@@ -3,6 +3,7 @@ import { PayrollRunStatus } from "@prisma/client";
 
 const { mockDb, mockEnv, mockRelayer, mockJobs } = vi.hoisted(() => {
   const mockDb = {
+    $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockDb)),
     deployment: {
       findFirst: vi.fn(),
     },
@@ -126,6 +127,7 @@ describe("payroll-record-run", () => {
     expect(json.data.payrollRunId).toBe("run-1");
     expect(json.data.payoutCount).toBe(2);
     expect(json.data.offRampJobIds).toEqual(["job-1", "job-2"]);
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
     expect(mockRelayer.readSplitterDevRecipients).toHaveBeenCalledWith("CSplit");
     expect(mockDb.payrollRun.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -182,7 +184,7 @@ describe("payroll-record-run", () => {
     expect(mockDb.payrollRun.create).not.toHaveBeenCalled();
   });
 
-  it("returns offRampError when job creation fails without failing the run", async () => {
+  it("rolls back the run when off-ramp job creation fails", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
     mockDb.payrollRun.findUnique.mockResolvedValue(null);
     mockRelayer.readSplitterDevRecipients.mockResolvedValue([
@@ -199,9 +201,8 @@ describe("payroll-record-run", () => {
     const res = await POST(req, makeContext("dep-1"));
     const json = await res.json();
 
-    expect(res.status).toBe(200);
-    expect(json.data.payrollRunId).toBe("run-3");
-    expect(json.data.offRampJobIds).toEqual([]);
-    expect(json.data.offRampError).toBe("PDAX not configured");
+    expect(res.status).toBe(500);
+    expect(json.error).toBeDefined();
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
   });
 });

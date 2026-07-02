@@ -62,3 +62,25 @@ describe("env helpers — fail-fast on network mismatch", () => {
     expect(() => mod.stellarFriendbotUrl()).toThrow(/not available on mainnet/i);
   });
 });
+
+describe("env — PDAX deposit address validation", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    delete process.env.OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET;
+  });
+
+  it("accepts a valid Stellar ed25519 address", async () => {
+    process.env.OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET =
+      "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G";
+    const mod = await loadEnv("testnet");
+    expect(mod.offRampPdaxDepositConfig().address).toBe(
+      "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G",
+    );
+  });
+
+  it("throws at load on a malformed deposit address", async () => {
+    process.env.OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET = "not-a-stellar-address";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/valid Stellar ed25519 public key/i);
+  });
+});

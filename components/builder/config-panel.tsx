@@ -100,6 +100,12 @@ type Props = {
   addressBook?: AddressEntry[];
   refreshAddressBook?: () => void;
   className?: string;
+  /**
+   * Hide the internal node-type label + Delete header row. Set when the floating
+   * wrapper renders its own draggable header with the title and Delete control,
+   * so the title isn't duplicated.
+   */
+  hideHeader?: boolean;
 };
 
 export default function ConfigPanel({
@@ -110,6 +116,7 @@ export default function ConfigPanel({
   addressBook = [],
   refreshAddressBook,
   className,
+  hideHeader = false,
 }: Props) {
   const expectedAsset = useMemo(
     () => (node ? (computeAssetFlow(graph).get(node.id) ?? null) : null),
@@ -134,21 +141,26 @@ export default function ConfigPanel({
   return (
     <aside
       className={cn(
-        "space-y-4 overflow-y-auto border-l border-zinc-800 bg-zinc-950 p-4 text-sm",
+        // Render at natural full height (no internal scrollbar / height cap):
+        // a tall panel (e.g. the splitter) is brought into view by panning the
+        // canvas or dragging the panel header, not by scrolling inside it.
+        "space-y-4 border-l border-zinc-800 bg-zinc-950 p-4 text-sm",
         className,
       )}
     >
-      <div className="flex items-center justify-between">
-        <div className="text-brand-400 text-xs tracking-wider uppercase">
-          {node.type.replace("_", " ")}
+      {!hideHeader && (
+        <div className="flex items-center justify-between">
+          <div className="text-brand-400 text-xs tracking-wider uppercase">
+            {node.type.replace("_", " ")}
+          </div>
+          <button
+            onClick={() => onDelete(node.id)}
+            className="rounded border border-red-900 px-2 py-1 text-xs text-red-300 hover:bg-red-950"
+          >
+            Delete
+          </button>
         </div>
-        <button
-          onClick={() => onDelete(node.id)}
-          className="rounded border border-red-900 px-2 py-1 text-xs text-red-300 hover:bg-red-950"
-        >
-          Delete
-        </button>
-      </div>
+      )}
 
       {node.type === "on_receive" && (
         <>
@@ -690,6 +702,13 @@ export default function ConfigPanel({
                               updateRecipient(i, {
                                 ...r,
                                 address,
+                              } as SplitRecipient)
+                            }
+                            onSelectEntry={(entry) =>
+                              updateRecipient(i, {
+                                ...r,
+                                address: entry.address,
+                                label: entry.label || r.label,
                               } as SplitRecipient)
                             }
                             pending={isPendingAddress(r.address)}
