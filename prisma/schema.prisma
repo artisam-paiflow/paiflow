@@ -359,6 +359,7 @@ model OffRampPayoutJob {
   providerRef       String?                // withdrawal identifier
   tradeRef          String?                // order/trade reference
   requestId         String?                // provider request id
+  pdaxDepositTxHash String?                // native-XLM->PDAX deposit tx (idempotency guard)
   providerQuote     Json?
   runAt             DateTime
   attemptCount      Int                    @default(0)

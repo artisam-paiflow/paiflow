@@ -8,6 +8,7 @@ import {
   getDueOffRampJobs,
   rescheduleOffRampJob,
   cancelPendingOffRampJobs,
+  claimOffRampJob,
 } from "@/lib/offramp/jobs";
 import { getOffRampProvider, offRampAssetCode, offRampFiatCurrency } from "@/lib/offramp/provider";
 import { resolveCashOutAsset, resolvePayrollAsset } from "@/lib/offramp/assets";
@@ -114,9 +115,19 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      await rescheduleOffRampJob(db, job.id, {
-        status: OffRampPayoutJobStatus.RUNNING,
-      });
+      // Atomically claim the job by flipping it to RUNNING only if it is still
+      // in the status we read it with. If another overlapping cron run already
+      // claimed it, skip — this prevents double-processing (and, for native XLM
+      // cash-outs, a real on-chain double deposit).
+      const claimed = await claimOffRampJob(db, job.id, job.status);
+      if (!claimed) {
+        results.push({
+          jobId: job.id,
+          status: "skipped",
+          error: "Job already claimed by another run",
+        });
+        continue;
+      }
 
       let asset: Asset | null = null;
       let currentStatus: OffRampPayoutJobStatus = OffRampPayoutJobStatus.RUNNING;
@@ -161,26 +172,45 @@ export async function POST(req: NextRequest) {
             // the required memo/tag so the trade is funded by the on-chain sink.
             const pdax = offRampPdaxDepositConfig();
             if (pdax.address && pdax.memo) {
-              log.info(
-                {
-                  jobId: job.id,
-                  sourceAddress: job.sourceAddress,
+              if (job.pdaxDepositTxHash) {
+                // Idempotency: a prior run already deposited to PDAX. Do NOT
+                // deposit again (the balance guard alone cannot catch this when
+                // the treasury is a separate/pooled address), just proceed to
+                // quote/trade against the already-deposited funds.
+                log.info(
+                  { jobId: job.id, txHash: job.pdaxDepositTxHash },
+                  "PDAX XLM deposit already completed; skipping re-deposit",
+                );
+              } else {
+                log.info(
+                  {
+                    jobId: job.id,
+                    sourceAddress: job.sourceAddress,
+                    amountStroops: job.amountStroops,
+                    treasuryBalance: treasuryBalance.toString(),
+                    pdaxAddress: pdax.address,
+                    pdaxMemo: pdax.memo,
+                  },
+                  "Depositing XLM from treasury to PDAX",
+                );
+                const deposit = await depositNativeToProvider({
+                  destination: pdax.address,
+                  memo: pdax.memo,
                   amountStroops: job.amountStroops,
-                  treasuryBalance: treasuryBalance.toString(),
-                  pdaxAddress: pdax.address,
-                  pdaxMemo: pdax.memo,
-                },
-                "Depositing XLM from treasury to PDAX",
-              );
-              const deposit = await depositNativeToProvider({
-                destination: pdax.address,
-                memo: pdax.memo,
-                amountStroops: job.amountStroops,
-              });
-              if (deposit.status !== "SUCCESS") {
-                throw new Error(`PDAX XLM deposit failed: ${deposit.errorMessage}`);
+                });
+                if (deposit.status !== "SUCCESS") {
+                  throw new Error(`PDAX XLM deposit failed: ${deposit.errorMessage}`);
+                }
+                // Persist the deposit tx BEFORE quote/trade so any downstream
+                // failure + retry detects "already deposited" and never
+                // re-deposits or refunds from the treasury.
+                await rescheduleOffRampJob(db, job.id, {
+                  status: OffRampPayoutJobStatus.RUNNING,
+                  pdaxDepositTxHash: deposit.txHash,
+                });
+                job.pdaxDepositTxHash = deposit.txHash;
+                log.info({ jobId: job.id, txHash: deposit.txHash }, "PDAX XLM deposit confirmed");
               }
-              log.info({ jobId: job.id, txHash: deposit.txHash }, "PDAX XLM deposit confirmed");
             } else {
               log.warn(
                 {
@@ -337,10 +367,20 @@ export async function POST(req: NextRequest) {
             status: "failed",
             error: message,
           });
-        } else if (isPreTradeFailure(currentStatus) && job.sourceAddress && asset) {
+        } else if (
+          isPreTradeFailure(currentStatus) &&
+          job.sourceAddress &&
+          asset &&
+          !job.pdaxDepositTxHash
+        ) {
           // Refund policy: before the trade executes, the crypto is still in the
           // treasury. Refund to the on-chain source address using the same asset
           // the job was meant to off-ramp.
+          //
+          // NOTE: skipped when `pdaxDepositTxHash` is set — for native XLM jobs
+          // the funds have already left the treasury for PDAX, so refunding from
+          // the treasury would draw down pooled/other jobs' balances. Those jobs
+          // fall through to the generic FAILED branch below for manual recovery.
           const refund = await refundFromTreasury({
             destination: job.sourceAddress,
             amountStroops: job.amountStroops,

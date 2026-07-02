@@ -104,42 +104,47 @@ async function buildAndSendByRelayer(
   const server = sorobanRpc();
   const kp = relayerKeypair();
 
-  let sourceAcct;
-  try {
-    sourceAcct = await server.getAccount(kp.publicKey());
-  } catch {
-    throw new AppError(
-      "INSUFFICIENT_FUNDS",
-      `Relayer account ${kp.publicKey()} is not funded or does not exist`,
-    );
-  }
+  // Serialize account-load -> sign -> submit against the shared relayer account
+  // so concurrent invocations don't race the same sequence number (txBadSeq).
+  const send = await withRelayerLock(async () => {
+    let sourceAcct;
+    try {
+      sourceAcct = await server.getAccount(kp.publicKey());
+    } catch {
+      throw new AppError(
+        "INSUFFICIENT_FUNDS",
+        `Relayer account ${kp.publicKey()} is not funded or does not exist`,
+      );
+    }
 
-  const op = Operation.invokeContractFunction({
-    contract: contractAddress,
-    function: functionName,
-    args,
+    const op = Operation.invokeContractFunction({
+      contract: contractAddress,
+      function: functionName,
+      args,
+    });
+
+    const tx = new TransactionBuilder(sourceAcct, {
+      fee: BASE_FEE,
+      networkPassphrase: stellarPassphrase(),
+    })
+      .addOperation(op)
+      .setTimeout(180)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim)) {
+      throw new AppError(
+        "UPSTREAM_RPC",
+        `${functionName}() simulation failed for ${contractAddress}: ${sim.error}`,
+      );
+    }
+
+    const assembled = rpc.assembleTransaction(tx, sim).build();
+    assembled.sign(kp);
+
+    return server.sendTransaction(assembled);
   });
 
-  const tx = new TransactionBuilder(sourceAcct, {
-    fee: BASE_FEE,
-    networkPassphrase: stellarPassphrase(),
-  })
-    .addOperation(op)
-    .setTimeout(180)
-    .build();
-
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError(
-      "UPSTREAM_RPC",
-      `${functionName}() simulation failed for ${contractAddress}: ${sim.error}`,
-    );
-  }
-
-  const assembled = rpc.assembleTransaction(tx, sim).build();
-  assembled.sign(kp);
-
-  const send = await server.sendTransaction(assembled);
   if (send.status === "ERROR") {
     throw new AppError(
       "UPSTREAM_RPC",
@@ -358,15 +363,6 @@ export async function deployCashOutDevByRelayer(opts: {
 
   const server = sorobanRpc();
   const kp = relayerKeypair();
-  let sourceAcct;
-  try {
-    sourceAcct = await server.getAccount(kp.publicKey());
-  } catch {
-    throw new AppError(
-      "INSUFFICIENT_FUNDS",
-      `Relayer account ${kp.publicKey()} is not funded or does not exist`,
-    );
-  }
 
   const salt = randomBytes(32);
   const args = [
@@ -380,30 +376,44 @@ export async function deployCashOutDevByRelayer(opts: {
     string(opts.bankCode ?? ""),
   ];
 
-  const op = Operation.createCustomContract({
-    address: new Address(kp.publicKey()),
-    wasmHash: Buffer.from(wasmHash, "hex"),
-    salt,
-    constructorArgs: args,
+  // Serialize account-load -> sign -> submit against the shared relayer account.
+  const send = await withRelayerLock(async () => {
+    let sourceAcct;
+    try {
+      sourceAcct = await server.getAccount(kp.publicKey());
+    } catch {
+      throw new AppError(
+        "INSUFFICIENT_FUNDS",
+        `Relayer account ${kp.publicKey()} is not funded or does not exist`,
+      );
+    }
+
+    const op = Operation.createCustomContract({
+      address: new Address(kp.publicKey()),
+      wasmHash: Buffer.from(wasmHash, "hex"),
+      salt,
+      constructorArgs: args,
+    });
+
+    const tx = new TransactionBuilder(sourceAcct, {
+      fee: BASE_FEE,
+      networkPassphrase: stellarPassphrase(),
+    })
+      .addOperation(op)
+      .setTimeout(180)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim)) {
+      throw new AppError("UPSTREAM_RPC", `CASH_OUT_DEV deploy simulation failed: ${sim.error}`);
+    }
+
+    const assembled = rpc.assembleTransaction(tx, sim).build();
+    assembled.sign(kp);
+
+    return server.sendTransaction(assembled);
   });
 
-  const tx = new TransactionBuilder(sourceAcct, {
-    fee: BASE_FEE,
-    networkPassphrase: stellarPassphrase(),
-  })
-    .addOperation(op)
-    .setTimeout(180)
-    .build();
-
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `CASH_OUT_DEV deploy simulation failed: ${sim.error}`);
-  }
-
-  const assembled = rpc.assembleTransaction(tx, sim).build();
-  assembled.sign(kp);
-
-  const send = await server.sendTransaction(assembled);
   if (send.status === "ERROR") {
     return {
       status: "FAILED",
@@ -595,39 +605,43 @@ export async function refundFromTreasury(opts: {
   const kp = relayerKeypair();
   const server = sorobanRpc();
 
-  let sourceAcct;
-  try {
-    sourceAcct = await server.getAccount(kp.publicKey());
-  } catch {
-    throw new AppError(
-      "INSUFFICIENT_FUNDS",
-      `Relayer account ${kp.publicKey()} is not funded or does not exist`,
-    );
-  }
+  // Serialize account-load -> sign -> submit against the shared relayer account.
+  const send = await withRelayerLock(async () => {
+    let sourceAcct;
+    try {
+      sourceAcct = await server.getAccount(kp.publicKey());
+    } catch {
+      throw new AppError(
+        "INSUFFICIENT_FUNDS",
+        `Relayer account ${kp.publicKey()} is not funded or does not exist`,
+      );
+    }
 
-  const op = Operation.invokeContractFunction({
-    contract: opts.assetContractAddress,
-    function: "transfer",
-    args: [addr(kp.publicKey()), addr(opts.destination), i128(opts.amountStroops)],
+    const op = Operation.invokeContractFunction({
+      contract: opts.assetContractAddress,
+      function: "transfer",
+      args: [addr(kp.publicKey()), addr(opts.destination), i128(opts.amountStroops)],
+    });
+
+    const tx = new TransactionBuilder(sourceAcct, {
+      fee: BASE_FEE,
+      networkPassphrase: stellarPassphrase(),
+    })
+      .addOperation(op)
+      .setTimeout(180)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim)) {
+      throw new AppError("UPSTREAM_RPC", `treasury refund simulation failed: ${sim.error}`);
+    }
+
+    const assembled = rpc.assembleTransaction(tx, sim).build();
+    assembled.sign(kp);
+
+    return server.sendTransaction(assembled);
   });
 
-  const tx = new TransactionBuilder(sourceAcct, {
-    fee: BASE_FEE,
-    networkPassphrase: stellarPassphrase(),
-  })
-    .addOperation(op)
-    .setTimeout(180)
-    .build();
-
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `treasury refund simulation failed: ${sim.error}`);
-  }
-
-  const assembled = rpc.assembleTransaction(tx, sim).build();
-  assembled.sign(kp);
-
-  const send = await server.sendTransaction(assembled);
   if (send.status === "ERROR") {
     return {
       status: "FAILED",

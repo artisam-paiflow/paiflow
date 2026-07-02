@@ -15,6 +15,17 @@ const optionalWasmHash = z
     message: "WASM hash must be a 64-character hex string",
   });
 
+// Stellar memo IDs are numeric (uint64). Kept as a string to avoid precision
+// loss; validated at config load so a swapped/misconfigured PDAX memo fails at
+// startup rather than mid-way through a live off-ramp job.
+const optionalNumericMemo = z
+  .string()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined))
+  .refine((v) => v === undefined || /^\d+$/.test(v), {
+    message: "PDAX deposit memo must be a numeric string (Stellar memo id)",
+  });
+
 const boolish = z
   .union([z.boolean(), z.string()])
   .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
@@ -108,8 +119,8 @@ const EnvSchema = z.object({
   // before executing the trade. Required only for the XLM -> PHP flow.
   OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET: optionalString,
   OFFRAMP_PDAX_DEPOSIT_ADDRESS_MAINNET: optionalString,
-  OFFRAMP_PDAX_DEPOSIT_MEMO_TESTNET: optionalString,
-  OFFRAMP_PDAX_DEPOSIT_MEMO_MAINNET: optionalString,
+  OFFRAMP_PDAX_DEPOSIT_MEMO_TESTNET: optionalNumericMemo,
+  OFFRAMP_PDAX_DEPOSIT_MEMO_MAINNET: optionalNumericMemo,
 
   CRON_SECRET: optionalString,
   // Secret token for machine-to-machine calls to the /api/deployments/:id/dev-*

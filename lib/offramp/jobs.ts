@@ -46,6 +46,7 @@ export async function rescheduleOffRampJob(
     providerRef?: string | null;
     tradeRef?: string | null;
     requestId?: string | null;
+    pdaxDepositTxHash?: string | null;
     providerQuote?: Prisma.InputJsonValue | null;
     lastError?: string | null;
     completedAt?: Date | null;
@@ -57,6 +58,7 @@ export async function rescheduleOffRampJob(
   if (updates.providerRef !== undefined) data.providerRef = updates.providerRef;
   if (updates.tradeRef !== undefined) data.tradeRef = updates.tradeRef;
   if (updates.requestId !== undefined) data.requestId = updates.requestId;
+  if (updates.pdaxDepositTxHash !== undefined) data.pdaxDepositTxHash = updates.pdaxDepositTxHash;
   if (updates.providerQuote !== undefined) data.providerQuote = updates.providerQuote;
   if (updates.lastError !== undefined) data.lastError = updates.lastError;
   if (updates.completedAt !== undefined) data.completedAt = updates.completedAt;
@@ -66,6 +68,24 @@ export async function rescheduleOffRampJob(
     where: { id: jobId },
     data,
   });
+}
+
+/**
+ * Atomically claim a due job by transitioning it to RUNNING only if it is still
+ * in `fromStatus`. Returns true if this caller won the claim, false if another
+ * overlapping cron run already advanced it. This prevents two workers from both
+ * processing the same job (and, for native XLM cash-outs, double-depositing).
+ */
+export async function claimOffRampJob(
+  prisma: PrismaClient,
+  jobId: string,
+  fromStatus: OffRampPayoutJobStatus,
+): Promise<boolean> {
+  const result = await prisma.offRampPayoutJob.updateMany({
+    where: { id: jobId, status: fromStatus },
+    data: { status: OffRampPayoutJobStatus.RUNNING },
+  });
+  return result.count === 1;
 }
 
 /**
