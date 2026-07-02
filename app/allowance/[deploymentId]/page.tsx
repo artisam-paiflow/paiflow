@@ -18,12 +18,18 @@ export default async function AllowancePage({
     },
   });
 
-  if (!d || d.flow.templateKind !== "SUBSCRIPTION" || !d.contractAddress) notFound();
+  const allowedKinds = ["SUBSCRIPTION", "PAYROLL"];
+  if (!d || !allowedKinds.includes(d.flow.templateKind) || !d.contractAddress) notFound();
 
   const graphResult = FlowGraphSchema.safeParse(d.graphSnapshot);
   const graph = graphResult.success ? graphResult.data : null;
   const triggerNode = graph?.nodes.find(isTrigger);
-  if (triggerNode?.type !== "subscription") notFound();
+  if (
+    !triggerNode ||
+    (triggerNode.type !== "subscription" && triggerNode.type !== "payroll") ||
+    !("asset" in triggerNode.config)
+  )
+    notFound();
 
   const asset = triggerNode.config.asset;
 
@@ -34,6 +40,7 @@ export default async function AllowancePage({
       flowName={d.flow.name}
       network={d.network as "testnet" | "mainnet"}
       assetLabel={assetLabel(asset)}
+      templateKind={d.flow.templateKind as "SUBSCRIPTION" | "PAYROLL"}
     />
   );
 }
