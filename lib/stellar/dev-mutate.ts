@@ -105,7 +105,8 @@ async function buildAndSendByRelayer(
   const kp = relayerKeypair();
 
   // Serialize account-load -> sign -> submit against the shared relayer account
-  // so concurrent invocations don't race the same sequence number (txBadSeq).
+  // so concurrent invocations in this process don't race the same sequence
+  // number (txBadSeq). See withRelayerLock for its in-process-only scope.
   const send = await withRelayerLock(async () => {
     let sourceAcct;
     try {
