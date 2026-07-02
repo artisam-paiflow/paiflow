@@ -570,26 +570,14 @@ export async function depositNativeToProvider(opts: {
     };
   }
 
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    try {
-      const tx = await server.transactions().transaction(txHash).call();
-      if (tx.successful) return { status: "SUCCESS", txHash };
-      return {
-        status: "FAILED",
-        txHash,
-        errorMessage: `Deposit transaction failed on network: ${JSON.stringify(tx.result_meta_xdr)}`,
-      };
-    } catch {
-      await new Promise((r) => setTimeout(r, 1500));
-    }
-  }
-
-  return {
-    status: "FAILED",
-    txHash,
-    errorMessage: "Timed out waiting for deposit finality",
-  };
+  // Horizon's submitTransaction blocks until the transaction is applied to a
+  // ledger, so `submitResult.successful` is the authoritative on-chain result.
+  // We deliberately do NOT re-verify via a separate transactions().transaction()
+  // lookup: that lookup only catches transport errors, so Horizon read-lag or a
+  // transient network blip could report FAILED for a deposit that already
+  // succeeded — and the caller would then refund funds that already left the
+  // treasury.
+  return { status: "SUCCESS", txHash };
 }
 
 /**
