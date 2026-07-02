@@ -315,6 +315,31 @@ describe("process-offramp-jobs", () => {
     expect(mockProvider.executeTrade).toHaveBeenCalled();
   });
 
+  it("fails hard on half-configured PDAX deposit env (address without memo)", async () => {
+    const job = {
+      ...baseJob,
+      source: OffRampJobSource.CASH_OUT,
+      sourceAddress: "CCashOut",
+    };
+    mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
+    mockAssets.resolveCashOutAsset.mockReturnValue({ kind: "native" });
+    mockDevMutate.getTreasuryBalance.mockResolvedValue(BigInt(job.amountStroops));
+    // Only the address is set — an invalid config for a native XLM off-ramp.
+    mockEnvHelpers.address = "GCK2MUVH6TABTXT4247CIEC5EO24CQQ4MZNW7EGBTP3TPGALLQI7P34G";
+    mockEnvHelpers.memo = undefined;
+    mockDevMutate.refundFromTreasury.mockResolvedValue({ status: "SUCCESS", txHash: "refund-1" });
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    // Must not silently draw from the pre-funded balance: no deposit, no trade.
+    expect(mockDevMutate.depositNativeToProvider).not.toHaveBeenCalled();
+    expect(mockProvider.quote).not.toHaveBeenCalled();
+    expect(json.data.failed).toBe(1);
+    // No deposit happened, so the treasury funds are refunded to source.
+    expect(mockDevMutate.refundFromTreasury).toHaveBeenCalled();
+  });
+
   it("fails without refunding when the PDAX deposit itself fails", async () => {
     // Deposit failed => XLM never left the treasury, so a refund IS appropriate
     // (funds are still recoverable on-chain). Quote/trade must not run.

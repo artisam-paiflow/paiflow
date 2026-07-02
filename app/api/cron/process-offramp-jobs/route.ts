@@ -172,6 +172,19 @@ export async function POST(req: NextRequest) {
             // amount from the relayer treasury to the PDAX deposit address with
             // the required memo/tag so the trade is funded by the on-chain sink.
             const pdax = offRampPdaxDepositConfig();
+            const hasAddress = Boolean(pdax.address);
+            const hasMemo = Boolean(pdax.memo);
+            if (hasAddress !== hasMemo) {
+              // Half-configured: exactly one of address/memo is set. Falling
+              // through here would silently draw the trade from the employer's
+              // pre-funded balance instead of depositing the on-chain sink, so
+              // fail hard rather than move real funds under a wrong assumption.
+              // (No deposit has happened, so the pre-trade refund path returns
+              // the treasury funds to the source address.)
+              throw new Error(
+                "PDAX native XLM deposit is half-configured: set BOTH deposit address and memo, or neither",
+              );
+            }
             if (pdax.address && pdax.memo) {
               if (job.pdaxDepositTxHash) {
                 // Idempotency: a prior run already deposited to PDAX. Do NOT
