@@ -48,13 +48,14 @@ function symbol(s: string): xdr.ScVal {
 
 function recipientsVec(
   recipients: Array<{ address: string; bps: number; amount: string }>,
+  nodeAddresses: Record<string, string> = {},
 ): xdr.ScVal {
   return xdr.ScVal.scvVec(
     recipients.map((r) =>
       xdr.ScVal.scvMap([
         new xdr.ScMapEntry({
           key: symbol("address"),
-          val: addr(r.address),
+          val: addr(nodeAddresses[r.address] ?? r.address),
         }),
         new xdr.ScMapEntry({ key: symbol("amount"), val: i128(r.amount) }),
         new xdr.ScMapEntry({ key: symbol("bps"), val: u32(r.bps) }),
@@ -182,7 +183,7 @@ export function pipelineNodeConstructorArgs(
       return [
         addr(admin),
         addr(assetContractId(params.asset)),
-        recipientsVec(params.recipients),
+        recipientsVec(params.recipients, nodeAddresses),
         i128(params.minAmountStroops),
         addr(parentAddress),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
@@ -192,7 +193,7 @@ export function pipelineNodeConstructorArgs(
       if (!parentAddress) throw new Error("Streamer requires a parent address");
       return [
         addr(admin),
-        recipientsVec(params.recipients),
+        recipientsVec(params.recipients, nodeAddresses),
         addr(assetContractId(params.asset)),
         amountPerIntervalStroops(params),
         intervalSeconds(params),
@@ -208,7 +209,7 @@ export function pipelineNodeConstructorArgs(
       const cond = params.condition as { kind: string; [key: string]: unknown } | null;
       return [
         addr(admin),
-        recipientsVec(params.recipients),
+        recipientsVec(params.recipients, nodeAddresses),
         addr(assetContractId(params.asset)),
         amountStroops(params),
         cond ? conditionKind(cond) : xdr.ScVal.scvVoid(),
@@ -285,7 +286,10 @@ export function pipelineNodeConstructorArgs(
       return [
         addr(admin),
         addr(assetContractId(params.asset)),
-        recipientsVec(params.signers.map((s) => ({ ...s, amount: "0" }))),
+        recipientsVec(
+          params.signers.map((s) => ({ ...s, amount: "0" })),
+          nodeAddresses,
+        ),
         u32(params.threshold),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
         addr(parentAddress),

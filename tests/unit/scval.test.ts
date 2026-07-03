@@ -184,6 +184,35 @@ describe("pipelineNodeConstructorArgs", () => {
     expect(entries[1]).toMatchObject({ address: ADDR2, amount: 200n, bps: 0, is_cash_out: true });
   });
 
+  it("resolves splitter recipient node ids through nodeAddresses", () => {
+    const args = pipelineNodeConstructorArgs(
+      {
+        kind: "splitter",
+        asset: { kind: "native" },
+        recipients: [{ address: "split-e2iudl-cashout-0", bps: 10_000, amount: "0" }],
+        minAmountStroops: "100",
+        nextStepNodeIds: [],
+      },
+      ADDR,
+      ADDR2,
+      { "split-e2iudl-cashout-0": ADDR },
+    );
+
+    expect(args).toHaveLength(6);
+    const recipientsScVal = args[2]!;
+    expect(recipientsScVal.switch()).toBe(xdr.ScValType.scvVec());
+
+    const vec = recipientsScVal.value() as xdr.ScVal[];
+    expect(vec).toHaveLength(1);
+
+    const entries = vec.map((entry) => {
+      const map = entry.value() as xdr.ScMapEntry[];
+      return Object.fromEntries(map.map((e) => [scValToNative(e.key()), scValToNative(e.val())]));
+    });
+
+    expect(entries[0]).toMatchObject({ address: ADDR, bps: 10_000, amount: 0n });
+  });
+
   it("throws when parent is missing for a child node", () => {
     expect(() =>
       pipelineNodeConstructorArgs(
