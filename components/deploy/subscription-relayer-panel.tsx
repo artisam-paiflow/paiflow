@@ -110,7 +110,7 @@ export default function SubscriptionRelayerPanel({
 
   const modeLabel =
     config.mode === "PLATFORM"
-      ? "Pink Raft relayer"
+      ? "Paiflow relayer"
       : config.mode === "USER"
         ? "Your relayer"
         : "Manual";
@@ -174,7 +174,7 @@ export default function SubscriptionRelayerPanel({
               className="border-outline-variant/40 bg-surface-container w-full rounded border px-2 py-1.5 font-mono text-xs"
             >
               <option value="MANUAL">Manual (no automatic charges)</option>
-              <option value="PLATFORM">Pink Raft relayer</option>
+              <option value="PLATFORM">Paiflow relayer</option>
               <option value="USER">My own relayer</option>
             </select>
           </div>

@@ -5,7 +5,7 @@ import NewPasswordForm from "@/components/auth/new-password-form";
 // `referrer: no-referrer` ensures the `?token=…` URL is never sent in the
 // `Referer` header to anything the user navigates to from this page.
 export const metadata = {
-  title: "Set new password · Pink Raft",
+  title: "Set new password · Paiflow",
   referrer: "no-referrer" as const,
 };
 
@@ -18,7 +18,7 @@ export default async function NewPasswordPage({
 
   return (
     <main className="px-margin py-lg relative mx-auto flex min-h-screen w-full max-w-md flex-col justify-center">
-      <Link href="/" className="inline-flex w-fit" aria-label="Pink Raft home">
+      <Link href="/" className="inline-flex w-fit" aria-label="Paiflow home">
         <Logo size={24} />
       </Link>
 

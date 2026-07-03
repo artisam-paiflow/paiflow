@@ -14,7 +14,7 @@ export const authConfig: NextAuthConfig = {
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 7 },
   cookies: {
     sessionToken: {
-      name: process.env.NODE_ENV === "production" ? "__Host-pinkraft.session" : "pinkraft.session",
+      name: process.env.NODE_ENV === "production" ? "__Host-paiflow.session" : "paiflow.session",
       options: {
         httpOnly: true,
         sameSite: "lax",

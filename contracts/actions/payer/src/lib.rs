@@ -258,7 +258,7 @@ fn invoke_execute_step(env: &Env, target: &Address, asset: &Address, amount: &i1
 #[cfg(test)]
 mod test {
     use super::*;
-    use pinkraft_splitter::{Recipient as SplitterRecipient, Splitter, SplitterClient};
+    use paiflow_splitter::{Recipient as SplitterRecipient, Splitter, SplitterClient};
     use soroban_sdk::testutils::Address as _;
     use soroban_sdk::{contract, contractimpl, token, vec, Env};
 

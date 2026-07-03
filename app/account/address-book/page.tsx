@@ -5,7 +5,7 @@ import AddressBookManager from "@/components/account/address-book";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Address Book · Pink Raft",
+  title: "Address Book · Paiflow",
 };
 
 export default async function AddressBookPage() {

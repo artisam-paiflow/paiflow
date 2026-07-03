@@ -112,7 +112,7 @@ function deploymentResponse(d: {
  * fiat sinks and cash-out are configured afterwards via the dev-* endpoints.
  *
  * Auth: a per-developer API token (`x-dev-api-secret` header) that maps to the
- * Pinkraft user who will own the deployment.
+ * Paiflow user who will own the deployment.
  */
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {

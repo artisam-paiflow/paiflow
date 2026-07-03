@@ -93,7 +93,7 @@ export function storage(): FileStorage {
   const driver = process.env.FILE_STORAGE_DRIVER ?? "volume";
   if (driver === "minio") {
     cached = new MinioStorage(
-      process.env.MINIO_BUCKET ?? "pinkraft",
+      process.env.MINIO_BUCKET ?? "paiflow",
       process.env.MINIO_ENDPOINT ?? "http://localhost:9000",
       process.env.MINIO_ACCESS_KEY ?? "",
       process.env.MINIO_SECRET_KEY ?? "",

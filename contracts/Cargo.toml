@@ -27,7 +27,7 @@ members = [
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/webnxt-2030/pinkraft"
+repository = "https://github.com/webnxt-2030/paiflow"
 
 [workspace.dependencies]
 soroban-sdk = { version = "26.0.0" }

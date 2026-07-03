@@ -128,7 +128,7 @@ export default function TriggerClient({
 
         <p className="text-label-sm text-on-surface-variant text-center font-mono">
           <Link href="/" className="hover:text-primary transition-colors">
-            Back to Pink Raft
+            Back to Paiflow
           </Link>
         </p>
       </div>

@@ -2,7 +2,7 @@ import LoginForm from "@/components/auth/login-form";
 import Link from "next/link";
 import Logo from "@/components/app/logo";
 
-export const metadata = { title: "Sign in · Pink Raft" };
+export const metadata = { title: "Sign in · Paiflow" };
 
 export default function LoginPage({
   searchParams,
@@ -11,7 +11,7 @@ export default function LoginPage({
 }) {
   return (
     <main className="px-margin py-lg relative mx-auto flex min-h-screen w-full max-w-md flex-col justify-center">
-      <Link href="/" className="inline-flex w-fit" aria-label="Pink Raft home">
+      <Link href="/" className="inline-flex w-fit" aria-label="Paiflow home">
         <Logo size={24} />
       </Link>
 

@@ -55,7 +55,7 @@ export default function Landing() {
       {/* Fixed translucent top nav */}
       <header className="glass-panel-nav fixed inset-x-0 top-0 z-50 h-16">
         <div className="px-margin mx-auto flex h-full max-w-7xl items-center">
-          <Link href="/" className="group flex items-center" aria-label="Pink Raft home">
+          <Link href="/" className="group flex items-center" aria-label="Paiflow home">
             <Logo size={24} />
           </Link>
         </div>
@@ -88,7 +88,7 @@ export default function Landing() {
               className="reveal text-body-lg font-body text-on-surface-variant mt-6 max-w-xl"
               style={{ ["--reveal-delay" as string]: "240ms" }}
             >
-              Pink Raft turns triggers and actions into real Soroban contracts on Stellar.
+              Paiflow turns triggers and actions into real Soroban contracts on Stellar.
               Non-custodial. Real money, real chain, ninety seconds end-to-end.
             </p>
 
@@ -241,7 +241,7 @@ export default function Landing() {
                   Ship your first pipeline.
                 </h2>
                 <p className="text-body-md text-on-surface-variant mt-3 max-w-md">
-                  Non-custodial. Pink Raft never holds your keys.
+                  Non-custodial. Paiflow never holds your keys.
                 </p>
               </div>
               <Link
@@ -261,7 +261,7 @@ export default function Landing() {
       {/* Footer */}
       <footer className="border-outline-variant/15 px-margin py-md border-t">
         <div className="text-label-sm text-on-surface-variant mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 font-mono">
-          <span>© PINK RAFT · BUILT FOR ANYONE</span>
+          <span>© PAIFLOW · BUILT FOR ANYONE</span>
         </div>
       </footer>
     </div>

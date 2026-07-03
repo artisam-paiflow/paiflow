@@ -1,6 +1,6 @@
 # Mainnet cutover
 
-Pink Raft pins its Stellar network per environment via the `STELLAR_NETWORK`
+Paiflow pins its Stellar network per environment via the `STELLAR_NETWORK`
 env var. There is no per-deploy picker and no in-app mainnet kill switch. To
 make a production environment actually deploy to Stellar mainnet, an operator
 runs the steps below.
@@ -29,9 +29,9 @@ pnpm contracts:optimize   # if present in the contracts workspace
 Confirm the artifacts exist at:
 
 ```
-contracts/target/wasm32v1-none/release/pinkraft_splitter.wasm
-contracts/target/wasm32v1-none/release/pinkraft_streamer.wasm
-contracts/target/wasm32v1-none/release/pinkraft_conditional.wasm
+contracts/target/wasm32v1-none/release/paiflow_splitter.wasm
+contracts/target/wasm32v1-none/release/paiflow_streamer.wasm
+contracts/target/wasm32v1-none/release/paiflow_conditional.wasm
 ```
 
 ## Step 2 — Upload to mainnet

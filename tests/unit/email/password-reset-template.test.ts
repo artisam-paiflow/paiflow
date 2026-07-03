@@ -4,7 +4,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 // path in lib/mail is exercised.
 vi.mock("@/lib/env", () => ({
   env: () => ({
-    EMAIL_FROM: "Pink Raft <onboarding@resend.dev>",
+    EMAIL_FROM: "Paiflow <onboarding@resend.dev>",
     NEXT_PUBLIC_APP_URL: "http://localhost:3000",
     // RESEND_API_KEY undefined → triggers dev fallback in lib/mail.
   }),

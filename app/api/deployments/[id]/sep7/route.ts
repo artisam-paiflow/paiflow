@@ -18,7 +18,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const uri = sep7PaymentUri({
       destination: d.contractAddress,
       asset,
-      message: "Pink Raft deployment",
+      message: "Paiflow deployment",
     });
     return NextResponse.json({ data: { uri } });
   });
