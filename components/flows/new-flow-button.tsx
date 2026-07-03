@@ -43,6 +43,11 @@ export default function NewFlowButton({
   }, [open, busy]);
 
   async function create() {
+    // Re-entrancy guard: `disabled={busy}` on the button isn't applied
+    // synchronously, and Enter-keydown can fire repeatedly, so without this a
+    // fast double-confirm could POST twice and create two flows — the exact
+    // dup-creation bug this dialog exists to prevent (#281 review).
+    if (busy) return;
     const trimmed = name.trim();
     if (!trimmed) return;
     setBusy(true);
@@ -110,6 +115,7 @@ export default function NewFlowButton({
                 <input
                   ref={inputRef}
                   value={name}
+                  disabled={busy}
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -119,7 +125,7 @@ export default function NewFlowButton({
                   }}
                   maxLength={80}
                   placeholder="Untitled flow"
-                  className="border-outline-variant/40 bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-primary rounded border px-3 py-2 font-mono text-[14px] focus:ring-1 focus:outline-none"
+                  className="border-outline-variant/40 bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-primary rounded border px-3 py-2 font-mono text-[14px] focus:ring-1 focus:outline-none disabled:opacity-50"
                 />
               </label>
             </div>
