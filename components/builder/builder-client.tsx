@@ -658,26 +658,18 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
               <div className="text-body-md text-on-surface mt-1 line-clamp-2">{english}</div>
             </div>
 
-            {/* Prominent validation-error banner — an invalid flow must be
-                impossible to miss, so it gets a full error-tinted banner that
-                surfaces the first issue inline rather than a subtle corner
-                badge. "View all N issues" opens the full modal list. */}
+            {/* Prominent validation-error banner — compact single-line summary.
+                "Details" opens the full modal list. */}
             {!isValid && errors.length > 0 && (
               <div
                 role="alert"
-                className="bg-error-container/25 border-error/40 text-on-error-container mt-2 flex max-w-2xl items-start gap-3 rounded-xl border px-4 py-3"
+                className="bg-error-container/25 border-error/40 text-on-error-container mt-2 flex max-w-2xl items-center gap-3 rounded-xl border px-4 py-2"
               >
-                <span className="material-symbols-outlined text-error mt-0.5 text-[20px] leading-none">
+                <span className="material-symbols-outlined text-error text-[20px] leading-none">
                   error
                 </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-label-md text-error font-semibold">
-                    {errors.length} validation {errors.length === 1 ? "issue" : "issues"} — this
-                    flow can&apos;t deploy yet
-                  </div>
-                  <p className="text-body-md text-on-error-container/90 mt-0.5 line-clamp-2">
-                    {errors[0]!.friendlyMessage}
-                  </p>
+                <div className="text-label-md text-error min-w-0 flex-1 font-semibold">
+                  {errors.length} validation {errors.length === 1 ? "issue" : "issues"}
                 </div>
                 <button
                   type="button"
@@ -685,7 +677,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                   aria-label={`View all ${errors.length} validation ${
                     errors.length === 1 ? "issue" : "issues"
                   }`}
-                  className="bg-error/15 border-error/40 text-error hover:bg-error/25 text-label-sm shrink-0 self-center rounded-lg border px-2.5 py-1 font-semibold transition-colors"
+                  className="bg-error/15 border-error/40 text-error hover:bg-error/25 text-label-sm shrink-0 rounded-lg border px-2.5 py-1 font-semibold transition-colors"
                 >
                   {errors.length > 1 ? `View all ${errors.length}` : "Details"}
                 </button>
