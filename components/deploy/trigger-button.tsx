@@ -12,6 +12,7 @@ type TriggerButtonProps = {
   amount: string;
   isDeposit?: boolean;
   mode?: "trigger" | "allowance";
+  templateKind?: "SUBSCRIPTION" | "PAYROLL";
 };
 
 function isMobile() {
@@ -28,6 +29,7 @@ export function TriggerButton({
   amount,
   isDeposit,
   mode = "trigger",
+  templateKind,
 }: TriggerButtonProps) {
   const [busy, setBusy] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
@@ -238,7 +240,9 @@ export function TriggerButton({
     toast.info("Preparing transaction...");
     const preparePath =
       mode === "allowance"
-        ? `/api/deployments/${deploymentId}/subscription-allowance`
+        ? templateKind === "PAYROLL"
+          ? `/api/deployments/${deploymentId}/payroll-allowance`
+          : `/api/deployments/${deploymentId}/subscription-allowance`
         : `/api/deployments/${deploymentId}/trigger`;
     const submitPath =
       mode === "allowance"
@@ -252,6 +256,9 @@ export function TriggerButton({
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error?.message ?? "Failed to prepare transaction");
 
+    const xdr = data.data.xdr ?? data.data.unsignedXdr;
+    if (!xdr) throw new Error("No transaction XDR returned");
+
     // Prevent WalletConnect from auto-redirecting to a stale wallet choice
     // (e.g. MetaMask) during signing, which causes an Android intent chooser.
     try {
@@ -262,7 +269,7 @@ export function TriggerButton({
 
     onAwaitingSignature?.();
     toast.info("Awaiting signature...");
-    const signed = await kit.signTransaction(data.data.xdr, {
+    const signed = await kit.signTransaction(xdr, {
       address,
       networkPassphrase: data.data.networkPassphrase,
     });

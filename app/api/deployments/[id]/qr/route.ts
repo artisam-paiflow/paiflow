@@ -67,8 +67,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       uri = `${appUrl}/trigger/${d.id}`;
     }
   } else if (q.action === "allowance") {
-    if (d.flow.templateKind !== "SUBSCRIPTION") {
-      return new Response("Allowance QR only available for subscription deployments", {
+    if (d.flow.templateKind !== "SUBSCRIPTION" && d.flow.templateKind !== "PAYROLL") {
+      return new Response("Allowance QR only available for subscription or payroll deployments", {
         status: 400,
       });
     }

@@ -11,12 +11,14 @@ export default function AllowanceClient({
   flowName,
   network,
   assetLabel,
+  templateKind,
 }: {
   deploymentId: string;
   contractAddress: string;
   flowName: string;
   network: "testnet" | "mainnet";
   assetLabel: string;
+  templateKind: "SUBSCRIPTION" | "PAYROLL";
 }) {
   const [amount, setAmount] = useState("");
   const [amountSet, setAmountSet] = useState(false);
@@ -108,6 +110,7 @@ export default function AllowanceClient({
             network={network}
             amount={amountSet ? tokenAmountToStroops(amount) : ""}
             mode="allowance"
+            templateKind={templateKind}
           />
 
           <p className="text-label-sm text-on-surface-variant text-center font-mono">
