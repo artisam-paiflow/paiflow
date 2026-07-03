@@ -143,7 +143,7 @@ export function TriggerButton({
           name: "Paiflow",
           description: "Trigger contract deployments",
           url: typeof window !== "undefined" ? window.location.origin : "",
-          icons: ["https://paiflow.xyz/logo.png"],
+          icons: ["/logo.png"],
           method: WalletConnectAllowedMethods.SIGN,
           network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
           client:
