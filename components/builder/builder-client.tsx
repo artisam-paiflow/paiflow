@@ -28,7 +28,7 @@ import { validateFlow } from "@/lib/flows/validate";
 import type { AddressEntry } from "@/lib/address-book.types";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import AnimatedStraightEdge from "@/components/nodes/animated-edge";
-import ConfigPanel from "./config-panel";
+import CanvasConfigPanel from "./canvas-config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
 import RaftLog, { type ChatMessage } from "./raft-log";
@@ -192,13 +192,6 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [addressBook, setAddressBook] = useState<AddressEntry[]>([]);
   const [devMode, setDevMode] = useState<boolean>(initialGraph.devMode ?? false);
 
-  // Floating config panel position. Both canvas panning and dragging the panel
-  // header accumulate into this translate offset; it resets to the default
-  // anchored position whenever a different node is opened (see effect below).
-  const [panelOffset, setPanelOffset] = useState({ x: 0, y: 0 });
-  const prevViewport = useRef<{ x: number; y: number; zoom: number } | null>(null);
-  const panelDragStart = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
-
   const refreshAddressBook = useCallback(async () => {
     const r = await fetch("/api/address-book");
     if (!r.ok) return;
@@ -239,35 +232,6 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   }, [graph]);
 
   const selectedNode = flowNodes.find((n) => n.id === selectedId) ?? null;
-
-  // Re-anchor the floating config panel to its default position each time a
-  // different node is selected (or it closes).
-  useEffect(() => {
-    setPanelOffset({ x: 0, y: 0 });
-  }, [selectedId]);
-
-  // Drag the panel by its header. The delta is measured from the pointer-down
-  // point so it composes cleanly with any pan-follow offset already applied.
-  function onPanelPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    if (e.button !== 0) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    panelDragStart.current = {
-      px: e.clientX,
-      py: e.clientY,
-      ox: panelOffset.x,
-      oy: panelOffset.y,
-    };
-  }
-  function onPanelPointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    const s = panelDragStart.current;
-    if (!s) return;
-    setPanelOffset({ x: s.ox + (e.clientX - s.px), y: s.oy + (e.clientY - s.py) });
-  }
-  function onPanelPointerUp(e: React.PointerEvent<HTMLDivElement>) {
-    if (!panelDragStart.current) return;
-    panelDragStart.current = null;
-    e.currentTarget.releasePointerCapture?.(e.pointerId);
-  }
 
   // Custom minimap renderer: draw the node rectangle with its type name on top
   // (e.g. "Pay", "Split", "On Receive") so the minimap reads as labelled
@@ -731,57 +695,6 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
 
           {/* Row 3: Canvas */}
           <div className="relative min-h-0">
-            {/* Floating ConfigPanel — anchored top-right, shifts left when the
-                chat opens, and translated by panelOffset so it follows canvas
-                panning and header drags. Only `right` animates so the live
-                pan/drag translate stays instant. No height cap: a tall panel
-                renders full height and is brought into view by pan/drag. */}
-            {selectedNode && (
-              <div
-                className={cn(
-                  "absolute top-3 z-20 w-80 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl transition-[right] duration-300 ease-in-out",
-                  !chatCollapsed ? "right-[376px]" : "right-[108px]",
-                )}
-                style={{ transform: `translate(${panelOffset.x}px, ${panelOffset.y}px)` }}
-              >
-                {/* Draggable header: grip + node title on the left, Delete on the
-                    right. Dragging it (or panning the canvas) repositions the panel. */}
-                <div
-                  onPointerDown={onPanelPointerDown}
-                  onPointerMove={onPanelPointerMove}
-                  onPointerUp={onPanelPointerUp}
-                  className="flex cursor-grab touch-none items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-900/60 px-3 py-2 select-none active:cursor-grabbing"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[16px] leading-none text-zinc-500">
-                      drag_indicator
-                    </span>
-                    <span className="text-brand-400 text-xs tracking-wider uppercase">
-                      {selectedNode.type.replace("_", " ")}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={() => deleteNode(selectedNode.id)}
-                    className="rounded border border-red-900 px-2 py-1 text-xs text-red-300 hover:bg-red-950"
-                  >
-                    Delete
-                  </button>
-                </div>
-                <ConfigPanel
-                  node={selectedNode}
-                  graph={graph}
-                  onChange={updateNode}
-                  onDelete={deleteNode}
-                  addressBook={addressBook}
-                  refreshAddressBook={refreshAddressBook}
-                  hideHeader
-                  className="border-0"
-                />
-              </div>
-            )}
-
             <ReactFlow
               nodes={rfNodes.map((n) => {
                 const fn = flowNodes.find((f) => f.id === n.id);
@@ -805,19 +718,6 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                 setSelectedId(null);
                 if (!chatCollapsed) setChatCollapsed(true);
               }}
-              onMove={(_, viewport) => {
-                // Follow canvas panning: translate the panel by the viewport's
-                // movement delta. Zoom is ignored (panel keeps a fixed size), so
-                // skip when only the zoom changed.
-                const prev = prevViewport.current;
-                prevViewport.current = { x: viewport.x, y: viewport.y, zoom: viewport.zoom };
-                if (!prev || viewport.zoom !== prev.zoom) return;
-                const dx = viewport.x - prev.x;
-                const dy = viewport.y - prev.y;
-                if (dx !== 0 || dy !== 0) {
-                  setPanelOffset((o) => ({ x: o.x + dx, y: o.y + dy }));
-                }
-              }}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               deleteKeyCode={["Backspace", "Delete"]}
@@ -834,6 +734,18 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                 nodeComponent={MinimapNode}
                 className="!border !border-zinc-800"
               />
+              {selectedId && selectedNode && (
+                <CanvasConfigPanel
+                  selectedId={selectedId}
+                  node={selectedNode}
+                  graph={graph}
+                  onChange={updateNode}
+                  onDelete={deleteNode}
+                  addressBook={addressBook}
+                  refreshAddressBook={refreshAddressBook}
+                  chatCollapsed={chatCollapsed}
+                />
+              )}
             </ReactFlow>
           </div>
         </div>
