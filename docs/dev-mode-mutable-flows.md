@@ -6,7 +6,7 @@
 > design-time vs. runtime split of programming: authoring a flow == writing a
 > function signature; calling the API == invoking it with arguments.
 >
-> Pinkraft becomes a **programmable web3 backend** for web2 developers. This
+> Paiflow becomes a **programmable web3 backend** for web2 developers. This
 > surface is **API-only (no UI)**, gated behind a **dev mode**.
 
 ## Open design questions (answer one at a time)
@@ -54,7 +54,7 @@ recipients (`NoRecipients`). Dev variants must support a blank/deferred state:
 
 ## Status: all four questions resolved — issue #235 created.
 
-GitHub issue: https://github.com/webnxt-2030/pinkraft/issues/235
+GitHub issue: https://github.com/webnxt-2030/paiflow/issues/235
 
 ---
 

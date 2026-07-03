@@ -50,7 +50,7 @@ const EnvSchema = z.object({
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 chars"),
   AUTH_URL: z.string().url().default("http://localhost:3000"),
   AUTH_RP_ID: z.string().default("localhost"),
-  AUTH_RP_NAME: z.string().default("Pink Raft"),
+  AUTH_RP_NAME: z.string().default("Paiflow"),
   ALLOW_PUBLIC_REGISTRATION: boolish,
 
   DATABASE_URL: z.string().url(),
@@ -177,7 +177,7 @@ const EnvSchema = z.object({
   EMAIL_FROM: z
     .string()
     .optional()
-    .transform((v) => (v && v.length > 0 ? v : "Pink Raft <onboarding@resend.dev>")),
+    .transform((v) => (v && v.length > 0 ? v : "Paiflow <onboarding@resend.dev>")),
 });
 
 type EnvShape = z.infer<typeof EnvSchema>;

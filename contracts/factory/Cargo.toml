@@ -1,5 +1,5 @@
 [package]
-name = "pinkraft-factory"
+name = "paiflow-factory"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

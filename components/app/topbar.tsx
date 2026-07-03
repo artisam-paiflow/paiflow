@@ -38,9 +38,9 @@ export default function Topbar({ username }: { username: string }) {
 
   return (
     <header className="glass-panel-nav sticky top-0 z-40 h-16">
-      <div className="px-margin mx-auto flex h-full w-full max-w-7xl items-center justify-between">
+      <div className="flex h-full w-full items-center justify-between px-4">
         <div className="gap-lg flex items-center">
-          <Link href="/dashboard" className="flex items-center" aria-label="Pink Raft dashboard">
+          <Link href="/dashboard" className="flex items-center" aria-label="Paiflow dashboard">
             <Logo size={22} />
           </Link>
           <nav className="hidden items-center gap-1 md:flex">

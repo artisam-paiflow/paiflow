@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const requiredEnv = {
   AUTH_SECRET: "test_auth_secret_at_least_32_chars_long",
-  DATABASE_URL: "postgresql://localhost:5432/pinkraft",
+  DATABASE_URL: "postgresql://paiflow:paiflow@localhost:5432/paiflow",
   NEXT_PUBLIC_APP_URL: "http://localhost:3000",
 };
 

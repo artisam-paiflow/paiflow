@@ -4,7 +4,7 @@ theme: default
 class: invert
 size: 16:9
 paginate: true
-title: Pink Raft — Investor Pitch (Draft)
+title: Paiflow — Investor Pitch (Draft)
 description: Zaps for Payments. Powered by Stellar.
 style: |
   :root {
@@ -113,9 +113,9 @@ style: |
 <!-- _class: title -->
 <!-- _paginate: false -->
 
-<div class="eyebrow">▮ PINK RAFT · INVESTOR DRAFT</div>
+<div class="eyebrow">▮ PAIFLOW · INVESTOR DRAFT</div>
 
-# Pink Raft
+# Paiflow
 
 <div class="tagline">Zaps for Payments. <span class="hot">Powered by Stellar.</span></div>
 
@@ -145,7 +145,7 @@ style: |
 
 <div class="eyebrow">§ 02 · SOLUTION</div>
 
-## Pink Raft is that middle layer.
+## Paiflow is that middle layer.
 
 <div class="columns">
 
@@ -162,9 +162,9 @@ style: |
 
 <div>
 
-**Non-custodial by design.** Pink Raft never holds keys — users sign in their own wallet.
+**Non-custodial by design.** Paiflow never holds keys — users sign in their own wallet.
 
-**AI-assisted authoring.** Describe the flow in plain English; Pink Raft drafts the canvas.
+**AI-assisted authoring.** Describe the flow in plain English; Paiflow drafts the canvas.
 
 **Three audited templates** cover ~80% of real-world use cases out of the gate.
 
@@ -257,7 +257,7 @@ style: |
 - **AI** collapses the last mile — describe the flow, get the contract.
 - **Stablecoins** are eating cross-border payments.
 
-Pink Raft sits at the intersection.
+Paiflow sits at the intersection.
 
 </div>
 
@@ -276,7 +276,7 @@ Pink Raft sits at the intersection.
 **Initial wedge**
 
 - **Crypto-native SMBs & DAOs** — payroll, treasury, contributor payouts.
-- **Web3 fintechs** building on Stellar — embed Pink Raft flows as their payments layer.
+- **Web3 fintechs** building on Stellar — embed Paiflow flows as their payments layer.
 - **Remittance & payout operators** — programmable splits at the edge.
 
 </div>
@@ -286,9 +286,9 @@ Pink Raft sits at the intersection.
 **Why they buy**
 
 - Today: Rust contractor at $150/hr, 2-week build, ongoing audits.
-- With Pink Raft: **launch in an afternoon**, audited templates, no custody risk.
+- With Paiflow: **launch in an afternoon**, audited templates, no custody risk.
 
-**TAM signal:** Zapier crossed $200M ARR by being a verb. "Pink Raft it" is the same shape for money.
+**TAM signal:** Zapier crossed $200M ARR by being a verb. "Paiflow it" is the same shape for money.
 
 </div>
 
@@ -385,4 +385,4 @@ Raising **$[X]M seed** to:
 
 <br>
 
-<span class="muted mono">contact@pinkraft.app · pinkraft.app · github.com/webnxt-2030/pinkraft</span>
+<span class="muted mono">contact@paiflow.app · paiflow.app · github.com/webnxt-2030/paiflow</span>

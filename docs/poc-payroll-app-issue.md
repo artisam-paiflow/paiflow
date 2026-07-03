@@ -1,30 +1,30 @@
-# [POC] Build `payroll-poc` — a web2 freelancer payroll app powered by Pinkraft
+# [POC] Build `payroll-poc` — a web2 freelancer payroll app powered by Paiflow
 
 > **Status:** design / ready for implementation  
 > **Owner:** TBD  
-> **Repo:** `webnxt-2030/paiflow-payroll` (standalone, not under `pinkraft`)  
+> **Repo:** `webnxt-2030/paiflow-payroll` (standalone, not under `paiflow`)  
 > **Branch target:** `main`  
-> **Priority:** P1 — demo asset for "Pinkraft as web2 backend" narrative
+> **Priority:** P1 — demo asset for "Paiflow as web2 backend" narrative
 
 ---
 
 ## 1. The pitch in one paragraph
 
-Build a **minimal but complete** Next.js application for employers who pay freelancers. Instead of wiring salaries manually, the employer configures a payroll run and Pinkraft's Soroban contracts handle the pull-from-employer, split-to-recipients, and (optionally) fiat off-ramp logic on Stellar. The app must look and feel like a normal SaaS product: no wallet jargon, no Rust, no XDR. The goal is to prove that a web2 team can ship a real payment product on top of Pinkraft without learning Soroban.
+Build a **minimal but complete** Next.js application for employers who pay freelancers. Instead of wiring salaries manually, the employer configures a payroll run and Paiflow's Soroban contracts handle the pull-from-employer, split-to-recipients, and (optionally) fiat off-ramp logic on Stellar. The app must look and feel like a normal SaaS product: no wallet jargon, no Rust, no XDR. The goal is to prove that a web2 team can ship a real payment product on top of Paiflow without learning Soroban.
 
-Because Pinkraft's public API is not exposed yet, this POC **stubs the Pinkraft client layer**. Every screen, form, route, and data model is real; the actual HTTP calls to Pinkraft are mocked with realistic shapes so the app is demo-ready today and wire-up-ready the moment the API ships.
+Because Paiflow's public API is not exposed yet, this POC **stubs the Paiflow client layer**. Every screen, form, route, and data model is real; the actual HTTP calls to Paiflow are mocked with realistic shapes so the app is demo-ready today and wire-up-ready the moment the API ships.
 
 ---
 
 ## 2. Why this matters
 
-Pinkraft today is a visual contract builder. The next narrative beat is: **"what can you build with it?"** A freelancer payroll app is the ideal answer because:
+Paiflow today is a visual contract builder. The next narrative beat is: **"what can you build with it?"** A freelancer payroll app is the ideal answer because:
 
 - The use case is instantly understandable to non-crypto audiences.
 - It exercises the `PAYROLL` / `SUBSCRIPTION_DEV → SPLITTER_DEV` flow currently being built on `feat/payroll-pull-employer`.
 - It showcases dev-mode / API-driven mutability (recipients and amounts filled after deploy).
 - It optionally shows the PDAX fiat off-ramp (`CASH_OUT_DEV`) for "salary to bank account" demos.
-- It forces us to dog-food the developer experience of building on Pinkraft from a clean Next.js app.
+- It forces us to dog-food the developer experience of building on Paiflow from a clean Next.js app.
 
 ---
 
@@ -32,8 +32,8 @@ Pinkraft today is a visual contract builder. The next narrative beat is: **"what
 
 1. **Ship a standalone Next.js (App Router) app** that a web2 developer would recognize.
 2. **Model the full freelancer payroll lifecycle:** company → employees → pay schedule → pay run → payouts → status tracking.
-3. **Integrate with Pinkraft conceptually:** deploying a Pinkraft payroll flow, updating recipients via API, triggering charges, and reading events.
-4. **Stub all Pinkraft API calls** so the app compiles, runs, and demos end-to-end without the public API being ready.
+3. **Integrate with Paiflow conceptually:** deploying a Paiflow payroll flow, updating recipients via API, triggering charges, and reading events.
+4. **Stub all Paiflow API calls** so the app compiles, runs, and demos end-to-end without the public API being ready.
 5. **Use pnpm** for dependency management and workspace consistency.
 6. **Keep it POC-quality:** polished enough for a judge demo, not production-hardened.
 
@@ -41,9 +41,9 @@ Pinkraft today is a visual contract builder. The next narrative beat is: **"what
 
 ## 4. Non-goals
 
-- No real on-chain transactions from the POC app itself (we stub the Pinkraft client).
+- No real on-chain transactions from the POC app itself (we stub the Paiflow client).
 - No multi-tenant orgs, roles, or RBAC beyond a single logged-in employer.
-- No KYC/onboarding for fiat off-ramp beyond a form that submits to Pinkraft.
+- No KYC/onboarding for fiat off-ramp beyond a form that submits to Paiflow.
 - No mobile native app; responsive web is enough.
 - No production-grade billing, invoices, or accounting exports.
 
@@ -57,17 +57,17 @@ Pinkraft today is a visual contract builder. The next narrative beat is: **"what
 
 ## 6. Tech stack
 
-| Layer           | Choice                                                              | Reason                                                                                              |
-| --------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Framework       | Next.js 15 (App Router, React Server Components)                    | Matches Pinkraft; familiar to web2 devs. "openrouter" = App Router.                                 |
-| Language        | TypeScript 5.x, `strict: true`                                      | Consistency with Pinkraft.                                                                          |
-| Package manager | pnpm 10.x                                                           | Required; matches Pinkraft's `packageManager`.                                                      |
-| Styling         | Tailwind CSS 4 + shadcn/ui (copy-in)                                | Reuse Pinkraft component primitives where possible.                                                 |
-| Forms           | react-hook-form + zod                                               | Same validation story as Pinkraft.                                                                  |
-| State           | Server Components + Server Actions by default; minimal client state | Keep it simple.                                                                                     |
-| Auth            | NextAuth.js v5 Credentials provider                                 | Standalone auth for the POC; later replaced by Pinkraft SSO/API keys.                               |
-| DB (POC)        | SQLite via `better-sqlite3` or Postgres via Prisma                  | **Decision needed** — SQLite is enough for a POC but Postgres mirrors Pinkraft. See open questions. |
-| Pinkraft client | `lib/pinkraft-client.ts`                                            | Typed stub client that will become the real HTTP SDK.                                               |
+| Layer           | Choice                                                              | Reason                                                                                             |
+| --------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Framework       | Next.js 15 (App Router, React Server Components)                    | Matches Paiflow; familiar to web2 devs. "openrouter" = App Router.                                 |
+| Language        | TypeScript 5.x, `strict: true`                                      | Consistency with Paiflow.                                                                          |
+| Package manager | pnpm 10.x                                                           | Required; matches Paiflow's `packageManager`.                                                      |
+| Styling         | Tailwind CSS 4 + shadcn/ui (copy-in)                                | Reuse Paiflow component primitives where possible.                                                 |
+| Forms           | react-hook-form + zod                                               | Same validation story as Paiflow.                                                                  |
+| State           | Server Components + Server Actions by default; minimal client state | Keep it simple.                                                                                    |
+| Auth            | NextAuth.js v5 Credentials provider                                 | Standalone auth for the POC; later replaced by Paiflow SSO/API keys.                               |
+| DB (POC)        | SQLite via `better-sqlite3` or Postgres via Prisma                  | **Decision needed** — SQLite is enough for a POC but Postgres mirrors Paiflow. See open questions. |
+| Paiflow client  | `lib/paiflow-client.ts`                                             | Typed stub client that will become the real HTTP SDK.                                              |
 
 ---
 
@@ -84,7 +84,7 @@ paiflow-payroll/
 ├── lib/
 │   ├── db.ts             # local database client
 │   ├── auth.ts           # NextAuth config
-│   ├── pinkraft-client.ts # stub Pinkraft API client
+│   ├── paiflow-client.ts # stub Paiflow API client
 │   └── utils.ts
 ├── prisma/
 │   └── schema.prisma     # POC-only schema
@@ -96,7 +96,7 @@ paiflow-payroll/
 └── tailwind.config.ts
 ```
 
-It depends on **Pinkraft** only at the API boundary (`lib/pinkraft-client.ts`). The Pinkraft repo (`webnxt-2030/pinkraft`, branch `feat/payroll-pull-employer`) is the upstream backend and source of truth for contract behavior.
+It depends on **Paiflow** only at the API boundary (`lib/paiflow-client.ts`). The Paiflow repo (`webnxt-2030/paiflow`, branch `feat/payroll-pull-employer`) is the upstream backend and source of truth for contract behavior.
 
 ---
 
@@ -111,13 +111,13 @@ It depends on **Pinkraft** only at the API boundary (`lib/pinkraft-client.ts`). 
 │  └──────┬──────┘  └──────┬───────┘  └─────┬──────┘  └─────┬─────┘  │
 │         └─────────────────┴────────────────┴───────────────┘       │
 │                                    │                                │
-│                    lib/pinkraft-client.ts (stub)                   │
+│                    lib/paiflow-client.ts (stub)                   │
 │                                    │                                │
 └────────────────────────────────────┼────────────────────────────────┘
                                      │  (future: HTTPS / API keys)
                                      ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         Pinkraft backend                            │
+│                         Paiflow backend                            │
 │  Flow builder → deploy pipeline → SUBSCRIPTION_DEV → SPLITTER_DEV  │
 │  → optional CASH_OUT_DEV → PDAX off-ramp → bank account             │
 └─────────────────────────────────────────────────────────────────────┘
@@ -128,24 +128,24 @@ The POC owns:
 - Employer account and session (for now).
 - Employees, bank details, and pay schedules.
 - Pay runs and their human-readable status.
-- The UX for "connect to Pinkraft / deploy payroll contract".
+- The UX for "connect to Paiflow / deploy payroll contract".
 
-Pinkraft owns:
+Paiflow owns:
 
 - The actual Soroban contract deploy, charge, and event logic.
 - Wallet signing and on-chain state.
 - Fiat off-ramp execution (PDAX).
 
-The boundary is `lib/pinkraft-client.ts`.
+The boundary is `lib/paiflow-client.ts`.
 
 ---
 
-## 9. Pinkraft client stub contract
+## 9. Paiflow client stub contract
 
-`apps/payroll-poc/lib/pinkraft-client.ts` exports typed functions that return mock data today and real data later.
+`apps/payroll-poc/lib/paiflow-client.ts` exports typed functions that return mock data today and real data later.
 
 ```ts
-export type PinkraftDeployment = {
+export type PaiflowDeployment = {
   id: string;
   contractAddress: string | null;
   status: "PENDING_SIGNATURE" | "SUBMITTED" | "CONFIRMED" | "FAILED";
@@ -159,7 +159,7 @@ export async function deployPayrollFlow(opts: {
   intervalUnit: "day" | "week" | "month";
   firstPaymentAt: string;
   totalAmountPerPeriodStroops: string;
-}): Promise<PinkraftDeployment>;
+}): Promise<PaiflowDeployment>;
 
 export async function updatePayrollRecipients(
   deploymentId: string,
@@ -176,9 +176,7 @@ export async function triggerPayrollCharge(
   deploymentId: string,
 ): Promise<{ txHash: string | null; status: string }>;
 
-export async function getPayrollEvents(
-  deploymentId: string,
-): Promise<
+export async function getPayrollEvents(deploymentId: string): Promise<
   Array<{
     kind: string;
     amountStroops?: string;
@@ -201,13 +199,13 @@ export async function enableFiatOffRamp(
 - `updatePayrollRecipients` returns a fake tx hash.
 - `triggerPayrollCharge` returns a fake tx hash and queues fake events.
 - `getPayrollEvents` returns deterministic mock events so the live feed animates.
-- All functions log to the console with a `// TODO: wire to Pinkraft API` comment.
+- All functions log to the console with a `// TODO: wire to Paiflow API` comment.
 
 ---
 
 ## 10. POC data model
 
-Use Prisma with a lightweight schema. Fields mirror what a real payroll SaaS needs; Pinkraft-specific IDs are stored as opaque strings.
+Use Prisma with a lightweight schema. Fields mirror what a real payroll SaaS needs; Paiflow-specific IDs are stored as opaque strings.
 
 ```prisma
 model Employer {
@@ -216,7 +214,7 @@ model Employer {
   passwordHash  String
   name          String
   walletAddress String?    // employer Stellar address, captured during onboarding
-  pinkraftDeploymentId String? @unique
+  paiflowDeploymentId String? @unique
   createdAt     DateTime   @default(now())
   employees     Employee[]
   paySchedules  PaySchedule[]
@@ -261,7 +259,7 @@ model PayRun {
   status          String    @default("DRAFT") // DRAFT | PENDING | CHARGED | PAYOUTS_SENT | FAILED | CANCELLED
   totalStroops    String?
   triggeredAt     DateTime?
-  pinkraftTxHash  String?
+  paiflowTxHash  String?
   errorMessage    String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -286,19 +284,19 @@ model Payout {
 
 ## 11. Routes / pages
 
-| Path              | Auth   | Description                                                                                                        |
-| ----------------- | ------ | ------------------------------------------------------------------------------------------------------------------ |
-| `/login`          | public | Email + password.                                                                                                  |
-| `/onboarding`     | user   | Capture company name, employer wallet address, and (optionally) connect to Pinkraft by deploying the payroll flow. |
-| `/dashboard`      | user   | Summary: next payday, total employees, last pay run status, recent payouts.                                        |
-| `/employees`      | user   | CRUD freelancers + bank/wallet details.                                                                            |
-| `/employees/[id]` | user   | Edit one employee.                                                                                                 |
-| `/schedule`       | user   | Configure pay interval and default amount.                                                                         |
-| `/pay-runs`       | user   | List historical pay runs.                                                                                          |
-| `/pay-runs/[id]`  | user   | Detail view with payout list, tx hashes (mock), and a live-style event feed.                                       |
-| `/pay-runs/new`   | user   | Review upcoming payout list and hit "Run payroll now".                                                             |
-| `/settings`       | user   | Pinkraft connection status, network (testnet/mainnet chip), fiat off-ramp toggle + sender profile form.            |
-| `/api/pinkraft/*` | server | Internal bridge that calls `pinkraft-client.ts` so the UI never talks to Pinkraft directly.                        |
+| Path              | Auth   | Description                                                                                                       |
+| ----------------- | ------ | ----------------------------------------------------------------------------------------------------------------- |
+| `/login`          | public | Email + password.                                                                                                 |
+| `/onboarding`     | user   | Capture company name, employer wallet address, and (optionally) connect to Paiflow by deploying the payroll flow. |
+| `/dashboard`      | user   | Summary: next payday, total employees, last pay run status, recent payouts.                                       |
+| `/employees`      | user   | CRUD freelancers + bank/wallet details.                                                                           |
+| `/employees/[id]` | user   | Edit one employee.                                                                                                |
+| `/schedule`       | user   | Configure pay interval and default amount.                                                                        |
+| `/pay-runs`       | user   | List historical pay runs.                                                                                         |
+| `/pay-runs/[id]`  | user   | Detail view with payout list, tx hashes (mock), and a live-style event feed.                                      |
+| `/pay-runs/new`   | user   | Review upcoming payout list and hit "Run payroll now".                                                            |
+| `/settings`       | user   | Paiflow connection status, network (testnet/mainnet chip), fiat off-ramp toggle + sender profile form.            |
+| `/api/paiflow/*`  | server | Internal bridge that calls `paiflow-client.ts` so the UI never talks to Paiflow directly.                         |
 
 ---
 
@@ -309,8 +307,8 @@ model Payout {
 1. Employer signs up with email/password.
 2. Enters company name.
 3. Pastes their Stellar wallet address (or is guided to Freighter — stubbed).
-4. Clicks **"Create Pinkraft payroll contract"**.
-5. App calls `deployPayrollFlow()` stub; stores `pinkraftDeploymentId` on the employer row.
+4. Clicks **"Create Paiflow payroll contract"**.
+5. App calls `deployPayrollFlow()` stub; stores `paiflowDeploymentId` on the employer row.
 6. Employer lands on the dashboard.
 
 ### 12.2 Add a freelancer
@@ -326,7 +324,7 @@ model Payout {
 2. App previews the list of active employees and computed total.
 3. Employer clicks **"Run payroll"**.
 4. App:
-   - syncs recipients to Pinkraft via `updatePayrollRecipients()`;
+   - syncs recipients to Paiflow via `updatePayrollRecipients()`;
    - creates a `PayRun` row in `PENDING`;
    - calls `triggerPayrollCharge()`;
    - transitions `PayRun` to `CHARGED` and creates `Payout` rows.
@@ -343,29 +341,29 @@ model Payout {
 
 ## 13. UI/UX notes
 
-- Use Pinkraft brand tokens from `BRAND.md` where possible.
+- Use Paiflow brand tokens from `BRAND.md` where possible.
 - Keep copy plain: "Run payroll" not "trigger charge"; "Freelancers" not "recipients".
 - Show a **testnet/mainnet chip** on every screen that touches money.
 - Every Stellar address is truncated with copy-to-clipboard.
 - Amounts display in PHP-equivalent (stub rate) with raw stroops in a tooltip.
-- The pay-run detail page mimics Pinkraft's live event feed but simplified.
+- The pay-run detail page mimics Paiflow's live event feed but simplified.
 - Empty states include a CTA ("Add your first freelancer").
 
 ---
 
 ## 14. Stubbing strategy
 
-| Pinkraft capability | POC treatment                                                                       |
+| Paiflow capability  | POC treatment                                                                       |
 | ------------------- | ----------------------------------------------------------------------------------- |
-| Deploy payroll flow | `pinkraft-client.deployPayrollFlow` returns mock deployment after delay.            |
+| Deploy payroll flow | `paiflow-client.deployPayrollFlow` returns mock deployment after delay.             |
 | Update recipients   | Returns mock tx hash; does not mutate chain.                                        |
 | Trigger charge      | Returns mock tx hash; creates mock `PAYOUT` events on next `getPayrollEvents` call. |
 | Event feed          | Deterministic mock events generated from pay run ID + timestamp.                    |
 | Wallet signing      | Employer pastes/pastes address; no browser extension integration in POC.            |
 | Fiat off-ramp       | Form submits to stub; status shown as "pending PDAX" with fake progress.            |
-| Auth                | POC has its own NextAuth session; later replaced by Pinkraft API key.               |
+| Auth                | POC has its own NextAuth session; later replaced by Paiflow API key.                |
 
-Each stub function must contain a `// TODO(PINKRAFT_API): replace with real HTTP call` comment and a documented request/response shape so the migration is mechanical.
+Each stub function must contain a `// TODO(PAIFLOW_API): replace with real HTTP call` comment and a documented request/response shape so the migration is mechanical.
 
 ---
 
@@ -377,7 +375,7 @@ Each stub function must contain a `// TODO(PINKRAFT_API): replace with real HTTP
 - [ ] Employer can add, edit, and deactivate freelancers.
 - [ ] Employer can configure a pay schedule.
 - [ ] Employer can run payroll and see a pay-run detail page with mock events.
-- [ ] All Pinkraft client functions are stubbed but typed and documented.
+- [ ] All Paiflow client functions are stubbed but typed and documented.
 - [ ] App is responsive down to 375px width.
 - [ ] TypeScript type-check passes (`pnpm typecheck`).
 - [ ] No production secrets or real API keys required to run locally.
@@ -386,9 +384,9 @@ Each stub function must contain a `// TODO(PINKRAFT_API): replace with real HTTP
 
 ## 16. Open questions / decisions
 
-1. **Local database:** SQLite is enough for a demo but diverges from Pinkraft's Postgres. Should we use Postgres + Prisma to mirror Pinkraft's stack, or keep the POC lighter?
-2. **Auth model:** Keep a separate employer table in the POC, or plan to delegate to Pinkraft's user table/API keys once exposed?
-3. **Fiat in POC:** Should the off-ramp sender profile live in the POC DB or be sent straight to Pinkraft? For now, store locally and stub the Pinkraft call.
+1. **Local database:** SQLite is enough for a demo but diverges from Paiflow's Postgres. Should we use Postgres + Prisma to mirror Paiflow's stack, or keep the POC lighter?
+2. **Auth model:** Keep a separate employer table in the POC, or plan to delegate to Paiflow's user table/API keys once exposed?
+3. **Fiat in POC:** Should the off-ramp sender profile live in the POC DB or be sent straight to Paiflow? For now, store locally and stub the Paiflow call.
 4. **Currency display:** Display everything in PHP with a hardcoded testnet USDC/PHP rate, or show both PHP and USDC?
 
 ---
@@ -398,10 +396,10 @@ Each stub function must contain a `// TODO(PINKRAFT_API): replace with real HTTP
 - Current branch: `feat/payroll-pull-employer` — contains the `PAYROLL` contract and mutable recipient APIs.
 - `docs/dev-mode-mutable-flows.md` — explains the `_DEV` contract decomposition (`SUBSCRIPTION_DEV → SPLITTER_DEV`) that this app will eventually consume.
 - `lib/offramp/*` — PDAX off-ramp jobs the fiat flow will use once wired.
-- `SPEC.md` and `AGENT.md` — Pinkraft's product spec and engineering guidelines.
+- `SPEC.md` and `AGENT.md` — Paiflow's product spec and engineering guidelines.
 
 ---
 
 ## 18. Suggested first PR
 
-Create the directory scaffold, `package.json`, `pnpm-workspace.yaml` (or document the alternative), and the typed `lib/pinkraft-client.ts` stub. Do **not** wire real HTTP calls. Merge once the app boots and the stub client returns mock data that the onboarding screen can render.
+Create the directory scaffold, `package.json`, `pnpm-workspace.yaml` (or document the alternative), and the typed `lib/paiflow-client.ts` stub. Do **not** wire real HTTP calls. Merge once the app boots and the stub client returns mock data that the onboarding screen can render.

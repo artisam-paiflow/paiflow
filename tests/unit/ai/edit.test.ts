@@ -132,7 +132,7 @@ describe("prompts", () => {
     expect(prompt).toContain("removeNode");
     expect(prompt).toContain("addEdge");
     expect(prompt).toContain("removeEdge");
-    expect(prompt).toContain("Pink Raft");
+    expect(prompt).toContain("Paiflow");
   });
 
   it("buildUserMessage includes graph and instruction", () => {

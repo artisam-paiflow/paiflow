@@ -1,12 +1,12 @@
 import Link from "next/link";
 import Logo from "@/components/app/logo";
 
-export const metadata = { title: "Privacy · Pink Raft" };
+export const metadata = { title: "Privacy · Paiflow" };
 
 export default function PrivacyPage() {
   return (
     <main className="px-margin py-xl mx-auto max-w-3xl">
-      <Link href="/" className="inline-flex" aria-label="Pink Raft home">
+      <Link href="/" className="inline-flex" aria-label="Paiflow home">
         <Logo size={22} />
       </Link>
 
@@ -46,7 +46,7 @@ export default function PrivacyPage() {
       <ul className="mt-md text-body-md text-on-surface-variant space-y-2">
         <li className="flex items-start gap-2">
           <span className="material-symbols-outlined text-tertiary mt-0.5 text-[14px]">block</span>
-          Your Stellar secret key. Pink Raft is non-custodial.
+          Your Stellar secret key. Paiflow is non-custodial.
         </li>
         <li className="flex items-start gap-2">
           <span className="material-symbols-outlined text-tertiary mt-0.5 text-[14px]">block</span>

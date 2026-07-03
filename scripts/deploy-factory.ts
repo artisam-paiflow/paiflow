@@ -26,7 +26,7 @@ import {
 import { writeEnvLocal } from "./env-file";
 
 const WASM_DIR = "contracts/target/wasm32v1-none/release";
-const FACTORY_WASM = "pinkraft_factory.wasm";
+const FACTORY_WASM = "paiflow_factory.wasm";
 
 dotenvConfig({ path: resolve(".env") });
 dotenvConfig({ path: resolve(".env.local"), override: true });

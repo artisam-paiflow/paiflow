@@ -19,5 +19,5 @@ const REDACT_PATHS = [
 export const log = pino({
   level: env().LOG_LEVEL,
   redact: { paths: REDACT_PATHS, censor: "[redacted]" },
-  base: { app: "pinkraft" },
+  base: { app: "paiflow" },
 });

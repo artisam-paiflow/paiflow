@@ -1,13 +1,13 @@
 type LogoProps = {
   /** Pixel size of the square mark. Wordmark scales the mark to this height. */
   size?: number;
-  /** Show "Pink Raft" wordmark next to the mark. */
+  /** Show "Paiflow" wordmark next to the mark. */
   wordmark?: boolean;
   className?: string;
 };
 
 /**
- * Pink Raft logo. Three chevrons cascading diagonally — trigger → logic →
+ * Paiflow logo. Three chevrons cascading diagonally — trigger → logic →
  * action. Stroked in BRAND `primary` (#ffb1c4) with opacity falloff on the
  * back chevrons to suggest depth. Wordmark in BRAND display font.
  */
@@ -37,7 +37,7 @@ export default function Logo({ size = 28, wordmark = true, className = "" }: Log
     <span className={`text-primary inline-flex items-center gap-2 ${className}`}>
       {mark}
       <span className="font-display text-on-surface text-[18px] leading-none font-bold tracking-tight">
-        Pink Raft
+        Paiflow
       </span>
     </span>
   );

@@ -249,7 +249,7 @@ export async function preparePipelineDeployTx(opts: {
 
 function computeContractAddress(sourceAccount: string, salt: Buffer): string {
   // Per CAP-46, contract IDs from address+salt are SHA256(networkId || preimage).
-  // For Pink Raft we read the address back from the tx result on submit; this helper
+  // For Paiflow we read the address back from the tx result on submit; this helper
   // returns the user-facing salt-derived expected address using SDK utilities.
   const preimage = xdr.HashIdPreimage.envelopeTypeContractId(
     new xdr.HashIdPreimageContractId({

@@ -1,6 +1,6 @@
-# BRAND.md — Pink Raft Visual System
+# BRAND.md — Paiflow Visual System
 
-> Authoritative style guide for the Pink Raft application. Coding agents must read this in full before building any UI component, theme token, or marketing surface. This document supersedes any earlier draft (the warm/light Daloy/Tukoy direction is **deprecated**).
+> Authoritative style guide for the Paiflow application. Coding agents must read this in full before building any UI component, theme token, or marketing surface. This document supersedes any earlier draft (the warm/light Daloy/Tukoy direction is **deprecated**).
 
 The aesthetic is **cyber-industrial**: dark, technical, dense, confident. Think Linear meets a Bloomberg terminal meets a Soroban explorer. It signals "industrial-grade automation for decentralized finance," not "friendly fintech for first-timers."
 
@@ -10,7 +10,7 @@ The aesthetic is **cyber-industrial**: dark, technical, dense, confident. Think 
 
 | Field              | Value                                                                                                |
 | ------------------ | ---------------------------------------------------------------------------------------------------- |
-| Product name       | **Pink Raft**                                                                                        |
+| Product name       | **Paiflow**                                                                                          |
 | Tagline            | _Zaps for money · Stellar Soroban_                                                                   |
 | Sub-tagline        | _Drag. Drop. Deploy._                                                                                |
 | Voice              | Technical, direct, no-fluff. Mid-2020s software product copy — Linear / Vercel / Stripe register.    |
@@ -25,25 +25,25 @@ All UI must consume colors via the Tailwind tokens below. Do not hardcode hex va
 
 ### Core palette
 
-| Token                       | Hex       | Role                                                             |
-| --------------------------- | --------- | ---------------------------------------------------------------- |
-| `background` / `surface`    | `#131313` | App background                                                   |
-| `surface-container-lowest`  | `#0e0e0e` | Deepest layer (body, behind glass panels)                        |
-| `surface-container-low`     | `#1c1b1b` | Side nav, secondary panels                                       |
-| `surface-container`         | `#201f1f` | Cards, table headers                                             |
-| `surface-container-high`    | `#2a2a2a` | Hover states                                                     |
-| `surface-container-highest` | `#353534` | Active row, progress track                                       |
-| `primary`                   | `#ffb1c4` | **Pink Raft signature** — primary buttons, accents, active state |
-| `primary-container`         | `#ff4a8d` | Hot pink intensifier (badges, callouts)                          |
-| `secondary`                 | `#98cbff` | Stellar blue — secondary actions, links, info chips              |
-| `secondary-container`       | `#00a2fd` | Saturated blue accent                                            |
-| `tertiary`                  | `#ffba20` | Amber — warnings, audit/security highlights                      |
-| `on-surface`                | `#e5e2e1` | Body text                                                        |
-| `on-surface-variant`        | `#e5bcc5` | Muted body text, labels                                          |
-| `outline`                   | `#ac878f` | Visible dividers                                                 |
-| `outline-variant`           | `#5c3f46` | Subtle dividers (usually at `/10` to `/30` opacity)              |
-| `error`                     | `#ffb4ab` | Error text                                                       |
-| `error-container`           | `#93000a` | Error background                                                 |
+| Token                       | Hex       | Role                                                           |
+| --------------------------- | --------- | -------------------------------------------------------------- |
+| `background` / `surface`    | `#131313` | App background                                                 |
+| `surface-container-lowest`  | `#0e0e0e` | Deepest layer (body, behind glass panels)                      |
+| `surface-container-low`     | `#1c1b1b` | Side nav, secondary panels                                     |
+| `surface-container`         | `#201f1f` | Cards, table headers                                           |
+| `surface-container-high`    | `#2a2a2a` | Hover states                                                   |
+| `surface-container-highest` | `#353534` | Active row, progress track                                     |
+| `primary`                   | `#ffb1c4` | **Paiflow signature** — primary buttons, accents, active state |
+| `primary-container`         | `#ff4a8d` | Hot pink intensifier (badges, callouts)                        |
+| `secondary`                 | `#98cbff` | Stellar blue — secondary actions, links, info chips            |
+| `secondary-container`       | `#00a2fd` | Saturated blue accent                                          |
+| `tertiary`                  | `#ffba20` | Amber — warnings, audit/security highlights                    |
+| `on-surface`                | `#e5e2e1` | Body text                                                      |
+| `on-surface-variant`        | `#e5bcc5` | Muted body text, labels                                        |
+| `outline`                   | `#ac878f` | Visible dividers                                               |
+| `outline-variant`           | `#5c3f46` | Subtle dividers (usually at `/10` to `/30` opacity)            |
+| `error`                     | `#ffb4ab` | Error text                                                     |
+| `error-container`           | `#93000a` | Error background                                               |
 
 ### Signature accent: `#FF007F`
 
@@ -54,7 +54,7 @@ This electric hot pink shows up in the HTML mockups as inline hex (`text-[#FF007
 - **Primary actions** (Deploy, Connect Wallet, New Pipeline): `bg-primary text-on-primary` (`#ffb1c4` on `#65002e`)
 - **Secondary actions** (View Audits, Pause Contract): transparent with `border-secondary text-secondary`
 - **Triggers** in the visual builder: `secondary` blue (Stellar blue feels right for "incoming/listening")
-- **Actions** in the visual builder: `primary` pink (Pink Raft is what _acts_ on the trigger)
+- **Actions** in the visual builder: `primary` pink (Paiflow is what _acts_ on the trigger)
 - **Logic / conditions**: `tertiary` amber
 - **Live / active state**: pulsing `primary` dot with glow
 - **Status badges**: solid tinted background at `/10` opacity, border at `/20`, text at full token color
@@ -63,7 +63,7 @@ This electric hot pink shows up in the HTML mockups as inline hex (`text-[#FF007
 
 ## 3. Effects: the visual signatures
 
-These four effects are what make Pink Raft look like Pink Raft. Every screen must use at least one. No screen should use all four simultaneously (visual fatigue).
+These four effects are what make Paiflow look like Paiflow. Every screen must use at least one. No screen should use all four simultaneously (visual fatigue).
 
 ### 3.1 Grid pattern background
 
@@ -444,8 +444,8 @@ The HTML mockups define four canonical surfaces. Match these when implementing n
 
 Things that will break the brand. The agent must refuse these even if asked.
 
-- ❌ **Light mode.** Pink Raft is dark-only. The deep `#0e0e0e` background is core identity.
-- ❌ **Warm/earthy palettes.** Olive green, beige, terracotta — none of it. Pink Raft is electric, not pastoral.
+- ❌ **Light mode.** Paiflow is dark-only. The deep `#0e0e0e` background is core identity.
+- ❌ **Warm/earthy palettes.** Olive green, beige, terracotta — none of it. Paiflow is electric, not pastoral.
 - ❌ **Mascots, geckos, characters.** Earlier drafts of this project had a gecko mascot ("Tukoy"). It is removed. Do not reintroduce.
 - ❌ **Cute or playful copy.** No exclamation points outside error states. No "yay," no "let's get started!", no first-person from the product ("I built..."). Use second-person imperative or technical statements.
 - ❌ **Generic crypto purple gradients.** Avoid `from-purple-500 to-pink-500` and similar Web3 clichés.
@@ -456,7 +456,7 @@ Things that will break the brand. The agent must refuse these even if asked.
 - ❌ **Emoji.** None. Use Material Symbols for everything visual.
 - ❌ **Lottie or heavy animation libraries.** CSS keyframes + Tailwind transitions only.
 - ❌ **Filled solid colors on icons by default.** Icons default to outlined; fill only for active nav items and live status icons.
-- ❌ **Background images, photos, stock illustrations.** Pink Raft is generative geometry only: grids, glass, glow, monospace.
+- ❌ **Background images, photos, stock illustrations.** Paiflow is generative geometry only: grids, glass, glow, monospace.
 
 ---
 

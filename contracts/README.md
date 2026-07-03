@@ -1,4 +1,4 @@
-# Pink Raft Soroban Contracts
+# Paiflow Soroban Contracts
 
 Three audited, parameterizable Soroban contracts. They are compiled once,
 uploaded to the network, and instantiated per deployment with constructor
@@ -14,9 +14,9 @@ cargo build --release --target wasm32v1-none
 Optimized WASMs land at:
 
 ```
-target/wasm32v1-none/release/pinkraft_splitter.wasm
-target/wasm32v1-none/release/pinkraft_streamer.wasm
-target/wasm32v1-none/release/pinkraft_conditional.wasm
+target/wasm32v1-none/release/paiflow_splitter.wasm
+target/wasm32v1-none/release/paiflow_streamer.wasm
+target/wasm32v1-none/release/paiflow_conditional.wasm
 ```
 
 ## Upload

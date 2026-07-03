@@ -21,8 +21,7 @@ export default async function AdminTemplates() {
           Templates.
         </h1>
         <p className="text-body-md text-on-surface-variant mt-3 max-w-2xl">
-          Pre-uploaded Soroban WASMs that Pink Raft instantiates when you deploy a flow. Re-upload
-          via{" "}
+          Pre-uploaded Soroban WASMs that Paiflow instantiates when you deploy a flow. Re-upload via{" "}
           <code className="border-outline-variant/30 bg-surface-container-low/40 text-label-sm text-on-surface rounded border px-1.5 py-0.5 font-mono">
             pnpm contracts:upload
           </code>

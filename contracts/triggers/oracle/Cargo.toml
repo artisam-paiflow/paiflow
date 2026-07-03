@@ -1,5 +1,5 @@
 [package]
-name = "pinkraft-oracle"
+name = "paiflow-oracle"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

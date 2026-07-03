@@ -1,12 +1,12 @@
 import Link from "next/link";
 import Logo from "@/components/app/logo";
 
-export const metadata = { title: "About · Pink Raft" };
+export const metadata = { title: "About · Paiflow" };
 
 export default function AboutPage() {
   return (
     <main className="px-margin py-xl mx-auto max-w-3xl">
-      <Link href="/" className="inline-flex" aria-label="Pink Raft home">
+      <Link href="/" className="inline-flex" aria-label="Paiflow home">
         <Logo size={22} />
       </Link>
 
@@ -18,8 +18,8 @@ export default function AboutPage() {
       </h1>
 
       <p className="mt-md text-body-lg text-on-surface-variant">
-        Pink Raft is the missing layer between non-coders and programmable payments. Drag triggers
-        and actions onto a canvas, hit deploy, and a pre-audited Soroban contract is instantiated on
+        Paiflow is the missing layer between non-coders and programmable payments. Drag triggers and
+        actions onto a canvas, hit deploy, and a pre-audited Soroban contract is instantiated on
         Stellar in seconds.
       </p>
       <p className="mt-md text-body-md text-on-surface-variant">

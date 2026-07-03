@@ -51,7 +51,7 @@ function applySecurityHeaders(res: NextResponse, req: NextRequest): NextResponse
   const isDev = process.env.NODE_ENV !== "production";
   const nonce = makeNonce();
   res.headers.set("Content-Security-Policy", cspHeader(nonce, isDev));
-  res.headers.set("x-pinkraft-nonce", nonce);
+  res.headers.set("x-paiflow-nonce", nonce);
   // Surface a request id so logs can be correlated.
   const rid =
     req.headers.get("x-request-id") ??

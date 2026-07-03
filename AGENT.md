@@ -1,6 +1,6 @@
-# AGENT.md — Pink Raft Coding Agent Guide
+# AGENT.md — Paiflow Coding Agent Guide
 
-> **Read this before you write a single line.** This document is the source of truth for the coding agent building Pink Raft. The product spec lives in `SPEC.md`. This file is about **how to build it well**.
+> **Read this before you write a single line.** This document is the source of truth for the coding agent building Paiflow. The product spec lives in `SPEC.md`. This file is about **how to build it well**.
 
 ---
 
@@ -9,7 +9,7 @@
 You are building a **financial application that signs blockchain transactions**. Two consequences:
 
 1. **Mistakes are not "bugs we'll fix later."** A mis-parameterized splitter sends real money to the wrong address. Validate twice (client + server), then validate again in the contract itself. Make incorrect states unrepresentable in the type system whenever possible.
-2. **The user's keys are sacred.** Pink Raft is **non-custodial**. The backend may **build** and **submit** transactions, but **never** sees or stores a private key. If you find yourself adding a code path that handles `secretKey`, stop, re-read this paragraph, and rethink.
+2. **The user's keys are sacred.** Paiflow is **non-custodial**. The backend may **build** and **submit** transactions, but **never** sees or stores a private key. If you find yourself adding a code path that handles `secretKey`, stop, re-read this paragraph, and rethink.
 
 ---
 
@@ -155,7 +155,7 @@ Follow the tree in `SPEC.md` Appendix A. In short:
 
 - Always `simulateTransaction` before returning XDR to the client; persist the simulated `minResourceFee` and use `assembleTransaction(tx, sim)`.
 - Set explicit fees and timeouts: `setTimeout(180)`, never `TimeoutInfinite`.
-- Use the user's account as `source`. Pink Raft never has its own funded operational account.
+- Use the user's account as `source`. Paiflow never has its own funded operational account.
 
 ### 6.3 Submitting
 
