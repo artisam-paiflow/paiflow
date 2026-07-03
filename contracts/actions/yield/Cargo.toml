@@ -1,5 +1,5 @@
 [package]
-name = "pinkraft-yield"
+name = "paiflow-yield"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

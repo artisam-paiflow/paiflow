@@ -2,12 +2,12 @@ import Link from "next/link";
 import Logo from "@/components/app/logo";
 import ForgotPasswordForm from "@/components/auth/forgot-password-form";
 
-export const metadata = { title: "Forgot password · Pink Raft" };
+export const metadata = { title: "Forgot password · Paiflow" };
 
 export default function ForgotPasswordPage() {
   return (
     <main className="px-margin py-lg relative mx-auto flex min-h-screen w-full max-w-md flex-col justify-center">
-      <Link href="/" className="inline-flex w-fit" aria-label="Pink Raft home">
+      <Link href="/" className="inline-flex w-fit" aria-label="Paiflow home">
         <Logo size={24} />
       </Link>
 

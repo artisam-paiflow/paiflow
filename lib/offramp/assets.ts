@@ -9,7 +9,7 @@ export type PipelineNodeSnapshot = {
 };
 
 /**
- * Map a Pinkraft asset to the PDAX Institution API quote currency.
+ * Map a Paiflow asset to the PDAX Institution API quote currency.
  * Production PDAX wallets use USDC. The hackathon UAT environment also uses
  * USDC in the institutional wallet; Stellar USDC (USDCXLM) is disabled for UAT
  * deposits, so the PDAX balance must be pre-funded off-chain. Override per

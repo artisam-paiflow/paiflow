@@ -3,13 +3,13 @@ import RegisterForm from "@/components/auth/register-form";
 import { env } from "@/lib/env";
 import Logo from "@/components/app/logo";
 
-export const metadata = { title: "Create account · Pink Raft" };
+export const metadata = { title: "Create account · Paiflow" };
 
 export default function RegisterPage() {
   const allowed = env().ALLOW_PUBLIC_REGISTRATION;
   return (
     <main className="px-margin py-lg relative mx-auto flex min-h-screen w-full max-w-md flex-col justify-center">
-      <Link href="/" className="inline-flex w-fit" aria-label="Pink Raft home">
+      <Link href="/" className="inline-flex w-fit" aria-label="Paiflow home">
         <Logo size={24} />
       </Link>
 

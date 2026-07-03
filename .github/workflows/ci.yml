@@ -16,17 +16,17 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: pinkraft
-          POSTGRES_PASSWORD: pinkraft
-          POSTGRES_DB: pinkraft
+          POSTGRES_USER: paiflow
+          POSTGRES_PASSWORD: paiflow
+          POSTGRES_DB: paiflow
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U pinkraft"
+          --health-cmd "pg_isready -U paiflow"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://pinkraft:pinkraft@localhost:5432/pinkraft?schema=public
+      DATABASE_URL: postgresql://paiflow:paiflow@localhost:5432/paiflow?schema=public
       AUTH_SECRET: ci-secret-not-for-production-32chars-min-padding-aaaaaa
       ADMIN_SEED_PASSWORD: ci-admin-password-12chars
       NODE_ENV: test

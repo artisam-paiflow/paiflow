@@ -1,5 +1,5 @@
 [package]
-name = "pinkraft-streamer"
+name = "paiflow-streamer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

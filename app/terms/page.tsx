@@ -1,12 +1,12 @@
 import Link from "next/link";
 import Logo from "@/components/app/logo";
 
-export const metadata = { title: "Terms · Pink Raft" };
+export const metadata = { title: "Terms · Paiflow" };
 
 export default function TermsPage() {
   return (
     <main className="px-margin py-xl mx-auto max-w-3xl">
-      <Link href="/" className="inline-flex" aria-label="Pink Raft home">
+      <Link href="/" className="inline-flex" aria-label="Paiflow home">
         <Logo size={22} />
       </Link>
 
@@ -21,7 +21,7 @@ export default function TermsPage() {
       {[
         {
           title: "No financial advice",
-          body: "Pink Raft is a developer tool. Anything you deploy is your own responsibility. We don’t audit your flow’s economic logic, only the underlying contract templates.",
+          body: "Paiflow is a developer tool. Anything you deploy is your own responsibility. We don’t audit your flow’s economic logic, only the underlying contract templates.",
         },
         {
           title: "Non-custodial",

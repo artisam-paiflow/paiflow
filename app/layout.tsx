@@ -49,9 +49,9 @@ const symbols = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Pink Raft — Zaps for Payments on Stellar",
+  title: "Paiflow — Zaps for Payments on Stellar",
   description:
-    "Drag, drop, deploy. Pink Raft turns triggers and actions into real Soroban contracts on Stellar in under a minute.",
+    "Drag, drop, deploy. Paiflow turns triggers and actions into real Soroban contracts on Stellar in under a minute.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

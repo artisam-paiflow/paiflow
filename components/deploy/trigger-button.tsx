@@ -88,10 +88,10 @@ export function TriggerButton({
           walletConnectClient = await SignClient.init({
             projectId,
             metadata: {
-              name: "Pinkraft",
+              name: "Paiflow",
               description: "Trigger contract deployments",
               url: typeof window !== "undefined" ? window.location.origin : "",
-              icons: ["https://pinkraft.xyz/logo.png"],
+              icons: ["/logo.png"],
             },
           });
         } finally {
@@ -140,10 +140,10 @@ export function TriggerButton({
 
         const walletConnectModule = new WalletConnectModule({
           projectId,
-          name: "Pinkraft",
+          name: "Paiflow",
           description: "Trigger contract deployments",
           url: typeof window !== "undefined" ? window.location.origin : "",
-          icons: ["https://pinkraft.xyz/logo.png"],
+          icons: ["https://paiflow.xyz/logo.png"],
           method: WalletConnectAllowedMethods.SIGN,
           network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
           client:
@@ -299,12 +299,12 @@ export function TriggerButton({
   }
 
   useEffect(() => {
-    const raw = sessionStorage.getItem("pinkraft_pending_wc");
+    const raw = sessionStorage.getItem("paiflow_pending_wc");
     if (!raw) return;
     try {
       const data = JSON.parse(raw) as { network: string; timestamp: number; walletId?: string };
       if (Date.now() - data.timestamp > 120_000) {
-        sessionStorage.removeItem("pinkraft_pending_wc");
+        sessionStorage.removeItem("paiflow_pending_wc");
         return;
       }
       if (data.network !== network) return;
@@ -319,13 +319,13 @@ export function TriggerButton({
             throw new Error("No session found after returning from wallet");
           }
           walletConnectModule.setSession(sessions[0].id);
-          sessionStorage.removeItem("pinkraft_pending_wc");
+          sessionStorage.removeItem("paiflow_pending_wc");
           const { address } = await kit.getAddress();
           toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
           await submitTrigger(address, kit, () => setShowOpenWallet(true));
         })
         .catch((err) => {
-          sessionStorage.removeItem("pinkraft_pending_wc");
+          sessionStorage.removeItem("paiflow_pending_wc");
           toast.error((err as Error).message ?? "Connection failed");
         })
         .finally(() => {
@@ -334,7 +334,7 @@ export function TriggerButton({
           setShowOpenWallet(false);
         });
     } catch {
-      sessionStorage.removeItem("pinkraft_pending_wc");
+      sessionStorage.removeItem("paiflow_pending_wc");
     }
   }, [network]);
 
@@ -368,7 +368,7 @@ export function TriggerButton({
         };
 
         sessionStorage.setItem(
-          "pinkraft_pending_wc",
+          "paiflow_pending_wc",
           JSON.stringify({ network, timestamp: Date.now(), walletId }),
         );
 
@@ -383,7 +383,7 @@ export function TriggerButton({
           ),
         ]);
         walletConnectModule.setSession(session.topic);
-        sessionStorage.removeItem("pinkraft_pending_wc");
+        sessionStorage.removeItem("paiflow_pending_wc");
       }
 
       setShowPicker(false);
@@ -392,7 +392,7 @@ export function TriggerButton({
       await submitTrigger(address, kit, () => setShowOpenWallet(true));
     } catch (err) {
       toast.error((err as Error).message ?? "Connection failed");
-      sessionStorage.removeItem("pinkraft_pending_wc");
+      sessionStorage.removeItem("paiflow_pending_wc");
     } finally {
       setBusy(false);
       setPendingWallet(null);

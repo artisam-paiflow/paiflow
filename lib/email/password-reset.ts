@@ -22,9 +22,9 @@ function buildHtml(resetLink: string, recipientLabel: string): string {
 <html>
   <body style="margin:0;padding:24px;background:#0e0e0e;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#e5e2e1;">
     <div style="max-width:560px;margin:0 auto;background:#1c1b1b;border:1px solid #5c3f46;border-radius:12px;padding:32px;">
-      <div style="font-size:22px;font-weight:700;color:#ffb1c4;margin-bottom:8px;">Reset your Pink Raft password</div>
+      <div style="font-size:22px;font-weight:700;color:#ffb1c4;margin-bottom:8px;">Reset your Paiflow password</div>
       <p style="font-size:15px;line-height:1.55;color:#e5e2e1;">Hi ${safeLabel},</p>
-      <p style="font-size:15px;line-height:1.55;color:#e5e2e1;">We received a request to reset the password on your Pink Raft account. Click the button below within the next hour to choose a new password.</p>
+      <p style="font-size:15px;line-height:1.55;color:#e5e2e1;">We received a request to reset the password on your Paiflow account. Click the button below within the next hour to choose a new password.</p>
       <p style="margin:28px 0;">
         <a href="${safeLink}" style="display:inline-block;background:#ffb1c4;color:#65002e;font-weight:600;text-decoration:none;padding:12px 22px;border-radius:8px;">Choose a new password</a>
       </p>
@@ -40,7 +40,7 @@ function buildHtml(resetLink: string, recipientLabel: string): string {
 function buildText(resetLink: string, recipientLabel: string): string {
   return `Hi ${recipientLabel},
 
-We received a request to reset the password on your Pink Raft account.
+We received a request to reset the password on your Paiflow account.
 Open the link below within the next hour to choose a new password:
 
 ${resetLink}
@@ -56,7 +56,7 @@ export async function sendPasswordResetEmail(opts: {
 }): Promise<SendEmailResult> {
   return sendEmail({
     to: opts.to,
-    subject: "Reset your Pink Raft password",
+    subject: "Reset your Paiflow password",
     html: buildHtml(opts.resetLink, opts.recipientLabel),
     text: buildText(opts.resetLink, opts.recipientLabel),
   });

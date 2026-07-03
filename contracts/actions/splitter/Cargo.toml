@@ -1,5 +1,5 @@
 [package]
-name = "pinkraft-splitter"
+name = "paiflow-splitter"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

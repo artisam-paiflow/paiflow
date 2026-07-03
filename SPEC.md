@@ -1,4 +1,4 @@
-# Pink Raft — Specification
+# Paiflow — Specification
 
 > **"Zaps for money"** — a visual builder where users connect triggers ("when this happens") to actions ("pay this") and deploy a live Soroban contract on the Stellar network in under a minute.
 
@@ -34,7 +34,7 @@ Every fintech and SMB that wants **programmable payments** must hire a Rust deve
 
 ### 1.2 Solution
 
-Pink Raft is the missing middle layer:
+Paiflow is the missing middle layer:
 
 - Drag triggers (`On Receive`, `On Schedule`) onto a canvas.
 - Drop actions (`Pay`, `Split`) and optional logic (`Condition`).
@@ -140,7 +140,7 @@ All versions reflect the latest stable releases as of the build date. Lock with 
                  │  Flow). Wallet Kit talks directly to extension &     │
                  │  signs transactions client-side.                     │
                  └──────────────┬───────────────────────────────────────┘
-                                │ HTTPS (cookies: __Host-pinkraft.session)
+                                │ HTTPS (cookies: __Host-paiflow.session)
                  ┌──────────────▼───────────────────────────────────────┐
                  │              Next.js Route Handlers / RSC            │
                  │  - REST under /api/*                                 │
@@ -169,7 +169,7 @@ All versions reflect the latest stable releases as of the build date. Lock with 
 ### 3.1 Key Architectural Decisions
 
 - **Pre-deployed WASM**: All three Soroban templates are compiled & uploaded once at bootstrap. The "Deploy" button only **instantiates** (creates a contract instance from an existing WASM hash) and **initializes** it with user parameters. This eliminates Rust-toolchain dependencies from the request path and removes a huge class of audit risk.
-- **Client-signed transactions**: Pink Raft **never** holds user private keys. The Next.js backend builds the XDR; the user signs in their wallet; the backend submits the signed envelope.
+- **Client-signed transactions**: Paiflow **never** holds user private keys. The Next.js backend builds the XDR; the user signs in their wallet; the backend submits the signed envelope.
 - **SSE over WebSocket**: Server-Sent Events are simpler, work over plain HTTP/2, and survive Railway's load balancer without sticky sessions. Used for the live event feed.
 - **No background worker process (v1)**: A single Next.js service polls Soroban RPC events on a setInterval inside a route handler invoked by Vercel-style cron (Railway cron) every 15s, persists deltas to Postgres, and fans them out to subscribed SSE clients via Redis pub/sub.
 
@@ -501,7 +501,7 @@ Next.js App Router (`/app/...`). Server Components by default; mark interactive 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Top bar:  [Pink Raft]  flow-name (editable)  [Deploy]  [Avatar] │
+│ Top bar:  [Paiflow]  flow-name (editable)  [Deploy]  [Avatar] │
 ├─────────┬─────────────────────────────────────┬────────────────┤
 │ Block   │                                     │ Config panel   │
 │ palette │           React Flow canvas         │ (selected      │
@@ -588,12 +588,12 @@ All endpoints under `/api/*` are Next.js Route Handlers in `app/api/.../route.ts
   - Minimum 12 characters.
   - Validate against the [HIBP k-anonymity API](https://haveibeenpwned.com/API/v3#PwnedPasswords) at registration (optional; gated by env, fail-open on upstream error).
   - Reject if username appears as a substring (case-insensitive).
-- Session: JWT **encrypted** (JWE) in an `__Host-pinkraft.session` cookie. `HttpOnly`, `Secure`, `SameSite=Lax`. 7-day lifetime, sliding refresh.
+- Session: JWT **encrypted** (JWE) in an `__Host-paiflow.session` cookie. `HttpOnly`, `Secure`, `SameSite=Lax`. 7-day lifetime, sliding refresh.
 
 ### 9.2 Optional: Passkey ("wow path")
 
 - WebAuthn via `@simplewebauthn/*`.
-- `rpId = process.env.AUTH_RP_ID` (e.g., `pinkraft.app`).
+- `rpId = process.env.AUTH_RP_ID` (e.g., `paiflow.app`).
 - Stored per-user in `Passkey` table. Counter incremented on assertion to defeat clones.
 - Users may register additional devices. A user with **only** passkeys still has a password (the brief requires "basic username and password" baseline).
 
@@ -869,12 +869,12 @@ LOG_LEVEL=debug
 AUTH_SECRET=                          # `openssl rand -base64 48`
 AUTH_URL=http://localhost:3000
 AUTH_RP_ID=localhost
-AUTH_RP_NAME=Pink Raft
+AUTH_RP_NAME=Paiflow
 ALLOW_PUBLIC_REGISTRATION=false
 ADMIN_SEED_PASSWORD=                  # required for `pnpm db:seed`
 
 # ---- Database ----
-DATABASE_URL=postgresql://pinkraft:pinkraft@localhost:5432/pinkraft?schema=public
+DATABASE_URL=postgresql://paiflow:paiflow@localhost:5432/paiflow?schema=public
 
 # ---- Redis ----
 REDIS_URL=redis://localhost:6379
@@ -883,9 +883,9 @@ REDIS_URL=redis://localhost:6379
 FILE_STORAGE_DRIVER=minio             # minio | volume
 FILE_STORAGE_PATH=/data/files
 MINIO_ENDPOINT=http://localhost:9000
-MINIO_ACCESS_KEY=pinkraft
-MINIO_SECRET_KEY=pinkraft-dev-secret
-MINIO_BUCKET=pinkraft-dev
+MINIO_ACCESS_KEY=paiflow
+MINIO_SECRET_KEY=paiflow-dev-secret
+MINIO_BUCKET=paiflow-dev
 
 # ---- Stellar ----
 # Pin the network per environment: dev/staging=testnet, prod=mainnet.
@@ -985,23 +985,23 @@ Set all values from `.env.example` in the project's "Variables" page; mark `AUTH
 Each Railway service hosts a single network. The network is set once via
 `STELLAR_NETWORK` and never changed at runtime.
 
-| Service            | `STELLAR_NETWORK` | Friendbot URL set? | WASM-hash vars seeded         |
-| ------------------ | ----------------- | ------------------ | ----------------------------- |
-| `pinkraft-staging` | `testnet`         | yes                | `STELLAR_WASM_HASH_*_TESTNET` |
-| `pinkraft-prod`    | `mainnet`         | **no** (unset)     | `STELLAR_WASM_HASH_*_MAINNET` |
+| Service           | `STELLAR_NETWORK` | Friendbot URL set? | WASM-hash vars seeded         |
+| ----------------- | ----------------- | ------------------ | ----------------------------- |
+| `paiflow-staging` | `testnet`         | yes                | `STELLAR_WASM_HASH_*_TESTNET` |
+| `paiflow-prod`    | `mainnet`         | **no** (unset)     | `STELLAR_WASM_HASH_*_MAINNET` |
 
 See `docs/mainnet-cutover.md` for the production cutover runbook.
 
 ### 15.5 Domain
 
-- Custom domain `pinkraft.app` → Railway-managed TLS (Let's Encrypt).
-- `AUTH_RP_ID=pinkraft.app`, `NEXT_PUBLIC_APP_URL=https://pinkraft.app`.
+- Custom domain `paiflow.app` → Railway-managed TLS (Let's Encrypt).
+- `AUTH_RP_ID=paiflow.app`, `NEXT_PUBLIC_APP_URL=https://paiflow.app`.
 
 ---
 
 ## 16. Demo Script (The "Wow" Moment)
 
-1. Presenter opens `https://pinkraft.app` on a phone.
+1. Presenter opens `https://paiflow.app` on a phone.
 2. Logs in with passkey (Face ID).
 3. Drags `On Receive USDC` → `Split` block.
 4. Adds three recipients: `Alice 60%`, `Bob 30%`, `Charlie 10%`.
@@ -1029,7 +1029,7 @@ See `docs/mainnet-cutover.md` for the production cutover runbook.
 ## Appendix A — File / Folder Layout
 
 ```
-pinkraft/
+paiflow/
 ├── app/
 │   ├── (marketing)/page.tsx
 │   ├── (auth)/login/page.tsx

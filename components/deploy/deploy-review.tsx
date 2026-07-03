@@ -156,8 +156,8 @@ export default function DeployReview({
         <span className="material-symbols-outlined text-secondary mt-0.5 text-[14px]">
           shield_lock
         </span>
-        YOU’LL SIGN IN YOUR WALLET (FREIGHTER, ALBEDO, XBULL, LOBSTR, HANA). PINK RAFT NEVER SEES
-        YOUR SECRET KEY.
+        YOU’LL SIGN IN YOUR WALLET (FREIGHTER, ALBEDO, XBULL, LOBSTR, HANA). PAIFLOW NEVER SEES YOUR
+        SECRET KEY.
       </p>
     </section>
   );

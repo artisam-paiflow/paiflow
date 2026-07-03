@@ -1,4 +1,4 @@
-# Soroban Smart Contracts on Stellar & How They Work in Pink Raft
+# Soroban Smart Contracts on Stellar & How They Work in Paiflow
 
 ## 1. What Are Soroban Smart Contracts?
 
@@ -123,9 +123,9 @@ impl MyContract {
 
 ---
 
-## 4. How Pink Raft Implements Soroban Contracts
+## 4. How Paiflow Implements Soroban Contracts
 
-Pink Raft uses a **pre-compiled WASM, instantiate-on-deploy** model:
+Paiflow uses a **pre-compiled WASM, instantiate-on-deploy** model:
 
 ```
 Build contracts (Rust) → Upload WASM once per network → User hits "Deploy" → Backend builds instantiation tx → User signs → Backend submits
@@ -175,9 +175,9 @@ pnpm contracts:build
 
 Compiles all three contracts to Wasm at:
 
-- `contracts/target/wasm32v1-none/release/pinkraft_splitter.wasm`
-- `contracts/target/wasm32v1-none/release/pinkraft_streamer.wasm`
-- `contracts/target/wasm32v1-none/release/pinkraft_conditional.wasm`
+- `contracts/target/wasm32v1-none/release/paiflow_splitter.wasm`
+- `contracts/target/wasm32v1-none/release/paiflow_streamer.wasm`
+- `contracts/target/wasm32v1-none/release/paiflow_conditional.wasm`
 
 Each contract's `Cargo.toml` uses the `soroban-sdk` crate and targets `wasm32v1-none`:
 
@@ -232,7 +232,7 @@ When a user hits "Deploy" on a flow:
 
 ### 4.5 Constructor Argument Encoding (`lib/stellar/scval.ts`)
 
-Translates Pink Raft's typed `ContractParams` into Soroban `xdr.ScVal[]`:
+Translates Paiflow's typed `ContractParams` into Soroban `xdr.ScVal[]`:
 
 ```typescript
 function constructorArgs(params: ContractParams, admin: string): xdr.ScVal[] {
@@ -274,7 +274,7 @@ The visual builder's nodes map to contracts:
 
 ---
 
-## 5. How to Add a New Contract to Pink Raft
+## 5. How to Add a New Contract to Paiflow
 
 ### Step 1: Write the Contract (Rust)
 
@@ -291,7 +291,7 @@ Example `Cargo.toml`:
 
 ```toml
 [package]
-name = "pinkraft_escrow"
+name = "paiflow_escrow"
 version = "0.1.0"
 edition = "2021"
 
@@ -330,7 +330,7 @@ Follow the existing patterns. Key conventions in this project:
 In `scripts/upload-wasm.ts`, add the new contract to the `CONTRACTS` array:
 
 ```typescript
-{ kind: "ESCROW", wasm: "contracts/target/wasm32v1-none/release/pinkraft_escrow.wasm" }
+{ kind: "ESCROW", wasm: "contracts/target/wasm32v1-none/release/paiflow_escrow.wasm" }
 ```
 
 ### Step 4: Add a Prisma Template
@@ -394,7 +394,7 @@ tsx scripts/upload-wasm.ts
 | **Pre-compiled** (current) | No Rust toolchain in deploy path, smaller audit surface, fast deploy (<1 min) | Cannot customize contract logic per deployment        |
 | **Compile on deploy**      | Full customization                                                            | Slow, requires build servers, larger security surface |
 
-Pink Raft chooses pre-compiled because the 3 templates cover the target use cases, and instant deploy + pre-audited contracts is more important than arbitrary custom logic.
+Paiflow chooses pre-compiled because the 3 templates cover the target use cases, and instant deploy + pre-audited contracts is more important than arbitrary custom logic.
 
 ### Why Client-Signed Transactions?
 
@@ -408,7 +408,7 @@ SSE is simpler, works through most load balancers without sticky sessions, and a
 
 ### Why Polling Instead of Webhooks?
 
-Soroban RPC does not provide a push/webhook mechanism for events (events are ephemeral, only kept ~1 week). Pink Raft uses Railway cron jobs hitting `GET /api/cron/poll-events` every minute to poll `getEvents` with a cursor. This is simple and reliable, at the cost of up to 60s latency.
+Soroban RPC does not provide a push/webhook mechanism for events (events are ephemeral, only kept ~1 week). Paiflow uses Railway cron jobs hitting `GET /api/cron/poll-events` every minute to poll `getEvents` with a cursor. This is simple and reliable, at the cost of up to 60s latency.
 
 ---
 

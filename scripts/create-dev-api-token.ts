@@ -1,5 +1,5 @@
 /**
- * Mint a developer API token for a Pinkraft user.
+ * Mint a developer API token for a Paiflow user.
  *
  * The token maps a machine caller (e.g. the paiflow-payroll app) to a specific
  * user who will OWN the deployments it creates via POST /api/deployments/dev-payroll.

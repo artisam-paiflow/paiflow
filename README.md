@@ -1,4 +1,4 @@
-# Pink Raft
+# Paiflow
 
 > **Zaps for money.** A visual builder where you connect triggers (_"when this happens"_) to actions (_"pay this"_) and deploy a live Soroban contract on Stellar in under a minute.
 
@@ -40,7 +40,7 @@ There's no middle layer — no Stripe Connect, no Zapier-for-money — that lets
 
 Make programmable payments a **drag-and-drop primitive**, the way Zapier made cross-SaaS automation a drag-and-drop primitive a decade ago. Anyone who can sketch a flow on a whiteboard should be able to ship the same flow as a non-custodial Soroban contract — owning their keys, their funds, and their logic — in under 90 seconds, on a phone, without ever touching Rust or XDR.
 
-Long-term, Pink Raft is the canonical "no-code Stellar surface": the layer between the chain's primitives (atomic transfers, Soroban host functions, SEP-7 deep links) and the operators who want to compose them into real-world money flows.
+Long-term, Paiflow is the canonical "no-code Stellar surface": the layer between the chain's primitives (atomic transfers, Soroban host functions, SEP-7 deep links) and the operators who want to compose them into real-world money flows.
 
 ## 🎯 Purpose
 
@@ -89,8 +89,8 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 
 ```bash
 # 1. Clone
-git clone https://github.com/webnxt-2030/pinkraft.git
-cd pinkraft
+git clone https://github.com/webnxt-2030/paiflow.git
+cd paiflow
 
 # 2. Install deps (requires Node 22.11.x and pnpm 10.4.1)
 corepack enable && corepack prepare pnpm@10.4.1 --activate
@@ -124,13 +124,13 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 ## 🌐 Deployment
 
-Pink Raft is **non-custodial** — the backend prepares XDR, but only the user's wallet signs. The Stellar network is pinned at the environment level via `STELLAR_NETWORK` (staging = `testnet`, production = `mainnet`); there is no per-deploy network picker. Operator runbook for the cutover: [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md).
+Paiflow is **non-custodial** — the backend prepares XDR, but only the user's wallet signs. The Stellar network is pinned at the environment level via `STELLAR_NETWORK` (staging = `testnet`, production = `mainnet`); there is no per-deploy network picker. Operator runbook for the cutover: [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md).
 
 ### Testnet
 
 Deployed via Railway from `staging` (auto-deploy on merge into `staging`).
 
-- **App URL**: https://pinkraft.up.railway.app/
+- **App URL**: https://paiflow.up.railway.app/
 - **📸 Stellar Expert (testnet)**:
   <img width="1251" height="891" alt="image" src="https://github.com/user-attachments/assets/e93400b1-82d5-45ec-b3ea-1af2bdb2b68e" />
 
@@ -138,15 +138,15 @@ Deployed via Railway from `staging` (auto-deploy on merge into `staging`).
 
 Cutover gated by `docs/mainnet-cutover.md`. WASM hashes uploaded via `pnpm contracts:upload --network=mainnet`.
 
-- **App URL**: https://pinkraft.xyz/
+- **App URL**: https://paiflow.xyz/
 - **📸 Stellar Expert (mainnet)**:
   <img width="1259" height="887" alt="image" src="https://github.com/user-attachments/assets/be166d1c-93eb-4cef-b6f7-a8d75e15241c" />
 
 ## 🎥 Demo
 
-- 🔗 **Live App**: https://pinkraft.xyz/
+- 🔗 **Live App**: https://paiflow.xyz/
 - 🎬 **Demo Video**: https://www.youtube.com/watch?v=VkOgegleb9A
-  [![Pink Raft Demo Video](https://img.youtube.com/vi/VkOgegleb9A/0.jpg)](https://www.youtube.com/watch?v=VkOgegleb9A)
+  [![Paiflow Demo Video](https://img.youtube.com/vi/VkOgegleb9A/0.jpg)](https://www.youtube.com/watch?v=VkOgegleb9A)
 
 - 🖼️ **Pitch Deck**: https://drive.google.com/file/d/1CT2iNDgmdkfkzFDfRYTxZZYAcNdY7QP0/view
 
@@ -200,12 +200,12 @@ MIT
 
 ### Local services map
 
-| Service  | Port(s)     | Notes                                                |
-| -------- | ----------- | ---------------------------------------------------- |
-| Next.js  | 3000        | `pnpm dev`                                           |
-| Postgres | 5432        | `pinkraft / pinkraft / pinkraft`                     |
-| Redis    | 6379        | —                                                    |
-| MinIO    | 9000 / 9001 | console at `:9001`, `pinkraft / pinkraft-dev-secret` |
+| Service  | Port(s)     | Notes                                              |
+| -------- | ----------- | -------------------------------------------------- |
+| Next.js  | 3000        | `pnpm dev`                                         |
+| Postgres | 5432        | `paiflow / paiflow / paiflow`                      |
+| Redis    | 6379        | —                                                  |
+| MinIO    | 9000 / 9001 | console at `:9001`, `paiflow / paiflow-dev-secret` |
 
 > **Email** (Resend) and **AI** (Groq) are cloud services, not local containers — set their API keys to enable, leave them unset to degrade to dev-console logs / disabled features.
 
@@ -320,7 +320,7 @@ Both lanes must be green before merge.
 - **Email** — `RESEND_API_KEY`, `EMAIL_FROM`
 - **Optional** — `SENTRY_DSN`, `HIBP_CHECK_ENABLED`
 
-> **Never** put a Stellar secret key in `.env`. Pink Raft is non-custodial — the backend builds and submits transactions, but only the user's wallet signs them.
+> **Never** put a Stellar secret key in `.env`. Paiflow is non-custodial — the backend builds and submits transactions, but only the user's wallet signs them.
 
 ### Deployment infrastructure
 

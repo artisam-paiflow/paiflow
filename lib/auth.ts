@@ -171,7 +171,7 @@ export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionU
 }
 
 /**
- * Resolve a per-developer API token to the Pinkraft user that owns it. Machine
+ * Resolve a per-developer API token to the Paiflow user that owns it. Machine
  * endpoints that CREATE owned rows (e.g. the dev-payroll deploy) cannot use the
  * shared `x-dev-api-secret` because it carries no owner. The caller presents the
  * token in the `x-dev-api-secret` header (or `Authorization: Bearer <token>`);

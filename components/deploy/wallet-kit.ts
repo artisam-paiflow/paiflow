@@ -47,10 +47,10 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
       walletConnectClient = await SignClient.init({
         projectId,
         metadata: {
-          name: "Pinkraft",
+          name: "Paiflow",
           description: "Trigger contract deployments",
           url: typeof window !== "undefined" ? window.location.origin : "",
-          icons: ["https://pinkraft.xyz/logo.png"],
+          icons: ["/logo.png"],
         },
       });
     } finally {
@@ -98,10 +98,10 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
 
     const walletConnectModule = new WalletConnectModule({
       projectId,
-      name: "Pinkraft",
+      name: "Paiflow",
       description: "Trigger contract deployments",
       url: typeof window !== "undefined" ? window.location.origin : "",
-      icons: ["https://pinkraft.xyz/logo.png"],
+      icons: ["https://paiflow.xyz/logo.png"],
       method: WalletConnectAllowedMethods.SIGN,
       network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
       client:

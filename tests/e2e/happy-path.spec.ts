@@ -68,7 +68,7 @@ test("deploy flow: builder → review → submit (mocked wallet)", async ({ page
       }),
       signTransaction: async (xdr: string) => ({ signedTxXdr: `SIGNED:${xdr}` }),
     };
-    (window as unknown as { __pinkraftWalletStub: typeof stub }).__pinkraftWalletStub = stub;
+    (window as unknown as { __paiflowWalletStub: typeof stub }).__paiflowWalletStub = stub;
   });
 
   // 5) Click Deploy and wait for navigation. If the wallet stub isn't
