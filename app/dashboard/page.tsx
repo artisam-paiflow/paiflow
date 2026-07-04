@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import Topbar from "@/components/app/topbar";
+import NewFlowButton from "@/components/flows/new-flow-button";
 import { isStellarNetwork, stellarExpertContractUrl } from "@/lib/stellar/explorer";
 
 export const dynamic = "force-dynamic";
@@ -76,13 +77,10 @@ export default async function Dashboard() {
               Your flows.
             </h1>
           </div>
-          <Link
-            href="/flows/new"
-            className="bg-primary text-label-md text-on-primary inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_20px_rgba(255,177,196,0.55)] active:scale-95"
-          >
+          <NewFlowButton className="bg-primary text-label-md text-on-primary inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_20px_rgba(255,177,196,0.55)] active:scale-95">
             <span className="material-symbols-outlined text-[18px]">add</span>
             NEW FLOW
-          </Link>
+          </NewFlowButton>
         </div>
 
         {/* Metrics bento */}
@@ -129,13 +127,10 @@ export default async function Dashboard() {
               <p className="text-label-sm text-on-surface-variant/70 mt-1 font-mono">
                 CLICK NEW FLOW TO DRAG YOUR FIRST ONE.
               </p>
-              <Link
-                href="/flows/new"
-                className="mt-md bg-primary text-label-md text-on-primary inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_20px_rgba(255,177,196,0.55)] active:scale-95"
-              >
+              <NewFlowButton className="mt-md bg-primary text-label-md text-on-primary inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_20px_rgba(255,177,196,0.55)] active:scale-95">
                 <span className="material-symbols-outlined text-[16px]">add</span>
                 NEW FLOW
-              </Link>
+              </NewFlowButton>
             </div>
           ) : (
             <div className="gap-md grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
@@ -258,13 +253,12 @@ export default async function Dashboard() {
       </main>
 
       {/* Mobile FAB */}
-      <Link
-        href="/flows/new"
-        aria-label="New flow"
+      <NewFlowButton
+        ariaLabel="New flow"
         className="bg-primary text-on-primary fixed right-6 bottom-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full shadow-[0_8px_24px_-4px_rgba(0,0,0,0.6),0_0_20px_rgba(255,177,196,0.4)] transition-all hover:-translate-y-px hover:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.6),0_0_28px_rgba(255,177,196,0.7)] md:hidden"
       >
         <span className="material-symbols-outlined">add</span>
-      </Link>
+      </NewFlowButton>
     </div>
   );
 }
