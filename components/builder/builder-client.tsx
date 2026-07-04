@@ -654,35 +654,30 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                     valid pipeline
                   </span>
                 )}
+                {!isValid && errors.length > 0 && (
+                  <div
+                    role="alert"
+                    className="bg-error-container/25 border-error/40 text-on-error-container ml-auto inline-flex items-center gap-2 rounded-lg border px-2.5 py-1"
+                  >
+                    <span className="material-symbols-outlined text-error text-[16px] leading-none">
+                      error
+                    </span>
+                    <span className="text-label-sm text-error font-semibold">{errors.length}</span>
+                    <button
+                      type="button"
+                      onClick={() => setErrorsModalOpen(true)}
+                      aria-label={`View all ${errors.length} validation ${
+                        errors.length === 1 ? "issue" : "issues"
+                      }`}
+                      className="text-error hover:text-error/80 text-label-sm font-semibold underline-offset-2 transition-colors hover:underline"
+                    >
+                      Details
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="text-body-md text-on-surface mt-1 line-clamp-2">{english}</div>
             </div>
-
-            {/* Prominent validation-error banner — compact single-line summary.
-                "Details" opens the full modal list. */}
-            {!isValid && errors.length > 0 && (
-              <div
-                role="alert"
-                className="bg-error-container/25 border-error/40 text-on-error-container mt-2 flex max-w-2xl items-center gap-3 rounded-xl border px-4 py-2"
-              >
-                <span className="material-symbols-outlined text-error text-[20px] leading-none">
-                  error
-                </span>
-                <div className="text-label-md text-error min-w-0 flex-1 font-semibold">
-                  {errors.length} validation {errors.length === 1 ? "issue" : "issues"}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setErrorsModalOpen(true)}
-                  aria-label={`View all ${errors.length} validation ${
-                    errors.length === 1 ? "issue" : "issues"
-                  }`}
-                  className="bg-error/15 border-error/40 text-error hover:bg-error/25 text-label-sm shrink-0 rounded-lg border px-2.5 py-1 font-semibold transition-colors"
-                >
-                  {errors.length > 1 ? `View all ${errors.length}` : "Details"}
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Row 3: Canvas */}
