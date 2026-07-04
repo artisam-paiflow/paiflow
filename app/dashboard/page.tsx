@@ -192,7 +192,7 @@ export default async function Dashboard() {
                   <span>NETWORK</span>
                   <span>CONTRACT</span>
                   <span className="text-right">CREATED</span>
-                  <span className="sr-only">EXPLORER</span>
+                  <span className="whitespace-nowrap">View on Explorer</span>
                 </div>
                 {deployments.map((d) => {
                   const badge = statusBadge[d.status] ?? {
