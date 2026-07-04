@@ -1964,6 +1964,7 @@ function EmailRecipientsField({
               />
             )}
             <input
+              type="email"
               className="input flex-1 text-xs"
               value={r.email}
               placeholder="alice@example.com"
