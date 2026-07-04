@@ -186,7 +186,7 @@ export default async function Dashboard() {
               </div>
             ) : (
               <div className="divide-outline-variant/10 divide-y">
-                <div className="gap-md bg-surface-container/60 px-md text-label-sm text-on-surface-variant grid grid-cols-[2fr_1fr_1fr_1.5fr_1fr_auto] items-center py-2.5 font-mono">
+                <div className="gap-md bg-surface-container/60 px-md text-label-sm text-on-surface-variant grid grid-cols-[2fr_1fr_1fr_1.5fr_1fr_6rem] items-center py-2.5 font-mono">
                   <span>FLOW</span>
                   <span>STATUS</span>
                   <span>NETWORK</span>
@@ -206,7 +206,7 @@ export default async function Dashboard() {
                   return (
                     <div
                       key={d.id}
-                      className="group gap-md px-md hover:bg-surface-container-high/40 grid grid-cols-[2fr_1fr_1fr_1.5fr_1fr_auto] items-center transition-colors"
+                      className="group gap-md px-md hover:bg-surface-container-high/40 grid grid-cols-[2fr_1fr_1fr_1.5fr_1fr_6rem] items-center transition-colors"
                     >
                       <Link
                         href={`/deployments/${d.id}`}
