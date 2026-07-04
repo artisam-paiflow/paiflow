@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FlowNode, FlowGraph, Asset } from "@/lib/flows/schema";
 import {
   isPendingAddress,
@@ -650,378 +650,17 @@ export default function ConfigPanel({
             </Field>
           )}
 
-          {(() => {
-            const splitNode = node as Extract<FlowNode, { type: "split" }>;
-            // In dev mode an empty recipients list means "fill via API"; the
-            // banner above already covers it, so skip the editor entirely.
-            if (devMode && splitNode.config.recipients.length === 0) return null;
-            const isPayroll = triggerType === "payroll";
-            const mode = isPayroll
-              ? "fixed"
-              : (splitNode.config.recipients[0]?.mode ?? "percentage");
-            const totalFixed = splitTotalFixedStroops(splitNode.config.recipients);
-            const minAmount =
-              trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
-
-            const setMode = (newMode: "percentage" | "fixed") => {
-              const next = splitNode.config.recipients.map((r) => {
-                const base = { address: r.address, label: r.label };
-                if (newMode === "percentage") {
-                  return { ...base, mode: "percentage" as const, bps: 0 };
-                }
-                return { ...base, mode: "fixed" as const, amountStroops: "0" };
-              });
-              onChange({
-                ...splitNode,
-                config: { ...splitNode.config, recipients: next },
-              } as FlowNode);
-            };
-
-            const updateRecipient = (i: number, r: SplitRecipient) => {
-              const next = [...splitNode.config.recipients];
-              next[i] = r;
-              onChange({
-                ...splitNode,
-                config: { ...splitNode.config, recipients: next },
-              } as FlowNode);
-            };
-
-            return (
-              <>
-                {isPayroll ? (
-                  <div className="text-xs text-amber-400">
-                    Payroll distributions use fixed salary amounts only.
-                  </div>
-                ) : (
-                  <Field label="Distribution mode">
-                    <select
-                      className="input"
-                      value={mode}
-                      onChange={(e) => setMode(e.target.value as "percentage" | "fixed")}
-                    >
-                      <option value="percentage">Percentage</option>
-                      <option value="fixed">Fixed amount</option>
-                    </select>
-                  </Field>
-                )}
-
-                <div className="text-xs text-zinc-400">
-                  {mode === "percentage"
-                    ? "Recipients (shares must sum to 100%)"
-                    : "Recipients (fixed amounts accumulate until the total is reached)"}
-                </div>
-
-                {mode === "percentage" && (
-                  <AllocationBar recipients={splitNode.config.recipients} />
-                )}
-
-                {splitNode.config.recipients.map((r, i) => {
-                  const isPending = isPendingAddress(r.address);
-                  const isPercentage = r.mode === "percentage";
-                  const isPayrollFiat = isPayroll && r.payoutMode === "fiat";
-                  const projected =
-                    isPercentage && sourceAmount
-                      ? stroopsToDisplay(
-                          ((BigInt(sourceAmount) * BigInt(r.bps)) / 10000n).toString(),
-                          splitNode.config.asset,
-                        )
-                      : null;
-
-                  return (
-                    <div
-                      key={i}
-                      className="space-y-1 rounded border border-zinc-800 bg-zinc-900/50 p-2"
-                    >
-                      <div className="grid grid-cols-[1fr_80px_28px] items-center gap-1">
-                        {isPayrollFiat ? (
-                          <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-                            <span className="material-symbols-outlined text-[14px]">
-                              account_balance
-                            </span>
-                            <span>Fiat off-ramp</span>
-                            <span className="text-[10px] text-zinc-500">(auto-generated)</span>
-                          </div>
-                        ) : (
-                          <div className="grid gap-0.5">
-                            <AddressInput
-                              value={r.address}
-                              placeholder="G... or PENDING:label"
-                              onChange={(address) =>
-                                updateRecipient(i, {
-                                  ...r,
-                                  address,
-                                } as SplitRecipient)
-                              }
-                              onSelectEntry={(entry) =>
-                                updateRecipient(i, {
-                                  ...r,
-                                  address: entry.address,
-                                  label: entry.label || r.label,
-                                } as SplitRecipient)
-                              }
-                              pending={isPendingAddress(r.address)}
-                              addressBook={addressBook}
-                              onAddressBookChange={refreshAddressBook}
-                            />
-                          </div>
-                        )}
-                        {isPercentage ? (
-                          <div className="relative">
-                            <input
-                              className="input pr-5 text-right"
-                              value={
-                                r.bps === 0
-                                  ? ""
-                                  : (() => {
-                                      const pct = bpsToPct(r.bps);
-                                      return pct === Math.floor(pct)
-                                        ? `${pct}`
-                                        : `${pct.toFixed(1)}`;
-                                    })()
-                              }
-                              placeholder="0"
-                              onChange={(e) => {
-                                const v = Number(e.target.value);
-                                updateRecipient(i, {
-                                  ...r,
-                                  bps: isNaN(v) ? 0 : Math.min(10000, Math.max(0, pctToBps(v))),
-                                } as SplitRecipient);
-                              }}
-                            />
-                            <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[11px] text-zinc-500">
-                              %
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="relative">
-                            <input
-                              className="input pr-5 text-right"
-                              value={r.amountStroops ? formatStroops(r.amountStroops) : ""}
-                              placeholder="0"
-                              onChange={(e) => {
-                                const stroops = tokenAmountToStroops(e.target.value);
-                                updateRecipient(i, {
-                                  ...r,
-                                  amountStroops: stroops || "0",
-                                } as SplitRecipient);
-                              }}
-                            />
-                          </div>
-                        )}
-                        <button
-                          onClick={() => {
-                            const next = splitNode.config.recipients.filter((_, j) => j !== i);
-                            onChange({
-                              ...splitNode,
-                              config: { ...splitNode.config, recipients: next },
-                            } as FlowNode);
-                          }}
-                          className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
-                        >
-                          ×
-                        </button>
-                      </div>
-                      {!isPayrollFiat && (
-                        <div className="grid grid-cols-[1fr_auto] gap-1">
-                          <input
-                            className="input text-xs"
-                            value={r.label ?? ""}
-                            placeholder="Label (e.g. Alice)"
-                            onChange={(e) =>
-                              updateRecipient(i, {
-                                ...r,
-                                label: e.target.value || undefined,
-                              } as SplitRecipient)
-                            }
-                          />
-                          <div className="flex items-center gap-1 text-[10px]">
-                            {isPending && (
-                              <span className="rounded bg-amber-950 px-1.5 py-0.5 text-amber-400">
-                                needs address
-                              </span>
-                            )}
-                            {projected && (
-                              <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                                {projected}
-                              </span>
-                            )}
-                            {!isPercentage && r.amountStroops && r.amountStroops !== "0" && (
-                              <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                                {stroopsToDisplay(r.amountStroops, splitNode.config.asset)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {triggerType === "payroll" && (
-                        <div className="space-y-2 pt-1">
-                          <Field label="Payout mode">
-                            <select
-                              className="input text-xs"
-                              value={r.payoutMode ?? "crypto"}
-                              onChange={(e) => {
-                                const mode = e.target.value as "crypto" | "fiat";
-                                const isPayrollFiatNext = isPayroll && mode === "fiat";
-                                const base = {
-                                  ...r,
-                                  payoutMode: mode,
-                                  // Payroll fiat recipients get an auto-generated
-                                  // cash-out contract, so the wallet address and
-                                  // label are hidden and replaced with a sentinel.
-                                  address: isPayrollFiatNext ? "PENDING:fiat" : "PENDING:unnamed",
-                                  label: isPayrollFiatNext ? undefined : r.label,
-                                };
-                                updateRecipient(
-                                  i,
-                                  mode === "fiat" && !devMode
-                                    ? {
-                                        ...base,
-                                        accountName: r.accountName ?? "",
-                                        accountNumber: r.accountNumber ?? "",
-                                        bankCode: r.bankCode ?? "",
-                                      }
-                                    : base,
-                                );
-                              }}
-                            >
-                              <option value="crypto">Crypto (wallet)</option>
-                              <option value="fiat">Fiat (bank transfer)</option>
-                            </select>
-                          </Field>
-
-                          {r.payoutMode === "fiat" && !devMode && (
-                            <>
-                              <Field label="Account name">
-                                <input
-                                  className="input text-xs"
-                                  value={r.accountName ?? ""}
-                                  placeholder="Juan Dela Cruz"
-                                  onChange={(e) =>
-                                    updateRecipient(i, {
-                                      ...r,
-                                      accountName: e.target.value,
-                                    } as SplitRecipient)
-                                  }
-                                />
-                              </Field>
-                              <Field label="Account number">
-                                <input
-                                  className="input text-xs"
-                                  value={r.accountNumber ?? ""}
-                                  placeholder="1234567890"
-                                  onChange={(e) =>
-                                    updateRecipient(i, {
-                                      ...r,
-                                      accountNumber: e.target.value,
-                                    } as SplitRecipient)
-                                  }
-                                />
-                              </Field>
-                              <Field label="Bank">
-                                <select
-                                  className="input text-xs"
-                                  value={r.bankCode ?? ""}
-                                  onChange={(e) =>
-                                    updateRecipient(i, {
-                                      ...r,
-                                      bankCode: e.target.value,
-                                    } as SplitRecipient)
-                                  }
-                                >
-                                  <option value="">— select bank —</option>
-                                  <option value="BASECPH">BASECPH — BDO</option>
-                                  <option value="BACTBPH">BACTBPH — BPI</option>
-                                </select>
-                              </Field>
-                            </>
-                          )}
-
-                          {r.payoutMode === "fiat" && devMode && (
-                            <div className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-300">
-                              Bank details configured via API after deploy.
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {mode === "percentage" && remainingPct(splitNode.config.recipients) > 0 && (
-                  <div className="text-xs text-amber-400">
-                    Remaining: {remainingPct(splitNode.config.recipients).toFixed(1)}% unallocated
-                  </div>
-                )}
-
-                {mode === "percentage" &&
-                  splitNode.config.recipients.reduce(
-                    (s, r2) => s + (r2.mode === "percentage" ? r2.bps : 0),
-                    0,
-                  ) > TOTAL_BPS && (
-                    <div className="text-xs text-red-400">
-                      Total exceeds 100% by{" "}
-                      {(
-                        (splitNode.config.recipients.reduce(
-                          (s, r2) => s + (r2.mode === "percentage" ? r2.bps : 0),
-                          0,
-                        ) -
-                          TOTAL_BPS) /
-                        100
-                      ).toFixed(1)}
-                      %
-                    </div>
-                  )}
-
-                {mode === "fixed" && totalFixed && (
-                  <div className="text-xs text-zinc-400">
-                    Total fixed amount:{" "}
-                    <span className="font-mono text-zinc-300">
-                      {stroopsToDisplay(totalFixed, splitNode.config.asset)}
-                    </span>
-                  </div>
-                )}
-
-                {mode === "fixed" &&
-                  minAmount &&
-                  totalFixed &&
-                  BigInt(totalFixed) > BigInt(minAmount) && (
-                    <div className="text-xs text-amber-400">
-                      Total fixed amount is greater than the trigger minimum. Deposits will
-                      accumulate until the total is reached.
-                    </div>
-                  )}
-
-                <button
-                  className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
-                  onClick={() =>
-                    onChange({
-                      ...splitNode,
-                      config: {
-                        ...splitNode.config,
-                        recipients: [
-                          ...splitNode.config.recipients,
-                          isPayroll || mode === "fixed"
-                            ? {
-                                address: "PENDING:unnamed",
-                                mode: "fixed" as const,
-                                amountStroops: "0",
-                              }
-                            : {
-                                address: "PENDING:unnamed",
-                                mode: "percentage" as const,
-                                bps: 100,
-                              },
-                        ],
-                      },
-                    } as FlowNode)
-                  }
-                >
-                  + Add recipient
-                </button>
-              </>
-            );
-          })()}
+          {node.type === "split" && (
+            <SplitRecipientsEditor
+              node={node as Extract<FlowNode, { type: "split" }>}
+              trigger={trigger}
+              sourceAmount={sourceAmount}
+              devMode={devMode}
+              addressBook={addressBook}
+              refreshAddressBook={refreshAddressBook}
+              onChange={onChange}
+            />
+          )}
         </>
       )}
 
@@ -1855,6 +1494,416 @@ export default function ConfigPanel({
         }
       `}</style>
     </aside>
+  );
+}
+
+function SplitRecipientsEditor({
+  node,
+  trigger,
+  sourceAmount,
+  devMode,
+  addressBook,
+  refreshAddressBook,
+  onChange,
+}: {
+  node: Extract<FlowNode, { type: "split" }>;
+  trigger: FlowNode | undefined;
+  sourceAmount: string | undefined;
+  devMode: boolean;
+  addressBook: AddressEntry[];
+  refreshAddressBook?: () => void;
+  onChange: (n: FlowNode) => void;
+}) {
+  const onAddressBookChange = refreshAddressBook ?? (() => {});
+  // In dev mode an empty recipients list means "fill via API"; the banner in
+  // the parent ConfigPanel already covers it, so skip the editor entirely.
+  if (devMode && node.config.recipients.length === 0) return null;
+
+  const triggerType = trigger?.type ?? null;
+  const isPayroll = triggerType === "payroll";
+  const mode = isPayroll ? "fixed" : (node.config.recipients[0]?.mode ?? "percentage");
+  const totalFixed = splitTotalFixedStroops(node.config.recipients);
+  const minAmount = trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
+
+  // Collapse the recipient list by default when it gets long so the panel
+  // doesn't dominate the canvas.
+  const [recipientsExpanded, setRecipientsExpanded] = useState(true);
+  useEffect(() => {
+    setRecipientsExpanded(node.config.recipients.length <= 3);
+  }, [node.id]);
+
+  const setMode = (newMode: "percentage" | "fixed") => {
+    const next = node.config.recipients.map((r) => {
+      const base = { address: r.address, label: r.label };
+      if (newMode === "percentage") {
+        return { ...base, mode: "percentage" as const, bps: 0 };
+      }
+      return { ...base, mode: "fixed" as const, amountStroops: "0" };
+    });
+    onChange({
+      ...node,
+      config: { ...node.config, recipients: next },
+    } as FlowNode);
+  };
+
+  const updateRecipient = (i: number, r: SplitRecipient) => {
+    const next = [...node.config.recipients];
+    next[i] = r;
+    onChange({
+      ...node,
+      config: { ...node.config, recipients: next },
+    } as FlowNode);
+  };
+
+  const recipientSummary =
+    mode === "percentage"
+      ? `${node.config.recipients.length} recipient${node.config.recipients.length === 1 ? "" : "s"}`
+      : `${node.config.recipients.length} recipient${node.config.recipients.length === 1 ? "" : "s"}${
+          totalFixed ? ` · ${stroopsToDisplay(totalFixed, node.config.asset)}` : ""
+        }`;
+
+  return (
+    <div className="rounded border border-zinc-800 bg-zinc-900/30">
+      <button
+        type="button"
+        onClick={() => setRecipientsExpanded((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800/50"
+      >
+        <span className="font-medium">Recipients</span>
+        <span className="flex items-center gap-1 text-zinc-500">
+          {recipientSummary}
+          <span className="material-symbols-outlined text-[16px]">
+            {recipientsExpanded ? "expand_less" : "expand_more"}
+          </span>
+        </span>
+      </button>
+      {recipientsExpanded && (
+        <div className="space-y-3 p-2 pt-1">
+          {isPayroll ? (
+            <div className="text-xs text-amber-400">
+              Payroll distributions use fixed salary amounts only.
+            </div>
+          ) : (
+            <Field label="Distribution mode">
+              <select
+                className="input"
+                value={mode}
+                onChange={(e) => setMode(e.target.value as "percentage" | "fixed")}
+              >
+                <option value="percentage">Percentage</option>
+                <option value="fixed">Fixed amount</option>
+              </select>
+            </Field>
+          )}
+
+          <div className="text-xs text-zinc-400">
+            {mode === "percentage"
+              ? "Recipients (shares must sum to 100%)"
+              : "Recipients (fixed amounts accumulate until the total is reached)"}
+          </div>
+
+          {mode === "percentage" && <AllocationBar recipients={node.config.recipients} />}
+
+          {node.config.recipients.map((r, i) => {
+            const isPending = isPendingAddress(r.address);
+            const isPercentage = r.mode === "percentage";
+            const isPayrollFiat = isPayroll && r.payoutMode === "fiat";
+            const projected =
+              isPercentage && sourceAmount
+                ? stroopsToDisplay(
+                    ((BigInt(sourceAmount) * BigInt(r.bps)) / 10000n).toString(),
+                    node.config.asset,
+                  )
+                : null;
+
+            return (
+              <div key={i} className="space-y-1 rounded border border-zinc-800 bg-zinc-900/50 p-2">
+                <div className="grid grid-cols-[1fr_80px_28px] items-center gap-1">
+                  {isPayrollFiat ? (
+                    <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+                      <span className="material-symbols-outlined text-[14px]">account_balance</span>
+                      <span>Fiat off-ramp</span>
+                      <span className="text-[10px] text-zinc-500">(auto-generated)</span>
+                    </div>
+                  ) : (
+                    <div className="grid gap-0.5">
+                      <AddressInput
+                        value={r.address}
+                        placeholder="G... or PENDING:label"
+                        onChange={(address) =>
+                          updateRecipient(i, {
+                            ...r,
+                            address,
+                          } as SplitRecipient)
+                        }
+                        onSelectEntry={(entry) =>
+                          updateRecipient(i, {
+                            ...r,
+                            address: entry.address,
+                            label: entry.label || r.label,
+                          } as SplitRecipient)
+                        }
+                        pending={isPendingAddress(r.address)}
+                        addressBook={addressBook}
+                        onAddressBookChange={onAddressBookChange}
+                      />
+                    </div>
+                  )}
+                  {isPercentage ? (
+                    <div className="relative">
+                      <input
+                        className="input pr-5 text-right"
+                        value={
+                          r.bps === 0
+                            ? ""
+                            : (() => {
+                                const pct = bpsToPct(r.bps);
+                                return pct === Math.floor(pct) ? `${pct}` : `${pct.toFixed(1)}`;
+                              })()
+                        }
+                        placeholder="0"
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          updateRecipient(i, {
+                            ...r,
+                            bps: isNaN(v) ? 0 : Math.min(10000, Math.max(0, pctToBps(v))),
+                          } as SplitRecipient);
+                        }}
+                      />
+                      <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[11px] text-zinc-500">
+                        %
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <input
+                        className="input pr-5 text-right"
+                        value={r.amountStroops ? formatStroops(r.amountStroops) : ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const stroops = tokenAmountToStroops(e.target.value);
+                          updateRecipient(i, {
+                            ...r,
+                            amountStroops: stroops || "0",
+                          } as SplitRecipient);
+                        }}
+                      />
+                    </div>
+                  )}
+                  <button
+                    onClick={() => {
+                      const next = node.config.recipients.filter((_, j) => j !== i);
+                      onChange({
+                        ...node,
+                        config: { ...node.config, recipients: next },
+                      } as FlowNode);
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
+                  >
+                    ×
+                  </button>
+                </div>
+                {!isPayrollFiat && (
+                  <div className="grid grid-cols-[1fr_auto] gap-1">
+                    <input
+                      className="input text-xs"
+                      value={r.label ?? ""}
+                      placeholder="Label (e.g. Alice)"
+                      onChange={(e) =>
+                        updateRecipient(i, {
+                          ...r,
+                          label: e.target.value || undefined,
+                        } as SplitRecipient)
+                      }
+                    />
+                    <div className="flex items-center gap-1 text-[10px]">
+                      {isPending && (
+                        <span className="rounded bg-amber-950 px-1.5 py-0.5 text-amber-400">
+                          needs address
+                        </span>
+                      )}
+                      {projected && (
+                        <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                          {projected}
+                        </span>
+                      )}
+                      {!isPercentage && r.amountStroops && r.amountStroops !== "0" && (
+                        <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                          {stroopsToDisplay(r.amountStroops, node.config.asset)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {triggerType === "payroll" && (
+                  <div className="space-y-2 pt-1">
+                    <Field label="Payout mode">
+                      <select
+                        className="input text-xs"
+                        value={r.payoutMode ?? "crypto"}
+                        onChange={(e) => {
+                          const mode = e.target.value as "crypto" | "fiat";
+                          const isPayrollFiatNext = isPayroll && mode === "fiat";
+                          const base = {
+                            ...r,
+                            payoutMode: mode,
+                            // Payroll fiat recipients get an auto-generated
+                            // cash-out contract, so the wallet address and
+                            // label are hidden and replaced with a sentinel.
+                            address: isPayrollFiatNext ? "PENDING:fiat" : "PENDING:unnamed",
+                            label: isPayrollFiatNext ? undefined : r.label,
+                          };
+                          updateRecipient(
+                            i,
+                            mode === "fiat" && !devMode
+                              ? {
+                                  ...base,
+                                  accountName: r.accountName ?? "",
+                                  accountNumber: r.accountNumber ?? "",
+                                  bankCode: r.bankCode ?? "",
+                                }
+                              : base,
+                          );
+                        }}
+                      >
+                        <option value="crypto">Crypto (wallet)</option>
+                        <option value="fiat">Fiat (bank transfer)</option>
+                      </select>
+                    </Field>
+
+                    {r.payoutMode === "fiat" && !devMode && (
+                      <>
+                        <Field label="Account name">
+                          <input
+                            className="input text-xs"
+                            value={r.accountName ?? ""}
+                            placeholder="Juan Dela Cruz"
+                            onChange={(e) =>
+                              updateRecipient(i, {
+                                ...r,
+                                accountName: e.target.value,
+                              } as SplitRecipient)
+                            }
+                          />
+                        </Field>
+                        <Field label="Account number">
+                          <input
+                            className="input text-xs"
+                            value={r.accountNumber ?? ""}
+                            placeholder="1234567890"
+                            onChange={(e) =>
+                              updateRecipient(i, {
+                                ...r,
+                                accountNumber: e.target.value,
+                              } as SplitRecipient)
+                            }
+                          />
+                        </Field>
+                        <Field label="Bank">
+                          <select
+                            className="input text-xs"
+                            value={r.bankCode ?? ""}
+                            onChange={(e) =>
+                              updateRecipient(i, {
+                                ...r,
+                                bankCode: e.target.value,
+                              } as SplitRecipient)
+                            }
+                          >
+                            <option value="">— select bank —</option>
+                            <option value="BASECPH">BASECPH — BDO</option>
+                            <option value="BACTBPH">BACTBPH — BPI</option>
+                          </select>
+                        </Field>
+                      </>
+                    )}
+
+                    {r.payoutMode === "fiat" && devMode && (
+                      <div className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-300">
+                        Bank details configured via API after deploy.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {mode === "percentage" && remainingPct(node.config.recipients) > 0 && (
+            <div className="text-xs text-amber-400">
+              Remaining: {remainingPct(node.config.recipients).toFixed(1)}% unallocated
+            </div>
+          )}
+
+          {mode === "percentage" &&
+            node.config.recipients.reduce(
+              (s, r2) => s + (r2.mode === "percentage" ? r2.bps : 0),
+              0,
+            ) > TOTAL_BPS && (
+              <div className="text-xs text-red-400">
+                Total exceeds 100% by{" "}
+                {(
+                  (node.config.recipients.reduce(
+                    (s, r2) => s + (r2.mode === "percentage" ? r2.bps : 0),
+                    0,
+                  ) -
+                    TOTAL_BPS) /
+                  100
+                ).toFixed(1)}
+                %
+              </div>
+            )}
+
+          {mode === "fixed" && totalFixed && (
+            <div className="text-xs text-zinc-400">
+              Total fixed amount:{" "}
+              <span className="font-mono text-zinc-300">
+                {stroopsToDisplay(totalFixed, node.config.asset)}
+              </span>
+            </div>
+          )}
+
+          {mode === "fixed" &&
+            minAmount &&
+            totalFixed &&
+            BigInt(totalFixed) > BigInt(minAmount) && (
+              <div className="text-xs text-amber-400">
+                Total fixed amount is greater than the trigger minimum. Deposits will accumulate
+                until the total is reached.
+              </div>
+            )}
+
+          <button
+            className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
+            onClick={() =>
+              onChange({
+                ...node,
+                config: {
+                  ...node.config,
+                  recipients: [
+                    ...node.config.recipients,
+                    isPayroll || mode === "fixed"
+                      ? {
+                          address: "PENDING:unnamed",
+                          mode: "fixed" as const,
+                          amountStroops: "0",
+                        }
+                      : {
+                          address: "PENDING:unnamed",
+                          mode: "percentage" as const,
+                          bps: 100,
+                        },
+                  ],
+                },
+              } as FlowNode)
+            }
+          >
+            + Add recipient
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
