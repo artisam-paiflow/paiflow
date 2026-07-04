@@ -138,6 +138,35 @@ export default function ConfigPanel({
   const sourceAmount = sourceAmountStroops(graph);
   const devMode = graph.devMode === true;
 
+  // Payroll distributions must be fixed salary amounts. If a user switches an
+  // existing percentage split to a payroll trigger, convert the recipients to
+  // fixed amounts so the UI stays consistent and the flow can validate.
+  useEffect(() => {
+    if (triggerType !== "payroll" || node.type !== "split") return;
+    const hasPercentage = node.config.recipients.some((r) => r.mode === "percentage");
+    if (!hasPercentage) return;
+    onChange({
+      ...node,
+      config: {
+        ...node.config,
+        recipients: node.config.recipients.map((r) =>
+          r.mode === "percentage"
+            ? {
+                address: r.address,
+                label: r.label,
+                payoutMode: r.payoutMode,
+                accountName: r.accountName,
+                accountNumber: r.accountNumber,
+                bankCode: r.bankCode,
+                mode: "fixed" as const,
+                amountStroops: "0",
+              }
+            : r,
+        ),
+      },
+    } as FlowNode);
+  }, [triggerType, node, onChange]);
+
   return (
     <aside
       className={cn(
@@ -626,7 +655,10 @@ export default function ConfigPanel({
             // In dev mode an empty recipients list means "fill via API"; the
             // banner above already covers it, so skip the editor entirely.
             if (devMode && splitNode.config.recipients.length === 0) return null;
-            const mode = splitNode.config.recipients[0]?.mode ?? "percentage";
+            const isPayroll = triggerType === "payroll";
+            const mode = isPayroll
+              ? "fixed"
+              : (splitNode.config.recipients[0]?.mode ?? "percentage");
             const totalFixed = splitTotalFixedStroops(splitNode.config.recipients);
             const minAmount =
               trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
@@ -656,16 +688,22 @@ export default function ConfigPanel({
 
             return (
               <>
-                <Field label="Distribution mode">
-                  <select
-                    className="input"
-                    value={mode}
-                    onChange={(e) => setMode(e.target.value as "percentage" | "fixed")}
-                  >
-                    <option value="percentage">Percentage</option>
-                    <option value="fixed">Fixed amount</option>
-                  </select>
-                </Field>
+                {isPayroll ? (
+                  <div className="text-xs text-amber-400">
+                    Payroll distributions use fixed salary amounts only.
+                  </div>
+                ) : (
+                  <Field label="Distribution mode">
+                    <select
+                      className="input"
+                      value={mode}
+                      onChange={(e) => setMode(e.target.value as "percentage" | "fixed")}
+                    >
+                      <option value="percentage">Percentage</option>
+                      <option value="fixed">Fixed amount</option>
+                    </select>
+                  </Field>
+                )}
 
                 <div className="text-xs text-zinc-400">
                   {mode === "percentage"
@@ -941,16 +979,16 @@ export default function ConfigPanel({
                         ...splitNode.config,
                         recipients: [
                           ...splitNode.config.recipients,
-                          mode === "percentage"
+                          isPayroll || mode === "fixed"
                             ? {
-                                address: "PENDING:unnamed",
-                                mode: "percentage" as const,
-                                bps: 100,
-                              }
-                            : {
                                 address: "PENDING:unnamed",
                                 mode: "fixed" as const,
                                 amountStroops: "0",
+                              }
+                            : {
+                                address: "PENDING:unnamed",
+                                mode: "percentage" as const,
+                                bps: 100,
                               },
                         ],
                       },

@@ -18,7 +18,7 @@ type PipelineNode = {
   templateKind: string;
 };
 
-const PAYROLL_KINDS = new Set(["PAYROLL", "SUBSCRIPTION_DEV"]);
+const PAYROLL_KINDS = new Set(["PAYROLL", "SUBSCRIPTION_DEV", "SUBSCRIPTION"]);
 
 function findPayrollNode(pipeline: PipelineNode[] | null): PipelineNode | null {
   return pipeline?.find((n) => PAYROLL_KINDS.has(n.templateKind)) ?? null;

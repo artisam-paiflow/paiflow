@@ -376,9 +376,11 @@ export default function PayrollPanel({
         </div>
       </div>
 
-      {/* Hidden for now — dev payroll always uses the platform relayer.
-      <SubscriptionRelayerPanel deploymentId={deploymentId} network={network} kind="payroll" />
-      */}
+      {/* Dev-mode payrolls always use the platform relayer; non-dev payrolls
+          can configure their own relayer. */}
+      {!pipeline?.some((n) => n.templateKind === "SUBSCRIPTION_DEV") && (
+        <SubscriptionRelayerPanel deploymentId={deploymentId} network={network} kind="payroll" />
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <ContractCallButton
