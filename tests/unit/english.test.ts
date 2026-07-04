@@ -402,4 +402,37 @@ describe("flowToEnglish", () => {
     expect(out).toContain("When payroll pulls from (employer set via API) (schedule set via API)");
     expect(out).not.toContain("every 5 minutes");
   });
+
+  it("includes the total fixed distribution as the payroll pull amount", () => {
+    const out = flowToEnglish({
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR,
+            intervalAmount: 1,
+            intervalUnit: "week",
+            fillScheduleViaApi: false,
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR, mode: "fixed", amountStroops: "10000000", label: "Alice" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "5000000", label: "Bob" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(out).toContain("When payroll pulls 1.5 USDC from");
+    expect(out).toContain("every week");
+    expect(out).toContain("split 1 USDC to Alice, 0.5 USDC to Bob");
+  });
 });
