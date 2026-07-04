@@ -20,6 +20,7 @@ export default function AddressBookManager() {
   const [formAddress, setFormAddress] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
   const [editAddress, setEditAddress] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -87,7 +88,12 @@ export default function AddressBookManager() {
   }
 
   async function saveEdit() {
+    const label = editLabel.trim();
     const address = editAddress.trim();
+    if (!label) {
+      setEditError("Label is required");
+      return;
+    }
     const addrError = validateAddress(address);
     if (addrError) {
       setEditError(addrError);
@@ -108,7 +114,7 @@ export default function AddressBookManager() {
       const r = await fetch(`/api/address-book/${editingId}`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ address }),
+        body: JSON.stringify({ label, address }),
       });
       if (!r.ok) {
         const b = await r.json().catch(() => ({}));
@@ -116,6 +122,7 @@ export default function AddressBookManager() {
       }
       toast.success("Contact updated.");
       setEditingId(null);
+      setEditLabel("");
       setEditAddress("");
       await refresh();
     } catch (err) {
@@ -138,12 +145,14 @@ export default function AddressBookManager() {
 
   function startEdit(entry: Entry) {
     setEditingId(entry.id);
+    setEditLabel(entry.label);
     setEditAddress(entry.address);
     setEditError(null);
   }
 
   function cancelEdit() {
     setEditingId(null);
+    setEditLabel("");
     setEditAddress("");
     setEditError(null);
   }
@@ -206,9 +215,11 @@ export default function AddressBookManager() {
           >
             {editingId === entry.id ? (
               <div className="gap-md grid items-center md:grid-cols-[1fr_1fr_auto]">
-                <div className="border-outline-variant/30 bg-surface-container-low/40 text-on-surface rounded border px-3 py-2 font-mono text-[14px]">
-                  {entry.label}
-                </div>
+                <input
+                  value={editLabel}
+                  onChange={(e) => setEditLabel(e.target.value)}
+                  className="border-outline-variant/40 bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-primary rounded border px-3 py-2 font-mono text-[14px] focus:ring-1 focus:outline-none"
+                />
                 <input
                   value={editAddress}
                   onChange={(e) => setEditAddress(e.target.value)}
