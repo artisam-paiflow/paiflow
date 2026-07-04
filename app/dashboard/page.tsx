@@ -181,7 +181,7 @@ export default async function Dashboard() {
               </div>
             ) : (
               <div className="divide-outline-variant/10 divide-y">
-                <div className="gap-md bg-surface-container/60 px-md text-label-sm text-on-surface-variant grid grid-cols-[2fr_1fr_1fr_1.5fr_1fr_6rem] items-center py-2.5 font-mono">
+                <div className="gap-md bg-surface-container/60 px-md text-label-sm text-on-surface-variant grid grid-cols-[2fr_1fr_1fr_minmax(0,0.75fr)_1fr_6rem] items-center py-2.5 font-mono">
                   <span>FLOW</span>
                   <span>STATUS</span>
                   <span>NETWORK</span>
@@ -219,7 +219,7 @@ export default async function Dashboard() {
                         <span className="text-label-sm text-on-surface-variant font-mono">
                           {d.network?.toUpperCase()}
                         </span>
-                        <span className="text-label-sm text-on-surface font-mono">
+                        <span className="text-label-sm text-on-surface truncate font-mono">
                           {truncateAddr(d.contractAddress)}
                         </span>
                         <span className="text-label-sm text-on-surface-variant text-right font-mono">
