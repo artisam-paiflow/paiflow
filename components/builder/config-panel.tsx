@@ -718,6 +718,7 @@ export default function ConfigPanel({
                 {splitNode.config.recipients.map((r, i) => {
                   const isPending = isPendingAddress(r.address);
                   const isPercentage = r.mode === "percentage";
+                  const isPayrollFiat = isPayroll && r.payoutMode === "fiat";
                   const projected =
                     isPercentage && sourceAmount
                       ? stroopsToDisplay(
@@ -732,28 +733,38 @@ export default function ConfigPanel({
                       className="space-y-1 rounded border border-zinc-800 bg-zinc-900/50 p-2"
                     >
                       <div className="grid grid-cols-[1fr_80px_28px] items-center gap-1">
-                        <div className="grid gap-0.5">
-                          <AddressInput
-                            value={r.address}
-                            placeholder="G... or PENDING:label"
-                            onChange={(address) =>
-                              updateRecipient(i, {
-                                ...r,
-                                address,
-                              } as SplitRecipient)
-                            }
-                            onSelectEntry={(entry) =>
-                              updateRecipient(i, {
-                                ...r,
-                                address: entry.address,
-                                label: entry.label || r.label,
-                              } as SplitRecipient)
-                            }
-                            pending={isPendingAddress(r.address)}
-                            addressBook={addressBook}
-                            onAddressBookChange={refreshAddressBook}
-                          />
-                        </div>
+                        {isPayrollFiat ? (
+                          <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+                            <span className="material-symbols-outlined text-[14px]">
+                              account_balance
+                            </span>
+                            <span>Fiat off-ramp</span>
+                            <span className="text-[10px] text-zinc-500">(auto-generated)</span>
+                          </div>
+                        ) : (
+                          <div className="grid gap-0.5">
+                            <AddressInput
+                              value={r.address}
+                              placeholder="G... or PENDING:label"
+                              onChange={(address) =>
+                                updateRecipient(i, {
+                                  ...r,
+                                  address,
+                                } as SplitRecipient)
+                              }
+                              onSelectEntry={(entry) =>
+                                updateRecipient(i, {
+                                  ...r,
+                                  address: entry.address,
+                                  label: entry.label || r.label,
+                                } as SplitRecipient)
+                              }
+                              pending={isPendingAddress(r.address)}
+                              addressBook={addressBook}
+                              onAddressBookChange={refreshAddressBook}
+                            />
+                          </div>
+                        )}
                         {isPercentage ? (
                           <div className="relative">
                             <input
@@ -810,36 +821,38 @@ export default function ConfigPanel({
                           ×
                         </button>
                       </div>
-                      <div className="grid grid-cols-[1fr_auto] gap-1">
-                        <input
-                          className="input text-xs"
-                          value={r.label ?? ""}
-                          placeholder="Label (e.g. Alice)"
-                          onChange={(e) =>
-                            updateRecipient(i, {
-                              ...r,
-                              label: e.target.value || undefined,
-                            } as SplitRecipient)
-                          }
-                        />
-                        <div className="flex items-center gap-1 text-[10px]">
-                          {isPending && (
-                            <span className="rounded bg-amber-950 px-1.5 py-0.5 text-amber-400">
-                              needs address
-                            </span>
-                          )}
-                          {projected && (
-                            <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                              {projected}
-                            </span>
-                          )}
-                          {!isPercentage && r.amountStroops && r.amountStroops !== "0" && (
-                            <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                              {stroopsToDisplay(r.amountStroops, splitNode.config.asset)}
-                            </span>
-                          )}
+                      {!isPayrollFiat && (
+                        <div className="grid grid-cols-[1fr_auto] gap-1">
+                          <input
+                            className="input text-xs"
+                            value={r.label ?? ""}
+                            placeholder="Label (e.g. Alice)"
+                            onChange={(e) =>
+                              updateRecipient(i, {
+                                ...r,
+                                label: e.target.value || undefined,
+                              } as SplitRecipient)
+                            }
+                          />
+                          <div className="flex items-center gap-1 text-[10px]">
+                            {isPending && (
+                              <span className="rounded bg-amber-950 px-1.5 py-0.5 text-amber-400">
+                                needs address
+                              </span>
+                            )}
+                            {projected && (
+                              <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                                {projected}
+                              </span>
+                            )}
+                            {!isPercentage && r.amountStroops && r.amountStroops !== "0" && (
+                              <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                                {stroopsToDisplay(r.amountStroops, splitNode.config.asset)}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {triggerType === "payroll" && (
                         <div className="space-y-2 pt-1">
@@ -849,17 +862,26 @@ export default function ConfigPanel({
                               value={r.payoutMode ?? "crypto"}
                               onChange={(e) => {
                                 const mode = e.target.value as "crypto" | "fiat";
+                                const isPayrollFiatNext = isPayroll && mode === "fiat";
+                                const base = {
+                                  ...r,
+                                  payoutMode: mode,
+                                  // Payroll fiat recipients get an auto-generated
+                                  // cash-out contract, so the wallet address and
+                                  // label are hidden and replaced with a sentinel.
+                                  address: isPayrollFiatNext ? "PENDING:fiat" : "PENDING:unnamed",
+                                  label: isPayrollFiatNext ? undefined : r.label,
+                                };
                                 updateRecipient(
                                   i,
                                   mode === "fiat" && !devMode
                                     ? {
-                                        ...r,
-                                        payoutMode: mode,
+                                        ...base,
                                         accountName: r.accountName ?? "",
                                         accountNumber: r.accountNumber ?? "",
                                         bankCode: r.bankCode ?? "",
                                       }
-                                    : { ...r, payoutMode: mode },
+                                    : base,
                                 );
                               }}
                             >

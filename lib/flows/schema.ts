@@ -13,6 +13,9 @@ export function getPendingLabels(graph: FlowGraph): string[] {
   for (const n of graph.nodes) {
     if (n.type === "split") {
       for (const r of n.config.recipients) {
+        // Fiat split recipients get an auto-generated cash-out contract at
+        // deploy time, so they don't need a wallet address.
+        if (r.payoutMode === "fiat") continue;
         if (isPendingAddress(r.address)) {
           labels.add(r.label ?? "unnamed");
         }
