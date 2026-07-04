@@ -142,7 +142,7 @@ export default function CanvasConfigPanel({
               </button>
             </div>
 
-            <div className="max-h-[70vh] overflow-y-auto">
+            <div className="custom-scrollbar max-h-[60vh] overflow-y-auto">
               <ConfigPanel
                 node={node}
                 graph={graph}

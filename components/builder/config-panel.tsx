@@ -15,7 +15,7 @@ import {
   splitTotalFixedStroops,
   type SplitRecipient,
 } from "@/lib/flows/schema";
-import { cn, formatStroops } from "@/lib/utils";
+import { cn, formatStroops, shortAddr } from "@/lib/utils";
 import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
 import { computeAssetFlow, assetsEqual } from "@/lib/flows/validate";
@@ -1525,12 +1525,50 @@ function SplitRecipientsEditor({
   const totalFixed = splitTotalFixedStroops(node.config.recipients);
   const minAmount = trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
 
-  // Collapse the recipient list by default when it gets long so the panel
-  // doesn't dominate the canvas.
-  const [recipientsExpanded, setRecipientsExpanded] = useState(true);
+  // Each recipient card can be collapsed to a summary row. Default to all
+  // expanded when there are only a few recipients; collapse all but the first
+  // when the list gets long.
+  const [expandedRecipients, setExpandedRecipients] = useState<Set<number>>(() => {
+    if (node.config.recipients.length <= 3) {
+      return new Set(node.config.recipients.map((_, i) => i));
+    }
+    return new Set([0]);
+  });
+
   useEffect(() => {
-    setRecipientsExpanded(node.config.recipients.length <= 3);
+    setExpandedRecipients(() => {
+      const next = new Set<number>();
+      if (node.config.recipients.length <= 3) {
+        for (let i = 0; i < node.config.recipients.length; i++) next.add(i);
+      }
+      return next;
+    });
   }, [node.id]);
+
+  const toggleRecipient = (i: number) => {
+    setExpandedRecipients((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  };
+
+  const deleteRecipient = (i: number) => {
+    const nextRecipients = node.config.recipients.filter((_, j) => j !== i);
+    onChange({
+      ...node,
+      config: { ...node.config, recipients: nextRecipients },
+    } as FlowNode);
+    setExpandedRecipients((prev) => {
+      const next = new Set<number>();
+      for (const idx of prev) {
+        if (idx < i) next.add(idx);
+        else if (idx > i) next.add(idx - 1);
+      }
+      return next;
+    });
+  };
 
   const setMode = (newMode: "percentage" | "fixed") => {
     const next = node.config.recipients.map((r) => {
@@ -1555,69 +1593,81 @@ function SplitRecipientsEditor({
     } as FlowNode);
   };
 
-  const recipientSummary =
-    mode === "percentage"
-      ? `${node.config.recipients.length} recipient${node.config.recipients.length === 1 ? "" : "s"}`
-      : `${node.config.recipients.length} recipient${node.config.recipients.length === 1 ? "" : "s"}${
-          totalFixed ? ` · ${stroopsToDisplay(totalFixed, node.config.asset)}` : ""
-        }`;
-
   return (
-    <div className="rounded border border-zinc-800 bg-zinc-900/30">
-      <button
-        type="button"
-        onClick={() => setRecipientsExpanded((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800/50"
-      >
-        <span className="font-medium">Recipients</span>
-        <span className="flex items-center gap-1 text-zinc-500">
-          {recipientSummary}
-          <span className="material-symbols-outlined text-[16px]">
-            {recipientsExpanded ? "expand_less" : "expand_more"}
-          </span>
-        </span>
-      </button>
-      {recipientsExpanded && (
-        <div className="space-y-3 p-2 pt-1">
-          {isPayroll ? (
-            <div className="text-xs text-amber-400">
-              Payroll distributions use fixed salary amounts only.
-            </div>
-          ) : (
-            <Field label="Distribution mode">
-              <select
-                className="input"
-                value={mode}
-                onChange={(e) => setMode(e.target.value as "percentage" | "fixed")}
-              >
-                <option value="percentage">Percentage</option>
-                <option value="fixed">Fixed amount</option>
-              </select>
-            </Field>
-          )}
+    <div className="space-y-3">
+      {isPayroll ? (
+        <div className="text-xs text-amber-400">
+          Payroll distributions use fixed salary amounts only.
+        </div>
+      ) : (
+        <Field label="Distribution mode">
+          <select
+            className="input"
+            value={mode}
+            onChange={(e) => setMode(e.target.value as "percentage" | "fixed")}
+          >
+            <option value="percentage">Percentage</option>
+            <option value="fixed">Fixed amount</option>
+          </select>
+        </Field>
+      )}
 
-          <div className="text-xs text-zinc-400">
-            {mode === "percentage"
-              ? "Recipients (shares must sum to 100%)"
-              : "Recipients (fixed amounts accumulate until the total is reached)"}
-          </div>
+      <div className="text-xs text-zinc-400">
+        {mode === "percentage"
+          ? "Recipients (shares must sum to 100%)"
+          : "Recipients (fixed amounts accumulate until the total is reached)"}
+      </div>
 
-          {mode === "percentage" && <AllocationBar recipients={node.config.recipients} />}
+      {mode === "percentage" && <AllocationBar recipients={node.config.recipients} />}
 
-          {node.config.recipients.map((r, i) => {
-            const isPending = isPendingAddress(r.address);
-            const isPercentage = r.mode === "percentage";
-            const isPayrollFiat = isPayroll && r.payoutMode === "fiat";
-            const projected =
-              isPercentage && sourceAmount
-                ? stroopsToDisplay(
-                    ((BigInt(sourceAmount) * BigInt(r.bps)) / 10000n).toString(),
-                    node.config.asset,
-                  )
-                : null;
+      {node.config.recipients.map((r, i) => {
+        const isPending = isPendingAddress(r.address);
+        const isPercentage = r.mode === "percentage";
+        const isPayrollFiat = isPayroll && r.payoutMode === "fiat";
+        const isExpanded = expandedRecipients.has(i);
+        const projected =
+          isPercentage && sourceAmount
+            ? stroopsToDisplay(
+                ((BigInt(sourceAmount) * BigInt(r.bps)) / 10000n).toString(),
+                node.config.asset,
+              )
+            : null;
 
-            return (
-              <div key={i} className="space-y-1 rounded border border-zinc-800 bg-zinc-900/50 p-2">
+        const summaryLabel = r.label
+          ? r.label
+          : isPayrollFiat
+            ? "Fiat off-ramp"
+            : shortAddr(r.address);
+
+        const summaryAmount = isPercentage
+          ? `${bpsToPct(r.bps)}%`
+          : r.amountStroops && r.amountStroops !== "0"
+            ? stroopsToDisplay(r.amountStroops, node.config.asset)
+            : "0";
+
+        return (
+          <div key={i} className="overflow-hidden rounded border border-zinc-800 bg-zinc-900/50">
+            <button
+              type="button"
+              onClick={() => toggleRecipient(i)}
+              className="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left hover:bg-zinc-800/50"
+            >
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="material-symbols-outlined text-[14px] text-zinc-500">
+                  {r.payoutMode === "fiat" ? "account_balance" : "account_circle"}
+                </span>
+                <span className="truncate text-xs text-zinc-300">{summaryLabel}</span>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className="text-xs text-zinc-400">{summaryAmount}</span>
+                <span className="material-symbols-outlined text-[16px] text-zinc-500">
+                  {isExpanded ? "expand_less" : "expand_more"}
+                </span>
+              </div>
+            </button>
+
+            {isExpanded && (
+              <div className="space-y-2 border-t border-zinc-800 p-2 pt-1">
                 <div className="grid grid-cols-[1fr_80px_28px] items-center gap-1">
                   {isPayrollFiat ? (
                     <div className="flex items-center gap-1.5 text-xs text-zinc-400">
@@ -1691,13 +1741,7 @@ function SplitRecipientsEditor({
                     </div>
                   )}
                   <button
-                    onClick={() => {
-                      const next = node.config.recipients.filter((_, j) => j !== i);
-                      onChange({
-                        ...node,
-                        config: { ...node.config, recipients: next },
-                      } as FlowNode);
-                    }}
+                    onClick={() => deleteRecipient(i)}
                     className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
                   >
                     ×
@@ -1827,82 +1871,80 @@ function SplitRecipientsEditor({
                   </div>
                 )}
               </div>
-            );
-          })}
-
-          {mode === "percentage" && remainingPct(node.config.recipients) > 0 && (
-            <div className="text-xs text-amber-400">
-              Remaining: {remainingPct(node.config.recipients).toFixed(1)}% unallocated
-            </div>
-          )}
-
-          {mode === "percentage" &&
-            node.config.recipients.reduce(
-              (s, r2) => s + (r2.mode === "percentage" ? r2.bps : 0),
-              0,
-            ) > TOTAL_BPS && (
-              <div className="text-xs text-red-400">
-                Total exceeds 100% by{" "}
-                {(
-                  (node.config.recipients.reduce(
-                    (s, r2) => s + (r2.mode === "percentage" ? r2.bps : 0),
-                    0,
-                  ) -
-                    TOTAL_BPS) /
-                  100
-                ).toFixed(1)}
-                %
-              </div>
             )}
+          </div>
+        );
+      })}
 
-          {mode === "fixed" && totalFixed && (
-            <div className="text-xs text-zinc-400">
-              Total fixed amount:{" "}
-              <span className="font-mono text-zinc-300">
-                {stroopsToDisplay(totalFixed, node.config.asset)}
-              </span>
-            </div>
-          )}
-
-          {mode === "fixed" &&
-            minAmount &&
-            totalFixed &&
-            BigInt(totalFixed) > BigInt(minAmount) && (
-              <div className="text-xs text-amber-400">
-                Total fixed amount is greater than the trigger minimum. Deposits will accumulate
-                until the total is reached.
-              </div>
-            )}
-
-          <button
-            className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
-            onClick={() =>
-              onChange({
-                ...node,
-                config: {
-                  ...node.config,
-                  recipients: [
-                    ...node.config.recipients,
-                    isPayroll || mode === "fixed"
-                      ? {
-                          address: "PENDING:unnamed",
-                          mode: "fixed" as const,
-                          amountStroops: "0",
-                        }
-                      : {
-                          address: "PENDING:unnamed",
-                          mode: "percentage" as const,
-                          bps: 100,
-                        },
-                  ],
-                },
-              } as FlowNode)
-            }
-          >
-            + Add recipient
-          </button>
+      {mode === "percentage" && remainingPct(node.config.recipients) > 0 && (
+        <div className="text-xs text-amber-400">
+          Remaining: {remainingPct(node.config.recipients).toFixed(1)}% unallocated
         </div>
       )}
+
+      {mode === "percentage" &&
+        node.config.recipients.reduce((s, r2) => s + (r2.mode === "percentage" ? r2.bps : 0), 0) >
+          TOTAL_BPS && (
+          <div className="text-xs text-red-400">
+            Total exceeds 100% by{" "}
+            {(
+              (node.config.recipients.reduce(
+                (s, r2) => s + (r2.mode === "percentage" ? r2.bps : 0),
+                0,
+              ) -
+                TOTAL_BPS) /
+              100
+            ).toFixed(1)}
+            %
+          </div>
+        )}
+
+      {mode === "fixed" && totalFixed && (
+        <div className="text-xs text-zinc-400">
+          Total fixed amount:{" "}
+          <span className="font-mono text-zinc-300">
+            {stroopsToDisplay(totalFixed, node.config.asset)}
+          </span>
+        </div>
+      )}
+
+      {mode === "fixed" && minAmount && totalFixed && BigInt(totalFixed) > BigInt(minAmount) && (
+        <div className="text-xs text-amber-400">
+          Total fixed amount is greater than the trigger minimum. Deposits will accumulate until the
+          total is reached.
+        </div>
+      )}
+
+      <button
+        className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
+        onClick={() => {
+          const nextRecipients = [
+            ...node.config.recipients,
+            isPayroll || mode === "fixed"
+              ? {
+                  address: "PENDING:unnamed",
+                  mode: "fixed" as const,
+                  amountStroops: "0",
+                }
+              : {
+                  address: "PENDING:unnamed",
+                  mode: "percentage" as const,
+                  bps: 100,
+                },
+          ];
+          onChange({
+            ...node,
+            config: { ...node.config, recipients: nextRecipients },
+          } as FlowNode);
+          setExpandedRecipients((prev) => {
+            const next = new Set(prev);
+            next.add(nextRecipients.length - 1);
+            return next;
+          });
+        }}
+      >
+        + Add recipient
+      </button>
     </div>
   );
 }
