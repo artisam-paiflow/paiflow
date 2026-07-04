@@ -1668,67 +1668,27 @@ function SplitRecipientsEditor({
 
             {isExpanded && (
               <div className="space-y-2 border-t border-zinc-800 p-2 pt-1">
-                <div className="grid grid-cols-[1fr_80px_28px] items-center gap-1">
-                  {isPayrollFiat ? (
-                    <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-                      <span className="material-symbols-outlined text-[14px]">account_balance</span>
-                      <span>Fiat off-ramp</span>
-                      <span className="text-[10px] text-zinc-500">(auto-generated)</span>
+                {isPayrollFiat ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-zinc-400">Fiat off-ramp</span>
+                      <button
+                        onClick={() => deleteRecipient(i)}
+                        className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
+                      >
+                        ×
+                      </button>
                     </div>
-                  ) : (
-                    <div className="grid gap-0.5">
-                      <AddressInput
-                        value={r.address}
-                        placeholder="G... or PENDING:label"
-                        onChange={(address) =>
-                          updateRecipient(i, {
-                            ...r,
-                            address,
-                          } as SplitRecipient)
-                        }
-                        onSelectEntry={(entry) =>
-                          updateRecipient(i, {
-                            ...r,
-                            address: entry.address,
-                            label: entry.label || r.label,
-                          } as SplitRecipient)
-                        }
-                        pending={isPendingAddress(r.address)}
-                        addressBook={addressBook}
-                        onAddressBookChange={onAddressBookChange}
-                      />
-                    </div>
-                  )}
-                  {isPercentage ? (
-                    <div className="relative">
+                    <Field label="Amount">
                       <input
-                        className="input pr-5 text-right"
+                        className="input text-right"
                         value={
-                          r.bps === 0
-                            ? ""
-                            : (() => {
-                                const pct = bpsToPct(r.bps);
-                                return pct === Math.floor(pct) ? `${pct}` : `${pct.toFixed(1)}`;
-                              })()
+                          (r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops
+                            ? formatStroops(
+                                (r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops,
+                              )
+                            : ""
                         }
-                        placeholder="0"
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
-                          updateRecipient(i, {
-                            ...r,
-                            bps: isNaN(v) ? 0 : Math.min(10000, Math.max(0, pctToBps(v))),
-                          } as SplitRecipient);
-                        }}
-                      />
-                      <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[11px] text-zinc-500">
-                        %
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="relative">
-                      <input
-                        className="input pr-5 text-right"
-                        value={r.amountStroops ? formatStroops(r.amountStroops) : ""}
                         placeholder="0"
                         onChange={(e) => {
                           const stroops = tokenAmountToStroops(e.target.value);
@@ -1738,46 +1698,112 @@ function SplitRecipientsEditor({
                           } as SplitRecipient);
                         }}
                       />
-                    </div>
-                  )}
-                  <button
-                    onClick={() => deleteRecipient(i)}
-                    className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
-                  >
-                    ×
-                  </button>
-                </div>
-                {!isPayrollFiat && (
-                  <div className="grid grid-cols-[1fr_auto] gap-1">
-                    <input
-                      className="input text-xs"
-                      value={r.label ?? ""}
-                      placeholder="Label (e.g. Alice)"
-                      onChange={(e) =>
-                        updateRecipient(i, {
-                          ...r,
-                          label: e.target.value || undefined,
-                        } as SplitRecipient)
-                      }
-                    />
-                    <div className="flex items-center gap-1 text-[10px]">
-                      {isPending && (
-                        <span className="rounded bg-amber-950 px-1.5 py-0.5 text-amber-400">
-                          needs address
-                        </span>
-                      )}
-                      {projected && (
-                        <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                          {projected}
-                        </span>
-                      )}
-                      {!isPercentage && r.amountStroops && r.amountStroops !== "0" && (
-                        <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                          {stroopsToDisplay(r.amountStroops, node.config.asset)}
-                        </span>
-                      )}
-                    </div>
+                    </Field>
                   </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-[1fr_80px_28px] items-center gap-1">
+                      <div className="grid gap-0.5">
+                        <AddressInput
+                          value={r.address}
+                          placeholder="G... or PENDING:label"
+                          onChange={(address) =>
+                            updateRecipient(i, {
+                              ...r,
+                              address,
+                            } as SplitRecipient)
+                          }
+                          onSelectEntry={(entry) =>
+                            updateRecipient(i, {
+                              ...r,
+                              address: entry.address,
+                              label: entry.label || r.label,
+                            } as SplitRecipient)
+                          }
+                          pending={isPendingAddress(r.address)}
+                          addressBook={addressBook}
+                          onAddressBookChange={onAddressBookChange}
+                        />
+                      </div>
+                      {isPercentage ? (
+                        <div className="relative">
+                          <input
+                            className="input pr-5 text-right"
+                            value={
+                              r.bps === 0
+                                ? ""
+                                : (() => {
+                                    const pct = bpsToPct(r.bps);
+                                    return pct === Math.floor(pct) ? `${pct}` : `${pct.toFixed(1)}`;
+                                  })()
+                            }
+                            placeholder="0"
+                            onChange={(e) => {
+                              const v = Number(e.target.value);
+                              updateRecipient(i, {
+                                ...r,
+                                bps: isNaN(v) ? 0 : Math.min(10000, Math.max(0, pctToBps(v))),
+                              } as SplitRecipient);
+                            }}
+                          />
+                          <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[11px] text-zinc-500">
+                            %
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            className="input pr-5 text-right"
+                            value={r.amountStroops ? formatStroops(r.amountStroops) : ""}
+                            placeholder="0"
+                            onChange={(e) => {
+                              const stroops = tokenAmountToStroops(e.target.value);
+                              updateRecipient(i, {
+                                ...r,
+                                amountStroops: stroops || "0",
+                              } as SplitRecipient);
+                            }}
+                          />
+                        </div>
+                      )}
+                      <button
+                        onClick={() => deleteRecipient(i)}
+                        className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-[1fr_auto] gap-1">
+                      <input
+                        className="input text-xs"
+                        value={r.label ?? ""}
+                        placeholder="Label (e.g. Alice)"
+                        onChange={(e) =>
+                          updateRecipient(i, {
+                            ...r,
+                            label: e.target.value || undefined,
+                          } as SplitRecipient)
+                        }
+                      />
+                      <div className="flex items-center gap-1 text-[10px]">
+                        {isPending && (
+                          <span className="rounded bg-amber-950 px-1.5 py-0.5 text-amber-400">
+                            needs address
+                          </span>
+                        )}
+                        {projected && (
+                          <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                            {projected}
+                          </span>
+                        )}
+                        {!isPercentage && r.amountStroops && r.amountStroops !== "0" && (
+                          <span className="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                            {stroopsToDisplay(r.amountStroops, node.config.asset)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 {triggerType === "payroll" && (
