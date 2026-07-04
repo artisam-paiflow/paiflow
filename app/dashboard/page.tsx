@@ -181,13 +181,13 @@ export default async function Dashboard() {
               </div>
             ) : (
               <div className="divide-outline-variant/10 divide-y">
-                <div className="gap-md bg-surface-container/60 px-md text-label-sm text-on-surface-variant grid grid-cols-[2fr_1fr_1fr_minmax(0,0.75fr)_1fr_6rem] items-center py-2.5 font-mono">
-                  <span>FLOW</span>
-                  <span>STATUS</span>
-                  <span>NETWORK</span>
-                  <span>CONTRACT</span>
+                <div className="gap-md bg-surface-container/60 px-md text-label-sm text-on-surface-variant grid grid-cols-[2fr_1fr_1fr_minmax(0,0.75fr)_1fr_auto] items-center py-2.5 font-mono">
+                  <span className="text-left">FLOW</span>
+                  <span className="text-left">STATUS</span>
+                  <span className="text-left">NETWORK</span>
+                  <span className="text-left">CONTRACT</span>
                   <span className="text-right">CREATED</span>
-                  <span className="whitespace-nowrap">View on Explorer</span>
+                  <span className="text-left whitespace-nowrap">View on Explorer</span>
                 </div>
                 {deployments.map((d) => {
                   const badge = statusBadge[d.status] ?? {
@@ -201,7 +201,7 @@ export default async function Dashboard() {
                   return (
                     <div
                       key={d.id}
-                      className="group gap-md px-md hover:bg-surface-container-high/40 grid grid-cols-[2fr_1fr_1fr_1.5fr_1fr_6rem] items-center transition-colors"
+                      className="group gap-md px-md hover:bg-surface-container-high/40 grid grid-cols-[2fr_1fr_1fr_minmax(0,0.75fr)_1fr_auto] items-center transition-colors"
                     >
                       <Link
                         href={`/deployments/${d.id}`}
@@ -236,12 +236,12 @@ export default async function Dashboard() {
                           rel="noopener noreferrer"
                           aria-label="Open on stellar.expert"
                           title="Open on stellar.expert"
-                          className="text-on-surface-variant hover:text-primary ml-1 inline-flex h-8 w-8 items-center justify-center transition-colors"
+                          className="text-on-surface-variant hover:text-primary inline-flex h-8 w-8 items-center justify-center justify-self-center transition-colors"
                         >
                           <span className="material-symbols-outlined text-[16px]">open_in_new</span>
                         </a>
                       ) : (
-                        <span className="h-8 w-8" aria-hidden />
+                        <span className="h-8 w-8 justify-self-center" aria-hidden />
                       )}
                     </div>
                   );
