@@ -655,25 +655,22 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                   </span>
                 )}
                 {!isValid && errors.length > 0 && (
-                  <div
+                  <button
+                    type="button"
                     role="alert"
-                    className="bg-error-container/25 border-error/40 text-on-error-container ml-auto inline-flex items-center gap-2 rounded-lg border px-2.5 py-1"
+                    onClick={() => setErrorsModalOpen(true)}
+                    aria-label={`View all ${errors.length} validation ${
+                      errors.length === 1 ? "issue" : "issues"
+                    }`}
+                    className="bg-error-container/25 border-error/40 text-on-error-container hover:bg-error/10 ml-auto inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 transition-colors"
                   >
                     <span className="material-symbols-outlined text-error text-[16px] leading-none">
                       error
                     </span>
-                    <span className="text-label-sm text-error font-semibold">{errors.length}</span>
-                    <button
-                      type="button"
-                      onClick={() => setErrorsModalOpen(true)}
-                      aria-label={`View all ${errors.length} validation ${
-                        errors.length === 1 ? "issue" : "issues"
-                      }`}
-                      className="text-error hover:text-error/80 text-label-sm font-semibold underline-offset-2 transition-colors hover:underline"
-                    >
-                      Details
-                    </button>
-                  </div>
+                    <span className="text-label-sm text-error font-semibold">
+                      {errors.length} {errors.length === 1 ? "Error" : "Errors"}
+                    </span>
+                  </button>
                 )}
               </div>
               <div className="text-body-md text-on-surface mt-1 line-clamp-2">{english}</div>
