@@ -159,9 +159,12 @@ export function flowToEnglish(graph: FlowGraph): string {
     const mode = action.config.recipients[0]?.mode ?? "percentage";
     const assetStr = assetLabel(action.config.asset);
     const parts = action.config.recipients.map((r) => {
-      const who = isPendingAddress(r.address)
-        ? `${r.label ?? "?"} (needs address)`
-        : (r.label ?? shortAddr(r.address));
+      const who =
+        r.payoutMode === "fiat"
+          ? (r.accountName ?? r.label ?? "(fiat recipient)")
+          : isPendingAddress(r.address)
+            ? `${r.label ?? "?"} (needs address)`
+            : (r.label ?? shortAddr(r.address));
       if (r.mode === "fixed") {
         return `${formatStroops(r.amountStroops)} ${assetStr} to ${who}`;
       }
