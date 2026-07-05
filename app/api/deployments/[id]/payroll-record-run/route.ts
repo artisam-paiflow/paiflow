@@ -12,7 +12,7 @@ import {
   readSplitterRecipients,
   readSubscriptionAmountPerPeriod,
 } from "@/lib/stellar/relayer";
-import { PayrollRunStatus } from "@prisma/client";
+import { EmployeePayoutMode, PayrollRunStatus } from "@prisma/client";
 
 const PostSchema = z.object({
   txHash: z.string().min(1, "txHash is required"),
@@ -84,6 +84,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const isDev = splitterNode?.templateKind === "SPLITTER_DEV";
 
+    const cashOutContractAddresses = new Set(
+      pipeline?.filter((n) => n.templateKind === "CASH_OUT").map((n) => n.contractAddress) ?? [],
+    );
+
     let recipientRows: Array<{ address: string; amount: string }> = [];
 
     if (payrollNode?.contractAddress) {
@@ -154,6 +158,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         for (const r of recipientRows) {
           const existing = employeeByCashOut.get(r.address) ?? employeeByWallet.get(r.address);
           const walletAddress = existing?.address ?? r.address;
+          const isFiatCashOut = cashOutContractAddresses.has(r.address);
 
           const employee = await tx.employee.upsert({
             where: { deploymentId_address: { deploymentId: d.id, address: walletAddress } },
@@ -161,9 +166,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
               deploymentId: d.id,
               address: walletAddress,
               amountStroops: r.amount,
+              payoutMode: isFiatCashOut ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
             },
             update: {
               amountStroops: r.amount,
+              // If this recipient is a known cash-out contract, ensure the
+              // employee is marked fiat so off-ramp jobs are created.
+              ...(isFiatCashOut ? { payoutMode: EmployeePayoutMode.FIAT } : {}),
             },
           });
 

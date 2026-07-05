@@ -13,6 +13,7 @@ import { ChargeRelayerMode, EmployeePayoutMode } from "@prisma/client";
 import { scheduleNextStreamerClaimJob } from "@/lib/streamer-jobs";
 import { log } from "@/lib/log";
 import type { StreamerParams } from "@/lib/flows/to-params";
+import { isPendingAddress } from "@/lib/flows/schema";
 
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
 
@@ -331,10 +332,20 @@ async function createPayrollEmployees(deploymentId: string) {
         const cashOutNodeId = `${splitNode.id}-cashout-${i}`;
         const cashOutAddress = isFiat ? (cashOutByNodeId.get(cashOutNodeId) ?? null) : null;
 
+        // Fiat employees are represented on-chain by their cash-out contract
+        // address, so use that as the employee address when available. Any
+        // pending placeholder must be made unique per recipient to avoid
+        // colliding on the (deploymentId, address) unique index.
+        const employeeAddress = (() => {
+          if (isFiat && cashOutAddress) return cashOutAddress;
+          if (isPendingAddress(r.address)) return `${r.address}:${i}`;
+          return r.address;
+        })();
+
         const employee = await tx.employee.create({
           data: {
             deploymentId,
-            address: r.address,
+            address: employeeAddress,
             amountStroops: r.amountStroops ?? "0",
             label: r.label,
             payoutMode: isFiat ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
@@ -356,7 +367,10 @@ async function createPayrollEmployees(deploymentId: string) {
     });
   } catch (err) {
     if ((err as { code?: string }).code === "P2002") {
-      return;
+      // Distinguish a duplicate-submit race from a real uniqueness bug. If
+      // employees already exist, another request won the race and we are done.
+      const count = await db.employee.count({ where: { deploymentId } });
+      if (count > 0) return;
     }
     throw err;
   }
