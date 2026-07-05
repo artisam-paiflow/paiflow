@@ -93,6 +93,7 @@ async function chargeSubscriptionPayrollDeployment(
   readRecipients: (
     addr: string,
   ) => Promise<Array<{ address: string; bps: number; amount: string }>>,
+  isDev: boolean,
 ): Promise<number> {
   if (d.chargeEndAt && d.chargeEndAt <= now) {
     await db.deployment.update({
@@ -178,6 +179,7 @@ async function chargeSubscriptionPayrollDeployment(
 
     const existingEmployees = await db.employee.findMany({
       where: { deploymentId: d.id },
+      include: { bankDetail: true },
     });
     const employeeByCashOut = new Map(
       existingEmployees
@@ -185,6 +187,10 @@ async function chargeSubscriptionPayrollDeployment(
         .map((e) => [e.cashOutContractAddress!, e]),
     );
     const employeeByWallet = new Map(existingEmployees.map((e) => [e.address, e]));
+
+    const hasFiatEmployeeWithBank = existingEmployees.some(
+      (e) => e.payoutMode === "FIAT" && e.bankDetail,
+    );
 
     for (const r of recipientRows) {
       const existing = employeeByCashOut.get(r.address) ?? employeeByWallet.get(r.address);
@@ -211,18 +217,20 @@ async function chargeSubscriptionPayrollDeployment(
       });
     }
 
-    if (d.offRampEnabled) {
+    if (isDev ? d.offRampEnabled : hasFiatEmployeeWithBank) {
       try {
         const created = await createOffRampJobsForPayrollRun(db, payrollRun.id);
         log.info(
           { deploymentId: d.id, payrollRunId: payrollRun.id, created: created.length },
-          "Created off-ramp jobs for dev payroll run",
+          isDev
+            ? "Created off-ramp jobs for dev payroll run"
+            : "Created off-ramp jobs for payroll run",
         );
       } catch (offRampErr) {
         const message = offRampErr instanceof Error ? offRampErr.message : String(offRampErr);
         log.warn(
           { deploymentId: d.id, payrollRunId: payrollRun.id, error: message },
-          "Failed to create off-ramp jobs for dev payroll run",
+          "Failed to create off-ramp jobs for payroll run",
         );
       }
     }
@@ -327,6 +335,7 @@ export async function POST(req: NextRequest) {
             splitterDevNode!.contractAddress,
             now,
             readSplitterDevRecipients,
+            true,
           );
           platformCharged += devChargedCount;
           results.push({
@@ -345,6 +354,7 @@ export async function POST(req: NextRequest) {
             splitterNode!.contractAddress,
             now,
             readSplitterRecipients,
+            false,
           );
           platformCharged += chargedCount;
           results.push({
@@ -388,6 +398,15 @@ export async function POST(req: NextRequest) {
 
         const recipients = await readPayrollRecipients(contractAddress);
         const totalAmount = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);
+
+        const existingEmployees = await db.employee.findMany({
+          where: { deploymentId: d.id },
+          include: { bankDetail: true },
+        });
+        const hasFiatEmployeeWithBank = existingEmployees.some(
+          (e) => e.payoutMode === "FIAT" && e.bankDetail,
+        );
+
         const [employer, asset] = await Promise.all([
           readPayrollEmployer(contractAddress),
           readPayrollAsset(contractAddress),
@@ -623,7 +642,7 @@ export async function POST(req: NextRequest) {
             },
           });
 
-          if (d.offRampEnabled) {
+          if (hasFiatEmployeeWithBank) {
             await createOffRampJobsForPayrollRun(tx, payrollRun.id);
           }
         });

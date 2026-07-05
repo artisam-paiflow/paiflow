@@ -82,12 +82,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       (n) => n.templateKind === "SUBSCRIPTION_DEV" || n.templateKind === "SUBSCRIPTION",
     );
 
+    const isDev = splitterNode?.templateKind === "SPLITTER_DEV";
+
     let recipientRows: Array<{ address: string; amount: string }> = [];
 
     if (payrollNode?.contractAddress) {
       recipientRows = await readPayrollRecipients(payrollNode.contractAddress);
     } else if (splitterNode?.contractAddress) {
-      const isDev = splitterNode.templateKind === "SPLITTER_DEV";
       const raw = isDev
         ? await readSplitterDevRecipients(splitterNode.contractAddress)
         : await readSplitterRecipients(splitterNode.contractAddress);
@@ -128,6 +129,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const existingEmployees = await db.employee.findMany({
       where: { deploymentId: d.id },
+      include: { bankDetail: true },
     });
     const employeeByCashOut = new Map(
       existingEmployees
@@ -135,6 +137,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         .map((e) => [e.cashOutContractAddress!, e]),
     );
     const employeeByWallet = new Map(existingEmployees.map((e) => [e.address, e]));
+
+    const hasFiatEmployeeWithBank = existingEmployees.some(
+      (e) => e.payoutMode === "FIAT" && e.bankDetail,
+    );
+    const shouldCreateOffRampJobs = isDev ? d.offRampEnabled : hasFiatEmployeeWithBank;
 
     let offRampJobIds: string[] = [];
 
@@ -170,7 +177,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           });
         }
 
-        if (d.offRampEnabled) {
+        if (shouldCreateOffRampJobs) {
           offRampJobIds = await createOffRampJobsForPayrollRun(tx, run.id);
         }
       },
