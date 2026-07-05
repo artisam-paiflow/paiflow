@@ -152,7 +152,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           },
         });
       } catch (err) {
-        if ((err as { code?: string }).code === "P2002") {
+        const code = (err as { code?: string }).code;
+        // P2002: another request committed the same unique txHash.
+        // P2025: the extended where filter no longer matches because another
+        // request already flipped the status to CONFIRMED (race-loser path).
+        if (code === "P2002" || code === "P2025") {
           updatedDeployment = await db.deployment.findUnique({
             where: { id },
           });
