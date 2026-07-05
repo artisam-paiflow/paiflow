@@ -3,6 +3,7 @@ import {
   Address,
   BASE_FEE,
   Keypair,
+  NotFoundError,
   Operation,
   TransactionBuilder,
   hash,
@@ -39,7 +40,7 @@ export async function checkAccountFunding(
   try {
     acct = await horizon().loadAccount(sourceAccount);
   } catch (e) {
-    if (e instanceof Error && e.name === "NotFoundError") {
+    if (e instanceof NotFoundError) {
       throw new AppError(
         "INSUFFICIENT_FUNDS",
         `Account ${sourceAccount} is not funded. Send at least ${Number(minLumens) / 10_000_000} XLM to activate it first.`,

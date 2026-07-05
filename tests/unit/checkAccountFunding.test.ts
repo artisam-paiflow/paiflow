@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { NotFoundError } from "@stellar/stellar-sdk";
 import { checkAccountFunding } from "@/lib/stellar/deploy";
 import { horizon } from "@/lib/stellar/client";
 
@@ -36,8 +37,12 @@ describe("checkAccountFunding", () => {
   });
 
   it("throws INSUFFICIENT_FUNDS when account is not funded (NotFoundError)", async () => {
-    const error = new Error("Account not found");
-    error.name = "NotFoundError";
+    const error = new NotFoundError("Account not found", {
+      type: "https://stellar.org/horizon-errors/not_found",
+      title: "Resource Missing",
+      status: 404,
+      detail: "The resource at the url requested was not found.",
+    });
     vi.mocked(horizon).mockReturnValue({
       loadAccount: async () => {
         throw error;

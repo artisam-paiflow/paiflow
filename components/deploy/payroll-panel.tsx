@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import ContractCallButton from "./contract-call-button";
-import SubscriptionRelayerPanel from "./subscription-relayer-panel";
 import OffRampSenderForm from "@/components/payroll/offramp-sender-form";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { assetLabel, tokenAmountToStroops } from "@/lib/flows/schema";
@@ -47,7 +46,6 @@ export default function PayrollPanel({
   const [asset, setAsset] = useState<Asset | null>(null);
   const [isCancelled, setIsCancelled] = useState<boolean | null>(null);
   const [recipients, setRecipients] = useState<PayrollRecipient[]>([]);
-  const [offRampEnabled, setOffRampEnabled] = useState<boolean | null>(null);
   const [bankDetails, setBankDetails] = useState<Record<string, BankDetail | null>>({});
   const [tick, setTick] = useState(0);
 
@@ -124,20 +122,6 @@ export default function PayrollPanel({
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/deployments/${deploymentId}/offramp-enable`)
-      .then(async (res) => {
-        if (!res.ok) return;
-        const json = (await res.json()) as { data: { offRampEnabled: boolean } };
-        if (!cancelled) setOffRampEnabled(json.data.offRampEnabled);
-      })
-      .catch(() => null);
-    return () => {
-      cancelled = true;
-    };
-  }, [deploymentId, tick]);
-
-  useEffect(() => {
-    let cancelled = false;
     fetch(`/api/deployments/${deploymentId}/employees/bank`)
       .then(async (res) => {
         if (!res.ok) return;
@@ -159,6 +143,7 @@ export default function PayrollPanel({
   }, [deploymentId, tick]);
 
   const total = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);
+  const hasFiatRecipient = recipients.some((r) => r.payoutMode === "fiat");
 
   // Immutable non-dev payrolls deploy SUBSCRIPTION → SPLITTER → CASH_OUT.
   // They do not include the legacy PAYROLL monolith or dev-mode _DEV contracts.
@@ -172,23 +157,6 @@ export default function PayrollPanel({
     const hasSplitter = pipeline.some((n) => n.templateKind === "SPLITTER");
     return !hasPayroll && !hasDev && hasSubscription && hasSplitter;
   })();
-
-  const toggleOffRamp = async () => {
-    const next = !offRampEnabled;
-    const res = await fetch(`/api/deployments/${deploymentId}/offramp-enable`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ enabled: next }),
-    });
-    if (!res.ok) {
-      toast.error("Failed to update off-ramp setting");
-      return;
-    }
-    setOffRampEnabled(next);
-    toast.success(next ? "Fiat off-ramp enabled" : "Fiat off-ramp disabled");
-  };
-
-  const fiatCount = recipients.filter((r) => r.payoutMode === "fiat").length;
 
   return (
     <div className="mt-md space-y-md">
@@ -315,21 +283,46 @@ export default function PayrollPanel({
             {recipients.length === 0 && (
               <span className="text-zinc-500">No recipients configured</span>
             )}
-            {recipients.map((r) => (
-              <div key={r.address} className="flex justify-between gap-2">
-                <span className="flex items-center gap-1.5 break-all">
-                  {r.payoutMode === "fiat" && (
-                    <span className="material-symbols-outlined text-on-surface-variant text-[14px]">
-                      account_balance
+            {recipients.map((r) => {
+              const bank = bankDetails[r.address];
+              const isFiat = r.payoutMode === "fiat";
+              const displayLabel = isFiat
+                ? (bank?.accountName ?? r.label ?? r.address)
+                : (r.label ?? r.address);
+              return (
+                <div key={r.address} className="flex justify-between gap-2">
+                  <span className="flex flex-col gap-0.5 break-all">
+                    <span className="flex items-center gap-1.5">
+                      {isFiat && (
+                        <span className="material-symbols-outlined text-on-surface-variant text-[14px]">
+                          account_balance
+                        </span>
+                      )}
+                      <span className="font-mono text-[12px]">{displayLabel}</span>
                     </span>
-                  )}
-                  {r.label ?? r.address}
-                </span>
-                <span>
-                  {formatStroops(r.amount)} {asset ? assetLabel(asset) : ""}
-                </span>
-              </div>
-            ))}
+                    {isFiat && bank && (
+                      <span className="text-on-surface-variant font-mono text-[11px]">
+                        {bank.accountNumber}
+                        {bank.bankCode && ` · ${bank.bankCode}`}
+                      </span>
+                    )}
+                    {isFiat && bank && (
+                      <span className="text-on-surface-variant/60 font-mono text-[10px]">
+                        {r.address}
+                      </span>
+                    )}
+                    {isFiat && !bank && (
+                      <span className="text-on-surface-variant font-mono text-[11px]">
+                        {r.address} · Bank details missing
+                      </span>
+                    )}
+                  </span>
+                  <span>
+                    {formatStroops(r.amount)} {asset ? assetLabel(asset) : ""}
+                  </span>
+                </div>
+              );
+            })}
           </div>
           <div className="text-on-surface-variant mt-1 font-mono text-[11px]">
             Total per period: {formatStroops(total.toString())} {asset ? assetLabel(asset) : ""}
@@ -344,43 +337,12 @@ export default function PayrollPanel({
           </a>
         )}
 
-        <div className="space-y-3 rounded border border-zinc-800 bg-zinc-900/50 p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-label-sm text-on-surface font-mono uppercase">Fiat off-ramp</div>
-              <div className="text-on-surface-variant mt-0.5 font-mono text-[11px]">
-                {fiatCount} of {recipients.length} employees configured for fiat payout
-              </div>
-            </div>
-            {offRampEnabled === null ? (
-              <span className="text-on-surface-variant font-mono text-xs">Loading…</span>
-            ) : (
-              <button
-                type="button"
-                onClick={toggleOffRamp}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  offRampEnabled ? "bg-primary" : "bg-zinc-700"
-                }`}
-                aria-pressed={offRampEnabled}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    offRampEnabled ? "translate-x-6" : "translate-x-1"
-                  }`}
-                />
-              </button>
-            )}
+        {hasFiatRecipient && (
+          <div className="border-outline-variant/40 bg-surface-container rounded border p-3">
+            <OffRampSenderForm deploymentId={deploymentId} />
           </div>
-
-          {offRampEnabled && <OffRampSenderForm deploymentId={deploymentId} />}
-        </div>
+        )}
       </div>
-
-      {/* Dev-mode payrolls always use the platform relayer; non-dev payrolls
-          can configure their own relayer. */}
-      {!pipeline?.some((n) => n.templateKind === "SUBSCRIPTION_DEV") && (
-        <SubscriptionRelayerPanel deploymentId={deploymentId} network={network} kind="payroll" />
-      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <ContractCallButton
