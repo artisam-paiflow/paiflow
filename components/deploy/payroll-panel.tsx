@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import ContractCallButton from "./contract-call-button";
+import OffRampSenderForm from "@/components/payroll/offramp-sender-form";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { assetLabel, tokenAmountToStroops } from "@/lib/flows/schema";
 import { formatStroops } from "@/lib/utils";
@@ -142,6 +143,7 @@ export default function PayrollPanel({
   }, [deploymentId, tick]);
 
   const total = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);
+  const hasFiatRecipient = recipients.some((r) => r.payoutMode === "fiat");
 
   // Immutable non-dev payrolls deploy SUBSCRIPTION → SPLITTER → CASH_OUT.
   // They do not include the legacy PAYROLL monolith or dev-mode _DEV contracts.
@@ -283,28 +285,35 @@ export default function PayrollPanel({
             )}
             {recipients.map((r) => {
               const bank = bankDetails[r.address];
-              const displayLabel = r.label ?? r.address;
+              const isFiat = r.payoutMode === "fiat";
+              const displayLabel = isFiat
+                ? (bank?.accountName ?? r.label ?? r.address)
+                : (r.label ?? r.address);
               return (
                 <div key={r.address} className="flex justify-between gap-2">
                   <span className="flex flex-col gap-0.5 break-all">
                     <span className="flex items-center gap-1.5">
-                      {r.payoutMode === "fiat" && (
+                      {isFiat && (
                         <span className="material-symbols-outlined text-on-surface-variant text-[14px]">
                           account_balance
                         </span>
                       )}
                       <span className="font-mono text-[12px]">{displayLabel}</span>
                     </span>
-                    {r.payoutMode === "fiat" && bank && (
+                    {isFiat && bank && (
                       <span className="text-on-surface-variant font-mono text-[11px]">
                         {bank.accountNumber}
                         {bank.bankCode && ` · ${bank.bankCode}`}
-                        {bank.accountName && ` · ${bank.accountName}`}
                       </span>
                     )}
-                    {r.payoutMode === "fiat" && !bank && (
+                    {isFiat && bank && (
+                      <span className="text-on-surface-variant/60 font-mono text-[10px]">
+                        {r.address}
+                      </span>
+                    )}
+                    {isFiat && !bank && (
                       <span className="text-on-surface-variant font-mono text-[11px]">
-                        Bank details missing
+                        {r.address} · Bank details missing
                       </span>
                     )}
                   </span>
@@ -326,6 +335,12 @@ export default function PayrollPanel({
           >
             MANAGE EMPLOYEES
           </a>
+        )}
+
+        {hasFiatRecipient && (
+          <div className="border-outline-variant/40 bg-surface-container rounded border p-3">
+            <OffRampSenderForm deploymentId={deploymentId} />
+          </div>
         )}
       </div>
 
