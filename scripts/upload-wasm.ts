@@ -22,6 +22,9 @@ import {
   rpc,
   hash,
 } from "@stellar/stellar-sdk";
+import { TemplateKind } from "@prisma/client";
+import { db } from "@/lib/prisma";
+import { setWasmHash } from "@/lib/stellar/template-db";
 import { writeEnvLocal } from "./env-file";
 
 const WASM_DIR = "contracts/target/wasm32v1-none/release";
@@ -80,11 +83,18 @@ async function main() {
     process.exit(1);
   }
 
-  const contracts = files.map((file) => {
-    const baseName = file.replace(".wasm", "");
-    const kind = baseName.replace(/^paiflow_/, "").toUpperCase();
-    return { kind, path: resolve(WASM_DIR, file) };
-  });
+  const contracts = files
+    .map((file) => {
+      const baseName = file.replace(".wasm", "");
+      const kind = baseName.replace(/^(paiflow_|pinkraft_)/i, "").toUpperCase();
+      const templateKind = TemplateKind[kind as keyof typeof TemplateKind];
+      return { file, kind, templateKind, path: resolve(WASM_DIR, file) };
+    })
+    .filter((c) => {
+      if (c.templateKind) return true;
+      console.warn(`[upload] ${c.file} does not map to a known TemplateKind, skipping`);
+      return false;
+    });
 
   const server = new rpc.Server(rpcUrl, { allowHttp: false });
   const kp = Keypair.fromSecret(uploaderSecret);
@@ -156,6 +166,7 @@ async function main() {
 
     console.log(`[upload] ${c.kind}@${network} uploaded, hash=${wasmHash}`);
     updates[envKey] = wasmHash;
+    await setWasmHash(c.templateKind, network, wasmHash);
   }
 
   if (Object.keys(updates).length > 0) {
@@ -166,7 +177,11 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main()
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await db.$disconnect();
+  });
