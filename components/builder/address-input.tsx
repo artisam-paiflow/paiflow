@@ -87,6 +87,9 @@ export default function AddressInput({
       setShowSave(false);
       setSaveLabel("");
       onAddressBookChange?.();
+      // Propagate the newly saved label back to the parent so fields like
+      // split-recipient labels update immediately.
+      selectEntry({ address, label });
     } catch (err) {
       toast.error((err as Error).message ?? "Failed");
     } finally {

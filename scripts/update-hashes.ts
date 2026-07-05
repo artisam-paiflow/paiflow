@@ -1,11 +1,20 @@
 #!/usr/bin/env tsx
+/**
+ * One-time sync utility: reads the current contract WASM hashes and factory
+ * address from .env/.env.local and writes them into the database, overriding
+ * any existing rows.
+ *
+ * Usage:
+ *   pnpm contracts:update-hashes
+ */
 import { resolve } from "node:path";
 import { config } from "dotenv";
-import { PrismaClient, TemplateKind } from "@prisma/client";
+import { TemplateKind } from "@prisma/client";
+import { db } from "@/lib/prisma";
+import { setWasmHash, setFactoryAddress } from "@/lib/stellar/template-db";
 
-const db = new PrismaClient();
-
-config({ path: resolve(".env.local") });
+config({ path: resolve(".env") });
+config({ path: resolve(".env.local"), override: true });
 
 async function update() {
   const network = process.env.STELLAR_NETWORK ?? "testnet";
@@ -49,30 +58,21 @@ async function update() {
       continue;
     }
 
-    const existing = await db.contractTemplate.findUnique({
-      where: { kind_network: { kind: t.kind, network } },
-    });
+    await setWasmHash(t.kind, network, hash);
+    console.log(`Synced ${t.kind}: ${hash.slice(0, 12)}...`);
+  }
 
-    if (existing?.wasmHash === hash) {
-      console.log(`${t.kind} hash unchanged, skipping`);
-      continue;
-    }
-
-    await db.contractTemplate.upsert({
-      where: { kind_network: { kind: t.kind, network } },
-      update: { wasmHash: hash },
-      create: {
-        kind: t.kind,
-        network,
-        wasmHash: hash,
-        // TODO: ABI ingestion — abiJson is empty until ABI extraction lands.
-        abiJson: {},
-      },
-    });
-    console.log(`Updated ${t.kind}: ${hash.slice(0, 12)}...`);
+  const factoryAddress = process.env[`STELLAR_FACTORY_ADDRESS_${suffix}`];
+  if (factoryAddress) {
+    await setFactoryAddress(network, factoryAddress);
+    console.log(`Synced factory address: ${factoryAddress}`);
+  } else {
+    console.log(`STELLAR_FACTORY_ADDRESS_${suffix} not set, skipping`);
   }
 }
 
 update()
   .catch(console.error)
-  .finally(() => db.$disconnect());
+  .finally(async () => {
+    await db.$disconnect();
+  });

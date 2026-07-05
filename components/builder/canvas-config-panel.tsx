@@ -142,16 +142,18 @@ export default function CanvasConfigPanel({
               </button>
             </div>
 
-            <ConfigPanel
-              node={node}
-              graph={graph}
-              onChange={onChange}
-              onDelete={onDelete}
-              addressBook={addressBook}
-              refreshAddressBook={refreshAddressBook}
-              hideHeader
-              className="border-0"
-            />
+            <div className="custom-scrollbar max-h-[60vh] overflow-y-auto">
+              <ConfigPanel
+                node={node}
+                graph={graph}
+                onChange={onChange}
+                onDelete={onDelete}
+                addressBook={addressBook}
+                refreshAddressBook={refreshAddressBook}
+                hideHeader
+                className="border-0"
+              />
+            </div>
           </div>
         </div>
       </div>

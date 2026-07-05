@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { TransactionBuilder } from "@stellar/stellar-sdk";
 import crypto from "crypto";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
@@ -7,13 +8,40 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { redis, eventChannel } from "@/lib/redis";
 import { submitDeployTx } from "@/lib/stellar/deploy";
-import { stellarRelayerAddress } from "@/lib/env";
+import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode, EmployeePayoutMode } from "@prisma/client";
 import { scheduleNextStreamerClaimJob } from "@/lib/streamer-jobs";
 import { log } from "@/lib/log";
 import type { StreamerParams } from "@/lib/flows/to-params";
+import { isPendingAddress } from "@/lib/flows/schema";
 
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
+
+function txHashFromXdr(signedXdr: string): string {
+  const tx = TransactionBuilder.fromXDR(signedXdr, stellarPassphrase());
+  return tx.hash().toString("hex");
+}
+
+function confirmedDeploymentResponse(deployment: {
+  status: string;
+  deployTxHash: string | null;
+  contractAddress: string | null;
+  pipelineSnapshot: unknown;
+}) {
+  const pipeline = deployment.pipelineSnapshot as Array<{
+    nodeId: string;
+    contractAddress: string;
+    templateKind: string;
+  }> | null;
+  return NextResponse.json({
+    data: {
+      status: deployment.status,
+      txHash: deployment.deployTxHash,
+      contractAddress: deployment.contractAddress,
+      pipeline: pipeline ?? undefined,
+    },
+  });
+}
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
@@ -21,11 +49,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params;
     const body = SubmitSchema.parse(await req.json());
 
+    const txHash = txHashFromXdr(body.signedXdr);
+
     const deployment = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
       include: { flow: { select: { templateKind: true } } },
     });
     if (!deployment) throw new AppError("NOT_FOUND", "Deployment not found");
+
+    // Idempotency: a retry with the same signed XDR returns the existing result.
+    if (deployment.status === "CONFIRMED") {
+      if (deployment.deployTxHash === txHash) {
+        return confirmedDeploymentResponse(deployment);
+      }
+      throw new AppError("CONFLICT", "Deployment already confirmed with a different transaction");
+    }
     if (deployment.status !== "PENDING_SIGNATURE") {
       throw new AppError("CONFLICT", `Deployment is ${deployment.status}, cannot submit`);
     }
@@ -98,17 +136,47 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
             : null;
       }
 
-      await db.deployment.update({
-        where: { id },
-        data: {
-          status: "CONFIRMED",
-          deployTxHash: result.txHash,
-          contractAddress,
-          confirmedAt: new Date(),
-          ...(webhookSecret ? { webhookSecret } : {}),
-          ...schedule,
-        },
-      });
+      // Try to win the race and confirm this deployment. If another request
+      // already confirmed it (e.g. a retry), we return the existing result.
+      let updatedDeployment: Awaited<ReturnType<typeof db.deployment.update>> | null;
+      try {
+        updatedDeployment = await db.deployment.update({
+          where: { id, status: "SUBMITTED" },
+          data: {
+            status: "CONFIRMED",
+            deployTxHash: result.txHash,
+            contractAddress,
+            confirmedAt: new Date(),
+            ...(webhookSecret ? { webhookSecret } : {}),
+            ...schedule,
+          },
+        });
+      } catch (err) {
+        const code = (err as { code?: string }).code;
+        // P2002: another request committed the same unique txHash.
+        // P2025: the extended where filter no longer matches because another
+        // request already flipped the status to CONFIRMED (race-loser path).
+        if (code === "P2002" || code === "P2025") {
+          updatedDeployment = await db.deployment.findUnique({
+            where: { id },
+          });
+          if (updatedDeployment?.deployTxHash === result.txHash) {
+            return confirmedDeploymentResponse(updatedDeployment);
+          }
+          throw new AppError("CONFLICT", "Transaction already used for another deployment");
+        }
+        throw err;
+      }
+
+      if (!updatedDeployment) {
+        updatedDeployment = await db.deployment.findUnique({
+          where: { id },
+        });
+        if (updatedDeployment?.deployTxHash === result.txHash) {
+          return confirmedDeploymentResponse(updatedDeployment);
+        }
+        throw new AppError("CONFLICT", "Deployment state changed during submission");
+      }
 
       // Schedule the first auto-claim job for each STREAMER node so the
       // per-streamer cron can claim vested funds at the right milestones
@@ -174,14 +242,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         await createPayrollEmployees(id);
       }
 
-      return NextResponse.json({
-        data: {
-          status: "CONFIRMED",
-          txHash: result.txHash,
-          contractAddress,
-          pipeline: pipeline ?? undefined,
-        },
-      });
+      return confirmedDeploymentResponse(updatedDeployment);
     }
     await db.deployment.update({
       where: { id },
@@ -232,10 +293,6 @@ async function createPayrollEmployees(deploymentId: string) {
   const hasSplitter = pipeline.some((n) => n.templateKind === "SPLITTER");
   if (hasPayroll || hasDev || !hasSubscription || !hasSplitter) return;
 
-  // Idempotency: if employees already exist for this deployment, don't recreate.
-  const existingCount = await db.employee.count({ where: { deploymentId } });
-  if (existingCount > 0) return;
-
   const graph = deployment.graphSnapshot as {
     nodes: Array<{
       id: string;
@@ -266,35 +323,59 @@ async function createPayrollEmployees(deploymentId: string) {
 
   const recipients = splitNode.config.recipients;
 
-  await db.$transaction(async (tx) => {
-    for (let i = 0; i < recipients.length; i++) {
-      const r = recipients[i];
-      if (!r) continue;
-      const isFiat = r.payoutMode === "fiat";
-      const cashOutNodeId = `${splitNode.id}-cashout-${i}`;
-      const cashOutAddress = isFiat ? (cashOutByNodeId.get(cashOutNodeId) ?? null) : null;
+  // Create all employees and their bank details in one transaction. If a
+  // duplicate submit request races us, the unique constraint on
+  // (deploymentId, address) fires; in that case the other request already
+  // created the rows and we can safely ignore the conflict.
+  try {
+    await db.$transaction(async (tx) => {
+      for (let i = 0; i < recipients.length; i++) {
+        const r = recipients[i];
+        if (!r) continue;
+        const isFiat = r.payoutMode === "fiat";
+        const cashOutNodeId = `${splitNode.id}-cashout-${i}`;
+        const cashOutAddress = isFiat ? (cashOutByNodeId.get(cashOutNodeId) ?? null) : null;
 
-      const employee = await tx.employee.create({
-        data: {
-          deploymentId,
-          address: r.address,
-          amountStroops: r.amountStroops ?? "0",
-          label: r.label,
-          payoutMode: isFiat ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
-          cashOutContractAddress: cashOutAddress,
-        },
-      });
+        // Fiat employees are represented on-chain by their cash-out contract
+        // address, so use that as the employee address when available. Any
+        // pending placeholder must be made unique per recipient to avoid
+        // colliding on the (deploymentId, address) unique index.
+        const employeeAddress = (() => {
+          if (isFiat && cashOutAddress) return cashOutAddress;
+          if (isPendingAddress(r.address)) return `${r.address}:${i}`;
+          return r.address;
+        })();
 
-      if (isFiat && r.accountName && r.accountNumber && r.bankCode) {
-        await tx.employeeBankDetail.create({
+        const employee = await tx.employee.create({
           data: {
-            employeeId: employee.id,
-            accountName: r.accountName,
-            accountNumber: r.accountNumber,
-            bankCode: r.bankCode,
+            deploymentId,
+            address: employeeAddress,
+            amountStroops: r.amountStroops ?? "0",
+            label: r.label,
+            payoutMode: isFiat ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
+            cashOutContractAddress: cashOutAddress,
           },
         });
+
+        if (isFiat && r.accountName && r.accountNumber && r.bankCode) {
+          await tx.employeeBankDetail.create({
+            data: {
+              employeeId: employee.id,
+              accountName: r.accountName,
+              accountNumber: r.accountNumber,
+              bankCode: r.bankCode,
+            },
+          });
+        }
       }
+    });
+  } catch (err) {
+    if ((err as { code?: string }).code === "P2002") {
+      // Distinguish a duplicate-submit race from a real uniqueness bug. If
+      // employees already exist, another request won the race and we are done.
+      const count = await db.employee.count({ where: { deploymentId } });
+      if (count > 0) return;
     }
-  });
+    throw err;
+  }
 }

@@ -27,7 +27,7 @@ import { preparePayrollChargeByRelayerUnsigned } from "@/lib/stellar/invoke";
 import { withRelayerLock } from "@/lib/stellar/client";
 import { readTokenAllowance } from "@/lib/stellar/relayer";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
-import { ChargeRelayerMode, PayrollRunStatus } from "@prisma/client";
+import { ChargeRelayerMode, EmployeePayoutMode, PayrollRunStatus } from "@prisma/client";
 import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +93,8 @@ async function chargeSubscriptionPayrollDeployment(
   readRecipients: (
     addr: string,
   ) => Promise<Array<{ address: string; bps: number; amount: string }>>,
+  isDev: boolean,
+  cashOutContractAddresses: Set<string>,
 ): Promise<number> {
   if (d.chargeEndAt && d.chargeEndAt <= now) {
     await db.deployment.update({
@@ -178,6 +180,7 @@ async function chargeSubscriptionPayrollDeployment(
 
     const existingEmployees = await db.employee.findMany({
       where: { deploymentId: d.id },
+      include: { bankDetail: true },
     });
     const employeeByCashOut = new Map(
       existingEmployees
@@ -186,9 +189,14 @@ async function chargeSubscriptionPayrollDeployment(
     );
     const employeeByWallet = new Map(existingEmployees.map((e) => [e.address, e]));
 
+    const hasFiatEmployeeWithBank = existingEmployees.some(
+      (e) => e.payoutMode === "FIAT" && e.bankDetail,
+    );
+
     for (const r of recipientRows) {
       const existing = employeeByCashOut.get(r.address) ?? employeeByWallet.get(r.address);
       const walletAddress = existing?.address ?? r.address;
+      const isFiatCashOut = cashOutContractAddresses.has(r.address);
 
       const employee = await db.employee.upsert({
         where: { deploymentId_address: { deploymentId: d.id, address: walletAddress } },
@@ -196,9 +204,13 @@ async function chargeSubscriptionPayrollDeployment(
           deploymentId: d.id,
           address: walletAddress,
           amountStroops: r.amount,
+          payoutMode: isFiatCashOut ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
         },
         update: {
           amountStroops: r.amount,
+          // If this recipient is a known cash-out contract, ensure the
+          // employee is marked fiat so off-ramp jobs are created.
+          ...(isFiatCashOut ? { payoutMode: EmployeePayoutMode.FIAT } : {}),
         },
       });
       await db.payrollPayout.create({
@@ -211,18 +223,20 @@ async function chargeSubscriptionPayrollDeployment(
       });
     }
 
-    if (d.offRampEnabled) {
+    if (isDev ? d.offRampEnabled : hasFiatEmployeeWithBank) {
       try {
         const created = await createOffRampJobsForPayrollRun(db, payrollRun.id);
         log.info(
           { deploymentId: d.id, payrollRunId: payrollRun.id, created: created.length },
-          "Created off-ramp jobs for dev payroll run",
+          isDev
+            ? "Created off-ramp jobs for dev payroll run"
+            : "Created off-ramp jobs for payroll run",
         );
       } catch (offRampErr) {
         const message = offRampErr instanceof Error ? offRampErr.message : String(offRampErr);
         log.warn(
           { deploymentId: d.id, payrollRunId: payrollRun.id, error: message },
-          "Failed to create off-ramp jobs for dev payroll run",
+          "Failed to create off-ramp jobs for payroll run",
         );
       }
     }
@@ -295,6 +309,12 @@ export async function POST(req: NextRequest) {
       const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
       const splitterNode = pipeline?.find((n) => n.templateKind === "SPLITTER");
 
+      const cashOutContractAddresses = new Set(
+        pipeline
+          ?.filter((n) => n.templateKind === "CASH_OUT" || n.templateKind === "CASH_OUT_DEV")
+          .map((n) => n.contractAddress) ?? [],
+      );
+
       const isMonolithic =
         payrollNode?.contractAddress &&
         (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM ||
@@ -327,6 +347,8 @@ export async function POST(req: NextRequest) {
             splitterDevNode!.contractAddress,
             now,
             readSplitterDevRecipients,
+            true,
+            cashOutContractAddresses,
           );
           platformCharged += devChargedCount;
           results.push({
@@ -345,6 +367,8 @@ export async function POST(req: NextRequest) {
             splitterNode!.contractAddress,
             now,
             readSplitterRecipients,
+            false,
+            cashOutContractAddresses,
           );
           platformCharged += chargedCount;
           results.push({
@@ -388,6 +412,15 @@ export async function POST(req: NextRequest) {
 
         const recipients = await readPayrollRecipients(contractAddress);
         const totalAmount = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);
+
+        const existingEmployees = await db.employee.findMany({
+          where: { deploymentId: d.id },
+          include: { bankDetail: true },
+        });
+        const hasFiatEmployeeWithBank = existingEmployees.some(
+          (e) => e.payoutMode === "FIAT" && e.bankDetail,
+        );
+
         const [employer, asset] = await Promise.all([
           readPayrollEmployer(contractAddress),
           readPayrollAsset(contractAddress),
@@ -623,7 +656,7 @@ export async function POST(req: NextRequest) {
             },
           });
 
-          if (d.offRampEnabled) {
+          if (hasFiatEmployeeWithBank) {
             await createOffRampJobsForPayrollRun(tx, payrollRun.id);
           }
         });

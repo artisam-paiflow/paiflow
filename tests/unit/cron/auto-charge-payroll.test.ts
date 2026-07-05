@@ -12,6 +12,7 @@ const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockJobs } = vi.ho
       update: vi.fn(),
     },
     employee: {
+      findMany: vi.fn(),
       upsert: vi.fn(),
     },
     payrollPayout: {
@@ -145,6 +146,7 @@ describe("auto-charge-payroll", () => {
       txHash: "tx-1",
     });
     mockDb.payrollRun.create.mockResolvedValue({ id: "run-1" });
+    mockDb.employee.findMany.mockResolvedValue([]);
     mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
 
     const res = await POST(makeRequest("cron-secret"));
@@ -183,6 +185,7 @@ describe("auto-charge-payroll", () => {
       errorMessage: "Simulation failed",
     });
     mockDb.payrollRun.create.mockResolvedValue({ id: "run-1" });
+    mockDb.employee.findMany.mockResolvedValue([]);
 
     const res = await POST(makeRequest("cron-secret"));
     const json = await res.json();
@@ -196,8 +199,8 @@ describe("auto-charge-payroll", () => {
     );
   });
 
-  it("creates off-ramp jobs when offRampEnabled is true", async () => {
-    mockDb.deployment.findMany.mockResolvedValue([makeDeployment({ offRampEnabled: true })]);
+  it("creates off-ramp jobs for non-dev payroll when a fiat employee has bank details", async () => {
+    mockDb.deployment.findMany.mockResolvedValue([makeDeployment({ offRampEnabled: false })]);
     mockRelayer.readPayrollIsCancelled.mockResolvedValue(false);
     mockRelayer.readPayrollNextChargeAt
       .mockResolvedValueOnce(BigInt(nextChargeAt))
@@ -212,14 +215,60 @@ describe("auto-charge-payroll", () => {
       status: "SUCCESS",
       txHash: "tx-1",
     });
+    mockDb.employee.findMany.mockResolvedValue([
+      {
+        id: "emp-1",
+        address: "GEMP1",
+        payoutMode: "FIAT",
+        cashOutContractAddress: null,
+        bankDetail: { accountName: "A", accountNumber: "123", bankCode: "B" },
+      },
+    ]);
     mockDb.payrollRun.create.mockResolvedValue({ id: "run-1" });
     mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
+    mockDb.payrollPayout.create.mockResolvedValue({ id: "payout-1" });
     mockJobs.createOffRampJobsForPayrollRun.mockResolvedValue(["job-1"]);
 
     const res = await POST(makeRequest("cron-secret"));
     await res.json();
 
     expect(mockJobs.createOffRampJobsForPayrollRun).toHaveBeenCalledWith(mockDb, "run-1");
+  });
+
+  it("does not create off-ramp jobs when no fiat employee has bank details", async () => {
+    mockDb.deployment.findMany.mockResolvedValue([makeDeployment({ offRampEnabled: false })]);
+    mockRelayer.readPayrollIsCancelled.mockResolvedValue(false);
+    mockRelayer.readPayrollNextChargeAt
+      .mockResolvedValueOnce(BigInt(nextChargeAt))
+      .mockResolvedValue(BigInt(nextChargeAt + 86400));
+    mockRelayer.readPayrollRecipients.mockResolvedValue([{ address: "GEMP1", amount: "5000000" }]);
+    mockRelayer.readPayrollEmployer.mockResolvedValue("GEMPLOYER");
+    mockRelayer.readPayrollAsset.mockResolvedValue("CASSET");
+    mockRelayer.readTokenAllowance.mockResolvedValue(10_000_000n);
+    mockRelayer.readPayrollRelayer.mockResolvedValue("GDRELAYER");
+    mockRelayer.preparePayrollChargeByRelayerTx.mockResolvedValue({ xdr: "xdr-1" });
+    mockRelayer.submitPayrollChargeByRelayerTx.mockResolvedValue({
+      status: "SUCCESS",
+      txHash: "tx-1",
+    });
+    mockDb.employee.findMany.mockResolvedValue([
+      {
+        id: "emp-1",
+        address: "GEMP1",
+        payoutMode: "CRYPTO",
+        cashOutContractAddress: null,
+        bankDetail: null,
+      },
+    ]);
+    mockDb.payrollRun.create.mockResolvedValue({ id: "run-1" });
+    mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
+    mockDb.payrollPayout.create.mockResolvedValue({ id: "payout-1" });
+    mockJobs.createOffRampJobsForPayrollRun.mockResolvedValue(["job-1"]);
+
+    const res = await POST(makeRequest("cron-secret"));
+    await res.json();
+
+    expect(mockJobs.createOffRampJobsForPayrollRun).not.toHaveBeenCalled();
   });
 
   it("skips when no chargeable contract is in the pipeline", async () => {

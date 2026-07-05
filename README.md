@@ -13,17 +13,7 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 ## Pitch deck
 
-A 10-slide draft investor deck (MARP) lives at [`docs/pitch-deck.md`](docs/pitch-deck.md) — sized for a 3-minute pitch, themed to match [`BRAND.md`](BRAND.md).
-
-```bash
-# PDF
-npx @marp-team/marp-cli docs/pitch-deck.md -o pitch-deck.pdf
-
-# Live preview
-npx @marp-team/marp-cli --preview docs/pitch-deck.md
-```
-
-Team names, raise size, and pricing tiers are placeholders — swap before sharing externally.
+A 10-slide draft investor deck (MARP) lives at [`docs/pitch-deck.md`](docs/pitch-deck.md) — sized for a 3-minute pitch.
 
 ---
 
@@ -71,19 +61,6 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 - **Auth + reset** — argon2 password hashing, optional WebAuthn second factor, password reset via Resend with SHA-256-hashed tokens and session wipe on consume.
 - **Admin console** — user management, audit log, seeded admin on first boot, rate-limited public endpoints, HIBP-pwned-password check (opt-in).
 - **stellar.expert deep links** — every contract address in the UI links to the correct (`testnet` ↔ `public`) explorer.
-
-## 🛠️ Tech Stack
-
-- **Frontend** — Next.js 15 (App Router, React 19 RSC, Server Actions), Tailwind 4, shadcn/ui, `@xyflow/react`, framer-motion, zustand, TanStack Query, react-hook-form + zod
-- **Backend** — Next.js Route Handlers, PostgreSQL 16 + Prisma 6, Redis 7 (`ioredis`) for rate-limits + event stream, Auth.js v5 (`next-auth`) + Prisma adapter, argon2, `@simplewebauthn`
-- **Blockchain** — Stellar / Soroban via `@stellar/stellar-sdk` (Horizon + Soroban RPC), `@creit.tech/stellar-wallets-kit` (Freighter / xBull / Albedo / Hana / LOBSTR), SEP-7 deep links
-- **Smart contracts** — Rust `1.88`, `soroban-sdk` 22, `wasm32v1-none` target. Workspace contains splitter / streamer / conditional crates with full unit-test coverage
-- **AI** — Groq (Whisper STT + Llama text), with a pluggable OpenAI-compatible fallback via `AI_API_KEY` / `AI_BASE_URL`
-- **Email** — Resend (transactional — password reset, notifications)
-- **File storage** — MinIO (dev) / Railway Volume (prod) — pluggable via `FILE_STORAGE_DRIVER`
-- **Observability** — pino structured logs, Sentry (opt-in via `SENTRY_DSN`)
-- **Infrastructure** — Railway (`railway.toml`, `nixpacks.toml`), Docker Compose for local Postgres + Redis + MinIO
-- **CI / tooling** — GitHub Actions (node + rust lanes), Vitest unit tests, Playwright e2e, ESLint, Prettier, husky + lint-staged
 
 ## 🚀 How to Run Locally
 
@@ -155,7 +132,7 @@ Cutover gated by `docs/mainnet-cutover.md`. WASM hashes uploaded via `pnpm contr
 | Name           | Role               | GitHub                                                     |
 | -------------- | ------------------ | ---------------------------------------------------------- | --- |
 | Mark Hugh Neri | CTO                | [@kimerran](https://github.com/kimerran)                   |
-| Mycal Pejana   | Smart Contract Dev | [@SaltinStillWaters](https://github.com/SaltinStillWaters) |
+| Mychal Pejana  | Smart Contract Dev | [@SaltinStillWaters](https://github.com/SaltinStillWaters) |
 | Carl Macabales | AI Developer       | [@cemmacabales](https://github.com/cemmacabales)           |     |
 
 ## 📜 License

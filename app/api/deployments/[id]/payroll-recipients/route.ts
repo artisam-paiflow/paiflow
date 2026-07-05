@@ -109,10 +109,18 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         };
       }
       const cryptoEmployee = byWallet.get(r.address);
+      // Defensive: in non-dev payrolls, fiat recipients are represented on-chain
+      // by CASH_OUT contract addresses. If no employee row matches by wallet and
+      // the address is a contract, report it as fiat so the KYC form renders and
+      // the user can fill sender details even if deploy-time employee creation
+      // failed.
+      const isContract = r.address.length > 0 && r.address.startsWith("C");
       const payoutMode: "crypto" | "fiat" =
-        cryptoEmployee?.payoutMode === "FIAT" ? "fiat" : "crypto";
+        cryptoEmployee?.payoutMode === "FIAT" || (isContract && !cryptoEmployee)
+          ? "fiat"
+          : "crypto";
       return {
-        address: r.address,
+        address: cryptoEmployee?.address ?? r.address,
         amount: r.amount,
         payoutMode,
         label: cryptoEmployee?.label ?? undefined,

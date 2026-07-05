@@ -24,6 +24,7 @@ export default function DeploymentView({
   graph,
   webhookSecret,
   pipeline,
+  templateKind,
   errorMessage,
 }: {
   deploymentId: string;
@@ -35,6 +36,7 @@ export default function DeploymentView({
   graph: FlowGraph | null;
   webhookSecret: string | null;
   pipeline?: Array<{ nodeId: string; contractAddress: string; templateKind: string }> | null;
+  templateKind?: string | null;
   errorMessage: string | null;
 }) {
   const explorerUrl =
@@ -212,12 +214,14 @@ export default function DeploymentView({
   const appUrl = typeof window !== "undefined" ? window.location.origin : "";
   const streamerNode = pipeline?.find((n) => n.templateKind === "STREAMER");
   const isStreamer = !!streamerNode;
-  const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
-  const isSubscription = !!subscriptionNode;
-  const payrollNode = pipeline?.find(
-    (n) => n.templateKind === "PAYROLL" || n.templateKind === "SUBSCRIPTION_DEV",
+  const isSubscription = templateKind === "SUBSCRIPTION";
+  const subscriptionNode = isSubscription
+    ? pipeline?.find((n) => n.templateKind === "SUBSCRIPTION")
+    : null;
+  const payrollNode = pipeline?.find((n) =>
+    ["PAYROLL", "SUBSCRIPTION_DEV", "SUBSCRIPTION"].includes(n.templateKind),
   );
-  const isPayroll = !!payrollNode;
+  const isPayroll = templateKind === "PAYROLL";
   const cashOutNode = pipeline?.find(
     (n) => n.templateKind === "CASH_OUT" || n.templateKind === "CASH_OUT_DEV",
   );
@@ -234,7 +238,7 @@ export default function DeploymentView({
   const [isCancelled, setIsCancelled] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (!subscriptionNode?.contractAddress || !network) return;
+    if (!isSubscription || !subscriptionNode?.contractAddress || !network) return;
     let cancelled = false;
     fetch(`/api/deployments/${deploymentId}/subscription-allowance`)
       .then(async (res) => {
@@ -790,7 +794,7 @@ export default function DeploymentView({
                   </div>
                 </div>
               </>
-            ) : isSubscription || payrollNode?.templateKind === "SUBSCRIPTION_DEV" ? null : (
+            ) : isSubscription || isPayroll ? null : (
               <>
                 <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
                   SCAN WITH FREIGHTER WALLET · SET AMOUNT IN TRIGGER PAGE.

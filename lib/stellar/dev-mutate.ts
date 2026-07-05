@@ -1,5 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
+import { TemplateKind } from "@prisma/client";
 import {
   Address,
   Asset,
@@ -20,8 +21,8 @@ import {
   stellarPassphrase,
   stellarRelayerAddress,
   stellarRelayerSecretKey,
-  stellarWasmHash,
 } from "@/lib/env";
+import { getWasmHash } from "@/lib/stellar/config";
 import { AppError } from "@/lib/errors";
 
 /**
@@ -370,7 +371,7 @@ export async function deployCashOutDevByRelayer(opts: {
   accountNumber?: string;
   bankCode?: string;
 }): Promise<DeployCashOutDevResult> {
-  const wasmHash = stellarWasmHash("CASH_OUT_DEV");
+  const wasmHash = await getWasmHash(TemplateKind.CASH_OUT_DEV);
   if (!wasmHash) {
     throw new AppError("INTERNAL", "CASH_OUT_DEV WASM hash is not configured");
   }

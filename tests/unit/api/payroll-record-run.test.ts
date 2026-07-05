@@ -27,6 +27,7 @@ const { mockDb, mockEnv, mockRelayer, mockJobs } = vi.hoisted(() => {
 
   const mockRelayer = {
     readSplitterDevRecipients: vi.fn(),
+    readSplitterRecipients: vi.fn(),
     readSubscriptionAmountPerPeriod: vi.fn(),
     readPayrollRecipients: vi.fn(),
   };
@@ -139,6 +140,93 @@ describe("payroll-record-run", () => {
       }),
     );
     expect(mockJobs.createOffRampJobsForPayrollRun).toHaveBeenCalledWith(mockDb, "run-1");
+  });
+
+  it("records a non-dev payroll run and creates off-ramp jobs for fiat employees", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(
+      makeDeployment({
+        offRampEnabled: false,
+        pipelineSnapshot: [
+          { nodeId: "sub", contractAddress: "CSub", templateKind: "SUBSCRIPTION" },
+          { nodeId: "split", contractAddress: "CSplit", templateKind: "SPLITTER" },
+          { nodeId: "cash", contractAddress: "CCash", templateKind: "CASH_OUT" },
+        ],
+      }),
+    );
+    mockDb.payrollRun.findUnique.mockResolvedValue(null);
+    mockRelayer.readSplitterRecipients.mockResolvedValue([
+      { address: "GCRYPTO", bps: 0, amount: "5000000" },
+      { address: "CCashOutFiat", bps: 0, amount: "5000000" },
+    ]);
+    mockRelayer.readSubscriptionAmountPerPeriod.mockResolvedValue(10000000n);
+    mockDb.employee.findMany.mockResolvedValue([
+      {
+        id: "emp-crypto",
+        address: "GCRYPTO",
+        payoutMode: "CRYPTO",
+        cashOutContractAddress: null,
+        bankDetail: null,
+      },
+      {
+        id: "emp-fiat",
+        address: "GCRYPTO_BACKING",
+        payoutMode: "FIAT",
+        cashOutContractAddress: "CCashOutFiat",
+        bankDetail: { accountName: "A", accountNumber: "123", bankCode: "B" },
+      },
+    ]);
+    mockDb.payrollRun.create.mockResolvedValue({ id: "run-1" });
+    mockDb.employee.upsert.mockResolvedValue({ id: "emp-upserted" });
+    mockDb.payrollPayout.create.mockResolvedValue({ id: "payout-1" });
+    mockJobs.createOffRampJobsForPayrollRun.mockResolvedValue(["job-1"]);
+
+    const req = makeRequest({ deploymentId: "dep-1", txHash: "tx-nondev" });
+    const res = await POST(req, makeContext("dep-1"));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.data.payrollRunId).toBe("run-1");
+    expect(json.data.payoutCount).toBe(2);
+    expect(json.data.offRampJobIds).toEqual(["job-1"]);
+    expect(mockJobs.createOffRampJobsForPayrollRun).toHaveBeenCalledWith(mockDb, "run-1");
+  });
+
+  it("records a non-dev payroll run without off-ramp jobs when no fiat employee has bank details", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(
+      makeDeployment({
+        offRampEnabled: false,
+        pipelineSnapshot: [
+          { nodeId: "sub", contractAddress: "CSub", templateKind: "SUBSCRIPTION" },
+          { nodeId: "split", contractAddress: "CSplit", templateKind: "SPLITTER" },
+        ],
+      }),
+    );
+    mockDb.payrollRun.findUnique.mockResolvedValue(null);
+    mockRelayer.readSplitterRecipients.mockResolvedValue([
+      { address: "GCRYPTO", bps: 0, amount: "5000000" },
+    ]);
+    mockRelayer.readSubscriptionAmountPerPeriod.mockResolvedValue(10000000n);
+    mockDb.employee.findMany.mockResolvedValue([
+      {
+        id: "emp-crypto",
+        address: "GCRYPTO",
+        payoutMode: "CRYPTO",
+        cashOutContractAddress: null,
+        bankDetail: null,
+      },
+    ]);
+    mockDb.payrollRun.create.mockResolvedValue({ id: "run-2" });
+    mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
+    mockDb.payrollPayout.create.mockResolvedValue({ id: "payout-1" });
+    mockJobs.createOffRampJobsForPayrollRun.mockResolvedValue(["job-1"]);
+
+    const req = makeRequest({ deploymentId: "dep-1", txHash: "tx-noofframp" });
+    const res = await POST(req, makeContext("dep-1"));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.data.offRampJobIds).toEqual([]);
+    expect(mockJobs.createOffRampJobsForPayrollRun).not.toHaveBeenCalled();
   });
 
   it("computes percentage-mode amounts from the subscription amount", async () => {

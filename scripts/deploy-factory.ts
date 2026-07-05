@@ -23,6 +23,9 @@ import {
   hash,
   xdr,
 } from "@stellar/stellar-sdk";
+import { TemplateKind } from "@prisma/client";
+import { db } from "@/lib/prisma";
+import { setFactoryAddress, setWasmHash } from "@/lib/stellar/template-db";
 import { writeEnvLocal } from "./env-file";
 
 const WASM_DIR = "contracts/target/wasm32v1-none/release";
@@ -157,6 +160,9 @@ async function main() {
   const factoryAddress = extractContractAddress(result.returnValue);
   console.log(`[deploy-factory] deployed at ${factoryAddress}`);
 
+  await setFactoryAddress(network, factoryAddress, wasmHash);
+  await setWasmHash(TemplateKind.FACTORY, network, wasmHash);
+
   writeEnvLocal({
     [hashKey]: wasmHash,
     [addressKey]: factoryAddress,
@@ -164,7 +170,11 @@ async function main() {
   console.log(`[deploy-factory] wrote ${addressKey} to .env.local`);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main()
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await db.$disconnect();
+  });

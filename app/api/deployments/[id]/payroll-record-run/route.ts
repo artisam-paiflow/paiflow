@@ -12,7 +12,7 @@ import {
   readSplitterRecipients,
   readSubscriptionAmountPerPeriod,
 } from "@/lib/stellar/relayer";
-import { PayrollRunStatus } from "@prisma/client";
+import { EmployeePayoutMode, PayrollRunStatus } from "@prisma/client";
 
 const PostSchema = z.object({
   txHash: z.string().min(1, "txHash is required"),
@@ -82,12 +82,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       (n) => n.templateKind === "SUBSCRIPTION_DEV" || n.templateKind === "SUBSCRIPTION",
     );
 
+    const isDev = splitterNode?.templateKind === "SPLITTER_DEV";
+
+    const cashOutContractAddresses = new Set(
+      pipeline?.filter((n) => n.templateKind === "CASH_OUT").map((n) => n.contractAddress) ?? [],
+    );
+
     let recipientRows: Array<{ address: string; amount: string }> = [];
 
     if (payrollNode?.contractAddress) {
       recipientRows = await readPayrollRecipients(payrollNode.contractAddress);
     } else if (splitterNode?.contractAddress) {
-      const isDev = splitterNode.templateKind === "SPLITTER_DEV";
       const raw = isDev
         ? await readSplitterDevRecipients(splitterNode.contractAddress)
         : await readSplitterRecipients(splitterNode.contractAddress);
@@ -128,6 +133,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const existingEmployees = await db.employee.findMany({
       where: { deploymentId: d.id },
+      include: { bankDetail: true },
     });
     const employeeByCashOut = new Map(
       existingEmployees
@@ -135,6 +141,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         .map((e) => [e.cashOutContractAddress!, e]),
     );
     const employeeByWallet = new Map(existingEmployees.map((e) => [e.address, e]));
+
+    const hasFiatEmployeeWithBank = existingEmployees.some(
+      (e) => e.payoutMode === "FIAT" && e.bankDetail,
+    );
+    const shouldCreateOffRampJobs = isDev ? d.offRampEnabled : hasFiatEmployeeWithBank;
 
     let offRampJobIds: string[] = [];
 
@@ -147,6 +158,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         for (const r of recipientRows) {
           const existing = employeeByCashOut.get(r.address) ?? employeeByWallet.get(r.address);
           const walletAddress = existing?.address ?? r.address;
+          const isFiatCashOut = cashOutContractAddresses.has(r.address);
 
           const employee = await tx.employee.upsert({
             where: { deploymentId_address: { deploymentId: d.id, address: walletAddress } },
@@ -154,9 +166,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
               deploymentId: d.id,
               address: walletAddress,
               amountStroops: r.amount,
+              payoutMode: isFiatCashOut ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
             },
             update: {
               amountStroops: r.amount,
+              // If this recipient is a known cash-out contract, ensure the
+              // employee is marked fiat so off-ramp jobs are created.
+              ...(isFiatCashOut ? { payoutMode: EmployeePayoutMode.FIAT } : {}),
             },
           });
 
@@ -170,7 +186,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           });
         }
 
-        if (d.offRampEnabled) {
+        if (shouldCreateOffRampJobs) {
           offRampJobIds = await createOffRampJobsForPayrollRun(tx, run.id);
         }
       },
