@@ -288,10 +288,6 @@ async function createPayrollEmployees(deploymentId: string) {
   const hasSplitter = pipeline.some((n) => n.templateKind === "SPLITTER");
   if (hasPayroll || hasDev || !hasSubscription || !hasSplitter) return;
 
-  // Idempotency: if employees already exist for this deployment, don't recreate.
-  const existingCount = await db.employee.count({ where: { deploymentId } });
-  if (existingCount > 0) return;
-
   const graph = deployment.graphSnapshot as {
     nodes: Array<{
       id: string;
@@ -322,35 +318,46 @@ async function createPayrollEmployees(deploymentId: string) {
 
   const recipients = splitNode.config.recipients;
 
-  await db.$transaction(async (tx) => {
-    for (let i = 0; i < recipients.length; i++) {
-      const r = recipients[i];
-      if (!r) continue;
-      const isFiat = r.payoutMode === "fiat";
-      const cashOutNodeId = `${splitNode.id}-cashout-${i}`;
-      const cashOutAddress = isFiat ? (cashOutByNodeId.get(cashOutNodeId) ?? null) : null;
+  // Create all employees and their bank details in one transaction. If a
+  // duplicate submit request races us, the unique constraint on
+  // (deploymentId, address) fires; in that case the other request already
+  // created the rows and we can safely ignore the conflict.
+  try {
+    await db.$transaction(async (tx) => {
+      for (let i = 0; i < recipients.length; i++) {
+        const r = recipients[i];
+        if (!r) continue;
+        const isFiat = r.payoutMode === "fiat";
+        const cashOutNodeId = `${splitNode.id}-cashout-${i}`;
+        const cashOutAddress = isFiat ? (cashOutByNodeId.get(cashOutNodeId) ?? null) : null;
 
-      const employee = await tx.employee.create({
-        data: {
-          deploymentId,
-          address: r.address,
-          amountStroops: r.amountStroops ?? "0",
-          label: r.label,
-          payoutMode: isFiat ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
-          cashOutContractAddress: cashOutAddress,
-        },
-      });
-
-      if (isFiat && r.accountName && r.accountNumber && r.bankCode) {
-        await tx.employeeBankDetail.create({
+        const employee = await tx.employee.create({
           data: {
-            employeeId: employee.id,
-            accountName: r.accountName,
-            accountNumber: r.accountNumber,
-            bankCode: r.bankCode,
+            deploymentId,
+            address: r.address,
+            amountStroops: r.amountStroops ?? "0",
+            label: r.label,
+            payoutMode: isFiat ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
+            cashOutContractAddress: cashOutAddress,
           },
         });
+
+        if (isFiat && r.accountName && r.accountNumber && r.bankCode) {
+          await tx.employeeBankDetail.create({
+            data: {
+              employeeId: employee.id,
+              accountName: r.accountName,
+              accountNumber: r.accountNumber,
+              bankCode: r.bankCode,
+            },
+          });
+        }
       }
+    });
+  } catch (err) {
+    if ((err as { code?: string }).code === "P2002") {
+      return;
     }
-  });
+    throw err;
+  }
 }
