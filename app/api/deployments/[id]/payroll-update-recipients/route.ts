@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
-import { requireSession } from "@/lib/auth";
+import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { preparePayrollUpdateRecipientsInvocation } from "@/lib/stellar/invoke";
 import {
@@ -35,12 +35,14 @@ const PostSchema = z.object({
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
-    const user = await requireSession();
+    const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
     const body = PostSchema.parse(await req.json());
 
     const d = await db.deployment.findFirst({
-      where: { id, ownerId: user.id },
+      // Machine callers authenticated via x-dev-api-secret are trusted to access
+      // any deployment; this matches the trust model of payroll-runs and events.
+      where: user ? { id, ownerId: user.id } : { id },
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
