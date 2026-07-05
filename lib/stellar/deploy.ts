@@ -12,12 +12,8 @@ import {
 } from "@stellar/stellar-sdk";
 import { randomBytes } from "node:crypto";
 import { sorobanRpc, horizon, withRelayerLock } from "./client";
-import {
-  stellarFactoryAddress,
-  stellarPassphrase,
-  stellarRelayerAddress,
-  stellarRelayerSecretKey,
-} from "@/lib/env";
+import { getFactoryAddress } from "@/lib/stellar/config";
+import { stellarPassphrase, stellarRelayerAddress, stellarRelayerSecretKey } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import type { ContractParams, PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
 import type { FlowGraph } from "@/lib/flows/schema";
@@ -161,11 +157,11 @@ async function preparePipelineDeployTxFromPlan(
   plan: PipelinePlan,
 ): Promise<PreparedPipelineDeploy> {
   const server = sorobanRpc();
-  const factoryAddress = stellarFactoryAddress();
+  const factoryAddress = await getFactoryAddress();
   if (!factoryAddress) {
     throw new AppError(
       "INTERNAL",
-      "Pipeline factory address is not configured. Set STELLAR_FACTORY_ADDRESS_<NETWORK> in your environment.",
+      "Pipeline factory address is not configured. Run pnpm contracts:deploy-factory --network=<network>.",
     );
   }
 

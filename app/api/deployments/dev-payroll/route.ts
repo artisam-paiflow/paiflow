@@ -7,12 +7,8 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit } from "@/lib/rate-limit";
 import { env } from "@/lib/env";
-import {
-  stellarWasmHash,
-  stellarRelayerAddress,
-  stellarRelayerSecretKey,
-  offRampTreasuryAddress,
-} from "@/lib/env";
+import { stellarRelayerAddress, stellarRelayerSecretKey, offRampTreasuryAddress } from "@/lib/env";
+import { getWasmHashes } from "@/lib/stellar/config";
 import { AssetSchema, type Asset, type FlowGraph } from "@/lib/flows/schema";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { deployPipelineByRelayer, checkAccountFunding } from "@/lib/stellar/deploy";
@@ -220,8 +216,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Every node needs an uploaded WASM template on this network.
+    const wasmHashes = await getWasmHashes(network);
     const deployNodes = pipeline.map((node) => {
-      const wasmHash = stellarWasmHash(node.templateKind);
+      const wasmHash = wasmHashes.get(node.templateKind);
       if (!wasmHash) {
         throw new AppError(
           "VALIDATION",

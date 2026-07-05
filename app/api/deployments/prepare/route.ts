@@ -11,7 +11,8 @@ import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { preparePipelineDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
-import { stellarWasmHash, stellarRelayerAddress, offRampTreasuryAddress } from "@/lib/env";
+import { getWasmHashes } from "@/lib/stellar/config";
+import { stellarRelayerAddress, offRampTreasuryAddress } from "@/lib/env";
 
 const PrepareSchema = z.object({
   flowId: z.string().uuid(),
@@ -67,23 +68,22 @@ export async function POST(req: NextRequest) {
     const pipeline = flowToPipeline(v.graph, relayerAddress, offRampTreasuryAddress());
 
     // Ensure every pipeline node has a corresponding WASM template on-chain.
-    const deployNodes = await Promise.all(
-      pipeline.map(async (node) => {
-        const hash = stellarWasmHash(node.templateKind);
-        if (!hash) {
-          throw new AppError(
-            "VALIDATION",
-            `No WASM uploaded for ${node.templateKind} on ${network}. Run pnpm contracts:upload --network=${network}.`,
-          );
-        }
-        return {
-          nodeId: node.nodeId,
-          templateKind: node.templateKind,
-          wasmHash: hash,
-          params: node.params,
-        };
-      }),
-    );
+    const wasmHashes = await getWasmHashes(network);
+    const deployNodes = pipeline.map((node) => {
+      const hash = wasmHashes.get(node.templateKind);
+      if (!hash) {
+        throw new AppError(
+          "VALIDATION",
+          `No WASM uploaded for ${node.templateKind} on ${network}. Run pnpm contracts:upload --network=${network}.`,
+        );
+      }
+      return {
+        nodeId: node.nodeId,
+        templateKind: node.templateKind,
+        wasmHash: hash,
+        params: node.params,
+      };
+    });
 
     await checkAccountFunding(body.sourceAccount);
 
