@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { TransactionBuilder } from "@stellar/stellar-sdk";
 import crypto from "crypto";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
@@ -7,7 +8,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { redis, eventChannel } from "@/lib/redis";
 import { submitDeployTx } from "@/lib/stellar/deploy";
-import { stellarRelayerAddress } from "@/lib/env";
+import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode, EmployeePayoutMode } from "@prisma/client";
 import { scheduleNextStreamerClaimJob } from "@/lib/streamer-jobs";
 import { log } from "@/lib/log";
@@ -15,17 +16,53 @@ import type { StreamerParams } from "@/lib/flows/to-params";
 
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
 
+function txHashFromXdr(signedXdr: string): string {
+  const tx = TransactionBuilder.fromXDR(signedXdr, stellarPassphrase());
+  return tx.hash().toString("hex");
+}
+
+function confirmedDeploymentResponse(deployment: {
+  status: string;
+  deployTxHash: string | null;
+  contractAddress: string | null;
+  pipelineSnapshot: unknown;
+}) {
+  const pipeline = deployment.pipelineSnapshot as Array<{
+    nodeId: string;
+    contractAddress: string;
+    templateKind: string;
+  }> | null;
+  return NextResponse.json({
+    data: {
+      status: deployment.status,
+      txHash: deployment.deployTxHash,
+      contractAddress: deployment.contractAddress,
+      pipeline: pipeline ?? undefined,
+    },
+  });
+}
+
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const { id } = await ctx.params;
     const body = SubmitSchema.parse(await req.json());
 
+    const txHash = txHashFromXdr(body.signedXdr);
+
     const deployment = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
       include: { flow: { select: { templateKind: true } } },
     });
     if (!deployment) throw new AppError("NOT_FOUND", "Deployment not found");
+
+    // Idempotency: a retry with the same signed XDR returns the existing result.
+    if (deployment.status === "CONFIRMED") {
+      if (deployment.deployTxHash === txHash) {
+        return confirmedDeploymentResponse(deployment);
+      }
+      throw new AppError("CONFLICT", "Deployment already confirmed with a different transaction");
+    }
     if (deployment.status !== "PENDING_SIGNATURE") {
       throw new AppError("CONFLICT", `Deployment is ${deployment.status}, cannot submit`);
     }
@@ -98,17 +135,43 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
             : null;
       }
 
-      await db.deployment.update({
-        where: { id },
-        data: {
-          status: "CONFIRMED",
-          deployTxHash: result.txHash,
-          contractAddress,
-          confirmedAt: new Date(),
-          ...(webhookSecret ? { webhookSecret } : {}),
-          ...schedule,
-        },
-      });
+      // Try to win the race and confirm this deployment. If another request
+      // already confirmed it (e.g. a retry), we return the existing result.
+      let updatedDeployment: Awaited<ReturnType<typeof db.deployment.update>> | null;
+      try {
+        updatedDeployment = await db.deployment.update({
+          where: { id, status: "SUBMITTED" },
+          data: {
+            status: "CONFIRMED",
+            deployTxHash: result.txHash,
+            contractAddress,
+            confirmedAt: new Date(),
+            ...(webhookSecret ? { webhookSecret } : {}),
+            ...schedule,
+          },
+        });
+      } catch (err) {
+        if ((err as { code?: string }).code === "P2002") {
+          updatedDeployment = await db.deployment.findUnique({
+            where: { id },
+          });
+          if (updatedDeployment?.deployTxHash === result.txHash) {
+            return confirmedDeploymentResponse(updatedDeployment);
+          }
+          throw new AppError("CONFLICT", "Transaction already used for another deployment");
+        }
+        throw err;
+      }
+
+      if (!updatedDeployment) {
+        updatedDeployment = await db.deployment.findUnique({
+          where: { id },
+        });
+        if (updatedDeployment?.deployTxHash === result.txHash) {
+          return confirmedDeploymentResponse(updatedDeployment);
+        }
+        throw new AppError("CONFLICT", "Deployment state changed during submission");
+      }
 
       // Schedule the first auto-claim job for each STREAMER node so the
       // per-streamer cron can claim vested funds at the right milestones
@@ -174,14 +237,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         await createPayrollEmployees(id);
       }
 
-      return NextResponse.json({
-        data: {
-          status: "CONFIRMED",
-          txHash: result.txHash,
-          contractAddress,
-          pipeline: pipeline ?? undefined,
-        },
-      });
+      return confirmedDeploymentResponse(updatedDeployment);
     }
     await db.deployment.update({
       where: { id },
