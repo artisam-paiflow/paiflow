@@ -93,7 +93,19 @@ export function flowToEnglish(graph: FlowGraph): string {
     const schedule = trigger.config.fillScheduleViaApi
       ? "(schedule set via API)"
       : intervalLabel(trigger.config.intervalAmount ?? 1, trigger.config.intervalUnit ?? "week");
-    triggerText = `When payroll pulls from ${employer} ${schedule}`;
+    const assetStr = assetLabel(trigger.config.asset);
+    const pullAmountStroops =
+      action.type === "split"
+        ? action.config.recipients
+            .filter((r) => r.mode === "fixed")
+            .reduce((sum, r) => sum + BigInt(r.amountStroops || "0"), 0n)
+            .toString()
+        : action.type === "pay"
+          ? (action.config.amountStroops ?? "0")
+          : "0";
+    const pullText =
+      pullAmountStroops === "0" ? "" : `${formatStroops(pullAmountStroops)} ${assetStr} `;
+    triggerText = `When payroll pulls ${pullText}from ${employer} ${schedule}`;
   } else if (trigger.type === "oracle") {
     triggerText = `When oracle price meets threshold (${trigger.config.threshold}) for ${assetLabel(trigger.config.asset)}`;
   } else {
@@ -147,9 +159,12 @@ export function flowToEnglish(graph: FlowGraph): string {
     const mode = action.config.recipients[0]?.mode ?? "percentage";
     const assetStr = assetLabel(action.config.asset);
     const parts = action.config.recipients.map((r) => {
-      const who = isPendingAddress(r.address)
-        ? `${r.label ?? "?"} (needs address)`
-        : (r.label ?? shortAddr(r.address));
+      const who =
+        r.payoutMode === "fiat"
+          ? (r.accountName ?? r.label ?? "(fiat recipient)")
+          : isPendingAddress(r.address)
+            ? `${r.label ?? "?"} (needs address)`
+            : (r.label ?? shortAddr(r.address));
       if (r.mode === "fixed") {
         return `${formatStroops(r.amountStroops)} ${assetStr} to ${who}`;
       }

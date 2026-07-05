@@ -35,6 +35,7 @@ export default async function DeployReviewPage({
 
   let streamerPreview: {
     totalStroops: string;
+    perPeriodStroops: string;
     durationSecs: number;
     intervalLabel: string;
     startDate: string;
@@ -89,8 +90,29 @@ export default async function DeployReviewPage({
       const fillAmountViaApi =
         isPayrollTrigger && action?.type === "split" && action.config.recipients.length === 0;
 
+      // Prefer the preview's per-period amount, but fall back to summing the
+      // action's fixed recipients so payroll/splitter previews never show 0 when
+      // the recipients have real fixed amounts.
+      const previewPerPeriod =
+        "amountPerPeriodStroops" in sp
+          ? sp.amountPerPeriodStroops
+          : "amountPerIntervalStroops" in sp
+            ? sp.amountPerIntervalStroops
+            : "0";
+      const actionPerPeriod =
+        action?.type === "split"
+          ? action.config.recipients
+              .filter((r) => r.mode === "fixed")
+              .reduce((sum, r) => sum + BigInt(r.amountStroops || "0"), 0n)
+              .toString()
+          : action?.type === "pay"
+            ? (action.config.amountStroops ?? "0")
+            : "0";
+      const perPeriodStroops = previewPerPeriod !== "0" ? previewPerPeriod : actionPerPeriod;
+
       streamerPreview = {
         totalStroops: fillAmountViaApi ? "(set via API)" : sp.totalStroops,
+        perPeriodStroops: fillAmountViaApi ? "(set via API)" : perPeriodStroops,
         durationSecs: sp.durationSecs,
         intervalLabel,
         startDate: fillScheduleViaApi ? "(set via API)" : new Date(sp.startTs * 1000).toISOString(),
@@ -194,15 +216,15 @@ export default async function DeployReviewPage({
               <div>
                 <div className="text-xs text-zinc-400">
                   {isSubscriptionTrigger || isPayrollTrigger
-                    ? "Total pull amount"
+                    ? "Amount per interval"
                     : "Total vest amount"}
                 </div>
                 <div className="font-mono text-lg text-amber-200">
                   {streamerPreview.apiFilled.amount ? (
-                    streamerPreview.totalStroops
+                    streamerPreview.perPeriodStroops
                   ) : (
                     <>
-                      {(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()}{" "}
+                      {(Number(streamerPreview.perPeriodStroops) / 10_000_000).toLocaleString()}{" "}
                       {assetLabel(streamerPreview.asset)}
                     </>
                   )}
@@ -233,10 +255,10 @@ export default async function DeployReviewPage({
                   This {isPayrollTrigger ? "payroll" : "subscription"} will pull{" "}
                   <strong>
                     {streamerPreview.apiFilled.amount
-                      ? streamerPreview.totalStroops
-                      : `${(Number(streamerPreview.totalStroops) / 10_000_000).toLocaleString()} ${assetLabel(streamerPreview.asset)}`}
+                      ? streamerPreview.perPeriodStroops
+                      : `${(Number(streamerPreview.perPeriodStroops) / 10_000_000).toLocaleString()} ${assetLabel(streamerPreview.asset)}`}
                   </strong>{" "}
-                  from the {isPayrollTrigger ? "employer" : "subscriber"} over its lifetime. The{" "}
+                  each billing interval from the {isPayrollTrigger ? "employer" : "subscriber"}. The{" "}
                   {isPayrollTrigger ? "employer" : "subscriber"} must maintain sufficient token
                   allowance for each charge to succeed.
                 </>
