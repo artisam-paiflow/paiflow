@@ -42,6 +42,12 @@ const boolish = z
   .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
   .default(false);
 
+const boolishDefault = (defaultValue: boolean) =>
+  z
+    .union([z.boolean(), z.string()])
+    .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
+    .default(defaultValue);
+
 const optionalPositiveInt = (defaultValue: number) =>
   z
     .string()
@@ -200,6 +206,9 @@ const EnvSchema = z.object({
   OFFRAMP_BATCH_SIZE: optionalPositiveInt(50),
   OFFRAMP_MAX_RETRY_ATTEMPTS: optionalPositiveInt(3),
   OFFRAMP_JOB_LEASE_MS: optionalPositiveInt(600_000),
+  OFFRAMP_JOB_CONCURRENCY: optionalPositiveInt(3),
+  CONTRACT_READ_CACHE_ENABLED: boolishDefault(true),
+  CONTRACT_READ_CACHE_TTL_SECONDS: optionalPositiveInt(300),
 
   // ---- Email (Resend) ----
   // Optional in dev — when RESEND_API_KEY is unset, `lib/mail.ts` logs the

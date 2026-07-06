@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { createContractReadCache, type ContractReadCache } from "@/lib/contract-read-cache";
 import {
   preparePayrollChargeByRelayerTx,
   submitPayrollChargeByRelayerTx,
@@ -61,10 +62,11 @@ async function buildSubscriptionRecipientRows(
   readRecipients: (
     addr: string,
   ) => Promise<Array<{ address: string; bps: number; amount: string }>>,
+  readAmountPerPeriod: (addr: string) => Promise<bigint>,
 ): Promise<Array<{ address: string; amount: string }>> {
   const [raw, totalStroops] = await Promise.all([
     readRecipients(splitterContractAddress),
-    readSubscriptionAmountPerPeriod(subscriptionContractAddress),
+    readAmountPerPeriod(subscriptionContractAddress),
   ]);
   return raw.map((r) => {
     const fixed = BigInt(r.amount);
@@ -95,6 +97,7 @@ async function chargeSubscriptionPayrollDeployment(
   ) => Promise<Array<{ address: string; bps: number; amount: string }>>,
   isDev: boolean,
   cashOutContractAddresses: Set<string>,
+  readCache: ContractReadCache,
 ): Promise<number> {
   if (d.chargeEndAt && d.chargeEndAt <= now) {
     await db.deployment.update({
@@ -104,14 +107,32 @@ async function chargeSubscriptionPayrollDeployment(
     throw new Error("PayrollEnded");
   }
 
+  const readRecipientsCached = readCache("splitter:recipients", readRecipients, (addr) => addr);
+  const readAmountPerPeriodCached = readCache(
+    "subscription:amountPerPeriod",
+    readSubscriptionAmountPerPeriod,
+    (addr) => addr,
+  );
+  const readSubscriberCached = readCache(
+    "subscription:subscriber",
+    readSubscriptionSubscriberNullable,
+    (addr) => addr,
+  );
+  const readAssetCached = readCache("subscription:asset", readSubscriptionAsset, (addr) => addr);
+  const readRelayerCached = readCache(
+    "subscription:relayer",
+    readSubscriptionRelayer,
+    (addr) => addr,
+  );
+
   const [cancelled, nextChargeAt, subscriber, asset, amountPerPeriod, onChainRelayer] =
     await Promise.all([
       readSubscriptionIsCancelled(subscriptionContractAddress),
       readSubscriptionNextChargeAt(subscriptionContractAddress),
-      readSubscriptionSubscriberNullable(subscriptionContractAddress),
-      readSubscriptionAsset(subscriptionContractAddress),
-      readSubscriptionAmountPerPeriod(subscriptionContractAddress),
-      readSubscriptionRelayer(subscriptionContractAddress),
+      readSubscriberCached(subscriptionContractAddress),
+      readAssetCached(subscriptionContractAddress),
+      readAmountPerPeriodCached(subscriptionContractAddress),
+      readRelayerCached(subscriptionContractAddress),
     ]);
 
   if (cancelled) {
@@ -181,7 +202,8 @@ async function chargeSubscriptionPayrollDeployment(
     const recipientRows = await buildSubscriptionRecipientRows(
       splitterContractAddress,
       subscriptionContractAddress,
-      readRecipients,
+      readRecipientsCached,
+      readAmountPerPeriodCached,
     );
     const totalStroops = recipientRows.reduce((sum, r) => sum + BigInt(r.amount), 0n);
 
@@ -309,6 +331,24 @@ export async function POST(req: NextRequest) {
     let platformCharged = 0;
     let userCharged = 0;
 
+    const readCache = createContractReadCache();
+    const readPayrollRecipientsCached = readCache(
+      "payroll:recipients",
+      readPayrollRecipients,
+      (addr) => addr,
+    );
+    const readPayrollEmployerCached = readCache(
+      "payroll:employer",
+      readPayrollEmployer,
+      (addr) => addr,
+    );
+    const readPayrollAssetCached = readCache("payroll:asset", readPayrollAsset, (addr) => addr);
+    const readPayrollRelayerCached = readCache(
+      "payroll:relayer",
+      readPayrollRelayer,
+      (addr) => addr,
+    );
+
     for (const d of deployments) {
       const pipeline = d.pipelineSnapshot as Array<{
         nodeId: string;
@@ -361,6 +401,7 @@ export async function POST(req: NextRequest) {
             readSplitterDevRecipients,
             true,
             cashOutContractAddresses,
+            readCache,
           );
           platformCharged += devChargedCount;
           results.push({
@@ -381,6 +422,7 @@ export async function POST(req: NextRequest) {
             readSplitterRecipients,
             false,
             cashOutContractAddresses,
+            readCache,
           );
           platformCharged += chargedCount;
           results.push({
@@ -396,10 +438,10 @@ export async function POST(req: NextRequest) {
           await Promise.all([
             readPayrollIsCancelled(contractAddress),
             readPayrollNextChargeAt(contractAddress),
-            readPayrollRecipients(contractAddress),
-            readPayrollEmployer(contractAddress),
-            readPayrollAsset(contractAddress),
-            readPayrollRelayer(contractAddress),
+            readPayrollRecipientsCached(contractAddress),
+            readPayrollEmployerCached(contractAddress),
+            readPayrollAssetCached(contractAddress),
+            readPayrollRelayerCached(contractAddress),
           ]);
 
         if (cancelled) {

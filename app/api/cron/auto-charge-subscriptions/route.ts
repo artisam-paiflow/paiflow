@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { createContractReadCache } from "@/lib/contract-read-cache";
 import {
   prepareSubscriptionChargeByRelayerTx,
   submitSubscriptionChargeByRelayerTx,
@@ -86,6 +87,28 @@ export async function POST(req: NextRequest) {
     let platformCharged = 0;
     let userCharged = 0;
 
+    const readCache = createContractReadCache();
+    const readSubscriptionAmountPerPeriodCached = readCache(
+      "subscription:amountPerPeriod",
+      readSubscriptionAmountPerPeriod,
+      (addr) => addr,
+    );
+    const readSubscriptionSubscriberCached = readCache(
+      "subscription:subscriber",
+      readSubscriptionSubscriber,
+      (addr) => addr,
+    );
+    const readSubscriptionAssetCached = readCache(
+      "subscription:asset",
+      readSubscriptionAsset,
+      (addr) => addr,
+    );
+    const readSubscriptionRelayerCached = readCache(
+      "subscription:relayer",
+      readSubscriptionRelayer,
+      (addr) => addr,
+    );
+
     for (const d of deployments) {
       const pipeline = d.pipelineSnapshot as Array<{
         nodeId: string;
@@ -115,10 +138,10 @@ export async function POST(req: NextRequest) {
           await Promise.all([
             readSubscriptionIsCancelled(contractAddress),
             readSubscriptionNextChargeAt(contractAddress),
-            readSubscriptionAmountPerPeriod(contractAddress),
-            readSubscriptionSubscriber(contractAddress),
-            readSubscriptionAsset(contractAddress),
-            readSubscriptionRelayer(contractAddress),
+            readSubscriptionAmountPerPeriodCached(contractAddress),
+            readSubscriptionSubscriberCached(contractAddress),
+            readSubscriptionAssetCached(contractAddress),
+            readSubscriptionRelayerCached(contractAddress),
           ]);
 
         if (cancelled) {
