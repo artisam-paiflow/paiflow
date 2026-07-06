@@ -134,15 +134,10 @@ export async function POST(req: NextRequest) {
 
       try {
         // Stop scheduling cancelled or expired subscriptions.
-        const [cancelled, nextChargeAt, amountPerPeriod, subscriber, asset, onChainRelayer] =
-          await Promise.all([
-            readSubscriptionIsCancelled(contractAddress),
-            readSubscriptionNextChargeAt(contractAddress),
-            readSubscriptionAmountPerPeriodCached(contractAddress),
-            readSubscriptionSubscriberCached(contractAddress),
-            readSubscriptionAssetCached(contractAddress),
-            readSubscriptionRelayerCached(contractAddress),
-          ]);
+        const [cancelled, nextChargeAt] = await Promise.all([
+          readSubscriptionIsCancelled(contractAddress),
+          readSubscriptionNextChargeAt(contractAddress),
+        ]);
 
         if (cancelled) {
           await db.deployment.update({
@@ -172,6 +167,13 @@ export async function POST(req: NextRequest) {
           results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
           continue;
         }
+
+        const [amountPerPeriod, subscriber, asset, onChainRelayer] = await Promise.all([
+          readSubscriptionAmountPerPeriodCached(contractAddress),
+          readSubscriptionSubscriberCached(contractAddress),
+          readSubscriptionAssetCached(contractAddress),
+          readSubscriptionRelayerCached(contractAddress),
+        ]);
 
         const allowance = await readTokenAllowance({
           tokenContractAddress: asset,

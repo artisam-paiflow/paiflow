@@ -19,7 +19,7 @@ type PrismaLike = PrismaClient | Prisma.TransactionClient;
  * the prior run crashed/timed-out and re-claim it. Must comfortably exceed the
  * worst-case single-job runtime (deposit finality wait + quote/trade/payout).
  */
-export const OFFRAMP_JOB_LEASE_MS = env().OFFRAMP_JOB_LEASE_MS;
+export const OFFRAMP_JOB_LEASE_MS = Math.max(1, env().OFFRAMP_JOB_LEASE_MS);
 
 /**
  * Return pending or running off-ramp jobs that are due, oldest first.

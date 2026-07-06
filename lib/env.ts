@@ -55,7 +55,19 @@ const optionalPositiveInt = (defaultValue: number) =>
     .transform((v) => {
       if (!v || v.length === 0) return defaultValue;
       const parsed = Number(v);
-      return Number.isNaN(parsed) ? defaultValue : parsed;
+      if (!Number.isInteger(parsed) || parsed <= 0) return defaultValue;
+      return parsed;
+    });
+
+const optionalNonNegativeInt = (defaultValue: number) =>
+  z
+    .string()
+    .optional()
+    .transform((v) => {
+      if (!v || v.length === 0) return defaultValue;
+      const parsed = Number(v);
+      if (!Number.isInteger(parsed) || parsed < 0) return defaultValue;
+      return parsed;
     });
 
 const EnvSchema = z.object({
@@ -204,7 +216,7 @@ const EnvSchema = z.object({
   PAYROLL_MAX_CATCHUP_PER_RUN: optionalPositiveInt(5),
   SUBSCRIPTION_MAX_CATCHUP_PER_RUN: optionalPositiveInt(5),
   OFFRAMP_BATCH_SIZE: optionalPositiveInt(50),
-  OFFRAMP_MAX_RETRY_ATTEMPTS: optionalPositiveInt(3),
+  OFFRAMP_MAX_RETRY_ATTEMPTS: optionalNonNegativeInt(3),
   OFFRAMP_JOB_LEASE_MS: optionalPositiveInt(600_000),
   OFFRAMP_JOB_CONCURRENCY: optionalPositiveInt(3),
   CONTRACT_READ_CACHE_ENABLED: boolishDefault(true),

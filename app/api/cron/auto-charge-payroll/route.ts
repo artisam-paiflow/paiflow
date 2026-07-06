@@ -125,15 +125,10 @@ async function chargeSubscriptionPayrollDeployment(
     (addr) => addr,
   );
 
-  const [cancelled, nextChargeAt, subscriber, asset, amountPerPeriod, onChainRelayer] =
-    await Promise.all([
-      readSubscriptionIsCancelled(subscriptionContractAddress),
-      readSubscriptionNextChargeAt(subscriptionContractAddress),
-      readSubscriberCached(subscriptionContractAddress),
-      readAssetCached(subscriptionContractAddress),
-      readAmountPerPeriodCached(subscriptionContractAddress),
-      readRelayerCached(subscriptionContractAddress),
-    ]);
+  const [cancelled, nextChargeAt] = await Promise.all([
+    readSubscriptionIsCancelled(subscriptionContractAddress),
+    readSubscriptionNextChargeAt(subscriptionContractAddress),
+  ]);
 
   if (cancelled) {
     await db.deployment.update({
@@ -151,6 +146,13 @@ async function chargeSubscriptionPayrollDeployment(
     });
     throw new Error("NotYetDue");
   }
+
+  const [subscriber, asset, amountPerPeriod, onChainRelayer] = await Promise.all([
+    readSubscriberCached(subscriptionContractAddress),
+    readAssetCached(subscriptionContractAddress),
+    readAmountPerPeriodCached(subscriptionContractAddress),
+    readRelayerCached(subscriptionContractAddress),
+  ]);
 
   if (!subscriber) {
     throw new Error("NotConfigured");
@@ -434,15 +436,10 @@ export async function POST(req: NextRequest) {
         }
 
         contractAddress = payrollNode!.contractAddress;
-        const [cancelled, nextChargeAt, recipients, employer, asset, onChainRelayer] =
-          await Promise.all([
-            readPayrollIsCancelled(contractAddress),
-            readPayrollNextChargeAt(contractAddress),
-            readPayrollRecipientsCached(contractAddress),
-            readPayrollEmployerCached(contractAddress),
-            readPayrollAssetCached(contractAddress),
-            readPayrollRelayerCached(contractAddress),
-          ]);
+        const [cancelled, nextChargeAt] = await Promise.all([
+          readPayrollIsCancelled(contractAddress),
+          readPayrollNextChargeAt(contractAddress),
+        ]);
 
         if (cancelled) {
           await db.deployment.update({
@@ -471,6 +468,13 @@ export async function POST(req: NextRequest) {
           results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
           continue;
         }
+
+        const [recipients, employer, asset, onChainRelayer] = await Promise.all([
+          readPayrollRecipientsCached(contractAddress),
+          readPayrollEmployerCached(contractAddress),
+          readPayrollAssetCached(contractAddress),
+          readPayrollRelayerCached(contractAddress),
+        ]);
 
         const totalAmount = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);
 

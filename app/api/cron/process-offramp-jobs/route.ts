@@ -28,7 +28,9 @@ export const dynamic = "force-dynamic";
 
 const MAX_RETRY_ATTEMPTS = Math.max(0, env().OFFRAMP_MAX_RETRY_ATTEMPTS);
 
-function isRetryableError(message: string): boolean {
+function isRetryableError(err: unknown): boolean {
+  if (err instanceof Error && err.name === "AbortError") return true;
+  const message = err instanceof Error ? err.message : String(err);
   return (
     message.includes("timeout") ||
     message.includes("timed out") ||
@@ -36,7 +38,8 @@ function isRetryableError(message: string): boolean {
     message.includes("RateLimit") ||
     message.includes("ECONNRESET") ||
     message.includes("ETIMEDOUT") ||
-    message.includes("fetch failed")
+    message.includes("fetch failed") ||
+    message.includes("aborted")
   );
 }
 
@@ -97,7 +100,7 @@ export async function POST(req: NextRequest) {
       throw new AppError("FORBIDDEN", "Bad cron secret");
     }
 
-    const jobs = await getDueOffRampJobs(db, env().OFFRAMP_BATCH_SIZE);
+    const jobs = await getDueOffRampJobs(db, Math.max(1, env().OFFRAMP_BATCH_SIZE));
     const results: Array<{
       jobId: string;
       status: "quoted" | "traded" | "initiated" | "completed" | "skipped" | "failed" | "cancelled";
@@ -401,7 +404,7 @@ export async function POST(req: NextRequest) {
                 status: "skipped",
                 error: message,
               });
-            } else if (isRetryableError(message) && job.attemptCount < MAX_RETRY_ATTEMPTS) {
+            } else if (isRetryableError(err) && job.attemptCount < MAX_RETRY_ATTEMPTS) {
               const retryAt = new Date(Date.now() + 60_000 * (job.attemptCount + 1));
               await db.offRampPayoutJob.update({
                 where: { id: job.id },
