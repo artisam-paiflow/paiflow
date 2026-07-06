@@ -14,6 +14,7 @@ import {
   splitTotalFixedStroops,
   assetLabel,
 } from "./schema";
+import { checkHardLimits } from "./limits";
 import { flowToPipeline } from "./to-params";
 
 export type ValidationIssue = { path: string; message: string; friendlyMessage: string };
@@ -320,13 +321,24 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
           });
         }
       } else {
-        for (const r of a.config.recipients) {
+        for (const [idx, r] of a.config.recipients.entries()) {
           if (r.mode === "fixed" && (!r.amountStroops || r.amountStroops === "0")) {
             errors.push({
               path: `nodes.${a.id}.config.recipients`,
               message: "Fixed recipient amount must be positive",
               friendlyMessage: FRIENDLY.FIXED_AMOUNT_REQUIRED,
             });
+            continue;
+          }
+          if (r.mode === "fixed" && r.amountStroops) {
+            const limitIssue = checkHardLimits(a.config.asset, r.amountStroops);
+            if (limitIssue) {
+              errors.push({
+                path: `nodes.${a.id}.config.recipients.${idx}.amountStroops`,
+                message: limitIssue.message,
+                friendlyMessage: `${r.label ?? r.address}: ${limitIssue.friendlyMessage}`,
+              });
+            }
           }
         }
         const total = splitTotalFixedStroops(a.config.recipients);
@@ -409,6 +421,15 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
             message: "Pay node in fixed mode requires a positive amount",
             friendlyMessage: "Please enter a positive amount for the pay node.",
           });
+        } else if (a.config.mode === "fixed" && a.config.amountStroops) {
+          const limitIssue = checkHardLimits(a.config.asset, a.config.amountStroops);
+          if (limitIssue) {
+            errors.push({
+              path: `nodes.${a.id}.config.amountStroops`,
+              message: limitIssue.message,
+              friendlyMessage: limitIssue.friendlyMessage,
+            });
+          }
         }
         if (
           a.config.mode === "percentage" &&

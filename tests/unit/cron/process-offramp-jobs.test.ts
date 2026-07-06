@@ -1,6 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { OffRampPayoutJobStatus, OffRampJobSource } from "@prisma/client";
 
+function disableHardLimits() {
+  process.env.NEXT_PUBLIC_SPLITTER_XLM_MIN = "0";
+  process.env.NEXT_PUBLIC_SPLITTER_XLM_MAX = "0";
+  process.env.NEXT_PUBLIC_SPLITTER_USDC_MIN = "0";
+  process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX = "0";
+}
+
+function enableDefaultHardLimits() {
+  delete process.env.NEXT_PUBLIC_SPLITTER_XLM_MIN;
+  delete process.env.NEXT_PUBLIC_SPLITTER_XLM_MAX;
+  delete process.env.NEXT_PUBLIC_SPLITTER_USDC_MIN;
+  delete process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX;
+}
+
 const { mockDb, mockEnv, mockProvider, mockJobs, mockAssets, mockDevMutate, mockEnvHelpers } =
   vi.hoisted(() => {
     const mockDb = {
@@ -128,6 +142,7 @@ const baseJob = {
 describe("process-offramp-jobs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    disableHardLimits();
     mockEnvHelpers.address = undefined;
     mockEnvHelpers.memo = undefined;
     mockJobs.claimOffRampJob.mockResolvedValue(true);
@@ -136,6 +151,37 @@ describe("process-offramp-jobs", () => {
   it("rejects requests without the cron secret", async () => {
     const res = await POST(makeRequest("wrong-secret"));
     expect(res.status).toBe(403);
+  });
+
+  it("fails a USDC job below the hard limit before quoting", async () => {
+    enableDefaultHardLimits();
+    const job = { ...baseJob, amountStroops: "10000000" }; // 1 USDC < 30 min
+    mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
+    mockAssets.resolvePayrollAsset.mockReturnValue({ kind: "known", symbol: "USDC" });
+    mockDevMutate.refundFromTreasury.mockResolvedValue({ status: "SUCCESS", txHash: "tx-1" });
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    expect(json.data.failed).toBe(1);
+    expect(mockProvider.quote).not.toHaveBeenCalled();
+    expect(mockDevMutate.refundFromTreasury).toHaveBeenCalledWith(
+      expect.objectContaining({ destination: "GSource", amountStroops: "10000000" }),
+    );
+  });
+
+  it("fails a USDC job above the hard limit before quoting", async () => {
+    enableDefaultHardLimits();
+    const job = { ...baseJob, amountStroops: "2000000000" }; // 200 USDC > 110 max
+    mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
+    mockAssets.resolvePayrollAsset.mockReturnValue({ kind: "known", symbol: "USDC" });
+    mockDevMutate.refundFromTreasury.mockResolvedValue({ status: "SUCCESS", txHash: "tx-1" });
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    expect(json.data.failed).toBe(1);
+    expect(mockProvider.quote).not.toHaveBeenCalled();
   });
 
   it("processes a job through quote, trade, and payout", async () => {

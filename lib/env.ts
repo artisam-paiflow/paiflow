@@ -45,6 +45,16 @@ const boolish = z
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+
+  // ---- Temporary splitter/off-ramp hard limits ----
+  // Exposed to the browser because validateFlow runs client-side. Whole-token
+  // values are converted to stroops at validation time. Set max < min to
+  // disable a bound, or set both to 0 to disable all hard-limit checks.
+  NEXT_PUBLIC_SPLITTER_XLM_MIN: z.coerce.number().int().nonnegative().default(150),
+  NEXT_PUBLIC_SPLITTER_XLM_MAX: z.coerce.number().int().nonnegative().default(500),
+  NEXT_PUBLIC_SPLITTER_USDC_MIN: z.coerce.number().int().nonnegative().default(30),
+  NEXT_PUBLIC_SPLITTER_USDC_MAX: z.coerce.number().int().nonnegative().default(110),
+
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
 
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 chars"),

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { validateFlow, computeAssetFlow } from "@/lib/flows/validate";
 import { AssetSchema, FlowGraphSchema } from "@/lib/flows/schema";
 import { TemplateKind } from "@prisma/client";
@@ -6,7 +6,24 @@ import { TemplateKind } from "@prisma/client";
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const ADDR_B = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 
+function disableHardLimits() {
+  process.env.NEXT_PUBLIC_SPLITTER_XLM_MIN = "0";
+  process.env.NEXT_PUBLIC_SPLITTER_XLM_MAX = "0";
+  process.env.NEXT_PUBLIC_SPLITTER_USDC_MIN = "0";
+  process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX = "0";
+}
+
+function enableDefaultHardLimits() {
+  delete process.env.NEXT_PUBLIC_SPLITTER_XLM_MIN;
+  delete process.env.NEXT_PUBLIC_SPLITTER_XLM_MAX;
+  delete process.env.NEXT_PUBLIC_SPLITTER_USDC_MIN;
+  delete process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX;
+}
+
 describe("validateFlow", () => {
+  beforeEach(() => {
+    disableHardLimits();
+  });
   it("accepts an on_receive → split flow as SPLITTER", () => {
     const r = validateFlow({
       nodes: [
@@ -1531,5 +1548,144 @@ describe("AssetSchema", () => {
 
   it("rejects a custom asset code that normalizes to empty", () => {
     expect(() => AssetSchema.parse({ kind: "custom", code: "---", issuer: ADDR_A })).toThrow();
+  });
+});
+
+describe("validateFlow — hard limits", () => {
+  beforeEach(() => {
+    enableDefaultHardLimits();
+  });
+
+  afterEach(() => {
+    disableHardLimits();
+  });
+
+  it("rejects a fixed USDC split recipient below the minimum", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => e.path === "nodes.a.config.recipients.0.amountStroops")).toBe(
+        true,
+      );
+      expect(r.errors.some((e) => e.message.includes("below temporary minimum"))).toBe(true);
+    }
+  });
+
+  it("rejects a fixed USDC split recipient above the maximum", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "2000000000" }],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => e.message.includes("exceeds temporary maximum"))).toBe(true);
+    }
+  });
+
+  it("accepts a fixed USDC split recipient within limits", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "500000000" }],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects a fixed XLM pay amount below the minimum", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            mode: "fixed",
+            amountStroops: "100000000",
+            asset: { kind: "native" },
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => e.path === "nodes.a.config.amountStroops")).toBe(true);
+      expect(r.errors.some((e) => e.message.includes("below temporary minimum"))).toBe(true);
+    }
+  });
+
+  it("accepts a fixed XLM pay amount within limits", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            mode: "fixed",
+            amountStroops: "3000000000",
+            asset: { kind: "native" },
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("does not limit custom assets", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "custom", code: "FOO", issuer: ADDR_A } },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "custom", code: "FOO", issuer: ADDR_A },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "1" }],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
   });
 });

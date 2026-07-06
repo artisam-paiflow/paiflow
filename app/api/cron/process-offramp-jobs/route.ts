@@ -21,6 +21,7 @@ import {
 import { assetContractId } from "@/lib/stellar/assets";
 import type { FlowGraph } from "@/lib/flows/schema";
 import type { Asset } from "@/lib/flows/schema";
+import { checkHardLimits } from "@/lib/flows/limits";
 
 export const dynamic = "force-dynamic";
 
@@ -151,6 +152,11 @@ export async function POST(req: NextRequest) {
         asset = resolveJobAsset(job);
         if (!asset) {
           throw new Error("Could not resolve off-ramp asset from deployment graph");
+        }
+
+        const hardLimitIssue = checkHardLimits(asset, job.amountStroops);
+        if (hardLimitIssue) {
+          throw new Error(hardLimitIssue.message);
         }
 
         const provider = getOffRampProvider();
