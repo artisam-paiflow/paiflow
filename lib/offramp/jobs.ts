@@ -4,6 +4,7 @@ import {
   PrismaClient,
   type Prisma,
 } from "@prisma/client";
+import { env } from "@/lib/env";
 
 export const TERMINAL_OFFRAMP_STATUSES: OffRampPayoutJobStatus[] = [
   OffRampPayoutJobStatus.COMPLETED,
@@ -18,7 +19,7 @@ type PrismaLike = PrismaClient | Prisma.TransactionClient;
  * the prior run crashed/timed-out and re-claim it. Must comfortably exceed the
  * worst-case single-job runtime (deposit finality wait + quote/trade/payout).
  */
-export const OFFRAMP_JOB_LEASE_MS = 10 * 60 * 1000;
+export const OFFRAMP_JOB_LEASE_MS = env().OFFRAMP_JOB_LEASE_MS;
 
 /**
  * Return pending or running off-ramp jobs that are due, oldest first.

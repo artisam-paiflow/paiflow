@@ -32,7 +32,7 @@ import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
 
 export const dynamic = "force-dynamic";
 
-const MAX_CATCHUP_PER_RUN = 5;
+const MAX_CATCHUP_PER_RUN = Math.max(1, env().PAYROLL_MAX_CATCHUP_PER_RUN);
 
 type ResultDetail = {
   deploymentId: string;
@@ -104,7 +104,16 @@ async function chargeSubscriptionPayrollDeployment(
     throw new Error("PayrollEnded");
   }
 
-  const cancelled = await readSubscriptionIsCancelled(subscriptionContractAddress);
+  const [cancelled, nextChargeAt, subscriber, asset, amountPerPeriod, onChainRelayer] =
+    await Promise.all([
+      readSubscriptionIsCancelled(subscriptionContractAddress),
+      readSubscriptionNextChargeAt(subscriptionContractAddress),
+      readSubscriptionSubscriberNullable(subscriptionContractAddress),
+      readSubscriptionAsset(subscriptionContractAddress),
+      readSubscriptionAmountPerPeriod(subscriptionContractAddress),
+      readSubscriptionRelayer(subscriptionContractAddress),
+    ]);
+
   if (cancelled) {
     await db.deployment.update({
       where: { id: d.id },
@@ -113,7 +122,6 @@ async function chargeSubscriptionPayrollDeployment(
     throw new Error("AlreadyCancelled");
   }
 
-  const nextChargeAt = await readSubscriptionNextChargeAt(subscriptionContractAddress);
   const nextChargeDate = new Date(Number(nextChargeAt) * 1000);
   if (nextChargeDate > now) {
     await db.deployment.update({
@@ -123,11 +131,6 @@ async function chargeSubscriptionPayrollDeployment(
     throw new Error("NotYetDue");
   }
 
-  const [subscriber, asset, amountPerPeriod] = await Promise.all([
-    readSubscriptionSubscriberNullable(subscriptionContractAddress),
-    readSubscriptionAsset(subscriptionContractAddress),
-    readSubscriptionAmountPerPeriod(subscriptionContractAddress),
-  ]);
   if (!subscriber) {
     throw new Error("NotConfigured");
   }
@@ -141,11 +144,25 @@ async function chargeSubscriptionPayrollDeployment(
     throw new Error("Insufficient allowance");
   }
 
-  const onChainRelayer = await readSubscriptionRelayer(subscriptionContractAddress);
   const expectedRelayer = stellarRelayerAddress();
   if (expectedRelayer && onChainRelayer !== expectedRelayer) {
     throw new Error(`Relayer mismatch: on-chain ${onChainRelayer}, configured ${expectedRelayer}`);
   }
+
+  const existingEmployees = await db.employee.findMany({
+    where: { deploymentId: d.id },
+    include: { bankDetail: true },
+  });
+  const employeeByCashOut = new Map(
+    existingEmployees
+      .filter((e) => e.cashOutContractAddress)
+      .map((e) => [e.cashOutContractAddress!, e]),
+  );
+  const employeeByWallet = new Map(existingEmployees.map((e) => [e.address, e]));
+
+  const hasFiatEmployeeWithBank = existingEmployees.some(
+    (e) => e.payoutMode === "FIAT" && e.bankDetail,
+  );
 
   let chargedCount = 0;
   for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
@@ -177,21 +194,6 @@ async function chargeSubscriptionPayrollDeployment(
         chargedAt: now,
       },
     });
-
-    const existingEmployees = await db.employee.findMany({
-      where: { deploymentId: d.id },
-      include: { bankDetail: true },
-    });
-    const employeeByCashOut = new Map(
-      existingEmployees
-        .filter((e) => e.cashOutContractAddress)
-        .map((e) => [e.cashOutContractAddress!, e]),
-    );
-    const employeeByWallet = new Map(existingEmployees.map((e) => [e.address, e]));
-
-    const hasFiatEmployeeWithBank = existingEmployees.some(
-      (e) => e.payoutMode === "FIAT" && e.bankDetail,
-    );
 
     for (const r of recipientRows) {
       const existing = employeeByCashOut.get(r.address) ?? employeeByWallet.get(r.address);
@@ -290,7 +292,17 @@ export async function POST(req: NextRequest) {
         flow: { templateKind: "PAYROLL" },
         OR: [{ nextChargeAt: { lte: now } }, { nextChargeAt: null }],
       },
-      include: { flow: { select: { templateKind: true } } },
+      select: {
+        id: true,
+        offRampEnabled: true,
+        chargeEndAt: true,
+        chargeRelayerMode: true,
+        chargeRelayerUrl: true,
+        chargeRelayerAddress: true,
+        chargeRelayerToken: true,
+        nextChargeAt: true,
+        pipelineSnapshot: true,
+      },
     });
 
     const results: ResultDetail[] = [];
@@ -380,7 +392,16 @@ export async function POST(req: NextRequest) {
         }
 
         contractAddress = payrollNode!.contractAddress;
-        const cancelled = await readPayrollIsCancelled(contractAddress);
+        const [cancelled, nextChargeAt, recipients, employer, asset, onChainRelayer] =
+          await Promise.all([
+            readPayrollIsCancelled(contractAddress),
+            readPayrollNextChargeAt(contractAddress),
+            readPayrollRecipients(contractAddress),
+            readPayrollEmployer(contractAddress),
+            readPayrollAsset(contractAddress),
+            readPayrollRelayer(contractAddress),
+          ]);
+
         if (cancelled) {
           await db.deployment.update({
             where: { id: d.id },
@@ -399,7 +420,6 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const nextChargeAt = await readPayrollNextChargeAt(contractAddress);
         const nextChargeDate = new Date(Number(nextChargeAt) * 1000);
         if (nextChargeDate > now) {
           await db.deployment.update({
@@ -410,7 +430,6 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const recipients = await readPayrollRecipients(contractAddress);
         const totalAmount = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);
 
         const existingEmployees = await db.employee.findMany({
@@ -421,10 +440,6 @@ export async function POST(req: NextRequest) {
           (e) => e.payoutMode === "FIAT" && e.bankDetail,
         );
 
-        const [employer, asset] = await Promise.all([
-          readPayrollEmployer(contractAddress),
-          readPayrollAsset(contractAddress),
-        ]);
         const allowance = await readTokenAllowance({
           tokenContractAddress: asset,
           owner: employer,
@@ -440,7 +455,6 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const onChainRelayer = await readPayrollRelayer(contractAddress);
         const expectedRelayer =
           d.chargeRelayerMode === ChargeRelayerMode.PLATFORM
             ? stellarRelayerAddress()

@@ -25,7 +25,7 @@ import { checkHardLimits } from "@/lib/flows/limits";
 
 export const dynamic = "force-dynamic";
 
-const MAX_RETRY_ATTEMPTS = 3;
+const MAX_RETRY_ATTEMPTS = Math.max(0, env().OFFRAMP_MAX_RETRY_ATTEMPTS);
 
 function isRetryableError(message: string): boolean {
   return (
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       throw new AppError("FORBIDDEN", "Bad cron secret");
     }
 
-    const jobs = await getDueOffRampJobs(db, 50);
+    const jobs = await getDueOffRampJobs(db, env().OFFRAMP_BATCH_SIZE);
     const results: Array<{
       jobId: string;
       status: "quoted" | "traded" | "initiated" | "completed" | "skipped" | "failed" | "cancelled";

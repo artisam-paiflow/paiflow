@@ -36,14 +36,22 @@ export class PdaxOffRampProvider implements OffRampProvider {
   }
 
   private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
-    const makeRequest = async () =>
-      fetch(url, {
-        ...init,
-        headers: {
-          ...(await this.authHeaders()),
-          ...(init.headers ?? {}),
-        },
-      });
+    const makeRequest = async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), PDAX_API_TIMEOUT_MS);
+      try {
+        return await fetch(url, {
+          ...init,
+          signal: controller.signal,
+          headers: {
+            ...(await this.authHeaders()),
+            ...(init.headers ?? {}),
+          },
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
 
     let res = await makeRequest();
 

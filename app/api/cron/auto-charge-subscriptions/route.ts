@@ -21,7 +21,7 @@ import { ChargeRelayerMode } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
-const MAX_CATCHUP_PER_RUN = 5;
+const MAX_CATCHUP_PER_RUN = Math.max(1, env().SUBSCRIPTION_MAX_CATCHUP_PER_RUN);
 
 type ResultDetail = {
   deploymentId: string;
@@ -70,7 +70,16 @@ export async function POST(req: NextRequest) {
         chargeRelayerMode: { in: [ChargeRelayerMode.PLATFORM, ChargeRelayerMode.USER] },
         OR: [{ nextChargeAt: { lte: now } }, { nextChargeAt: null }],
       },
-      include: { flow: { select: { templateKind: true } } },
+      select: {
+        id: true,
+        chargeEndAt: true,
+        chargeRelayerMode: true,
+        chargeRelayerAddress: true,
+        chargeRelayerUrl: true,
+        chargeRelayerToken: true,
+        nextChargeAt: true,
+        pipelineSnapshot: true,
+      },
     });
 
     const results: ResultDetail[] = [];
@@ -102,7 +111,16 @@ export async function POST(req: NextRequest) {
 
       try {
         // Stop scheduling cancelled or expired subscriptions.
-        const cancelled = await readSubscriptionIsCancelled(contractAddress);
+        const [cancelled, nextChargeAt, amountPerPeriod, subscriber, asset, onChainRelayer] =
+          await Promise.all([
+            readSubscriptionIsCancelled(contractAddress),
+            readSubscriptionNextChargeAt(contractAddress),
+            readSubscriptionAmountPerPeriod(contractAddress),
+            readSubscriptionSubscriber(contractAddress),
+            readSubscriptionAsset(contractAddress),
+            readSubscriptionRelayer(contractAddress),
+          ]);
+
         if (cancelled) {
           await db.deployment.update({
             where: { id: d.id },
@@ -122,7 +140,6 @@ export async function POST(req: NextRequest) {
         }
 
         // Verify the on-chain schedule is actually due.
-        const nextChargeAt = await readSubscriptionNextChargeAt(contractAddress);
         const nextChargeDate = new Date(Number(nextChargeAt) * 1000);
         if (nextChargeDate > now) {
           await db.deployment.update({
@@ -133,11 +150,6 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const amountPerPeriod = await readSubscriptionAmountPerPeriod(contractAddress);
-        const [subscriber, asset] = await Promise.all([
-          readSubscriptionSubscriber(contractAddress),
-          readSubscriptionAsset(contractAddress),
-        ]);
         const allowance = await readTokenAllowance({
           tokenContractAddress: asset,
           owner: subscriber,
@@ -155,7 +167,6 @@ export async function POST(req: NextRequest) {
 
         // Verify the configured relayer matches the on-chain relayer so we
         // don't waste fees on transactions that will fail auth.
-        const onChainRelayer = await readSubscriptionRelayer(contractAddress);
         const expectedRelayer =
           d.chargeRelayerMode === ChargeRelayerMode.PLATFORM
             ? stellarRelayerAddress()

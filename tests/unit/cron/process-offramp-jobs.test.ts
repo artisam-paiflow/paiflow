@@ -27,6 +27,8 @@ const { mockDb, mockEnv, mockProvider, mockJobs, mockAssets, mockDevMutate, mock
     const mockEnv = {
       CRON_SECRET: "cron-secret",
       OFFRAMP_PROVIDER: "pdax",
+      OFFRAMP_BATCH_SIZE: 50,
+      OFFRAMP_MAX_RETRY_ATTEMPTS: 3,
     };
 
     const mockProvider = {

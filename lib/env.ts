@@ -42,6 +42,16 @@ const boolish = z
   .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
   .default(false);
 
+const optionalPositiveInt = (defaultValue: number) =>
+  z
+    .string()
+    .optional()
+    .transform((v) => {
+      if (!v || v.length === 0) return defaultValue;
+      const parsed = Number(v);
+      return Number.isNaN(parsed) ? defaultValue : parsed;
+    });
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
@@ -183,6 +193,13 @@ const EnvSchema = z.object({
   OFFRAMP_ASSET_CODE: optionalString,
   OFFRAMP_NETWORK: optionalString,
   OFFRAMP_CHANNEL: optionalString,
+
+  // ---- Cron tuning ----
+  PAYROLL_MAX_CATCHUP_PER_RUN: optionalPositiveInt(5),
+  SUBSCRIPTION_MAX_CATCHUP_PER_RUN: optionalPositiveInt(5),
+  OFFRAMP_BATCH_SIZE: optionalPositiveInt(50),
+  OFFRAMP_MAX_RETRY_ATTEMPTS: optionalPositiveInt(3),
+  OFFRAMP_JOB_LEASE_MS: optionalPositiveInt(600_000),
 
   // ---- Email (Resend) ----
   // Optional in dev — when RESEND_API_KEY is unset, `lib/mail.ts` logs the
