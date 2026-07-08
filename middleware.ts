@@ -28,6 +28,7 @@ const PUBLIC_PATHS = [
   /^\/api\/deployments\/[^/]+\/dev-.*$/,
   /^\/api\/deployments\/[^/]+\/payroll-allowance$/,
   /^\/api\/deployments\/[^/]+\/payroll-record-run$/,
+  /^\/api\/deployments\/[^/]+\/payroll-update-recipients$/,
   /^\/api\/deployments\/[^/]+\/payroll-events$/,
   /^\/api\/deployments\/[^/]+\/payroll-runs\/[^/]+\/events$/,
   /^\/api\/deployments\/[^/]+\/payroll-runs(\/[^/]+)?$/,
