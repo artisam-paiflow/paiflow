@@ -10,28 +10,47 @@ import {
   submitSetSubscriptionAmountByRelayer,
 } from "@/lib/stellar/dev-mutate";
 import { prepareDevCashOutRecipients } from "@/lib/stellar/cash-out";
-import { syncEmployees } from "@/lib/employees";
+import { syncEmployees, deriveFiatPlaceholderAddress } from "@/lib/employees";
 import { stellarPassphrase, offRampTreasuryAddress } from "@/lib/env";
 import { assetContractId } from "@/lib/stellar/assets";
 import type { FlowGraph } from "@/lib/flows/schema";
 
-const RecipientSchema = z.object({
-  address: z.string().refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address"),
-  amount: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
-  label: z.string().optional(),
-  payoutMode: z.enum(["crypto", "fiat"]).default("crypto"),
-  bankDetail: z
-    .object({
-      accountName: z.string(),
-      accountNumber: z.string(),
-      bankCode: z.string(),
-    })
-    .optional(),
-});
+const RecipientSchema = z
+  .object({
+    address: z
+      .string()
+      .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address")
+      .optional(),
+    amount: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
+    label: z.string().optional(),
+    payoutMode: z.enum(["crypto", "fiat"]).default("crypto"),
+    bankDetail: z
+      .object({
+        accountName: z.string(),
+        accountNumber: z.string(),
+        bankCode: z.string(),
+      })
+      .optional(),
+  })
+  .refine((r) => !(r.payoutMode === "crypto" && !r.address), {
+    message: "crypto recipients require a valid Stellar address",
+  })
+  .refine(
+    (r) => {
+      if (r.payoutMode !== "fiat") return true;
+      return (
+        !!r.bankDetail?.accountName && !!r.bankDetail?.accountNumber && !!r.bankDetail?.bankCode
+      );
+    },
+    { message: "fiat recipients require bankDetail (accountName, accountNumber, bankCode)" },
+  );
 
 const PostSchema = z.object({
   recipients: z.array(RecipientSchema).min(1).max(20),
 });
+
+type Recipient = z.infer<typeof RecipientSchema>;
+type NormalizedRecipient = Omit<Recipient, "address"> & { address: string };
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
@@ -49,6 +68,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (d.flow.templateKind !== "PAYROLL") {
       throw new AppError("VALIDATION", "Deployment is not a payroll");
     }
+
+    const normalizedRecipients = body.recipients.map((r) => {
+      if (r.payoutMode === "fiat" && !r.address) {
+        return {
+          ...r,
+          address: deriveFiatPlaceholderAddress({
+            deploymentId: d.id,
+            accountNumber: r.bankDetail!.accountNumber,
+            bankCode: r.bankDetail!.bankCode,
+          }),
+        } as NormalizedRecipient;
+      }
+      return r as NormalizedRecipient;
+    });
 
     const pipeline = d.pipelineSnapshot as Array<{
       nodeId: string;
@@ -80,12 +113,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       const { xdr } = await preparePayrollUpdateRecipientsInvocation({
         contractAddress: payrollNode.contractAddress,
         adminAddress: d.sourceAccount,
-        recipients: body.recipients.map((r) => ({ address: r.address, amount: r.amount })),
+        recipients: normalizedRecipients.map((r) => ({ address: r.address, amount: r.amount })),
       });
 
       await syncEmployees(
         d.id,
-        body.recipients.map((r) => ({
+        normalizedRecipients.map((r) => ({
           address: r.address,
           amountStroops: r.amount,
           label: r.label,
@@ -133,7 +166,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         assetContractAddress: assetContract,
         treasury,
         existingEmployees,
-        inputRecipients: body.recipients.map((r) => ({
+        inputRecipients: normalizedRecipients.map((r) => ({
           address: r.address,
           amount: r.amount,
           bps: 0,
@@ -149,7 +182,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     txHashes.push(recipientsResult.txHash);
 
     if (subscriptionDevNode?.contractAddress) {
-      const totalStroops = body.recipients
+      const totalStroops = normalizedRecipients
         .reduce((sum, r) => sum + BigInt(r.amount), 0n)
         .toString();
       const amountResult = await submitSetSubscriptionAmountByRelayer(
@@ -161,7 +194,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     await syncEmployees(
       d.id,
-      body.recipients.map((r) => ({
+      normalizedRecipients.map((r) => ({
         address: r.address,
         amountStroops: r.amount,
         label: r.label,

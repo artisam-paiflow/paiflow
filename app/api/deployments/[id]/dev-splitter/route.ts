@@ -12,7 +12,7 @@ import {
   submitUpdateRecipientsByRelayer,
 } from "@/lib/stellar/dev-mutate";
 import { prepareDevCashOutRecipients } from "@/lib/stellar/cash-out";
-import { syncEmployees } from "@/lib/employees";
+import { syncEmployees, deriveFiatPlaceholderAddress } from "@/lib/employees";
 import { assetContractId } from "@/lib/stellar/assets";
 import { offRampTreasuryAddress } from "@/lib/env";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
@@ -20,7 +20,10 @@ import { TemplateKind } from "@prisma/client";
 
 const RecipientSchema = z
   .object({
-    address: z.string().refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address"),
+    address: z
+      .string()
+      .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address")
+      .optional(),
     label: z.string().max(64).optional(),
     mode: z.enum(["percentage", "fixed"]),
     bps: z.number().int().min(1).max(10_000).optional(),
@@ -36,6 +39,9 @@ const RecipientSchema = z
   })
   .refine((r) => (r.mode === "percentage" ? r.bps !== undefined : !!r.amountStroops), {
     message: "percentage recipients need bps; fixed recipients need amountStroops",
+  })
+  .refine((r) => !(r.payoutMode === "crypto" && !r.address), {
+    message: "crypto recipients require a valid Stellar address",
   })
   .refine(
     (r) => {
@@ -54,6 +60,9 @@ const BodySchema = z.object({
   nodeId: z.string().optional(),
   recipients: z.array(RecipientSchema).min(1).max(20),
 });
+
+type Recipient = z.infer<typeof RecipientSchema>;
+type NormalizedRecipient = Omit<Recipient, "address"> & { address: string };
 
 /**
  * Fill / change the recipients of a deployed SPLITTER_DEV node. Relayer-signed.
@@ -77,10 +86,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
 
     const node = findPipelineNode(d.pipelineSnapshot, "SPLITTER_DEV", body.nodeId);
-    const hasFiat = body.recipients.some((r) => r.payoutMode === "fiat");
+
+    const normalizedRecipients = body.recipients.map((r) => {
+      if (r.payoutMode === "fiat" && !r.address) {
+        return {
+          ...r,
+          address: deriveFiatPlaceholderAddress({
+            deploymentId: d.id,
+            accountNumber: r.bankDetail!.accountNumber,
+            bankCode: r.bankDetail!.bankCode,
+          }),
+        } as NormalizedRecipient;
+      }
+      return r as NormalizedRecipient;
+    });
+
+    const hasFiat = normalizedRecipients.some((r) => r.payoutMode === "fiat");
 
     if (!hasFiat) {
-      const recipients = body.recipients.map((r) => ({
+      const recipients = normalizedRecipients.map((r) => ({
         address: r.address,
         bps: r.mode === "percentage" ? (r.bps ?? 0) : 0,
         amount: r.mode === "fixed" ? (r.amountStroops ?? "0") : "0",
@@ -130,7 +154,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         assetContractAddress: assetContract,
         treasury,
         existingEmployees,
-        inputRecipients: body.recipients.map((r) => ({
+        inputRecipients: normalizedRecipients.map((r) => ({
           address: r.address,
           amount: r.mode === "fixed" ? (r.amountStroops ?? "0") : "0",
           bps: r.mode === "percentage" ? (r.bps ?? 0) : 0,
@@ -147,7 +171,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     await syncEmployees(
       d.id,
-      body.recipients.map((r) => ({
+      normalizedRecipients.map((r) => ({
         address: r.address,
         amountStroops: r.mode === "fixed" ? (r.amountStroops ?? "0") : "0",
         label: r.label,
@@ -162,7 +186,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (graph) {
       for (const [address, contractAddress] of cashOutByInputAddress) {
         const nodeId = `cash-out-${address}`;
-        const recipient = body.recipients.find((r) => r.address === address);
+        const recipient = normalizedRecipients.find((r) => r.address === address);
         if (!graph.nodes.some((n) => n.id === nodeId && n.type === "cash_out")) {
           graph.nodes.push({
             id: nodeId,

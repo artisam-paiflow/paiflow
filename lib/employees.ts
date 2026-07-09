@@ -1,4 +1,6 @@
 import "server-only";
+import { createHash } from "node:crypto";
+import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
 import { EmployeePayoutMode } from "@prisma/client";
 
@@ -9,6 +11,28 @@ export type EmployeeInputRecipient = {
   payoutMode?: "crypto" | "fiat";
   bankDetail?: { accountName: string; accountNumber: string; bankCode: string };
 };
+
+const FIAT_PLACEHOLDER_SEED_PREFIX = "pinkraft:fiat:employee:v1";
+
+export type FiatPlaceholderInput = {
+  deploymentId: string;
+  accountNumber: string;
+  bankCode: string;
+};
+
+/**
+ * Derive a deterministic, syntactically valid Stellar public key for a fiat
+ * employee whose caller did not supply an explicit wallet address.
+ *
+ * The resulting key is unique per (deploymentId, accountNumber, bankCode), is
+ * cheap to generate, and never corresponds to a real private key. It is only
+ * used as a correlation key in the Employee table and cash-out helper maps.
+ */
+export function deriveFiatPlaceholderAddress(input: FiatPlaceholderInput): string {
+  const seed = `${FIAT_PLACEHOLDER_SEED_PREFIX}:${input.deploymentId}:${input.accountNumber}:${input.bankCode}`;
+  const rawPublicKey = createHash("sha256").update(seed, "utf8").digest();
+  return StrKey.encodeEd25519PublicKey(rawPublicKey);
+}
 
 /**
  * Mirror a payroll recipient list into the Employee / EmployeeBankDetail tables.
