@@ -54,6 +54,7 @@ vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
 vi.mock("@/lib/stellar/dev-mutate", () => mockRelayer);
 
 import { POST } from "@/app/api/deployments/[id]/dev-splitter/route";
+import { deriveFiatPlaceholderAddress } from "@/lib/employees";
 
 function makeRequest({
   deploymentId,
@@ -343,17 +344,241 @@ describe("dev-splitter", () => {
     expect(json.error.code).toBe("VALIDATION");
   });
 
-  it("returns 404 for a missing deployment", async () => {
-    mockDb.deployment.findFirst.mockResolvedValue(null);
+  it("derives a placeholder address for fiat recipients that omit address", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+    mockDb.employee.findMany.mockResolvedValue([]);
+    mockRelayer.deployCashOutDevByRelayer.mockResolvedValue({
+      status: "SUCCESS",
+      txHash: "tx-deploy",
+      contractAddress: cashOutAddress,
+    });
+    mockRelayer.submitUpdateRecipientsByRelayer.mockResolvedValue({
+      status: "PENDING",
+      txHash: "tx-splitter",
+    });
+    mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
+
+    const bankDetail = {
+      accountName: "Test User",
+      accountNumber: "1234567890",
+      bankCode: "BPI",
+    };
+    const expectedAddress = deriveFiatPlaceholderAddress({
+      deploymentId: "dep-1",
+      accountNumber: bankDetail.accountNumber,
+      bankCode: bankDetail.bankCode,
+    });
 
     const req = makeRequest({
-      deploymentId: "dep-missing",
+      deploymentId: "dep-1",
       body: {
-        recipients: [{ address: cryptoAddress, mode: "fixed", amountStroops: "1000" }],
+        recipients: [
+          {
+            mode: "fixed",
+            amountStroops: "5000000",
+            payoutMode: "fiat",
+            bankDetail,
+          },
+        ],
       },
     });
-    const res = await POST(req, makeContext("dep-missing"));
+    const res = await POST(req, makeContext("dep-1"));
+    const json = await res.json();
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
+    expect(json.data.cashOutContracts).toEqual({ [expectedAddress]: cashOutAddress });
+    expect(mockRelayer.deployCashOutDevByRelayer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parent: splitterAddress,
+        accountName: bankDetail.accountName,
+        accountNumber: bankDetail.accountNumber,
+        bankCode: bankDetail.bankCode,
+      }),
+    );
+    expect(mockDb.employee.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          address: expectedAddress,
+          payoutMode: "FIAT",
+          cashOutContractAddress: cashOutAddress,
+        }),
+      }),
+    );
+  });
+
+  it("rejects crypto recipients that omit address", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+
+    const req = makeRequest({
+      deploymentId: "dep-1",
+      body: {
+        recipients: [{ mode: "fixed", amountStroops: "5000000" }],
+      },
+    });
+    const res = await POST(req, makeContext("dep-1"));
+
+    expect(res.status).toBe(422);
+    const json = await res.json();
+    expect(json.error.code).toBe("VALIDATION");
+  });
+
+  it("reuses an existing cash-out contract for the same derived fiat address", async () => {
+    const bankDetail = {
+      accountName: "Test User",
+      accountNumber: "111222333",
+      bankCode: "BDO",
+    };
+    const expectedAddress = deriveFiatPlaceholderAddress({
+      deploymentId: "dep-1",
+      accountNumber: bankDetail.accountNumber,
+      bankCode: bankDetail.bankCode,
+    });
+
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+    mockDb.employee.findMany.mockResolvedValue([
+      { address: expectedAddress, cashOutContractAddress: cashOutAddress },
+    ]);
+    mockRelayer.updateBankByRelayer.mockResolvedValue({
+      status: "SUCCESS",
+      txHash: "tx-bank",
+    });
+    mockRelayer.submitUpdateRecipientsByRelayer.mockResolvedValue({
+      status: "PENDING",
+      txHash: "tx-splitter",
+    });
+    mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
+
+    const req = makeRequest({
+      deploymentId: "dep-1",
+      body: {
+        recipients: [
+          {
+            mode: "fixed",
+            amountStroops: "7000000",
+            payoutMode: "fiat",
+            bankDetail,
+          },
+        ],
+      },
+    });
+    const res = await POST(req, makeContext("dep-1"));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.data.txHashes).toEqual(["tx-bank", "tx-splitter"]);
+    expect(json.data.cashOutContracts).toEqual({ [expectedAddress]: cashOutAddress });
+    expect(mockRelayer.deployCashOutDevByRelayer).not.toHaveBeenCalled();
+  });
+
+  it("creates a new cash-out contract when fiat bank details change", async () => {
+    const initialBankDetail = {
+      accountName: "Test User",
+      accountNumber: "111222333",
+      bankCode: "BDO",
+    };
+    const initialAddress = deriveFiatPlaceholderAddress({
+      deploymentId: "dep-1",
+      accountNumber: initialBankDetail.accountNumber,
+      bankCode: initialBankDetail.bankCode,
+    });
+    const newBankDetail = {
+      accountName: "Test User",
+      accountNumber: "444555666",
+      bankCode: "BPI",
+    };
+    const newAddress = deriveFiatPlaceholderAddress({
+      deploymentId: "dep-1",
+      accountNumber: newBankDetail.accountNumber,
+      bankCode: newBankDetail.bankCode,
+    });
+
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+    mockDb.employee.findMany.mockResolvedValue([
+      { address: initialAddress, cashOutContractAddress: cashOutAddress },
+    ]);
+    mockRelayer.deployCashOutDevByRelayer.mockResolvedValue({
+      status: "SUCCESS",
+      txHash: "tx-deploy-new",
+      contractAddress: "CCashOut2",
+    });
+    mockRelayer.submitUpdateRecipientsByRelayer.mockResolvedValue({
+      status: "PENDING",
+      txHash: "tx-splitter",
+    });
+    mockDb.employee.upsert.mockResolvedValue({ id: "emp-2" });
+
+    const req = makeRequest({
+      deploymentId: "dep-1",
+      body: {
+        recipients: [
+          {
+            mode: "fixed",
+            amountStroops: "7000000",
+            payoutMode: "fiat",
+            bankDetail: newBankDetail,
+          },
+        ],
+      },
+    });
+    const res = await POST(req, makeContext("dep-1"));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.data.cashOutContracts).toEqual({ [newAddress]: "CCashOut2" });
+    expect(mockRelayer.deployCashOutDevByRelayer).toHaveBeenCalled();
+  });
+
+  it("handles mixed crypto + fiat-without-address recipients", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+    mockDb.employee.findMany.mockResolvedValue([]);
+    mockRelayer.deployCashOutDevByRelayer.mockResolvedValue({
+      status: "SUCCESS",
+      txHash: "tx-deploy",
+      contractAddress: cashOutAddress,
+    });
+    mockRelayer.submitUpdateRecipientsByRelayer.mockResolvedValue({
+      status: "PENDING",
+      txHash: "tx-splitter",
+    });
+    mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
+
+    const bankDetail = {
+      accountName: "Test User",
+      accountNumber: "1234567890",
+      bankCode: "BPI",
+    };
+    const fiatPlaceholder = deriveFiatPlaceholderAddress({
+      deploymentId: "dep-1",
+      accountNumber: bankDetail.accountNumber,
+      bankCode: bankDetail.bankCode,
+    });
+
+    const req = makeRequest({
+      deploymentId: "dep-1",
+      body: {
+        recipients: [
+          { address: cryptoAddress, mode: "fixed", amountStroops: "3000000" },
+          {
+            mode: "fixed",
+            amountStroops: "7000000",
+            payoutMode: "fiat",
+            bankDetail,
+          },
+        ],
+      },
+    });
+    const res = await POST(req, makeContext("dep-1"));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.data.txHashes).toEqual(["tx-deploy", "tx-splitter"]);
+    expect(mockRelayer.submitUpdateRecipientsByRelayer).toHaveBeenCalledWith(
+      splitterAddress,
+      expect.arrayContaining([
+        { address: cryptoAddress, bps: 0, amount: "3000000", isCashOut: false },
+        { address: cashOutAddress, bps: 0, amount: "7000000", isCashOut: true },
+      ]),
+    );
+    expect(json.data.cashOutContracts).toEqual({ [fiatPlaceholder]: cashOutAddress });
   });
 });

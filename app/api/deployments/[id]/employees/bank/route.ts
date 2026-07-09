@@ -9,13 +9,19 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { updateBankByRelayer } from "@/lib/stellar/dev-mutate";
 
 const BankDetailSchema = z.object({
-  address: z.string().refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address"),
+  employeeId: z.string().uuid().optional(),
+  address: z
+    .string()
+    .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address")
+    .optional(),
   accountName: z.string().min(1).max(128),
   accountNumber: z.string().min(1).max(64),
   bankCode: z.string().min(1).max(32),
 });
 
-const PostSchema = BankDetailSchema;
+const PostSchema = BankDetailSchema.refine((v) => !!v.employeeId !== !!v.address, {
+  message: "Provide exactly one of employeeId or address",
+});
 
 async function requirePayrollDeployment(id: string, userId: string | null) {
   const where = userId ? { id, ownerId: userId } : { id };
@@ -42,6 +48,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     });
 
     const data = employees.map((e) => ({
+      id: e.id,
       address: e.address,
       payoutMode: e.payoutMode,
       cashOutContractAddress: e.cashOutContractAddress,
@@ -69,15 +76,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const body = PostSchema.parse(await req.json());
 
-    const employee = await db.employee.upsert({
-      where: { deploymentId_address: { deploymentId: id, address: body.address } },
-      create: {
-        deploymentId: id,
-        address: body.address,
-        amountStroops: "0",
-      },
-      update: {},
-    });
+    let employee;
+    if (body.employeeId) {
+      employee = await db.employee.findUnique({
+        where: { id: body.employeeId },
+      });
+      if (!employee || employee.deploymentId !== id) {
+        throw new AppError("NOT_FOUND", "Employee not found");
+      }
+    } else {
+      employee = await db.employee.upsert({
+        where: { deploymentId_address: { deploymentId: id, address: body.address! } },
+        create: {
+          deploymentId: id,
+          address: body.address!,
+          amountStroops: "0",
+        },
+        update: {},
+      });
+    }
 
     const bankDetail = await db.employeeBankDetail.upsert({
       where: { employeeId: employee.id },
@@ -115,10 +132,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     await audit({
       action: "DEV_UPDATE_BANK",
       userId: user?.id ?? null,
-      metadata: { deploymentId: id, address: body.address, cashOutTxHash },
+      metadata: {
+        deploymentId: id,
+        employeeId: employee.id,
+        address: body.address ?? employee.address,
+        cashOutTxHash,
+      },
     });
 
-    return NextResponse.json({ data: { success: true, bankDetail, cashOutTxHash } });
+    return NextResponse.json({
+      data: { success: true, employeeId: employee.id, bankDetail, cashOutTxHash },
+    });
   });
 }
 
@@ -133,15 +157,39 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
 
     const { searchParams } = new URL(req.url);
     const address = searchParams.get("address");
-    if (!address || !StrKey.isValidEd25519PublicKey(address)) {
+    const employeeId = searchParams.get("employeeId");
+
+    if (employeeId) {
+      if (!z.string().uuid().safeParse(employeeId).success) {
+        throw new AppError("VALIDATION", "Invalid employeeId");
+      }
+    } else if (!address || !StrKey.isValidEd25519PublicKey(address)) {
       throw new AppError("VALIDATION", "Invalid or missing Stellar address");
     }
 
-    const employee = await db.employee.findUnique({
-      where: { deploymentId_address: { deploymentId: id, address } },
-      include: { bankDetail: true },
-    });
-    if (!employee?.bankDetail) {
+    let employee;
+    if (employeeId) {
+      if (!z.string().uuid().safeParse(employeeId).success) {
+        throw new AppError("VALIDATION", "Invalid employeeId");
+      }
+      employee = await db.employee.findUnique({
+        where: { id: employeeId },
+        include: { bankDetail: true },
+      });
+      if (!employee || employee.deploymentId !== id) {
+        throw new AppError("NOT_FOUND", "Bank details not found");
+      }
+    } else {
+      employee = await db.employee.findUnique({
+        where: { deploymentId_address: { deploymentId: id, address: address! } },
+        include: { bankDetail: true },
+      });
+      if (!employee?.bankDetail) {
+        throw new AppError("NOT_FOUND", "Bank details not found");
+      }
+    }
+
+    if (!employee.bankDetail) {
       throw new AppError("NOT_FOUND", "Bank details not found");
     }
 
@@ -152,7 +200,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     await audit({
       action: "DEV_UPDATE_BANK",
       userId: user?.id ?? null,
-      metadata: { deploymentId: id, address },
+      metadata: { deploymentId: id, employeeId: employee.id, address: employee.address },
     });
 
     return NextResponse.json({ data: { success: true } });
