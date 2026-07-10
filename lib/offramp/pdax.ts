@@ -15,8 +15,13 @@ import {
 } from "./provider";
 
 const PDAX_API_TIMEOUT_MS = 30_000;
-// All supported Stellar assets (XLM, USDC) use 7 decimal places.
+// Stellar stores every asset with 7 decimal places (stroops).
 const STELLAR_DECIMALS = 7;
+// PDAX's institutional wallets use each asset's native precision. USDC uses
+// 6 decimals, so a quantity with 7 decimals violates PDAX's quantity step
+// rule and returns OT010029 "Invalid Quantity Step".
+const PDAX_XLM_DECIMALS = 7;
+const PDAX_USDC_DECIMALS = 6;
 
 export class PdaxOffRampProvider implements OffRampProvider {
   readonly name = "pdax";
@@ -61,7 +66,7 @@ export class PdaxOffRampProvider implements OffRampProvider {
     assetCode: string;
     fiatCurrency: string;
   }): Promise<OffRampQuote> {
-    const quantity = stroopsToDecimal(params.amountStroops, STELLAR_DECIMALS);
+    const quantity = stellarStroopsToPdaxQuantity(params.amountStroops, params.assetCode);
     const body = {
       side: "sell",
       quote_currency: params.assetCode,
@@ -90,7 +95,7 @@ export class PdaxOffRampProvider implements OffRampProvider {
       total_amount: string | number;
     };
 
-    const amountIn = decimalToStroops(payload.base_quantity, STELLAR_DECIMALS);
+    const amountIn = pdaxQuantityToStellarStroops(payload.base_quantity, params.assetCode);
     const amountOut = decimalToSmallest(payload.total_amount, 2);
 
     return {
@@ -280,6 +285,41 @@ function parsePdaxResponse<T>(json: unknown): T {
     return (json as { data: T }).data;
   }
   return json as T;
+}
+
+export function getPdaxAssetDecimals(assetCode: string): number {
+  if (assetCode === "USDC") return PDAX_USDC_DECIMALS;
+  return PDAX_XLM_DECIMALS;
+}
+
+export function stellarStroopsToPdaxQuantity(stroops: string, assetCode: string): string {
+  const assetDecimals = getPdaxAssetDecimals(assetCode);
+  // Stellar stroops are always 7 decimals. Convert to the asset value first,
+  // then truncate to the precision PDAX accepts for this asset so the quantity
+  // step rule is never violated.
+  const value = stroopsToDecimal(stroops, STELLAR_DECIMALS);
+  if (assetDecimals === STELLAR_DECIMALS) return value;
+  return truncateDecimal(value, assetDecimals);
+}
+
+function truncateDecimal(decimal: string, decimals: number): string {
+  const [whole = "0", frac = ""] = decimal.replace(/^-/, "").split(".");
+  const truncatedFrac = frac.slice(0, decimals).replace(/0+$/, "");
+  const sign = decimal.startsWith("-") ? "-" : "";
+  return truncatedFrac ? `${sign}${whole}.${truncatedFrac}` : `${sign}${whole}`;
+}
+
+export function pdaxQuantityToStellarStroops(quantity: string | number, assetCode: string): string {
+  const assetDecimals = getPdaxAssetDecimals(assetCode);
+  const decimalStr = typeof quantity === "number" ? quantity.toString() : quantity;
+  // Parse the PDAX decimal as asset-smallest units.
+  const [whole = "0", frac = ""] = decimalStr.replace(/^-/, "").split(".");
+  const paddedFrac = frac.slice(0, assetDecimals).padEnd(assetDecimals, "0");
+  const sign = decimalStr.startsWith("-") ? "-" : "";
+  const assetSmallest = `${sign}${whole}${paddedFrac}`.replace(/^0+(?=\d)/, "");
+  // Scale from asset-smallest units to Stellar stroops (7 decimals).
+  const factor = BigInt(10 ** (STELLAR_DECIMALS - assetDecimals));
+  return (BigInt(assetSmallest) * factor).toString();
 }
 
 function stroopsToDecimal(stroops: string, decimals: number): string {
