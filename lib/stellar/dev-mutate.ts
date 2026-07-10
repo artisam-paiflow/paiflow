@@ -518,8 +518,17 @@ export async function getTreasuryBalance(assetContractAddress: string): Promise<
     .build();
 
   const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim) || !sim.result?.retval) {
-    throw new AppError("UPSTREAM_RPC", `balance simulation failed for ${assetContractAddress}`);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `balance simulation failed for ${assetContractAddress}: ${sim.error}`,
+    );
+  }
+  if (!sim.result?.retval) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `balance simulation failed for ${assetContractAddress}: no return value`,
+    );
   }
 
   return BigInt(scValToNative(sim.result.retval));
