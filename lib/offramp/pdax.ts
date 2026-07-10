@@ -183,7 +183,7 @@ export class PdaxOffRampProvider implements OffRampProvider {
       sender_place_of_birth: sender.placeOfBirth,
       source_of_funds: sender.sourceOfFunds,
       sender_email: sender.email,
-      fee_type: "SENDER",
+      fee_type: "Sender",
       beneficiary_first_name: request.accountName.split(" ")[0] ?? request.accountName,
       beneficiary_middle_name: "n.a.",
       beneficiary_last_name: request.accountName.split(" ").slice(1).join(" ") || "n.a.",
