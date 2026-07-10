@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
     const startTs = Math.floor(new Date(body.firstPaymentAt).getTime() / 1000);
     const endTs = startTs + TEN_YEARS_SECONDS;
 
-    // Build a synthetic dev-mode flow: a subscription trigger (employer pull)
+    // Build a synthetic dev-mode payroll flow: a payroll trigger (employer pull)
     // forwarding to a split action with no recipients yet. `flowToPipeline`
     // decomposes this into SUBSCRIPTION_DEV → SPLITTER_DEV. Recipients stay
     // empty; the caller fills them via POST /api/deployments/:id/dev-splitter.
@@ -183,13 +183,13 @@ export async function POST(req: NextRequest) {
       nodes: [
         {
           id: triggerId,
-          type: "subscription",
+          type: "payroll",
           config: {
             asset,
-            subscriber: body.sourceAccount,
-            amountPerPeriodStroops: body.amountPerPeriodStroops,
+            employer: body.sourceAccount,
             intervalAmount: body.intervalAmount,
             intervalUnit: body.intervalUnit,
+            fillScheduleViaApi: false,
           },
         },
         {
@@ -212,6 +212,7 @@ export async function POST(req: NextRequest) {
       ) {
         node.params.startTs = startTs;
         node.params.endTs = endTs;
+        node.params.amountPerPeriodStroops = body.amountPerPeriodStroops;
       }
     }
 
