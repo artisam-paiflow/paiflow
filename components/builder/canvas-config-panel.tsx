@@ -37,6 +37,7 @@ export default function CanvasConfigPanel({
   const { zoom } = useViewport();
 
   const [panelPosition, setPanelPosition] = useState({ x: 0, y: 0 });
+  const scrollRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     startPanel: { x: number; y: number };
     startPointer: { x: number; y: number };
@@ -52,6 +53,24 @@ export default function CanvasConfigPanel({
       y: rfNode.position.y,
     });
   }, [selectedId, getNode]);
+
+  // Keep wheel events over the scrollable panel from ever reaching React
+  // Flow's d3-zoom listener on the pane: while the cursor is on a scrollable
+  // panel, the wheel scrolls only the panel — even at its top/bottom edge,
+  // the canvas must not zoom. If the panel is not scrollable at all, the
+  // event falls through and zooms the canvas as usual.
+  // Must be a native listener: React's synthetic onWheel runs at the root,
+  // which is after the pane in the bubble path, so stopPropagation would be
+  // too late.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollHeight > el.clientHeight) e.stopPropagation();
+    };
+    el.addEventListener("wheel", onWheel, { passive: true });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   const onHeaderPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -144,7 +163,7 @@ export default function CanvasConfigPanel({
               </button>
             </div>
 
-            <div className="custom-scrollbar max-h-[60vh] overflow-y-auto">
+            <div ref={scrollRef} className="custom-scrollbar max-h-[60vh] overflow-y-auto">
               <ConfigPanel
                 node={node}
                 graph={graph}
