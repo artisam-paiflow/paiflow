@@ -13,21 +13,14 @@ export const DEFAULT_HARD_LIMITS = {
   usdcMax: 110,
 } as const;
 
-function getLimitEnv(name: keyof typeof DEFAULT_HARD_LIMITS): number {
-  const envName = {
-    xlmMin: "NEXT_PUBLIC_SPLITTER_XLM_MIN",
-    xlmMax: "NEXT_PUBLIC_SPLITTER_XLM_MAX",
-    usdcMin: "NEXT_PUBLIC_SPLITTER_USDC_MIN",
-    usdcMax: "NEXT_PUBLIC_SPLITTER_USDC_MAX",
-  }[name];
-  const raw = process.env[envName];
-  if (raw === undefined || raw === "") {
-    return DEFAULT_HARD_LIMITS[name];
-  }
+// Lenient on purpose: these are temporary business-rule knobs. A malformed or
+// negative value falls back to the default rather than throwing, so a bad env
+// value can never take down validation (and must never take down env() — see
+// the matching .catch() entries in lib/env.ts).
+function parseLimit(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw === "") return fallback;
   const parsed = Number(raw);
-  if (Number.isNaN(parsed) || parsed < 0) {
-    return DEFAULT_HARD_LIMITS[name];
-  }
+  if (Number.isNaN(parsed) || parsed < 0) return fallback;
   return parsed;
 }
 
@@ -37,11 +30,16 @@ export function splitterHardLimits(): {
   usdcMin: number;
   usdcMax: number;
 } {
+  // IMPORTANT: reference each NEXT_PUBLIC_* var by its literal name. Next.js
+  // only inlines these values into the client bundle for statically-analyzable
+  // `process.env.NEXT_PUBLIC_X` accesses; a computed key (process.env[name])
+  // is never replaced, so validateFlow in the browser would silently fall back
+  // to DEFAULT_HARD_LIMITS regardless of the deployed configuration.
   return {
-    xlmMin: getLimitEnv("xlmMin"),
-    xlmMax: getLimitEnv("xlmMax"),
-    usdcMin: getLimitEnv("usdcMin"),
-    usdcMax: getLimitEnv("usdcMax"),
+    xlmMin: parseLimit(process.env.NEXT_PUBLIC_SPLITTER_XLM_MIN, DEFAULT_HARD_LIMITS.xlmMin),
+    xlmMax: parseLimit(process.env.NEXT_PUBLIC_SPLITTER_XLM_MAX, DEFAULT_HARD_LIMITS.xlmMax),
+    usdcMin: parseLimit(process.env.NEXT_PUBLIC_SPLITTER_USDC_MIN, DEFAULT_HARD_LIMITS.usdcMin),
+    usdcMax: parseLimit(process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX, DEFAULT_HARD_LIMITS.usdcMax),
   };
 }
 

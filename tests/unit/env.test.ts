@@ -116,4 +116,15 @@ describe("env — splitter hard limits", () => {
     expect(e.NEXT_PUBLIC_SPLITTER_USDC_MIN).toBe(5);
     expect(e.NEXT_PUBLIC_SPLITTER_USDC_MAX).toBe(500);
   });
+
+  it("falls back to defaults on malformed values instead of crashing env()", async () => {
+    // A typo in one of these temporary knobs must not take down every route
+    // that calls env() — the schema catches the failure and uses the default.
+    process.env.NEXT_PUBLIC_SPLITTER_XLM_MIN = "abc";
+    process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX = "150.5";
+    const mod = await loadEnv("testnet");
+    const e = mod.env();
+    expect(e.NEXT_PUBLIC_SPLITTER_XLM_MIN).toBe(150);
+    expect(e.NEXT_PUBLIC_SPLITTER_USDC_MAX).toBe(110);
+  });
 });

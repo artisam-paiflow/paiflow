@@ -1688,4 +1688,59 @@ describe("validateFlow — hard limits", () => {
     });
     expect(r.ok).toBe(true);
   });
+
+  function usdcSplit(amountStroops: string) {
+    return validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops }],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+  }
+
+  it("accepts an amount exactly equal to the minimum (bounds are inclusive)", () => {
+    // 30 USDC == default min
+    expect(usdcSplit("300000000").ok).toBe(true);
+  });
+
+  it("accepts an amount exactly equal to the maximum (bounds are inclusive)", () => {
+    // 110 USDC == default max
+    expect(usdcSplit("1100000000").ok).toBe(true);
+  });
+
+  it("honors a configured (non-default) env value at runtime", () => {
+    process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX = "500";
+    // 200 USDC exceeds the default 110 max but is under the configured 500.
+    expect(usdcSplit("2000000000").ok).toBe(true);
+  });
+
+  it("disables only the max bound when max is 0", () => {
+    process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX = "0";
+    expect(usdcSplit("2000000000").ok).toBe(true);
+    // min is still enforced
+    expect(usdcSplit("10000000").ok).toBe(false);
+  });
+
+  it("disables only the min bound when min is 0", () => {
+    process.env.NEXT_PUBLIC_SPLITTER_USDC_MIN = "0";
+    expect(usdcSplit("10000000").ok).toBe(true);
+    // max is still enforced
+    expect(usdcSplit("2000000000").ok).toBe(false);
+  });
+
+  it("rejects every amount when max < min (both nonzero) — a misconfiguration, not a disable", () => {
+    process.env.NEXT_PUBLIC_SPLITTER_USDC_MIN = "500";
+    process.env.NEXT_PUBLIC_SPLITTER_USDC_MAX = "100";
+    expect(usdcSplit("500000000").ok).toBe(false); // 50 USDC: below min
+    expect(usdcSplit("2000000000").ok).toBe(false); // 200 USDC: above max
+    expect(usdcSplit("3000000000").ok).toBe(false); // 300 USDC: above max
+  });
 });
