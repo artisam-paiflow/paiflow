@@ -49,7 +49,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params;
     const body = SubmitSchema.parse(await req.json());
 
-    const txHash = txHashFromXdr(body.signedXdr);
+    let txHash: string;
+    try {
+      txHash = txHashFromXdr(body.signedXdr);
+    } catch {
+      throw new AppError("VALIDATION", "Invalid signed transaction XDR");
+    }
 
     const deployment = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
@@ -66,6 +71,29 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     if (deployment.status !== "PENDING_SIGNATURE") {
       throw new AppError("CONFLICT", `Deployment is ${deployment.status}, cannot submit`);
+    }
+
+    // Bind the submission to the prepared transaction: the signed XDR must
+    // be exactly the transaction the app built for this deployment, plus
+    // signatures. Signing does not change the transaction hash, so a hash
+    // comparison rejects any tampered or unrelated transaction.
+    if (!deployment.unsignedXdr) {
+      throw new AppError("CONFLICT", "Deployment has no prepared transaction to match against");
+    }
+    let expectedTxHash: string;
+    try {
+      expectedTxHash = txHashFromXdr(deployment.unsignedXdr);
+    } catch {
+      throw new AppError(
+        "INTERNAL",
+        "Prepared transaction is unreadable; re-prepare the deployment",
+      );
+    }
+    if (expectedTxHash !== txHash) {
+      throw new AppError(
+        "VALIDATION",
+        "Signed transaction does not match the prepared deployment transaction",
+      );
     }
 
     await db.deployment.update({
