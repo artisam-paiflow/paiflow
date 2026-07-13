@@ -925,6 +925,72 @@ describe("validateFlow", () => {
     }
   });
 
+  it("rejects a subscription with zero amount per period", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            subscriber: ADDR_A,
+            amountPerPeriodStroops: "0",
+            intervalAmount: 1,
+            intervalUnit: "day",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "10000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => e.path.includes("amountPerPeriodStroops"))).toBe(true);
+    }
+  });
+
+  it("allows a zero subscription amount in dev mode (filled via API)", () => {
+    const r = validateFlow({
+      devMode: true,
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            subscriber: ADDR_A,
+            amountPerPeriodStroops: "0",
+            intervalAmount: 1,
+            intervalUnit: "day",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "10000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
   it("rejects a fixed split with zero amount", () => {
     const r = validateFlow({
       nodes: [
