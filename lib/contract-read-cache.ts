@@ -29,8 +29,17 @@ export type ContractReadCache = ReturnType<typeof createContractReadCache>;
  * - In-memory memoization deduplicates identical reads inside a single cron run.
  * - If Redis is available, values are also cached cross-request with a TTL.
  *
- * Mutable values such as `next_charge_at` or token allowances must NOT be
- * wrapped, because they change after a successful charge.
+ * ONLY wrap reads of values that have no on-chain setter for the contract
+ * variant in question. Mutable values must be read fresh:
+ * - `next_charge_at` / token allowances change after every successful charge.
+ * - Recipients are mutable on payroll (update_recipients) and splitter_dev.
+ * - Relayer is mutable on every contract variant (set_relayer).
+ * - Subscriber/amount are mutable on subscription_dev (update_subscriber,
+ *   set_amount) — cache them only for the immutable prod SUBSCRIPTION variant.
+ *
+ * A stale cached value here flows into PayrollPayout rows and the fiat
+ * off-ramp jobs derived from them, so caching mutable state can make the DB
+ * ledger (and real PHP payouts) diverge from what actually moved on-chain.
  */
 export function createContractReadCache(options?: { enabled?: boolean; ttlSeconds?: number }) {
   const e = env();

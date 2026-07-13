@@ -33,7 +33,7 @@ import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
 
 export const dynamic = "force-dynamic";
 
-const MAX_CATCHUP_PER_RUN = Math.max(1, env().PAYROLL_MAX_CATCHUP_PER_RUN);
+const MAX_CATCHUP_PER_RUN = Math.min(50, Math.max(1, env().PAYROLL_MAX_CATCHUP_PER_RUN));
 
 type ResultDetail = {
   deploymentId: string;
@@ -107,7 +107,19 @@ async function chargeSubscriptionPayrollDeployment(
     throw new Error("PayrollEnded");
   }
 
-  const readRecipientsCached = readCache("splitter:recipients", readRecipients, (addr) => addr);
+  // Only cache reads that are immutable for the contract variant in use:
+  // - prod SPLITTER recipients and prod SUBSCRIPTION amount/subscriber have no
+  //   on-chain setters, so they are safe to memoize.
+  // - SPLITTER_DEV exposes update_recipients and SUBSCRIPTION_DEV exposes
+  //   set_amount/update_subscriber, so dev-variant reads must stay fresh.
+  // - Every subscription contract exposes set_relayer, so the relayer is
+  //   always read fresh (a stale value would defeat the relayer-mismatch
+  //   safety check right after a rotation).
+  const readSplitterRecipientsCached = readCache(
+    "splitter:recipients",
+    readRecipients,
+    (addr) => addr,
+  );
   const readAmountPerPeriodCached = readCache(
     "subscription:amountPerPeriod",
     readSubscriptionAmountPerPeriod,
@@ -119,11 +131,10 @@ async function chargeSubscriptionPayrollDeployment(
     (addr) => addr,
   );
   const readAssetCached = readCache("subscription:asset", readSubscriptionAsset, (addr) => addr);
-  const readRelayerCached = readCache(
-    "subscription:relayer",
-    readSubscriptionRelayer,
-    (addr) => addr,
-  );
+
+  const readRecipientsFn = isDev ? readRecipients : readSplitterRecipientsCached;
+  const readAmountPerPeriodFn = isDev ? readSubscriptionAmountPerPeriod : readAmountPerPeriodCached;
+  const readSubscriberFn = isDev ? readSubscriptionSubscriberNullable : readSubscriberCached;
 
   const [cancelled, nextChargeAt] = await Promise.all([
     readSubscriptionIsCancelled(subscriptionContractAddress),
@@ -148,10 +159,11 @@ async function chargeSubscriptionPayrollDeployment(
   }
 
   const [subscriber, asset, amountPerPeriod, onChainRelayer] = await Promise.all([
-    readSubscriberCached(subscriptionContractAddress),
+    readSubscriberFn(subscriptionContractAddress),
     readAssetCached(subscriptionContractAddress),
-    readAmountPerPeriodCached(subscriptionContractAddress),
-    readRelayerCached(subscriptionContractAddress),
+    readAmountPerPeriodFn(subscriptionContractAddress),
+    // Always fresh: set_relayer is admin-callable on every subscription variant.
+    readSubscriptionRelayer(subscriptionContractAddress),
   ]);
 
   if (!subscriber) {
@@ -204,8 +216,8 @@ async function chargeSubscriptionPayrollDeployment(
     const recipientRows = await buildSubscriptionRecipientRows(
       splitterContractAddress,
       subscriptionContractAddress,
-      readRecipientsCached,
-      readAmountPerPeriodCached,
+      readRecipientsFn,
+      readAmountPerPeriodFn,
     );
     const totalStroops = recipientRows.reduce((sum, r) => sum + BigInt(r.amount), 0n);
 
@@ -334,22 +346,17 @@ export async function POST(req: NextRequest) {
     let userCharged = 0;
 
     const readCache = createContractReadCache();
-    const readPayrollRecipientsCached = readCache(
-      "payroll:recipients",
-      readPayrollRecipients,
-      (addr) => addr,
-    );
+    // Only employer/asset are cached: the payroll contract has no setters for
+    // them. Recipients (update_recipients) and relayer (set_relayer) are
+    // admin-mutable, so they are read fresh below — caching them could write
+    // stale amounts into PayrollPayout rows and the fiat off-ramp jobs derived
+    // from them.
     const readPayrollEmployerCached = readCache(
       "payroll:employer",
       readPayrollEmployer,
       (addr) => addr,
     );
     const readPayrollAssetCached = readCache("payroll:asset", readPayrollAsset, (addr) => addr);
-    const readPayrollRelayerCached = readCache(
-      "payroll:relayer",
-      readPayrollRelayer,
-      (addr) => addr,
-    );
 
     for (const d of deployments) {
       const pipeline = d.pipelineSnapshot as Array<{
@@ -470,10 +477,10 @@ export async function POST(req: NextRequest) {
         }
 
         const [recipients, employer, asset, onChainRelayer] = await Promise.all([
-          readPayrollRecipientsCached(contractAddress),
+          readPayrollRecipients(contractAddress),
           readPayrollEmployerCached(contractAddress),
           readPayrollAssetCached(contractAddress),
-          readPayrollRelayerCached(contractAddress),
+          readPayrollRelayer(contractAddress),
         ]);
 
         const totalAmount = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);

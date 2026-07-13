@@ -100,16 +100,35 @@ export async function POST(req: NextRequest) {
       throw new AppError("FORBIDDEN", "Bad cron secret");
     }
 
-    const jobs = await getDueOffRampJobs(db, Math.max(1, env().OFFRAMP_BATCH_SIZE));
+    const jobs = await getDueOffRampJobs(db, Math.min(100, Math.max(1, env().OFFRAMP_BATCH_SIZE)));
     const results: Array<{
       jobId: string;
       status: "quoted" | "traded" | "initiated" | "completed" | "skipped" | "failed" | "cancelled";
       error?: string;
     }> = [];
 
-    const limit = createLimiter(Math.max(1, env().OFFRAMP_JOB_CONCURRENCY));
+    const limit = createLimiter(Math.min(10, Math.max(1, env().OFFRAMP_JOB_CONCURRENCY)));
 
-    await Promise.all(
+    // In-run reservation of treasury balances per asset contract. For
+    // non-native CASH_OUT assets the trade is funded from the provider's
+    // pre-funded balance, so the treasury is NOT debited at trade time and the
+    // sufficiency check below is the only proof that the on-chain cash-out
+    // sink actually landed. Without a reservation, two concurrent same-asset
+    // jobs can both pass the check against a balance backed by a single
+    // deposit — releasing a real fiat payout for crypto that never arrived.
+    // Entries are released only when the treasury is confirmed debited (native
+    // deposit or pre-trade refund); otherwise they are held until the run ends.
+    const reservedTreasuryByAsset = new Map<string, bigint>();
+    const releaseTreasuryReservation = (asset: Asset, amountStroops: string) => {
+      const id = assetContractId(asset);
+      const current = reservedTreasuryByAsset.get(id);
+      if (current === undefined) return;
+      const next = current - BigInt(amountStroops);
+      if (next <= 0n) reservedTreasuryByAsset.delete(id);
+      else reservedTreasuryByAsset.set(id, next);
+    };
+
+    await Promise.allSettled(
       jobs.map((job) =>
         limit(async () => {
           const deployment = job.deployment;
@@ -174,12 +193,19 @@ export async function POST(req: NextRequest) {
             // receive_and_forward, the treasury will be underfunded and the trade
             // would silently draw from the employer's PDAX balance instead.
             if (job.source === OffRampJobSource.CASH_OUT) {
-              const treasuryBalance = await getTreasuryBalance(assetContractId(asset));
-              if (treasuryBalance < BigInt(job.amountStroops)) {
+              const assetId = assetContractId(asset);
+              const jobAmount = BigInt(job.amountStroops);
+              const treasuryBalance = await getTreasuryBalance(assetId);
+              const reserved = reservedTreasuryByAsset.get(assetId) ?? 0n;
+              if (treasuryBalance < reserved + jobAmount) {
                 throw new Error(
-                  `Treasury balance ${treasuryBalance.toString()} is less than job amount ${job.amountStroops}; cash-out sink not confirmed`,
+                  `Treasury balance ${treasuryBalance.toString()} is less than reserved ${reserved.toString()} + job amount ${job.amountStroops}; cash-out sink not confirmed`,
                 );
               }
+              // Hold this job's share of the balance for the rest of the run so
+              // concurrent same-asset jobs can't double-count one deposit (see
+              // reservedTreasuryByAsset above).
+              reservedTreasuryByAsset.set(assetId, reserved + jobAmount);
 
               if (asset.kind === "native") {
                 // Native XLM deposits are enabled in PDAX UAT. Forward the job
@@ -247,6 +273,10 @@ export async function POST(req: NextRequest) {
                     if (deposit.status !== "SUCCESS") {
                       throw new Error(`PDAX XLM deposit failed: ${deposit.errorMessage}`);
                     }
+                    // The treasury is now actually debited by the deposit, so
+                    // free the reservation — other same-asset jobs should see
+                    // the real remaining headroom, not this job's share.
+                    releaseTreasuryReservation(asset, job.amountStroops);
                     // Update the in-memory job BEFORE persisting so that a DB write
                     // failure in rescheduleOffRampJob doesn't cause the catch handler
                     // to refund funds that already left for PDAX.
@@ -443,6 +473,11 @@ export async function POST(req: NextRequest) {
                 refund.status === "SUCCESS"
                   ? OffRampPayoutJobStatus.FAILED
                   : OffRampPayoutJobStatus.CANCELLED;
+              if (refund.status === "SUCCESS" && job.source === OffRampJobSource.CASH_OUT) {
+                // The refund debits the treasury back to the source address;
+                // free this job's reservation.
+                releaseTreasuryReservation(asset, job.amountStroops);
+              }
               log.warn(
                 {
                   jobId: job.id,
@@ -484,6 +519,20 @@ export async function POST(req: NextRequest) {
               });
             }
           }
+        }).catch((err) => {
+          // Contain any failure that escapes the per-job try/catch above (e.g.
+          // the claim/cancel writes). With jobs running concurrently, an
+          // uncaught throw would otherwise reject the whole batch while other
+          // jobs are mid-flight — potentially after an irreversible trade but
+          // before its result is persisted. The job's status is left untouched
+          // here on purpose: PENDING jobs are retried next run and claimed
+          // RUNNING jobs are recovered by the lease.
+          const message = err instanceof Error ? err.message : String(err);
+          log.warn(
+            { jobId: job.id, source: job.source, error: message },
+            "Off-ramp job failed outside processing guard",
+          );
+          results.push({ jobId: job.id, status: "failed", error: message });
         }),
       ),
     );
