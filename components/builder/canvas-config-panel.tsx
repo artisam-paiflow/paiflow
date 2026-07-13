@@ -92,7 +92,10 @@ export default function CanvasConfigPanel({
   return (
     <ViewportPortal>
       <div
-        className="z-50"
+        // React Flow raises the selected node to z-index 1000
+        // (SELECTED_NODE_Z), so the panel must sit above that to never
+        // render behind any node.
+        className="z-[10000]"
         style={{
           position: "absolute",
           left: panelPosition.x,
