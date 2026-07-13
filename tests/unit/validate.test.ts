@@ -1351,6 +1351,85 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
   });
+
+  // ── schema-error friendly messages (#307) ──
+  it("names the recipient and bad value when a split address is invalid", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [
+              { address: ADDR_A, bps: 5000, label: "Alice" },
+              { address: "NOTAVALIDSTELLARADDRESS123", bps: 5000, label: "Bob" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      const issue = r.errors.find((e) => e.path.includes("recipients"));
+      expect(issue).toBeDefined();
+      expect(issue!.friendlyMessage).toContain('recipient "Bob"');
+      expect(issue!.friendlyMessage).toContain("NOTAVALIDSTELLARADDRESS123");
+      expect(issue!.friendlyMessage).not.toContain("flow structure is invalid");
+    }
+  });
+
+  it("falls back to a positional label when the split recipient has no label", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [
+              { address: ADDR_A, bps: 5000 },
+              { address: "BADADDR", bps: 5000 },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      const issue = r.errors.find((e) => e.path.includes("recipients"));
+      expect(issue!.friendlyMessage).toContain("recipient #2");
+    }
+  });
+
+  it("identifies an invalid pay node recipient address", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: "NOTAVALIDSTELLARADDRESS123",
+            amountStroops: "10",
+            asset: { kind: "native" },
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      const issue = r.errors.find((e) => e.path.includes("recipient"));
+      expect(issue).toBeDefined();
+      expect(issue!.friendlyMessage).toContain("pay node's recipient");
+      expect(issue!.friendlyMessage).toContain("NOTAVALIDSTELLARADDRESS123");
+    }
+  });
 });
 
 describe("computeAssetFlow", () => {
