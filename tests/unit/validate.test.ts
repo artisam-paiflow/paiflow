@@ -6,6 +6,13 @@ import { TemplateKind } from "@prisma/client";
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const ADDR_B = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 
+const SENDER_KYC = {
+  firstName: "Juan",
+  lastName: "Dela Cruz",
+  countryOrigin: "Philippines",
+  sourceOfFunds: "Compensation",
+};
+
 function disableHardLimits() {
   process.env.NEXT_PUBLIC_SPLITTER_XLM_MIN = "0";
   process.env.NEXT_PUBLIC_SPLITTER_XLM_MAX = "0";
@@ -150,6 +157,7 @@ describe("validateFlow", () => {
 
   it("accepts non-dev payroll with fiat recipients when bank details are provided", () => {
     const r = validateFlow({
+      senderKyc: SENDER_KYC,
       nodes: [
         {
           id: "t",
@@ -225,6 +233,151 @@ describe("validateFlow", () => {
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
     expect(r.ok).toBe(false);
+  });
+
+  it("requires sender KYC for non-dev payroll with fiat recipients", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              {
+                address: ADDR_B,
+                mode: "fixed",
+                amountStroops: "10000000",
+                payoutMode: "fiat",
+                accountName: "Bob",
+                accountNumber: "1234567890",
+                bankCode: "BASECPH",
+              },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      const kycError = r.errors.find((e) => e.path === "senderKyc");
+      expect(kycError).toBeDefined();
+      expect(kycError!.message).toBe(
+        "Sender KYC is required before deploying a flow with fiat payouts.",
+      );
+    }
+  });
+
+  it("exempts dev-mode payroll with fiat recipients from sender KYC", () => {
+    const r = validateFlow({
+      devMode: true,
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              {
+                address: ADDR_B,
+                mode: "fixed",
+                amountStroops: "10000000",
+                payoutMode: "fiat",
+              },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("accepts non-dev cash_out flow when sender KYC is provided", () => {
+    const r = validateFlow({
+      senderKyc: SENDER_KYC,
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
+          },
+        },
+        {
+          id: "c",
+          type: "cash_out",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            accountName: "Juan",
+            accountNumber: "123",
+            bankCode: "BASECPH",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "a", target: "c" },
+      ],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects non-dev cash_out flow without sender KYC", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
+          },
+        },
+        {
+          id: "c",
+          type: "cash_out",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            accountName: "Juan",
+            accountNumber: "123",
+            bankCode: "BASECPH",
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "a", target: "c" },
+      ],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => e.path === "senderKyc")).toBe(true);
+    }
   });
 
   it("allows dev-mode split with empty recipients to fill via API after deploy", () => {
@@ -1060,6 +1213,7 @@ describe("validateFlow", () => {
 
   it("accepts cash_out without dev mode when bank details are provided", () => {
     const r = validateFlow({
+      senderKyc: SENDER_KYC,
       nodes: [
         { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
         {
