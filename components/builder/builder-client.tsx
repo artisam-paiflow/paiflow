@@ -605,8 +605,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           <div className="px-md gap-md flex items-center py-3">
             <DeployButton
               flowId={flowId}
+              disabled={!isValid}
+              errorCount={errors.length}
               onClick={async (e) => {
                 e.preventDefault();
+                if (!isValid) return;
                 await saveGraph(graph, name, true);
                 window.location.href = `/flows/${flowId}/deploy`;
               }}
