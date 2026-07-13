@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FlowNode, FlowGraph, Asset } from "@/lib/flows/schema";
 import {
   isPendingAddress,
@@ -1525,6 +1525,14 @@ function SplitRecipientsEditor({
   const totalFixed = splitTotalFixedStroops(node.config.recipients);
   const minAmount = trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
 
+  // Cache the shares from the mode the user is leaving so that toggling
+  // percentage → fixed → percentage restores the previously entered values
+  // instead of silently zeroing them out. Keyed by recipient index.
+  const modeCache = useRef<{
+    bps: Map<number, number>;
+    amountStroops: Map<number, string>;
+  }>({ bps: new Map(), amountStroops: new Map() });
+
   // Each recipient card can be collapsed to a summary row. Default to all
   // expanded when there are only a few recipients; collapse all but the first
   // when the list gets long.
@@ -1543,6 +1551,8 @@ function SplitRecipientsEditor({
       }
       return next;
     });
+    // Switching to a different split node invalidates the cached shares.
+    modeCache.current = { bps: new Map(), amountStroops: new Map() };
   }, [node.id]);
 
   const toggleRecipient = (i: number) => {
@@ -1571,12 +1581,29 @@ function SplitRecipientsEditor({
   };
 
   const setMode = (newMode: "percentage" | "fixed") => {
-    const next = node.config.recipients.map((r) => {
-      const base = { address: r.address, label: r.label };
+    // Snapshot the current mode's values before the union switch discards them.
+    node.config.recipients.forEach((r, i) => {
+      if (r.mode === "percentage") modeCache.current.bps.set(i, r.bps);
+      else modeCache.current.amountStroops.set(i, r.amountStroops);
+    });
+    const next = node.config.recipients.map((r, i) => {
+      // Preserve mode-independent fields (payout/bank details) across the switch.
+      const base = {
+        address: r.address,
+        label: r.label,
+        payoutMode: r.payoutMode,
+        accountName: r.accountName,
+        accountNumber: r.accountNumber,
+        bankCode: r.bankCode,
+      };
       if (newMode === "percentage") {
-        return { ...base, mode: "percentage" as const, bps: 0 };
+        return { ...base, mode: "percentage" as const, bps: modeCache.current.bps.get(i) ?? 0 };
       }
-      return { ...base, mode: "fixed" as const, amountStroops: "0" };
+      return {
+        ...base,
+        mode: "fixed" as const,
+        amountStroops: modeCache.current.amountStroops.get(i) ?? "0",
+      };
     });
     onChange({
       ...node,
