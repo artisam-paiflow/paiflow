@@ -99,6 +99,8 @@ type Props = {
   onDelete: (id: string) => void;
   addressBook?: AddressEntry[];
   refreshAddressBook?: () => void;
+  addressBookLoading?: boolean;
+  addressBookError?: string | null;
   className?: string;
   /**
    * Hide the internal node-type label + Delete header row. Set when the floating
@@ -115,6 +117,8 @@ export default function ConfigPanel({
   onDelete,
   addressBook = [],
   refreshAddressBook,
+  addressBookLoading,
+  addressBookError,
   className,
   hideHeader = false,
 }: Props) {
@@ -453,6 +457,8 @@ export default function ConfigPanel({
               pending={isPendingAddress(node.config.recipient)}
               addressBook={addressBook}
               onAddressBookChange={refreshAddressBook}
+              addressBookLoading={addressBookLoading}
+              addressBookError={addressBookError}
             />
           </ApiFillField>
 
@@ -658,6 +664,8 @@ export default function ConfigPanel({
               devMode={devMode}
               addressBook={addressBook}
               refreshAddressBook={refreshAddressBook}
+              addressBookLoading={addressBookLoading}
+              addressBookError={addressBookError}
               onChange={onChange}
             />
           )}
@@ -684,6 +692,8 @@ export default function ConfigPanel({
               pending={isPendingAddress(node.config.relayer)}
               addressBook={addressBook}
               onAddressBookChange={refreshAddressBook}
+              addressBookLoading={addressBookLoading}
+              addressBookError={addressBookError}
             />
           </Field>
         </>
@@ -733,6 +743,8 @@ export default function ConfigPanel({
               pending={isPendingAddress(node.config.subscriber)}
               addressBook={addressBook}
               onAddressBookChange={refreshAddressBook}
+              addressBookLoading={addressBookLoading}
+              addressBookError={addressBookError}
             />
           </ApiFillField>
           <Field label={`Amount per period (${assetLabel(node.config.asset)})`}>
@@ -903,6 +915,8 @@ export default function ConfigPanel({
               pending={isPendingAddress(node.config.employer)}
               addressBook={addressBook}
               onAddressBookChange={refreshAddressBook}
+              addressBookLoading={addressBookLoading}
+              addressBookError={addressBookError}
             />
           </ApiFillField>
           {(() => {
@@ -1144,6 +1158,8 @@ export default function ConfigPanel({
               pending={isPendingAddress(node.config.vault)}
               addressBook={addressBook}
               onAddressBookChange={refreshAddressBook}
+              addressBookLoading={addressBookLoading}
+              addressBookError={addressBookError}
             />
           </Field>
         </>
@@ -1433,6 +1449,8 @@ export default function ConfigPanel({
                           pending={isPendingAddress(s)}
                           addressBook={addressBook}
                           onAddressBookChange={refreshAddressBook}
+                          addressBookLoading={addressBookLoading}
+                          addressBookError={addressBookError}
                         />
                         <button
                           onClick={() => {
@@ -1504,6 +1522,8 @@ function SplitRecipientsEditor({
   devMode,
   addressBook,
   refreshAddressBook,
+  addressBookLoading,
+  addressBookError,
   onChange,
 }: {
   node: Extract<FlowNode, { type: "split" }>;
@@ -1512,6 +1532,8 @@ function SplitRecipientsEditor({
   devMode: boolean;
   addressBook: AddressEntry[];
   refreshAddressBook?: () => void;
+  addressBookLoading?: boolean;
+  addressBookError?: string | null;
   onChange: (n: FlowNode) => void;
 }) {
   const onAddressBookChange = refreshAddressBook ?? (() => {});
@@ -1750,6 +1772,8 @@ function SplitRecipientsEditor({
                           pending={isPendingAddress(r.address)}
                           addressBook={addressBook}
                           onAddressBookChange={onAddressBookChange}
+                          addressBookLoading={addressBookLoading}
+                          addressBookError={addressBookError}
                         />
                       </div>
                       {isPercentage ? (

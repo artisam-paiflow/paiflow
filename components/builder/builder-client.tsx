@@ -190,13 +190,26 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [errorsModalOpen, setErrorsModalOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [addressBook, setAddressBook] = useState<AddressEntry[]>([]);
+  const [addressBookLoading, setAddressBookLoading] = useState(false);
+  const [addressBookError, setAddressBookError] = useState<string | null>(null);
   const [devMode, setDevMode] = useState<boolean>(initialGraph.devMode ?? false);
 
   const refreshAddressBook = useCallback(async () => {
-    const r = await fetch("/api/address-book");
-    if (!r.ok) return;
-    const json = await r.json();
-    setAddressBook(json?.data ?? []);
+    setAddressBookLoading(true);
+    setAddressBookError(null);
+    try {
+      const r = await fetch("/api/address-book");
+      if (!r.ok) {
+        const body = (await r.json().catch(() => ({}))) as { error?: { message?: string } };
+        throw new Error(body.error?.message ?? `Failed to load contacts (HTTP ${r.status})`);
+      }
+      const json = await r.json();
+      setAddressBook(json?.data ?? []);
+    } catch (err) {
+      setAddressBookError(err instanceof Error ? err.message : "Failed to load contacts");
+    } finally {
+      setAddressBookLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -730,6 +743,8 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                   onDelete={deleteNode}
                   addressBook={addressBook}
                   refreshAddressBook={refreshAddressBook}
+                  addressBookLoading={addressBookLoading}
+                  addressBookError={addressBookError}
                   chatCollapsed={chatCollapsed}
                 />
               )}

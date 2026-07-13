@@ -15,6 +15,8 @@ type CanvasConfigPanelProps = {
   onDelete: (id: string) => void;
   addressBook: AddressEntry[];
   refreshAddressBook: () => void;
+  addressBookLoading?: boolean;
+  addressBookError?: string | null;
   chatCollapsed: boolean;
 };
 
@@ -28,6 +30,8 @@ export default function CanvasConfigPanel({
   onDelete,
   addressBook,
   refreshAddressBook,
+  addressBookLoading,
+  addressBookError,
   chatCollapsed,
 }: CanvasConfigPanelProps) {
   const { getNode, screenToFlowPosition } = useReactFlow();
@@ -150,6 +154,8 @@ export default function CanvasConfigPanel({
                 onDelete={onDelete}
                 addressBook={addressBook}
                 refreshAddressBook={refreshAddressBook}
+                addressBookLoading={addressBookLoading}
+                addressBookError={addressBookError}
                 hideHeader
                 className="border-0"
               />
