@@ -671,6 +671,21 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
   }
 
+  // A subscription that pulls 0 is meaningless. In dev mode the amount may be
+  // left blank to be filled via the API after deploy, so only enforce this
+  // for real deployments.
+  if (trigger?.type === "subscription" && graph.devMode !== true) {
+    const amount = trigger.config.amountPerPeriodStroops;
+    if (!amount || BigInt(amount) <= 0n) {
+      errors.push({
+        path: `nodes.${trigger.id}.config.amountPerPeriodStroops`,
+        message: "Subscription amount per period must be greater than 0",
+        friendlyMessage:
+          "Set an amount per period greater than 0 — a subscription that pulls nothing will never charge.",
+      });
+    }
+  }
+
   // Payroll flows must use fixed amounts so the contract can compute the
   // exact pull amount per period.
   if (trigger?.type === "payroll") {
