@@ -1318,10 +1318,8 @@ export default function ConfigPanel({
             >
               <option value="amount_gt">amount ≥</option>
               <option value="amount_lt">amount &lt;</option>
-              <option value="oracle_gte">oracle ≥ threshold</option>
               <option value="time_after">time after</option>
               <option value="time_before">time before</option>
-              <option value="multisig">multisig</option>
             </select>
           </Field>
           {(node.config.kind === "amount_gt" || node.config.kind === "amount_lt") && (
