@@ -25,6 +25,9 @@ const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockJobs } = vi.ho
     CRON_SECRET: "cron-secret",
     STELLAR_NETWORK: "testnet",
     STELLAR_RELAYER_ADDRESS: "GDRELAYER" as string | undefined,
+    PAYROLL_MAX_CATCHUP_PER_RUN: 5,
+    CONTRACT_READ_CACHE_ENABLED: true,
+    CONTRACT_READ_CACHE_TTL_SECONDS: 300,
   };
 
   const mockRelayer = {

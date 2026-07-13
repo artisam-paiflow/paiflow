@@ -42,6 +42,34 @@ const boolish = z
   .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
   .default(false);
 
+const boolishDefault = (defaultValue: boolean) =>
+  z
+    .union([z.boolean(), z.string()])
+    .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
+    .default(defaultValue);
+
+const optionalPositiveInt = (defaultValue: number) =>
+  z
+    .string()
+    .optional()
+    .transform((v) => {
+      if (!v || v.length === 0) return defaultValue;
+      const parsed = Number(v);
+      if (!Number.isInteger(parsed) || parsed <= 0) return defaultValue;
+      return parsed;
+    });
+
+const optionalNonNegativeInt = (defaultValue: number) =>
+  z
+    .string()
+    .optional()
+    .transform((v) => {
+      if (!v || v.length === 0) return defaultValue;
+      const parsed = Number(v);
+      if (!Number.isInteger(parsed) || parsed < 0) return defaultValue;
+      return parsed;
+    });
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
@@ -183,6 +211,16 @@ const EnvSchema = z.object({
   OFFRAMP_ASSET_CODE: optionalString,
   OFFRAMP_NETWORK: optionalString,
   OFFRAMP_CHANNEL: optionalString,
+
+  // ---- Cron tuning ----
+  PAYROLL_MAX_CATCHUP_PER_RUN: optionalPositiveInt(5),
+  SUBSCRIPTION_MAX_CATCHUP_PER_RUN: optionalPositiveInt(5),
+  OFFRAMP_BATCH_SIZE: optionalPositiveInt(50),
+  OFFRAMP_MAX_RETRY_ATTEMPTS: optionalNonNegativeInt(3),
+  OFFRAMP_JOB_LEASE_MS: optionalPositiveInt(600_000),
+  OFFRAMP_JOB_CONCURRENCY: optionalPositiveInt(3),
+  CONTRACT_READ_CACHE_ENABLED: boolishDefault(true),
+  CONTRACT_READ_CACHE_TTL_SECONDS: optionalPositiveInt(300),
 
   // ---- Email (Resend) ----
   // Optional in dev — when RESEND_API_KEY is unset, `lib/mail.ts` logs the
