@@ -2,12 +2,22 @@ import type { AddressEntry } from "@/lib/address-book.types";
 
 export function filterAddressBook(entries: AddressEntry[], query: string): AddressEntry[] {
   const normalized = query.trim().toLowerCase();
-  if (!normalized) return entries;
-  return entries.filter(
-    (entry) =>
-      entry.label.toLowerCase().includes(normalized) ||
-      entry.address.toLowerCase().includes(normalized),
-  );
+  const matched = normalized
+    ? entries.filter(
+        (entry) =>
+          entry.label.toLowerCase().includes(normalized) ||
+          entry.address.toLowerCase().includes(normalized),
+      )
+    : entries;
+  // The address book can contain duplicate addresses (e.g. saved twice with
+  // different labels); keep the first occurrence so React keys stay unique.
+  const seen = new Set<string>();
+  return matched.filter((entry) => {
+    const key = entry.address.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export function nextHighlightIndex(

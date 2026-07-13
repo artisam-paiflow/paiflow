@@ -34,6 +34,16 @@ describe("filterAddressBook", () => {
   it("returns an empty array when nothing matches", () => {
     expect(filterAddressBook(entries, "zzz")).toEqual([]);
   });
+
+  it("dedupes entries with the same address, keeping the first", () => {
+    const withDupes: AddressEntry[] = [
+      entries[0]!,
+      { label: "Alice (alt)", address: entries[0]!.address },
+      entries[1]!,
+    ];
+    expect(filterAddressBook(withDupes, "")).toEqual([entries[0], entries[1]]);
+    expect(filterAddressBook(withDupes, "alice")).toEqual([entries[0]]);
+  });
 });
 
 describe("nextHighlightIndex", () => {
