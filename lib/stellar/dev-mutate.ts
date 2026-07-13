@@ -207,6 +207,7 @@ async function readPayerDevPayment(contractAddress: string): Promise<{
   recipient?: string;
   amountStroops: string;
   percentageBps: number;
+  isCashOut: boolean;
 }> {
   const server = sorobanRpc();
   const source = relayerAddressOrThrow();
@@ -246,6 +247,14 @@ async function readPayerDevPayment(contractAddress: string): Promise<{
   const recipientVal = await read("recipient");
   const amountVal = await read("configured_amount");
   const bpsVal = await read("percentage_bps");
+  // Older payer_dev deployments predate the cash-out flag; treat a missing
+  // getter as crypto payout.
+  let isCashOut = false;
+  try {
+    isCashOut = Boolean(scValToNative(await read("is_cash_out")));
+  } catch {
+    isCashOut = false;
+  }
 
   const recipientNative = scValToNative(recipientVal) as string | null | undefined;
   const amountNative = scValToNative(amountVal) as bigint | number | string;
@@ -255,17 +264,19 @@ async function readPayerDevPayment(contractAddress: string): Promise<{
     recipient: recipientNative ? String(recipientNative) : undefined,
     amountStroops: String(amountNative),
     percentageBps: bpsNative,
+    isCashOut,
   };
 }
 
 export async function updatePaymentByRelayer(
   contractAddress: string,
-  opts: { recipient?: string; amountStroops?: string; percentageBps?: number },
+  opts: { recipient?: string; amountStroops?: string; percentageBps?: number; isCashOut?: boolean },
 ): Promise<DevMutateResult> {
   const current = await readPayerDevPayment(contractAddress);
   const recipient = opts.recipient ?? current.recipient;
   const amountStroops = opts.amountStroops ?? current.amountStroops;
   const percentageBps = opts.percentageBps ?? current.percentageBps;
+  const isCashOut = opts.isCashOut ?? current.isCashOut;
 
   if (!recipient) {
     throw new AppError("VALIDATION", "Recipient is required for update_payment");
@@ -277,6 +288,7 @@ export async function updatePaymentByRelayer(
     addr(recipient),
     i128(amountStroops),
     u32(percentageBps),
+    bool(isCashOut),
   ]);
 }
 

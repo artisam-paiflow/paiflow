@@ -21,6 +21,7 @@ pub enum Key {
     NextSteps,
     ParentNode,
     Version,
+    IsCashOut,
 }
 
 #[contracterror]
@@ -51,6 +52,7 @@ impl Payer {
         percentage_bps: u32,
         next_steps: Vec<WorkflowTarget>,
         parent: Address,
+        is_cash_out: bool,
     ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
@@ -68,6 +70,7 @@ impl Payer {
         env.storage().instance().set(&Key::NextSteps, &next_steps);
         env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
+        env.storage().instance().set(&Key::IsCashOut, &is_cash_out);
     }
 
     pub fn execute_step(env: Env, asset: Address, amount: i128) {
@@ -105,6 +108,15 @@ impl Payer {
             &recipient,
             &payment,
         );
+
+        let is_cash_out: bool = env
+            .storage()
+            .instance()
+            .get(&Key::IsCashOut)
+            .unwrap_or(false);
+        if is_cash_out {
+            invoke_receive_and_forward(&env, &recipient, &asset, &payment);
+        }
 
         forward_remaining(&env, &asset);
 
@@ -144,6 +156,13 @@ impl Payer {
 
     pub fn recipient(env: Env) -> Address {
         env.storage().instance().get(&Key::Recipient).unwrap()
+    }
+
+    pub fn is_cash_out(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&Key::IsCashOut)
+            .unwrap_or(false)
     }
 
     pub fn set_next_steps(env: Env, next_steps: Vec<WorkflowTarget>) {
@@ -196,6 +215,15 @@ impl Payer {
             &recipient,
             &payment,
         );
+
+        let is_cash_out: bool = env
+            .storage()
+            .instance()
+            .get(&Key::IsCashOut)
+            .unwrap_or(false);
+        if is_cash_out {
+            invoke_receive_and_forward(&env, &recipient, &asset, &payment);
+        }
 
         forward_remaining(&env, &asset);
 
@@ -255,6 +283,23 @@ fn invoke_execute_step(env: &Env, target: &Address, asset: &Address, amount: &i1
     );
 }
 
+fn invoke_receive_and_forward(env: &Env, target: &Address, asset: &Address, amount: &i128) {
+    let func = soroban_sdk::Symbol::new(env, "receive_and_forward");
+    let empty_steps = Vec::<WorkflowTarget>::new(env);
+    let source = env.current_contract_address();
+    env.invoke_contract::<()>(
+        target,
+        &func,
+        vec![
+            env,
+            source.into_val(env),
+            asset.into_val(env),
+            amount.into_val(env),
+            empty_steps.into_val(env),
+        ],
+    );
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -269,6 +314,23 @@ mod test {
     impl Dummy {
         pub fn __constructor(_env: Env) {}
         pub fn execute_step(_env: Env, _asset: Address, _amount: i128) {}
+    }
+
+    #[contract]
+    pub struct MockCashOut;
+
+    #[contractimpl]
+    impl MockCashOut {
+        pub fn __constructor(_env: Env) {}
+
+        pub fn receive_and_forward(
+            _env: Env,
+            _from: Address,
+            _asset: Address,
+            _amount: i128,
+            _next_steps: Vec<WorkflowTarget>,
+        ) {
+        }
     }
 
     #[test]
@@ -297,6 +359,7 @@ mod test {
                 0_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 parent.clone(),
+                false,
             ),
         );
         let client = PayerClient::new(&env, &contract_id);
@@ -335,6 +398,7 @@ mod test {
                 0_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 parent.clone(),
+                false,
             ),
         );
         let client = PayerClient::new(&env, &contract_id);
@@ -372,6 +436,7 @@ mod test {
                 0_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 parent.clone(),
+                false,
             ),
         );
         let client = PayerClient::new(&env, &contract_id);
@@ -411,6 +476,7 @@ mod test {
                 5_000_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 parent.clone(),
+                false,
             ),
         );
         let client = PayerClient::new(&env, &contract_id);
@@ -449,6 +515,7 @@ mod test {
                 10_000_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 parent.clone(),
+                false,
             ),
         );
         let client = PayerClient::new(&env, &contract_id);
@@ -486,6 +553,7 @@ mod test {
                 0_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 parent.clone(),
+                false,
             ),
         );
         let client = PayerClient::new(&env, &contract_id);
@@ -523,6 +591,7 @@ mod test {
                 0_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 parent.clone(),
+                false,
             ),
         );
         let client = PayerClient::new(&env, &contract_id);
@@ -565,6 +634,7 @@ mod test {
                 5_000_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 parent.clone(),
+                false,
             ),
         );
         let client = PayerClient::new(&env, &contract_id);
@@ -616,6 +686,7 @@ mod test {
                 0_u32,
                 next_steps,
                 parent.clone(),
+                false,
             ),
         );
         let client = PayerClient::new(&env, &contract_id);
@@ -660,6 +731,7 @@ mod test {
                 0_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 parent.clone(),
+                false,
             ),
         );
         let payer1_client = PayerClient::new(&env, &payer1_id);
@@ -674,6 +746,7 @@ mod test {
                 0_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 payer1_id.clone(),
+                false,
             ),
         );
         let payer2_client = PayerClient::new(&env, &payer2_id);
@@ -725,6 +798,7 @@ mod test {
                 0_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 parent.clone(),
+                false,
             ),
         );
         let payer_client = PayerClient::new(&env, &payer_id);
@@ -800,6 +874,7 @@ mod test {
                 5_000_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 parent.clone(),
+                false,
             ),
         );
         let payer1_client = PayerClient::new(&env, &payer1_id);
@@ -814,6 +889,7 @@ mod test {
                 0_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 payer1_id.clone(),
+                false,
             ),
         );
         let payer2_client = PayerClient::new(&env, &payer2_id);
@@ -835,5 +911,46 @@ mod test {
         assert_eq!(tok.balance(&payer2_id), 450);
         assert_eq!(payer1_client.percentage_bps(), 5_000);
         assert_eq!(payer2_client.configured_amount(), 50);
+    }
+
+    #[test]
+    fn cash_out_recipient_receives_payment_via_receive_and_forward() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let predecessor = Address::generate(&env);
+        let cash_out_contract = env.register(MockCashOut, ());
+        sac.mint(&predecessor, &1_000);
+
+        let parent = Address::generate(&env);
+
+        let contract_id = env.register(
+            Payer,
+            (
+                admin.clone(),
+                asset.address(),
+                cash_out_contract.clone(),
+                100_i128,
+                0_u32,
+                Vec::<WorkflowTarget>::new(&env),
+                parent.clone(),
+                true,
+            ),
+        );
+        let client = PayerClient::new(&env, &contract_id);
+        assert!(client.is_cash_out());
+
+        tok.transfer(&predecessor, &contract_id, &1_000);
+        client.execute_step(&asset.address(), &1_000);
+
+        // The cash-out contract holds the payment (its mock receive_and_forward
+        // keeps the funds rather than sinking them to a treasury).
+        assert_eq!(tok.balance(&cash_out_contract), 100);
+        assert_eq!(tok.balance(&contract_id), 900);
     }
 }

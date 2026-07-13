@@ -436,31 +436,126 @@ export default function ConfigPanel({
             expectedAsset={expectedAsset}
           />
 
-          <ApiFillField
-            label="Recipient (G… or PENDING:)"
-            devMode={devMode}
-            active={isApiFillAddress(node.config.recipient)}
-            onActivate={() =>
-              onChange({ ...node, config: { ...node.config, recipient: API_FILL_ADDRESS } })
-            }
-            onDeactivate={() => onChange({ ...node, config: { ...node.config, recipient: "" } })}
-            hint="Recipient set via the API after deploy"
-          >
-            <AddressInput
-              value={node.config.recipient}
-              onChange={(recipient) =>
-                onChange({
-                  ...node,
-                  config: { ...node.config, recipient },
-                })
+          {!(triggerType === "payroll" && node.config.payoutMode === "fiat") && (
+            <ApiFillField
+              label="Recipient (G… or PENDING:)"
+              devMode={devMode}
+              active={isApiFillAddress(node.config.recipient)}
+              onActivate={() =>
+                onChange({ ...node, config: { ...node.config, recipient: API_FILL_ADDRESS } })
               }
-              pending={isPendingAddress(node.config.recipient)}
-              addressBook={addressBook}
-              onAddressBookChange={refreshAddressBook}
-              addressBookLoading={addressBookLoading}
-              addressBookError={addressBookError}
-            />
-          </ApiFillField>
+              onDeactivate={() => onChange({ ...node, config: { ...node.config, recipient: "" } })}
+              hint="Recipient set via the API after deploy"
+            >
+              <AddressInput
+                value={node.config.recipient}
+                onChange={(recipient) =>
+                  onChange({
+                    ...node,
+                    config: { ...node.config, recipient },
+                  })
+                }
+                pending={isPendingAddress(node.config.recipient)}
+                addressBook={addressBook}
+                onAddressBookChange={refreshAddressBook}
+                addressBookLoading={addressBookLoading}
+                addressBookError={addressBookError}
+              />
+            </ApiFillField>
+          )}
+
+          {triggerType === "payroll" && (
+            <div className="space-y-2 pt-1">
+              <Field label="Payout mode">
+                <select
+                  className="input text-xs"
+                  value={node.config.payoutMode ?? "crypto"}
+                  onChange={(e) => {
+                    const mode = e.target.value as "crypto" | "fiat";
+                    onChange({
+                      ...node,
+                      config: {
+                        ...node.config,
+                        payoutMode: mode,
+                        // Payroll fiat employees get an auto-generated cash-out
+                        // contract, so the wallet address is replaced with a
+                        // sentinel — like fiat split recipients.
+                        recipient:
+                          mode === "fiat"
+                            ? "PENDING:fiat"
+                            : isPendingAddress(node.config.recipient)
+                              ? "PENDING:unnamed"
+                              : node.config.recipient,
+                        ...(mode === "fiat" && !devMode
+                          ? {
+                              accountName: node.config.accountName ?? "",
+                              accountNumber: node.config.accountNumber ?? "",
+                              bankCode: node.config.bankCode ?? "",
+                            }
+                          : {}),
+                      },
+                    } as FlowNode);
+                  }}
+                >
+                  <option value="crypto">Crypto (wallet)</option>
+                  <option value="fiat">Fiat (bank transfer)</option>
+                </select>
+              </Field>
+
+              {node.config.payoutMode === "fiat" && !devMode && (
+                <>
+                  <Field label="Account name">
+                    <input
+                      className="input text-xs"
+                      value={node.config.accountName ?? ""}
+                      placeholder="Juan Dela Cruz"
+                      onChange={(e) =>
+                        onChange({
+                          ...node,
+                          config: { ...node.config, accountName: e.target.value },
+                        } as FlowNode)
+                      }
+                    />
+                  </Field>
+                  <Field label="Account number">
+                    <input
+                      className="input text-xs"
+                      value={node.config.accountNumber ?? ""}
+                      placeholder="1234567890"
+                      onChange={(e) =>
+                        onChange({
+                          ...node,
+                          config: { ...node.config, accountNumber: e.target.value },
+                        } as FlowNode)
+                      }
+                    />
+                  </Field>
+                  <Field label="Bank">
+                    <select
+                      className="input text-xs"
+                      value={node.config.bankCode ?? ""}
+                      onChange={(e) =>
+                        onChange({
+                          ...node,
+                          config: { ...node.config, bankCode: e.target.value },
+                        } as FlowNode)
+                      }
+                    >
+                      <option value="">— select bank —</option>
+                      <option value="BASECPH">BASECPH — BDO</option>
+                      <option value="BACTBPH">BACTBPH — BPI</option>
+                    </select>
+                  </Field>
+                </>
+              )}
+
+              {node.config.payoutMode === "fiat" && devMode && (
+                <div className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-300">
+                  Bank details configured via API after deploy.
+                </div>
+              )}
+            </div>
+          )}
 
           {devMode && (
             <label className="flex cursor-pointer items-center justify-between rounded border border-amber-800/40 bg-amber-950/10 px-3 py-2">
