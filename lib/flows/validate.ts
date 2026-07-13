@@ -1,5 +1,6 @@
 import { TemplateKind } from "@prisma/client";
 import { StrKey } from "@stellar/stellar-sdk";
+import type { ZodIssue } from "zod";
 import {
   FlowGraphSchema,
   type FlowGraph,
@@ -225,15 +226,72 @@ export function computeAssetFlow(graph: FlowGraph): Map<string, Asset | null> {
   return computeAssetFlowInternal(graph).resolved;
 }
 
+const GENERIC_SCHEMA_MESSAGE =
+  "The flow structure is invalid. Check your node types and configuration.";
+
+// Show the offending value so the user can spot the typo, capped just past a
+// full Stellar address (56 chars) so a pasted blob can't flood the error panel.
+function showValue(v: string): string {
+  return v.length > 60 ? `${v.slice(0, 57)}...` : v;
+}
+
+// Turn a schema (Zod) issue into a message that names the offending field and
+// value. The graph failed to parse, so raw values are read defensively from
+// the migrated (unvalidated) graph rather than the typed one.
+function friendlySchemaIssue(issue: ZodIssue, migrated: unknown): string {
+  const p = issue.path;
+  const nodes = (migrated as { nodes?: unknown[] } | null | undefined)?.nodes;
+  const nodeIdx = p[0] === "nodes" && typeof p[1] === "number" ? p[1] : -1;
+  const node =
+    nodeIdx >= 0
+      ? (nodes?.[nodeIdx] as { type?: string; config?: Record<string, unknown> } | undefined)
+      : undefined;
+
+  if (issue.message === "Invalid Stellar address" && node) {
+    // Split recipient: nodes.<i>.config.recipients.<j>.address
+    if (
+      node.type === "split" &&
+      p[2] === "config" &&
+      p[3] === "recipients" &&
+      typeof p[4] === "number"
+    ) {
+      const recipients = node.config?.recipients as
+        | { label?: string; address?: string }[]
+        | undefined;
+      const recipient = recipients?.[p[4]];
+      const label = recipient?.label?.trim();
+      const who = label ? `recipient "${label}"` : `recipient #${p[4] + 1}`;
+      const bad = typeof recipient?.address === "string" ? recipient.address : "";
+      return `Invalid Stellar address for ${who} in the split node${
+        bad ? `: "${showValue(bad)}"` : ""
+      }. Enter a valid wallet (G...) or contract (C...) address.`;
+    }
+    // Pay recipient: nodes.<i>.config.recipient
+    if (node.type === "pay" && p[2] === "config" && p[3] === "recipient") {
+      const bad = typeof node.config?.recipient === "string" ? node.config.recipient : "";
+      return `Invalid Stellar address for the pay node's recipient${
+        bad ? `: "${showValue(bad)}"` : ""
+      }. Enter a valid wallet (G...) address.`;
+    }
+    // Other address fields (relayer, subscriber, employer, vault, issuer, signers).
+    const last = p[p.length - 1];
+    const field = typeof last === "number" ? String(p[p.length - 2] ?? "address") : String(last);
+    return `Invalid Stellar address in the "${field}" field of the ${node.type ?? "unknown"} node.`;
+  }
+
+  return GENERIC_SCHEMA_MESSAGE;
+}
+
 export function validateFlow(rawGraph: unknown): ValidationResult {
-  const parsed = FlowGraphSchema.safeParse(migrateFlowGraph(rawGraph));
+  const migrated = migrateFlowGraph(rawGraph);
+  const parsed = FlowGraphSchema.safeParse(migrated);
   if (!parsed.success) {
     return {
       ok: false,
       errors: parsed.error.issues.map((i) => ({
         path: i.path.join("."),
         message: i.message,
-        friendlyMessage: "The flow structure is invalid. Check your node types and configuration.",
+        friendlyMessage: friendlySchemaIssue(i, migrated),
       })),
     };
   }
