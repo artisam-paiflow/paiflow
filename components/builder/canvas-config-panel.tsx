@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ViewportPortal, useReactFlow, useViewport } from "@xyflow/react";
-import { cn } from "@/lib/utils";
 import ConfigPanel from "./config-panel";
 import type { FlowNode, FlowGraph } from "@/lib/flows/schema";
 import type { AddressEntry } from "@/lib/address-book.types";
@@ -103,26 +102,22 @@ export default function CanvasConfigPanel({
           pointerEvents: "none",
         }}
       >
-        {/* Counter-scale wrapper: cancels the viewport zoom so the panel stays
-            a fixed readable size. It owns pointer events so the surrounding
-            unscaled bounding box does not block the canvas. */}
+        {/* The panel lives in flow space, so it pans and zooms together with
+            the canvas like a regular node. It owns pointer events so the
+            surrounding bounding box does not block the canvas. */}
         <div
           className="nopan"
-          style={{
-            transform: `scale(${1 / zoom})`,
-            transformOrigin: "top left",
-            pointerEvents: "all",
-          }}
+          style={{ pointerEvents: "all" }}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Chat-shift wrapper: lives in the counter-scaled (screen-pixel)
-              space so the -268px shift is independent of zoom. */}
+          {/* Chat-shift wrapper: the sidebar is a fixed 268px on screen, so the
+              shift must be divided by zoom to stay aligned in flow space. */}
           <div
-            className={cn(
-              "w-80 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl transition-transform duration-300 ease-in-out",
-              !chatCollapsed && "-translate-x-[268px]",
-            )}
+            className="w-80 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl transition-transform duration-300 ease-in-out"
+            style={{
+              transform: !chatCollapsed ? `translateX(${-268 / zoom}px)` : undefined,
+            }}
           >
             {/* Draggable header */}
             <div
