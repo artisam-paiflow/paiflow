@@ -692,6 +692,202 @@ describe("flowToParams", () => {
     }
   });
 
+  it("synthesizes CASH_OUT for a fiat split recipient in a non-dev on_receive flow", () => {
+    const pipeline = flowToPipeline(
+      {
+        devMode: false,
+        nodes: [
+          { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+          {
+            id: "a",
+            type: "split",
+            config: {
+              asset: { kind: "native" },
+              recipients: [
+                { address: ADDR_A, mode: "percentage", bps: 6000, payoutMode: "crypto" },
+                {
+                  address: ADDR_B,
+                  mode: "percentage",
+                  bps: 4000,
+                  payoutMode: "fiat",
+                  accountName: "Bob",
+                  accountNumber: "1234567890",
+                  bankCode: "BASECPH",
+                },
+              ],
+            },
+          },
+        ],
+        edges: [{ id: "e", source: "t", target: "a" }],
+      },
+      RELAYER,
+      ADDR_B,
+    );
+
+    expect(pipeline).toHaveLength(3);
+    const [trigger, split, cashOut] = pipeline;
+    expect(trigger!.templateKind).toBe(TemplateKind.DEPOSIT_TRIGGER);
+    expect(split!.templateKind).toBe(TemplateKind.SPLITTER);
+    expect(cashOut!.templateKind).toBe(TemplateKind.CASH_OUT);
+    expect(cashOut!.nodeId).toBe("a-cashout-1");
+
+    if (split!.params.kind === "splitter") {
+      const crypto = split!.params.recipients.find((r) => r.address === ADDR_A);
+      const fiat = split!.params.recipients.find((r) => r.isCashOut);
+      expect(crypto!.isCashOut).toBe(false);
+      expect(fiat!.address).toBe("a-cashout-1");
+      expect(fiat!.bps).toBe(4000);
+    }
+    if (cashOut!.params.kind === "cash_out") {
+      expect(cashOut!.params.accountName).toBe("Bob");
+      expect(cashOut!.params.bankCode).toBe("BASECPH");
+      expect(cashOut!.params.treasury).toBe(ADDR_B);
+      expect(cashOut!.params.parentNodeId).toBe("a");
+    }
+  });
+
+  it("synthesizes CASH_OUT for a fiat pay node in a non-dev webhook flow", () => {
+    const pipeline = flowToPipeline(
+      {
+        devMode: false,
+        nodes: [
+          {
+            id: "t",
+            type: "webhook",
+            config: { asset: { kind: "native" }, relayer: RELAYER },
+          },
+          {
+            id: "a",
+            type: "pay",
+            config: {
+              asset: { kind: "native" },
+              recipient: ADDR_A,
+              amountStroops: "100",
+              mode: "fixed",
+              fullAmount: false,
+              payoutMode: "fiat",
+              accountName: "Alice",
+              accountNumber: "999",
+              bankCode: "BASECPH",
+            },
+          },
+        ],
+        edges: [{ id: "e", source: "t", target: "a" }],
+      },
+      RELAYER,
+      ADDR_B,
+    );
+
+    expect(pipeline).toHaveLength(3);
+    const [trigger, payer, cashOut] = pipeline;
+    expect(trigger!.templateKind).toBe(TemplateKind.WEBHOOK);
+    expect(payer!.templateKind).toBe(TemplateKind.PAYER);
+    expect(cashOut!.templateKind).toBe(TemplateKind.CASH_OUT);
+
+    if (payer!.params.kind === "payer") {
+      expect(payer!.params.isCashOut).toBe(true);
+      expect(payer!.params.recipient).toBe("a-cashout-0");
+    }
+    if (cashOut!.params.kind === "cash_out") {
+      expect(cashOut!.params.accountName).toBe("Alice");
+      expect(cashOut!.params.accountNumber).toBe("999");
+      expect(cashOut!.params.parentNodeId).toBe("a");
+    }
+  });
+
+  it("synthesizes CASH_OUT for fiat split recipients in a non-dev subscription flow", () => {
+    const pipeline = flowToPipeline(
+      {
+        devMode: false,
+        nodes: [
+          {
+            id: "t",
+            type: "subscription",
+            config: {
+              asset: { kind: "native" },
+              subscriber: ADDR_A,
+              amountPerPeriodStroops: "1000",
+              intervalAmount: 1,
+              intervalUnit: "day",
+            },
+          },
+          {
+            id: "a",
+            type: "split",
+            config: {
+              asset: { kind: "native" },
+              recipients: [
+                {
+                  address: ADDR_B,
+                  mode: "percentage",
+                  bps: 10000,
+                  payoutMode: "fiat",
+                  accountName: "Bob",
+                  accountNumber: "1234567890",
+                  bankCode: "BASECPH",
+                },
+              ],
+            },
+          },
+        ],
+        edges: [{ id: "e", source: "t", target: "a" }],
+      },
+      RELAYER,
+      ADDR_B,
+    );
+
+    expect(pipeline).toHaveLength(3);
+    const [sub, split, cashOut] = pipeline;
+    expect(sub!.templateKind).toBe(TemplateKind.SUBSCRIPTION);
+    expect(split!.templateKind).toBe(TemplateKind.SPLITTER);
+    expect(cashOut!.templateKind).toBe(TemplateKind.CASH_OUT);
+    if (split!.params.kind === "splitter") {
+      expect(split!.params.recipients[0]!.address).toBe("a-cashout-0");
+      expect(split!.params.recipients[0]!.isCashOut).toBe(true);
+    }
+    if (cashOut!.params.kind === "cash_out") {
+      expect(cashOut!.params.accountName).toBe("Bob");
+      expect(cashOut!.params.parentNodeId).toBe("a");
+    }
+  });
+
+  it("does not synthesize cash-out nodes for dev-mode non-payroll flows", () => {
+    const pipeline = flowToPipeline(
+      {
+        devMode: true,
+        nodes: [
+          { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+          {
+            id: "a",
+            type: "split",
+            config: {
+              asset: { kind: "native" },
+              recipients: [
+                {
+                  address: ADDR_B,
+                  mode: "percentage",
+                  bps: 10000,
+                  payoutMode: "fiat",
+                },
+              ],
+            },
+          },
+        ],
+        edges: [{ id: "e", source: "t", target: "a" }],
+      },
+      RELAYER,
+      ADDR_B,
+    );
+
+    expect(pipeline.find((n) => n.templateKind === TemplateKind.CASH_OUT_DEV)).toBeUndefined();
+    expect(pipeline.find((n) => n.templateKind === TemplateKind.CASH_OUT)).toBeUndefined();
+    const split = pipeline.find((n) => n.templateKind === TemplateKind.SPLITTER_DEV);
+    if (split!.params.kind === "splitter_dev") {
+      // Left untouched — validation rejects dev-mode fiat outside payroll.
+      expect(split!.params.recipients[0]!.address).toBe(ADDR_B);
+    }
+  });
+
   it("keeps email_notify out of nextStepNodeIds", () => {
     const pipeline = flowToPipeline({
       nodes: [
