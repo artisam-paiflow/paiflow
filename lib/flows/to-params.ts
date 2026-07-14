@@ -418,6 +418,90 @@ function streamerAmountPerInterval(
  * relationships are expressed as nodeId references so the deploy layer can
  * wire deterministic addresses later.
  */
+/**
+ * Rewrite fiat payouts on a pay/split action into generated cash-out terminal
+ * nodes. Each fiat split recipient (or a fiat pay recipient) is redirected to
+ * a `{actionId}-cashout-{i}` contract that sinks the funds to the off-ramp
+ * treasury and emits a cash_out event. The payer/splitter invokes that
+ * contract's receive_and_forward because the recipient carries isCashOut.
+ *
+ * Dev mode emits mutable CASH_OUT_DEV nodes with blank bank details (filled
+ * via the API); non-dev bakes the bank destination into immutable CASH_OUT
+ * contracts. Non pay/split actions pass through untouched.
+ */
+function synthesizeCashOutNodes(
+  action: ContractActionNode,
+  devMode: boolean,
+  relayerAddress?: string,
+  treasuryAddress?: string,
+): { action: ContractActionNode; cashOutNodes: PipelineNode[] } {
+  const cashOutNodes: PipelineNode[] = [];
+
+  const pushCashOutNode = (
+    nodeId: string,
+    bank: { accountName: string; accountNumber: string; bankCode: string },
+  ) => {
+    const shared = {
+      asset: getAsset(action),
+      accountName: devMode ? "" : bank.accountName,
+      accountNumber: devMode ? "" : bank.accountNumber,
+      bankCode: devMode ? "" : bank.bankCode,
+      treasury: treasuryAddress ?? relayerAddress ?? "",
+      relayer: relayerAddress,
+      nextStepNodeIds: [] as string[],
+      parentNodeId: action.id,
+    };
+    cashOutNodes.push(
+      devMode
+        ? {
+            nodeId,
+            templateKind: TemplateKind.CASH_OUT_DEV,
+            params: { kind: "cash_out_dev" as const, ...shared },
+          }
+        : {
+            nodeId,
+            templateKind: TemplateKind.CASH_OUT,
+            params: { kind: "cash_out" as const, ...shared },
+          },
+    );
+  };
+
+  if (action.type === "split") {
+    let changed = false;
+    const recipients = action.config.recipients.map((r, index) => {
+      if (r.payoutMode !== "fiat") return r;
+      changed = true;
+      const nodeId = `${action.id}-cashout-${index}`;
+      pushCashOutNode(nodeId, {
+        accountName: r.accountName ?? "",
+        accountNumber: r.accountNumber ?? "",
+        bankCode: r.bankCode ?? "",
+      });
+      return { ...r, address: nodeId } as SplitRecipient;
+    });
+    if (!changed) return { action, cashOutNodes };
+    return {
+      action: { ...action, config: { ...action.config, recipients } },
+      cashOutNodes,
+    };
+  }
+
+  if (action.type === "pay" && action.config.payoutMode === "fiat") {
+    const nodeId = `${action.id}-cashout-0`;
+    pushCashOutNode(nodeId, {
+      accountName: action.config.accountName ?? "",
+      accountNumber: action.config.accountNumber ?? "",
+      bankCode: action.config.bankCode ?? "",
+    });
+    return {
+      action: { ...action, config: { ...action.config, recipient: nodeId } },
+      cashOutNodes,
+    };
+  }
+
+  return { action, cashOutNodes };
+}
+
 export function flowToPipeline(
   graph: FlowGraph,
   relayerAddress?: string,
@@ -522,15 +606,22 @@ export function flowToPipeline(
 
       // Subscription pulls are forwarded to standard action contracts that
       // implement receive_and_forward (payer, splitter, swapper, yield).
+      const cashOutNodes: PipelineNode[] = [];
       const seenActions = new Set<string>();
       const actionQueue: ContractActionNode[] = [action];
       while (actionQueue.length > 0) {
         const current = actionQueue.shift()!;
         if (seenActions.has(current.id)) continue;
         seenActions.add(current.id);
+        // Dev-mode fiat cash-out outside payroll is not yet supported — leave
+        // the action untouched (validation rejects the flow).
+        const synthesized = devMode
+          ? { action: current, cashOutNodes: [] as PipelineNode[] }
+          : synthesizeCashOutNodes(current, false, relayerAddress, treasuryAddress);
+        cashOutNodes.push(...synthesized.cashOutNodes);
         pipeline.push(
           contractActionToPipelineNode(
-            current,
+            synthesized.action,
             trigger,
             children,
             devMode,
@@ -545,6 +636,7 @@ export function flowToPipeline(
           }
         }
       }
+      pipeline.push(...cashOutNodes);
       return pipeline;
     }
 
@@ -565,60 +657,6 @@ export function flowToPipeline(
         // splitter sends their fixed share to that contract, which sinks it to
         // the treasury and emits a cash_out event for the off-ramp cron.
         const cashOutNodes: PipelineNode[] = [];
-        const actionWithCashOut: ContractActionNode = { ...action };
-        if (actionWithCashOut.type === "split") {
-          const transformedRecipients = actionWithCashOut.config.recipients.map((r, index) => {
-            if (r.payoutMode !== "fiat") return r;
-            const nodeId = `${action.id}-cashout-${index}`;
-            cashOutNodes.push({
-              nodeId,
-              templateKind: TemplateKind.CASH_OUT_DEV,
-              params: {
-                kind: "cash_out_dev",
-                asset: trigger.config.asset,
-                accountName: "",
-                accountNumber: "",
-                bankCode: "",
-                treasury: treasuryAddress ?? relayerAddress ?? "",
-                relayer: relayerAddress,
-                nextStepNodeIds: [],
-                parentNodeId: action.id,
-              },
-            });
-            return { ...r, address: nodeId } as SplitRecipient;
-          });
-          actionWithCashOut.config = {
-            ...actionWithCashOut.config,
-            recipients: transformedRecipients,
-          };
-        } else if (
-          actionWithCashOut.type === "pay" &&
-          actionWithCashOut.config.payoutMode === "fiat"
-        ) {
-          // A fiat single-pay employee gets the same treatment as a fiat split
-          // recipient: a generated CASH_OUT_DEV terminal node that the payer
-          // sinks the salary into via receive_and_forward.
-          const nodeId = `${action.id}-cashout-0`;
-          cashOutNodes.push({
-            nodeId,
-            templateKind: TemplateKind.CASH_OUT_DEV,
-            params: {
-              kind: "cash_out_dev",
-              asset: trigger.config.asset,
-              accountName: "",
-              accountNumber: "",
-              bankCode: "",
-              treasury: treasuryAddress ?? relayerAddress ?? "",
-              relayer: relayerAddress,
-              nextStepNodeIds: [],
-              parentNodeId: action.id,
-            },
-          });
-          actionWithCashOut.config = {
-            ...actionWithCashOut.config,
-            recipient: nodeId,
-          };
-        }
 
         pipeline.push({
           nodeId: trigger.id,
@@ -639,14 +677,21 @@ export function flowToPipeline(
         });
 
         const seenActions = new Set<string>();
-        const actionQueue: ContractActionNode[] = [actionWithCashOut];
+        const actionQueue: ContractActionNode[] = [action];
         while (actionQueue.length > 0) {
           const current = actionQueue.shift()!;
           if (seenActions.has(current.id)) continue;
           seenActions.add(current.id);
+          const synthesized = synthesizeCashOutNodes(
+            current,
+            true,
+            relayerAddress,
+            treasuryAddress,
+          );
+          cashOutNodes.push(...synthesized.cashOutNodes);
           pipeline.push(
             contractActionToPipelineNode(
-              current,
+              synthesized.action,
               trigger,
               children,
               true,
@@ -671,59 +716,6 @@ export function flowToPipeline(
       // fixed salaries, and each fiat employee gets a dedicated CASH_OUT sink
       // with bank details baked in at deploy time.
       const cashOutNodes: PipelineNode[] = [];
-      const actionWithCashOut: ContractActionNode = { ...action };
-      if (actionWithCashOut.type === "split") {
-        const transformedRecipients = actionWithCashOut.config.recipients.map((r, index) => {
-          if (r.payoutMode !== "fiat") return r;
-          const nodeId = `${action.id}-cashout-${index}`;
-          cashOutNodes.push({
-            nodeId,
-            templateKind: TemplateKind.CASH_OUT,
-            params: {
-              kind: "cash_out",
-              asset: trigger.config.asset,
-              accountName: r.accountName ?? "",
-              accountNumber: r.accountNumber ?? "",
-              bankCode: r.bankCode ?? "",
-              treasury: treasuryAddress ?? relayerAddress ?? "",
-              relayer: relayerAddress,
-              nextStepNodeIds: [],
-              parentNodeId: action.id,
-            },
-          });
-          return { ...r, address: nodeId } as SplitRecipient;
-        });
-        actionWithCashOut.config = {
-          ...actionWithCashOut.config,
-          recipients: transformedRecipients,
-        };
-      } else if (
-        actionWithCashOut.type === "pay" &&
-        actionWithCashOut.config.payoutMode === "fiat"
-      ) {
-        // Immutable counterpart of the dev branch above: bank details are baked
-        // into the generated CASH_OUT contract at deploy time.
-        const nodeId = `${action.id}-cashout-0`;
-        cashOutNodes.push({
-          nodeId,
-          templateKind: TemplateKind.CASH_OUT,
-          params: {
-            kind: "cash_out",
-            asset: trigger.config.asset,
-            accountName: actionWithCashOut.config.accountName ?? "",
-            accountNumber: actionWithCashOut.config.accountNumber ?? "",
-            bankCode: actionWithCashOut.config.bankCode ?? "",
-            treasury: treasuryAddress ?? relayerAddress ?? "",
-            relayer: relayerAddress,
-            nextStepNodeIds: [],
-            parentNodeId: action.id,
-          },
-        });
-        actionWithCashOut.config = {
-          ...actionWithCashOut.config,
-          recipient: nodeId,
-        };
-      }
 
       pipeline.push({
         nodeId: trigger.id,
@@ -742,14 +734,16 @@ export function flowToPipeline(
       });
 
       const seenActions = new Set<string>();
-      const actionQueue: ContractActionNode[] = [actionWithCashOut];
+      const actionQueue: ContractActionNode[] = [action];
       while (actionQueue.length > 0) {
         const current = actionQueue.shift()!;
         if (seenActions.has(current.id)) continue;
         seenActions.add(current.id);
+        const synthesized = synthesizeCashOutNodes(current, false, relayerAddress, treasuryAddress);
+        cashOutNodes.push(...synthesized.cashOutNodes);
         pipeline.push(
           contractActionToPipelineNode(
-            current,
+            synthesized.action,
             trigger,
             children,
             false,
@@ -907,6 +901,7 @@ export function flowToPipeline(
 
   // Action(s)
   if (!terminal) {
+    const cashOutNodes: PipelineNode[] = [];
     const seenActions = new Set<string>();
     const actionQueue: ContractActionNode[] = [action];
 
@@ -915,9 +910,16 @@ export function flowToPipeline(
       if (seenActions.has(current.id)) continue;
       seenActions.add(current.id);
 
+      // Dev-mode fiat cash-out outside payroll is not yet supported — leave
+      // the action untouched (validation rejects the flow).
+      const synthesized = devMode
+        ? { action: current, cashOutNodes: [] as PipelineNode[] }
+        : synthesizeCashOutNodes(current, false, relayerAddress, treasuryAddress);
+      cashOutNodes.push(...synthesized.cashOutNodes);
+
       pipeline.push(
         contractActionToPipelineNode(
-          current,
+          synthesized.action,
           trigger,
           children,
           devMode,
@@ -933,6 +935,8 @@ export function flowToPipeline(
         }
       }
     }
+
+    pipeline.push(...cashOutNodes);
   }
 
   return pipeline;
