@@ -4,11 +4,6 @@
 
 Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a QR code. Anyone who scans it sends funds straight to a pre-audited smart contract that fans out the money automatically.
 
-|             |                                                                                   |
-| ----------- | --------------------------------------------------------------------------------- |
-| **Status**  | v0.2 — visual builder, live deployments, raft-log voice input, live event polling |
-| **License** | MIT                                                                               |
-
 ---
 
 ## Pitch deck
@@ -45,20 +40,14 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 - **Fintech product managers / founders** — need programmable payouts (revenue splits, partner programs, escrow), don't have a Rust team, won't accept being locked into a closed SaaS.
 - **MSME / SMB operators** — running creator collabs, freelancer pools, supplier-payment fan-outs. Want self-custody and audit-grade transparency without learning a new SDK.
 - **OFWs and remittance senders** — periodic family payouts, automatic budget splits (rent + savings + spending) once funds land on-chain.
-- **Non-technical operators on a phone** — the hero demo is "presenter drags 3 blocks on a phone, hits Deploy, audience scans QR, money moves in 5 seconds." If a flow can't ship from a phone, we haven't solved the problem.
 
 ## ✨ Features
 
 - **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`) and actions (`Pay`, `Split`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
-- **Three Soroban templates** —
-  - **Splitter** — 60/30/10-style fan-out across N recipients (BPS-weighted).
-  - **Streamer** — time-based linear vesting / streaming payouts.
-  - **Conditional** — release-on-condition escrow (time, amount, oracle).
 - **Non-custodial deploy** — the backend prepares simulated XDR; the user's wallet (Freighter / xBull / Albedo / Hana / LOBSTR via `@creit.tech/stellar-wallets-kit`) signs. Private keys never touch the server.
-- **QR-triggered execution** — every deployment renders a public QR / dApp URL. Anyone with a wallet can scan it, sign, and fire `distribute()` — useful for audience-funded demos, public crowdpay flows, and self-fund-back tests. Rate-limited + audit-logged on the public endpoints.
+- **QR-triggered execution** — some deployment renders a public QR / dApp URL. Anyone with a wallet can scan it, sign, and fire `distribute()` — useful for audience-funded demos, public crowdpay flows, and self-fund-back tests. Rate-limited + audit-logged on the public endpoints.
 - **Live event feed** — two-phase poller seeded from the deployment transaction's ledger writes `ContractEvent` rows in real time; the deployment page animates payouts as they finalize on-chain.
 - **Raft Log AI assistant** — voice-to-text via Groq Whisper (large-v3 with fallback to large-v3-turbo) + Llama text edits. Talk to the builder in plain English ("change Alice to 55%"); the AI emits a JSON patch the validator can apply.
-- **Auth + reset** — argon2 password hashing, optional WebAuthn second factor, password reset via Resend with SHA-256-hashed tokens and session wipe on consume.
 - **Admin console** — user management, audit log, seeded admin on first boot, rate-limited public endpoints, HIBP-pwned-password check (opt-in).
 - **stellar.expert deep links** — every contract address in the UI links to the correct (`testnet` ↔ `public`) explorer.
 
