@@ -70,7 +70,7 @@ type BuilderProps = {
   initialGraph: FlowGraph;
 };
 
-function nodeToReactFlow(n: FlowNode, index: number): Node {
+function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["positions"]): Node {
   let type: "trigger" | "action" | "logic";
   switch (n.type) {
     case "on_receive":
@@ -101,7 +101,9 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
   return {
     id: n.id,
     type,
-    position: { x: 240 + index * 40, y: 80 + index * 120 },
+    // Restore the saved canvas position when present; otherwise cascade new
+    // nodes down from the top-left so they don't stack on top of each other.
+    position: positions?.[n.id] ?? { x: 240 + index * 40, y: 80 + index * 120 },
     data: { node: n, label: n.type },
   };
 }
@@ -176,7 +178,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [name, setName] = useState(initialName);
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>(initialGraph.nodes);
   const [rfNodes, setRfNodes] = useState<Node[]>(
-    initialGraph.nodes.map((n, i) => nodeToReactFlow(n, i)),
+    initialGraph.nodes.map((n, i) => nodeToReactFlow(n, i, initialGraph.positions)),
   );
   const [rfEdges, setRfEdges] = useState<Edge[]>(
     initialGraph.edges.map((e) => edgeWithColors(e, initialGraph.nodes)),
@@ -237,8 +239,18 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       edges: rfEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
       devMode,
       senderKyc,
+      // Persist canvas positions with the flow (autosave is debounced, so a
+      // drag saves once it settles rather than on every frame).
+      positions: Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
     }),
-    [flowNodes, rfEdges, devMode, senderKyc],
+    [flowNodes, rfEdges, devMode, senderKyc, rfNodes],
+  );
+
+  // Snapshot of the live canvas positions — used as a fallback when a
+  // server-returned graph (AI edit, address resolution) doesn't carry them.
+  const currentPositions = useCallback(
+    (): FlowGraph["positions"] => Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
+    [rfNodes],
   );
 
   // Same predicate as the validation rule: the sender KYC toolbar button only
@@ -499,7 +511,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       if (applied && patchedGraph) {
         // Use server-normalized graph directly (Issue #6 fix)
         setFlowNodes(patchedGraph.nodes);
-        setRfNodes(patchedGraph.nodes.map((n, i) => nodeToReactFlow(n, i)));
+        setRfNodes(
+          patchedGraph.nodes.map((n, i) =>
+            nodeToReactFlow(n, i, patchedGraph.positions ?? currentPositions()),
+          ),
+        );
         setRfEdges(patchedGraph.edges.map((e) => edgeWithColors(e, patchedGraph.nodes)));
 
         // Show address prompt if the resulting graph has pending addresses
@@ -551,7 +567,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       }
       const resolvedFlow = json.data.flow as FlowGraph;
       setFlowNodes(resolvedFlow.nodes);
-      setRfNodes(resolvedFlow.nodes.map((n, i) => nodeToReactFlow(n, i)));
+      setRfNodes(
+        resolvedFlow.nodes.map((n, i) =>
+          nodeToReactFlow(n, i, resolvedFlow.positions ?? currentPositions()),
+        ),
+      );
       setRfEdges(resolvedFlow.edges.map((e) => edgeWithColors(e, resolvedFlow.nodes)));
       setPendingAddresses([]);
       setMessages((prev) => [
