@@ -21,7 +21,11 @@ export function getPendingLabels(graph: FlowGraph): string[] {
         }
       }
     }
-    if (n.type === "pay" && isPendingAddress(n.config.recipient)) {
+    if (
+      n.type === "pay" &&
+      n.config.payoutMode !== "fiat" &&
+      isPendingAddress(n.config.recipient)
+    ) {
       labels.add(n.config.recipient.slice(PENDING_PREFIX.length) || "unnamed");
     }
     if (n.type === "webhook" && isPendingAddress(n.config.relayer)) {
@@ -180,6 +184,12 @@ export const PayAction = z.object({
       percentage: z.number().min(0).max(100).optional(),
       fullAmount: z.boolean().default(false),
       fillValueViaApi: z.boolean().optional(),
+      // Fiat payout: at deploy time a cash-out contract is generated for the
+      // recipient and the payer sinks their share to the off-ramp treasury.
+      payoutMode: z.enum(["crypto", "fiat"]).optional(),
+      accountName: z.string().optional(),
+      accountNumber: z.string().optional(),
+      bankCode: z.string().optional(),
     })
     .refine(
       (c) => {

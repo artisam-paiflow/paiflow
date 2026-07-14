@@ -1014,6 +1014,7 @@ mod test {
                 0_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 splitter_id.clone(),
+                false,
             ),
         );
         let payer_client = PayerClient::new(&env, &payer_id);
@@ -1140,6 +1141,7 @@ mod test {
                 0_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 splitter_id.clone(),
+                false,
             ),
         );
         let _payer_client = PayerClient::new(&env, &payer_id);
@@ -1201,6 +1203,7 @@ mod test {
                 0_u32,
                 Vec::<WorkflowTarget>::new(&env),
                 splitter_id.clone(),
+                false,
             ),
         );
 

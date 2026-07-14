@@ -459,7 +459,34 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
     if (a.type === "pay") {
       if (isPendingAddress(a.config.recipient)) {
-        pendingLabels.add(a.config.recipient.slice(8) || "unnamed");
+        // Fiat pay recipients get an auto-generated cash-out contract at deploy
+        // time, so a pending wallet address is not required up front.
+        if (a.config.payoutMode !== "fiat") {
+          pendingLabels.add(a.config.recipient.slice(8) || "unnamed");
+        }
+      }
+      if (a.config.payoutMode === "fiat") {
+        const triggerType = triggers[0]?.type;
+        if (triggerType !== "payroll") {
+          errors.push({
+            path: `nodes.${a.id}.config.payoutMode`,
+            message: "Fiat payout for pay nodes is only supported in payroll flows",
+            friendlyMessage:
+              "Native fiat payout on a pay step is only available in payroll flows. Use a cash-out node for off-ramp in this flow, or switch to crypto.",
+          });
+        } else if (graph.devMode !== true) {
+          const missing = [];
+          if (!a.config.accountName?.trim()) missing.push("account name");
+          if (!a.config.accountNumber?.trim()) missing.push("account number");
+          if (!a.config.bankCode?.trim()) missing.push("bank code");
+          if (missing.length) {
+            errors.push({
+              path: `nodes.${a.id}.config.payoutMode`,
+              message: `Fiat pay recipient is missing ${missing.join(", ")}`,
+              friendlyMessage: `Enter the ${missing.join(", ")} for this fiat employee.`,
+            });
+          }
+        }
       }
       if (a.config.fillValueViaApi && graph.devMode !== true) {
         errors.push({

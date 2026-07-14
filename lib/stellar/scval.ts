@@ -321,26 +321,30 @@ export function pipelineNodeConstructorArgs(
       return [
         addr(admin),
         addr(assetContractId(params.asset)),
-        addr(params.recipient),
+        addr(nodeAddresses[params.recipient] ?? params.recipient),
         i128(params.amountStroops),
         u32(params.percentageBps ?? 0),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
         addr(parentAddress),
+        bool(params.isCashOut ?? false),
       ];
     }
     case "payer_dev": {
       if (!parentAddress) throw new Error("Payer dev requires a parent address");
       // __constructor(admin, relayer, asset, recipient: Option<Address>,
-      //               amount, percentage_bps, next_steps, parent)
+      //               amount, percentage_bps, next_steps, parent, is_cash_out)
       return [
         addr(admin),
         addr(params.relayer && params.relayer.length > 0 ? params.relayer : admin),
         addr(assetContractId(params.asset)),
-        optAddr(params.recipient),
+        optAddr(
+          params.recipient ? (nodeAddresses[params.recipient] ?? params.recipient) : undefined,
+        ),
         i128(params.amountStroops ?? "0"),
         u32(params.percentageBps ?? 0),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
         addr(parentAddress),
+        bool(params.isCashOut ?? false),
       ];
     }
     case "splitter_dev": {

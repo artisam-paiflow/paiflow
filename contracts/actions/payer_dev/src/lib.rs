@@ -31,6 +31,7 @@ pub enum Key {
     NextSteps,
     ParentNode,
     Version,
+    IsCashOut,
 }
 
 #[contracterror]
@@ -64,6 +65,7 @@ impl PayerDev {
         percentage_bps: u32,
         next_steps: Vec<WorkflowTarget>,
         parent: Address,
+        is_cash_out: bool,
     ) {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
@@ -82,6 +84,7 @@ impl PayerDev {
         env.storage().instance().set(&Key::NextSteps, &next_steps);
         env.storage().instance().set(&Key::ParentNode, &parent);
         env.storage().instance().set(&Key::Version, &VERSION);
+        env.storage().instance().set(&Key::IsCashOut, &is_cash_out);
     }
 
     pub fn execute_step(env: Env, asset: Address, amount: i128) {
@@ -108,13 +111,16 @@ impl PayerDev {
     /// `caller` declares who is acting and is authenticated; the call is
     /// authorized only if it is the admin or the configured relayer. A non-zero
     /// `percentage_bps` selects percentage mode; otherwise `amount` is the fixed
-    /// payout.
+    /// payout. `is_cash_out` marks the recipient as a cash-out contract: after
+    /// paying it, its `receive_and_forward` is invoked to sink the funds to the
+    /// off-ramp treasury.
     pub fn update_payment(
         env: Env,
         caller: Address,
         recipient: Address,
         amount: i128,
         percentage_bps: u32,
+        is_cash_out: bool,
     ) {
         require_admin_or_relayer(&env, &caller);
         if amount < 0 {
@@ -130,10 +136,11 @@ impl PayerDev {
         env.storage()
             .instance()
             .set(&Key::PercentageBps, &percentage_bps);
+        env.storage().instance().set(&Key::IsCashOut, &is_cash_out);
         #[allow(deprecated)]
         env.events().publish(
             (Symbol::new(&env, "payment_updated"), caller),
-            (recipient, amount, percentage_bps),
+            (recipient, amount, percentage_bps, is_cash_out),
         );
     }
 
@@ -196,6 +203,13 @@ impl PayerDev {
 
     pub fn recipient(env: Env) -> Option<Address> {
         env.storage().instance().get(&Key::Recipient).unwrap()
+    }
+
+    pub fn is_cash_out(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&Key::IsCashOut)
+            .unwrap_or(false)
     }
 
     pub fn asset(env: Env) -> Address {
@@ -271,6 +285,15 @@ fn do_pay(env: &Env, asset: &Address, amount: i128) {
 
     token::Client::new(env, asset).transfer(&env.current_contract_address(), &recipient, &payment);
 
+    let is_cash_out: bool = env
+        .storage()
+        .instance()
+        .get(&Key::IsCashOut)
+        .unwrap_or(false);
+    if is_cash_out {
+        invoke_receive_and_forward(env, &recipient, asset, &payment);
+    }
+
     forward_remaining(env, asset);
 
     #[allow(deprecated)]
@@ -328,6 +351,23 @@ fn invoke_execute_step(env: &Env, target: &Address, asset: &Address, amount: &i1
     );
 }
 
+fn invoke_receive_and_forward(env: &Env, target: &Address, asset: &Address, amount: &i128) {
+    let func = soroban_sdk::Symbol::new(env, "receive_and_forward");
+    let empty_steps = Vec::<WorkflowTarget>::new(env);
+    let source = env.current_contract_address();
+    env.invoke_contract::<()>(
+        target,
+        &func,
+        vec![
+            env,
+            source.into_val(env),
+            asset.into_val(env),
+            amount.into_val(env),
+            empty_steps.into_val(env),
+        ],
+    );
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -343,11 +383,38 @@ mod test {
         pub fn execute_step(_env: Env, _asset: Address, _amount: i128) {}
     }
 
+    #[contract]
+    pub struct MockCashOut;
+
+    #[contractimpl]
+    impl MockCashOut {
+        pub fn __constructor(_env: Env) {}
+
+        pub fn receive_and_forward(
+            _env: Env,
+            _from: Address,
+            _asset: Address,
+            _amount: i128,
+            _next_steps: Vec<WorkflowTarget>,
+        ) {
+        }
+    }
+
     fn setup(
         env: &Env,
         recipient: Option<Address>,
         amount: i128,
         percentage_bps: u32,
+    ) -> (Address, Address, Address, Address) {
+        setup_with_cash_out(env, recipient, amount, percentage_bps, false)
+    }
+
+    fn setup_with_cash_out(
+        env: &Env,
+        recipient: Option<Address>,
+        amount: i128,
+        percentage_bps: u32,
+        is_cash_out: bool,
     ) -> (Address, Address, Address, Address) {
         let admin = Address::generate(env);
         let relayer = Address::generate(env);
@@ -364,6 +431,7 @@ mod test {
                 percentage_bps,
                 Vec::<WorkflowTarget>::new(env),
                 parent.clone(),
+                is_cash_out,
             ),
         );
         (contract_id, asset.address(), admin, relayer)
@@ -421,7 +489,7 @@ mod test {
         sac.mint(&predecessor, &1_000);
 
         let client = PayerDevClient::new(&env, &contract_id);
-        client.update_payment(&admin, &recipient, &250, &0);
+        client.update_payment(&admin, &recipient, &250, &0, &false);
         assert!(client.is_configured());
         assert_eq!(client.recipient(), Some(recipient.clone()));
 
@@ -444,7 +512,7 @@ mod test {
 
         let client = PayerDevClient::new(&env, &contract_id);
         // Relayer (not admin) fills in the payment.
-        client.update_payment(&relayer, &recipient, &150, &0);
+        client.update_payment(&relayer, &recipient, &150, &0, &false);
 
         tok.transfer(&predecessor, &contract_id, &1_000);
         client.execute_step(&asset, &1_000);
@@ -461,7 +529,7 @@ mod test {
         let stranger = Address::generate(&env);
         let recipient = Address::generate(&env);
         let client = PayerDevClient::new(&env, &contract_id);
-        client.update_payment(&stranger, &recipient, &150, &0);
+        client.update_payment(&stranger, &recipient, &150, &0, &false);
     }
 
     #[test]
@@ -477,11 +545,58 @@ mod test {
         sac.mint(&predecessor, &1_000);
 
         let client = PayerDevClient::new(&env, &contract_id);
-        client.update_payment(&admin, &recipient, &0, &5_000);
+        client.update_payment(&admin, &recipient, &0, &5_000, &false);
 
         tok.transfer(&predecessor, &contract_id, &1_000);
         client.execute_step(&asset, &1_000);
         assert_eq!(tok.balance(&recipient), 500);
         assert_eq!(client.percentage_bps(), 5_000);
+    }
+
+    #[test]
+    fn cash_out_recipient_receives_payment_via_receive_and_forward() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let cash_out_contract = env.register(MockCashOut, ());
+        let (contract_id, asset, _admin, _relayer) =
+            setup_with_cash_out(&env, Some(cash_out_contract.clone()), 100, 0, true);
+        let sac = token::StellarAssetClient::new(&env, &asset);
+        let tok = token::TokenClient::new(&env, &asset);
+        let predecessor = Address::generate(&env);
+        sac.mint(&predecessor, &1_000);
+
+        let client = PayerDevClient::new(&env, &contract_id);
+        assert!(client.is_cash_out());
+
+        tok.transfer(&predecessor, &contract_id, &1_000);
+        client.execute_step(&asset, &1_000);
+
+        // The cash-out contract holds the payment (its mock receive_and_forward
+        // keeps the funds rather than sinking them to a treasury).
+        assert_eq!(tok.balance(&cash_out_contract), 100);
+        assert_eq!(tok.balance(&contract_id), 900);
+    }
+
+    #[test]
+    fn update_payment_can_toggle_cash_out() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let (contract_id, asset, admin, _relayer) = setup(&env, None, 0, 0);
+        let sac = token::StellarAssetClient::new(&env, &asset);
+        let tok = token::TokenClient::new(&env, &asset);
+        let predecessor = Address::generate(&env);
+        let cash_out_contract = env.register(MockCashOut, ());
+        sac.mint(&predecessor, &1_000);
+
+        let client = PayerDevClient::new(&env, &contract_id);
+        assert!(!client.is_cash_out());
+        client.update_payment(&admin, &cash_out_contract, &250, &0, &true);
+        assert!(client.is_cash_out());
+
+        tok.transfer(&predecessor, &contract_id, &1_000);
+        client.execute_step(&asset, &1_000);
+        assert_eq!(tok.balance(&cash_out_contract), 250);
     }
 }

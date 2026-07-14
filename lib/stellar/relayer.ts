@@ -1116,6 +1116,77 @@ export async function readSplitterRecipients(
   return readSplitterDevRecipients(contractAddress);
 }
 
+/** Simulate a no-arg getter on a contract and return its native value. */
+async function simulateGetter(contractAddress: string, functionName: string): Promise<unknown> {
+  const server = sorobanRpc();
+
+  const source = stellarRelayerAddress();
+  if (!source) {
+    throw new AppError("INTERNAL", "STELLAR_RELAYER_ADDRESS is not configured");
+  }
+
+  let sourceAcct;
+  try {
+    sourceAcct = await server.getAccount(source);
+  } catch {
+    throw new AppError(
+      "INSUFFICIENT_FUNDS",
+      `Relayer account ${source} is not funded or does not exist`,
+    );
+  }
+
+  const contractIdBytes = decodeContractAddress(contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
+
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: scAddress,
+      functionName,
+      args: [],
+    }),
+  );
+
+  const tx = new TransactionBuilder(sourceAcct, {
+    fee: BASE_FEE,
+    networkPassphrase: stellarPassphrase(),
+  })
+    .addOperation(Operation.invokeHostFunction({ func: hostFunction }))
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim) || !sim.result?.retval) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `${functionName}() simulation failed for ${contractAddress}`,
+    );
+  }
+  return scValToNative(sim.result.retval);
+}
+
+/**
+ * Read a PAYER / PAYER_DEV contract as a single-row recipient list so the
+ * payroll charge + record paths can treat it like a splitter. Percentage-mode
+ * payers report their bps; fixed-mode payers report their configured amount.
+ */
+export async function readPayerRecipients(
+  contractAddress: string,
+): Promise<SplitterDevRecipient[]> {
+  const [recipient, amount, bps] = await Promise.all([
+    simulateGetter(contractAddress, "recipient"),
+    simulateGetter(contractAddress, "configured_amount"),
+    simulateGetter(contractAddress, "percentage_bps"),
+  ]);
+  if (!recipient) return [];
+  return [
+    {
+      address: String(recipient),
+      amount: String(amount),
+      bps: Number(bps),
+    },
+  ];
+}
+
 export async function preparePayrollChargeByRelayerTx(
   contractAddress: string,
 ): Promise<{ xdr: string; txHash: string }> {

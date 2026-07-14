@@ -319,13 +319,20 @@ async function createPayrollEmployees(deploymentId: string) {
   );
   const hasSubscription = pipeline.some((n) => n.templateKind === "SUBSCRIPTION");
   const hasSplitter = pipeline.some((n) => n.templateKind === "SPLITTER");
-  if (hasPayroll || hasDev || !hasSubscription || !hasSplitter) return;
+  const hasPayer = pipeline.some((n) => n.templateKind === "PAYER");
+  if (hasPayroll || hasDev || !hasSubscription || (!hasSplitter && !hasPayer)) return;
 
   const graph = deployment.graphSnapshot as {
     nodes: Array<{
       id: string;
       type: string;
       config?: {
+        recipient?: string;
+        payoutMode?: string;
+        accountName?: string;
+        accountNumber?: string;
+        bankCode?: string;
+        amountStroops?: string;
         recipients?: Array<{
           address: string;
           mode?: string;
@@ -339,8 +346,6 @@ async function createPayrollEmployees(deploymentId: string) {
       };
     }>;
   } | null;
-  const splitNode = graph?.nodes.find((n) => n.type === "split");
-  if (!splitNode?.config?.recipients?.length) return;
 
   const cashOutByNodeId = new Map<string, string>();
   for (const node of pipeline) {
@@ -348,6 +353,53 @@ async function createPayrollEmployees(deploymentId: string) {
       cashOutByNodeId.set(node.nodeId, node.contractAddress);
     }
   }
+
+  // Single-pay payroll: one employee described by the pay node itself. A fiat
+  // pay node is represented on-chain by its generated cash-out contract.
+  const payNode = graph?.nodes.find((n) => n.type === "pay");
+  if (hasPayer && payNode?.config) {
+    const c = payNode.config;
+    const isFiat = c.payoutMode === "fiat";
+    const cashOutAddress = isFiat ? (cashOutByNodeId.get(`${payNode.id}-cashout-0`) ?? null) : null;
+    const employeeAddress = (() => {
+      if (isFiat && cashOutAddress) return cashOutAddress;
+      if (c.recipient && isPendingAddress(c.recipient)) return `${c.recipient}:0`;
+      return c.recipient ?? `PENDING:unnamed:0`;
+    })();
+    try {
+      await db.$transaction(async (tx) => {
+        const employee = await tx.employee.create({
+          data: {
+            deploymentId,
+            address: employeeAddress,
+            amountStroops: c.amountStroops ?? "0",
+            payoutMode: isFiat ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
+            cashOutContractAddress: cashOutAddress,
+          },
+        });
+        if (isFiat && c.accountName && c.accountNumber && c.bankCode) {
+          await tx.employeeBankDetail.create({
+            data: {
+              employeeId: employee.id,
+              accountName: c.accountName,
+              accountNumber: c.accountNumber,
+              bankCode: c.bankCode,
+            },
+          });
+        }
+      });
+    } catch (err) {
+      if ((err as { code?: string }).code === "P2002") {
+        const count = await db.employee.count({ where: { deploymentId } });
+        if (count > 0) return;
+      }
+      throw err;
+    }
+    return;
+  }
+
+  const splitNode = graph?.nodes.find((n) => n.type === "split");
+  if (!splitNode?.config?.recipients?.length) return;
 
   const recipients = splitNode.config.recipients;
 

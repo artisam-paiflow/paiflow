@@ -326,4 +326,104 @@ describe("dev-mode pipeline resolver", () => {
       expect(cashOut!.params.treasury).toBe(ADDR_B);
     }
   });
+
+  it("maps payroll dev fiat pay node to PAYER_DEV + CASH_OUT_DEV terminal", () => {
+    const graph = parse({
+      devMode: true,
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_B,
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipient: "PENDING:fiat",
+            mode: "fixed",
+            amountStroops: "200",
+            payoutMode: "fiat",
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    const pipeline = flowToPipeline(graph, RELAYER, ADDR_B);
+
+    const payer = pipeline.find((n) => n.nodeId === "a")!;
+    expect(payer.templateKind).toBe(TemplateKind.PAYER_DEV);
+    if (payer.params.kind === "payer_dev") {
+      expect(payer.params.isCashOut).toBe(true);
+      expect(payer.params.recipient).toBe("a-cashout-0");
+    } else {
+      throw new Error("expected payer_dev");
+    }
+
+    const cashOut = pipeline.find((n) => n.templateKind === TemplateKind.CASH_OUT_DEV);
+    expect(cashOut).toBeDefined();
+    expect(cashOut!.nodeId).toBe("a-cashout-0");
+    if (cashOut!.params.kind === "cash_out_dev") {
+      expect(cashOut!.params.parentNodeId).toBe("a");
+      expect(cashOut!.params.treasury).toBe(ADDR_B);
+    }
+  });
+
+  it("maps payroll immutable fiat pay node to PAYER + CASH_OUT with bank details", () => {
+    const graph = parse({
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_B,
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipient: "PENDING:fiat",
+            mode: "fixed",
+            amountStroops: "200",
+            payoutMode: "fiat",
+            accountName: "Juan Dela Cruz",
+            accountNumber: "1234567890",
+            bankCode: "BASECPH",
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    const pipeline = flowToPipeline(graph, RELAYER, ADDR_B);
+
+    const payer = pipeline.find((n) => n.nodeId === "a")!;
+    expect(payer.templateKind).toBe(TemplateKind.PAYER);
+    if (payer.params.kind === "payer") {
+      expect(payer.params.isCashOut).toBe(true);
+      expect(payer.params.recipient).toBe("a-cashout-0");
+    } else {
+      throw new Error("expected payer");
+    }
+
+    const cashOut = pipeline.find((n) => n.templateKind === TemplateKind.CASH_OUT);
+    expect(cashOut).toBeDefined();
+    expect(cashOut!.nodeId).toBe("a-cashout-0");
+    if (cashOut!.params.kind === "cash_out") {
+      expect(cashOut!.params.parentNodeId).toBe("a");
+      expect(cashOut!.params.accountName).toBe("Juan Dela Cruz");
+      expect(cashOut!.params.accountNumber).toBe("1234567890");
+      expect(cashOut!.params.bankCode).toBe("BASECPH");
+    }
+  });
 });
