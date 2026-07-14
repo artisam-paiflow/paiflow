@@ -283,13 +283,15 @@ function friendlySchemaIssue(issue: ZodIssue, migrated: unknown): string {
   return GENERIC_SCHEMA_MESSAGE;
 }
 
-// True when the flow off-ramps to fiat anywhere: a cash-out sink node, or a
-// split recipient paid out in fiat (which deploys an implicit cash-out
-// contract). Shared by the validator and the builder toolbar.
+// True when the flow off-ramps to fiat anywhere: a cash-out sink node, a pay
+// node paid out in fiat, or a split recipient paid out in fiat (both deploy
+// an implicit cash-out contract). Shared by the validator and the builder
+// toolbar.
 export function flowHasFiatPayout(graph: FlowGraph): boolean {
   return graph.nodes.some(
     (n) =>
       n.type === "cash_out" ||
+      (n.type === "pay" && n.config.payoutMode === "fiat") ||
       (n.type === "split" && n.config.recipients.some((r) => r.payoutMode === "fiat")),
   );
 }

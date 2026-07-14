@@ -279,6 +279,80 @@ describe("validateFlow", () => {
     }
   });
 
+  it("requires sender KYC for non-dev payroll with a fiat pay node", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipient: "PENDING:fiat",
+            mode: "fixed",
+            amountStroops: "10000000",
+            payoutMode: "fiat",
+            accountName: "Bob",
+            accountNumber: "1234567890",
+            bankCode: "BASECPH",
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      const kycError = r.errors.find((e) => e.path === "senderKyc");
+      expect(kycError).toBeDefined();
+      expect(kycError!.message).toBe(
+        "Sender KYC is required before deploying a flow with fiat payouts.",
+      );
+    }
+  });
+
+  it("accepts non-dev payroll with a fiat pay node when sender KYC is provided", () => {
+    const r = validateFlow({
+      senderKyc: SENDER_KYC,
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipient: "PENDING:fiat",
+            mode: "fixed",
+            amountStroops: "10000000",
+            payoutMode: "fiat",
+            accountName: "Bob",
+            accountNumber: "1234567890",
+            bankCode: "BASECPH",
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
   it("exempts dev-mode payroll with fiat recipients from sender KYC", () => {
     const r = validateFlow({
       devMode: true,
