@@ -39,6 +39,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const nodes = graph.nodes.map((n) => {
       if (n.type === "split") {
         const recipients = n.config.recipients.map((r) => {
+          // Fiat recipients keep their PENDING:fiat sentinel — the cash-out
+          // contract address is generated at deploy time, not resolved here.
+          if (r.payoutMode === "fiat") return r;
           const label = (r.label ?? "unnamed").toLowerCase();
           const resolved = addrMap.get(label);
           if (resolved) {
