@@ -436,16 +436,19 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
       const seen = new Set<string>();
       for (const r of a.config.recipients) {
-        const isWallet = StrKey.isValidEd25519PublicKey(r.address);
+        const isContract = StrKey.isValidContract(r.address);
         const isFiat = r.payoutMode === "fiat";
         const triggerType = triggers[0]?.type;
 
-        // Native fiat payouts (wallet addresses) sink through the payer/splitter
-        // cash-out path, available for receive/webhook/oracle/subscription/
-        // payroll flows. Contract addresses (C...) point to an explicit cash-out
-        // node downstream and are always allowed. Dev mode supports native fiat
-        // only for payroll — the rest is deferred.
-        if (isWallet && isFiat) {
+        // Native fiat payouts sink through the payer/splitter cash-out path,
+        // available for receive/webhook/oracle/subscription/payroll flows.
+        // Contract addresses (C...) point to an explicit cash-out node
+        // downstream and are always allowed. Dev mode supports native fiat
+        // only for payroll — the rest is deferred. The recipient's wallet
+        // address is irrelevant for fiat (a cash-out contract is generated at
+        // deploy time), so this gate applies to wallet and pending addresses
+        // alike.
+        if (isFiat && !isContract) {
           if (!triggerType || !FIAT_PAYOUT_TRIGGERS.has(triggerType)) {
             errors.push({
               path: `nodes.${a.id}.config.recipients`,
@@ -460,8 +463,10 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
               friendlyMessage:
                 "Turn off dev mode to pay fiat to wallet addresses in this flow, or use a cash-out node.",
             });
-          } else if (graph.devMode !== true) {
+          } else if (graph.devMode !== true && triggerType !== "payroll") {
             // Immutable contracts bake the bank destination in at deploy time.
+            // Payroll recipients are exempt: their bank details live in the
+            // Employee table and are resolved when each payroll run executes.
             // Dev mode may leave the details blank and configure via the API.
             const missing = [];
             if (!r.accountName?.trim()) missing.push("account name");
@@ -478,7 +483,11 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         }
 
         if (isPendingAddress(r.address)) {
-          pendingLabels.add(r.label ?? "unnamed");
+          // Fiat recipients get an auto-generated cash-out contract at deploy
+          // time, so a pending wallet address is not required up front.
+          if (!isFiat) {
+            pendingLabels.add(r.label ?? "unnamed");
+          }
         } else {
           if (seen.has(r.address)) {
             errors.push({

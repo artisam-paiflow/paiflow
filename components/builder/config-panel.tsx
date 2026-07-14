@@ -1776,7 +1776,10 @@ function SplitRecipientsEditor({
       {node.config.recipients.map((r, i) => {
         const isPending = isPendingAddress(r.address);
         const isPercentage = r.mode === "percentage";
-        const isPayrollFiat = isPayroll && r.payoutMode === "fiat";
+        // Fiat recipients (any trigger) sink through an auto-generated cash-out
+        // contract, so the wallet address and label are irrelevant — the bank
+        // details below are the destination.
+        const isFiatRecipient = r.payoutMode === "fiat";
         const isExpanded = expandedRecipients.has(i);
         const projected =
           isPercentage && sourceAmount
@@ -1788,8 +1791,8 @@ function SplitRecipientsEditor({
 
         const summaryLabel = r.label
           ? r.label
-          : isPayrollFiat
-            ? "Fiat off-ramp"
+          : isFiatRecipient
+            ? r.accountName?.trim() || "Fiat off-ramp"
             : shortAddr(r.address);
 
         const summaryAmount = isPercentage
@@ -1821,7 +1824,7 @@ function SplitRecipientsEditor({
 
             {isExpanded && (
               <div className="space-y-2 border-t border-zinc-800 p-2 pt-1">
-                {isPayrollFiat ? (
+                {isFiatRecipient ? (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-zinc-400">Fiat off-ramp</span>
@@ -1832,26 +1835,55 @@ function SplitRecipientsEditor({
                         ×
                       </button>
                     </div>
-                    <Field label="Amount">
-                      <input
-                        className="input text-right"
-                        value={
-                          (r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops
-                            ? formatStroops(
-                                (r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops,
-                              )
-                            : ""
-                        }
-                        placeholder="0"
-                        onChange={(e) => {
-                          const stroops = tokenAmountToStroops(e.target.value);
-                          updateRecipient(i, {
-                            ...r,
-                            amountStroops: stroops || "0",
-                          } as SplitRecipient);
-                        }}
-                      />
-                    </Field>
+                    {isPercentage ? (
+                      <Field label="Share">
+                        <div className="relative">
+                          <input
+                            className="input pr-5 text-right"
+                            value={
+                              r.bps === 0
+                                ? ""
+                                : (() => {
+                                    const pct = bpsToPct(r.bps);
+                                    return pct === Math.floor(pct) ? `${pct}` : `${pct.toFixed(1)}`;
+                                  })()
+                            }
+                            placeholder="0"
+                            onChange={(e) => {
+                              const v = Number(e.target.value);
+                              updateRecipient(i, {
+                                ...r,
+                                bps: isNaN(v) ? 0 : Math.min(10000, Math.max(0, pctToBps(v))),
+                              } as SplitRecipient);
+                            }}
+                          />
+                          <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[11px] text-zinc-500">
+                            %
+                          </span>
+                        </div>
+                      </Field>
+                    ) : (
+                      <Field label="Amount">
+                        <input
+                          className="input text-right"
+                          value={
+                            (r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops
+                              ? formatStroops(
+                                  (r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops,
+                                )
+                              : ""
+                          }
+                          placeholder="0"
+                          onChange={(e) => {
+                            const stroops = tokenAmountToStroops(e.target.value);
+                            updateRecipient(i, {
+                              ...r,
+                              amountStroops: stroops || "0",
+                            } as SplitRecipient);
+                          }}
+                        />
+                      </Field>
+                    )}
                   </div>
                 ) : (
                   <>
@@ -1969,20 +2001,21 @@ function SplitRecipientsEditor({
                         value={r.payoutMode ?? "crypto"}
                         onChange={(e) => {
                           const mode = e.target.value as "crypto" | "fiat";
-                          const isPayrollFiatNext = isPayroll && mode === "fiat";
+                          const isFiatNext = mode === "fiat";
                           const base = {
                             ...r,
                             payoutMode: mode,
-                            // Payroll fiat recipients get an auto-generated
-                            // cash-out contract, so the wallet address and
-                            // label are hidden and replaced with a sentinel.
-                            // Other flows keep the recipient's wallet address.
-                            address: isPayrollFiatNext
+                            // Fiat recipients get an auto-generated cash-out
+                            // contract at deploy time, so the wallet address
+                            // and label are hidden and replaced with a
+                            // sentinel. Switching back to crypto restores a
+                            // resolvable pending placeholder.
+                            address: isFiatNext
                               ? "PENDING:fiat"
-                              : isPayroll
+                              : r.address === "PENDING:fiat"
                                 ? "PENDING:unnamed"
                                 : r.address,
-                            label: isPayrollFiatNext ? undefined : r.label,
+                            label: isFiatNext ? undefined : r.label,
                           };
                           updateRecipient(
                             i,

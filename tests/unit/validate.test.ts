@@ -158,14 +158,122 @@ describe("validateFlow", () => {
     }
   });
 
-  it("accepts non-dev on_receive with fiat split recipients and bank details", () => {
+  it("accepts non-dev fiat split recipients without a wallet address (PENDING:fiat)", () => {
     const r = validateFlow({
+      senderKyc: SENDER_KYC,
       nodes: [
         {
           id: "t",
           type: "on_receive",
           config: { asset: { kind: "known", symbol: "USDC" } },
         },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              {
+                address: "PENDING:fiat",
+                mode: "fixed",
+                amountStroops: "10000000",
+                payoutMode: "fiat",
+                accountName: "Alice",
+                accountNumber: "1234567890",
+                bankCode: "BASECPH",
+              },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      // The fiat sentinel must not surface as a pending label blocking deploy.
+      expect(r.pendingLabels).toEqual([]);
+      expect(r.pipeline).toEqual([
+        TemplateKind.DEPOSIT_TRIGGER,
+        TemplateKind.SPLITTER,
+        TemplateKind.CASH_OUT,
+      ]);
+    }
+  });
+
+  it("rejects non-dev PENDING:fiat split recipients missing bank details", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "webhook",
+          config: { asset: { kind: "known", symbol: "USDC" }, relayer: ADDR_A },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              {
+                address: "PENDING:fiat",
+                mode: "percentage",
+                bps: 10000,
+                payoutMode: "fiat",
+              },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => e.message.includes("Fiat recipient is missing"))).toBe(true);
+    }
+  });
+
+  it("accepts non-dev payroll with PENDING:fiat recipients and no bank details in config", () => {
+    const r = validateFlow({
+      senderKyc: SENDER_KYC,
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              {
+                address: "PENDING:fiat",
+                mode: "fixed",
+                amountStroops: "10000000",
+                payoutMode: "fiat",
+              },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.pendingLabels).toEqual([]);
+    }
+  });
+
+  it("accepts non-dev on_receive with fiat split recipients and bank details", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
         {
           id: "a",
           type: "split",
