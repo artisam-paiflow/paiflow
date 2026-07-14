@@ -7,14 +7,13 @@ import { db } from "@/lib/db";
 import { redis, eventChannel } from "@/lib/redis";
 import { log } from "@/lib/log";
 import { assetContractId } from "@/lib/stellar/assets";
-import { assetLabel, type FlowGraph } from "@/lib/flows/schema";
+import { assetLabel, type FlowGraph, type FlowNode } from "@/lib/flows/schema";
 import { stellarPassphrase } from "@/lib/env";
 import {
   sendEmailNotificationsForEvent,
   type PipelineNodeSnapshot,
 } from "@/lib/flows/notifications";
 import { createCashOutJob } from "@/lib/offramp/jobs";
-import { bankDetailsFromGraph, eventCreatesOffRampJob } from "@/lib/offramp/cash-out-bank";
 
 // Paranoia buffer: when polling events for the first time we start a few
 // ledgers before the deployment transaction to avoid missing events emitted
@@ -896,7 +895,6 @@ async function pollEventsWithStartLedger(
   symbolMap: Map<string, string>,
   graph: FlowGraph | null,
   pipeline: PipelineNodeSnapshot[] | null,
-  flowTemplateKind: TemplateKind,
 ): Promise<{ written: number; maxLedger: number }> {
   const server = sorobanRpc();
   let resp: rpc.Api.GetEventsResponse;
@@ -987,10 +985,8 @@ async function pollEventsWithStartLedger(
       }
 
       // Fire-and-forget: cash_out events spawn off-ramp jobs so the PDAX leg
-      // can run asynchronously. Payroll deployments are excluded: their jobs
-      // are created by the payroll cron (with payrollRunId/employeeId) and
-      // would otherwise be duplicated by the splitter's cash_out events.
-      if (kind === EventKind.CASH_OUT && eventCreatesOffRampJob(flowTemplateKind)) {
+      // can run asynchronously.
+      if (kind === EventKind.CASH_OUT) {
         const bank = await findCashOutBank(deploymentId, graph, contractAddress, pipeline ?? []);
         const source = typeof resolvedData?.source === "string" ? resolvedData.source : null;
         const amount =
@@ -1094,10 +1090,8 @@ type CashOutBank = {
 
 /**
  * Locate the bank details configured for the cash_out node that owns
- * `contractAddress`. We match by address in the pipeline snapshot, then resolve
- * the destination from the saved graph snapshot (explicit cash_out nodes, or
- * the parent pay/split config for generated terminals). Payroll-generated
- * nodes fall back to the Employee table.
+ * `contractAddress`. We match by address in the pipeline snapshot, then look up
+ * the corresponding `cash_out` node in the saved graph snapshot.
  */
 async function findCashOutBank(
   deploymentId: string,
@@ -1105,10 +1099,21 @@ async function findCashOutBank(
   contractAddress: string,
   pipeline: PipelineNodeSnapshot[],
 ): Promise<CashOutBank | null> {
-  const snapshot = pipeline.find((p) => p.contractAddress === contractAddress);
-  if (graph && snapshot) {
-    const bank = bankDetailsFromGraph(graph, snapshot.nodeId);
-    if (bank) return bank;
+  if (graph) {
+    const snapshot = pipeline.find((p) => p.contractAddress === contractAddress);
+    if (snapshot) {
+      const node = graph.nodes.find(
+        (n): n is Extract<FlowNode, { type: "cash_out" }> =>
+          n.type === "cash_out" && n.id === snapshot.nodeId,
+      );
+      if (node?.config.bankCode) {
+        return {
+          accountName: node.config.accountName,
+          accountNumber: node.config.accountNumber,
+          bankCode: node.config.bankCode,
+        };
+      }
+    }
   }
 
   // Auto-generated CASH_OUT nodes for immutable payroll flows exist in the
@@ -1204,7 +1209,6 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
       symbolMap,
       deployment.graphSnapshot as FlowGraph | null,
       (deployment.pipelineSnapshot as PipelineNodeSnapshot[] | null) ?? [],
-      flowTemplateKind,
     );
     totalWritten += result.written;
     if (result.maxLedger > maxLedger) maxLedger = result.maxLedger;

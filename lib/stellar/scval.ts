@@ -86,17 +86,6 @@ function devRecipientsVec(
   );
 }
 
-// Immutable splitter recipients carry the same is_cash_out flag as the dev
-// variant. Kept separate from recipientsVec, which is shared with the
-// streamer/conditional/multisig contracts whose Recipient struct has no such
-// field.
-function splitterRecipientsVec(
-  recipients: Array<{ address: string; bps: number; amount: string; isCashOut?: boolean }>,
-  nodeAddresses: Record<string, string>,
-): xdr.ScVal {
-  return devRecipientsVec(recipients, nodeAddresses);
-}
-
 function payrollRecipientsVec(recipients: Array<{ address: string; amount: string }>): xdr.ScVal {
   return xdr.ScVal.scvVec(
     recipients.map((r) =>
@@ -194,7 +183,7 @@ export function pipelineNodeConstructorArgs(
       return [
         addr(admin),
         addr(assetContractId(params.asset)),
-        splitterRecipientsVec(params.recipients, nodeAddresses),
+        recipientsVec(params.recipients, nodeAddresses),
         i128(params.minAmountStroops),
         addr(parentAddress),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),

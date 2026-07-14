@@ -18,7 +18,7 @@ import {
 import { cn, formatStroops, shortAddr } from "@/lib/utils";
 import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
-import { computeAssetFlow, assetsEqual, FIAT_PAYOUT_TRIGGERS } from "@/lib/flows/validate";
+import { computeAssetFlow, assetsEqual } from "@/lib/flows/validate";
 
 /**
  * Sentinel for an address field a developer chose to leave blank at design time
@@ -141,14 +141,6 @@ export default function ConfigPanel({
   const triggerType = trigger?.type ?? null;
   const sourceAmount = sourceAmountStroops(graph);
   const devMode = graph.devMode === true;
-
-  // Native fiat payout (bank transfer via an auto-generated cash-out contract)
-  // is available on pay/split nodes for non-dev flows whose payouts route
-  // through the payer/splitter. Payroll also allows it in dev mode (bank
-  // details are filled via the API after deploy).
-  const fiatPayoutAvailable =
-    triggerType === "payroll" ||
-    (!devMode && triggerType !== null && FIAT_PAYOUT_TRIGGERS.has(triggerType));
 
   // Payroll distributions must be fixed salary amounts. If a user switches an
   // existing percentage split to a payroll trigger, convert the recipients to
@@ -444,7 +436,7 @@ export default function ConfigPanel({
             expectedAsset={expectedAsset}
           />
 
-          {!(fiatPayoutAvailable && node.config.payoutMode === "fiat") && (
+          {!(triggerType === "payroll" && node.config.payoutMode === "fiat") && (
             <ApiFillField
               label="Recipient (G… or PENDING:)"
               devMode={devMode}
@@ -472,7 +464,7 @@ export default function ConfigPanel({
             </ApiFillField>
           )}
 
-          {fiatPayoutAvailable && (
+          {triggerType === "payroll" && (
             <div className="space-y-2 pt-1">
               <Field label="Payout mode">
                 <select
@@ -485,9 +477,9 @@ export default function ConfigPanel({
                       config: {
                         ...node.config,
                         payoutMode: mode,
-                        // Fiat payouts get an auto-generated cash-out contract,
-                        // so the wallet address is replaced with a sentinel —
-                        // like fiat split recipients.
+                        // Payroll fiat employees get an auto-generated cash-out
+                        // contract, so the wallet address is replaced with a
+                        // sentinel — like fiat split recipients.
                         recipient:
                           mode === "fiat"
                             ? "PENDING:fiat"
@@ -1644,9 +1636,6 @@ function SplitRecipientsEditor({
 
   const triggerType = trigger?.type ?? null;
   const isPayroll = triggerType === "payroll";
-  const fiatPayoutAvailable =
-    triggerType === "payroll" ||
-    (!devMode && triggerType !== null && FIAT_PAYOUT_TRIGGERS.has(triggerType));
   const mode = isPayroll ? "fixed" : (node.config.recipients[0]?.mode ?? "percentage");
   const totalFixed = splitTotalFixedStroops(node.config.recipients);
   const minAmount = trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
@@ -1776,10 +1765,7 @@ function SplitRecipientsEditor({
       {node.config.recipients.map((r, i) => {
         const isPending = isPendingAddress(r.address);
         const isPercentage = r.mode === "percentage";
-        // Fiat recipients (any trigger) sink through an auto-generated cash-out
-        // contract, so the wallet address and label are irrelevant — the bank
-        // details below are the destination.
-        const isFiatRecipient = r.payoutMode === "fiat";
+        const isPayrollFiat = isPayroll && r.payoutMode === "fiat";
         const isExpanded = expandedRecipients.has(i);
         const projected =
           isPercentage && sourceAmount
@@ -1791,8 +1777,8 @@ function SplitRecipientsEditor({
 
         const summaryLabel = r.label
           ? r.label
-          : isFiatRecipient
-            ? r.accountName?.trim() || "Fiat off-ramp"
+          : isPayrollFiat
+            ? "Fiat off-ramp"
             : shortAddr(r.address);
 
         const summaryAmount = isPercentage
@@ -1824,7 +1810,7 @@ function SplitRecipientsEditor({
 
             {isExpanded && (
               <div className="space-y-2 border-t border-zinc-800 p-2 pt-1">
-                {isFiatRecipient ? (
+                {isPayrollFiat ? (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-zinc-400">Fiat off-ramp</span>
@@ -1835,55 +1821,26 @@ function SplitRecipientsEditor({
                         ×
                       </button>
                     </div>
-                    {isPercentage ? (
-                      <Field label="Share">
-                        <div className="relative">
-                          <input
-                            className="input pr-5 text-right"
-                            value={
-                              r.bps === 0
-                                ? ""
-                                : (() => {
-                                    const pct = bpsToPct(r.bps);
-                                    return pct === Math.floor(pct) ? `${pct}` : `${pct.toFixed(1)}`;
-                                  })()
-                            }
-                            placeholder="0"
-                            onChange={(e) => {
-                              const v = Number(e.target.value);
-                              updateRecipient(i, {
-                                ...r,
-                                bps: isNaN(v) ? 0 : Math.min(10000, Math.max(0, pctToBps(v))),
-                              } as SplitRecipient);
-                            }}
-                          />
-                          <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[11px] text-zinc-500">
-                            %
-                          </span>
-                        </div>
-                      </Field>
-                    ) : (
-                      <Field label="Amount">
-                        <input
-                          className="input text-right"
-                          value={
-                            (r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops
-                              ? formatStroops(
-                                  (r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops,
-                                )
-                              : ""
-                          }
-                          placeholder="0"
-                          onChange={(e) => {
-                            const stroops = tokenAmountToStroops(e.target.value);
-                            updateRecipient(i, {
-                              ...r,
-                              amountStroops: stroops || "0",
-                            } as SplitRecipient);
-                          }}
-                        />
-                      </Field>
-                    )}
+                    <Field label="Amount">
+                      <input
+                        className="input text-right"
+                        value={
+                          (r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops
+                            ? formatStroops(
+                                (r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops,
+                              )
+                            : ""
+                        }
+                        placeholder="0"
+                        onChange={(e) => {
+                          const stroops = tokenAmountToStroops(e.target.value);
+                          updateRecipient(i, {
+                            ...r,
+                            amountStroops: stroops || "0",
+                          } as SplitRecipient);
+                        }}
+                      />
+                    </Field>
                   </div>
                 ) : (
                   <>
@@ -1993,7 +1950,7 @@ function SplitRecipientsEditor({
                   </>
                 )}
 
-                {fiatPayoutAvailable && (
+                {triggerType === "payroll" && (
                   <div className="space-y-2 pt-1">
                     <Field label="Payout mode">
                       <select
@@ -2001,21 +1958,15 @@ function SplitRecipientsEditor({
                         value={r.payoutMode ?? "crypto"}
                         onChange={(e) => {
                           const mode = e.target.value as "crypto" | "fiat";
-                          const isFiatNext = mode === "fiat";
+                          const isPayrollFiatNext = isPayroll && mode === "fiat";
                           const base = {
                             ...r,
                             payoutMode: mode,
-                            // Fiat recipients get an auto-generated cash-out
-                            // contract at deploy time, so the wallet address
-                            // and label are hidden and replaced with a
-                            // sentinel. Switching back to crypto restores a
-                            // resolvable pending placeholder.
-                            address: isFiatNext
-                              ? "PENDING:fiat"
-                              : r.address === "PENDING:fiat"
-                                ? "PENDING:unnamed"
-                                : r.address,
-                            label: isFiatNext ? undefined : r.label,
+                            // Payroll fiat recipients get an auto-generated
+                            // cash-out contract, so the wallet address and
+                            // label are hidden and replaced with a sentinel.
+                            address: isPayrollFiatNext ? "PENDING:fiat" : "PENDING:unnamed",
+                            label: isPayrollFiatNext ? undefined : r.label,
                           };
                           updateRecipient(
                             i,
