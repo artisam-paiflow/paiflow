@@ -6,9 +6,19 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 ---
 
-## Pitch deck
+## Quick Links
 
-A 10-slide draft investor deck (MARP) lives at [`docs/pitch-deck.md`](docs/pitch-deck.md) — sized for a 3-minute pitch.
+[`Pitch Deck`](https://drive.google.com/drive/folders/1hFF9Y3ks-RBa4rNS5JzwVc7V5Z2Kw96J?usp=sharing) — sized for a 3-minute pitch.
+
+[`Demo Video`](https://drive.google.com/drive/folders/1R4h7UaMfgEfIqhbSBqD3lzIs6hq5IaxP?usp=sharing) — 3-minute video showcasing the project.
+
+[`Live App`](https://paiflow.xyz) — username: admin ; password: admin1234567
+
+---
+
+## 🌐 Testnet Deployments
+
+(insert contract links here)
 
 ---
 
@@ -274,45 +284,12 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 > **Full developer reference** (scripts, env vars, branching, CI) lives further down in this README under [Developer reference](#developer-reference).
 
-## 🌐 Deployment
-
-Paiflow is **non-custodial** — the backend prepares XDR, but only the user's wallet signs. The Stellar network is pinned at the environment level via `STELLAR_NETWORK` (staging = `testnet`, production = `mainnet`); there is no per-deploy network picker. Operator runbook for the cutover: [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md).
-
-### Testnet
-
-Deployed via Railway from `staging` (auto-deploy on merge into `staging`).
-
-- **App URL**: https://paiflow.up.railway.app/
-- **📸 Stellar Expert (testnet)**:
-  <img width="1251" height="891" alt="image" src="https://github.com/user-attachments/assets/e93400b1-82d5-45ec-b3ea-1af2bdb2b68e" />
-
-### Mainnet
-
-Cutover gated by `docs/mainnet-cutover.md`. WASM hashes uploaded via `pnpm contracts:upload --network=mainnet`.
-
-- **App URL**: https://paiflow.xyz/
-- **📸 Stellar Expert (mainnet)**:
-  <img width="1259" height="887" alt="image" src="https://github.com/user-attachments/assets/be166d1c-93eb-4cef-b6f7-a8d75e15241c" />
-
-## 🎥 Demo
-
-- 🔗 **Live App**: https://paiflow.xyz/
-- 🎬 **Demo Video**: https://www.youtube.com/watch?v=VkOgegleb9A
-  [![Paiflow Demo Video](https://img.youtube.com/vi/VkOgegleb9A/0.jpg)](https://www.youtube.com/watch?v=VkOgegleb9A)
-
-- 🖼️ **Pitch Deck**: https://drive.google.com/file/d/1CT2iNDgmdkfkzFDfRYTxZZYAcNdY7QP0/view
-
 ## 👨‍💻 Team
 
 | Name           | Role               | GitHub                                                     |
-| -------------- | ------------------ | ---------------------------------------------------------- | --- |
-| Mark Hugh Neri | CTO                | [@kimerran](https://github.com/kimerran)                   |
-| Mychal Pejana  | Smart Contract Dev | [@SaltinStillWaters](https://github.com/SaltinStillWaters) |
-| Carl Macabales | AI Developer       | [@cemmacabales](https://github.com/cemmacabales)           |     |
-
-## 📜 License
-
-MIT
+| -------------- | ------------------ | ---------------------------------------------------------- |
+| Artisam Labs   | Incubation         | n/a                                                        |
+| Mychal Pejana  | Lead Developer     | [@SaltinStillWaters](https://github.com/SaltinStillWaters) |
 
 ---
 
