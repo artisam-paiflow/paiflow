@@ -88,26 +88,26 @@ export default function SenderKycDialog({
         </div>
 
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
-          <p className="text-label-sm text-on-background/55 leading-snug">
+          <p className="text-label-sm text-on-surface-variant leading-snug">
             PDAX requires the sender&apos;s KYC profile for every fiat payout. This is saved with
             the flow and applied to each deployment automatically.
           </p>
 
           <div className="grid grid-cols-3 gap-2">
             <input
-              className="input"
+              className="bg-surface-container text-on-surface border-outline-variant/40 placeholder:text-on-surface-variant/80 focus:border-primary w-full rounded-md border px-3 py-2 text-sm outline-none"
               placeholder="First name *"
               value={form.firstName}
               onChange={(e) => update({ firstName: e.target.value })}
             />
             <input
-              className="input"
+              className="bg-surface-container text-on-surface border-outline-variant/40 placeholder:text-on-surface-variant/80 focus:border-primary w-full rounded-md border px-3 py-2 text-sm outline-none"
               placeholder="Middle name (n.a. if none)"
               value={form.middleName}
               onChange={(e) => update({ middleName: e.target.value })}
             />
             <input
-              className="input"
+              className="bg-surface-container text-on-surface border-outline-variant/40 placeholder:text-on-surface-variant/80 focus:border-primary w-full rounded-md border px-3 py-2 text-sm outline-none"
               placeholder="Last name *"
               value={form.lastName}
               onChange={(e) => update({ lastName: e.target.value })}
@@ -116,7 +116,7 @@ export default function SenderKycDialog({
 
           <div className="grid grid-cols-2 gap-2">
             <select
-              className="input bg-surface-container"
+              className="bg-surface-container text-on-surface border-outline-variant/40 focus:border-primary w-full rounded-md border px-3 py-2 text-sm outline-none"
               value={form.countryOrigin}
               onChange={(e) => update({ countryOrigin: e.target.value })}
             >
@@ -130,7 +130,7 @@ export default function SenderKycDialog({
               ))}
             </select>
             <select
-              className="input bg-surface-container"
+              className="bg-surface-container text-on-surface border-outline-variant/40 focus:border-primary w-full rounded-md border px-3 py-2 text-sm outline-none"
               value={form.sourceOfFunds}
               onChange={(e) => update({ sourceOfFunds: e.target.value })}
             >

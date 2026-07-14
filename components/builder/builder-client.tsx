@@ -664,36 +664,6 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
               </span>
               Dev mode
             </button>
-
-            {hasFiatPayout && (
-              <button
-                type="button"
-                onClick={() => setKycDialogOpen(true)}
-                title={
-                  senderKyc
-                    ? "Sender KYC on file — click to edit"
-                    : devMode
-                      ? "Sender KYC is optional in dev mode (can be submitted via the API after deploy)"
-                      : "Sender KYC is required before deploying a flow with fiat payouts"
-                }
-                className={cn(
-                  "text-label-sm inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors",
-                  senderKyc
-                    ? "border-green-500/40 bg-green-500/10 text-green-400"
-                    : devMode
-                      ? "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant hover:text-on-surface"
-                      : "border-amber-400/40 bg-amber-400/10 text-amber-400",
-                )}
-              >
-                <span className="material-symbols-outlined text-[16px]">
-                  {senderKyc ? "verified_user" : "warning"}
-                </span>
-                Sender KYC
-                {!senderKyc && !devMode && (
-                  <span className="text-[10px] opacity-80">Required to deploy</span>
-                )}
-              </button>
-            )}
           </div>
 
           {/* Row 2: English Preview */}
@@ -708,6 +678,32 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                     valid pipeline
                   </span>
                 )}
+                {hasFiatPayout && (
+                  <button
+                    type="button"
+                    onClick={() => setKycDialogOpen(true)}
+                    title={
+                      senderKyc
+                        ? "Sender KYC on file — click to edit"
+                        : devMode
+                          ? "Sender KYC is optional in dev mode (can be submitted via the API after deploy)"
+                          : "Sender KYC is required before deploying a flow with fiat payouts"
+                    }
+                    className={cn(
+                      "text-label-sm ml-auto inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 font-mono transition-colors",
+                      senderKyc
+                        ? "border-green-500/40 bg-green-500/10 text-green-400"
+                        : devMode
+                          ? "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant hover:text-on-surface"
+                          : "border-amber-400/40 bg-amber-400/10 text-amber-400",
+                    )}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">
+                      {senderKyc ? "verified_user" : "warning"}
+                    </span>
+                    Sender KYC
+                  </button>
+                )}
                 {!isValid && errors.length > 0 && (
                   <button
                     type="button"
@@ -716,7 +712,10 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                     aria-label={`View all ${errors.length} validation ${
                       errors.length === 1 ? "issue" : "issues"
                     }`}
-                    className="bg-error-container/25 border-error/40 text-on-error-container hover:bg-error/10 ml-auto inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 transition-colors"
+                    className={cn(
+                      "bg-error-container/25 border-error/40 text-on-error-container hover:bg-error/10 inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 transition-colors",
+                      !hasFiatPayout && "ml-auto",
+                    )}
                   >
                     <span className="material-symbols-outlined text-error text-[16px] leading-none">
                       error
