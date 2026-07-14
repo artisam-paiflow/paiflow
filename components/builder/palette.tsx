@@ -164,10 +164,12 @@ const TEMPLATES: Template[] = [
       },
     }),
   },
+  // Hidden: Swap action (disabled for now).
   {
     group: "Actions",
     label: "Swap",
     icon: "swap_horiz",
+    hidden: true,
     make: () => ({
       id: makeId("swap"),
       type: "swap",
@@ -217,10 +219,12 @@ const TEMPLATES: Template[] = [
       config: { kind: "amount_gt", amountStroops: "10000000" },
     }),
   },
+  // Hidden: Cash Out action (deferred — pay/split handle fiat payout natively).
   {
     group: "Actions",
     label: "Cash Out",
     icon: "payments",
+    hidden: true,
     make: () => ({
       id: makeId("cashout"),
       type: "cash_out",

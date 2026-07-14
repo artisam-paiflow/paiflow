@@ -18,7 +18,38 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 ## 🌐 Testnet Deployments
 
-(insert contract links here)
+All contracts are deployed on the **Stellar testnet**. Every flow deployed from the app produces a fresh set of pipeline contracts with deterministic addresses (via the factory's `deploy_pipeline`), and each deployment page in the UI deep-links its contracts to stellar.expert — the fastest way to see a live pipeline is to [deploy one in the app](https://paiflow.xyz) and click through.
+
+**Factory contract** — deploys and wires every pipeline atomically:
+
+| Contract                    | Address                                                                                                                                                                 |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Factory (`deploy_pipeline`) | [`CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK`](https://stellar.expert/explorer/testnet/contract/CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK) |
+
+**Template WASM uploads** — the pre-audited contract code the factory instantiates per deployment:
+
+| Template           | Role      | WASM hash (testnet)                                                                                                                   |
+| ------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Factory            | Deployer  | [`3020bb44…`](https://stellar.expert/explorer/testnet/contract/wasm/3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023) |
+| Deposit trigger    | Trigger   | [`1719ae70…`](https://stellar.expert/explorer/testnet/contract/wasm/1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18) |
+| Webhook            | Trigger   | [`415ecb61…`](https://stellar.expert/explorer/testnet/contract/wasm/415ecb61b53aee7805478e40e490328ea546e033f5b77bfe046aab956f28dd25) |
+| Subscription       | Trigger   | [`15a59ab7…`](https://stellar.expert/explorer/testnet/contract/wasm/15a59ab78da2342900ce2f19d22ef3650a768e2c286fbf2e4bb2aba1790cf28f) |
+| Oracle             | Trigger   | [`e496a8cd…`](https://stellar.expert/explorer/testnet/contract/wasm/e496a8cd0fad78f801ece1087c1f258ecb76684a09eca420d1222d5b6e9ca28b) |
+| Splitter           | Action    | [`201e4fcc…`](https://stellar.expert/explorer/testnet/contract/wasm/201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417) |
+| Streamer           | Action    | [`625cc073…`](https://stellar.expert/explorer/testnet/contract/wasm/625cc073ec1ae4d6ed6f55d9f99c4d743153752b1d2667524123f8b0284c0467) |
+| Payer              | Action    | [`88c75f4f…`](https://stellar.expert/explorer/testnet/contract/wasm/88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2) |
+| Payroll            | Action    | [`055bb5c9…`](https://stellar.expert/explorer/testnet/contract/wasm/055bb5c94bc0dac259f08a6adc97e9305fbf901d5facbdcbbedf799810f474bd) |
+| Cash out           | Action    | [`75ba6d8e…`](https://stellar.expert/explorer/testnet/contract/wasm/75ba6d8e71770bcbd98c1181473cca5d33d4646655c95786be8ed99155d77502) |
+| Swapper            | Action    | [`dfcdc0d3…`](https://stellar.expert/explorer/testnet/contract/wasm/dfcdc0d35ce90126033683f0713275675350d4d5dc01c16c07ab2ec9531e4170) |
+| Yield              | Action    | [`6c798758…`](https://stellar.expert/explorer/testnet/contract/wasm/6c798758965b391c581c992b6d54396e2d91cee23b8ac931ea831d6db243b3f5) |
+| Timelock           | Condition | [`5529d368…`](https://stellar.expert/explorer/testnet/contract/wasm/5529d368e5305f7688dd8d2d655fe48c4123be0110cdc9c167bce025d8d11c20) |
+| Conditional        | Condition | [`addd8676…`](https://stellar.expert/explorer/testnet/contract/wasm/addd86767bd2691b26110b1c5fec071f48047ebc3ce7611a46a59b70c3329922) |
+| Multisig           | Condition | [`503c7dc8…`](https://stellar.expert/explorer/testnet/contract/wasm/503c7dc8c8731b3df6eb2929114bd25c062dfdbea2d46c73a37d693f0676fc3f) |
+| Router             | Condition | [`9fd83725…`](https://stellar.expert/explorer/testnet/contract/wasm/9fd83725816348bf04b594b07354991c3abb110ae6b8e21dcaa2c50a9d1063a0) |
+| Payer (dev)        | Dev mode  | [`8b5550b4…`](https://stellar.expert/explorer/testnet/contract/wasm/8b5550b4770c2d03601f6392496e45689973d46c608a24e9f1dd60d91904cb78) |
+| Splitter (dev)     | Dev mode  | [`8010433a…`](https://stellar.expert/explorer/testnet/contract/wasm/8010433a3c6c4ee8281ffa33a253a83ea00c8b1225061485592bd49b2654bec2) |
+| Subscription (dev) | Dev mode  | [`100399b3…`](https://stellar.expert/explorer/testnet/contract/wasm/100399b3f899be056e0e5c22d7ecafd3104c65d6a94215a864299807f0042fcd) |
+| Cash out (dev)     | Dev mode  | [`c2fae909…`](https://stellar.expert/explorer/testnet/contract/wasm/c2fae909c6db9659cc0249c98f9d699216a90625173aec13d41ac4a380471db0) |
 
 ---
 
@@ -33,7 +64,7 @@ There's no middle layer — no Stripe Connect, no Zapier-for-money — that lets
 
 ## 🌟 Vision
 
-Make programmable payments a **drag-and-drop primitive**, the way Zapier made cross-SaaS automation a drag-and-drop primitive a decade ago. Anyone who can sketch a flow on a whiteboard should be able to ship the same flow as a non-custodial Soroban contract — owning their keys, their funds, and their logic — in under 90 seconds, on a phone, without ever touching Rust or XDR.
+Make programmable payments a **drag-and-drop primitive**, the way Zapier made cross-SaaS automation a drag-and-drop primitive a decade ago. Anyone who can sketch a flow on a whiteboard should be able to ship the same flow as a non-custodial Soroban contract — owning their keys, their funds, and their logic — in under 90 seconds, without ever touching Rust or XDR.
 
 Long-term, Paiflow is the canonical "no-code Stellar surface": the layer between the chain's primitives (atomic transfers, Soroban host functions, SEP-7 deep links) and the operators who want to compose them into real-world money flows.
 
@@ -41,7 +72,7 @@ Long-term, Paiflow is the canonical "no-code Stellar surface": the layer between
 
 Built for the **Stellar Hackathon 2026**.
 
-We picked this problem because the Stellar Soroban toolchain is genuinely excellent for backend developers and genuinely opaque to everyone else. Three pre-audited templates (splitter, streamer, conditional) cover the long tail of real-world payment workflows — most "programmable payment" use cases reduce to one of those three. By shipping them as visual blocks instead of as Rust libraries, we put the chain's full power in the hands of the operators who have the use case but not the engineering team.
+We picked this problem because the Stellar Soroban toolchain is genuinely excellent for backend developers and genuinely opaque to everyone else. Pre-audited templates (splitter, streamer, conditional, subscription, payroll) cover the long tail of real-world payment workflows — most "programmable payment" use cases reduce to one of them. By shipping them as visual blocks instead of as Rust libraries, we put the chain's full power in the hands of the operators who have the use case but not the engineering team.
 
 The mission: **make Stellar the easiest chain on which to ship a payment flow**, full stop, without changing what makes Stellar good (fast, cheap, atomic, non-custodial).
 
@@ -53,7 +84,8 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 
 ## ✨ Features
 
-- **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`) and actions (`Pay`, `Split`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
+- **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`, `HTTP Webhook`, `Subscription`, `Payroll`), actions (`Pay`, `Split`, `Email Notify`), and logic blocks (`Condition`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
+- **Native fiat payouts** — pay and split steps can settle directly to a recipient's bank account via a PDAX off-ramp integration. Bank details and sender KYC are captured in the builder and baked into immutable contracts at deploy time; an automated off-ramp pipeline settles the payouts.
 - **Non-custodial deploy** — the backend prepares simulated XDR; the user's wallet (Freighter / xBull / Albedo / Hana / LOBSTR via `@creit.tech/stellar-wallets-kit`) signs. Private keys never touch the server.
 - **QR-triggered execution** — some deployment renders a public QR / dApp URL. Anyone with a wallet can scan it, sign, and fire `distribute()` — useful for audience-funded demos, public crowdpay flows, and self-fund-back tests. Rate-limited + audit-logged on the public endpoints.
 - **Live event feed** — two-phase poller seeded from the deployment transaction's ledger writes `ContractEvent` rows in real time; the deployment page animates payouts as they finalize on-chain.
@@ -65,61 +97,9 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 
 A single Next.js 15 app (App Router) is the whole control plane: it serves the visual builder, prepares (but never signs) Stellar transactions, and runs cron-style automation over relayer-signed contracts. Wallets sign anything that moves user funds; a server-side relayer account signs only scheduled/automated actions (streamer claims, subscription charges, timelock releases, webhooks).
 
-```mermaid
-flowchart TB
-    subgraph Client["Client (browser / phone)"]
-        Builder["Visual builder<br/>(@xyflow/react canvas)"]
-        Wallet["Wallet — Freighter / xBull / Albedo /<br/>LOBSTR / WalletConnect<br/>(@creit.tech/stellar-wallets-kit)"]
-        Payer["Payer — scans QR /<br/>opens dApp URL"]
-    end
+![System architecture](docs/diagrams/system-architecture.svg)
 
-    subgraph App["Next.js 15 app (Railway)"]
-        Pages["Pages — /flows /deployments<br/>/trigger /admin"]
-        API["API routes — /api/deployments/*<br/>/api/flows/* /api/transcribe<br/>/api/webhooks/* /api/cron/*"]
-        Auth["Auth.js v5 — argon2 +<br/>WebAuthn + middleware"]
-        StellarLib["lib/stellar — XDR build /<br/>simulate / submit / relayer"]
-        Cron["Cron jobs — poll-events,<br/>auto-release, auto-charge-*,<br/>process-streamer/offramp-jobs"]
-    end
-
-    subgraph Data["Data plane"]
-        PG[("PostgreSQL 16<br/>Prisma — Flow, Deployment,<br/>ContractEvent, AuditLog, …")]
-        Redis[("Redis 7 — rate limits,<br/>job claims, event pub/sub")]
-        Files[("File storage —<br/>MinIO (dev) / Volume (prod)")]
-    end
-
-    subgraph Chain["Stellar network (testnet / mainnet)"]
-        RPC["Soroban RPC —<br/>simulate / send / getEvents"]
-        Horizon["Horizon —<br/>account funding checks"]
-        Factory["Factory contract<br/>(deploy_pipeline)"]
-        Contracts["Deployed pipelines —<br/>triggers: deposit / webhook / subscription / oracle<br/>actions: splitter / streamer / payer / payroll /<br/>cash_out / swapper / yield<br/>conditions: timelock / amount / oracle"]
-    end
-
-    subgraph External["External services"]
-        Groq["Groq — Whisper (STT)<br/>+ Llama (flow edits)"]
-        Resend["Resend —<br/>transactional email"]
-        PDAX["PDAX —<br/>fiat off-ramp"]
-    end
-
-    Builder --> Pages
-    Payer --> Pages
-    Pages --> API
-    API --> Auth
-    API --> StellarLib
-    API --> PG
-    API --> Redis
-    API --> Files
-    API --> Groq
-    API --> Resend
-    Cron --> StellarLib
-    Cron --> PG
-    Cron --> PDAX
-    StellarLib --> RPC
-    StellarLib --> Horizon
-    RPC --> Factory
-    Factory --> Contracts
-    Wallet -. signs XDR .-> API
-    Wallet -. submits signed tx .-> RPC
-```
+> Diagrams are pre-rendered SVGs so they display everywhere; editable mermaid sources live in [`docs/architecture-diagrams.md`](docs/architecture-diagrams.md).
 
 Key boundaries:
 
@@ -129,123 +109,19 @@ Key boundaries:
 
 ### Sequence — deploy a flow
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant UI as Builder UI
-    participant API as /api/deployments
-    participant DB as Postgres
-    participant RPC as Soroban RPC
-    participant Wallet as User wallet
-    participant Factory as Factory contract
-
-    User->>UI: Wire flow, click Deploy
-    UI->>API: POST /prepare {flowId, sourceAccount}
-    API->>DB: validateFlow → Deployment (BUILDING)
-    API->>RPC: simulate deploy_pipeline (factory)
-    RPC-->>API: assembled unsigned XDR
-    API->>DB: Deployment (PENDING_SIGNATURE, unsignedXdr,<br/>pre-computed contractAddress)
-    API-->>UI: unsigned XDR
-    UI->>Wallet: kit.signTransaction(xdr)
-    Wallet-->>UI: signed XDR
-    UI->>API: POST /submit {signedXdr}
-    API->>API: verify tx hash matches prepared tx
-    API->>RPC: sendTransaction + poll getTransaction
-    RPC->>Factory: deploy_pipeline → child contracts live
-    API->>DB: Deployment (CONFIRMED) + audit rows<br/>+ first StreamerClaimJob (if streamer)
-    API-->>UI: contract address, QR / dApp URL
-```
+![Sequence — deploy a flow](docs/diagrams/sequence-deploy.svg)
 
 ### Sequence — payer executes via QR
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Payer
-    participant Page as /trigger page
-    participant API as /api/deployments/[id]
-    participant RPC as Soroban RPC
-    participant Wallet as Payer wallet
-    participant C as Deployed contract
-    participant Cron as poll-events cron
-    participant DB as Postgres / Redis
-
-    Payer->>Page: Scan QR (SEP-7 dApp URL)
-    Page->>API: POST /trigger {amount, userAddress}
-    API->>RPC: simulate invocation (deposit/distribute/top-up)
-    API-->>Page: unsigned XDR + network passphrase
-    Page->>Wallet: kit.signTransaction(xdr)
-    Wallet-->>Page: signed XDR
-    Page->>API: POST /submit-trigger {signedXdr}
-    API->>RPC: sendTransaction
-    RPC->>C: execute (funds fan out atomically)
-    API-->>Page: txHash (PENDING)
-    Page->>API: poll /tx-status until finality
-    Cron->>RPC: getEvents (per EventCursor)
-    Cron->>DB: ContractEvent rows → Redis pub/sub<br/>(+ off-ramp job on CASH_OUT, emails)
-```
+![Sequence — payer executes via QR](docs/diagrams/sequence-qr-execution.svg)
 
 ### Sequence — Raft Log voice edit
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant UI as Builder UI
-    participant STT as /api/transcribe
-    participant Groq as Groq (Whisper / Llama)
-    participant Edit as /api/flows/[id]/edit
-    participant DB as Postgres
-
-    User->>UI: "Change Alice to 55%"
-    UI->>STT: POST audio (webm/mp4/wav)
-    STT->>Groq: Whisper large-v3 (→ turbo fallback)
-    Groq-->>STT: transcript
-    STT-->>UI: text
-    UI->>Edit: POST transcript
-    Edit->>Groq: Llama 3.3 70B (JSON mode)<br/>system prompt + flow graph + address book
-    Groq-->>Edit: JSON patch (or clarify)
-    Edit->>Edit: applyPatch + autoConnectOrphans<br/>+ validateFlow (retry once on failure)
-    Edit->>DB: persist patched Flow graph
-    Edit-->>UI: updated canvas
-```
+![Sequence — Raft Log voice edit](docs/diagrams/sequence-voice-edit.svg)
 
 ### Sequence — scheduled automation (cron + relayer)
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Sched as Scheduler (cron secret)
-    participant Cron as /api/cron/*
-    participant DB as Postgres
-    participant RPC as Soroban RPC
-    participant C as Deployed contract
-    participant PDAX as PDAX off-ramp
-
-    Sched->>Cron: POST /poll-events (x-cron-secret)
-    Cron->>RPC: getEvents per CONFIRMED deployment
-    Cron->>DB: ContractEvent + EventCursor advance
-
-    Sched->>Cron: POST /process-streamer-jobs
-    Cron->>DB: due StreamerClaimJob rows
-    Cron->>RPC: read vested amount → relayer-signed claim
-    RPC->>C: claim() pays recipient
-    Cron->>DB: reschedule next milestone
-
-    Sched->>Cron: POST /auto-charge-subscriptions / auto-charge-payroll
-    Cron->>RPC: check on-chain state + allowance
-    Cron->>RPC: relayer-signed charge (under relayer lock)
-    Cron->>DB: PayrollRun / nextChargeAt
-
-    Sched->>Cron: POST /auto-release
-    Cron->>RPC: relayer releases matured timelocks
-
-    Sched->>Cron: POST /process-offramp-jobs
-    Cron->>DB: claim OffRampPayoutJob batch
-    Cron->>PDAX: execute fiat payout
-    PDAX-->>Cron: result callback (/api/webhooks/offramp)
-```
+![Sequence — scheduled automation (cron + relayer)](docs/diagrams/sequence-cron-automation.svg)
 
 ## 🚀 How to Run Locally
 
@@ -286,10 +162,10 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 ## 👨‍💻 Team
 
-| Name           | Role               | GitHub                                                     |
-| -------------- | ------------------ | ---------------------------------------------------------- |
-| Artisam Labs   | Incubation         | n/a                                                        |
-| Mychal Pejana  | Lead Developer     | [@SaltinStillWaters](https://github.com/SaltinStillWaters) |
+| Name          | Role           | GitHub                                                     |
+| ------------- | -------------- | ---------------------------------------------------------- |
+| Artisam Labs  | Incubation     | n/a                                                        |
+| Mychal Pejana | Lead Developer | [@SaltinStillWaters](https://github.com/SaltinStillWaters) |
 
 ---
 
