@@ -184,6 +184,62 @@ describe("pipelineNodeConstructorArgs", () => {
     expect(entries[1]).toMatchObject({ address: ADDR2, amount: 200n, bps: 0, is_cash_out: true });
   });
 
+  it("encodes splitter recipients with is_cash_out", () => {
+    const args = pipelineNodeConstructorArgs(
+      {
+        kind: "splitter",
+        asset: { kind: "native" },
+        recipients: [
+          { address: ADDR, bps: 7000, amount: "0", isCashOut: false },
+          { address: ADDR2, bps: 3000, amount: "0", isCashOut: true },
+        ],
+        minAmountStroops: "0",
+        nextStepNodeIds: [],
+      },
+      ADDR,
+      ADDR2,
+      {},
+    );
+
+    expect(args).toHaveLength(6);
+    const recipientsScVal = args[2]!;
+    expect(recipientsScVal.switch()).toBe(xdr.ScValType.scvVec());
+
+    const vec = recipientsScVal.value() as xdr.ScVal[];
+    const entries = vec.map((entry) => {
+      const map = entry.value() as xdr.ScMapEntry[];
+      return Object.fromEntries(map.map((e) => [scValToNative(e.key()), scValToNative(e.val())]));
+    });
+
+    expect(entries[0]).toMatchObject({ address: ADDR, bps: 7000, amount: 0n, is_cash_out: false });
+    expect(entries[1]).toMatchObject({ address: ADDR2, bps: 3000, amount: 0n, is_cash_out: true });
+  });
+
+  it("does not emit is_cash_out for streamer recipients", () => {
+    const args = pipelineNodeConstructorArgs(
+      {
+        kind: "streamer",
+        asset: { kind: "native" },
+        recipients: [{ address: ADDR, bps: 10_000, amount: "0", isCashOut: true }],
+        amountPerIntervalStroops: "1000",
+        intervalSeconds: 60,
+        startTs: 1000,
+        endTs: 2000,
+        pauseAllowed: false,
+        retrieveAllowed: true,
+      },
+      ADDR,
+      ADDR2,
+      {},
+    );
+
+    const recipientsScVal = args[1]!;
+    const vec = recipientsScVal.value() as xdr.ScVal[];
+    const map = vec[0]!.value() as xdr.ScMapEntry[];
+    const keys = map.map((e) => scValToNative(e.key()));
+    expect(keys).toEqual(["address", "amount", "bps"]);
+  });
+
   it("resolves splitter recipient node ids through nodeAddresses", () => {
     const args = pipelineNodeConstructorArgs(
       {

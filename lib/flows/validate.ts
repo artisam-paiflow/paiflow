@@ -59,6 +59,18 @@ const FRIENDLY = {
     "This step can receive different assets depending on which path funds arrive through. Make sure every path leading into it carries the same asset, or add a swap so they match before merging.",
 } as const;
 
+// Triggers whose flows route payouts through the payer/splitter contracts,
+// which support cash-out sinking for fiat recipients. on_schedule routes
+// through the streamer, which has no cash-out mechanism.
+export const FIAT_PAYOUT_TRIGGERS = new Set([
+  "on_receive",
+  "webhook",
+  "web2_webhook",
+  "oracle",
+  "subscription",
+  "payroll",
+]);
+
 // A short, self-describing name for a node, mirroring what the canvas shows so
 // the user can locate the offending step instead of decoding a raw id like
 // "swap-8j756t".
@@ -415,31 +427,40 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         const isFiat = r.payoutMode === "fiat";
         const triggerType = triggers[0]?.type;
 
-        // Non-payroll flows: only contract addresses may be fiat (they point to
-        // an explicit cash-out node downstream). Wallet addresses must be crypto.
-        if (triggerType !== "payroll" && isWallet && isFiat) {
-          errors.push({
-            path: `nodes.${a.id}.config.recipients`,
-            message: "Wallet addresses cannot use fiat payout outside payroll flows",
-            friendlyMessage:
-              "Only contract addresses (C...) can be fiat recipients in this flow. Use a cash-out node for off-ramp, or switch the address to crypto.",
-          });
-        }
-
-        // Payroll flows: immutable (non-dev) fiat recipients must carry bank
-        // details at design time. Dev mode may leave them blank and configure
-        // later via the API.
-        if (triggerType === "payroll" && isFiat && graph.devMode !== true) {
-          const missing = [];
-          if (!r.accountName?.trim()) missing.push("account name");
-          if (!r.accountNumber?.trim()) missing.push("account number");
-          if (!r.bankCode?.trim()) missing.push("bank code");
-          if (missing.length) {
+        // Native fiat payouts (wallet addresses) sink through the payer/splitter
+        // cash-out path, available for receive/webhook/oracle/subscription/
+        // payroll flows. Contract addresses (C...) point to an explicit cash-out
+        // node downstream and are always allowed. Dev mode supports native fiat
+        // only for payroll — the rest is deferred.
+        if (isWallet && isFiat) {
+          if (!triggerType || !FIAT_PAYOUT_TRIGGERS.has(triggerType)) {
             errors.push({
               path: `nodes.${a.id}.config.recipients`,
-              message: `Fiat payroll recipient is missing ${missing.join(", ")}`,
-              friendlyMessage: `Enter the ${missing.join(", ")} for this fiat employee.`,
+              message: "Wallet addresses cannot use fiat payout in this flow",
+              friendlyMessage:
+                "Fiat payout for wallet addresses is available in receive, webhook, oracle, subscription, and payroll flows. Use a cash-out node for off-ramp here, or switch the address to crypto.",
             });
+          } else if (graph.devMode === true && triggerType !== "payroll") {
+            errors.push({
+              path: `nodes.${a.id}.config.recipients`,
+              message: "Fiat payout outside payroll is not yet supported in dev mode",
+              friendlyMessage:
+                "Turn off dev mode to pay fiat to wallet addresses in this flow, or use a cash-out node.",
+            });
+          } else if (graph.devMode !== true) {
+            // Immutable contracts bake the bank destination in at deploy time.
+            // Dev mode may leave the details blank and configure via the API.
+            const missing = [];
+            if (!r.accountName?.trim()) missing.push("account name");
+            if (!r.accountNumber?.trim()) missing.push("account number");
+            if (!r.bankCode?.trim()) missing.push("bank code");
+            if (missing.length) {
+              errors.push({
+                path: `nodes.${a.id}.config.recipients`,
+                message: `Fiat recipient is missing ${missing.join(", ")}`,
+                friendlyMessage: `Enter the ${missing.join(", ")} for this fiat recipient.`,
+              });
+            }
           }
         }
 
@@ -467,12 +488,19 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       }
       if (a.config.payoutMode === "fiat") {
         const triggerType = triggers[0]?.type;
-        if (triggerType !== "payroll") {
+        if (!triggerType || !FIAT_PAYOUT_TRIGGERS.has(triggerType)) {
           errors.push({
             path: `nodes.${a.id}.config.payoutMode`,
-            message: "Fiat payout for pay nodes is only supported in payroll flows",
+            message: "Fiat payout for pay nodes is not supported in this flow",
             friendlyMessage:
-              "Native fiat payout on a pay step is only available in payroll flows. Use a cash-out node for off-ramp in this flow, or switch to crypto.",
+              "Native fiat payout on a pay step is available in receive, webhook, oracle, subscription, and payroll flows. Use a cash-out node for off-ramp here, or switch to crypto.",
+          });
+        } else if (graph.devMode === true && triggerType !== "payroll") {
+          errors.push({
+            path: `nodes.${a.id}.config.payoutMode`,
+            message: "Fiat payout outside payroll is not yet supported in dev mode",
+            friendlyMessage:
+              "Turn off dev mode to pay fiat on a pay step in this flow, or use a cash-out node.",
           });
         } else if (graph.devMode !== true) {
           const missing = [];
@@ -483,7 +511,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
             errors.push({
               path: `nodes.${a.id}.config.payoutMode`,
               message: `Fiat pay recipient is missing ${missing.join(", ")}`,
-              friendlyMessage: `Enter the ${missing.join(", ")} for this fiat employee.`,
+              friendlyMessage: `Enter the ${missing.join(", ")} for this fiat recipient.`,
             });
           }
         }
@@ -589,6 +617,28 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
           friendlyMessage: "Add a subject line to the email notify node.",
         });
       }
+    }
+  }
+
+  // The conditional contract (oracle_gte) pays recipients directly and cannot
+  // sink cash-out shares, so native fiat payouts are incompatible with it.
+  // Explicit cash-out nodes are fine — they receive funds via forwarding.
+  const hasOracleGteCondition = graph.nodes.some(
+    (n) => n.type === "condition" && n.config.kind === "oracle_gte",
+  );
+  if (hasOracleGteCondition) {
+    const hasNativeFiatPayout = graph.nodes.some(
+      (n) =>
+        (n.type === "pay" && n.config.payoutMode === "fiat") ||
+        (n.type === "split" && n.config.recipients.some((r) => r.payoutMode === "fiat")),
+    );
+    if (hasNativeFiatPayout) {
+      errors.push({
+        path: "nodes",
+        message: "Fiat payouts are not compatible with oracle-gte conditions",
+        friendlyMessage:
+          "Oracle conditions pay recipients directly and cannot cash out to a bank. Remove the condition, switch the payout to crypto, or use an explicit cash-out node instead.",
+      });
     }
   }
 

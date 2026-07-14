@@ -10,6 +10,7 @@ pub struct Recipient {
     pub address: Address,
     pub bps: u32,     // 0 for fixed-amount recipients
     pub amount: i128, // 0 for percentage recipients
+    pub is_cash_out: bool, // true => sink this share to the treasury via cash_out contract
 }
 
 #[contracttype]
@@ -316,6 +317,9 @@ fn do_split(env: &Env, asset: &Address, recipients: &Vec<Recipient>, amount: i12
         if share > 0 {
             client.transfer(&env.current_contract_address(), &r.address, &share);
             distributed = distributed.checked_add(share).unwrap_or(distributed);
+            if r.is_cash_out {
+                invoke_receive_and_forward(env, &r.address, asset, &share);
+            }
         }
         i += 1;
     }
@@ -367,6 +371,9 @@ fn do_split_fixed(env: &Env, asset: &Address, recipients: &Vec<Recipient>) {
     for r in recipients.iter() {
         if r.amount > 0 {
             client.transfer(&env.current_contract_address(), &r.address, &r.amount);
+            if r.is_cash_out {
+                invoke_receive_and_forward(env, &r.address, asset, &r.amount);
+            }
         }
     }
 }
@@ -432,6 +439,23 @@ fn invoke_execute_step(env: &Env, target: &Address, asset: &Address, amount: &i1
     );
 }
 
+fn invoke_receive_and_forward(env: &Env, target: &Address, asset: &Address, amount: &i128) {
+    let func = soroban_sdk::Symbol::new(env, "receive_and_forward");
+    let empty_steps = Vec::<WorkflowTarget>::new(env);
+    let source = env.current_contract_address();
+    env.invoke_contract::<()>(
+        target,
+        &func,
+        vec![
+            env,
+            source.into_val(env),
+            asset.into_val(env),
+            amount.into_val(env),
+            empty_steps.into_val(env),
+        ],
+    );
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -448,6 +472,23 @@ mod test {
         pub fn execute_step(_env: Env, _asset: Address, _amount: i128) {}
     }
 
+    #[contract]
+    pub struct MockCashOut;
+
+    #[contractimpl]
+    impl MockCashOut {
+        pub fn __constructor(_env: Env) {}
+
+        pub fn receive_and_forward(
+            _env: Env,
+            _from: Address,
+            _asset: Address,
+            _amount: i128,
+            _next_steps: Vec<WorkflowTarget>,
+        ) {
+        }
+    }
+
     fn make_recipients(env: &Env, a: &Address, b: &Address, c: &Address) -> Vec<Recipient> {
         vec![
             env,
@@ -455,16 +496,19 @@ mod test {
                 address: a.clone(),
                 bps: 6000,
                 amount: 0,
+                is_cash_out: false,
             },
             Recipient {
                 address: b.clone(),
                 bps: 3000,
                 amount: 0,
+                is_cash_out: false,
             },
             Recipient {
                 address: c.clone(),
                 bps: 1000,
                 amount: 0,
+                is_cash_out: false,
             },
         ]
     }
@@ -567,11 +611,13 @@ mod test {
                 address: a.clone(),
                 bps: 6000,
                 amount: 0,
+                is_cash_out: false,
             },
             Recipient {
                 address: b.clone(),
                 bps: 3000,
                 amount: 0,
+                is_cash_out: false,
             },
         ];
         let parent = Address::generate(&env);
@@ -738,11 +784,13 @@ mod test {
                 address: a.clone(),
                 bps: 0,
                 amount: amount_a,
+                is_cash_out: false,
             },
             Recipient {
                 address: b.clone(),
                 bps: 0,
                 amount: amount_b,
+                is_cash_out: false,
             },
         ]
     }
@@ -878,11 +926,13 @@ mod test {
                 address: a.clone(),
                 bps: 5000,
                 amount: 0,
+                is_cash_out: false,
             },
             Recipient {
                 address: b.clone(),
                 bps: 0,
                 amount: 1_000_000,
+                is_cash_out: false,
             },
         ];
         let parent = Address::generate(&env);
@@ -913,6 +963,7 @@ mod test {
                 address: a.clone(),
                 bps: 0,
                 amount: 0,
+                is_cash_out: false,
             },
         ];
         let parent = Address::generate(&env);
@@ -1224,5 +1275,111 @@ mod test {
         assert_eq!(tok.balance(&payer_recipient), 0);
         assert_eq!(tok.balance(&splitter_id), 3_000_000);
         assert_eq!(splitter_client.accumulated_balance(), 3_000_000);
+    }
+
+    #[test]
+    fn fixed_split_sinks_cash_out_recipient() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let wallet_recipient = Address::generate(&env);
+        let cash_out_contract = env.register(MockCashOut, ());
+        let payer = Address::generate(&env);
+        let parent = Address::generate(&env);
+        sac.mint(&payer, &10_000_000);
+
+        let recipients = vec![
+            &env,
+            Recipient {
+                address: wallet_recipient.clone(),
+                bps: 0,
+                amount: 3_000_000,
+                is_cash_out: false,
+            },
+            Recipient {
+                address: cash_out_contract.clone(),
+                bps: 0,
+                amount: 2_000_000,
+                is_cash_out: true,
+            },
+        ];
+
+        let contract_id = env.register(
+            Splitter,
+            (
+                admin.clone(),
+                asset.address(),
+                recipients,
+                0_i128,
+                parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
+            ),
+        );
+        let client = SplitterClient::new(&env, &contract_id);
+
+        client.distribute(&payer, &10_000_000);
+
+        assert_eq!(tok.balance(&wallet_recipient), 3_000_000);
+        // The cash_out contract holds its share because receive_and_forward on
+        // the mock is a no-op; the real contract sinks it to the treasury.
+        assert_eq!(tok.balance(&cash_out_contract), 2_000_000);
+        assert_eq!(tok.balance(&contract_id), 5_000_000);
+    }
+
+    #[test]
+    fn percentage_split_sinks_cash_out_recipient() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let sac = token::StellarAssetClient::new(&env, &asset.address());
+        let tok = token::TokenClient::new(&env, &asset.address());
+
+        let wallet_recipient = Address::generate(&env);
+        let cash_out_contract = env.register(MockCashOut, ());
+        let payer = Address::generate(&env);
+        let parent = Address::generate(&env);
+        sac.mint(&payer, &10_000_000);
+
+        let recipients = vec![
+            &env,
+            Recipient {
+                address: wallet_recipient.clone(),
+                bps: 7000,
+                amount: 0,
+                is_cash_out: false,
+            },
+            Recipient {
+                address: cash_out_contract.clone(),
+                bps: 3000,
+                amount: 0,
+                is_cash_out: true,
+            },
+        ];
+
+        let contract_id = env.register(
+            Splitter,
+            (
+                admin.clone(),
+                asset.address(),
+                recipients,
+                0_i128,
+                parent.clone(),
+                Vec::<WorkflowTarget>::new(&env),
+            ),
+        );
+        let client = SplitterClient::new(&env, &contract_id);
+
+        client.distribute(&payer, &10_000_000);
+
+        assert_eq!(tok.balance(&wallet_recipient), 7_000_000);
+        assert_eq!(tok.balance(&cash_out_contract), 3_000_000);
+        assert_eq!(tok.balance(&contract_id), 0);
     }
 }
