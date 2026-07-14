@@ -18,7 +18,38 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 ## 🌐 Testnet Deployments
 
-(insert contract links here)
+All contracts are deployed on the **Stellar testnet**. Every flow deployed from the app produces a fresh set of pipeline contracts with deterministic addresses (via the factory's `deploy_pipeline`), and each deployment page in the UI deep-links its contracts to stellar.expert — the fastest way to see a live pipeline is to [deploy one in the app](https://paiflow.xyz) and click through.
+
+**Factory contract** — deploys and wires every pipeline atomically:
+
+| Contract                    | Address                                                                                                                                                                 |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Factory (`deploy_pipeline`) | [`CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK`](https://stellar.expert/explorer/testnet/contract/CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK) |
+
+**Template WASM uploads** — the pre-audited contract code the factory instantiates per deployment:
+
+| Template           | Role      | WASM hash (testnet)                                                                                                                   |
+| ------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Factory            | Deployer  | [`3020bb44…`](https://stellar.expert/explorer/testnet/contract/wasm/3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023) |
+| Deposit trigger    | Trigger   | [`1719ae70…`](https://stellar.expert/explorer/testnet/contract/wasm/1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18) |
+| Webhook            | Trigger   | [`415ecb61…`](https://stellar.expert/explorer/testnet/contract/wasm/415ecb61b53aee7805478e40e490328ea546e033f5b77bfe046aab956f28dd25) |
+| Subscription       | Trigger   | [`15a59ab7…`](https://stellar.expert/explorer/testnet/contract/wasm/15a59ab78da2342900ce2f19d22ef3650a768e2c286fbf2e4bb2aba1790cf28f) |
+| Oracle             | Trigger   | [`e496a8cd…`](https://stellar.expert/explorer/testnet/contract/wasm/e496a8cd0fad78f801ece1087c1f258ecb76684a09eca420d1222d5b6e9ca28b) |
+| Splitter           | Action    | [`201e4fcc…`](https://stellar.expert/explorer/testnet/contract/wasm/201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417) |
+| Streamer           | Action    | [`625cc073…`](https://stellar.expert/explorer/testnet/contract/wasm/625cc073ec1ae4d6ed6f55d9f99c4d743153752b1d2667524123f8b0284c0467) |
+| Payer              | Action    | [`88c75f4f…`](https://stellar.expert/explorer/testnet/contract/wasm/88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2) |
+| Payroll            | Action    | [`055bb5c9…`](https://stellar.expert/explorer/testnet/contract/wasm/055bb5c94bc0dac259f08a6adc97e9305fbf901d5facbdcbbedf799810f474bd) |
+| Cash out           | Action    | [`75ba6d8e…`](https://stellar.expert/explorer/testnet/contract/wasm/75ba6d8e71770bcbd98c1181473cca5d33d4646655c95786be8ed99155d77502) |
+| Swapper            | Action    | [`dfcdc0d3…`](https://stellar.expert/explorer/testnet/contract/wasm/dfcdc0d35ce90126033683f0713275675350d4d5dc01c16c07ab2ec9531e4170) |
+| Yield              | Action    | [`6c798758…`](https://stellar.expert/explorer/testnet/contract/wasm/6c798758965b391c581c992b6d54396e2d91cee23b8ac931ea831d6db243b3f5) |
+| Timelock           | Condition | [`5529d368…`](https://stellar.expert/explorer/testnet/contract/wasm/5529d368e5305f7688dd8d2d655fe48c4123be0110cdc9c167bce025d8d11c20) |
+| Conditional        | Condition | [`addd8676…`](https://stellar.expert/explorer/testnet/contract/wasm/addd86767bd2691b26110b1c5fec071f48047ebc3ce7611a46a59b70c3329922) |
+| Multisig           | Condition | [`503c7dc8…`](https://stellar.expert/explorer/testnet/contract/wasm/503c7dc8c8731b3df6eb2929114bd25c062dfdbea2d46c73a37d693f0676fc3f) |
+| Router             | Condition | [`9fd83725…`](https://stellar.expert/explorer/testnet/contract/wasm/9fd83725816348bf04b594b07354991c3abb110ae6b8e21dcaa2c50a9d1063a0) |
+| Payer (dev)        | Dev mode  | [`8b5550b4…`](https://stellar.expert/explorer/testnet/contract/wasm/8b5550b4770c2d03601f6392496e45689973d46c608a24e9f1dd60d91904cb78) |
+| Splitter (dev)     | Dev mode  | [`8010433a…`](https://stellar.expert/explorer/testnet/contract/wasm/8010433a3c6c4ee8281ffa33a253a83ea00c8b1225061485592bd49b2654bec2) |
+| Subscription (dev) | Dev mode  | [`100399b3…`](https://stellar.expert/explorer/testnet/contract/wasm/100399b3f899be056e0e5c22d7ecafd3104c65d6a94215a864299807f0042fcd) |
+| Cash out (dev)     | Dev mode  | [`c2fae909…`](https://stellar.expert/explorer/testnet/contract/wasm/c2fae909c6db9659cc0249c98f9d699216a90625173aec13d41ac4a380471db0) |
 
 ---
 
