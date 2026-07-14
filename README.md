@@ -28,23 +28,25 @@ All contracts are deployed on the **Stellar testnet**. Every flow deployed from 
 
 **Template WASM uploads** — the pre-audited contract code the factory instantiates per deployment:
 
-| Template           | Role      | WASM hash (testnet)                                                                                                                   |
-| ------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Factory            | Deployer  | [`3020bb44…`](https://stellar.expert/explorer/testnet/contract/wasm/3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023) |
-| Deposit trigger    | Trigger   | [`1719ae70…`](https://stellar.expert/explorer/testnet/contract/wasm/1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18) |
-| Webhook            | Trigger   | [`415ecb61…`](https://stellar.expert/explorer/testnet/contract/wasm/415ecb61b53aee7805478e40e490328ea546e033f5b77bfe046aab956f28dd25) |
-| Subscription       | Trigger   | [`15a59ab7…`](https://stellar.expert/explorer/testnet/contract/wasm/15a59ab78da2342900ce2f19d22ef3650a768e2c286fbf2e4bb2aba1790cf28f) |
-| Splitter           | Action    | [`201e4fcc…`](https://stellar.expert/explorer/testnet/contract/wasm/201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417) |
-| Streamer           | Action    | [`625cc073…`](https://stellar.expert/explorer/testnet/contract/wasm/625cc073ec1ae4d6ed6f55d9f99c4d743153752b1d2667524123f8b0284c0467) |
-| Payer              | Action    | [`88c75f4f…`](https://stellar.expert/explorer/testnet/contract/wasm/88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2) |
-| Payroll            | Action    | [`055bb5c9…`](https://stellar.expert/explorer/testnet/contract/wasm/055bb5c94bc0dac259f08a6adc97e9305fbf901d5facbdcbbedf799810f474bd) |
-| Cash out           | Action    | [`75ba6d8e…`](https://stellar.expert/explorer/testnet/contract/wasm/75ba6d8e71770bcbd98c1181473cca5d33d4646655c95786be8ed99155d77502) |
-| Timelock           | Condition | [`5529d368…`](https://stellar.expert/explorer/testnet/contract/wasm/5529d368e5305f7688dd8d2d655fe48c4123be0110cdc9c167bce025d8d11c20) |
-| Conditional        | Condition | [`addd8676…`](https://stellar.expert/explorer/testnet/contract/wasm/addd86767bd2691b26110b1c5fec071f48047ebc3ce7611a46a59b70c3329922) |
-| Payer (dev)        | Dev mode  | [`8b5550b4…`](https://stellar.expert/explorer/testnet/contract/wasm/8b5550b4770c2d03601f6392496e45689973d46c608a24e9f1dd60d91904cb78) |
-| Splitter (dev)     | Dev mode  | [`8010433a…`](https://stellar.expert/explorer/testnet/contract/wasm/8010433a3c6c4ee8281ffa33a253a83ea00c8b1225061485592bd49b2654bec2) |
-| Subscription (dev) | Dev mode  | [`100399b3…`](https://stellar.expert/explorer/testnet/contract/wasm/100399b3f899be056e0e5c22d7ecafd3104c65d6a94215a864299807f0042fcd) |
-| Cash out (dev)     | Dev mode  | [`c2fae909…`](https://stellar.expert/explorer/testnet/contract/wasm/c2fae909c6db9659cc0249c98f9d699216a90625173aec13d41ac4a380471db0) |
+| Template           | Role      | WASM hash (testnet)                                                |
+| ------------------ | --------- | ------------------------------------------------------------------ |
+| Factory            | Deployer  | `3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023` |
+| Deposit trigger    | Trigger   | `1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18` |
+| Webhook            | Trigger   | `415ecb61b53aee7805478e40e490328ea546e033f5b77bfe046aab956f28dd25` |
+| Subscription       | Trigger   | `15a59ab78da2342900ce2f19d22ef3650a768e2c286fbf2e4bb2aba1790cf28f` |
+| Splitter           | Action    | `201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417` |
+| Streamer           | Action    | `625cc073ec1ae4d6ed6f55d9f99c4d743153752b1d2667524123f8b0284c0467` |
+| Payer              | Action    | `88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2` |
+| Payroll            | Action    | `055bb5c94bc0dac259f08a6adc97e9305fbf901d5facbdcbbedf799810f474bd` |
+| Cash out           | Action    | `75ba6d8e71770bcbd98c1181473cca5d33d4646655c95786be8ed99155d77502` |
+| Timelock           | Condition | `5529d368e5305f7688dd8d2d655fe48c4123be0110cdc9c167bce025d8d11c20` |
+| Conditional        | Condition | `addd86767bd2691b26110b1c5fec071f48047ebc3ce7611a46a59b70c3329922` |
+| Payer (dev)        | Dev mode  | `8b5550b4770c2d03601f6392496e45689973d46c608a24e9f1dd60d91904cb78` |
+| Splitter (dev)     | Dev mode  | `8010433a3c6c4ee8281ffa33a253a83ea00c8b1225061485592bd49b2654bec2` |
+| Subscription (dev) | Dev mode  | `100399b3f899be056e0e5c22d7ecafd3104c65d6a94215a864299807f0042fcd` |
+| Cash out (dev)     | Dev mode  | `c2fae909c6db9659cc0249c98f9d699216a90625173aec13d41ac4a380471db0` |
+
+> Uploaded WASM code is indexed on testnet — the raw bytes are fetchable from the stellar.expert API at `api.stellar.expert/explorer/testnet/contract/wasm/{hash}` — but the explorer UI has no standalone page for a bare hash, so they're listed unlinked. Each hash also appears on the page of any contract instantiated from it (e.g. the factory above).
 
 ---
 
