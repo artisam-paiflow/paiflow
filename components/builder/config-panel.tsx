@@ -18,7 +18,7 @@ import {
 import { cn, formatStroops, shortAddr } from "@/lib/utils";
 import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
-import { computeAssetFlow, assetsEqual } from "@/lib/flows/validate";
+import { computeAssetFlow, assetsEqual, validateFlow } from "@/lib/flows/validate";
 
 /**
  * Sentinel for an address field a developer chose to leave blank at design time
@@ -127,6 +127,36 @@ export default function ConfigPanel({
     [graph, node],
   );
 
+  // Validation issues belonging to this node, split into per-field messages
+  // (keyed by config path, e.g. "recipient" or "recipients.0.address") and
+  // node-level messages with no single field to attach to. Schema (zod) paths
+  // index nodes positionally (`nodes.0.config…`) while semantic rules key by
+  // node id (`nodes.<id>.…`); both are normalized here.
+  const nodeErrors = useMemo(() => {
+    const field = new Map<string, string>();
+    const general: string[] = [];
+    if (!node) return { field, general };
+    const result = validateFlow(graph);
+    if (result.ok) return { field, general };
+    const idx = graph.nodes.findIndex((n) => n.id === node.id);
+    for (const issue of result.errors) {
+      const seg = issue.path.split(".");
+      const key = seg[0] === "nodes" ? seg[1] : undefined;
+      const isThisNode =
+        key === node.id || (key !== undefined && /^\d+$/.test(key) && Number(key) === idx);
+      if (!isThisNode) continue;
+      if (seg[2] === "config" && seg.length > 3) {
+        const fieldPath = seg.slice(3).join(".");
+        if (!field.has(fieldPath)) field.set(fieldPath, issue.friendlyMessage);
+      } else {
+        general.push(issue.friendlyMessage);
+      }
+    }
+    return { field, general };
+  }, [graph, node]);
+
+  const fieldError = (name: string): string | null => nodeErrors.field.get(name) ?? null;
+
   if (!node) {
     return (
       <aside
@@ -195,6 +225,19 @@ export default function ConfigPanel({
         </div>
       )}
 
+      {nodeErrors.general.length > 0 && (
+        <div
+          role="alert"
+          className="border-error/40 bg-error-container/20 space-y-1 rounded border px-3 py-2"
+        >
+          {nodeErrors.general.map((m, i) => (
+            <p key={i} className="text-error text-[11px] leading-snug">
+              {m}
+            </p>
+          ))}
+        </div>
+      )}
+
       {node.type === "on_receive" && (
         <>
           <AssetField
@@ -203,7 +246,10 @@ export default function ConfigPanel({
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
           />
-          <Field label={`Minimum amount (${assetLabel(node.config.asset)}), optional`}>
+          <Field
+            label={`Minimum amount (${assetLabel(node.config.asset)}), optional`}
+            error={fieldError("minAmountStroops")}
+          >
             <input
               className="input font-mono"
               value={
@@ -246,7 +292,7 @@ export default function ConfigPanel({
           const tz = cfg.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
           return (
             <>
-              <Field label="Interval">
+              <Field label="Interval" error={fieldError("intervalAmount")}>
                 <div className="flex gap-2">
                   <input
                     className="input w-20 text-right"
@@ -312,7 +358,7 @@ export default function ConfigPanel({
                   ))}
                 </select>
               </Field>
-              <Field label="Starts at">
+              <Field label="Starts at" error={fieldError("startsAt")}>
                 <input
                   className="input"
                   type="datetime-local"
@@ -326,7 +372,7 @@ export default function ConfigPanel({
                   }}
                 />
               </Field>
-              <Field label="Ends at — optional">
+              <Field label="Ends at — optional" error={fieldError("endsAt")}>
                 <div className="flex gap-1">
                   <input
                     className="input"
@@ -361,7 +407,7 @@ export default function ConfigPanel({
                   )}
                 </div>
               </Field>
-              <Field label="Occurrences — optional">
+              <Field label="Occurrences — optional" error={fieldError("occurrences")}>
                 <input
                   className="input"
                   type="number"
@@ -446,6 +492,7 @@ export default function ConfigPanel({
               }
               onDeactivate={() => onChange({ ...node, config: { ...node.config, recipient: "" } })}
               hint="Recipient set via the API after deploy"
+              error={fieldError("recipient")}
             >
               <AddressInput
                 value={node.config.recipient}
@@ -456,6 +503,7 @@ export default function ConfigPanel({
                   })
                 }
                 pending={isPendingAddress(node.config.recipient)}
+                error={!!fieldError("recipient")}
                 addressBook={addressBook}
                 onAddressBookChange={refreshAddressBook}
                 addressBookLoading={addressBookLoading}
@@ -504,7 +552,7 @@ export default function ConfigPanel({
 
               {node.config.payoutMode === "fiat" && !devMode && (
                 <>
-                  <Field label="Account name">
+                  <Field label="Account name" error={fieldError("accountName")}>
                     <input
                       className="input text-xs"
                       value={node.config.accountName ?? ""}
@@ -517,7 +565,7 @@ export default function ConfigPanel({
                       }
                     />
                   </Field>
-                  <Field label="Account number">
+                  <Field label="Account number" error={fieldError("accountNumber")}>
                     <input
                       className="input text-xs"
                       value={node.config.accountNumber ?? ""}
@@ -530,7 +578,7 @@ export default function ConfigPanel({
                       }
                     />
                   </Field>
-                  <Field label="Bank">
+                  <Field label="Bank" error={fieldError("bankCode")}>
                     <select
                       className="input text-xs"
                       value={node.config.bankCode ?? ""}
@@ -624,7 +672,10 @@ export default function ConfigPanel({
                   </Field>
 
                   {node.config.mode === "fixed" && (
-                    <Field label={`Amount (${assetLabel(node.config.asset)})`}>
+                    <Field
+                      label={`Amount (${assetLabel(node.config.asset)})`}
+                      error={fieldError("amountStroops")}
+                    >
                       <input
                         className="input"
                         value={
@@ -649,7 +700,7 @@ export default function ConfigPanel({
                   )}
 
                   {node.config.mode === "percentage" && (
-                    <Field label="Percentage">
+                    <Field label="Percentage" error={fieldError("percentage")}>
                       <div className="relative">
                         <input
                           className="input pr-6"
@@ -722,7 +773,10 @@ export default function ConfigPanel({
           )}
 
           {triggerType === "on_schedule" && (
-            <Field label={`Amount per interval (${assetLabel(node.config.asset)})`}>
+            <Field
+              label={`Amount per interval (${assetLabel(node.config.asset)})`}
+              error={fieldError("amountPerIntervalStroops")}
+            >
               <input
                 className="input"
                 value={
@@ -761,6 +815,7 @@ export default function ConfigPanel({
               refreshAddressBook={refreshAddressBook}
               addressBookLoading={addressBookLoading}
               addressBookError={addressBookError}
+              fieldErrors={nodeErrors.field}
               onChange={onChange}
             />
           )}
@@ -775,7 +830,7 @@ export default function ConfigPanel({
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
           />
-          <Field label="Relayer address (G… or PENDING:)">
+          <Field label="Relayer address (G… or PENDING:)" error={fieldError("relayer")}>
             <AddressInput
               value={node.config.relayer}
               onChange={(relayer) =>
@@ -785,6 +840,7 @@ export default function ConfigPanel({
                 })
               }
               pending={isPendingAddress(node.config.relayer)}
+              error={!!fieldError("relayer")}
               addressBook={addressBook}
               onAddressBookChange={refreshAddressBook}
               addressBookLoading={addressBookLoading}
@@ -826,6 +882,7 @@ export default function ConfigPanel({
             }
             onDeactivate={() => onChange({ ...node, config: { ...node.config, subscriber: "" } })}
             hint="Subscriber set via the API after deploy"
+            error={fieldError("subscriber")}
           >
             <AddressInput
               value={node.config.subscriber}
@@ -836,13 +893,17 @@ export default function ConfigPanel({
                 })
               }
               pending={isPendingAddress(node.config.subscriber)}
+              error={!!fieldError("subscriber")}
               addressBook={addressBook}
               onAddressBookChange={refreshAddressBook}
               addressBookLoading={addressBookLoading}
               addressBookError={addressBookError}
             />
           </ApiFillField>
-          <Field label={`Amount per period (${assetLabel(node.config.asset)})`}>
+          <Field
+            label={`Amount per period (${assetLabel(node.config.asset)})`}
+            error={fieldError("amountPerPeriodStroops")}
+          >
             <input
               className="input"
               value={formatStroops(node.config.amountPerPeriodStroops)}
@@ -876,7 +937,7 @@ export default function ConfigPanel({
             const unit = cfg.intervalUnit ?? "day";
             return (
               <>
-                <Field label="Interval">
+                <Field label="Interval" error={fieldError("intervalAmount")}>
                   <div className="flex gap-2">
                     <input
                       className="input w-20 text-right"
@@ -910,7 +971,7 @@ export default function ConfigPanel({
                     </select>
                   </div>
                 </Field>
-                <Field label="Ends at — optional">
+                <Field label="Ends at — optional" error={fieldError("endsAt")}>
                   <div className="flex gap-1">
                     <input
                       className="input"
@@ -956,7 +1017,7 @@ export default function ConfigPanel({
                     )}
                   </div>
                 </Field>
-                <Field label="Occurrences — optional">
+                <Field label="Occurrences — optional" error={fieldError("occurrences")}>
                   <input
                     className="input"
                     type="number"
@@ -998,6 +1059,7 @@ export default function ConfigPanel({
             }
             onDeactivate={() => onChange({ ...node, config: { ...node.config, employer: "" } })}
             hint="Employer set via the API after deploy"
+            error={fieldError("employer")}
           >
             <AddressInput
               value={node.config.employer}
@@ -1008,6 +1070,7 @@ export default function ConfigPanel({
                 })
               }
               pending={isPendingAddress(node.config.employer)}
+              error={!!fieldError("employer")}
               addressBook={addressBook}
               onAddressBookChange={refreshAddressBook}
               addressBookLoading={addressBookLoading}
@@ -1051,7 +1114,7 @@ export default function ConfigPanel({
                   </div>
                 ) : (
                   <>
-                    <Field label="Interval">
+                    <Field label="Interval" error={fieldError("intervalAmount")}>
                       <div className="flex gap-2">
                         <input
                           className="input w-20 text-right"
@@ -1085,7 +1148,7 @@ export default function ConfigPanel({
                         </select>
                       </div>
                     </Field>
-                    <Field label="Ends at — optional">
+                    <Field label="Ends at — optional" error={fieldError("endsAt")}>
                       <div className="flex gap-1">
                         <input
                           className="input"
@@ -1131,7 +1194,7 @@ export default function ConfigPanel({
                         )}
                       </div>
                     </Field>
-                    <Field label="Occurrences — optional">
+                    <Field label="Occurrences — optional" error={fieldError("occurrences")}>
                       <input
                         className="input"
                         type="number"
@@ -1172,7 +1235,7 @@ export default function ConfigPanel({
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
           />
-          <Field label="Price threshold">
+          <Field label="Price threshold" error={fieldError("threshold")}>
             <input
               className="input"
               value={node.config.threshold}
@@ -1207,7 +1270,7 @@ export default function ConfigPanel({
               onChange({ ...node, config: { ...node.config, assetOut } } as FlowNode)
             }
           />
-          <Field label="Rate (basis points, 1–10000)">
+          <Field label="Rate (basis points, 1–10000)" error={fieldError("rateBps")}>
             <input
               className="input"
               type="number"
@@ -1241,7 +1304,7 @@ export default function ConfigPanel({
             }
             expectedAsset={expectedAsset}
           />
-          <Field label="Vault address (G… or PENDING:)">
+          <Field label="Vault address (G… or PENDING:)" error={fieldError("vault")}>
             <AddressInput
               value={node.config.vault}
               onChange={(vault) =>
@@ -1251,6 +1314,7 @@ export default function ConfigPanel({
                 })
               }
               pending={isPendingAddress(node.config.vault)}
+              error={!!fieldError("vault")}
               addressBook={addressBook}
               onAddressBookChange={refreshAddressBook}
               addressBookLoading={addressBookLoading}
@@ -1263,7 +1327,7 @@ export default function ConfigPanel({
       {node.type === "email_notify" && (
         <>
           <EmailRecipientsField node={node} graph={graph} onChange={onChange} />
-          <Field label="Subject">
+          <Field label="Subject" error={fieldError("subject")}>
             <input
               className="input"
               value={node.config.subject}
@@ -1276,7 +1340,7 @@ export default function ConfigPanel({
               }
             />
           </Field>
-          <Field label="Body">
+          <Field label="Body" error={fieldError("body")}>
             <textarea
               className="input"
               rows={5}
@@ -1312,7 +1376,7 @@ export default function ConfigPanel({
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
           />
-          <Field label="Account name">
+          <Field label="Account name" error={fieldError("accountName")}>
             <input
               className="input"
               value={node.config.accountName}
@@ -1325,7 +1389,7 @@ export default function ConfigPanel({
               }
             />
           </Field>
-          <Field label="Account number">
+          <Field label="Account number" error={fieldError("accountNumber")}>
             <input
               className="input"
               value={node.config.accountNumber}
@@ -1338,7 +1402,7 @@ export default function ConfigPanel({
               }
             />
           </Field>
-          <Field label="Bank">
+          <Field label="Bank" error={fieldError("bankCode")}>
             <select
               className="input"
               value={node.config.bankCode}
@@ -1418,7 +1482,7 @@ export default function ConfigPanel({
             </select>
           </Field>
           {(node.config.kind === "amount_gt" || node.config.kind === "amount_lt") && (
-            <Field label="Threshold">
+            <Field label="Threshold" error={fieldError("amountStroops")}>
               <input
                 className="input"
                 value={formatStroops(node.config.amountStroops)}
@@ -1440,7 +1504,7 @@ export default function ConfigPanel({
           )}
           {node.config.kind === "oracle_gte" && (
             <>
-              <Field label="Oracle contract / account">
+              <Field label="Oracle contract / account" error={fieldError("oracle")}>
                 <input
                   className="input font-mono"
                   value={node.config.oracle}
@@ -1450,7 +1514,7 @@ export default function ConfigPanel({
                   }}
                 />
               </Field>
-              <Field label="Storage key">
+              <Field label="Storage key" error={fieldError("key")}>
                 <input
                   className="input"
                   value={node.config.key}
@@ -1460,7 +1524,7 @@ export default function ConfigPanel({
                   }}
                 />
               </Field>
-              <Field label="Threshold">
+              <Field label="Threshold" error={fieldError("threshold")}>
                 <input
                   className="input"
                   value={node.config.threshold}
@@ -1482,7 +1546,7 @@ export default function ConfigPanel({
               const tz = cfg.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
               return (
                 <>
-                  <Field label="Date &amp; time">
+                  <Field label="Date &amp; time" error={fieldError("at")}>
                     <input
                       className="input"
                       type="datetime-local"
@@ -1528,7 +1592,7 @@ export default function ConfigPanel({
               const cfg = node.config as Extract<typeof node.config, { kind: "multisig" }>;
               return (
                 <>
-                  <Field label="Signers">
+                  <Field label="Signers" error={fieldError("signers")}>
                     {cfg.signers.map((s, i) => (
                       <div key={i} className="mb-1 flex gap-1">
                         <AddressInput
@@ -1540,6 +1604,7 @@ export default function ConfigPanel({
                             onChange({ ...node, config: { ...cfg, signers: next } } as FlowNode);
                           }}
                           pending={isPendingAddress(s)}
+                          error={!!fieldError(`signers.${i}`)}
                           addressBook={addressBook}
                           onAddressBookChange={refreshAddressBook}
                           addressBookLoading={addressBookLoading}
@@ -1568,7 +1633,7 @@ export default function ConfigPanel({
                       + Add signer
                     </button>
                   </Field>
-                  <Field label="Threshold (min signers)">
+                  <Field label="Threshold (min signers)" error={fieldError("threshold")}>
                     <input
                       className="input"
                       type="number"
@@ -1617,6 +1682,7 @@ function SplitRecipientsEditor({
   refreshAddressBook,
   addressBookLoading,
   addressBookError,
+  fieldErrors,
   onChange,
 }: {
   node: Extract<FlowNode, { type: "split" }>;
@@ -1627,9 +1693,14 @@ function SplitRecipientsEditor({
   refreshAddressBook?: () => void;
   addressBookLoading?: boolean;
   addressBookError?: string | null;
+  /** Per-field validation messages for this node, keyed by config path. */
+  fieldErrors?: Map<string, string>;
   onChange: (n: FlowNode) => void;
 }) {
   const onAddressBookChange = refreshAddressBook ?? (() => {});
+  const listError = fieldErrors?.get("recipients") ?? null;
+  const recipientError = (i: number, field: string): string | null =>
+    fieldErrors?.get(`recipients.${i}.${field}`) ?? null;
   // In dev mode an empty recipients list means "fill via API"; the banner in
   // the parent ConfigPanel already covers it, so skip the editor entirely.
   if (devMode && node.config.recipients.length === 0) return null;
@@ -1754,11 +1825,17 @@ function SplitRecipientsEditor({
         </Field>
       )}
 
-      <div className="text-xs text-zinc-400">
+      <div className={cn("text-xs", listError ? "text-error" : "text-zinc-400")}>
         {mode === "percentage"
           ? "Recipients (shares must sum to 100%)"
           : "Recipients (fixed amounts accumulate until the total is reached)"}
       </div>
+
+      {listError && (
+        <p role="alert" className="text-error -mt-2 text-[11px] leading-snug">
+          {listError}
+        </p>
+      )}
 
       {mode === "percentage" && <AllocationBar recipients={node.config.recipients} />}
 
@@ -1767,6 +1844,9 @@ function SplitRecipientsEditor({
         const isPercentage = r.mode === "percentage";
         const isPayrollFiat = isPayroll && r.payoutMode === "fiat";
         const isExpanded = expandedRecipients.has(i);
+        const cardHasError = fieldErrors
+          ? [...fieldErrors.keys()].some((k) => k.startsWith(`recipients.${i}.`))
+          : false;
         const projected =
           isPercentage && sourceAmount
             ? stroopsToDisplay(
@@ -1788,7 +1868,13 @@ function SplitRecipientsEditor({
             : "0";
 
         return (
-          <div key={i} className="overflow-hidden rounded border border-zinc-800 bg-zinc-900/50">
+          <div
+            key={i}
+            className={cn(
+              "overflow-hidden rounded border bg-zinc-900/50",
+              cardHasError ? "border-error/60" : "border-zinc-800",
+            )}
+          >
             <button
               type="button"
               onClick={() => toggleRecipient(i)}
@@ -1821,7 +1907,7 @@ function SplitRecipientsEditor({
                         ×
                       </button>
                     </div>
-                    <Field label="Amount">
+                    <Field label="Amount" error={recipientError(i, "amountStroops")}>
                       <input
                         className="input text-right"
                         value={
@@ -1863,16 +1949,25 @@ function SplitRecipientsEditor({
                             } as SplitRecipient)
                           }
                           pending={isPendingAddress(r.address)}
+                          error={!!recipientError(i, "address")}
                           addressBook={addressBook}
                           onAddressBookChange={onAddressBookChange}
                           addressBookLoading={addressBookLoading}
                           addressBookError={addressBookError}
                         />
+                        {recipientError(i, "address") && (
+                          <span className="text-error text-[10px] leading-snug">
+                            {recipientError(i, "address")}
+                          </span>
+                        )}
                       </div>
                       {isPercentage ? (
                         <div className="relative">
                           <input
-                            className="input pr-5 text-right"
+                            className={cn(
+                              "input pr-5 text-right",
+                              recipientError(i, "bps") && "!border-error/70",
+                            )}
                             value={
                               r.bps === 0
                                 ? ""
@@ -1895,19 +1990,29 @@ function SplitRecipientsEditor({
                           </span>
                         </div>
                       ) : (
-                        <div className="relative">
-                          <input
-                            className="input pr-5 text-right"
-                            value={r.amountStroops ? formatStroops(r.amountStroops) : ""}
-                            placeholder="0"
-                            onChange={(e) => {
-                              const stroops = tokenAmountToStroops(e.target.value);
-                              updateRecipient(i, {
-                                ...r,
-                                amountStroops: stroops || "0",
-                              } as SplitRecipient);
-                            }}
-                          />
+                        <div className="grid gap-0.5">
+                          <div className="relative">
+                            <input
+                              className={cn(
+                                "input pr-5 text-right",
+                                recipientError(i, "amountStroops") && "!border-error/70",
+                              )}
+                              value={r.amountStroops ? formatStroops(r.amountStroops) : ""}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const stroops = tokenAmountToStroops(e.target.value);
+                                updateRecipient(i, {
+                                  ...r,
+                                  amountStroops: stroops || "0",
+                                } as SplitRecipient);
+                              }}
+                            />
+                          </div>
+                          {recipientError(i, "amountStroops") && (
+                            <span className="text-error text-[10px] leading-snug">
+                              {recipientError(i, "amountStroops")}
+                            </span>
+                          )}
                         </div>
                       )}
                       <button
@@ -1988,7 +2093,7 @@ function SplitRecipientsEditor({
 
                     {r.payoutMode === "fiat" && !devMode && (
                       <>
-                        <Field label="Account name">
+                        <Field label="Account name" error={recipientError(i, "accountName")}>
                           <input
                             className="input text-xs"
                             value={r.accountName ?? ""}
@@ -2001,7 +2106,7 @@ function SplitRecipientsEditor({
                             }
                           />
                         </Field>
-                        <Field label="Account number">
+                        <Field label="Account number" error={recipientError(i, "accountNumber")}>
                           <input
                             className="input text-xs"
                             value={r.accountNumber ?? ""}
@@ -2014,7 +2119,7 @@ function SplitRecipientsEditor({
                             }
                           />
                         </Field>
-                        <Field label="Bank">
+                        <Field label="Bank" error={recipientError(i, "bankCode")}>
                           <select
                             className="input text-xs"
                             value={r.bankCode ?? ""}
@@ -2119,11 +2224,20 @@ function SplitRecipientsEditor({
   );
 }
 
-function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: React.ReactNode;
+  error?: string | null;
+  children: React.ReactNode;
+}) {
   return (
     <label className="grid gap-1">
-      <span className="text-xs text-zinc-400">{label}</span>
-      {children}
+      <span className={cn("text-xs", error ? "text-error" : "text-zinc-400")}>{label}</span>
+      <div className={cn("grid gap-1", error && "[&_.input]:!border-error/70")}>{children}</div>
+      {error && <span className="text-error text-[11px] leading-snug">{error}</span>}
     </label>
   );
 }
@@ -2141,6 +2255,7 @@ function ApiFillField({
   onActivate,
   onDeactivate,
   hint = "Set via the API after deploy",
+  error,
   children,
 }: {
   label: string;
@@ -2149,15 +2264,22 @@ function ApiFillField({
   onActivate: () => void;
   onDeactivate: () => void;
   hint?: string;
+  error?: string | null;
   children: React.ReactNode;
 }) {
   if (!devMode) {
-    return <Field label={label}>{children}</Field>;
+    return (
+      <Field label={label} error={error}>
+        {children}
+      </Field>
+    );
   }
   return (
     <div className="grid gap-1">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-zinc-400">{label}</span>
+        <span className={cn("text-xs", error && !active ? "text-error" : "text-zinc-400")}>
+          {label}
+        </span>
         <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-amber-400">
           <input
             type="checkbox"
@@ -2175,6 +2297,7 @@ function ApiFillField({
       ) : (
         children
       )}
+      {error && !active && <span className="text-error text-[11px] leading-snug">{error}</span>}
     </div>
   );
 }

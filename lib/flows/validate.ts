@@ -395,7 +395,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         for (const [idx, r] of a.config.recipients.entries()) {
           if (r.mode === "fixed" && (!r.amountStroops || r.amountStroops === "0")) {
             errors.push({
-              path: `nodes.${a.id}.config.recipients`,
+              path: `nodes.${a.id}.config.recipients.${idx}.amountStroops`,
               message: "Fixed recipient amount must be positive",
               friendlyMessage: FRIENDLY.FIXED_AMOUNT_REQUIRED,
             });
