@@ -23,6 +23,7 @@ import {
   readSubscriptionRelayer,
   readSplitterDevRecipients,
   readSplitterRecipients,
+  readPayerRecipients,
 } from "@/lib/stellar/relayer";
 import { preparePayrollChargeByRelayerUnsigned } from "@/lib/stellar/invoke";
 import { withRelayerLock } from "@/lib/stellar/client";
@@ -369,6 +370,8 @@ export async function POST(req: NextRequest) {
       const splitterDevNode = pipeline?.find((n) => n.templateKind === "SPLITTER_DEV");
       const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
       const splitterNode = pipeline?.find((n) => n.templateKind === "SPLITTER");
+      const payerDevNode = pipeline?.find((n) => n.templateKind === "PAYER_DEV");
+      const payerNode = pipeline?.find((n) => n.templateKind === "PAYER");
 
       const cashOutContractAddresses = new Set(
         pipeline
@@ -380,8 +383,12 @@ export async function POST(req: NextRequest) {
         payrollNode?.contractAddress &&
         (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM ||
           d.chargeRelayerMode === ChargeRelayerMode.USER);
-      const isDev = subscriptionDevNode?.contractAddress && splitterDevNode?.contractAddress;
-      const isSubscriptionLike = subscriptionNode?.contractAddress && splitterNode?.contractAddress;
+      const isDev =
+        subscriptionDevNode?.contractAddress &&
+        (splitterDevNode?.contractAddress || payerDevNode?.contractAddress);
+      const isSubscriptionLike =
+        subscriptionNode?.contractAddress &&
+        (splitterNode?.contractAddress || payerNode?.contractAddress);
 
       if (!isMonolithic && !isDev && !isSubscriptionLike) {
         results.push({
@@ -405,9 +412,9 @@ export async function POST(req: NextRequest) {
           const devChargedCount = await chargeSubscriptionPayrollDeployment(
             d,
             contractAddress,
-            splitterDevNode!.contractAddress,
+            (splitterDevNode ?? payerDevNode)!.contractAddress,
             now,
-            readSplitterDevRecipients,
+            splitterDevNode ? readSplitterDevRecipients : readPayerRecipients,
             true,
             cashOutContractAddresses,
             readCache,
@@ -426,9 +433,9 @@ export async function POST(req: NextRequest) {
           const chargedCount = await chargeSubscriptionPayrollDeployment(
             d,
             contractAddress,
-            splitterNode!.contractAddress,
+            (splitterNode ?? payerNode)!.contractAddress,
             now,
-            readSplitterRecipients,
+            splitterNode ? readSplitterRecipients : readPayerRecipients,
             false,
             cashOutContractAddresses,
             readCache,

@@ -177,6 +177,9 @@ export type PayerNodeParams = {
   amountStroops: string;
   mode: "fixed" | "percentage";
   percentageBps?: number;
+  // true => recipient is a generated cash-out contract; the payer invokes its
+  // receive_and_forward after paying so the share sinks to the off-ramp treasury.
+  isCashOut?: boolean;
   nextStepNodeIds: string[];
 };
 
@@ -193,6 +196,7 @@ export type PayerDevNodeParams = {
   amountStroops?: string; // undefined => blank, configure via API
   mode?: "fixed" | "percentage"; // undefined => blank, configure via API
   percentageBps?: number;
+  isCashOut?: boolean;
   relayer?: string;
   nextStepNodeIds: string[];
 };
@@ -311,7 +315,7 @@ function toPayrollRecipients(action: ContractActionNode): PipelineRecipient[] {
         address: action.config.recipient,
         bps: 0,
         amount: action.config.amountStroops ?? "0",
-        isCashOut: false,
+        isCashOut: action.config.payoutMode === "fiat",
       },
     ];
   }
@@ -587,6 +591,33 @@ export function flowToPipeline(
             ...actionWithCashOut.config,
             recipients: transformedRecipients,
           };
+        } else if (
+          actionWithCashOut.type === "pay" &&
+          actionWithCashOut.config.payoutMode === "fiat"
+        ) {
+          // A fiat single-pay employee gets the same treatment as a fiat split
+          // recipient: a generated CASH_OUT_DEV terminal node that the payer
+          // sinks the salary into via receive_and_forward.
+          const nodeId = `${action.id}-cashout-0`;
+          cashOutNodes.push({
+            nodeId,
+            templateKind: TemplateKind.CASH_OUT_DEV,
+            params: {
+              kind: "cash_out_dev",
+              asset: trigger.config.asset,
+              accountName: "",
+              accountNumber: "",
+              bankCode: "",
+              treasury: treasuryAddress ?? relayerAddress ?? "",
+              relayer: relayerAddress,
+              nextStepNodeIds: [],
+              parentNodeId: action.id,
+            },
+          });
+          actionWithCashOut.config = {
+            ...actionWithCashOut.config,
+            recipient: nodeId,
+          };
         }
 
         pipeline.push({
@@ -665,6 +696,32 @@ export function flowToPipeline(
         actionWithCashOut.config = {
           ...actionWithCashOut.config,
           recipients: transformedRecipients,
+        };
+      } else if (
+        actionWithCashOut.type === "pay" &&
+        actionWithCashOut.config.payoutMode === "fiat"
+      ) {
+        // Immutable counterpart of the dev branch above: bank details are baked
+        // into the generated CASH_OUT contract at deploy time.
+        const nodeId = `${action.id}-cashout-0`;
+        cashOutNodes.push({
+          nodeId,
+          templateKind: TemplateKind.CASH_OUT,
+          params: {
+            kind: "cash_out",
+            asset: trigger.config.asset,
+            accountName: actionWithCashOut.config.accountName ?? "",
+            accountNumber: actionWithCashOut.config.accountNumber ?? "",
+            bankCode: actionWithCashOut.config.bankCode ?? "",
+            treasury: treasuryAddress ?? relayerAddress ?? "",
+            relayer: relayerAddress,
+            nextStepNodeIds: [],
+            parentNodeId: action.id,
+          },
+        });
+        actionWithCashOut.config = {
+          ...actionWithCashOut.config,
+          recipient: nodeId,
         };
       }
 
@@ -962,6 +1019,7 @@ function contractActionToPipelineNode(
             kind: "payer_dev" as const,
             asset: getAsset(action),
             recipient,
+            isCashOut: action.config.payoutMode === "fiat",
             relayer: relayerAddress,
             nextStepNodeIds,
           },
@@ -1008,6 +1066,7 @@ function contractActionToPipelineNode(
           kind: "payer" as const,
           asset: getAsset(action),
           recipient: action.config.recipient,
+          isCashOut: action.config.payoutMode === "fiat",
           nextStepNodeIds,
         },
       };

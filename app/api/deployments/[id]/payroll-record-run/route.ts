@@ -8,6 +8,7 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
 import {
   readPayrollRecipients,
+  readPayerRecipients,
   readSplitterDevRecipients,
   readSplitterRecipients,
   readSubscriptionAmountPerPeriod,
@@ -78,6 +79,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const splitterNode = pipeline?.find(
       (n) => n.templateKind === "SPLITTER_DEV" || n.templateKind === "SPLITTER",
     );
+    const payerNode = pipeline?.find(
+      (n) => n.templateKind === "PAYER_DEV" || n.templateKind === "PAYER",
+    );
     const subscriptionNode = pipeline?.find(
       (n) => n.templateKind === "SUBSCRIPTION_DEV" || n.templateKind === "SUBSCRIPTION",
     );
@@ -92,10 +96,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     if (payrollNode?.contractAddress) {
       recipientRows = await readPayrollRecipients(payrollNode.contractAddress);
-    } else if (splitterNode?.contractAddress) {
-      const raw = isDev
-        ? await readSplitterDevRecipients(splitterNode.contractAddress)
-        : await readSplitterRecipients(splitterNode.contractAddress);
+    } else if (splitterNode?.contractAddress || payerNode?.contractAddress) {
+      const recipientContractAddress = (splitterNode ?? payerNode)!.contractAddress;
+      const raw = payerNode
+        ? await readPayerRecipients(recipientContractAddress)
+        : isDev
+          ? await readSplitterDevRecipients(recipientContractAddress)
+          : await readSplitterRecipients(recipientContractAddress);
       let totalStroops = 0n;
       if (subscriptionNode?.contractAddress) {
         totalStroops = await readSubscriptionAmountPerPeriod(subscriptionNode.contractAddress);
