@@ -413,7 +413,9 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
             });
             continue;
           }
-          if (r.mode === "fixed" && r.amountStroops) {
+          // Min/max amount caps are a fiat off-ramp constraint (PDAX limits).
+          // Crypto payouts are not subject to them.
+          if (r.mode === "fixed" && r.amountStroops && r.payoutMode === "fiat") {
             const limitIssue = checkHardLimits(a.config.asset, r.amountStroops);
             if (limitIssue) {
               errors.push({
@@ -556,7 +558,13 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
             message: "Pay node in fixed mode requires a positive amount",
             friendlyMessage: "Please enter a positive amount for the pay node.",
           });
-        } else if (a.config.mode === "fixed" && a.config.amountStroops) {
+        } else if (
+          a.config.mode === "fixed" &&
+          a.config.amountStroops &&
+          a.config.payoutMode === "fiat"
+        ) {
+          // Min/max amount caps are a fiat off-ramp constraint (PDAX limits).
+          // Crypto payouts are not subject to them.
           const limitIssue = checkHardLimits(a.config.asset, a.config.amountStroops);
           if (limitIssue) {
             errors.push({

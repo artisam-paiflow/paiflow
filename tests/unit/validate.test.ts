@@ -2272,8 +2272,18 @@ describe("validateFlow — hard limits", () => {
     disableHardLimits();
   });
 
+  // Min/max caps only apply to fiat payouts (PDAX off-ramp limits). Every
+  // fixture below therefore opts into fiat (PENDING:fiat address + bank
+  // details + sender KYC) so the limit is the only thing that can fail.
+  const FIAT_BANK = {
+    accountName: "Alice",
+    accountNumber: "1234567890",
+    bankCode: "BASECPH",
+  };
+
   it("rejects a fixed USDC split recipient below the minimum", () => {
     const r = validateFlow({
+      senderKyc: SENDER_KYC,
       nodes: [
         { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
         {
@@ -2281,7 +2291,15 @@ describe("validateFlow — hard limits", () => {
           type: "split",
           config: {
             asset: { kind: "known", symbol: "USDC" },
-            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
+            recipients: [
+              {
+                address: "PENDING:fiat",
+                mode: "fixed",
+                amountStroops: "10000000",
+                payoutMode: "fiat",
+                ...FIAT_BANK,
+              },
+            ],
           },
         },
       ],
@@ -2298,6 +2316,7 @@ describe("validateFlow — hard limits", () => {
 
   it("rejects a fixed USDC split recipient above the maximum", () => {
     const r = validateFlow({
+      senderKyc: SENDER_KYC,
       nodes: [
         { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
         {
@@ -2305,7 +2324,15 @@ describe("validateFlow — hard limits", () => {
           type: "split",
           config: {
             asset: { kind: "known", symbol: "USDC" },
-            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "2000000000" }],
+            recipients: [
+              {
+                address: "PENDING:fiat",
+                mode: "fixed",
+                amountStroops: "2000000000",
+                payoutMode: "fiat",
+                ...FIAT_BANK,
+              },
+            ],
           },
         },
       ],
@@ -2319,6 +2346,7 @@ describe("validateFlow — hard limits", () => {
 
   it("accepts a fixed USDC split recipient within limits", () => {
     const r = validateFlow({
+      senderKyc: SENDER_KYC,
       nodes: [
         { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
         {
@@ -2326,7 +2354,15 @@ describe("validateFlow — hard limits", () => {
           type: "split",
           config: {
             asset: { kind: "known", symbol: "USDC" },
-            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "500000000" }],
+            recipients: [
+              {
+                address: "PENDING:fiat",
+                mode: "fixed",
+                amountStroops: "500000000",
+                payoutMode: "fiat",
+                ...FIAT_BANK,
+              },
+            ],
           },
         },
       ],
@@ -2337,16 +2373,19 @@ describe("validateFlow — hard limits", () => {
 
   it("rejects a fixed XLM pay amount below the minimum", () => {
     const r = validateFlow({
+      senderKyc: SENDER_KYC,
       nodes: [
         { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
         {
           id: "a",
           type: "pay",
           config: {
-            recipient: ADDR_A,
+            recipient: "PENDING:fiat",
             mode: "fixed",
             amountStroops: "100000000",
             asset: { kind: "native" },
+            payoutMode: "fiat",
+            ...FIAT_BANK,
           },
         },
       ],
@@ -2361,16 +2400,19 @@ describe("validateFlow — hard limits", () => {
 
   it("accepts a fixed XLM pay amount within limits", () => {
     const r = validateFlow({
+      senderKyc: SENDER_KYC,
       nodes: [
         { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
         {
           id: "a",
           type: "pay",
           config: {
-            recipient: ADDR_A,
+            recipient: "PENDING:fiat",
             mode: "fixed",
             amountStroops: "3000000000",
             asset: { kind: "native" },
+            payoutMode: "fiat",
+            ...FIAT_BANK,
           },
         },
       ],
@@ -2401,8 +2443,8 @@ describe("validateFlow — hard limits", () => {
     expect(r.ok).toBe(true);
   });
 
-  function usdcSplit(amountStroops: string) {
-    return validateFlow({
+  it("does not limit crypto split recipients (caps are fiat-only)", () => {
+    const r = validateFlow({
       nodes: [
         { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
         {
@@ -2410,7 +2452,54 @@ describe("validateFlow — hard limits", () => {
           type: "split",
           config: {
             asset: { kind: "known", symbol: "USDC" },
-            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops }],
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "10000000" }],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("does not limit crypto pay amounts (caps are fiat-only)", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            mode: "fixed",
+            amountStroops: "100000000",
+            asset: { kind: "native" },
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  function usdcSplit(amountStroops: string) {
+    return validateFlow({
+      senderKyc: SENDER_KYC,
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              {
+                address: "PENDING:fiat",
+                mode: "fixed",
+                amountStroops,
+                payoutMode: "fiat",
+                ...FIAT_BANK,
+              },
+            ],
           },
         },
       ],
