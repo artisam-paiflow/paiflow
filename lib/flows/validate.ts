@@ -295,6 +295,19 @@ function friendlySchemaIssue(issue: ZodIssue, migrated: unknown): string {
   return GENERIC_SCHEMA_MESSAGE;
 }
 
+// True when the flow off-ramps to fiat anywhere: a cash-out sink node, a pay
+// node paid out in fiat, or a split recipient paid out in fiat (both deploy
+// an implicit cash-out contract). Shared by the validator and the builder
+// toolbar.
+export function flowHasFiatPayout(graph: FlowGraph): boolean {
+  return graph.nodes.some(
+    (n) =>
+      n.type === "cash_out" ||
+      (n.type === "pay" && n.config.payoutMode === "fiat") ||
+      (n.type === "split" && n.config.recipients.some((r) => r.payoutMode === "fiat")),
+  );
+}
+
 export function validateFlow(rawGraph: unknown): ValidationResult {
   const migrated = migrateFlowGraph(rawGraph);
   const parsed = FlowGraphSchema.safeParse(migrated);
@@ -559,6 +572,19 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     if (a.type === "yield" && isPendingAddress(a.config.vault)) {
       pendingLabels.add(a.config.vault.slice(8) || "unnamed");
     }
+  }
+
+  // Non-dev flows with fiat payouts must carry the sender KYC profile at
+  // design time: PDAX requires it for every off-ramp, and without it the
+  // off-ramp cron would cancel the very first payout job. Dev flows are
+  // exempt (they submit it via the API after deploy) — same pattern as the
+  // recipient bank-detail rules above.
+  if (graph.devMode !== true && flowHasFiatPayout(graph) && !graph.senderKyc) {
+    errors.push({
+      path: "senderKyc",
+      message: "Sender KYC is required before deploying a flow with fiat payouts.",
+      friendlyMessage: "Add the sender KYC details from the toolbar (required to deploy).",
+    });
   }
 
   // Email notify nodes are decorator leaves — they cannot have children.

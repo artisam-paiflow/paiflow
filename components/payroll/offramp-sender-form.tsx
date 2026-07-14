@@ -43,7 +43,7 @@ const EMPTY: SenderProfile = {
   email: "",
 };
 
-const SOURCE_OF_FUNDS_OPTIONS = [
+export const SOURCE_OF_FUNDS_OPTIONS = [
   "Compensation",
   "Sale/Income from Property",
   "Business Income",
@@ -53,7 +53,7 @@ const SOURCE_OF_FUNDS_OPTIONS = [
   "Inheritance/Insurance",
 ];
 
-const COUNTRY_OPTIONS = [
+export const COUNTRY_OPTIONS = [
   "Philippines",
   "Afghanistan",
   "Albania",
