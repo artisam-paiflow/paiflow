@@ -1930,7 +1930,8 @@ function SplitRecipientsEditor({
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-[1fr_80px_28px] items-center gap-1">
+                    {/* Row 1: wallet address + delete */}
+                    <div className="grid grid-cols-[1fr_28px] items-start gap-1">
                       <div className="grid gap-0.5">
                         <AddressInput
                           value={r.address}
@@ -1961,6 +1962,19 @@ function SplitRecipientsEditor({
                           </span>
                         )}
                       </div>
+                      <button
+                        onClick={() => deleteRecipient(i)}
+                        className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    {/* Row 2: share / amount */}
+                    <div className="mt-1 grid gap-0.5">
+                      <span className="text-[10px] text-zinc-500">
+                        {isPercentage ? "Share" : `Amount (${assetLabel(node.config.asset)})`}
+                      </span>
                       {isPercentage ? (
                         <div className="relative">
                           <input
@@ -1990,7 +2004,7 @@ function SplitRecipientsEditor({
                           </span>
                         </div>
                       ) : (
-                        <div className="grid gap-0.5">
+                        <>
                           <div className="relative">
                             <input
                               className={cn(
@@ -2013,14 +2027,8 @@ function SplitRecipientsEditor({
                               {recipientError(i, "amountStroops")}
                             </span>
                           )}
-                        </div>
+                        </>
                       )}
-                      <button
-                        onClick={() => deleteRecipient(i)}
-                        className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-xs text-zinc-400 hover:text-red-300"
-                      >
-                        ×
-                      </button>
                     </div>
                     <div className="grid grid-cols-[1fr_auto] gap-1">
                       <input
