@@ -8,8 +8,8 @@ use soroban_sdk::{
 #[derive(Clone)]
 pub struct Recipient {
     pub address: Address,
-    pub bps: u32,     // 0 for fixed-amount recipients
-    pub amount: i128, // 0 for percentage recipients
+    pub bps: u32,          // 0 for fixed-amount recipients
+    pub amount: i128,      // 0 for percentage recipients
     pub is_cash_out: bool, // true => sink this share to the treasury via cash_out contract
 }
 

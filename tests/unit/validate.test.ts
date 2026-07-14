@@ -186,6 +186,7 @@ describe("validateFlow", () => {
         },
       ],
       edges: [{ id: "e1", source: "t", target: "a" }],
+      senderKyc: SENDER_KYC,
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
@@ -222,6 +223,7 @@ describe("validateFlow", () => {
         },
       ],
       edges: [{ id: "e1", source: "t", target: "a" }],
+      senderKyc: SENDER_KYC,
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
@@ -263,6 +265,7 @@ describe("validateFlow", () => {
         },
       ],
       edges: [{ id: "e1", source: "t", target: "a" }],
+      senderKyc: SENDER_KYC,
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
