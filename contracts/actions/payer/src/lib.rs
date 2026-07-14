@@ -815,13 +815,11 @@ mod test {
                         address: a.clone(),
                         bps: 0,
                         amount: 3_000_000,
-                        is_cash_out: false,
                     },
                     SplitterRecipient {
                         address: b.clone(),
                         bps: 0,
                         amount: 2_000_000,
-                        is_cash_out: false,
                     },
                 ],
                 0_i128,
