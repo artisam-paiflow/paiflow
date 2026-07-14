@@ -488,6 +488,10 @@ export const FlowGraphSchema = z.object({
   // time and filled or changed later via the API.
   devMode: z.boolean().optional(),
   senderKyc: SenderKycSchema.optional(),
+  // Canvas layout: node positions keyed by node id. UI-only state — ignored by
+  // validation and pipeline compilation, but persisted with the flow so the
+  // builder reopens with the same arrangement instead of re-cascading nodes.
+  positions: z.record(z.string(), z.object({ x: z.number(), y: z.number() })).optional(),
 });
 export type FlowGraph = z.infer<typeof FlowGraphSchema>;
 

@@ -18,6 +18,8 @@ export type AddressInputProps = {
   onChange: (value: string) => void;
   placeholder?: string;
   pending?: boolean;
+  /** Validation error on this field — renders the input with a red border. */
+  error?: boolean;
   addressBook?: AddressEntry[];
   addressBookLoading?: boolean;
   addressBookError?: string | null;
@@ -52,6 +54,7 @@ export default function AddressInput({
   onChange,
   placeholder = "G... or PENDING:label",
   pending,
+  error,
   addressBook = [],
   addressBookLoading,
   addressBookError,
@@ -451,7 +454,11 @@ export default function AddressInput({
           onFocus={() => setOpen(true)}
           onKeyDown={handleInputKeyDown}
           placeholder={placeholder}
-          className={cn(inputClasses, pending && "ring-1 ring-amber-700")}
+          className={cn(
+            inputClasses,
+            pending && "ring-1 ring-amber-700",
+            error && "!border-error/70 focus:!border-error focus:!ring-error/50",
+          )}
           autoComplete="off"
           aria-expanded={open}
           aria-haspopup="listbox"
