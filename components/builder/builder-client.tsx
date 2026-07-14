@@ -20,17 +20,18 @@ import {
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
+import type { FlowGraph, FlowNode, SenderKyc } from "@/lib/flows/schema";
 import { isPendingAddress } from "@/lib/flows/schema";
 import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
-import { validateFlow } from "@/lib/flows/validate";
+import { validateFlow, flowHasFiatPayout } from "@/lib/flows/validate";
 import type { AddressEntry } from "@/lib/address-book.types";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import AnimatedStraightEdge from "@/components/nodes/animated-edge";
 import CanvasConfigPanel from "./canvas-config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
+import SenderKycDialog from "./sender-kyc-dialog";
 import RaftLog, { type ChatMessage } from "./raft-log";
 import type { PatchOp } from "@/lib/ai/prompts";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
@@ -193,6 +194,8 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [addressBookLoading, setAddressBookLoading] = useState(false);
   const [addressBookError, setAddressBookError] = useState<string | null>(null);
   const [devMode, setDevMode] = useState<boolean>(initialGraph.devMode ?? false);
+  const [senderKyc, setSenderKyc] = useState<SenderKyc | undefined>(initialGraph.senderKyc);
+  const [kycDialogOpen, setKycDialogOpen] = useState(false);
 
   const refreshAddressBook = useCallback(async () => {
     setAddressBookLoading(true);
@@ -233,9 +236,14 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       nodes: flowNodes,
       edges: rfEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
       devMode,
+      senderKyc,
     }),
-    [flowNodes, rfEdges, devMode],
+    [flowNodes, rfEdges, devMode, senderKyc],
   );
+
+  // Same predicate as the validation rule: the sender KYC toolbar button only
+  // appears when the flow off-ramps to fiat somewhere.
+  const hasFiatPayout = useMemo(() => flowHasFiatPayout(graph), [graph]);
 
   const validation = useMemo(() => validateFlow(graph), [graph]);
 
@@ -656,6 +664,36 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
               </span>
               Dev mode
             </button>
+
+            {hasFiatPayout && (
+              <button
+                type="button"
+                onClick={() => setKycDialogOpen(true)}
+                title={
+                  senderKyc
+                    ? "Sender KYC on file — click to edit"
+                    : devMode
+                      ? "Sender KYC is optional in dev mode (can be submitted via the API after deploy)"
+                      : "Sender KYC is required before deploying a flow with fiat payouts"
+                }
+                className={cn(
+                  "text-label-sm inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors",
+                  senderKyc
+                    ? "border-green-500/40 bg-green-500/10 text-green-400"
+                    : devMode
+                      ? "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant hover:text-on-surface"
+                      : "border-amber-400/40 bg-amber-400/10 text-amber-400",
+                )}
+              >
+                <span className="material-symbols-outlined text-[16px]">
+                  {senderKyc ? "verified_user" : "warning"}
+                </span>
+                Sender KYC
+                {!senderKyc && !devMode && (
+                  <span className="text-[10px] opacity-80">Required to deploy</span>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Row 2: English Preview */}
@@ -764,6 +802,19 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         collapsed={chatCollapsed}
         onToggleCollapse={() => setChatCollapsed((v) => !v)}
       />
+
+      {/* Sender KYC dialog — design-time capture of the PDAX sender profile */}
+      {kycDialogOpen && (
+        <SenderKycDialog
+          initial={senderKyc}
+          onSave={(kyc) => {
+            setSenderKyc(kyc);
+            setKycDialogOpen(false);
+            toast.success("Sender KYC saved with the flow");
+          }}
+          onClose={() => setKycDialogOpen(false)}
+        />
+      )}
 
       {/* Validation issues modal — scrollable list of all errors */}
       {errorsModalOpen && (

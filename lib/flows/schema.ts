@@ -453,6 +453,32 @@ export const FlowEdgeSchema = z.object({
 });
 export type FlowEdge = z.infer<typeof FlowEdgeSchema>;
 
+// Sender KYC profile (mirrors the SenderSchema in
+// app/api/deployments/[id]/offramp-sender/route.ts). PDAX requires this for
+// every fiat payout. Collected at flow-design time in the builder so non-dev
+// flows with fiat payouts can deploy with it already on file; dev flows may
+// still leave it blank and submit it post-deploy via the API.
+export const SenderKycSchema = z.object({
+  firstName: z.string().min(1).max(128),
+  middleName: z.string().max(128).optional(),
+  lastName: z.string().min(1).max(128),
+  countryOrigin: z.string().min(1).max(128),
+  addressLineOne: z.string().max(256).optional(),
+  addressLineTwo: z.string().max(256).optional(),
+  city: z.string().max(128).optional(),
+  province: z.string().max(128).optional(),
+  country: z.string().max(128).optional(),
+  zipCode: z.string().max(32).optional(),
+  phoneNumber: z.string().max(64).optional(),
+  nationality: z.string().max(128).optional(),
+  nationalIdentityNumber: z.string().max(128).optional(),
+  dob: z.string().max(32).optional(),
+  placeOfBirth: z.string().max(128).optional(),
+  sourceOfFunds: z.string().min(1).max(128),
+  email: z.string().email().max(256).optional(),
+});
+export type SenderKyc = z.infer<typeof SenderKycSchema>;
+
 export const FlowGraphSchema = z.object({
   nodes: z.array(FlowNodeSchema).max(40),
   edges: z.array(FlowEdgeSchema).max(80),
@@ -461,6 +487,7 @@ export const FlowGraphSchema = z.object({
   // variant whose recipients / amounts / schedule can be left blank at design
   // time and filled or changed later via the API.
   devMode: z.boolean().optional(),
+  senderKyc: SenderKycSchema.optional(),
 });
 export type FlowGraph = z.infer<typeof FlowGraphSchema>;
 

@@ -13,7 +13,7 @@ import { ChargeRelayerMode, EmployeePayoutMode } from "@prisma/client";
 import { scheduleNextStreamerClaimJob } from "@/lib/streamer-jobs";
 import { log } from "@/lib/log";
 import type { StreamerParams } from "@/lib/flows/to-params";
-import { isPendingAddress } from "@/lib/flows/schema";
+import { isPendingAddress, SenderKycSchema } from "@/lib/flows/schema";
 
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
 
@@ -270,6 +270,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         await createPayrollEmployees(id);
       }
 
+      // If the designer captured sender KYC at build time, persist it as this
+      // deployment's OffRampSenderProfile now so the first off-ramp payout can
+      // run without waiting for the post-deploy form. Upsert keeps duplicate
+      // submits idempotent, and the post-deploy form can still overwrite it.
+      await createOffRampSenderProfile(id);
+
       return confirmedDeploymentResponse(updatedDeployment);
     }
     await db.deployment.update({
@@ -295,6 +301,43 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       { status: 502 },
     );
   });
+}
+
+const OFFRAMP_SENDER_KINDS = new Set(["PAYROLL", "CASH_OUT", "CASH_OUT_DEV"]);
+
+// Persist the design-time sender KYC (graphSnapshot.senderKyc) as the
+// deployment's OffRampSenderProfile. Wrapped in its own try/catch: a
+// profile-write failure must never fail an already-confirmed deploy — the
+// post-deploy form/API remains the fallback.
+async function createOffRampSenderProfile(deploymentId: string) {
+  try {
+    const deployment = await db.deployment.findUnique({
+      where: { id: deploymentId },
+      select: { graphSnapshot: true, pipelineSnapshot: true },
+    });
+    if (!deployment) return;
+
+    const pipeline = (deployment.pipelineSnapshot ?? []) as Array<{ templateKind: string }>;
+    if (!pipeline.some((n) => OFFRAMP_SENDER_KINDS.has(n.templateKind))) return;
+
+    const senderKyc = (deployment.graphSnapshot as { senderKyc?: unknown } | null)?.senderKyc;
+    const parsed = SenderKycSchema.safeParse(senderKyc);
+    if (!parsed.success) return;
+
+    await db.offRampSenderProfile.upsert({
+      where: { deploymentId },
+      create: { deploymentId, ...parsed.data },
+      update: { ...parsed.data },
+    });
+  } catch (err) {
+    log.warn(
+      {
+        deploymentId,
+        error: err instanceof Error ? err.message : String(err),
+      },
+      "Failed to persist sender KYC profile at deploy time",
+    );
+  }
 }
 
 async function createPayrollEmployees(deploymentId: string) {
