@@ -297,6 +297,53 @@ function toRecipients(action: ContractActionNode): PipelineRecipient[] {
 }
 
 /**
+ * Streamer distributes vested funds purely by basis points — the contract's
+ * Recipient.amount field is stored but never read. When the user configured
+ * fixed amounts, derive each recipient's bps proportionally so the constructor
+ * sees a valid 10_000 sum. Integer-division dust goes to the last recipient,
+ * matching the on-chain claim() behaviour.
+ */
+function toStreamerRecipients(action: ContractActionNode): PipelineRecipient[] {
+  if (action.type === "pay") {
+    return [{ address: action.config.recipient, bps: TOTAL_BPS, amount: "0", isCashOut: false }];
+  }
+  if (action.type !== "split") return [];
+
+  const recipients = action.config.recipients;
+  const allFixed = recipients.length > 0 && recipients.every((r) => r.mode === "fixed");
+
+  if (!allFixed) {
+    // Percentage mode (or mixed, which validation rejects): pass bps through.
+    return toRecipients(action);
+  }
+
+  const total = recipients.reduce(
+    (s, r) => s + BigInt(r.mode === "fixed" ? r.amountStroops : "0"),
+    0n,
+  );
+  if (total === 0n) {
+    // Degenerate — validation should catch a zero total, but never divide by zero.
+    return toRecipients(action);
+  }
+
+  let allocated = 0;
+  return recipients.map((r, i) => {
+    const amount = r.mode === "fixed" ? r.amountStroops : "0";
+    const isLast = i === recipients.length - 1;
+    const bps = isLast
+      ? TOTAL_BPS - allocated
+      : Number((BigInt(amount) * BigInt(TOTAL_BPS)) / total);
+    allocated += bps;
+    return {
+      address: r.address,
+      bps,
+      amount,
+      isCashOut: r.payoutMode === "fiat",
+    };
+  });
+}
+
+/**
  * Payroll stores the fixed salary amount per recipient in the contract, so the
  * amount field must be populated for both split and pay actions.
  */
@@ -764,7 +811,8 @@ export function flowToPipeline(
     }
 
     // on_schedule flows use the streamer contract as the action because the
-    // streamer itself drives the release schedule.
+    // streamer itself drives the release schedule.  Recipients must carry bps
+    // that sum to TOTAL_BPS; derive them from fixed amounts when needed.
     const amountPerInterval = streamerAmountPerInterval(action, trigger, intervalSeconds);
     pipeline.push({
       nodeId: action.id,
@@ -772,7 +820,7 @@ export function flowToPipeline(
       params: {
         kind: "streamer",
         asset,
-        recipients: toRecipients(action),
+        recipients: toStreamerRecipients(action),
         amountPerIntervalStroops: amountPerInterval,
         intervalSeconds,
         startTs: start,
@@ -1282,7 +1330,9 @@ export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): Cont
     return {
       kind: "streamer",
       asset: getAsset(action),
-      recipients,
+      // Streamer distributes by bps; derive them from fixed amounts when the
+      // user configured amounts instead of percentages.
+      recipients: toStreamerRecipients(action),
       amountPerIntervalStroops: amountPerInterval,
       intervalSeconds,
       startTs: start,

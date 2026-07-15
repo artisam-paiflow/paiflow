@@ -211,6 +211,127 @@ describe("flowToParams", () => {
     }
   });
 
+  it("derives streamer bps from fixed amounts for scheduled split", () => {
+    const out = flowToParams(
+      {
+        nodes: [
+          {
+            id: "t",
+            type: "on_schedule",
+            config: {
+              intervalAmount: 1,
+              intervalUnit: "hour",
+              startsAt: "2030-01-01T00:00:00.000Z",
+            },
+          },
+          {
+            id: "a",
+            type: "split",
+            config: {
+              asset: { kind: "native" },
+              amountPerIntervalStroops: "500",
+              recipients: [
+                { address: ADDR_A, mode: "fixed", amountStroops: "1000000000" },
+                { address: ADDR_B, mode: "fixed", amountStroops: "2000000000" },
+              ],
+            },
+          },
+        ],
+        edges: [{ id: "e", source: "t", target: "a" }],
+      } as Parameters<typeof flowToParams>[0],
+      TemplateKind.STREAMER,
+    );
+    expect(out.kind).toBe("streamer");
+    if (out.kind === "streamer") {
+      // 100 / 300 = 33.33% → 3333 bps; 200 / 300 = 66.67% → 6667 bps
+      expect(out.recipients[0]!.bps).toBe(3333);
+      expect(out.recipients[1]!.bps).toBe(6667);
+      expect(out.recipients[0]!.amount).toBe("1000000000");
+      expect(out.recipients[1]!.amount).toBe("2000000000");
+      // Sum must be exactly TOTAL_BPS so the contract constructor accepts it.
+      expect(out.recipients.reduce((s, r) => s + r.bps, 0)).toBe(10_000);
+    }
+  });
+
+  it("gives integer-division dust to the last streamer recipient", () => {
+    const out = flowToParams(
+      {
+        nodes: [
+          {
+            id: "t",
+            type: "on_schedule",
+            config: {
+              intervalAmount: 1,
+              intervalUnit: "hour",
+              startsAt: "2030-01-01T00:00:00.000Z",
+            },
+          },
+          {
+            id: "a",
+            type: "split",
+            config: {
+              asset: { kind: "native" },
+              amountPerIntervalStroops: "500",
+              recipients: [
+                { address: ADDR_A, mode: "fixed", amountStroops: "1" },
+                { address: ADDR_B, mode: "fixed", amountStroops: "1" },
+                { address: ADDR_A, mode: "fixed", amountStroops: "1" },
+              ],
+            },
+          },
+        ],
+        edges: [{ id: "e", source: "t", target: "a" }],
+      } as Parameters<typeof flowToParams>[0],
+      TemplateKind.STREAMER,
+    );
+    expect(out.kind).toBe("streamer");
+    if (out.kind === "streamer") {
+      // 1/3 each = 3333 bps; the last recipient takes the remaining 3334.
+      expect(out.recipients[0]!.bps).toBe(3333);
+      expect(out.recipients[1]!.bps).toBe(3333);
+      expect(out.recipients[2]!.bps).toBe(3334);
+      expect(out.recipients.reduce((s, r) => s + r.bps, 0)).toBe(10_000);
+    }
+  });
+
+  it("derives streamer bps from fixed amounts in the pipeline builder", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "hour",
+            startsAt: "2030-01-01T00:00:00.000Z",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            amountPerIntervalStroops: "500",
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "1000000000" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "2000000000" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    expect(pipeline).toHaveLength(1);
+    expect(pipeline[0]!.templateKind).toBe("STREAMER");
+    const params = pipeline[0]!.params as Extract<
+      (typeof pipeline)[0]["params"],
+      { kind: "streamer" }
+    >;
+    expect(params.recipients[0]!.bps).toBe(3333);
+    expect(params.recipients[1]!.bps).toBe(6667);
+    expect(params.recipients.reduce((s, r) => s + r.bps, 0)).toBe(10_000);
+  });
+
   it("honors pauseAllowed: false in streamer params", () => {
     const out = flowToParams(
       {
