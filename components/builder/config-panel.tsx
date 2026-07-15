@@ -214,6 +214,47 @@ export default function ConfigPanel({
     } as FlowNode);
   }, [triggerType, node, onChange]);
 
+  // Streamer (on_schedule) distributes by percentage only — the contract's
+  // Recipient.amount field is dead weight. If a user switches an existing
+  // fixed-amount split to an on_schedule trigger, convert to percentage mode,
+  // deriving initial shares proportionally from the amounts so intent is
+  // preserved (dust goes to the last recipient).
+  useEffect(() => {
+    if (triggerType !== "on_schedule" || node.type !== "split") return;
+    const fixedRecipients = node.config.recipients.filter((r) => r.mode === "fixed");
+    if (fixedRecipients.length === 0) return;
+    const total = fixedRecipients.reduce((s, r) => s + BigInt(r.amountStroops), 0n);
+    let allocated = 0;
+    onChange({
+      ...node,
+      config: {
+        ...node.config,
+        recipients: node.config.recipients.map((r, i) => {
+          const base = {
+            address: r.address,
+            label: r.label,
+            payoutMode: r.payoutMode,
+            accountName: r.accountName,
+            accountNumber: r.accountNumber,
+            bankCode: r.bankCode,
+          };
+          if (r.mode !== "fixed") {
+            return { ...base, mode: "percentage" as const, bps: 0 };
+          }
+          const isLast = i === node.config.recipients.length - 1;
+          const bps =
+            total > 0n
+              ? isLast
+                ? 10_000 - allocated
+                : Number((BigInt(r.amountStroops) * 10_000n) / total)
+              : 0;
+          allocated += bps;
+          return { ...base, mode: "percentage" as const, bps };
+        }),
+      },
+    } as FlowNode);
+  }, [triggerType, node, onChange]);
+
   return (
     <aside
       className={cn(
@@ -1720,10 +1761,15 @@ function SplitRecipientsEditor({
 
   const triggerType = trigger?.type ?? null;
   const isPayroll = triggerType === "payroll";
+  const isStreamer = triggerType === "on_schedule";
   const fiatPayoutAvailable =
     triggerType === "payroll" ||
     (!devMode && triggerType !== null && FIAT_PAYOUT_TRIGGERS.has(triggerType));
-  const mode = isPayroll ? "fixed" : (node.config.recipients[0]?.mode ?? "percentage");
+  const mode = isPayroll
+    ? "fixed"
+    : isStreamer
+      ? "percentage"
+      : (node.config.recipients[0]?.mode ?? "percentage");
   const totalFixed = splitTotalFixedStroops(node.config.recipients);
   const minAmount = trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
 
@@ -1827,6 +1873,11 @@ function SplitRecipientsEditor({
       {isPayroll ? (
         <div className="text-xs text-amber-400">
           Payroll distributions use fixed salary amounts only.
+        </div>
+      ) : isStreamer ? (
+        <div className="text-xs text-amber-400">
+          Scheduled streams distribute by percentage — use the Payroll trigger for fixed recurring
+          amounts.
         </div>
       ) : (
         <Field label="Distribution mode">
