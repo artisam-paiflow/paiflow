@@ -13,7 +13,7 @@ import { ChargeRelayerMode, EmployeePayoutMode } from "@prisma/client";
 import { scheduleNextStreamerClaimJob } from "@/lib/streamer-jobs";
 import { log } from "@/lib/log";
 import type { StreamerParams } from "@/lib/flows/to-params";
-import { isPendingAddress } from "@/lib/flows/schema";
+import { isPendingAddress, SenderKycSchema } from "@/lib/flows/schema";
 
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
 
@@ -49,7 +49,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params;
     const body = SubmitSchema.parse(await req.json());
 
-    const txHash = txHashFromXdr(body.signedXdr);
+    let txHash: string;
+    try {
+      txHash = txHashFromXdr(body.signedXdr);
+    } catch {
+      throw new AppError("VALIDATION", "Invalid signed transaction XDR");
+    }
 
     const deployment = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
@@ -66,6 +71,29 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     if (deployment.status !== "PENDING_SIGNATURE") {
       throw new AppError("CONFLICT", `Deployment is ${deployment.status}, cannot submit`);
+    }
+
+    // Bind the submission to the prepared transaction: the signed XDR must
+    // be exactly the transaction the app built for this deployment, plus
+    // signatures. Signing does not change the transaction hash, so a hash
+    // comparison rejects any tampered or unrelated transaction.
+    if (!deployment.unsignedXdr) {
+      throw new AppError("CONFLICT", "Deployment has no prepared transaction to match against");
+    }
+    let expectedTxHash: string;
+    try {
+      expectedTxHash = txHashFromXdr(deployment.unsignedXdr);
+    } catch {
+      throw new AppError(
+        "INTERNAL",
+        "Prepared transaction is unreadable; re-prepare the deployment",
+      );
+    }
+    if (expectedTxHash !== txHash) {
+      throw new AppError(
+        "VALIDATION",
+        "Signed transaction does not match the prepared deployment transaction",
+      );
     }
 
     await db.deployment.update({
@@ -242,6 +270,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         await createPayrollEmployees(id);
       }
 
+      // If the designer captured sender KYC at build time, persist it as this
+      // deployment's OffRampSenderProfile now so the first off-ramp payout can
+      // run without waiting for the post-deploy form. Upsert keeps duplicate
+      // submits idempotent, and the post-deploy form can still overwrite it.
+      await createOffRampSenderProfile(id);
+
       return confirmedDeploymentResponse(updatedDeployment);
     }
     await db.deployment.update({
@@ -269,6 +303,43 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   });
 }
 
+const OFFRAMP_SENDER_KINDS = new Set(["PAYROLL", "CASH_OUT", "CASH_OUT_DEV"]);
+
+// Persist the design-time sender KYC (graphSnapshot.senderKyc) as the
+// deployment's OffRampSenderProfile. Wrapped in its own try/catch: a
+// profile-write failure must never fail an already-confirmed deploy — the
+// post-deploy form/API remains the fallback.
+async function createOffRampSenderProfile(deploymentId: string) {
+  try {
+    const deployment = await db.deployment.findUnique({
+      where: { id: deploymentId },
+      select: { graphSnapshot: true, pipelineSnapshot: true },
+    });
+    if (!deployment) return;
+
+    const pipeline = (deployment.pipelineSnapshot ?? []) as Array<{ templateKind: string }>;
+    if (!pipeline.some((n) => OFFRAMP_SENDER_KINDS.has(n.templateKind))) return;
+
+    const senderKyc = (deployment.graphSnapshot as { senderKyc?: unknown } | null)?.senderKyc;
+    const parsed = SenderKycSchema.safeParse(senderKyc);
+    if (!parsed.success) return;
+
+    await db.offRampSenderProfile.upsert({
+      where: { deploymentId },
+      create: { deploymentId, ...parsed.data },
+      update: { ...parsed.data },
+    });
+  } catch (err) {
+    log.warn(
+      {
+        deploymentId,
+        error: err instanceof Error ? err.message : String(err),
+      },
+      "Failed to persist sender KYC profile at deploy time",
+    );
+  }
+}
+
 async function createPayrollEmployees(deploymentId: string) {
   const deployment = await db.deployment.findUnique({
     where: { id: deploymentId },
@@ -291,13 +362,20 @@ async function createPayrollEmployees(deploymentId: string) {
   );
   const hasSubscription = pipeline.some((n) => n.templateKind === "SUBSCRIPTION");
   const hasSplitter = pipeline.some((n) => n.templateKind === "SPLITTER");
-  if (hasPayroll || hasDev || !hasSubscription || !hasSplitter) return;
+  const hasPayer = pipeline.some((n) => n.templateKind === "PAYER");
+  if (hasPayroll || hasDev || !hasSubscription || (!hasSplitter && !hasPayer)) return;
 
   const graph = deployment.graphSnapshot as {
     nodes: Array<{
       id: string;
       type: string;
       config?: {
+        recipient?: string;
+        payoutMode?: string;
+        accountName?: string;
+        accountNumber?: string;
+        bankCode?: string;
+        amountStroops?: string;
         recipients?: Array<{
           address: string;
           mode?: string;
@@ -311,8 +389,6 @@ async function createPayrollEmployees(deploymentId: string) {
       };
     }>;
   } | null;
-  const splitNode = graph?.nodes.find((n) => n.type === "split");
-  if (!splitNode?.config?.recipients?.length) return;
 
   const cashOutByNodeId = new Map<string, string>();
   for (const node of pipeline) {
@@ -320,6 +396,53 @@ async function createPayrollEmployees(deploymentId: string) {
       cashOutByNodeId.set(node.nodeId, node.contractAddress);
     }
   }
+
+  // Single-pay payroll: one employee described by the pay node itself. A fiat
+  // pay node is represented on-chain by its generated cash-out contract.
+  const payNode = graph?.nodes.find((n) => n.type === "pay");
+  if (hasPayer && payNode?.config) {
+    const c = payNode.config;
+    const isFiat = c.payoutMode === "fiat";
+    const cashOutAddress = isFiat ? (cashOutByNodeId.get(`${payNode.id}-cashout-0`) ?? null) : null;
+    const employeeAddress = (() => {
+      if (isFiat && cashOutAddress) return cashOutAddress;
+      if (c.recipient && isPendingAddress(c.recipient)) return `${c.recipient}:0`;
+      return c.recipient ?? `PENDING:unnamed:0`;
+    })();
+    try {
+      await db.$transaction(async (tx) => {
+        const employee = await tx.employee.create({
+          data: {
+            deploymentId,
+            address: employeeAddress,
+            amountStroops: c.amountStroops ?? "0",
+            payoutMode: isFiat ? EmployeePayoutMode.FIAT : EmployeePayoutMode.CRYPTO,
+            cashOutContractAddress: cashOutAddress,
+          },
+        });
+        if (isFiat && c.accountName && c.accountNumber && c.bankCode) {
+          await tx.employeeBankDetail.create({
+            data: {
+              employeeId: employee.id,
+              accountName: c.accountName,
+              accountNumber: c.accountNumber,
+              bankCode: c.bankCode,
+            },
+          });
+        }
+      });
+    } catch (err) {
+      if ((err as { code?: string }).code === "P2002") {
+        const count = await db.employee.count({ where: { deploymentId } });
+        if (count > 0) return;
+      }
+      throw err;
+    }
+    return;
+  }
+
+  const splitNode = graph?.nodes.find((n) => n.type === "split");
+  if (!splitNode?.config?.recipients?.length) return;
 
   const recipients = splitNode.config.recipients;
 

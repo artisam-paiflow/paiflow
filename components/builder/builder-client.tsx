@@ -20,17 +20,18 @@ import {
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
+import type { FlowGraph, FlowNode, SenderKyc } from "@/lib/flows/schema";
 import { isPendingAddress } from "@/lib/flows/schema";
 import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
-import { validateFlow } from "@/lib/flows/validate";
+import { validateFlow, flowHasFiatPayout } from "@/lib/flows/validate";
 import type { AddressEntry } from "@/lib/address-book.types";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import AnimatedStraightEdge from "@/components/nodes/animated-edge";
 import CanvasConfigPanel from "./canvas-config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
+import SenderKycDialog from "./sender-kyc-dialog";
 import RaftLog, { type ChatMessage } from "./raft-log";
 import type { PatchOp } from "@/lib/ai/prompts";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
@@ -69,7 +70,7 @@ type BuilderProps = {
   initialGraph: FlowGraph;
 };
 
-function nodeToReactFlow(n: FlowNode, index: number): Node {
+function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["positions"]): Node {
   let type: "trigger" | "action" | "logic";
   switch (n.type) {
     case "on_receive":
@@ -100,7 +101,9 @@ function nodeToReactFlow(n: FlowNode, index: number): Node {
   return {
     id: n.id,
     type,
-    position: { x: 240 + index * 40, y: 80 + index * 120 },
+    // Restore the saved canvas position when present; otherwise cascade new
+    // nodes down from the top-left so they don't stack on top of each other.
+    position: positions?.[n.id] ?? { x: 240 + index * 40, y: 80 + index * 120 },
     data: { node: n, label: n.type },
   };
 }
@@ -175,7 +178,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [name, setName] = useState(initialName);
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>(initialGraph.nodes);
   const [rfNodes, setRfNodes] = useState<Node[]>(
-    initialGraph.nodes.map((n, i) => nodeToReactFlow(n, i)),
+    initialGraph.nodes.map((n, i) => nodeToReactFlow(n, i, initialGraph.positions)),
   );
   const [rfEdges, setRfEdges] = useState<Edge[]>(
     initialGraph.edges.map((e) => edgeWithColors(e, initialGraph.nodes)),
@@ -190,13 +193,28 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [errorsModalOpen, setErrorsModalOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [addressBook, setAddressBook] = useState<AddressEntry[]>([]);
+  const [addressBookLoading, setAddressBookLoading] = useState(false);
+  const [addressBookError, setAddressBookError] = useState<string | null>(null);
   const [devMode, setDevMode] = useState<boolean>(initialGraph.devMode ?? false);
+  const [senderKyc, setSenderKyc] = useState<SenderKyc | undefined>(initialGraph.senderKyc);
+  const [kycDialogOpen, setKycDialogOpen] = useState(false);
 
   const refreshAddressBook = useCallback(async () => {
-    const r = await fetch("/api/address-book");
-    if (!r.ok) return;
-    const json = await r.json();
-    setAddressBook(json?.data ?? []);
+    setAddressBookLoading(true);
+    setAddressBookError(null);
+    try {
+      const r = await fetch("/api/address-book");
+      if (!r.ok) {
+        const body = (await r.json().catch(() => ({}))) as { error?: { message?: string } };
+        throw new Error(body.error?.message ?? `Failed to load contacts (HTTP ${r.status})`);
+      }
+      const json = await r.json();
+      setAddressBook(json?.data ?? []);
+    } catch (err) {
+      setAddressBookError(err instanceof Error ? err.message : "Failed to load contacts");
+    } finally {
+      setAddressBookLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -220,9 +238,24 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       nodes: flowNodes,
       edges: rfEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
       devMode,
+      senderKyc,
+      // Persist canvas positions with the flow (autosave is debounced, so a
+      // drag saves once it settles rather than on every frame).
+      positions: Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
     }),
-    [flowNodes, rfEdges, devMode],
+    [flowNodes, rfEdges, devMode, senderKyc, rfNodes],
   );
+
+  // Snapshot of the live canvas positions — used as a fallback when a
+  // server-returned graph (AI edit, address resolution) doesn't carry them.
+  const currentPositions = useCallback(
+    (): FlowGraph["positions"] => Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
+    [rfNodes],
+  );
+
+  // Same predicate as the validation rule: the sender KYC toolbar button only
+  // appears when the flow off-ramps to fiat somewhere.
+  const hasFiatPayout = useMemo(() => flowHasFiatPayout(graph), [graph]);
 
   const validation = useMemo(() => validateFlow(graph), [graph]);
 
@@ -478,7 +511,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       if (applied && patchedGraph) {
         // Use server-normalized graph directly (Issue #6 fix)
         setFlowNodes(patchedGraph.nodes);
-        setRfNodes(patchedGraph.nodes.map((n, i) => nodeToReactFlow(n, i)));
+        setRfNodes(
+          patchedGraph.nodes.map((n, i) =>
+            nodeToReactFlow(n, i, patchedGraph.positions ?? currentPositions()),
+          ),
+        );
         setRfEdges(patchedGraph.edges.map((e) => edgeWithColors(e, patchedGraph.nodes)));
 
         // Show address prompt if the resulting graph has pending addresses
@@ -530,7 +567,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       }
       const resolvedFlow = json.data.flow as FlowGraph;
       setFlowNodes(resolvedFlow.nodes);
-      setRfNodes(resolvedFlow.nodes.map((n, i) => nodeToReactFlow(n, i)));
+      setRfNodes(
+        resolvedFlow.nodes.map((n, i) =>
+          nodeToReactFlow(n, i, resolvedFlow.positions ?? currentPositions()),
+        ),
+      );
       setRfEdges(resolvedFlow.edges.map((e) => edgeWithColors(e, resolvedFlow.nodes)));
       setPendingAddresses([]);
       setMessages((prev) => [
@@ -605,8 +646,11 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           <div className="px-md gap-md flex items-center py-3">
             <DeployButton
               flowId={flowId}
+              disabled={!isValid}
+              errorCount={errors.length}
               onClick={async (e) => {
                 e.preventDefault();
+                if (!isValid) return;
                 await saveGraph(graph, name, true);
                 window.location.href = `/flows/${flowId}/deploy`;
               }}
@@ -654,6 +698,32 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                     valid pipeline
                   </span>
                 )}
+                {hasFiatPayout && (
+                  <button
+                    type="button"
+                    onClick={() => setKycDialogOpen(true)}
+                    title={
+                      senderKyc
+                        ? "Sender KYC on file — click to edit"
+                        : devMode
+                          ? "Sender KYC is optional in dev mode (can be submitted via the API after deploy)"
+                          : "Sender KYC is required before deploying a flow with fiat payouts"
+                    }
+                    className={cn(
+                      "text-label-sm ml-auto inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 font-mono transition-colors",
+                      senderKyc
+                        ? "border-green-500/40 bg-green-500/10 text-green-400"
+                        : devMode
+                          ? "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant hover:text-on-surface"
+                          : "border-amber-400/40 bg-amber-400/10 text-amber-400",
+                    )}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">
+                      {senderKyc ? "verified_user" : "warning"}
+                    </span>
+                    Sender KYC
+                  </button>
+                )}
                 {!isValid && errors.length > 0 && (
                   <button
                     type="button"
@@ -662,7 +732,10 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                     aria-label={`View all ${errors.length} validation ${
                       errors.length === 1 ? "issue" : "issues"
                     }`}
-                    className="bg-error-container/25 border-error/40 text-on-error-container hover:bg-error/10 ml-auto inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 transition-colors"
+                    className={cn(
+                      "bg-error-container/25 border-error/40 text-on-error-container hover:bg-error/10 inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 transition-colors",
+                      !hasFiatPayout && "ml-auto",
+                    )}
                   >
                     <span className="material-symbols-outlined text-error text-[16px] leading-none">
                       error
@@ -727,6 +800,8 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                   onDelete={deleteNode}
                   addressBook={addressBook}
                   refreshAddressBook={refreshAddressBook}
+                  addressBookLoading={addressBookLoading}
+                  addressBookError={addressBookError}
                   chatCollapsed={chatCollapsed}
                 />
               )}
@@ -746,6 +821,19 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
         collapsed={chatCollapsed}
         onToggleCollapse={() => setChatCollapsed((v) => !v)}
       />
+
+      {/* Sender KYC dialog — design-time capture of the PDAX sender profile */}
+      {kycDialogOpen && (
+        <SenderKycDialog
+          initial={senderKyc}
+          onSave={(kyc) => {
+            setSenderKyc(kyc);
+            setKycDialogOpen(false);
+            toast.success("Sender KYC saved with the flow");
+          }}
+          onClose={() => setKycDialogOpen(false)}
+        />
+      )}
 
       {/* Validation issues modal — scrollable list of all errors */}
       {errorsModalOpen && (

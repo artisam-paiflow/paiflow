@@ -1,5 +1,6 @@
 import { TemplateKind } from "@prisma/client";
 import { StrKey } from "@stellar/stellar-sdk";
+import type { ZodIssue } from "zod";
 import {
   FlowGraphSchema,
   type FlowGraph,
@@ -14,6 +15,7 @@ import {
   splitTotalFixedStroops,
   assetLabel,
 } from "./schema";
+import { checkHardLimits } from "./limits";
 import { flowToPipeline } from "./to-params";
 
 export type ValidationIssue = { path: string; message: string; friendlyMessage: string };
@@ -56,6 +58,18 @@ const FRIENDLY = {
   ASSET_CONFLICT:
     "This step can receive different assets depending on which path funds arrive through. Make sure every path leading into it carries the same asset, or add a swap so they match before merging.",
 } as const;
+
+// Triggers whose flows route payouts through the payer/splitter contracts,
+// which support cash-out sinking for fiat recipients. on_schedule routes
+// through the streamer, which has no cash-out mechanism.
+export const FIAT_PAYOUT_TRIGGERS = new Set([
+  "on_receive",
+  "webhook",
+  "web2_webhook",
+  "oracle",
+  "subscription",
+  "payroll",
+]);
 
 // A short, self-describing name for a node, mirroring what the canvas shows so
 // the user can locate the offending step instead of decoding a raw id like
@@ -225,15 +239,85 @@ export function computeAssetFlow(graph: FlowGraph): Map<string, Asset | null> {
   return computeAssetFlowInternal(graph).resolved;
 }
 
+const GENERIC_SCHEMA_MESSAGE =
+  "The flow structure is invalid. Check your node types and configuration.";
+
+// Show the offending value so the user can spot the typo, capped just past a
+// full Stellar address (56 chars) so a pasted blob can't flood the error panel.
+function showValue(v: string): string {
+  return v.length > 60 ? `${v.slice(0, 57)}...` : v;
+}
+
+// Turn a schema (Zod) issue into a message that names the offending field and
+// value. The graph failed to parse, so raw values are read defensively from
+// the migrated (unvalidated) graph rather than the typed one.
+function friendlySchemaIssue(issue: ZodIssue, migrated: unknown): string {
+  const p = issue.path;
+  const nodes = (migrated as { nodes?: unknown[] } | null | undefined)?.nodes;
+  const nodeIdx = p[0] === "nodes" && typeof p[1] === "number" ? p[1] : -1;
+  const node =
+    nodeIdx >= 0
+      ? (nodes?.[nodeIdx] as { type?: string; config?: Record<string, unknown> } | undefined)
+      : undefined;
+
+  if (issue.message === "Invalid Stellar address" && node) {
+    // Split recipient: nodes.<i>.config.recipients.<j>.address
+    if (
+      node.type === "split" &&
+      p[2] === "config" &&
+      p[3] === "recipients" &&
+      typeof p[4] === "number"
+    ) {
+      const recipients = node.config?.recipients as
+        | { label?: string; address?: string }[]
+        | undefined;
+      const recipient = recipients?.[p[4]];
+      const label = recipient?.label?.trim();
+      const who = label ? `recipient "${label}"` : `recipient #${p[4] + 1}`;
+      const bad = typeof recipient?.address === "string" ? recipient.address : "";
+      return `Invalid Stellar address for ${who} in the split node${
+        bad ? `: "${showValue(bad)}"` : ""
+      }. Enter a valid wallet (G...) or contract (C...) address.`;
+    }
+    // Pay recipient: nodes.<i>.config.recipient
+    if (node.type === "pay" && p[2] === "config" && p[3] === "recipient") {
+      const bad = typeof node.config?.recipient === "string" ? node.config.recipient : "";
+      return `Invalid Stellar address for the pay node's recipient${
+        bad ? `: "${showValue(bad)}"` : ""
+      }. Enter a valid wallet (G...) address.`;
+    }
+    // Other address fields (relayer, subscriber, employer, vault, issuer, signers).
+    const last = p[p.length - 1];
+    const field = typeof last === "number" ? String(p[p.length - 2] ?? "address") : String(last);
+    return `Invalid Stellar address in the "${field}" field of the ${node.type ?? "unknown"} node.`;
+  }
+
+  return GENERIC_SCHEMA_MESSAGE;
+}
+
+// True when the flow off-ramps to fiat anywhere: a cash-out sink node, a pay
+// node paid out in fiat, or a split recipient paid out in fiat (both deploy
+// an implicit cash-out contract). Shared by the validator and the builder
+// toolbar.
+export function flowHasFiatPayout(graph: FlowGraph): boolean {
+  return graph.nodes.some(
+    (n) =>
+      n.type === "cash_out" ||
+      (n.type === "pay" && n.config.payoutMode === "fiat") ||
+      (n.type === "split" && n.config.recipients.some((r) => r.payoutMode === "fiat")),
+  );
+}
+
 export function validateFlow(rawGraph: unknown): ValidationResult {
-  const parsed = FlowGraphSchema.safeParse(migrateFlowGraph(rawGraph));
+  const migrated = migrateFlowGraph(rawGraph);
+  const parsed = FlowGraphSchema.safeParse(migrated);
   if (!parsed.success) {
     return {
       ok: false,
       errors: parsed.error.issues.map((i) => ({
         path: i.path.join("."),
         message: i.message,
-        friendlyMessage: "The flow structure is invalid. Check your node types and configuration.",
+        friendlyMessage: friendlySchemaIssue(i, migrated),
       })),
     };
   }
@@ -320,13 +404,26 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
           });
         }
       } else {
-        for (const r of a.config.recipients) {
+        for (const [idx, r] of a.config.recipients.entries()) {
           if (r.mode === "fixed" && (!r.amountStroops || r.amountStroops === "0")) {
             errors.push({
-              path: `nodes.${a.id}.config.recipients`,
+              path: `nodes.${a.id}.config.recipients.${idx}.amountStroops`,
               message: "Fixed recipient amount must be positive",
               friendlyMessage: FRIENDLY.FIXED_AMOUNT_REQUIRED,
             });
+            continue;
+          }
+          // Min/max amount caps are a fiat off-ramp constraint (PDAX limits).
+          // Crypto payouts are not subject to them.
+          if (r.mode === "fixed" && r.amountStroops && r.payoutMode === "fiat") {
+            const limitIssue = checkHardLimits(a.config.asset, r.amountStroops);
+            if (limitIssue) {
+              errors.push({
+                path: `nodes.${a.id}.config.recipients.${idx}.amountStroops`,
+                message: limitIssue.message,
+                friendlyMessage: `${r.label ?? r.address}: ${limitIssue.friendlyMessage}`,
+              });
+            }
           }
         }
         const total = splitTotalFixedStroops(a.config.recipients);
@@ -341,40 +438,58 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
       const seen = new Set<string>();
       for (const r of a.config.recipients) {
-        const isWallet = StrKey.isValidEd25519PublicKey(r.address);
+        const isContract = StrKey.isValidContract(r.address);
         const isFiat = r.payoutMode === "fiat";
         const triggerType = triggers[0]?.type;
 
-        // Non-payroll flows: only contract addresses may be fiat (they point to
-        // an explicit cash-out node downstream). Wallet addresses must be crypto.
-        if (triggerType !== "payroll" && isWallet && isFiat) {
-          errors.push({
-            path: `nodes.${a.id}.config.recipients`,
-            message: "Wallet addresses cannot use fiat payout outside payroll flows",
-            friendlyMessage:
-              "Only contract addresses (C...) can be fiat recipients in this flow. Use a cash-out node for off-ramp, or switch the address to crypto.",
-          });
-        }
-
-        // Payroll flows: immutable (non-dev) fiat recipients must carry bank
-        // details at design time. Dev mode may leave them blank and configure
-        // later via the API.
-        if (triggerType === "payroll" && isFiat && graph.devMode !== true) {
-          const missing = [];
-          if (!r.accountName?.trim()) missing.push("account name");
-          if (!r.accountNumber?.trim()) missing.push("account number");
-          if (!r.bankCode?.trim()) missing.push("bank code");
-          if (missing.length) {
+        // Native fiat payouts sink through the payer/splitter cash-out path,
+        // available for receive/webhook/oracle/subscription/payroll flows.
+        // Contract addresses (C...) point to an explicit cash-out node
+        // downstream and are always allowed. Dev mode supports native fiat
+        // only for payroll — the rest is deferred. The recipient's wallet
+        // address is irrelevant for fiat (a cash-out contract is generated at
+        // deploy time), so this gate applies to wallet and pending addresses
+        // alike.
+        if (isFiat && !isContract) {
+          if (!triggerType || !FIAT_PAYOUT_TRIGGERS.has(triggerType)) {
             errors.push({
               path: `nodes.${a.id}.config.recipients`,
-              message: `Fiat payroll recipient is missing ${missing.join(", ")}`,
-              friendlyMessage: `Enter the ${missing.join(", ")} for this fiat employee.`,
+              message: "Wallet addresses cannot use fiat payout in this flow",
+              friendlyMessage:
+                "Fiat payout for wallet addresses is available in receive, webhook, oracle, subscription, and payroll flows. Use a cash-out node for off-ramp here, or switch the address to crypto.",
             });
+          } else if (graph.devMode === true && triggerType !== "payroll") {
+            errors.push({
+              path: `nodes.${a.id}.config.recipients`,
+              message: "Fiat payout outside payroll is not yet supported in dev mode",
+              friendlyMessage:
+                "Turn off dev mode to pay fiat to wallet addresses in this flow, or use a cash-out node.",
+            });
+          } else if (graph.devMode !== true && triggerType !== "payroll") {
+            // Immutable contracts bake the bank destination in at deploy time.
+            // Payroll recipients are exempt: their bank details live in the
+            // Employee table and are resolved when each payroll run executes.
+            // Dev mode may leave the details blank and configure via the API.
+            const missing = [];
+            if (!r.accountName?.trim()) missing.push("account name");
+            if (!r.accountNumber?.trim()) missing.push("account number");
+            if (!r.bankCode?.trim()) missing.push("bank code");
+            if (missing.length) {
+              errors.push({
+                path: `nodes.${a.id}.config.recipients`,
+                message: `Fiat recipient is missing ${missing.join(", ")}`,
+                friendlyMessage: `Enter the ${missing.join(", ")} for this fiat recipient.`,
+              });
+            }
           }
         }
 
         if (isPendingAddress(r.address)) {
-          pendingLabels.add(r.label ?? "unnamed");
+          // Fiat recipients get an auto-generated cash-out contract at deploy
+          // time, so a pending wallet address is not required up front.
+          if (!isFiat) {
+            pendingLabels.add(r.label ?? "unnamed");
+          }
         } else {
           if (seen.has(r.address)) {
             errors.push({
@@ -389,7 +504,41 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
     if (a.type === "pay") {
       if (isPendingAddress(a.config.recipient)) {
-        pendingLabels.add(a.config.recipient.slice(8) || "unnamed");
+        // Fiat pay recipients get an auto-generated cash-out contract at deploy
+        // time, so a pending wallet address is not required up front.
+        if (a.config.payoutMode !== "fiat") {
+          pendingLabels.add(a.config.recipient.slice(8) || "unnamed");
+        }
+      }
+      if (a.config.payoutMode === "fiat") {
+        const triggerType = triggers[0]?.type;
+        if (!triggerType || !FIAT_PAYOUT_TRIGGERS.has(triggerType)) {
+          errors.push({
+            path: `nodes.${a.id}.config.payoutMode`,
+            message: "Fiat payout for pay nodes is not supported in this flow",
+            friendlyMessage:
+              "Native fiat payout on a pay step is available in receive, webhook, oracle, subscription, and payroll flows. Use a cash-out node for off-ramp here, or switch to crypto.",
+          });
+        } else if (graph.devMode === true && triggerType !== "payroll") {
+          errors.push({
+            path: `nodes.${a.id}.config.payoutMode`,
+            message: "Fiat payout outside payroll is not yet supported in dev mode",
+            friendlyMessage:
+              "Turn off dev mode to pay fiat on a pay step in this flow, or use a cash-out node.",
+          });
+        } else if (graph.devMode !== true) {
+          const missing = [];
+          if (!a.config.accountName?.trim()) missing.push("account name");
+          if (!a.config.accountNumber?.trim()) missing.push("account number");
+          if (!a.config.bankCode?.trim()) missing.push("bank code");
+          if (missing.length) {
+            errors.push({
+              path: `nodes.${a.id}.config.payoutMode`,
+              message: `Fiat pay recipient is missing ${missing.join(", ")}`,
+              friendlyMessage: `Enter the ${missing.join(", ")} for this fiat recipient.`,
+            });
+          }
+        }
       }
       if (a.config.fillValueViaApi && graph.devMode !== true) {
         errors.push({
@@ -409,6 +558,21 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
             message: "Pay node in fixed mode requires a positive amount",
             friendlyMessage: "Please enter a positive amount for the pay node.",
           });
+        } else if (
+          a.config.mode === "fixed" &&
+          a.config.amountStroops &&
+          a.config.payoutMode === "fiat"
+        ) {
+          // Min/max amount caps are a fiat off-ramp constraint (PDAX limits).
+          // Crypto payouts are not subject to them.
+          const limitIssue = checkHardLimits(a.config.asset, a.config.amountStroops);
+          if (limitIssue) {
+            errors.push({
+              path: `nodes.${a.id}.config.amountStroops`,
+              message: limitIssue.message,
+              friendlyMessage: limitIssue.friendlyMessage,
+            });
+          }
         }
         if (
           a.config.mode === "percentage" &&
@@ -425,6 +589,19 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     if (a.type === "yield" && isPendingAddress(a.config.vault)) {
       pendingLabels.add(a.config.vault.slice(8) || "unnamed");
     }
+  }
+
+  // Non-dev flows with fiat payouts must carry the sender KYC profile at
+  // design time: PDAX requires it for every off-ramp, and without it the
+  // off-ramp cron would cancel the very first payout job. Dev flows are
+  // exempt (they submit it via the API after deploy) — same pattern as the
+  // recipient bank-detail rules above.
+  if (graph.devMode !== true && flowHasFiatPayout(graph) && !graph.senderKyc) {
+    errors.push({
+      path: "senderKyc",
+      message: "Sender KYC is required before deploying a flow with fiat payouts.",
+      friendlyMessage: "Add the sender KYC details from the toolbar (required to deploy).",
+    });
   }
 
   // Email notify nodes are decorator leaves — they cannot have children.
@@ -483,6 +660,28 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
           friendlyMessage: "Add a subject line to the email notify node.",
         });
       }
+    }
+  }
+
+  // The conditional contract (oracle_gte) pays recipients directly and cannot
+  // sink cash-out shares, so native fiat payouts are incompatible with it.
+  // Explicit cash-out nodes are fine — they receive funds via forwarding.
+  const hasOracleGteCondition = graph.nodes.some(
+    (n) => n.type === "condition" && n.config.kind === "oracle_gte",
+  );
+  if (hasOracleGteCondition) {
+    const hasNativeFiatPayout = graph.nodes.some(
+      (n) =>
+        (n.type === "pay" && n.config.payoutMode === "fiat") ||
+        (n.type === "split" && n.config.recipients.some((r) => r.payoutMode === "fiat")),
+    );
+    if (hasNativeFiatPayout) {
+      errors.push({
+        path: "nodes",
+        message: "Fiat payouts are not compatible with oracle-gte conditions",
+        friendlyMessage:
+          "Oracle conditions pay recipients directly and cannot cash out to a bank. Remove the condition, switch the payout to crypto, or use an explicit cash-out node instead.",
+      });
     }
   }
 
@@ -588,6 +787,21 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         path: "nodes",
         message: "Trigger node must have no incoming edges",
         friendlyMessage: FRIENDLY.NO_INCOMING_EDGES_TO_TRIGGER,
+      });
+    }
+  }
+
+  // A subscription that pulls 0 is meaningless. In dev mode the amount may be
+  // left blank to be filled via the API after deploy, so only enforce this
+  // for real deployments.
+  if (trigger?.type === "subscription" && graph.devMode !== true) {
+    const amount = trigger.config.amountPerPeriodStroops;
+    if (!amount || BigInt(amount) <= 0n) {
+      errors.push({
+        path: `nodes.${trigger.id}.config.amountPerPeriodStroops`,
+        message: "Subscription amount per period must be greater than 0",
+        friendlyMessage:
+          "Set an amount per period greater than 0 — a subscription that pulls nothing will never charge.",
       });
     }
   }

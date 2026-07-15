@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { createContractReadCache, type ContractReadCache } from "@/lib/contract-read-cache";
 import {
   preparePayrollChargeByRelayerTx,
   submitPayrollChargeByRelayerTx,
@@ -22,6 +23,7 @@ import {
   readSubscriptionRelayer,
   readSplitterDevRecipients,
   readSplitterRecipients,
+  readPayerRecipients,
 } from "@/lib/stellar/relayer";
 import { preparePayrollChargeByRelayerUnsigned } from "@/lib/stellar/invoke";
 import { withRelayerLock } from "@/lib/stellar/client";
@@ -32,7 +34,7 @@ import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
 
 export const dynamic = "force-dynamic";
 
-const MAX_CATCHUP_PER_RUN = 5;
+const MAX_CATCHUP_PER_RUN = Math.min(50, Math.max(1, env().PAYROLL_MAX_CATCHUP_PER_RUN));
 
 type ResultDetail = {
   deploymentId: string;
@@ -61,10 +63,11 @@ async function buildSubscriptionRecipientRows(
   readRecipients: (
     addr: string,
   ) => Promise<Array<{ address: string; bps: number; amount: string }>>,
+  readAmountPerPeriod: (addr: string) => Promise<bigint>,
 ): Promise<Array<{ address: string; amount: string }>> {
   const [raw, totalStroops] = await Promise.all([
     readRecipients(splitterContractAddress),
-    readSubscriptionAmountPerPeriod(subscriptionContractAddress),
+    readAmountPerPeriod(subscriptionContractAddress),
   ]);
   return raw.map((r) => {
     const fixed = BigInt(r.amount);
@@ -95,6 +98,7 @@ async function chargeSubscriptionPayrollDeployment(
   ) => Promise<Array<{ address: string; bps: number; amount: string }>>,
   isDev: boolean,
   cashOutContractAddresses: Set<string>,
+  readCache: ContractReadCache,
 ): Promise<number> {
   if (d.chargeEndAt && d.chargeEndAt <= now) {
     await db.deployment.update({
@@ -104,7 +108,40 @@ async function chargeSubscriptionPayrollDeployment(
     throw new Error("PayrollEnded");
   }
 
-  const cancelled = await readSubscriptionIsCancelled(subscriptionContractAddress);
+  // Only cache reads that are immutable for the contract variant in use:
+  // - prod SPLITTER recipients and prod SUBSCRIPTION amount/subscriber have no
+  //   on-chain setters, so they are safe to memoize.
+  // - SPLITTER_DEV exposes update_recipients and SUBSCRIPTION_DEV exposes
+  //   set_amount/update_subscriber, so dev-variant reads must stay fresh.
+  // - Every subscription contract exposes set_relayer, so the relayer is
+  //   always read fresh (a stale value would defeat the relayer-mismatch
+  //   safety check right after a rotation).
+  const readSplitterRecipientsCached = readCache(
+    "splitter:recipients",
+    readRecipients,
+    (addr) => addr,
+  );
+  const readAmountPerPeriodCached = readCache(
+    "subscription:amountPerPeriod",
+    readSubscriptionAmountPerPeriod,
+    (addr) => addr,
+  );
+  const readSubscriberCached = readCache(
+    "subscription:subscriber",
+    readSubscriptionSubscriberNullable,
+    (addr) => addr,
+  );
+  const readAssetCached = readCache("subscription:asset", readSubscriptionAsset, (addr) => addr);
+
+  const readRecipientsFn = isDev ? readRecipients : readSplitterRecipientsCached;
+  const readAmountPerPeriodFn = isDev ? readSubscriptionAmountPerPeriod : readAmountPerPeriodCached;
+  const readSubscriberFn = isDev ? readSubscriptionSubscriberNullable : readSubscriberCached;
+
+  const [cancelled, nextChargeAt] = await Promise.all([
+    readSubscriptionIsCancelled(subscriptionContractAddress),
+    readSubscriptionNextChargeAt(subscriptionContractAddress),
+  ]);
+
   if (cancelled) {
     await db.deployment.update({
       where: { id: d.id },
@@ -113,7 +150,6 @@ async function chargeSubscriptionPayrollDeployment(
     throw new Error("AlreadyCancelled");
   }
 
-  const nextChargeAt = await readSubscriptionNextChargeAt(subscriptionContractAddress);
   const nextChargeDate = new Date(Number(nextChargeAt) * 1000);
   if (nextChargeDate > now) {
     await db.deployment.update({
@@ -123,11 +159,14 @@ async function chargeSubscriptionPayrollDeployment(
     throw new Error("NotYetDue");
   }
 
-  const [subscriber, asset, amountPerPeriod] = await Promise.all([
-    readSubscriptionSubscriberNullable(subscriptionContractAddress),
-    readSubscriptionAsset(subscriptionContractAddress),
-    readSubscriptionAmountPerPeriod(subscriptionContractAddress),
+  const [subscriber, asset, amountPerPeriod, onChainRelayer] = await Promise.all([
+    readSubscriberFn(subscriptionContractAddress),
+    readAssetCached(subscriptionContractAddress),
+    readAmountPerPeriodFn(subscriptionContractAddress),
+    // Always fresh: set_relayer is admin-callable on every subscription variant.
+    readSubscriptionRelayer(subscriptionContractAddress),
   ]);
+
   if (!subscriber) {
     throw new Error("NotConfigured");
   }
@@ -141,11 +180,25 @@ async function chargeSubscriptionPayrollDeployment(
     throw new Error("Insufficient allowance");
   }
 
-  const onChainRelayer = await readSubscriptionRelayer(subscriptionContractAddress);
   const expectedRelayer = stellarRelayerAddress();
   if (expectedRelayer && onChainRelayer !== expectedRelayer) {
     throw new Error(`Relayer mismatch: on-chain ${onChainRelayer}, configured ${expectedRelayer}`);
   }
+
+  const existingEmployees = await db.employee.findMany({
+    where: { deploymentId: d.id },
+    include: { bankDetail: true },
+  });
+  const employeeByCashOut = new Map(
+    existingEmployees
+      .filter((e) => e.cashOutContractAddress)
+      .map((e) => [e.cashOutContractAddress!, e]),
+  );
+  const employeeByWallet = new Map(existingEmployees.map((e) => [e.address, e]));
+
+  const hasFiatEmployeeWithBank = existingEmployees.some(
+    (e) => e.payoutMode === "FIAT" && e.bankDetail,
+  );
 
   let chargedCount = 0;
   for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
@@ -164,7 +217,8 @@ async function chargeSubscriptionPayrollDeployment(
     const recipientRows = await buildSubscriptionRecipientRows(
       splitterContractAddress,
       subscriptionContractAddress,
-      readRecipients,
+      readRecipientsFn,
+      readAmountPerPeriodFn,
     );
     const totalStroops = recipientRows.reduce((sum, r) => sum + BigInt(r.amount), 0n);
 
@@ -177,21 +231,6 @@ async function chargeSubscriptionPayrollDeployment(
         chargedAt: now,
       },
     });
-
-    const existingEmployees = await db.employee.findMany({
-      where: { deploymentId: d.id },
-      include: { bankDetail: true },
-    });
-    const employeeByCashOut = new Map(
-      existingEmployees
-        .filter((e) => e.cashOutContractAddress)
-        .map((e) => [e.cashOutContractAddress!, e]),
-    );
-    const employeeByWallet = new Map(existingEmployees.map((e) => [e.address, e]));
-
-    const hasFiatEmployeeWithBank = existingEmployees.some(
-      (e) => e.payoutMode === "FIAT" && e.bankDetail,
-    );
 
     for (const r of recipientRows) {
       const existing = employeeByCashOut.get(r.address) ?? employeeByWallet.get(r.address);
@@ -290,12 +329,35 @@ export async function POST(req: NextRequest) {
         flow: { templateKind: "PAYROLL" },
         OR: [{ nextChargeAt: { lte: now } }, { nextChargeAt: null }],
       },
-      include: { flow: { select: { templateKind: true } } },
+      select: {
+        id: true,
+        offRampEnabled: true,
+        chargeEndAt: true,
+        chargeRelayerMode: true,
+        chargeRelayerUrl: true,
+        chargeRelayerAddress: true,
+        chargeRelayerToken: true,
+        nextChargeAt: true,
+        pipelineSnapshot: true,
+      },
     });
 
     const results: ResultDetail[] = [];
     let platformCharged = 0;
     let userCharged = 0;
+
+    const readCache = createContractReadCache();
+    // Only employer/asset are cached: the payroll contract has no setters for
+    // them. Recipients (update_recipients) and relayer (set_relayer) are
+    // admin-mutable, so they are read fresh below — caching them could write
+    // stale amounts into PayrollPayout rows and the fiat off-ramp jobs derived
+    // from them.
+    const readPayrollEmployerCached = readCache(
+      "payroll:employer",
+      readPayrollEmployer,
+      (addr) => addr,
+    );
+    const readPayrollAssetCached = readCache("payroll:asset", readPayrollAsset, (addr) => addr);
 
     for (const d of deployments) {
       const pipeline = d.pipelineSnapshot as Array<{
@@ -308,6 +370,8 @@ export async function POST(req: NextRequest) {
       const splitterDevNode = pipeline?.find((n) => n.templateKind === "SPLITTER_DEV");
       const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
       const splitterNode = pipeline?.find((n) => n.templateKind === "SPLITTER");
+      const payerDevNode = pipeline?.find((n) => n.templateKind === "PAYER_DEV");
+      const payerNode = pipeline?.find((n) => n.templateKind === "PAYER");
 
       const cashOutContractAddresses = new Set(
         pipeline
@@ -319,8 +383,12 @@ export async function POST(req: NextRequest) {
         payrollNode?.contractAddress &&
         (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM ||
           d.chargeRelayerMode === ChargeRelayerMode.USER);
-      const isDev = subscriptionDevNode?.contractAddress && splitterDevNode?.contractAddress;
-      const isSubscriptionLike = subscriptionNode?.contractAddress && splitterNode?.contractAddress;
+      const isDev =
+        subscriptionDevNode?.contractAddress &&
+        (splitterDevNode?.contractAddress || payerDevNode?.contractAddress);
+      const isSubscriptionLike =
+        subscriptionNode?.contractAddress &&
+        (splitterNode?.contractAddress || payerNode?.contractAddress);
 
       if (!isMonolithic && !isDev && !isSubscriptionLike) {
         results.push({
@@ -344,11 +412,12 @@ export async function POST(req: NextRequest) {
           const devChargedCount = await chargeSubscriptionPayrollDeployment(
             d,
             contractAddress,
-            splitterDevNode!.contractAddress,
+            (splitterDevNode ?? payerDevNode)!.contractAddress,
             now,
-            readSplitterDevRecipients,
+            splitterDevNode ? readSplitterDevRecipients : readPayerRecipients,
             true,
             cashOutContractAddresses,
+            readCache,
           );
           platformCharged += devChargedCount;
           results.push({
@@ -364,11 +433,12 @@ export async function POST(req: NextRequest) {
           const chargedCount = await chargeSubscriptionPayrollDeployment(
             d,
             contractAddress,
-            splitterNode!.contractAddress,
+            (splitterNode ?? payerNode)!.contractAddress,
             now,
-            readSplitterRecipients,
+            splitterNode ? readSplitterRecipients : readPayerRecipients,
             false,
             cashOutContractAddresses,
+            readCache,
           );
           platformCharged += chargedCount;
           results.push({
@@ -380,7 +450,11 @@ export async function POST(req: NextRequest) {
         }
 
         contractAddress = payrollNode!.contractAddress;
-        const cancelled = await readPayrollIsCancelled(contractAddress);
+        const [cancelled, nextChargeAt] = await Promise.all([
+          readPayrollIsCancelled(contractAddress),
+          readPayrollNextChargeAt(contractAddress),
+        ]);
+
         if (cancelled) {
           await db.deployment.update({
             where: { id: d.id },
@@ -399,7 +473,6 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const nextChargeAt = await readPayrollNextChargeAt(contractAddress);
         const nextChargeDate = new Date(Number(nextChargeAt) * 1000);
         if (nextChargeDate > now) {
           await db.deployment.update({
@@ -410,7 +483,13 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const recipients = await readPayrollRecipients(contractAddress);
+        const [recipients, employer, asset, onChainRelayer] = await Promise.all([
+          readPayrollRecipients(contractAddress),
+          readPayrollEmployerCached(contractAddress),
+          readPayrollAssetCached(contractAddress),
+          readPayrollRelayer(contractAddress),
+        ]);
+
         const totalAmount = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);
 
         const existingEmployees = await db.employee.findMany({
@@ -421,10 +500,6 @@ export async function POST(req: NextRequest) {
           (e) => e.payoutMode === "FIAT" && e.bankDetail,
         );
 
-        const [employer, asset] = await Promise.all([
-          readPayrollEmployer(contractAddress),
-          readPayrollAsset(contractAddress),
-        ]);
         const allowance = await readTokenAllowance({
           tokenContractAddress: asset,
           owner: employer,
@@ -440,7 +515,6 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const onChainRelayer = await readPayrollRelayer(contractAddress);
         const expectedRelayer =
           d.chargeRelayerMode === ChargeRelayerMode.PLATFORM
             ? stellarRelayerAddress()

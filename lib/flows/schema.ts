@@ -21,7 +21,11 @@ export function getPendingLabels(graph: FlowGraph): string[] {
         }
       }
     }
-    if (n.type === "pay" && isPendingAddress(n.config.recipient)) {
+    if (
+      n.type === "pay" &&
+      n.config.payoutMode !== "fiat" &&
+      isPendingAddress(n.config.recipient)
+    ) {
       labels.add(n.config.recipient.slice(PENDING_PREFIX.length) || "unnamed");
     }
     if (n.type === "webhook" && isPendingAddress(n.config.relayer)) {
@@ -180,6 +184,12 @@ export const PayAction = z.object({
       percentage: z.number().min(0).max(100).optional(),
       fullAmount: z.boolean().default(false),
       fillValueViaApi: z.boolean().optional(),
+      // Fiat payout: at deploy time a cash-out contract is generated for the
+      // recipient and the payer sinks their share to the off-ramp treasury.
+      payoutMode: z.enum(["crypto", "fiat"]).optional(),
+      accountName: z.string().optional(),
+      accountNumber: z.string().optional(),
+      bankCode: z.string().optional(),
     })
     .refine(
       (c) => {
@@ -443,6 +453,32 @@ export const FlowEdgeSchema = z.object({
 });
 export type FlowEdge = z.infer<typeof FlowEdgeSchema>;
 
+// Sender KYC profile (mirrors the SenderSchema in
+// app/api/deployments/[id]/offramp-sender/route.ts). PDAX requires this for
+// every fiat payout. Collected at flow-design time in the builder so non-dev
+// flows with fiat payouts can deploy with it already on file; dev flows may
+// still leave it blank and submit it post-deploy via the API.
+export const SenderKycSchema = z.object({
+  firstName: z.string().min(1).max(128),
+  middleName: z.string().max(128).optional(),
+  lastName: z.string().min(1).max(128),
+  countryOrigin: z.string().min(1).max(128),
+  addressLineOne: z.string().max(256).optional(),
+  addressLineTwo: z.string().max(256).optional(),
+  city: z.string().max(128).optional(),
+  province: z.string().max(128).optional(),
+  country: z.string().max(128).optional(),
+  zipCode: z.string().max(32).optional(),
+  phoneNumber: z.string().max(64).optional(),
+  nationality: z.string().max(128).optional(),
+  nationalIdentityNumber: z.string().max(128).optional(),
+  dob: z.string().max(32).optional(),
+  placeOfBirth: z.string().max(128).optional(),
+  sourceOfFunds: z.string().min(1).max(128),
+  email: z.string().email().max(256).optional(),
+});
+export type SenderKyc = z.infer<typeof SenderKycSchema>;
+
 export const FlowGraphSchema = z.object({
   nodes: z.array(FlowNodeSchema).max(40),
   edges: z.array(FlowEdgeSchema).max(80),
@@ -451,6 +487,11 @@ export const FlowGraphSchema = z.object({
   // variant whose recipients / amounts / schedule can be left blank at design
   // time and filled or changed later via the API.
   devMode: z.boolean().optional(),
+  senderKyc: SenderKycSchema.optional(),
+  // Canvas layout: node positions keyed by node id. UI-only state — ignored by
+  // validation and pipeline compilation, but persisted with the flow so the
+  // builder reopens with the same arrangement instead of re-cascading nodes.
+  positions: z.record(z.string(), z.object({ x: z.number(), y: z.number() })).optional(),
 });
 export type FlowGraph = z.infer<typeof FlowGraphSchema>;
 

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ViewportPortal, useReactFlow, useViewport } from "@xyflow/react";
-import { cn } from "@/lib/utils";
 import ConfigPanel from "./config-panel";
 import type { FlowNode, FlowGraph } from "@/lib/flows/schema";
 import type { AddressEntry } from "@/lib/address-book.types";
@@ -15,6 +14,8 @@ type CanvasConfigPanelProps = {
   onDelete: (id: string) => void;
   addressBook: AddressEntry[];
   refreshAddressBook: () => void;
+  addressBookLoading?: boolean;
+  addressBookError?: string | null;
   chatCollapsed: boolean;
 };
 
@@ -28,12 +29,15 @@ export default function CanvasConfigPanel({
   onDelete,
   addressBook,
   refreshAddressBook,
+  addressBookLoading,
+  addressBookError,
   chatCollapsed,
 }: CanvasConfigPanelProps) {
   const { getNode, screenToFlowPosition } = useReactFlow();
   const { zoom } = useViewport();
 
   const [panelPosition, setPanelPosition] = useState({ x: 0, y: 0 });
+  const scrollRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     startPanel: { x: number; y: number };
     startPointer: { x: number; y: number };
@@ -49,6 +53,24 @@ export default function CanvasConfigPanel({
       y: rfNode.position.y,
     });
   }, [selectedId, getNode]);
+
+  // Keep wheel events over the scrollable panel from ever reaching React
+  // Flow's d3-zoom listener on the pane: while the cursor is on a scrollable
+  // panel, the wheel scrolls only the panel — even at its top/bottom edge,
+  // the canvas must not zoom. If the panel is not scrollable at all, the
+  // event falls through and zooms the canvas as usual.
+  // Must be a native listener: React's synthetic onWheel runs at the root,
+  // which is after the pane in the bubble path, so stopPropagation would be
+  // too late.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollHeight > el.clientHeight) e.stopPropagation();
+    };
+    el.addEventListener("wheel", onWheel, { passive: true });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   const onHeaderPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -88,7 +110,10 @@ export default function CanvasConfigPanel({
   return (
     <ViewportPortal>
       <div
-        className="z-50"
+        // React Flow raises the selected node to z-index 1000
+        // (SELECTED_NODE_Z), so the panel must sit above that to never
+        // render behind any node.
+        className="z-[10000]"
         style={{
           position: "absolute",
           left: panelPosition.x,
@@ -96,26 +121,22 @@ export default function CanvasConfigPanel({
           pointerEvents: "none",
         }}
       >
-        {/* Counter-scale wrapper: cancels the viewport zoom so the panel stays
-            a fixed readable size. It owns pointer events so the surrounding
-            unscaled bounding box does not block the canvas. */}
+        {/* The panel lives in flow space, so it pans and zooms together with
+            the canvas like a regular node. It owns pointer events so the
+            surrounding bounding box does not block the canvas. */}
         <div
           className="nopan"
-          style={{
-            transform: `scale(${1 / zoom})`,
-            transformOrigin: "top left",
-            pointerEvents: "all",
-          }}
+          style={{ pointerEvents: "all" }}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Chat-shift wrapper: lives in the counter-scaled (screen-pixel)
-              space so the -268px shift is independent of zoom. */}
+          {/* Chat-shift wrapper: the sidebar is a fixed 268px on screen, so the
+              shift must be divided by zoom to stay aligned in flow space. */}
           <div
-            className={cn(
-              "w-80 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl transition-transform duration-300 ease-in-out",
-              !chatCollapsed && "-translate-x-[268px]",
-            )}
+            className="w-80 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl transition-transform duration-300 ease-in-out"
+            style={{
+              transform: !chatCollapsed ? `translateX(${-268 / zoom}px)` : undefined,
+            }}
           >
             {/* Draggable header */}
             <div
@@ -142,7 +163,7 @@ export default function CanvasConfigPanel({
               </button>
             </div>
 
-            <div className="custom-scrollbar max-h-[60vh] overflow-y-auto">
+            <div ref={scrollRef} className="custom-scrollbar max-h-[60vh] overflow-y-auto">
               <ConfigPanel
                 node={node}
                 graph={graph}
@@ -150,6 +171,8 @@ export default function CanvasConfigPanel({
                 onDelete={onDelete}
                 addressBook={addressBook}
                 refreshAddressBook={refreshAddressBook}
+                addressBookLoading={addressBookLoading}
+                addressBookError={addressBookError}
                 hideHeader
                 className="border-0"
               />

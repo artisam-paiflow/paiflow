@@ -4,16 +4,49 @@
 
 Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a QR code. Anyone who scans it sends funds straight to a pre-audited smart contract that fans out the money automatically.
 
-|             |                                                                                   |
-| ----------- | --------------------------------------------------------------------------------- |
-| **Status**  | v0.2 — visual builder, live deployments, raft-log voice input, live event polling |
-| **License** | MIT                                                                               |
+---
+
+## Quick Links
+
+[`Pitch Deck`](https://drive.google.com/drive/folders/1hFF9Y3ks-RBa4rNS5JzwVc7V5Z2Kw96J?usp=sharing) — sized for a 3-minute pitch.
+
+[`Demo Video`](https://drive.google.com/drive/folders/1R4h7UaMfgEfIqhbSBqD3lzIs6hq5IaxP?usp=sharing) — 3-minute video showcasing the project.
+
+[`Live App`](https://paiflow.xyz) — username: admin ; password: admin1234567
 
 ---
 
-## Pitch deck
+## 🌐 Testnet Deployments
 
-A 10-slide draft investor deck (MARP) lives at [`docs/pitch-deck.md`](docs/pitch-deck.md) — sized for a 3-minute pitch.
+All contracts are deployed on the **Stellar testnet**. Every flow deployed from the app produces a fresh set of pipeline contracts with deterministic addresses (via the factory's `deploy_pipeline`), and each deployment page in the UI deep-links its contracts to stellar.expert — the fastest way to see a live pipeline is to [deploy one in the app](https://paiflow.xyz) and click through.
+
+**Factory contract** — deploys and wires every pipeline atomically:
+
+| Contract                    | Address                                                                                                                                                                 |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Factory (`deploy_pipeline`) | [`CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK`](https://stellar.expert/explorer/testnet/contract/CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK) |
+
+**Template WASM uploads** — the pre-audited contract code the factory instantiates per deployment:
+
+| Template           | Role      | WASM hash (testnet)                                                |
+| ------------------ | --------- | ------------------------------------------------------------------ |
+| Factory            | Deployer  | `3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023` |
+| Deposit trigger    | Trigger   | `1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18` |
+| Webhook            | Trigger   | `415ecb61b53aee7805478e40e490328ea546e033f5b77bfe046aab956f28dd25` |
+| Subscription       | Trigger   | `15a59ab78da2342900ce2f19d22ef3650a768e2c286fbf2e4bb2aba1790cf28f` |
+| Splitter           | Action    | `201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417` |
+| Streamer           | Action    | `625cc073ec1ae4d6ed6f55d9f99c4d743153752b1d2667524123f8b0284c0467` |
+| Payer              | Action    | `88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2` |
+| Payroll            | Action    | `055bb5c94bc0dac259f08a6adc97e9305fbf901d5facbdcbbedf799810f474bd` |
+| Cash out           | Action    | `75ba6d8e71770bcbd98c1181473cca5d33d4646655c95786be8ed99155d77502` |
+| Timelock           | Condition | `5529d368e5305f7688dd8d2d655fe48c4123be0110cdc9c167bce025d8d11c20` |
+| Conditional        | Condition | `addd86767bd2691b26110b1c5fec071f48047ebc3ce7611a46a59b70c3329922` |
+| Payer (dev)        | Dev mode  | `8b5550b4770c2d03601f6392496e45689973d46c608a24e9f1dd60d91904cb78` |
+| Splitter (dev)     | Dev mode  | `8010433a3c6c4ee8281ffa33a253a83ea00c8b1225061485592bd49b2654bec2` |
+| Subscription (dev) | Dev mode  | `100399b3f899be056e0e5c22d7ecafd3104c65d6a94215a864299807f0042fcd` |
+| Cash out (dev)     | Dev mode  | `c2fae909c6db9659cc0249c98f9d699216a90625173aec13d41ac4a380471db0` |
+
+> Uploaded WASM code is indexed on testnet — the raw bytes are fetchable from the stellar.expert API at `api.stellar.expert/explorer/testnet/contract/wasm/{hash}` — but the explorer UI has no standalone page for a bare hash, so they're listed unlinked. Each hash also appears on the page of any contract instantiated from it (e.g. the factory above).
 
 ---
 
@@ -28,7 +61,7 @@ There's no middle layer — no Stripe Connect, no Zapier-for-money — that lets
 
 ## 🌟 Vision
 
-Make programmable payments a **drag-and-drop primitive**, the way Zapier made cross-SaaS automation a drag-and-drop primitive a decade ago. Anyone who can sketch a flow on a whiteboard should be able to ship the same flow as a non-custodial Soroban contract — owning their keys, their funds, and their logic — in under 90 seconds, on a phone, without ever touching Rust or XDR.
+Make programmable payments a **drag-and-drop primitive**, the way Zapier made cross-SaaS automation a drag-and-drop primitive a decade ago. Anyone who can sketch a flow on a whiteboard should be able to ship the same flow as a non-custodial Soroban contract — owning their keys, their funds, and their logic — in under 90 seconds, without ever touching Rust or XDR.
 
 Long-term, Paiflow is the canonical "no-code Stellar surface": the layer between the chain's primitives (atomic transfers, Soroban host functions, SEP-7 deep links) and the operators who want to compose them into real-world money flows.
 
@@ -36,7 +69,7 @@ Long-term, Paiflow is the canonical "no-code Stellar surface": the layer between
 
 Built for the **Stellar Hackathon 2026**.
 
-We picked this problem because the Stellar Soroban toolchain is genuinely excellent for backend developers and genuinely opaque to everyone else. Three pre-audited templates (splitter, streamer, conditional) cover the long tail of real-world payment workflows — most "programmable payment" use cases reduce to one of those three. By shipping them as visual blocks instead of as Rust libraries, we put the chain's full power in the hands of the operators who have the use case but not the engineering team.
+We picked this problem because the Stellar Soroban toolchain is genuinely excellent for backend developers and genuinely opaque to everyone else. Pre-audited templates (splitter, streamer, conditional, subscription, payroll) cover the long tail of real-world payment workflows — most "programmable payment" use cases reduce to one of them. By shipping them as visual blocks instead of as Rust libraries, we put the chain's full power in the hands of the operators who have the use case but not the engineering team.
 
 The mission: **make Stellar the easiest chain on which to ship a payment flow**, full stop, without changing what makes Stellar good (fast, cheap, atomic, non-custodial).
 
@@ -45,22 +78,47 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 - **Fintech product managers / founders** — need programmable payouts (revenue splits, partner programs, escrow), don't have a Rust team, won't accept being locked into a closed SaaS.
 - **MSME / SMB operators** — running creator collabs, freelancer pools, supplier-payment fan-outs. Want self-custody and audit-grade transparency without learning a new SDK.
 - **OFWs and remittance senders** — periodic family payouts, automatic budget splits (rent + savings + spending) once funds land on-chain.
-- **Non-technical operators on a phone** — the hero demo is "presenter drags 3 blocks on a phone, hits Deploy, audience scans QR, money moves in 5 seconds." If a flow can't ship from a phone, we haven't solved the problem.
 
 ## ✨ Features
 
-- **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`) and actions (`Pay`, `Split`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
-- **Three Soroban templates** —
-  - **Splitter** — 60/30/10-style fan-out across N recipients (BPS-weighted).
-  - **Streamer** — time-based linear vesting / streaming payouts.
-  - **Conditional** — release-on-condition escrow (time, amount, oracle).
+- **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`, `HTTP Webhook`, `Subscription`, `Payroll`), actions (`Pay`, `Split`, `Email Notify`), and logic blocks (`Condition`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
+- **Native fiat payouts** — pay and split steps can settle directly to a recipient's bank account via a PDAX off-ramp integration. Bank details and sender KYC are captured in the builder and baked into immutable contracts at deploy time; an automated off-ramp pipeline settles the payouts.
 - **Non-custodial deploy** — the backend prepares simulated XDR; the user's wallet (Freighter / xBull / Albedo / Hana / LOBSTR via `@creit.tech/stellar-wallets-kit`) signs. Private keys never touch the server.
-- **QR-triggered execution** — every deployment renders a public QR / dApp URL. Anyone with a wallet can scan it, sign, and fire `distribute()` — useful for audience-funded demos, public crowdpay flows, and self-fund-back tests. Rate-limited + audit-logged on the public endpoints.
+- **QR-triggered execution** — some deployment renders a public QR / dApp URL. Anyone with a wallet can scan it, sign, and fire `distribute()` — useful for audience-funded demos, public crowdpay flows, and self-fund-back tests. Rate-limited + audit-logged on the public endpoints.
 - **Live event feed** — two-phase poller seeded from the deployment transaction's ledger writes `ContractEvent` rows in real time; the deployment page animates payouts as they finalize on-chain.
 - **Raft Log AI assistant** — voice-to-text via Groq Whisper (large-v3 with fallback to large-v3-turbo) + Llama text edits. Talk to the builder in plain English ("change Alice to 55%"); the AI emits a JSON patch the validator can apply.
-- **Auth + reset** — argon2 password hashing, optional WebAuthn second factor, password reset via Resend with SHA-256-hashed tokens and session wipe on consume.
 - **Admin console** — user management, audit log, seeded admin on first boot, rate-limited public endpoints, HIBP-pwned-password check (opt-in).
 - **stellar.expert deep links** — every contract address in the UI links to the correct (`testnet` ↔ `public`) explorer.
+
+## 🏗️ System Architecture
+
+A single Next.js 15 app (App Router) is the whole control plane: it serves the visual builder, prepares (but never signs) Stellar transactions, and runs cron-style automation over relayer-signed contracts. Wallets sign anything that moves user funds; a server-side relayer account signs only scheduled/automated actions (streamer claims, subscription charges, timelock releases, webhooks).
+
+![System architecture](docs/diagrams/system-architecture.svg)
+
+> Diagrams are pre-rendered SVGs so they display everywhere; editable mermaid sources live in [`docs/architecture-diagrams.md`](docs/architecture-diagrams.md).
+
+Key boundaries:
+
+- **Non-custodial by construction** — the server only ever builds and simulates XDR (`lib/stellar/deploy.ts`, `lib/stellar/invoke.ts`). User funds move only on transactions signed by the user's wallet. The relayer key (server-side) can only execute the _automation_ surface: scheduled streamer claims, subscription/payroll charges, timelock releases, and webhook-triggered executes — all serialized through a global relayer lock (`withRelayerLock`).
+- **Deploys go through a factory contract** — the app pre-computes child contract addresses (deterministic salts, CAP-46), then submits one `deploy_pipeline` invocation that deploys and wires the whole graph atomically.
+- **Events are ingested, not trusted from clients** — a cron poller (`app/api/cron/poll-events`) reads Soroban events per deployment via an `EventCursor` (bootstrapped from the deploy tx's ledger, then incremental), dedupes into `ContractEvent`, and fans out over Redis pub/sub to the live UI. `CASH_OUT` events additionally spawn PDAX off-ramp jobs.
+
+### Sequence — deploy a flow
+
+![Sequence — deploy a flow](docs/diagrams/sequence-deploy.svg)
+
+### Sequence — payer executes via QR
+
+![Sequence — payer executes via QR](docs/diagrams/sequence-qr-execution.svg)
+
+### Sequence — Raft Log voice edit
+
+![Sequence — Raft Log voice edit](docs/diagrams/sequence-voice-edit.svg)
+
+### Sequence — scheduled automation (cron + relayer)
+
+![Sequence — scheduled automation (cron + relayer)](docs/diagrams/sequence-cron-automation.svg)
 
 ## 🚀 How to Run Locally
 
@@ -99,45 +157,12 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 > **Full developer reference** (scripts, env vars, branching, CI) lives further down in this README under [Developer reference](#developer-reference).
 
-## 🌐 Deployment
-
-Paiflow is **non-custodial** — the backend prepares XDR, but only the user's wallet signs. The Stellar network is pinned at the environment level via `STELLAR_NETWORK` (staging = `testnet`, production = `mainnet`); there is no per-deploy network picker. Operator runbook for the cutover: [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md).
-
-### Testnet
-
-Deployed via Railway from `staging` (auto-deploy on merge into `staging`).
-
-- **App URL**: https://paiflow.up.railway.app/
-- **📸 Stellar Expert (testnet)**:
-  <img width="1251" height="891" alt="image" src="https://github.com/user-attachments/assets/e93400b1-82d5-45ec-b3ea-1af2bdb2b68e" />
-
-### Mainnet
-
-Cutover gated by `docs/mainnet-cutover.md`. WASM hashes uploaded via `pnpm contracts:upload --network=mainnet`.
-
-- **App URL**: https://paiflow.xyz/
-- **📸 Stellar Expert (mainnet)**:
-  <img width="1259" height="887" alt="image" src="https://github.com/user-attachments/assets/be166d1c-93eb-4cef-b6f7-a8d75e15241c" />
-
-## 🎥 Demo
-
-- 🔗 **Live App**: https://paiflow.xyz/
-- 🎬 **Demo Video**: https://www.youtube.com/watch?v=VkOgegleb9A
-  [![Paiflow Demo Video](https://img.youtube.com/vi/VkOgegleb9A/0.jpg)](https://www.youtube.com/watch?v=VkOgegleb9A)
-
-- 🖼️ **Pitch Deck**: https://drive.google.com/file/d/1CT2iNDgmdkfkzFDfRYTxZZYAcNdY7QP0/view
-
 ## 👨‍💻 Team
 
-| Name           | Role               | GitHub                                                     |
-| -------------- | ------------------ | ---------------------------------------------------------- | --- |
-| Mark Hugh Neri | CTO                | [@kimerran](https://github.com/kimerran)                   |
-| Mychal Pejana  | Smart Contract Dev | [@SaltinStillWaters](https://github.com/SaltinStillWaters) |
-| Carl Macabales | AI Developer       | [@cemmacabales](https://github.com/cemmacabales)           |     |
-
-## 📜 License
-
-MIT
+| Name          | Role           | GitHub                                                     |
+| ------------- | -------------- | ---------------------------------------------------------- |
+| Artisam Labs  | Incubation     | n/a                                                        |
+| Mychal Pejana | Lead Developer | [@SaltinStillWaters](https://github.com/SaltinStillWaters) |
 
 ---
 

@@ -3,6 +3,10 @@ type StellarNetworkName = "testnet" | "mainnet";
 type EnvShape = {
   NODE_ENV: "test";
   NEXT_PUBLIC_APP_URL: string;
+  NEXT_PUBLIC_SPLITTER_XLM_MIN: number;
+  NEXT_PUBLIC_SPLITTER_XLM_MAX: number;
+  NEXT_PUBLIC_SPLITTER_USDC_MIN: number;
+  NEXT_PUBLIC_SPLITTER_USDC_MAX: number;
   LOG_LEVEL: "silent";
   AUTH_SECRET: string;
   AUTH_URL: string;
@@ -61,6 +65,10 @@ function build(): EnvShape {
   return {
     NODE_ENV: "test",
     NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+    NEXT_PUBLIC_SPLITTER_XLM_MIN: 150,
+    NEXT_PUBLIC_SPLITTER_XLM_MAX: 500,
+    NEXT_PUBLIC_SPLITTER_USDC_MIN: 30,
+    NEXT_PUBLIC_SPLITTER_USDC_MAX: 110,
     LOG_LEVEL: "silent",
     AUTH_SECRET: "test_auth_secret_at_least_32_chars_long",
     AUTH_URL: "http://localhost:3000",

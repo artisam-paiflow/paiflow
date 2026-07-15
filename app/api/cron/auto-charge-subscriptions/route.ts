@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { createContractReadCache } from "@/lib/contract-read-cache";
 import {
   prepareSubscriptionChargeByRelayerTx,
   submitSubscriptionChargeByRelayerTx,
@@ -21,7 +22,7 @@ import { ChargeRelayerMode } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
-const MAX_CATCHUP_PER_RUN = 5;
+const MAX_CATCHUP_PER_RUN = Math.min(50, Math.max(1, env().SUBSCRIPTION_MAX_CATCHUP_PER_RUN));
 
 type ResultDetail = {
   deploymentId: string;
@@ -70,12 +71,43 @@ export async function POST(req: NextRequest) {
         chargeRelayerMode: { in: [ChargeRelayerMode.PLATFORM, ChargeRelayerMode.USER] },
         OR: [{ nextChargeAt: { lte: now } }, { nextChargeAt: null }],
       },
-      include: { flow: { select: { templateKind: true } } },
+      select: {
+        id: true,
+        chargeEndAt: true,
+        chargeRelayerMode: true,
+        chargeRelayerAddress: true,
+        chargeRelayerUrl: true,
+        chargeRelayerToken: true,
+        nextChargeAt: true,
+        pipelineSnapshot: true,
+      },
     });
 
     const results: ResultDetail[] = [];
     let platformCharged = 0;
     let userCharged = 0;
+
+    const readCache = createContractReadCache();
+    // Only cache reads with no on-chain setters. NOTE: SUBSCRIPTION_DEV exposes
+    // set_amount/update_subscriber, so for dev deployments these cached readers
+    // are bypassed below in favor of fresh reads. Every subscription variant
+    // exposes set_relayer, so the relayer is never cached (a stale value would
+    // defeat the relayer-mismatch safety check right after a rotation).
+    const readSubscriptionAmountPerPeriodCached = readCache(
+      "subscription:amountPerPeriod",
+      readSubscriptionAmountPerPeriod,
+      (addr) => addr,
+    );
+    const readSubscriptionSubscriberCached = readCache(
+      "subscription:subscriber",
+      readSubscriptionSubscriber,
+      (addr) => addr,
+    );
+    const readSubscriptionAssetCached = readCache(
+      "subscription:asset",
+      readSubscriptionAsset,
+      (addr) => addr,
+    );
 
     for (const d of deployments) {
       const pipeline = d.pipelineSnapshot as Array<{
@@ -102,7 +134,11 @@ export async function POST(req: NextRequest) {
 
       try {
         // Stop scheduling cancelled or expired subscriptions.
-        const cancelled = await readSubscriptionIsCancelled(contractAddress);
+        const [cancelled, nextChargeAt] = await Promise.all([
+          readSubscriptionIsCancelled(contractAddress),
+          readSubscriptionNextChargeAt(contractAddress),
+        ]);
+
         if (cancelled) {
           await db.deployment.update({
             where: { id: d.id },
@@ -122,7 +158,6 @@ export async function POST(req: NextRequest) {
         }
 
         // Verify the on-chain schedule is actually due.
-        const nextChargeAt = await readSubscriptionNextChargeAt(contractAddress);
         const nextChargeDate = new Date(Number(nextChargeAt) * 1000);
         if (nextChargeDate > now) {
           await db.deployment.update({
@@ -133,11 +168,21 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const amountPerPeriod = await readSubscriptionAmountPerPeriod(contractAddress);
-        const [subscriber, asset] = await Promise.all([
-          readSubscriptionSubscriber(contractAddress),
-          readSubscriptionAsset(contractAddress),
+        // SUBSCRIPTION_DEV amount/subscriber are admin-mutable on-chain, so
+        // read them fresh for dev deployments; the immutable SUBSCRIPTION
+        // variant can use the cached readers.
+        const isDevSubscription = node.templateKind === "SUBSCRIPTION_DEV";
+        const [amountPerPeriod, subscriber, asset, onChainRelayer] = await Promise.all([
+          isDevSubscription
+            ? readSubscriptionAmountPerPeriod(contractAddress)
+            : readSubscriptionAmountPerPeriodCached(contractAddress),
+          isDevSubscription
+            ? readSubscriptionSubscriber(contractAddress)
+            : readSubscriptionSubscriberCached(contractAddress),
+          readSubscriptionAssetCached(contractAddress),
+          readSubscriptionRelayer(contractAddress),
         ]);
+
         const allowance = await readTokenAllowance({
           tokenContractAddress: asset,
           owner: subscriber,
@@ -155,7 +200,6 @@ export async function POST(req: NextRequest) {
 
         // Verify the configured relayer matches the on-chain relayer so we
         // don't waste fees on transactions that will fail auth.
-        const onChainRelayer = await readSubscriptionRelayer(contractAddress);
         const expectedRelayer =
           d.chargeRelayerMode === ChargeRelayerMode.PLATFORM
             ? stellarRelayerAddress()

@@ -275,6 +275,7 @@ model Deployment {
   @@index([ownerId, createdAt(sort: Desc)])
   @@index([status])
   @@index([status, nextChargeAt])
+  @@index([status, chargeRelayerMode, nextChargeAt])
   @@index([chargeRelayerMode])
 }
 
@@ -414,7 +415,9 @@ model OffRampPayoutJob {
   payrollPayout PayrollPayout? @relation(fields: [payrollPayoutId], references: [id], onDelete: Cascade)
 
   @@index([status, runAt])
+  @@index([status, runAt, lockedAt])
   @@index([deploymentId])
+  @@index([deploymentId, status])
   @@index([payrollRunId])
   @@index([employeeId])
   @@index([providerRef])
