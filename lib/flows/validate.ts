@@ -55,6 +55,8 @@ const FRIENDLY = {
     "All recipients in a split must be either percentages or fixed amounts, not a mix.",
   FIXED_AMOUNT_REQUIRED: "Each fixed-amount recipient needs a positive amount.",
   TOTAL_FIXED_AMOUNT_REQUIRED: "Add at least one positive fixed amount to the split.",
+  AMOUNT_PER_INTERVAL_REQUIRED:
+    "A scheduled split needs an amount per interval — the total released each interval, divided among the recipients by their shares. Set it on the split step.",
   ASSET_CONFLICT:
     "This step can receive different assets depending on which path funds arrive through. Make sure every path leading into it carries the same asset, or add a swap so they match before merging.",
 } as const;
@@ -366,6 +368,23 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   for (const a of actions) {
     if (a.type === "split") {
+      // A scheduled split compiles to a streamer whose per-interval base is
+      // amountPerIntervalStroops — recipient configs only define distribution
+      // (bps). Without it the pipeline silently falls back to 1 stroop per
+      // interval (streamerAmountPerInterval in to-params.ts), deploying a dust
+      // stream. The amount is baked into the contract constructor, so this is
+      // required even in dev mode (API-filled recipients can't supply it).
+      if (
+        triggers[0]?.type === "on_schedule" &&
+        (!a.config.amountPerIntervalStroops || a.config.amountPerIntervalStroops === "0")
+      ) {
+        errors.push({
+          path: `nodes.${a.id}.config.amountPerIntervalStroops`,
+          message: "Scheduled split requires a positive amount per interval",
+          friendlyMessage: FRIENDLY.AMOUNT_PER_INTERVAL_REQUIRED,
+        });
+      }
+
       // Dev mode allows leaving recipients empty to fill via API after deploy.
       if (graph.devMode === true && a.config.recipients.length === 0) {
         continue;
