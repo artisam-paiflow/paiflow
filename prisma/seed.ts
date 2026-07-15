@@ -27,7 +27,7 @@ async function main() {
 
   const existingAdmin = await db.user.findFirst({ where: { role: Role.ADMIN } });
   if (existingAdmin && env === "production" && !allowReseed) {
-    console.log("[seed] Admin already exists in production. Skipping reseed.");
+    console.log("[seed] Admin already exists in production. Skipping main admin reseed.");
   } else {
     const passwordHash = await argon2.hash(password, ARGON_OPTS);
     await db.user.upsert({
@@ -41,6 +41,31 @@ async function main() {
       },
     });
     console.log(`[seed] Admin user '${username}' ready.`);
+  }
+
+  // ---- Judge / test admin ----
+  // Seeded independently of the production guard so it can be added after
+  // initial deploy. Requires JUDGE_SEED_PASSWORD; username defaults to "judge".
+  const judgeUsername = process.env.JUDGE_SEED_USERNAME ?? "judge";
+  const judgePassword = process.env.JUDGE_SEED_PASSWORD;
+  if (judgePassword) {
+    if (judgePassword.length < 12) {
+      throw new Error("JUDGE_SEED_PASSWORD must be at least 12 characters.");
+    }
+    const judgePasswordHash = await argon2.hash(judgePassword, ARGON_OPTS);
+    await db.user.upsert({
+      where: { username: judgeUsername },
+      update: { passwordHash: judgePasswordHash, role: Role.ADMIN, isActive: true },
+      create: {
+        username: judgeUsername,
+        passwordHash: judgePasswordHash,
+        role: Role.ADMIN,
+        isActive: true,
+      },
+    });
+    console.log(`[seed] Judge admin '${judgeUsername}' ready.`);
+  } else {
+    console.log("[seed] JUDGE_SEED_PASSWORD not set; skipping judge admin seed.");
   }
 
   const networkSuffix = network.toUpperCase();
