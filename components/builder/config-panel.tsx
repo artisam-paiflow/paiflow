@@ -255,6 +255,25 @@ export default function ConfigPanel({
     } as FlowNode);
   }, [triggerType, node, onChange]);
 
+  // Streamer (on_schedule) vests a fixed amount per interval — "send full
+  // amount" and percentage mode have no referent because the funded total is
+  // derived from the configured amount (unlike on_receive, where the incoming
+  // payment is unknown at design time). If a user switches an existing pay
+  // node to an on_schedule trigger, reset it to fixed mode.
+  useEffect(() => {
+    if (triggerType !== "on_schedule" || node.type !== "pay") return;
+    if (!node.config.fullAmount && node.config.mode !== "percentage") return;
+    onChange({
+      ...node,
+      config: {
+        ...node.config,
+        fullAmount: false,
+        mode: "fixed" as const,
+        percentage: undefined,
+      },
+    } as FlowNode);
+  }, [triggerType, node, onChange]);
+
   return (
     <aside
       className={cn(
@@ -682,6 +701,32 @@ export default function ConfigPanel({
               <span className="material-symbols-outlined text-[14px]">tune</span>
               Payment value set via the API after deploy
             </div>
+          ) : triggerType === "on_schedule" ? (
+            // Scheduled streams vest a fixed amount per interval — full-amount
+            // and percentage modes are not offered here.
+            <Field
+              label={`Amount per interval (${assetLabel(node.config.asset)})`}
+              error={fieldError("amountStroops")}
+            >
+              <input
+                className="input"
+                value={node.config.amountStroops ? formatStroops(node.config.amountStroops) : ""}
+                onChange={(e) =>
+                  onChange({
+                    ...node,
+                    config: {
+                      ...node.config,
+                      amountStroops: tokenAmountToStroops(e.target.value),
+                    },
+                  } as FlowNode)
+                }
+              />
+              {node.config.amountStroops && (
+                <div className="mt-0.5 text-[11px] text-zinc-500">
+                  = {stroopsToDisplay(node.config.amountStroops, node.config.asset)} per interval
+                </div>
+              )}
+            </Field>
           ) : (
             <>
               <label className="flex items-center gap-2">
