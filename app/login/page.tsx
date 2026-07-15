@@ -1,4 +1,5 @@
 import LoginForm from "@/components/auth/login-form";
+import JudgeCredentials from "@/components/auth/judge-credentials";
 import Link from "next/link";
 import Logo from "@/components/app/logo";
 
@@ -9,6 +10,10 @@ export default function LoginPage({
 }: {
   searchParams: Promise<{ from?: string; error?: string }>;
 }) {
+  const judgeUsername = process.env.NEXT_PUBLIC_JUDGE_USERNAME;
+  const judgePassword = process.env.NEXT_PUBLIC_JUDGE_PASSWORD;
+  const showJudgeCreds = Boolean(judgeUsername && judgePassword);
+
   return (
     <main className="px-margin py-lg relative mx-auto flex min-h-screen w-full max-w-md flex-col justify-center">
       <Link href="/" className="inline-flex w-fit" aria-label="Paiflow home">
@@ -21,6 +26,10 @@ export default function LoginPage({
       </h1>
 
       <LoginFormWrapper params={searchParams} />
+
+      {showJudgeCreds ? (
+        <JudgeCredentials username={judgeUsername!} password={judgePassword!} />
+      ) : null}
     </main>
   );
 }
