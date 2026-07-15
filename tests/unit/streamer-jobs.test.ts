@@ -38,9 +38,20 @@ describe("computeNextMilestone", () => {
     expect(result).toBeNull();
   });
 
-  it("returns null when the next boundary is at or past endTs", () => {
+  it("returns endTs when the next boundary lands exactly on endTs", () => {
+    // Occurrence-based flows set endTs = startTs + n × interval, so the final
+    // interval vests exactly at endTs and must still get a claim job.
     const startTs = 1_000_000;
     const endTs = startTs + 90;
+    const fromDate = new Date((startTs + 60) * 1000);
+
+    const result = computeNextMilestone(startTs, endTs, 90, fromDate);
+    expect(result).toEqual(new Date(endTs * 1000));
+  });
+
+  it("returns null when the next boundary is past endTs", () => {
+    const startTs = 1_000_000;
+    const endTs = startTs + 89;
     const fromDate = new Date((startTs + 60) * 1000);
 
     const result = computeNextMilestone(startTs, endTs, 90, fromDate);
