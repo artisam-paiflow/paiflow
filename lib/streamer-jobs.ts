@@ -13,6 +13,11 @@ const TERMINAL_STATUSES: StreamerClaimJobStatus[] = [
 /**
  * Compute the next streamer vesting milestone at or after `fromDate`.
  * Returns null when the stream has already ended.
+ *
+ * A milestone landing exactly on `endTs` IS returned: occurrence-based flows
+ * set `endTs = startTs + occurrences × intervalSeconds`, so the final
+ * interval vests at `endTs` itself — skipping that boundary leaves the last
+ * payout vested but never auto-claimed.
  */
 export function computeNextMilestone(
   startTs: number,
@@ -37,7 +42,7 @@ export function computeNextMilestone(
   const intervalsPassed = Math.floor(elapsed / intervalSeconds);
   const nextSec = startTs + (intervalsPassed + 1) * intervalSeconds;
 
-  if (nextSec >= endTs) {
+  if (nextSec > endTs) {
     return null;
   }
 
