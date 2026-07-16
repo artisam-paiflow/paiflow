@@ -1263,6 +1263,154 @@ describe("flowToPipeline", () => {
     expect(subParams.intervalSeconds).toBe(86400);
   });
 
+  it("derives the subscription pull from the fixed split sum, overriding the config amount", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            subscriber: ADDR_A,
+            // Stale/understated manual value — must not reach the contract.
+            amountPerPeriodStroops: "2000000000",
+            intervalAmount: 1,
+            intervalUnit: "day",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "1100000000" },
+              {
+                address: "PENDING:fiat",
+                mode: "fixed",
+                amountStroops: "1000000000",
+                payoutMode: "fiat",
+                accountName: "Jona",
+                accountNumber: "0000042001461",
+                bankCode: "BASECPH",
+              },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    const sub = pipeline.find((n) => n.templateKind === "SUBSCRIPTION");
+    expect(sub!.params.kind).toBe("subscription_trigger");
+    if (sub!.params.kind === "subscription_trigger") {
+      expect(sub!.params.amountPerPeriodStroops).toBe("2100000000");
+    }
+  });
+
+  it("derives the subscription pull from the fixed split sum in dev mode too", () => {
+    const pipeline = flowToPipeline({
+      devMode: true,
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            subscriber: ADDR_A,
+            amountPerPeriodStroops: "2000000000",
+            intervalAmount: 1,
+            intervalUnit: "day",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "1100000000" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "1000000000" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    const sub = pipeline.find((n) => n.templateKind === "SUBSCRIPTION_DEV");
+    expect(sub!.params.kind).toBe("subscription_dev_trigger");
+    if (sub!.params.kind === "subscription_dev_trigger") {
+      expect(sub!.params.amountPerPeriodStroops).toBe("2100000000");
+    }
+  });
+
+  it("keeps the configured amount when the split uses percentages", () => {
+    const pipeline = flowToPipeline({
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            subscriber: ADDR_A,
+            amountPerPeriodStroops: "2000000000",
+            intervalAmount: 1,
+            intervalUnit: "day",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "percentage", bps: 5000 },
+              { address: ADDR_B, mode: "percentage", bps: 5000 },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    });
+    const sub = pipeline.find((n) => n.templateKind === "SUBSCRIPTION");
+    expect(sub!.params.kind).toBe("subscription_trigger");
+    if (sub!.params.kind === "subscription_trigger") {
+      expect(sub!.params.amountPerPeriodStroops).toBe("2000000000");
+    }
+  });
+
+  it("sourceAmountStroops reflects the derived fixed split sum", () => {
+    const graph = {
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            subscriber: ADDR_A,
+            amountPerPeriodStroops: "2000000000",
+            intervalAmount: 1,
+            intervalUnit: "day",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "1100000000" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "1000000000" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e", source: "t", target: "a" }],
+    };
+    expect(sourceAmountStroops(graph as Parameters<typeof sourceAmountStroops>[0])).toBe(
+      "2100000000",
+    );
+  });
+
   it("produces deposit_trigger → splitter for on_receive → split", () => {
     const pipeline = flowToPipeline(splitGraph() as Parameters<typeof flowToPipeline>[0]);
     expect(pipeline).toHaveLength(2);

@@ -1730,6 +1730,39 @@ describe("validateFlow", () => {
     }
   });
 
+  it("allows a zero subscription amount when it feeds an all-fixed split (derived)", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            subscriber: ADDR_A,
+            // Hidden in the UI for fixed splits; the pull is derived from the
+            // recipient sum instead.
+            amountPerPeriodStroops: "0",
+            intervalAmount: 1,
+            intervalUnit: "day",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "1100000000" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "1000000000" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
   it("allows a zero subscription amount in dev mode (filled via API)", () => {
     const r = validateFlow({
       devMode: true,

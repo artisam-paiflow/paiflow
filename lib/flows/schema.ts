@@ -587,6 +587,35 @@ export function pctToBps(pct: number): number {
   return Math.round(pct * 100);
 }
 
+/**
+ * The amount a subscription pulls each period. When the subscription feeds a
+ * split whose recipients are all fixed amounts, the pull is DERIVED as the
+ * sum of those amounts — the UI hides the manual amount-per-period field in
+ * that case, and a stale value from a prior configuration must not contradict
+ * the displayed recipient amounts (same rule as streamerAmountPerInterval in
+ * to-params.ts). Otherwise the manually configured field is used.
+ */
+export function subscriptionAmountPerPeriodStroops(graph: FlowGraph): string | undefined {
+  const trigger = graph.nodes.find(
+    (n): n is Extract<FlowNode, { type: "subscription" }> => n.type === "subscription",
+  );
+  if (!trigger) return undefined;
+
+  const downstreamId = graph.edges.find((e) => e.source === trigger.id)?.target;
+  const action = graph.nodes.find(
+    (n): n is Extract<FlowNode, { type: "split" }> => n.type === "split" && n.id === downstreamId,
+  );
+  if (action) {
+    const recipients = action.config.recipients;
+    const allFixed = recipients.length > 0 && recipients.every((r) => r.mode === "fixed");
+    if (allFixed) {
+      const total = recipients.reduce((sum, r) => sum + BigInt(r.amountStroops), 0n);
+      if (total > 0n) return total.toString();
+    }
+  }
+  return trigger.config.amountPerPeriodStroops;
+}
+
 export function sourceAmountStroops(graph: FlowGraph): string | undefined {
   const trigger = graph.nodes.find(isTrigger);
   if (trigger?.type === "on_receive" && trigger.config.minAmountStroops) {
@@ -595,8 +624,8 @@ export function sourceAmountStroops(graph: FlowGraph): string | undefined {
   if (trigger?.type === "oracle" && trigger.config.threshold) {
     return trigger.config.threshold;
   }
-  if (trigger?.type === "subscription" && trigger.config.amountPerPeriodStroops) {
-    return trigger.config.amountPerPeriodStroops;
+  if (trigger?.type === "subscription") {
+    return subscriptionAmountPerPeriodStroops(graph) ?? trigger.config.amountPerPeriodStroops;
   }
   if (trigger?.type === "payroll") {
     const action = graph.nodes.find(
