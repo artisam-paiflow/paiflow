@@ -830,6 +830,44 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
   }
 
+  // The streamer/subscription/payroll constructors reject a window whose end
+  // is not after its start. The builder clamps a past start up to "now" at
+  // deploy time (to-params.ts), so an endsAt that is in the past — or earlier
+  // than a future startsAt — always deploys into a contract rejection. Catch
+  // it here instead. Payroll with fillScheduleViaApi deploys a far-future
+  // placeholder schedule, so its configured endsAt is irrelevant.
+  if (
+    trigger &&
+    (trigger.type === "on_schedule" ||
+      trigger.type === "subscription" ||
+      trigger.type === "payroll")
+  ) {
+    const cfg = trigger.config as {
+      startsAt?: string;
+      endsAt?: string;
+      fillScheduleViaApi?: boolean;
+    };
+    const scheduleFilledViaApi = trigger.type === "payroll" && cfg.fillScheduleViaApi === true;
+    if (cfg.endsAt && !scheduleFilledViaApi) {
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const startSeconds =
+        trigger.type === "on_schedule" && cfg.startsAt
+          ? Math.max(nowSeconds, Math.floor(new Date(cfg.startsAt).getTime() / 1000))
+          : nowSeconds;
+      const endSeconds = Math.floor(new Date(cfg.endsAt).getTime() / 1000);
+      if (endSeconds <= startSeconds) {
+        errors.push({
+          path: `nodes.${trigger.id}.config.endsAt`,
+          message: "Schedule end time must be after its start time",
+          friendlyMessage:
+            endSeconds <= nowSeconds
+              ? "This schedule's end time has already passed. Pick an end date in the future."
+              : "This schedule's end time is before its start time. Move the end date later.",
+        });
+      }
+    }
+  }
+
   // Payroll flows must use fixed amounts so the contract can compute the
   // exact pull amount per period.
   if (trigger?.type === "payroll") {

@@ -2,9 +2,11 @@
 
 import { useRef, useState, useEffect } from "react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
 import { WalletConnectModal } from "@walletconnect/modal";
 import { SignClient } from "@walletconnect/sign-client";
 import { usePollTxStatus } from "@/lib/hooks/use-poll-tx-status";
+import { apiError } from "@/lib/friendly-error";
 
 type TriggerButtonProps = {
   deploymentId: string;
@@ -213,7 +215,7 @@ export function TriggerButton({
 
           await submitTrigger(address, kit);
         } catch (err) {
-          toast.error((err as Error).message ?? "Connection failed");
+          toastError(err, "Connection failed");
         } finally {
           setBusy(false);
         }
@@ -254,7 +256,7 @@ export function TriggerButton({
       body: JSON.stringify({ amount, userAddress: address }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data?.error?.message ?? "Failed to prepare transaction");
+    if (!res.ok) throw apiError(data, "Failed to prepare transaction");
 
     const xdr = data.data.xdr ?? data.data.unsignedXdr;
     if (!xdr) throw new Error("No transaction XDR returned");
@@ -281,7 +283,7 @@ export function TriggerButton({
       body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
     });
     const subData = await submit.json();
-    if (!submit.ok) throw new Error(subData?.error?.message ?? "Submit failed");
+    if (!submit.ok) throw apiError(subData, "Submit failed");
 
     const txHash = subData.data.txHash as string;
     toast.info("Transaction submitted. Waiting for confirmation...");
@@ -326,7 +328,7 @@ export function TriggerButton({
         })
         .catch((err) => {
           sessionStorage.removeItem("paiflow_pending_wc");
-          toast.error((err as Error).message ?? "Connection failed");
+          toastError(err, "Connection failed");
         })
         .finally(() => {
           setBusy(false);
@@ -391,7 +393,7 @@ export function TriggerButton({
       toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
       await submitTrigger(address, kit, () => setShowOpenWallet(true));
     } catch (err) {
-      toast.error((err as Error).message ?? "Connection failed");
+      toastError(err, "Connection failed");
       sessionStorage.removeItem("paiflow_pending_wc");
     } finally {
       setBusy(false);
@@ -418,7 +420,7 @@ export function TriggerButton({
       try {
         await runDesktopFlow();
       } catch (err) {
-        toast.error((err as Error).message ?? (isDeposit ? "Deposit failed" : "Trigger failed"));
+        toastError(err, isDeposit ? "Deposit failed" : "Trigger failed");
       } finally {
         setBusy(false);
       }

@@ -6,6 +6,7 @@ import { useDocumentVisibility } from "@/lib/hooks/use-document-visibility";
 import { cn, formatAmount, shortAddr } from "@/lib/utils";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import type { BalanceNode, BalanceNodeError, WorkflowBalances } from "@/lib/stellar/balances";
+import { apiError } from "@/lib/friendly-error";
 
 type LiveBalancesProps = {
   deploymentId: string;
@@ -51,7 +52,7 @@ export default function LiveBalances({
           const body = (await res.json().catch(() => ({}))) as {
             error?: { message?: string };
           };
-          throw new Error(body.error?.message ?? `HTTP ${res.status}`);
+          throw apiError(body, `HTTP ${res.status}`);
         }
         const data = (await res.json()) as WorkflowBalances;
         if (!cancelled) {

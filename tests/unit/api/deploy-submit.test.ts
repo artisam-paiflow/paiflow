@@ -25,7 +25,7 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR } = vi
 
   const mockEnv = {
     STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
-    STELLAR_RELAYER_ADDRESS: null,
+    STELLAR_RELAYER_ADDRESS: null as string | null,
     LOG_LEVEL: "silent",
   };
 
@@ -319,5 +319,105 @@ describe("deployments/[id]/submit", () => {
     expect(res.status).toBe(422);
     expect(json.error.code).toBe("VALIDATION");
     expect(mockDb.deployment.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("sets chargeEndAt from the subscription schedule node's endTs on confirm", async () => {
+    const startTs = Math.floor(Date.now() / 1000) + 3600;
+    const endTs = startTs + 7200;
+    mockEnv.STELLAR_RELAYER_ADDRESS = "GRELAYER";
+    try {
+      mockDb.deployment.findFirst.mockResolvedValue(
+        makeDeployment({
+          flow: { templateKind: "SUBSCRIPTION" },
+          pipelineSnapshot: [
+            { nodeId: "n1", contractAddress: "CSUB", templateKind: "SUBSCRIPTION" },
+          ],
+          paramsSnapshot: [
+            {
+              nodeId: "n1",
+              templateKind: "SUBSCRIPTION",
+              params: { kind: "subscription_trigger", relayer: "GRELAYER", startTs, endTs },
+            },
+          ],
+        }),
+      );
+      mockDeploy.submitDeployTx.mockResolvedValue({
+        status: "SUCCESS",
+        txHash: TX_HASH,
+        contractAddress: "CSUB",
+      });
+      mockDb.deployment.update.mockResolvedValue({
+        id: "dep-1",
+        status: "CONFIRMED",
+        deployTxHash: TX_HASH,
+        contractAddress: "CSUB",
+        pipelineSnapshot: [{ nodeId: "n1", contractAddress: "CSUB", templateKind: "SUBSCRIPTION" }],
+      });
+
+      const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
+      const res = await POST(req, makeContext("dep-1"));
+
+      expect(res.status).toBe(200);
+      const confirmCall = mockDb.deployment.update.mock.calls.at(-1)?.[0] as {
+        data: Record<string, unknown>;
+      };
+      expect(confirmCall.data.chargeEndAt).toEqual(new Date(endTs * 1000));
+      expect(confirmCall.data.nextChargeAt).toEqual(new Date(startTs * 1000));
+      expect(confirmCall.data.chargeRelayerMode).toBe("PLATFORM");
+      expect(confirmCall.data.chargeRelayerAddress).toBe("GRELAYER");
+    } finally {
+      mockEnv.STELLAR_RELAYER_ADDRESS = null;
+    }
+  });
+
+  it("sets chargeEndAt for a payroll flow whose schedule node is SUBSCRIPTION_DEV", async () => {
+    const startTs = 1_784_174_000;
+    const endTs = 1_784_999_999;
+    mockDb.deployment.findFirst.mockResolvedValue(
+      makeDeployment({
+        flow: { templateKind: "PAYROLL" },
+        pipelineSnapshot: [
+          { nodeId: "n1", contractAddress: "CSUBDEV", templateKind: "SUBSCRIPTION_DEV" },
+          { nodeId: "n2", contractAddress: "CSPLIT", templateKind: "SPLITTER_DEV" },
+        ],
+        paramsSnapshot: [
+          {
+            nodeId: "n1",
+            templateKind: "SUBSCRIPTION_DEV",
+            params: { kind: "subscription_dev_trigger", relayer: "GOTHER", startTs, endTs },
+          },
+          {
+            nodeId: "n2",
+            templateKind: "SPLITTER_DEV",
+            params: { kind: "splitter_dev", recipients: [] },
+          },
+        ],
+      }),
+    );
+    mockDeploy.submitDeployTx.mockResolvedValue({
+      status: "SUCCESS",
+      txHash: TX_HASH,
+      contractAddress: "CSUBDEV",
+    });
+    mockDb.deployment.update.mockResolvedValue({
+      id: "dep-1",
+      status: "CONFIRMED",
+      deployTxHash: TX_HASH,
+      contractAddress: "CSUBDEV",
+      pipelineSnapshot: [
+        { nodeId: "n1", contractAddress: "CSUBDEV", templateKind: "SUBSCRIPTION_DEV" },
+      ],
+    });
+
+    const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
+    const res = await POST(req, makeContext("dep-1"));
+
+    expect(res.status).toBe(200);
+    const confirmCall = mockDb.deployment.update.mock.calls.at(-1)?.[0] as {
+      data: Record<string, unknown>;
+    };
+    expect(confirmCall.data.chargeEndAt).toEqual(new Date(endTs * 1000));
+    // Relayer does not match the (unset) platform relayer, so charges stay manual.
+    expect(confirmCall.data.chargeRelayerMode).toBe("MANUAL");
   });
 });

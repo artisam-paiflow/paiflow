@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
+import { apiError } from "@/lib/friendly-error";
 
 export default function PasskeyLogin({ from }: { from?: string }) {
   const [busy, setBusy] = useState(false);
@@ -17,7 +18,7 @@ export default function PasskeyLogin({ from }: { from?: string }) {
         body: JSON.stringify({}),
       });
       const opts = await optsRes.json();
-      if (!optsRes.ok) throw new Error(opts?.error?.message ?? "Failed to get options");
+      if (!optsRes.ok) throw apiError(opts, "Failed to get options");
       const assertion = await startAuthentication({ optionsJSON: opts.data });
       const verifyRes = await fetch("/api/auth/passkey/login/verify", {
         method: "POST",
@@ -25,7 +26,7 @@ export default function PasskeyLogin({ from }: { from?: string }) {
         body: JSON.stringify({ ...assertion, _scope: opts.data._scope }),
       });
       const verify = await verifyRes.json();
-      if (!verifyRes.ok) throw new Error(verify?.error?.message ?? "Verify failed");
+      if (!verifyRes.ok) throw apiError(verify, "Verify failed");
       const res = await signIn("credentials", {
         passkeyTicket: verify.data.ticket,
         redirect: false,
@@ -33,7 +34,7 @@ export default function PasskeyLogin({ from }: { from?: string }) {
       if (res?.error) throw new Error("Login failed");
       window.location.href = from && from.startsWith("/") ? from : "/dashboard";
     } catch (err) {
-      toast.error((err as Error).message ?? "Passkey sign-in failed");
+      toastError(err, "Passkey sign-in failed");
     } finally {
       setBusy(false);
     }
