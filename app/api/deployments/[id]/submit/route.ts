@@ -144,7 +144,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           ? ["SUBSCRIPTION", "SUBSCRIPTION_DEV"]
           : ["PAYROLL", "SUBSCRIPTION_DEV", "SUBSCRIPTION"];
         const scheduleNode = paramsPipeline?.find((n) => scheduleKinds.includes(n.templateKind));
-        const streamerNode = paramsPipeline?.find((n) => n.templateKind === "STREAMER");
         const relayer =
           typeof scheduleNode?.params?.relayer === "string" ? scheduleNode.params.relayer : null;
         const startTs =
@@ -158,9 +157,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
             : ChargeRelayerMode.MANUAL;
         schedule.chargeRelayerAddress = relayer;
         schedule.nextChargeAt = new Date(Math.max(startTs, Math.floor(Date.now() / 1000)) * 1000);
+        // The schedule node (SUBSCRIPTION / SUBSCRIPTION_DEV / PAYROLL) carries
+        // the flow's end time — see to-params.ts. The auto-charge crons use
+        // chargeEndAt to stop scheduling once the contract's end_time passes;
+        // without it ended subscriptions are retried forever.
         schedule.chargeEndAt =
-          typeof streamerNode?.params?.endTs === "number"
-            ? new Date(streamerNode.params.endTs * 1000)
+          typeof scheduleNode?.params?.endTs === "number"
+            ? new Date(scheduleNode.params.endTs * 1000)
             : null;
       }
 
