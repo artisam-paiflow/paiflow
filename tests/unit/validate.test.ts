@@ -1023,6 +1023,7 @@ describe("validateFlow", () => {
           type: "split",
           config: {
             asset: { kind: "native" },
+            amountPerIntervalStroops: "1000",
             recipients: [
               { address: ADDR_A, bps: 6000 },
               { address: ADDR_B, bps: 4000 },
@@ -1037,6 +1038,96 @@ describe("validateFlow", () => {
       expect(r.templateKind).toBe(TemplateKind.STREAMER);
       expect(r.pipeline).toEqual([TemplateKind.STREAMER]);
     }
+  });
+
+  it("rejects on_schedule → split without an amount per interval", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "day",
+            startsAt: "2030-01-01T00:00:00.000Z",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [
+              { address: ADDR_A, bps: 6000 },
+              { address: ADDR_B, bps: 4000 },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => e.path === "nodes.a.config.amountPerIntervalStroops")).toBe(true);
+    }
+  });
+
+  it("rejects on_schedule → split with a zero amount per interval", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "day",
+            startsAt: "2030-01-01T00:00:00.000Z",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            amountPerIntervalStroops: "0",
+            recipients: [
+              { address: ADDR_A, bps: 6000 },
+              { address: ADDR_B, bps: 4000 },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => e.path === "nodes.a.config.amountPerIntervalStroops")).toBe(true);
+    }
+  });
+
+  it("allows on_receive → split without an amount per interval", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "on_receive",
+          config: { asset: { kind: "native" } },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [
+              { address: ADDR_A, bps: 6000 },
+              { address: ADDR_B, bps: 4000 },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
   });
 
   it("accepts on_schedule with pauseAllowed: false", () => {
@@ -1133,6 +1224,7 @@ describe("validateFlow", () => {
           type: "split",
           config: {
             asset: { kind: "native" },
+            amountPerIntervalStroops: "1000",
             recipients: [
               { address: ADDR_A, bps: 5000 },
               { address: ADDR_B, bps: 5000 },

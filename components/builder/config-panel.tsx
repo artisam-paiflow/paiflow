@@ -873,7 +873,12 @@ export default function ConfigPanel({
 
           {triggerType === "on_schedule" && (
             <Field
-              label={`Amount per interval (${assetLabel(node.config.asset)})`}
+              label={
+                <>
+                  Amount per interval ({assetLabel(node.config.asset)}){" "}
+                  <span className="text-error">*</span>
+                </>
+              }
               error={fieldError("amountPerIntervalStroops")}
             >
               <input
