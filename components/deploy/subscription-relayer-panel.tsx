@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
 import ContractCallButton from "./contract-call-button";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
+import { apiError } from "@/lib/friendly-error";
 
 type RelayerConfig = {
   mode: "PLATFORM" | "USER" | "MANUAL";
@@ -48,7 +50,7 @@ export default function SubscriptionRelayerPanel({
       setToken(""); // never return the stored token
       setRelayerAddress(json.data.relayerAddress ?? "");
     } catch (err) {
-      toast.error((err as Error).message);
+      toastError(err);
     } finally {
       setLoading(false);
     }
@@ -81,7 +83,7 @@ export default function SubscriptionRelayerPanel({
         };
         error?: { message?: string };
       };
-      if (!res.ok) throw new Error(json.error?.message ?? "Save failed");
+      if (!res.ok) throw apiError(json, "Save failed");
 
       if (json.data?.setRelayerXdr) {
         setPendingXdr(json.data.setRelayerXdr);
@@ -92,7 +94,7 @@ export default function SubscriptionRelayerPanel({
         await fetchConfig();
       }
     } catch (err) {
-      toast.error((err as Error).message);
+      toastError(err);
     } finally {
       setSaving(false);
     }

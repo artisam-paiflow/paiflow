@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
 import type { TemplateKind } from "@prisma/client";
+import { apiError } from "@/lib/friendly-error";
 
 type WalletKit = {
   getAddress: () => Promise<{ address: string }>;
@@ -63,7 +65,7 @@ export default function DeployReview({
         body: JSON.stringify({ flowId, sourceAccount: address }),
       });
       const prepData = await prep.json();
-      if (!prep.ok) throw new Error(prepData?.error?.message ?? "Prepare failed");
+      if (!prep.ok) throw apiError(prepData, "Prepare failed");
       setPipeline(prepData.data.pipeline ?? []);
 
       const signed = await kit.signTransaction(prepData.data.xdr, {
@@ -77,11 +79,11 @@ export default function DeployReview({
         body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
       });
       const subData = await submit.json();
-      if (!submit.ok) throw new Error(subData?.error?.message ?? "Submit failed");
+      if (!submit.ok) throw apiError(subData, "Submit failed");
       toast.success("Contract deployed.");
       window.location.href = `/deployments/${prepData.data.deploymentId}`;
     } catch (err) {
-      toast.error((err as Error).message ?? "Deploy failed");
+      toastError(err, "Deploy failed");
     } finally {
       setBusy(false);
     }

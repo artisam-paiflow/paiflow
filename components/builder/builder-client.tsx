@@ -19,6 +19,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
 import { cn } from "@/lib/utils";
 import type { FlowGraph, FlowNode, SenderKyc } from "@/lib/flows/schema";
 import { isPendingAddress } from "@/lib/flows/schema";
@@ -35,6 +36,7 @@ import SenderKycDialog from "./sender-kyc-dialog";
 import RaftLog, { type ChatMessage } from "./raft-log";
 import type { PatchOp } from "@/lib/ai/prompts";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
+import { apiError } from "@/lib/friendly-error";
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -206,7 +208,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       const r = await fetch("/api/address-book");
       if (!r.ok) {
         const body = (await r.json().catch(() => ({}))) as { error?: { message?: string } };
-        throw new Error(body.error?.message ?? `Failed to load contacts (HTTP ${r.status})`);
+        throw apiError(body, `Failed to load contacts (HTTP ${r.status})`);
       }
       const json = await r.json();
       setAddressBook(json?.data ?? []);
@@ -341,7 +343,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        toast.error(`Save failed: ${body?.error?.message ?? res.status}`);
+        toastError(body, `Save failed (${res.status})`);
       }
     };
 
@@ -562,7 +564,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json?.error?.message ?? "Failed to resolve addresses");
+        toastError(json, "Failed to resolve addresses");
         return;
       }
       const resolvedFlow = json.data.flow as FlowGraph;

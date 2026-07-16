@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
+import { apiError } from "@/lib/friendly-error";
 
 /**
  * "New flow" trigger + confirmation dialog. Renders as a plain button styled by
@@ -59,14 +60,14 @@ export default function NewFlowButton({
       });
       if (!r.ok) {
         const b = await r.json().catch(() => ({}));
-        throw new Error(b?.error?.message ?? "Failed to create flow");
+        throw apiError(b, "Failed to create flow");
       }
       const json = await r.json();
       // Keep the overlay up (busy) through the navigation so the dialog can't be
       // re-submitted while the builder loads.
       router.push(`/flows/${json.data.id}`);
     } catch (e) {
-      toast.error((e as Error).message ?? "Failed to create flow");
+      toastError(e, "Failed to create flow");
       setBusy(false);
     }
   }

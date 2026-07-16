@@ -29,19 +29,28 @@ export class AppError extends Error {
   readonly code: AppErrorCode;
   readonly fields?: Record<string, string[]>;
   readonly status: number;
+  /** Raw technical detail (e.g. a Soroban diagnostic dump) for the UI to
+   * expose behind a "show details" affordance. Never shown by default. */
+  readonly details?: string;
 
-  constructor(code: AppErrorCode, message: string, fields?: Record<string, string[]>) {
+  constructor(
+    code: AppErrorCode,
+    message: string,
+    fields?: Record<string, string[]>,
+    details?: string,
+  ) {
     super(message);
     this.code = code;
     this.fields = fields;
     this.status = STATUS[code];
+    this.details = details;
   }
 }
 
 export function errorResponse(err: unknown): NextResponse {
   if (err instanceof AppError) {
     return NextResponse.json(
-      { error: { code: err.code, message: err.message, fields: err.fields } },
+      { error: { code: err.code, message: err.message, fields: err.fields, details: err.details } },
       { status: err.status },
     );
   }

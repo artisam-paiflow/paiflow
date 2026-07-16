@@ -9,6 +9,7 @@ import { assetLabel, tokenAmountToStroops } from "@/lib/flows/schema";
 import { formatStroops } from "@/lib/utils";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import type { Asset } from "@/lib/flows/schema";
+import { apiError } from "@/lib/friendly-error";
 
 type PayrollRecipient = {
   address: string;
@@ -213,7 +214,7 @@ export default function PayrollPanel({
                   data?: { unsignedXdr: string; networkPassphrase: string };
                   error?: { message?: string };
                 };
-                if (!res.ok) throw new Error(json.error?.message ?? "Unknown error");
+                if (!res.ok) throw apiError(json, "Unknown error");
                 const data = json.data;
                 if (!data) throw new Error("Prepare failed");
                 return { xdr: data.unsignedXdr, networkPassphrase: data.networkPassphrase };
@@ -228,7 +229,7 @@ export default function PayrollPanel({
                   data?: { txHash: string };
                   error?: { message?: string };
                 };
-                if (!res.ok) throw new Error(json.error?.message ?? "Submit failed");
+                if (!res.ok) throw apiError(json, "Submit failed");
                 if (!json.data) throw new Error("Submit response missing txHash");
                 return { txHash: json.data.txHash };
               }}
@@ -363,7 +364,7 @@ export default function PayrollPanel({
               data?: { unsignedXdr: string; networkPassphrase: string };
               error?: { message?: string };
             };
-            if (!res.ok) throw new Error(json.error?.message ?? "Unknown error");
+            if (!res.ok) throw apiError(json, "Unknown error");
             const data = json.data;
             if (!data) throw new Error("Prepare failed");
             return { xdr: data.unsignedXdr, networkPassphrase: data.networkPassphrase };
@@ -378,7 +379,7 @@ export default function PayrollPanel({
               data?: { txHash: string };
               error?: { message?: string };
             };
-            if (!res.ok) throw new Error(json.error?.message ?? "Submit failed");
+            if (!res.ok) throw apiError(json, "Submit failed");
             if (!json.data) throw new Error("Submit response missing txHash");
 
             // Book-keep the manual charge so off-ramp jobs can be created.
@@ -432,7 +433,7 @@ export default function PayrollPanel({
                 data?: { unsignedXdr: string; networkPassphrase: string };
                 error?: { message?: string };
               };
-              if (!res.ok) throw new Error(json.error?.message ?? "Unknown error");
+              if (!res.ok) throw apiError(json, "Unknown error");
               const data = json.data;
               if (!data) throw new Error("Prepare failed");
               return { xdr: data.unsignedXdr, networkPassphrase: data.networkPassphrase };
@@ -447,7 +448,7 @@ export default function PayrollPanel({
                 data?: { txHash: string };
                 error?: { message?: string };
               };
-              if (!res.ok) throw new Error(json.error?.message ?? "Submit failed");
+              if (!res.ok) throw apiError(json, "Submit failed");
               if (!json.data) throw new Error("Submit response missing txHash");
               return { txHash: json.data.txHash };
             }}
@@ -475,7 +476,7 @@ export default function PayrollPanel({
                 data?: { unsignedXdr: string; networkPassphrase: string };
                 error?: { message?: string };
               };
-              if (!res.ok) throw new Error(json.error?.message ?? "Unknown error");
+              if (!res.ok) throw apiError(json, "Unknown error");
               const data = json.data;
               if (!data) throw new Error("Prepare failed");
               return { xdr: data.unsignedXdr, networkPassphrase: data.networkPassphrase };
@@ -490,7 +491,7 @@ export default function PayrollPanel({
                 data?: { txHash: string };
                 error?: { message?: string };
               };
-              if (!res.ok) throw new Error(json.error?.message ?? "Submit failed");
+              if (!res.ok) throw apiError(json, "Submit failed");
               if (!json.data) throw new Error("Submit response missing txHash");
               return { txHash: json.data.txHash };
             }}

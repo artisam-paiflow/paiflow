@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
+import { apiError } from "@/lib/friendly-error";
 
 type Credential = {
   provider: string;
@@ -42,9 +44,7 @@ export default function OffRampCredentialForm() {
           }
         }
       })
-      .catch((err) =>
-        toast.error(err instanceof Error ? err.message : "Failed to load credentials"),
-      )
+      .catch((err) => toastError(err, "Failed to load credentials"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -74,11 +74,11 @@ export default function OffRampCredentialForm() {
       });
       if (!res.ok) {
         const json = (await res.json()) as { error?: { message?: string } };
-        throw new Error(json.error?.message ?? "Failed to save credentials");
+        throw apiError(json, "Failed to save credentials");
       }
       toast.success("PDAX credentials saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
+      toastError(err, "Save failed");
     } finally {
       setSaving(false);
     }

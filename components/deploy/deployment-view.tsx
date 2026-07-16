@@ -13,6 +13,7 @@ import type { FlowGraph } from "@/lib/flows/schema";
 import { assetLabel, isTrigger } from "@/lib/flows/schema";
 import { formatStroops } from "@/lib/utils";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
+import { apiError } from "@/lib/friendly-error";
 
 export default function DeploymentView({
   deploymentId,
@@ -385,7 +386,7 @@ export default function DeploymentView({
                       error?: { message?: string };
                     };
                     if (!res.ok) {
-                      throw new Error(json.error?.message ?? "Unknown error");
+                      throw apiError(json, "Unknown error");
                     }
                     const data = json.data;
                     if (!data) throw new Error("Prepare failed");
@@ -436,7 +437,7 @@ export default function DeploymentView({
                         error?: { message?: string };
                       };
                       if (!res.ok) {
-                        throw new Error(json.error?.message ?? "Unknown error");
+                        throw apiError(json, "Unknown error");
                       }
                       const data = json.data;
                       if (!data) throw new Error("Prepare failed");
@@ -480,7 +481,7 @@ export default function DeploymentView({
                         error?: { message?: string };
                       };
                       if (!res.ok) {
-                        throw new Error(json.error?.message ?? "Unknown error");
+                        throw apiError(json, "Unknown error");
                       }
                       const data = json.data;
                       if (!data) throw new Error("Prepare failed");
@@ -554,7 +555,7 @@ export default function DeploymentView({
                       error?: { message?: string };
                     };
                     if (!res.ok) {
-                      throw new Error(json.error?.message ?? "Unknown error");
+                      throw apiError(json, "Unknown error");
                     }
                     const data = json.data;
                     if (!data) throw new Error("Prepare failed");
@@ -599,7 +600,7 @@ export default function DeploymentView({
                       error?: { message?: string };
                     };
                     if (!res.ok) {
-                      throw new Error(json.error?.message ?? "Unknown error");
+                      throw apiError(json, "Unknown error");
                     }
                     const data = json.data;
                     if (!data) throw new Error("Prepare failed");
@@ -646,7 +647,7 @@ export default function DeploymentView({
                       error?: { message?: string };
                     };
                     if (!res.ok) {
-                      throw new Error(json.error?.message ?? "Unknown error");
+                      throw apiError(json, "Unknown error");
                     }
                     const data = json.data;
                     if (!data) throw new Error("Prepare failed");

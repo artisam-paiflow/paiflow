@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
+import { apiError } from "@/lib/friendly-error";
 
 type SenderProfile = {
   firstName: string;
@@ -266,7 +268,7 @@ export default function OffRampSenderForm({ deploymentId }: { deploymentId: stri
           setProfile({ ...EMPTY, ...json.data.profile });
         }
       })
-      .catch((err) => toast.error(err.message))
+      .catch((err) => toastError(err))
       .finally(() => setLoading(false));
   }, [deploymentId]);
 
@@ -295,11 +297,11 @@ export default function OffRampSenderForm({ deploymentId }: { deploymentId: stri
       });
       if (!res.ok) {
         const json = (await res.json()) as { error?: { message?: string } };
-        throw new Error(json.error?.message ?? "Failed to save sender profile");
+        throw apiError(json, "Failed to save sender profile");
       }
       toast.success("Sender KYC saved");
     } catch (err) {
-      toast.error((err as Error).message ?? "Save failed");
+      toastError(err, "Save failed");
     } finally {
       setSaving(false);
     }

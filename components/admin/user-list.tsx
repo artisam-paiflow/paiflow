@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
 
 type AdminUser = {
   id: string;
@@ -25,7 +26,7 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
     });
     if (!r.ok) {
       const b = await r.json().catch(() => ({}));
-      toast.error(b?.error?.message ?? "Failed");
+      toastError(b, "Failed");
       return;
     }
     toast.success("Updated.");
@@ -55,7 +56,7 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
     });
     const body = await r.json().catch(() => ({}));
     if (!r.ok) {
-      toast.error(body?.error?.message ?? "Failed");
+      toastError(body, "Failed");
       return;
     }
     toast.success("Created.");

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { StrKey } from "@stellar/stellar-sdk";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
 
 export type ChatMessage =
   | { role: "user"; content: string }
@@ -398,7 +399,7 @@ export default function RaftLog({
             if (!isMountedRef.current) return;
             const json = await res.json();
             if (!res.ok) {
-              toast.error(json?.error?.message ?? "Transcription failed");
+              toastError(json, "Transcription failed");
               return;
             }
             onSend(json.data.text);

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
 
 type SubmitState = "idle" | "submitting" | "done";
 
@@ -54,7 +55,7 @@ export default function NewPasswordForm({ token }: { token: string | null }) {
       const body = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        toast.error(body?.error?.message ?? "Couldn't update password.");
+        toastError(body, "Couldn't update password.");
         setState("idle");
         return;
       }

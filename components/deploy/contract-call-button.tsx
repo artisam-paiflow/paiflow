@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
 import { usePollTxStatus } from "@/lib/hooks/use-poll-tx-status";
 import { getWalletKit } from "./wallet-kit";
 
@@ -87,7 +88,7 @@ export default function ContractCallButton({
               throw new Error(outcome.errorMessage ?? "Transaction failed on the network");
             }
           } catch (err) {
-            toast.error((err as Error).message ?? "Transaction failed");
+            toastError(err, "Transaction failed");
           } finally {
             setBusy(false);
           }
@@ -99,7 +100,7 @@ export default function ContractCallButton({
         },
       });
     } catch (err) {
-      toast.error((err as Error).message ?? "Connection failed");
+      toastError(err, "Connection failed");
       setBusy(false);
     }
   }, [busy, deploymentId, network, prepare, submit, onSuccess]);

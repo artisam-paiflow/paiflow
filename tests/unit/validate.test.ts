@@ -2545,3 +2545,175 @@ describe("validateFlow — hard limits", () => {
     expect(usdcSplit("3000000000").ok).toBe(false); // 300 USDC: above max
   });
 });
+
+describe("validateFlow — schedule window (endsAt vs start)", () => {
+  const PAST = "2020-01-01T00:00:00.000Z";
+  const PAST_LATER = "2020-06-01T00:00:00.000Z";
+  const FUTURE = "2030-01-01T00:00:00.000Z";
+  const FUTURE_LATER = "2030-06-01T00:00:00.000Z";
+
+  function scheduleFlow(triggerConfig: Record<string, unknown>) {
+    return {
+      nodes: [
+        { id: "t", type: "on_schedule", config: triggerConfig },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            amountStroops: "100",
+            asset: { kind: "known", symbol: "USDC" },
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    };
+  }
+
+  function subscriptionFlow(triggerConfig: Record<string, unknown>) {
+    return {
+      nodes: [
+        {
+          id: "t",
+          type: "subscription",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            subscriber: ADDR_A,
+            amountPerPeriodStroops: "10000000",
+            intervalAmount: 1,
+            intervalUnit: "day",
+            ...triggerConfig,
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "10000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    };
+  }
+
+  it("rejects an on_schedule whose endsAt is in the past (start clamped to now)", () => {
+    const r = validateFlow(
+      scheduleFlow({
+        intervalAmount: 1,
+        intervalUnit: "hour",
+        startsAt: PAST,
+        endsAt: PAST_LATER,
+      }),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => e.path.endsWith("config.endsAt"))).toBe(true);
+      expect(r.errors.find((e) => e.path.endsWith("config.endsAt"))?.friendlyMessage).toMatch(
+        /already passed/i,
+      );
+    }
+  });
+
+  it("rejects an on_schedule whose endsAt is before a future startsAt", () => {
+    const r = validateFlow(
+      scheduleFlow({
+        intervalAmount: 1,
+        intervalUnit: "hour",
+        startsAt: FUTURE_LATER,
+        endsAt: FUTURE,
+      }),
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.find((e) => e.path.endsWith("config.endsAt"))?.friendlyMessage).toMatch(
+        /before its start time/i,
+      );
+    }
+  });
+
+  it("rejects an on_schedule whose endsAt equals its startsAt", () => {
+    const r = validateFlow(
+      scheduleFlow({
+        intervalAmount: 1,
+        intervalUnit: "hour",
+        startsAt: FUTURE,
+        endsAt: FUTURE,
+      }),
+    );
+    expect(r.ok).toBe(false);
+  });
+
+  it("accepts an on_schedule with a valid future window", () => {
+    const r = validateFlow(
+      scheduleFlow({
+        intervalAmount: 1,
+        intervalUnit: "hour",
+        startsAt: FUTURE,
+        endsAt: FUTURE_LATER,
+      }),
+    );
+    expect(r.ok).toBe(true);
+  });
+
+  it("accepts an on_schedule with a past startsAt and a future endsAt (clamped start)", () => {
+    const r = validateFlow(
+      scheduleFlow({
+        intervalAmount: 1,
+        intervalUnit: "hour",
+        startsAt: PAST,
+        endsAt: FUTURE,
+      }),
+    );
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects a subscription whose endsAt is in the past", () => {
+    const r = validateFlow(subscriptionFlow({ endsAt: PAST }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => e.path.endsWith("config.endsAt"))).toBe(true);
+    }
+  });
+
+  it("accepts a subscription with a future endsAt", () => {
+    const r = validateFlow(subscriptionFlow({ endsAt: FUTURE }));
+    expect(r.ok).toBe(true);
+  });
+
+  it("accepts a payroll with fillScheduleViaApi even with a past endsAt (placeholder schedule)", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            employer: ADDR_A,
+            intervalAmount: 1,
+            intervalUnit: "week",
+            endsAt: PAST,
+            fillScheduleViaApi: true,
+          },
+        },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "10000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+  });
+});
