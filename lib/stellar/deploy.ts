@@ -18,6 +18,12 @@ import { AppError } from "@/lib/errors";
 import type { ContractParams, PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { constructorArgs, nodeBlueprint, pipelineNodeConstructorArgs } from "./scval";
+import { simulationFailure } from "./sim-error";
+import {
+  contractKeyForParamsKind,
+  contractKeyForTemplate,
+  type ContractErrorKey,
+} from "./soroban-errors";
 
 // 2 XLM covers: 1 XLM base reserve + ~0.5 XLM Soroban storage entries + ~0.5 XLM tx fee buffer
 const MIN_DEPLOYMENT_XLM_STROOPS = 20_000_000n;
@@ -88,7 +94,9 @@ export async function prepareDeployTx(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, {
+      contract: contractKeyForParamsKind(opts.params.kind),
+    });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -219,7 +227,14 @@ async function preparePipelineDeployTxFromPlan(
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    // The diagnostic event log names the contract address that rejected —
+    // map it back to the pipeline node's template for a precise message.
+    const addressMap: Record<string, ContractErrorKey> = {};
+    for (const n of plan.nodes) {
+      const key = contractKeyForTemplate(n.templateKind);
+      if (key) addressMap[n.contractAddress] = key;
+    }
+    throw simulationFailure(sim.error, { addressMap });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 

@@ -11,7 +11,7 @@ import {
 } from "@stellar/stellar-sdk";
 import { sorobanRpc, decodeContractAddress } from "./client";
 import { stellarPassphrase } from "@/lib/env";
-import { AppError } from "@/lib/errors";
+import { simulationFailure } from "./sim-error";
 
 export type PreparedInvoke = {
   xdr: string;
@@ -54,7 +54,7 @@ export async function prepareDistributeInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error);
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -111,7 +111,7 @@ export async function prepareWebhookExecuteInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "webhook" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -151,7 +151,7 @@ export async function prepareWebhookDepositInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "webhook" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -193,7 +193,7 @@ export async function prepareWebhookEscrowInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "webhook" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -235,7 +235,7 @@ export async function prepareTokenTransferInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error);
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -275,7 +275,7 @@ export async function prepareDepositInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error);
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -312,7 +312,7 @@ export async function prepareStreamerPauseInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "streamer" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -349,7 +349,7 @@ export async function prepareStreamerUnpauseInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "streamer" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -386,7 +386,7 @@ export async function prepareStreamerRetrieveUnvestedInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "streamer" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -426,7 +426,7 @@ export async function prepareStreamerTopUpInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "streamer" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -482,7 +482,7 @@ export async function prepareTokenApproveInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error);
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -519,7 +519,7 @@ export async function prepareSubscriptionUnsubscribeInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "subscription" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -556,7 +556,7 @@ export async function prepareSubscriptionSubscribeInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "subscription" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -593,7 +593,7 @@ export async function prepareSubscriptionChargeInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "subscription" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -630,7 +630,7 @@ export async function prepareSubscriptionChargeByRelayerUnsigned(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "subscription" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -668,7 +668,7 @@ export async function prepareSubscriptionSetRelayerInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "subscription" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -724,7 +724,7 @@ export async function preparePayrollChargeInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "payroll" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -761,7 +761,7 @@ export async function preparePayrollChargeByRelayerUnsigned(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "payroll" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -799,7 +799,7 @@ export async function preparePayrollUpdateRecipientsInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "payroll" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -837,7 +837,7 @@ export async function preparePayrollSetRelayerInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "payroll" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -874,7 +874,7 @@ export async function preparePayrollUnsubscribeInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "payroll" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -911,7 +911,7 @@ export async function preparePayrollSubscribeInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError("UPSTREAM_RPC", `Soroban simulate failed: ${sim.error}`);
+    throw simulationFailure(sim.error, { contract: "payroll" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 

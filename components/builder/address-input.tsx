@@ -12,6 +12,7 @@ import {
   findInitialHighlightIndex,
   nextHighlightIndex,
 } from "./address-input.utils";
+import { apiError } from "@/lib/friendly-error";
 
 export type AddressInputProps = {
   value: string;
@@ -256,7 +257,7 @@ export default function AddressInput({
       });
       if (!r.ok) {
         const b = await r.json().catch(() => ({}));
-        throw new Error(b?.error?.message ?? "Failed to save contact");
+        throw apiError(b, "Failed to save contact");
       }
       toast.success("Contact saved to address book.");
       setShowSave(false);

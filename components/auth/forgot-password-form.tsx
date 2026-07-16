@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
 
 type SubmitState = "idle" | "submitting" | "sent";
 
@@ -23,11 +24,11 @@ export default function ForgotPasswordForm() {
 
       if (!res.ok) {
         if (res.status === 429) {
-          toast.error(body?.error?.message ?? "Too many requests. Try again later.");
+          toastError(body, "Too many requests. Try again later.");
         } else if (res.status === 422) {
-          toast.error(body?.error?.message ?? "Enter a valid email address.");
+          toastError(body, "Enter a valid email address.");
         } else {
-          toast.error(body?.error?.message ?? "Couldn't send the reset email.");
+          toastError(body, "Couldn't send the reset email.");
         }
         setState("idle");
         return;

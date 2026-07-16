@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
 import { StrKey } from "@stellar/stellar-sdk";
 import { formatStroops, formatAmount } from "@/lib/utils";
 import type { Asset } from "@/lib/flows/schema";
 import { assetLabel } from "@/lib/flows/schema";
 import { usePollTxStatus } from "@/lib/hooks/use-poll-tx-status";
+import { apiError } from "@/lib/friendly-error";
 
 type Employee = {
   address: string;
@@ -76,7 +78,7 @@ export default function EmployeeManager({
         setEmployees(emps);
         setBankDetails(banks);
       })
-      .catch((err) => toast.error(err.message))
+      .catch((err) => toastError(err))
       .finally(() => setLoading(false));
   }, [deploymentId]);
 
@@ -157,7 +159,7 @@ export default function EmployeeManager({
         };
         error?: { message?: string };
       };
-      if (!res.ok) throw new Error(json.error?.message ?? "Failed to prepare update");
+      if (!res.ok) throw apiError(json, "Failed to prepare update");
       const data = json.data;
       if (!data) throw new Error("Prepare failed");
 
@@ -207,7 +209,7 @@ export default function EmployeeManager({
         },
       });
     } catch (err) {
-      toast.error((err as Error).message ?? "Update failed");
+      toastError(err, "Update failed");
     } finally {
       setSaving(false);
     }
@@ -240,12 +242,12 @@ export default function EmployeeManager({
         });
         if (!res.ok) {
           const json = (await res.json()) as { error?: { message?: string } };
-          throw new Error(json.error?.message ?? `Failed to save bank details for ${e.address}`);
+          throw apiError(json, `Failed to save bank details for ${e.address}`);
         }
       }
       toast.success("Bank details saved");
     } catch (err) {
-      toast.error((err as Error).message ?? "Bank details save failed");
+      toastError(err, "Bank details save failed");
     } finally {
       setSavingBanks(false);
     }

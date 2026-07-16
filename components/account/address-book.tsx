@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
 import { StrKey } from "@stellar/stellar-sdk";
 import { shortAddr } from "@/lib/utils";
+import { apiError } from "@/lib/friendly-error";
 
 type Entry = {
   id: string;
@@ -74,14 +76,14 @@ export default function AddressBookManager() {
       });
       if (!r.ok) {
         const b = await r.json().catch(() => ({}));
-        throw new Error(b?.error?.message ?? "Failed to add contact");
+        throw apiError(b, "Failed to add contact");
       }
       toast.success("Contact saved.");
       setFormLabel("");
       setFormAddress("");
       await refresh();
     } catch (err) {
-      toast.error((err as Error).message ?? "Failed");
+      toastError(err, "Failed");
     } finally {
       setBusy(false);
     }
@@ -118,7 +120,7 @@ export default function AddressBookManager() {
       });
       if (!r.ok) {
         const b = await r.json().catch(() => ({}));
-        throw new Error(b?.error?.message ?? "Failed to update contact");
+        throw apiError(b, "Failed to update contact");
       }
       toast.success("Contact updated.");
       setEditingId(null);
@@ -126,7 +128,7 @@ export default function AddressBookManager() {
       setEditAddress("");
       await refresh();
     } catch (err) {
-      toast.error((err as Error).message ?? "Failed");
+      toastError(err, "Failed");
     } finally {
       setBusy(false);
     }

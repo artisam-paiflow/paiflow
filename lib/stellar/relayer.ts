@@ -12,6 +12,7 @@ import {
 import { sorobanRpc, decodeContractAddress } from "./client";
 import { stellarPassphrase, stellarRelayerAddress, stellarRelayerSecretKey } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { simulationFailure } from "./sim-error";
 
 export async function prepareReleaseByRelayerTx(
   contractAddress: string,
@@ -58,10 +59,7 @@ export async function prepareReleaseByRelayerTx(
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError(
-      "UPSTREAM_RPC",
-      `Soroban simulate failed for ${contractAddress}: ${sim.error}`,
-    );
+    throw simulationFailure(`Soroban simulate failed for ${contractAddress}: ${sim.error}`);
   }
 
   const assembled = rpc.assembleTransaction(tx, sim).build();
@@ -339,10 +337,9 @@ export async function prepareStreamerClaimByRelayerTx(
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError(
-      "UPSTREAM_RPC",
-      `Soroban simulate failed for ${contractAddress}: ${sim.error}`,
-    );
+    throw simulationFailure(`Soroban simulate failed for ${contractAddress}: ${sim.error}`, {
+      contract: "streamer",
+    });
   }
 
   const assembled = rpc.assembleTransaction(tx, sim).build();
@@ -504,10 +501,9 @@ export async function prepareSubscriptionChargeByRelayerTx(
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError(
-      "UPSTREAM_RPC",
-      `Soroban simulate failed for ${contractAddress}: ${sim.error}`,
-    );
+    throw simulationFailure(`Soroban simulate failed for ${contractAddress}: ${sim.error}`, {
+      contract: "subscription",
+    });
   }
 
   const assembled = rpc.assembleTransaction(tx, sim).build();
@@ -1232,10 +1228,9 @@ export async function preparePayrollChargeByRelayerTx(
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError(
-      "UPSTREAM_RPC",
-      `Soroban simulate failed for ${contractAddress}: ${sim.error}`,
-    );
+    throw simulationFailure(`Soroban simulate failed for ${contractAddress}: ${sim.error}`, {
+      contract: "payroll",
+    });
   }
 
   const assembled = rpc.assembleTransaction(tx, sim).build();

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
+import { apiError } from "@/lib/friendly-error";
 
 type Passkey = {
   id: string;
@@ -49,12 +51,12 @@ export default function PasskeyManager() {
       });
       if (!verifyRes.ok) {
         const b = await verifyRes.json().catch(() => ({}));
-        throw new Error(b?.error?.message ?? "Verification failed");
+        throw apiError(b, "Verification failed");
       }
       toast.success("Passkey added.");
       await refresh();
     } catch (err) {
-      toast.error((err as Error).message ?? "Failed");
+      toastError(err, "Failed");
     } finally {
       setBusy(false);
     }

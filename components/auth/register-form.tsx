@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-toast";
 
 export default function RegisterForm() {
   const [submitting, setSubmitting] = useState(false);
@@ -18,7 +19,7 @@ export default function RegisterForm() {
     setSubmitting(false);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      toast.error(body?.error?.message ?? "Registration failed");
+      toastError(body, "Registration failed");
       return;
     }
     toast.success("Account created. Please sign in.");
