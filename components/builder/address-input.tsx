@@ -364,10 +364,14 @@ export default function AddressInput({
             {filtered.map((entry, index) => {
               const selected = entry.address === trimmedValue;
               const highlighted = index === highlightIndex;
+              // A div, not a <button>: the copy control inside is a real
+              // button, and nested <button> elements are invalid HTML (React
+              // hydration error). Selection happens via onMouseDown while
+              // focus stays in the search input, so no button semantics are
+              // lost.
               return (
-                <button
+                <div
                   key={entry.address}
-                  type="button"
                   role="option"
                   aria-selected={selected}
                   data-index={index}
@@ -376,7 +380,7 @@ export default function AddressInput({
                     selectEntry(entry);
                   }}
                   className={cn(
-                    "w-full px-3 py-2 text-left transition-colors",
+                    "w-full cursor-pointer px-3 py-2 text-left transition-colors",
                     selected && "bg-primary/10 text-primary border-primary border-l-2",
                     highlighted && !selected && "bg-surface-container",
                     !selected && !highlighted && "hover:bg-surface-container-high/60",
@@ -416,7 +420,7 @@ export default function AddressInput({
                       <span className="material-symbols-outlined text-[16px]">content_copy</span>
                     </button>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
