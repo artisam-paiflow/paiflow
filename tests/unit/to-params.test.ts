@@ -229,7 +229,6 @@ describe("flowToParams", () => {
             type: "split",
             config: {
               asset: { kind: "native" },
-              amountPerIntervalStroops: "500",
               recipients: [
                 { address: ADDR_A, mode: "fixed", amountStroops: "1000000000" },
                 { address: ADDR_B, mode: "fixed", amountStroops: "2000000000" },
@@ -250,6 +249,47 @@ describe("flowToParams", () => {
       expect(out.recipients[1]!.amount).toBe("2000000000");
       // Sum must be exactly TOTAL_BPS so the contract constructor accepts it.
       expect(out.recipients.reduce((s, r) => s + r.bps, 0)).toBe(10_000);
+      // Fixed mode: the per-interval base is the sum of the amounts, so each
+      // recipient receives exactly their amount every interval.
+      expect(out.amountPerIntervalStroops).toBe("3000000000");
+    }
+  });
+
+  it("lets fixed amounts take precedence over a stale amount per interval", () => {
+    // A leftover amountPerIntervalStroops from a prior percentage-mode
+    // configuration must not contradict the fixed recipient amounts.
+    const out = flowToParams(
+      {
+        nodes: [
+          {
+            id: "t",
+            type: "on_schedule",
+            config: {
+              intervalAmount: 1,
+              intervalUnit: "hour",
+              startsAt: "2030-01-01T00:00:00.000Z",
+            },
+          },
+          {
+            id: "a",
+            type: "split",
+            config: {
+              asset: { kind: "native" },
+              amountPerIntervalStroops: "500",
+              recipients: [
+                { address: ADDR_A, mode: "fixed", amountStroops: "1000000000" },
+                { address: ADDR_B, mode: "fixed", amountStroops: "2000000000" },
+              ],
+            },
+          },
+        ],
+        edges: [{ id: "e", source: "t", target: "a" }],
+      } as Parameters<typeof flowToParams>[0],
+      TemplateKind.STREAMER,
+    );
+    expect(out.kind).toBe("streamer");
+    if (out.kind === "streamer") {
+      expect(out.amountPerIntervalStroops).toBe("3000000000");
     }
   });
 
@@ -271,7 +311,6 @@ describe("flowToParams", () => {
             type: "split",
             config: {
               asset: { kind: "native" },
-              amountPerIntervalStroops: "500",
               recipients: [
                 { address: ADDR_A, mode: "fixed", amountStroops: "1" },
                 { address: ADDR_B, mode: "fixed", amountStroops: "1" },
@@ -291,6 +330,7 @@ describe("flowToParams", () => {
       expect(out.recipients[1]!.bps).toBe(3333);
       expect(out.recipients[2]!.bps).toBe(3334);
       expect(out.recipients.reduce((s, r) => s + r.bps, 0)).toBe(10_000);
+      expect(out.amountPerIntervalStroops).toBe("3");
     }
   });
 
@@ -311,7 +351,6 @@ describe("flowToParams", () => {
           type: "split",
           config: {
             asset: { kind: "native" },
-            amountPerIntervalStroops: "500",
             recipients: [
               { address: ADDR_A, mode: "fixed", amountStroops: "1000000000" },
               { address: ADDR_B, mode: "fixed", amountStroops: "2000000000" },
@@ -330,6 +369,7 @@ describe("flowToParams", () => {
     expect(params.recipients[0]!.bps).toBe(3333);
     expect(params.recipients[1]!.bps).toBe(6667);
     expect(params.recipients.reduce((s, r) => s + r.bps, 0)).toBe(10_000);
+    expect(params.amountPerIntervalStroops).toBe("3000000000");
   });
 
   it("honors pauseAllowed: false in streamer params", () => {

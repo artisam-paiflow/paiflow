@@ -447,6 +447,22 @@ function streamerAmountPerInterval(
     return action.config.amountStroops ?? "1";
   }
   if (action.type === "split") {
+    const recipients = action.config.recipients;
+    // Fixed-mode split: each recipient's amount is what they receive every
+    // interval, so the per-interval base is their sum. This takes precedence
+    // over amountPerIntervalStroops — the UI hides that field in fixed mode,
+    // and a stale value from a prior percentage configuration must not
+    // contradict the displayed recipient amounts.
+    const allFixed = recipients.length > 0 && recipients.every((r) => r.mode === "fixed");
+    if (allFixed) {
+      const total = recipients.reduce(
+        (s, r) => s + BigInt(r.mode === "fixed" ? r.amountStroops : "0"),
+        0n,
+      );
+      // Degenerate zero total: validation rejects it; fall through to the
+      // field/backup chain rather than deploy a zero-base stream.
+      if (total > 0n) return total.toString();
+    }
     if (action.config.amountPerIntervalStroops) {
       return action.config.amountPerIntervalStroops;
     }
