@@ -17,6 +17,7 @@ import {
   isPendingAddress,
   pctToBps,
   sourceAmountStroops,
+  subscriptionAmountPerPeriodStroops,
   TOTAL_BPS,
 } from "./schema";
 
@@ -631,6 +632,11 @@ export function flowToPipeline(
     }
 
     if (trigger.type === "subscription") {
+      // When the subscription feeds an all-fixed split, the pull amount is the
+      // sum of the fixed recipients — the UI hides the manual field and any
+      // stale value in it must not contradict the recipient amounts.
+      const amountPerPeriodStroops =
+        subscriptionAmountPerPeriodStroops(graph) ?? trigger.config.amountPerPeriodStroops;
       if (devMode) {
         pipeline.push({
           nodeId: trigger.id,
@@ -641,7 +647,7 @@ export function flowToPipeline(
             subscriber: isPendingAddress(trigger.config.subscriber)
               ? undefined
               : trigger.config.subscriber,
-            amountPerPeriodStroops: trigger.config.amountPerPeriodStroops,
+            amountPerPeriodStroops,
             relayer: relayerAddress,
             startTs: start,
             endTs: end,
@@ -657,7 +663,7 @@ export function flowToPipeline(
             kind: "subscription_trigger",
             asset: trigger.config.asset,
             subscriber: trigger.config.subscriber,
-            amountPerPeriodStroops: trigger.config.amountPerPeriodStroops,
+            amountPerPeriodStroops,
             relayer: relayerAddress,
             startTs: start,
             endTs: end,

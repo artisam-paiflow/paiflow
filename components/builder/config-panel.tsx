@@ -977,32 +977,60 @@ export default function ConfigPanel({
               addressBookError={addressBookError}
             />
           </ApiFillField>
-          <Field
-            label={`Amount per period (${assetLabel(node.config.asset)})`}
-            error={fieldError("amountPerPeriodStroops")}
-          >
-            <input
-              className="input"
-              value={formatStroops(node.config.amountPerPeriodStroops)}
-              onChange={(e) =>
-                onChange({
-                  ...node,
-                  config: {
-                    ...node.config,
-                    amountPerPeriodStroops: tokenAmountToStroops(e.target.value),
-                  },
-                })
-              }
-            />
-            <ApiFillHint
-              show={
-                devMode &&
-                (!node.config.amountPerPeriodStroops || node.config.amountPerPeriodStroops === "0")
-              }
-            >
-              Leave empty to set the amount via the API after deploy.
-            </ApiFillHint>
-          </Field>
+          {(() => {
+            // When the subscription feeds a split whose recipients are all
+            // fixed amounts, the per-period pull is DERIVED from their sum
+            // (flowToPipeline does the same) — the manual field would only
+            // contradict the recipient amounts, so show the derived value
+            // read-only instead. Mirrors the streamer fixed-split rule.
+            const downstreamId = graph.edges.find((e) => e.source === node.id)?.target;
+            const downstream = graph.nodes.find((n) => n.id === downstreamId);
+            const fixedTotal =
+              downstream?.type === "split" &&
+              downstream.config.recipients.length > 0 &&
+              downstream.config.recipients.every((r) => r.mode === "fixed")
+                ? splitTotalFixedStroops(downstream.config.recipients)
+                : null;
+            if (fixedTotal && fixedTotal !== "0") {
+              return (
+                <Field label={`Amount per period (${assetLabel(node.config.asset)})`}>
+                  <div className="rounded border border-zinc-800 bg-zinc-900/50 p-2 text-xs text-zinc-400">
+                    Derived from the split recipients: {formatStroops(fixedTotal)}{" "}
+                    {assetLabel(node.config.asset)} per period (sum of the fixed amounts).
+                  </div>
+                </Field>
+              );
+            }
+            return (
+              <Field
+                label={`Amount per period (${assetLabel(node.config.asset)})`}
+                error={fieldError("amountPerPeriodStroops")}
+              >
+                <input
+                  className="input"
+                  value={formatStroops(node.config.amountPerPeriodStroops)}
+                  onChange={(e) =>
+                    onChange({
+                      ...node,
+                      config: {
+                        ...node.config,
+                        amountPerPeriodStroops: tokenAmountToStroops(e.target.value),
+                      },
+                    })
+                  }
+                />
+                <ApiFillHint
+                  show={
+                    devMode &&
+                    (!node.config.amountPerPeriodStroops ||
+                      node.config.amountPerPeriodStroops === "0")
+                  }
+                >
+                  Leave empty to set the amount via the API after deploy.
+                </ApiFillHint>
+              </Field>
+            );
+          })()}
           {(() => {
             const cfg = node.config as {
               intervalAmount?: number;
