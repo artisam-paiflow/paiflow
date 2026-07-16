@@ -56,7 +56,7 @@ const FRIENDLY = {
   FIXED_AMOUNT_REQUIRED: "Each fixed-amount recipient needs a positive amount.",
   TOTAL_FIXED_AMOUNT_REQUIRED: "Add at least one positive fixed amount to the split.",
   AMOUNT_PER_INTERVAL_REQUIRED:
-    "A scheduled split needs an amount per interval — the total released each interval, divided among the recipients by their shares. Set it on the split step.",
+    "A scheduled split needs an amount per interval — the total released each interval, divided among the recipients by their shares. Set it on the split step, or switch the recipients to fixed amounts (each then receives their amount every interval).",
   ASSET_CONFLICT:
     "This step can receive different assets depending on which path funds arrive through. Make sure every path leading into it carries the same asset, or add a swap so they match before merging.",
 } as const;
@@ -369,13 +369,18 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   for (const a of actions) {
     if (a.type === "split") {
       // A scheduled split compiles to a streamer whose per-interval base is
-      // amountPerIntervalStroops — recipient configs only define distribution
-      // (bps). Without it the pipeline silently falls back to 1 stroop per
-      // interval (streamerAmountPerInterval in to-params.ts), deploying a dust
-      // stream. The amount is baked into the contract constructor, so this is
-      // required even in dev mode (API-filled recipients can't supply it).
+      // amountPerIntervalStroops — percentage recipients only define
+      // distribution (bps), so without it the pipeline silently falls back to
+      // 1 stroop per interval (streamerAmountPerInterval in to-params.ts),
+      // deploying a dust stream. Fixed-mode recipients are exempt: their base
+      // is derived as the sum of their per-interval amounts. The amount is
+      // baked into the contract constructor, so this is required even in dev
+      // mode (API-filled recipients can't supply it).
+      const allFixed =
+        a.config.recipients.length > 0 && a.config.recipients.every((r) => r.mode === "fixed");
       if (
         triggers[0]?.type === "on_schedule" &&
+        !allFixed &&
         (!a.config.amountPerIntervalStroops || a.config.amountPerIntervalStroops === "0")
       ) {
         errors.push({

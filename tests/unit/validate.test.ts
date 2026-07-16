@@ -1130,6 +1130,102 @@ describe("validateFlow", () => {
     expect(r.ok).toBe(true);
   });
 
+  it("allows on_schedule → fixed-amount split without an amount per interval", () => {
+    // The per-interval base is derived as the sum of the fixed amounts.
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "day",
+            startsAt: "2030-01-01T00:00:00.000Z",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [
+              { address: ADDR_A, mode: "fixed", amountStroops: "60000000" },
+              { address: ADDR_B, mode: "fixed", amountStroops: "40000000" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.templateKind).toBe(TemplateKind.STREAMER);
+    }
+  });
+
+  it("rejects on_schedule → fixed-amount split with a zero total", () => {
+    const r = validateFlow({
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "day",
+            startsAt: "2030-01-01T00:00:00.000Z",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [{ address: ADDR_A, mode: "fixed", amountStroops: "0" }],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => e.path === "nodes.a.config.recipients.0.amountStroops")).toBe(
+        true,
+      );
+    }
+  });
+
+  it("requires an amount per interval for dev-mode scheduled splits with empty recipients", () => {
+    // API-filled recipients can't supply the constructor-baked base, so the
+    // field stays required even though empty recipients are allowed in dev mode.
+    const r = validateFlow({
+      devMode: true,
+      nodes: [
+        {
+          id: "t",
+          type: "on_schedule",
+          config: {
+            intervalAmount: 1,
+            intervalUnit: "day",
+            startsAt: "2030-01-01T00:00:00.000Z",
+          },
+        },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => e.path === "nodes.a.config.amountPerIntervalStroops")).toBe(true);
+    }
+  });
+
   it("accepts on_schedule with pauseAllowed: false", () => {
     const r = validateFlow({
       nodes: [
