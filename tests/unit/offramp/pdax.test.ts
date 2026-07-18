@@ -3,6 +3,7 @@ import {
   getPdaxAssetDecimals,
   pdaxQuantityToStellarStroops,
   stellarStroopsToPdaxQuantity,
+  toFixedDecimal,
 } from "@/lib/offramp/pdax";
 
 describe("getPdaxAssetDecimals", () => {
@@ -58,5 +59,25 @@ describe("pdaxQuantityToStellarStroops", () => {
 
   it("pads USDC quantities to 6 decimals before scaling to stroops", () => {
     expect(pdaxQuantityToStellarStroops("1.2", "USDC")).toBe("12000000");
+  });
+});
+
+describe("toFixedDecimal", () => {
+  it("truncates to 2 decimal places", () => {
+    expect(toFixedDecimal("6475.455", 2)).toBe("6475.45");
+    expect(toFixedDecimal("6475.454", 2)).toBe("6475.45");
+    expect(toFixedDecimal("6475.45", 2)).toBe("6475.45");
+  });
+
+  it("does not carry when truncating crosses a boundary", () => {
+    expect(toFixedDecimal("99.999", 2)).toBe("99.99");
+  });
+
+  it("pads short fractions", () => {
+    expect(toFixedDecimal("6475.4", 2)).toBe("6475.40");
+  });
+
+  it("handles whole numbers", () => {
+    expect(toFixedDecimal("6475", 2)).toBe("6475.00");
   });
 });

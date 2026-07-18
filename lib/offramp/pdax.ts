@@ -104,13 +104,14 @@ export class PdaxOffRampProvider implements OffRampProvider {
     };
 
     const amountIn = pdaxQuantityToStellarStroops(payload.base_quantity, params.assetCode);
-    const amountOut = decimalToSmallest(payload.total_amount, 2);
+    const fiatAmount = toFixedDecimal(String(payload.total_amount), 2);
+    const amountOut = decimalToSmallest(fiatAmount, 2);
 
     return {
       id: payload.quote_id,
       amountIn,
       amountOut,
-      fiatAmount: String(payload.total_amount),
+      fiatAmount,
       fiatCurrency: payload.base_currency,
       expiresAt: new Date(payload.expires_at),
       metadata: {
@@ -315,6 +316,14 @@ function truncateDecimal(decimal: string, decimals: number): string {
   const truncatedFrac = frac.slice(0, decimals).replace(/0+$/, "");
   const sign = decimal.startsWith("-") ? "-" : "";
   return truncatedFrac ? `${sign}${whole}.${truncatedFrac}` : `${sign}${whole}`;
+}
+
+export function toFixedDecimal(decimal: string, decimals: number): string {
+  const sign = decimal.startsWith("-") ? "-" : "";
+  const abs = decimal.replace(/^-/, "");
+  const [whole = "0", frac = ""] = abs.split(".");
+  const truncatedFrac = frac.slice(0, decimals).padEnd(decimals, "0");
+  return `${sign}${whole}.${truncatedFrac}`;
 }
 
 export function pdaxQuantityToStellarStroops(quantity: string | number, assetCode: string): string {
