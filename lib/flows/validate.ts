@@ -54,7 +54,10 @@ const FRIENDLY = {
     `The connection "${eid}" references a node "${tgt}" that doesn't exist.`,
   MIXED_SPLIT_MODE:
     "All recipients in a split must be either percentages or fixed amounts, not a mix.",
-  FIXED_AMOUNT_REQUIRED: "Each fixed-amount recipient needs a positive amount.",
+  FIXED_AMOUNT_REQUIRED: (recipients: { label?: string; address: string }[]) => {
+    const names = recipients.map((r) => r.label?.trim() || r.address);
+    return `Each fixed-amount recipient needs a positive amount: ${names.join(", ")}.`;
+  },
   TOTAL_FIXED_AMOUNT_REQUIRED: "Add at least one positive fixed amount to the split.",
   AMOUNT_PER_INTERVAL_REQUIRED:
     "A scheduled split needs an amount per interval — the total released each interval, divided among the recipients by their shares. Set it on the split step, or switch the recipients to fixed amounts (each then receives their amount every interval).",
@@ -429,13 +432,10 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
           });
         }
       } else {
+        const zeroAmountRecipients: { label?: string; address: string }[] = [];
         for (const [idx, r] of a.config.recipients.entries()) {
           if (r.mode === "fixed" && (!r.amountStroops || r.amountStroops === "0")) {
-            errors.push({
-              path: `nodes.${a.id}.config.recipients.${idx}.amountStroops`,
-              message: "Fixed recipient amount must be positive",
-              friendlyMessage: FRIENDLY.FIXED_AMOUNT_REQUIRED,
-            });
+            zeroAmountRecipients.push(r);
             continue;
           }
           // Min/max amount caps are a fiat off-ramp constraint (PDAX limits).
@@ -450,6 +450,13 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
               });
             }
           }
+        }
+        if (zeroAmountRecipients.length > 0) {
+          errors.push({
+            path: `nodes.${a.id}.config.recipients`,
+            message: `Fixed recipient amount must be positive for ${zeroAmountRecipients.length} recipient(s)`,
+            friendlyMessage: FRIENDLY.FIXED_AMOUNT_REQUIRED(zeroAmountRecipients),
+          });
         }
         const total = splitTotalFixedStroops(a.config.recipients);
         if (!total || total === "0") {
