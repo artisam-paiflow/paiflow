@@ -200,6 +200,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [devMode, setDevMode] = useState<boolean>(initialGraph.devMode ?? false);
   const [senderKyc, setSenderKyc] = useState<SenderKyc | undefined>(initialGraph.senderKyc);
   const [kycDialogOpen, setKycDialogOpen] = useState(false);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   const refreshAddressBook = useCallback(async () => {
     setAddressBookLoading(true);
@@ -753,7 +754,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           </div>
 
           {/* Row 3: Canvas */}
-          <div className="relative min-h-0">
+          <div ref={canvasRef} className="relative min-h-0">
             <ReactFlow
               nodes={rfNodes.map((n) => {
                 const fn = flowNodes.find((f) => f.id === n.id);
@@ -805,6 +806,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                   addressBookLoading={addressBookLoading}
                   addressBookError={addressBookError}
                   chatCollapsed={chatCollapsed}
+                  canvasRef={canvasRef}
                 />
               )}
             </ReactFlow>
