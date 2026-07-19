@@ -287,12 +287,7 @@ export default async function DeployReviewPage({
               {validation.errors.map((e, i) => (
                 <li key={i} className="flex items-start gap-2">
                   <span className="text-error mt-1">·</span>
-                  <span>
-                    <code className="text-label-sm text-on-surface-variant font-mono">
-                      {e.path}
-                    </code>{" "}
-                    — {e.message}
-                  </span>
+                  <span>{e.friendlyMessage}</span>
                 </li>
               ))}
             </ul>
