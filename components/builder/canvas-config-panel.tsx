@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ViewportPortal, useReactFlow, useViewport } from "@xyflow/react";
 import ConfigPanel from "./config-panel";
+import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import type { FlowNode, FlowGraph } from "@/lib/flows/schema";
 import type { AddressEntry } from "@/lib/address-book.types";
 
@@ -180,7 +181,7 @@ export default function CanvasConfigPanel({
                   drag_indicator
                 </span>
                 <span className="text-brand-400 text-xs tracking-wider uppercase">
-                  {node.type.replace("_", " ")}
+                  {NODE_TYPE_LABELS[node.type]}
                 </span>
               </div>
               <button

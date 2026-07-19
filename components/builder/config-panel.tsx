@@ -16,6 +16,7 @@ import {
   type SplitRecipient,
 } from "@/lib/flows/schema";
 import { cn, formatStroops, shortAddr } from "@/lib/utils";
+import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
 import {
@@ -246,7 +247,7 @@ export default function ConfigPanel({
       {!hideHeader && (
         <div className="flex items-center justify-between">
           <div className="text-brand-400 text-xs tracking-wider uppercase">
-            {node.type.replace("_", " ")}
+            {NODE_TYPE_LABELS[node.type]}
           </div>
           <button
             onClick={() => onDelete(node.id)}
