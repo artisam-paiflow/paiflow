@@ -1188,9 +1188,7 @@ describe("validateFlow", () => {
     });
     expect(r.ok).toBe(false);
     if (!r.ok) {
-      expect(r.errors.some((e) => e.path === "nodes.a.config.recipients.0.amountStroops")).toBe(
-        true,
-      );
+      expect(r.errors.some((e) => e.path === "nodes.a.config.recipients")).toBe(true);
     }
   });
 
@@ -1811,6 +1809,37 @@ describe("validateFlow", () => {
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
     expect(r.ok).toBe(false);
+  });
+
+  it("consolidates zero fixed-amount recipient errors into a single named message", () => {
+    const r = validateFlow({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: [
+              { address: ADDR_A, label: "Alice", mode: "fixed", amountStroops: "0" },
+              { address: ADDR_B, label: "Bob", mode: "fixed", amountStroops: "0" },
+            ],
+          },
+        },
+      ],
+      edges: [{ id: "e1", source: "t", target: "a" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      const fixedAmountErrors = r.errors.filter((e) =>
+        e.friendlyMessage.includes("Each fixed-amount recipient needs a positive amount"),
+      );
+      expect(fixedAmountErrors).toHaveLength(1);
+      const error = fixedAmountErrors[0]!;
+      expect(error.friendlyMessage).toContain("Alice");
+      expect(error.friendlyMessage).toContain("Bob");
+      expect(error.path).toBe("nodes.a.config.recipients");
+    }
   });
 
   it("accepts dev-mode on_receive → split → cash_out", () => {
