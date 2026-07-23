@@ -339,3 +339,7 @@ Configured for **Railway** (`railway.toml`, `nixpacks.toml`):
 - [`docs/features.md`](./docs/features.md) — running changelog of user-visible features
 - [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) — contract API surface
 - [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md) — mainnet-go-live runbook
+
+## License
+
+This project is licensed under the [MIT License](./LICENSE).
