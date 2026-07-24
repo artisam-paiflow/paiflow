@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { Role } from "@prisma/client";
 import { getSubmissionProof } from "@/lib/admin-stats";
 import Topbar from "@/components/app/topbar";
+import { PrintButton } from "@/components/admin/print-button";
 
 export const dynamic = "force-dynamic";
 
@@ -23,14 +24,7 @@ export default async function SubmissionProofPage() {
         </h1>
 
         <div className="mt-md flex flex-wrap gap-2 print:hidden">
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="bg-primary text-on-primary inline-flex items-center gap-2 rounded-lg px-4 py-2 font-mono text-sm font-bold"
-          >
-            <span className="material-symbols-outlined text-[16px]">print</span>
-            PRINT
-          </button>
+          <PrintButton />
           <a
             href="/api/admin/submission-proof?format=json"
             download="paiflow-submission-proof.json"
