@@ -6,6 +6,7 @@ import { toastError } from "@/lib/friendly-toast";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
 import type { TemplateKind } from "@prisma/client";
 import { apiError } from "@/lib/friendly-error";
+import { trackWalletConnection } from "@/lib/wallet-tracking";
 
 type WalletKit = {
   getAddress: () => Promise<{ address: string }>;
@@ -59,6 +60,7 @@ export default function DeployReview({
     try {
       const kit = await connectWallet(network);
       const { address } = await kit.getAddress();
+      void trackWalletConnection({ address, network, walletId: "freighter" });
       const prep = await fetch("/api/deployments/prepare", {
         method: "POST",
         headers: { "content-type": "application/json" },

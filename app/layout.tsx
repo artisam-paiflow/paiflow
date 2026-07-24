@@ -3,6 +3,7 @@ import { Toaster } from "sonner";
 import { Space_Grotesk, Geist, JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
+import { SessionProvider } from "@/components/app/session-provider";
 
 /**
  * Fonts are self-hosted at build time via `next/font/google` (per PR #51
@@ -61,14 +62,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${grotesk.variable} ${geist.variable} ${jbm.variable} ${symbols.variable} dark`}
     >
       <body className="bg-surface-container-lowest text-on-surface min-h-screen antialiased">
-        {children}
-        <Toaster
-          theme="dark"
-          position="top-right"
-          toastOptions={{
-            className: "font-body",
-          }}
-        />
+        <SessionProvider>
+          {children}
+          <Toaster
+            theme="dark"
+            position="top-right"
+            toastOptions={{
+              className: "font-body",
+            }}
+          />
+        </SessionProvider>
       </body>
     </html>
   );

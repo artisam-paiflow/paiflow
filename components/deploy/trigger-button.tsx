@@ -7,6 +7,7 @@ import { WalletConnectModal } from "@walletconnect/modal";
 import { SignClient } from "@walletconnect/sign-client";
 import { usePollTxStatus } from "@/lib/hooks/use-poll-tx-status";
 import { apiError } from "@/lib/friendly-error";
+import { trackWalletConnection } from "@/lib/wallet-tracking";
 
 type TriggerButtonProps = {
   deploymentId: string;
@@ -212,6 +213,7 @@ export function TriggerButton({
 
           const { address } = await kit.getAddress();
           toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
+          void trackWalletConnection({ address, network, walletId: wallet.id });
 
           await submitTrigger(address, kit);
         } catch (err) {
@@ -391,6 +393,11 @@ export function TriggerButton({
       setShowPicker(false);
       const { address } = await kit.getAddress();
       toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
+      void trackWalletConnection({
+        address,
+        network,
+        walletId: pendingWallet ?? "wallet_connect",
+      });
       await submitTrigger(address, kit, () => setShowOpenWallet(true));
     } catch (err) {
       toastError(err, "Connection failed");
