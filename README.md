@@ -25,13 +25,6 @@ The repo ships both desktop and mobile screenshots in [`screenshots/`](./screens
 
 Key flows covered: landing, auth, dashboard, builder, deploy review, admin overview, and submission proof.
 
-Regenerate locally:
-
-```bash
-ADMIN_SEED_PASSWORD=… pnpm screenshots        # desktop
-ADMIN_SEED_PASSWORD=… pnpm screenshots:mobile # mobile
-```
-
 ---
 
 ## 🌐 Testnet Deployments
