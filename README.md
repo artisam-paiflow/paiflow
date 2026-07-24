@@ -16,6 +16,24 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 ---
 
+## 📸 Screenshots
+
+The repo ships both desktop and mobile screenshots in [`screenshots/`](./screenshots/). They are regenerated with Playwright for every major UI change.
+
+- **Desktop gallery:** [`screenshots/*`](./screenshots/)
+- **Mobile gallery:** [`screenshots/*-mobile.png`](./screenshots/)
+
+Key flows covered: landing, auth, dashboard, builder, deploy review, admin overview, and submission proof.
+
+Regenerate locally:
+
+```bash
+ADMIN_SEED_PASSWORD=… pnpm screenshots        # desktop
+ADMIN_SEED_PASSWORD=… pnpm screenshots:mobile # mobile
+```
+
+---
+
 ## 🌐 Testnet Deployments
 
 All contracts are deployed on the **Stellar testnet**. Every flow deployed from the app produces a fresh set of pipeline contracts with deterministic addresses (via the factory's `deploy_pipeline`), and each deployment page in the UI deep-links its contracts to stellar.expert — the fastest way to see a live pipeline is to [deploy one in the app](https://paiflow.xyz) and click through.
