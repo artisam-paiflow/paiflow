@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
+import { trackWalletConnection } from "@/lib/wallet-tracking";
 import { StrKey } from "@stellar/stellar-sdk";
 import { formatStroops, formatAmount } from "@/lib/utils";
 import type { Asset } from "@/lib/flows/schema";
@@ -192,6 +193,7 @@ export default function EmployeeManager({
         onWalletSelected: async (wallet: { id: string; name: string }) => {
           kit.setWallet(wallet.id);
           const { address } = await kit.getAddress();
+          void trackWalletConnection({ address, network: "testnet", walletId: wallet.id });
           const { signedTxXdr } = await kit.signTransaction(data.unsignedXdr, {
             address,
             networkPassphrase: data.networkPassphrase,

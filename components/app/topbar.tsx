@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import Logo from "./logo";
 
@@ -17,8 +17,11 @@ const accountItems: { href: string; label: string; icon: string }[] = [
 
 export default function Topbar({ username }: { username: string }) {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const isAdmin = (session?.user as { role?: string } | undefined)?.role === "ADMIN";
 
   useEffect(() => {
     if (!open) return;
@@ -109,7 +112,26 @@ export default function Topbar({ username }: { username: string }) {
                     </Link>
                   );
                 })}
-                <div className="border-outline-variant/20 my-1 border-t" />
+                {isAdmin && (
+                  <>
+                    <Link
+                      href="/admin"
+                      onClick={() => setOpen(false)}
+                      className={`text-label-sm inline-flex items-center gap-2 rounded-lg px-3 py-2 font-mono transition-colors ${
+                        pathname?.startsWith("/admin")
+                          ? "bg-surface-container-high/60 text-primary"
+                          : "text-on-surface hover:bg-surface-container-high/40"
+                      }`}
+                    >
+                      <span aria-hidden="true" className="material-symbols-outlined text-[16px]">
+                        admin_panel_settings
+                      </span>
+                      ADMIN
+                    </Link>
+                    <div className="border-outline-variant/20 my-1 border-t" />
+                  </>
+                )}
+                {!isAdmin && <div className="border-outline-variant/20 my-1 border-t" />}
                 <button
                   onClick={() => signOut({ callbackUrl: "/" })}
                   className="text-label-sm text-error hover:bg-error-container/30 inline-flex w-full items-center gap-2 rounded-lg px-3 py-2 font-mono transition-colors"

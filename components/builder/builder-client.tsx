@@ -36,6 +36,7 @@ import SenderKycDialog from "./sender-kyc-dialog";
 import RaftLog, { type ChatMessage } from "./raft-log";
 import type { PatchOp } from "@/lib/ai/prompts";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
+import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import { apiError } from "@/lib/friendly-error";
 
 const nodeTypes = {
@@ -49,22 +50,8 @@ const edgeTypes = {
 };
 
 // Short, human-readable labels drawn on each node in the minimap.
-const MINIMAP_NODE_LABELS: Record<FlowNode["type"], string> = {
-  on_receive: "On Receive",
-  on_schedule: "On Schedule",
-  webhook: "Webhook",
-  web2_webhook: "HTTP Webhook",
-  subscription: "Subscription",
-  payroll: "Payroll",
-  oracle: "Oracle",
-  pay: "Pay",
-  split: "Split",
-  swap: "Swap",
-  yield: "Yield",
-  cash_out: "Cash Out",
-  email_notify: "Email",
-  condition: "Condition",
-};
+// Shared via NODE_TYPE_LABELS so they stay in sync with the palette and panel headers.
+const MINIMAP_NODE_LABELS = NODE_TYPE_LABELS;
 
 type BuilderProps = {
   flowId: string;
@@ -200,6 +187,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
   const [devMode, setDevMode] = useState<boolean>(initialGraph.devMode ?? false);
   const [senderKyc, setSenderKyc] = useState<SenderKyc | undefined>(initialGraph.senderKyc);
   const [kycDialogOpen, setKycDialogOpen] = useState(false);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   const refreshAddressBook = useCallback(async () => {
     setAddressBookLoading(true);
@@ -753,7 +741,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
           </div>
 
           {/* Row 3: Canvas */}
-          <div className="relative min-h-0">
+          <div ref={canvasRef} className="relative min-h-0">
             <ReactFlow
               nodes={rfNodes.map((n) => {
                 const fn = flowNodes.find((f) => f.id === n.id);
@@ -805,6 +793,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                   addressBookLoading={addressBookLoading}
                   addressBookError={addressBookError}
                   chatCollapsed={chatCollapsed}
+                  canvasRef={canvasRef}
                 />
               )}
             </ReactFlow>

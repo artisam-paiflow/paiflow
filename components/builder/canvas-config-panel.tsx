@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ViewportPortal, useReactFlow, useViewport } from "@xyflow/react";
 import ConfigPanel from "./config-panel";
+import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import type { FlowNode, FlowGraph } from "@/lib/flows/schema";
 import type { AddressEntry } from "@/lib/address-book.types";
 
@@ -17,6 +18,7 @@ type CanvasConfigPanelProps = {
   addressBookLoading?: boolean;
   addressBookError?: string | null;
   chatCollapsed: boolean;
+  canvasRef: React.RefObject<HTMLDivElement | null>;
 };
 
 const NODE_ANCHOR_OFFSET_X = 240;
@@ -32,9 +34,10 @@ export default function CanvasConfigPanel({
   addressBookLoading,
   addressBookError,
   chatCollapsed,
+  canvasRef,
 }: CanvasConfigPanelProps) {
   const { getNode, screenToFlowPosition } = useReactFlow();
-  const { zoom } = useViewport();
+  const { x, y, zoom } = useViewport();
 
   const [panelPosition, setPanelPosition] = useState({ x: 0, y: 0 });
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -43,16 +46,44 @@ export default function CanvasConfigPanel({
     startPointer: { x: number; y: number };
   } | null>(null);
 
-  // Re-anchor the panel next to the newly selected node. This only runs when the
-  // selected id changes, so dragging a node on the canvas does not drag the panel.
+  const PANEL_WIDTH = 320; // matches w-80
+  const PANEL_HEIGHT_ESTIMATE = 360; // conservative visible height before scrolling
+  const VIEWPORT_PADDING = 8;
+
+  // Re-anchor the panel next to the newly selected node and keep it inside the
+  // visible React Flow viewport. If the default right-side anchor would be
+  // clipped, flip the panel to the left side of the node, then clamp to the
+  // viewport edges. This re-runs on pan/zoom so the panel stays reachable.
   useEffect(() => {
     const rfNode = getNode(selectedId);
-    if (!rfNode) return;
-    setPanelPosition({
-      x: rfNode.position.x + NODE_ANCHOR_OFFSET_X,
-      y: rfNode.position.y,
+    const container = canvasRef.current;
+    if (!rfNode || !container) return;
+
+    const rect = container.getBoundingClientRect();
+    const topLeft = screenToFlowPosition({
+      x: rect.left + VIEWPORT_PADDING,
+      y: rect.top + VIEWPORT_PADDING,
     });
-  }, [selectedId, getNode]);
+    const bottomRight = screenToFlowPosition({
+      x: rect.right - PANEL_WIDTH - VIEWPORT_PADDING,
+      y: rect.bottom - PANEL_HEIGHT_ESTIMATE - VIEWPORT_PADDING,
+    });
+
+    const rightX = rfNode.position.x + NODE_ANCHOR_OFFSET_X;
+    const leftX = rfNode.position.x - PANEL_WIDTH - VIEWPORT_PADDING;
+
+    let nextX = rightX;
+    let nextY = rfNode.position.y;
+
+    if (rightX > bottomRight.x && leftX >= topLeft.x) {
+      nextX = leftX;
+    }
+
+    nextX = Math.max(topLeft.x, Math.min(bottomRight.x, nextX));
+    nextY = Math.max(topLeft.y, Math.min(bottomRight.y, nextY));
+
+    setPanelPosition({ x: nextX, y: nextY });
+  }, [selectedId, getNode, screenToFlowPosition, x, y, zoom, canvasRef]);
 
   // Keep wheel events over the scrollable panel from ever reaching React
   // Flow's d3-zoom listener on the pane: while the cursor is on a scrollable
@@ -150,7 +181,7 @@ export default function CanvasConfigPanel({
                   drag_indicator
                 </span>
                 <span className="text-brand-400 text-xs tracking-wider uppercase">
-                  {node.type.replace("_", " ")}
+                  {NODE_TYPE_LABELS[node.type]}
                 </span>
               </div>
               <button

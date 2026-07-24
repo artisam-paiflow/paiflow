@@ -15,6 +15,7 @@ export type AuditAction =
   | "USER_SESSIONS_REVOKED"
   | "PASSKEY_ADD"
   | "PASSKEY_REMOVE"
+  | "WALLET_CONNECT"
   | "FLOW_CREATE"
   | "FLOW_UPDATE"
   | "FLOW_DELETE"
