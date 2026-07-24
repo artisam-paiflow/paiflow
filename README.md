@@ -14,6 +14,8 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 [`Live App`](https://paiflow.xyz) — username: admin ; password: admin1234567
 
+[`User Feedback Survey`](https://forms.gle/QTznHiqXCDEnJZq59) — help us improve Paiflow
+
 ---
 
 ## 🌐 Testnet Deployments
