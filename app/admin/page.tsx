@@ -4,11 +4,13 @@ import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
 import { Role } from "@prisma/client";
 
+import { getWalletConnectionStats } from "@/lib/admin-stats";
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminHome() {
   const user = await requireSession({ role: Role.ADMIN });
-  const [users, deployments, recentAudit] = await Promise.all([
+  const [users, deployments, recentAudit, walletStats] = await Promise.all([
     db.user.count(),
     db.deployment.count(),
     db.auditLog.findMany({
@@ -16,6 +18,7 @@ export default async function AdminHome() {
       take: 10,
       include: { user: { select: { username: true } } },
     }),
+    getWalletConnectionStats(),
   ]);
   return (
     <>
@@ -48,12 +51,34 @@ export default async function AdminHome() {
             <span className="material-symbols-outlined text-[16px]">account_balance</span>
             OFF-RAMP
           </Link>
+          <Link
+            href="/admin/submission-proof"
+            className="border-outline-variant/40 bg-surface-container-low/40 text-label-md text-on-surface-variant hover:border-primary/40 hover:text-on-surface inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors"
+          >
+            <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+            SUBMISSION PROOF
+          </Link>
         </nav>
 
         <section className="mt-md gap-md grid grid-cols-1 md:grid-cols-3">
           <Stat label="USERS" value={users} icon="group" tone="text-secondary" />
           <Stat label="DEPLOYMENTS" value={deployments} icon="rocket_launch" tone="text-primary" />
           <Stat label="AUDIT EVENTS (24H)" value="see below" icon="history" tone="text-tertiary" />
+        </section>
+
+        <section className="mt-md gap-md grid grid-cols-1 md:grid-cols-2">
+          <Stat
+            label="WALLET CONNECTIONS"
+            value={walletStats.total}
+            icon="account_balance_wallet"
+            tone="text-secondary"
+          />
+          <Stat
+            label="UNIQUE WALLETS"
+            value={walletStats.unique}
+            icon="wallet"
+            tone="text-primary"
+          />
         </section>
 
         <section className="glass-panel mt-lg overflow-hidden rounded-xl">
