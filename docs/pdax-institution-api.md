@@ -33,6 +33,66 @@ Authentication:
 
 ---
 
+## UAT environment constraints
+
+The PDAX UAT sandbox supports a narrower set of assets, rails, and banks than
+production. Exceeding these is the most common cause of a withdraw request that
+is accepted by the API but bounced by the bank.
+
+### Supported assets
+
+- `XLM` — Stellar Lumens
+- `USDC` — USD Coin (the PDAX UAT institutional wallet asset, **not** Stellar
+  USDC / `USDCXLM`)
+
+> `USDCXLM` is **disabled** in PDAX UAT. The on-chain treasury holds Stellar
+> USDC (`USDCXLM`), but it cannot be deposited into PDAX UAT. For UAT demos the
+> PDAX institutional balance must be **pre-funded with USDC** off-chain. The
+> on-chain sink to the treasury is kept as the bookkeeping proof of the intended
+> off-ramp amount.
+
+### Supported network
+
+- `XLM_USDC_T_CEKS` — Stellar Testnet
+
+### Supported payout channel
+
+- `InstaPay`
+
+### Supported banks for withdrawal
+
+| Bank code | Institution                       |
+| --------- | --------------------------------- |
+| `BASECPH` | Security Bank Corporation         |
+| `BACTBPH` | CTBC Bank Philippines Corporation |
+
+### UAT test beneficiary accounts
+
+Use these sandbox account numbers. Anything else is accepted by the withdraw
+endpoint but rejected downstream by the bank rail with ISO 20022 reason `AC01`
+(incorrect account number).
+
+| Bank code | Account number  |
+| --------- | --------------- |
+| `BASECPH` | `0000042001461` |
+| `BACTBPH` | `001700062270`  |
+
+### Matching configuration
+
+`lib/offramp/provider.ts` already defaults to these values, so no env vars are
+required for UAT:
+
+| Variable             | UAT value         | Default in code   |
+| -------------------- | ----------------- | ----------------- |
+| `OFFRAMP_ASSET_CODE` | `USDC`            | `USDC`            |
+| `OFFRAMP_NETWORK`    | `XLM_USDC_T_CEKS` | `XLM_USDC_T_CEKS` |
+| `OFFRAMP_CHANNEL`    | `InstaPay`        | `InstaPay`        |
+
+Employee bank details must use `BASECPH` or `BACTBPH`, and the PDAX
+institutional account must be pre-funded with USDC before any off-ramp job runs.
+
+---
+
 ## PUT Refresh Token
 
 Refresh an expired access token.

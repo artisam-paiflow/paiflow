@@ -167,49 +167,107 @@ Release funds when a condition is met.
   - `status()` — Returns whether funds have been released.
 - **Future**: Decode `condition` payload on-chain for timeout, oracle, or multisig enforcement.
 
-### 4.2 Contract Build Pipeline
+### 4.2 Contract build pipeline
+
+Prerequisite (once per machine):
+
+```bash
+rustup target add wasm32v1-none
+```
+
+Then, from the repo root:
+
+```bash
+pnpm contracts:build   # cd contracts && cargo build --release --target wasm32v1-none
+```
+
+This compiles **every** member of the `contracts/` workspace — see
+[`contracts/Cargo.toml`](../contracts/Cargo.toml) for the current list — and
+emits one `.wasm` per crate into:
 
 ```
-pnpm contracts:build
+contracts/target/wasm32v1-none/release/
 ```
 
-Compiles all three contracts to Wasm at:
+Artifact names are the crate name with `-` replaced by `_`, e.g.
+`paiflow_splitter.wasm`, `paiflow_factory.wasm`, `payer.wasm`,
+`cash_out.wasm`.
 
-- `contracts/target/wasm32v1-none/release/paiflow_splitter.wasm`
-- `contracts/target/wasm32v1-none/release/paiflow_streamer.wasm`
-- `contracts/target/wasm32v1-none/release/paiflow_conditional.wasm`
-
-Each contract's `Cargo.toml` uses the `soroban-sdk` crate and targets `wasm32v1-none`:
+The size/safety profile is declared **once** on the workspace, not per crate
+(`contracts/Cargo.toml`):
 
 ```toml
-[lib]
-crate-type = ["cdylib"]
-
 [profile.release]
-opt-level = "z"      # optimize for size
-lto = true           # link-time optimization
-panic = "abort"      # smaller binary
+opt-level = "z"        # optimize for size
+overflow-checks = true # trap on integer overflow rather than wrap
+panic = "abort"        # smaller binary
+strip = "symbols"
+codegen-units = 1
+lto = true
 ```
 
-### 4.3 WASM Upload (Bootstrap)
+Individual crates only declare `crate-type = ["cdylib"]` and their
+`soroban-sdk` dependency.
 
-`scripts/upload-wasm.ts` uploads each Wasm to the configured Stellar network:
+To run the contract test suites (each crate carries its own `#[test]` module
+using `soroban-sdk`'s test env):
 
+```bash
+cd contracts
+cargo fmt --all --check
+cargo clippy --all-targets -- -D warnings
+cargo test --workspace
 ```
-tsx scripts/upload-wasm.ts
+
+CI runs exactly these three commands in its `rust` lane, pinned to the Rust
+toolchain in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
+
+### 4.3 WASM upload (bootstrap)
+
+`scripts/upload-wasm.ts` uploads the built Wasm to a Stellar network. It needs
+`UPLOADER_SECRET` — a funded Stellar secret key for that network — in the
+environment.
+
+```bash
+pnpm contracts:upload            # uses STELLAR_NETWORK
+pnpm contracts:upload:testnet    # --network=testnet
+pnpm contracts:upload:mainnet    # --network=mainnet
 ```
 
-Flow:
+Flow, per artifact:
 
-1. Read `.wasm` file from disk
-2. Build `Operation.uploadContractWasm({ wasm })`
-3. Simulate the transaction (Soroban RPC)
-4. Assemble with simulation results (sets resource fees)
-5. Sign with `UPLOADER_SECRET` keypair
-6. Submit and wait for finality
-7. SHA-256 hash the Wasm → append to `.env.local` as `STELLAR_WASM_HASH_{KIND}`
+1. Scan `contracts/target/wasm32v1-none/release/` for `*.wasm`.
+2. Map the filename to a `TemplateKind`: strip a leading `paiflow_` /
+   `pinkraft_` prefix and uppercase the rest. Files that don't map to a known
+   kind are skipped with a warning — this is how the build stays permissive
+   while the upload stays explicit.
+3. SHA-256 the Wasm and skip the upload if that hash is already recorded for
+   the network.
+4. Build `Operation.uploadContractWasm({ wasm })`, simulate against Soroban
+   RPC, assemble with the simulation result (sets resource fees), sign with the
+   `UPLOADER_SECRET` keypair, submit, and wait for finality.
+5. Write `STELLAR_WASM_HASH_{KIND}_{TESTNET|MAINNET}` into `.env.local`.
 
-This is a **one-time operation per network**. The resulting hashes are stored as env vars.
+Uploading is **idempotent per network**: identical bytes produce the same hash,
+and the network already holds the code.
+
+The hashes in `.env.local` are not yet visible to the running app — the app
+reads them from the `ContractTemplate` table. Two more steps close the loop:
+
+```bash
+pnpm contracts:deploy-factory   # deploys the factory, records its address
+pnpm contracts:update-hashes    # copies hashes + factory address from .env* into the DB
+```
+
+Or all four at once:
+
+```bash
+pnpm contracts:deploy           # build → upload → deploy-factory → update-hashes
+pnpm contracts:deploy:testnet
+pnpm contracts:deploy:mainnet
+```
+
+See [`mainnet-cutover.md`](./mainnet-cutover.md) for the production runbook.
 
 ### 4.4 Deployment Flow (`lib/stellar/deploy.ts`)
 
@@ -278,25 +336,27 @@ The visual builder's nodes map to contracts:
 
 ### Step 1: Write the Contract (Rust)
 
-Create a new directory under `contracts/`:
+Create a new crate under the category folder it belongs to —
+`contracts/triggers/`, `contracts/conditions/`, or `contracts/actions/`:
 
 ```
-contracts/escrow/
+contracts/actions/escrow/
 ├── Cargo.toml
 └── src/
     └── lib.rs
 ```
 
-Example `Cargo.toml`:
+Example `Cargo.toml` — inherit everything you can from the workspace:
 
 ```toml
 [package]
-name = "paiflow_escrow"
-version = "0.1.0"
-edition = "2021"
+name = "paiflow-escrow"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 soroban-sdk = { workspace = true }
@@ -305,11 +365,19 @@ soroban-sdk = { workspace = true }
 soroban-sdk = { workspace = true, features = ["testutils"] }
 ```
 
-Register it in the workspace `contracts/Cargo.toml`:
+Register it in the workspace `contracts/Cargo.toml`, path-relative to
+`contracts/`:
 
 ```toml
-members = ["splitter", "streamer", "conditional", "escrow"]
+members = [
+  # ...
+  "actions/escrow",
+]
 ```
+
+The build artifact is the crate name with `-` replaced by `_` —
+`paiflow_escrow.wasm`. Do not set `[profile.release]` here; the workspace
+already declares it (§4.2).
 
 ### Step 2: Implement the Contract
 
@@ -325,13 +393,23 @@ Follow the existing patterns. Key conventions in this project:
 - Use `checked_add`/`checked_mul`/`checked_div` for all math
 - Include unit tests with `#[cfg(test)]`
 
-### Step 3: Add to the Upload Script
+### Step 3: Register the Contract for Upload
 
-In `scripts/upload-wasm.ts`, add the new contract to the `CONTRACTS` array:
+`scripts/upload-wasm.ts` **discovers artifacts automatically** — there is no
+list to edit. It scans the release directory, strips a leading `paiflow_`
+prefix, uppercases the remainder, and looks the result up in `TemplateKind`.
+So `paiflow_escrow.wasm` resolves to `TemplateKind.ESCROW` on its own, and an
+artifact with no matching kind is skipped with a warning.
+
+What you _do_ have to edit is `scripts/update-hashes.ts`, which copies hashes
+from `.env*` into the `ContractTemplate` table from an explicit list:
 
 ```typescript
-{ kind: "ESCROW", wasm: "contracts/target/wasm32v1-none/release/paiflow_escrow.wasm" }
+{ kind: TemplateKind.ESCROW, envKey: `STELLAR_WASM_HASH_ESCROW_${suffix}` },
 ```
+
+Miss this and the upload will succeed while the app never sees the new
+template.
 
 ### Step 4: Add a Prisma Template
 
@@ -379,8 +457,16 @@ case "escrow":
 ### Step 8: Re-upload WASM
 
 ```bash
+pnpm contracts:deploy:testnet
+```
+
+That runs build → upload → deploy-factory → update-hashes (§4.3). If the
+factory itself is unchanged you can stop after the hashes:
+
+```bash
 pnpm contracts:build
-tsx scripts/upload-wasm.ts
+pnpm contracts:upload:testnet
+pnpm contracts:update-hashes
 ```
 
 ---

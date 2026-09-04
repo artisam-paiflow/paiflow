@@ -1,5 +1,16 @@
 # Dev Mode — Mutable / Parameterized Flows (design discussion)
 
+> **Archived — decisions shipped.** Every open question below is resolved and
+> built: the `_DEV` contract variants (`contracts/actions/splitter_dev`,
+> `payer_dev`, `cash_out_dev`, `contracts/triggers/subscription_dev`), the
+> per-flow `devMode` flag on the graph, the `*_DEV` `TemplateKind`s, and the
+> `DevApiToken` model + `/api/deployments/[id]/dev-*` routes.
+>
+> Kept for the _why_ — the tradeoffs behind on-chain mutability, the dual-auth
+> (admin vs relayer) execution model, and why dev variants are separate
+> `TemplateKind`s rather than a boolean flag. **For what the code does today,
+> read the code.**
+
 > **Concept:** Shift from purely immutable flows (recipients + details fixed at
 > flow-design time) to _parameterized_ flows where details can be left blank at
 > design time and filled / changed later via API. This abstracts the

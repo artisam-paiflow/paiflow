@@ -57,77 +57,17 @@ Paiflow is the missing middle layer:
 
 ## 2. Tech Stack & Dependencies
 
-All versions reflect the latest stable releases as of the build date. Lock with `pnpm` and `pnpm-lock.yaml`.
+**See [`README.md` → "Stack at a glance"](README.md#stack-at-a-glance).** That
+table is the single source of truth for languages, frameworks, and version
+lines; it is not duplicated here or in `CLAUDE.md`.
 
-### 2.1 Runtime & Tooling
+Exact versions are pinned by `package.json` + `pnpm-lock.yaml` for the Node
+app, and by `contracts/Cargo.toml` + `contracts/Cargo.lock` for the Rust
+workspace. Where this document and a lockfile disagree, the lockfile is right.
 
-| Tool             | Version                 | Notes                             |
-| ---------------- | ----------------------- | --------------------------------- |
-| Node.js          | `>=22.11 <23` LTS (Jod) | `engines` field in `package.json` |
-| pnpm             | `>=10.0`                | enforced via `packageManager`     |
-| TypeScript       | `^5.7`                  | `strict: true`                    |
-| Docker / Compose | `>=27 / v2.30`          | local dev only                    |
-
-### 2.2 Application Stack
-
-| Package                   | Version           | Purpose                                                         |
-| ------------------------- | ----------------- | --------------------------------------------------------------- |
-| `next`                    | `^15.1`           | Frontend & backend (App Router, Server Actions, Route Handlers) |
-| `react` / `react-dom`     | `^19.0`           | UI                                                              |
-| `tailwindcss`             | `^4.0`            | Styling (new CSS-first engine)                                  |
-| `@tailwindcss/postcss`    | `^4.0`            | PostCSS plugin                                                  |
-| `shadcn/ui`               | latest (copy-in)  | Component primitives (Radix + Tailwind)                         |
-| `@xyflow/react`           | `^12.4`           | Drag-drop canvas (formerly `reactflow`)                         |
-| `lucide-react`            | `^0.469`          | Icons                                                           |
-| `framer-motion`           | `^11.15`          | Animated arrows on canvas                                       |
-| `zustand`                 | `^5.0`            | Client state for builder canvas                                 |
-| `@tanstack/react-query`   | `^5.62`           | Server state / RPC polling fallback                             |
-| `react-hook-form` + `zod` | `^7.54` / `^3.24` | Forms & validation                                              |
-| `qrcode.react`            | `^4.2`            | QR for SEP-7 payment URI                                        |
-| `sonner`                  | `^1.7`            | Toast notifications                                             |
-
-### 2.3 Data & Auth
-
-| Package                     | Version          | Purpose                                      |
-| --------------------------- | ---------------- | -------------------------------------------- |
-| `prisma` / `@prisma/client` | `^6.1`           | ORM, migrations, seed                        |
-| `pg`                        | `^8.13`          | Postgres driver (for Prisma)                 |
-| `next-auth` (Auth.js)       | `^5.0.0-beta.25` | Session-based auth with Credentials provider |
-| `@auth/prisma-adapter`      | `^2.7`           | Persists Auth.js sessions in Postgres        |
-| `argon2`                    | `^0.41`          | Password hashing (preferred over bcrypt)     |
-| `@simplewebauthn/server`    | `^11.0`          | Passkey registration & assertion (server)    |
-| `@simplewebauthn/browser`   | `^11.0`          | Passkey ceremonies (client)                  |
-| `ioredis`                   | `^5.4`           | Rate-limit & event stream cache              |
-
-### 2.4 Stellar / Soroban
-
-| Package                           | Version      | Purpose                                                       |
-| --------------------------------- | ------------ | ------------------------------------------------------------- |
-| `@stellar/stellar-sdk`            | `^13.1`      | RPC client, transaction builder, Soroban contract invocation  |
-| `@stellar/freighter-api`          | `^4.1`       | Freighter wallet connector (easy-path)                        |
-| `@creit.tech/stellar-wallets-kit` | `^1.7`       | Multi-wallet adapter (Freighter, xBull, Albedo, Hana, LOBSTR) |
-| `@stellar/stellar-base`           | (transitive) | XDR primitives                                                |
-
-### 2.5 Observability & Quality
-
-| Package                                    | Version           | Purpose                                           |
-| ------------------------------------------ | ----------------- | ------------------------------------------------- |
-| `pino` + `pino-pretty`                     | `^9.5` / `^13.0`  | Structured logging                                |
-| `@sentry/nextjs`                           | `^8.47`           | Error reporting (optional, gated by `SENTRY_DSN`) |
-| `eslint` + `eslint-config-next`            | `^9.17` / `^15.1` | Lint                                              |
-| `prettier` + `prettier-plugin-tailwindcss` | `^3.4`            | Format                                            |
-| `vitest`                                   | `^2.1`            | Unit tests                                        |
-| `@playwright/test`                         | `^1.49`           | E2E (deploy → fund → see fan-out)                 |
-| `husky` + `lint-staged`                    | `^9.1` / `^15.3`  | Pre-commit hooks                                  |
-
-### 2.6 Soroban Contract Toolchain (separate workspace, not shipped in Node app)
-
-| Tool                  | Version        | Purpose                       |
-| --------------------- | -------------- | ----------------------------- |
-| Rust (rustup)         | `1.83+` stable | Compile contracts             |
-| `cargo-binstall`      | latest         | Tool installs                 |
-| `stellar-cli`         | `^22.0`        | Build, deploy, invoke from CI |
-| `soroban-sdk` (crate) | `^22.0`        | Contract SDK                  |
+The build/upload toolchain for the Soroban workspace (Rust target, `soroban-sdk`,
+artifact layout) is documented in
+[`docs/soroban-smart-contracts.md`](docs/soroban-smart-contracts.md) §4.2–4.3.
 
 ---
 
@@ -547,13 +487,13 @@ All endpoints under `/api/*` are Next.js Route Handlers in `app/api/.../route.ts
 ### 8.3 Deployments
 
 | Method | Path                          | Body                                 | Response                                                                                |
-| ------ | ----------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------- | ----- | -------------------------------------------------------------------------- |
+| ------ | ----------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------- |
 | GET    | `/api/deployments`            | `?cursor&limit&flowId&status`        | paginated list                                                                          |
 | POST   | `/api/deployments/prepare`    | `{ flowId, network, sourceAccount }` | `{ deploymentId, xdr, sorobanData, deployFootprint }` — unsigned XDR for client to sign |
 | POST   | `/api/deployments/:id/submit` | `{ signedXdr }`                      | `{ status, txHash }` — backend submits to Soroban RPC                                   |
 | GET    | `/api/deployments/:id`        | —                                    | `Deployment`                                                                            |
 | GET    | `/api/deployments/:id/events` | (SSE)                                | text/event-stream of `ContractEvent`                                                    |
-| GET    | `/api/deployments/:id/qr`     | `?size&format=svg                    | png`                                                                                    | image | computes SEP-7 URI server-side; URI is also returned in JSON form for copy |
+| GET    | `/api/deployments/:id/qr`     | `?size&format=svg\|png`              | image — computes SEP-7 URI server-side; URI is also returned in JSON form for copy      |
 | GET    | `/api/deployments/:id/sep7`   | —                                    | `{ uri }`                                                                               |
 
 ### 8.4 Internal / Operational
@@ -1106,7 +1046,7 @@ paiflow/
 ├── tsconfig.json
 ├── package.json
 ├── pnpm-lock.yaml
-├── AGENT.md
+├── CLAUDE.md
 └── SPEC.md
 ```
 

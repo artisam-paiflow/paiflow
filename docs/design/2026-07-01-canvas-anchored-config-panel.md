@@ -1,5 +1,8 @@
 # Canvas-anchored, draggable config panel
 
+> **Status: shipped.** Implemented in `components/builder/canvas-config-panel.tsx`.
+> Kept as a design record for the _why_; the code is the _what_.
+
 **Issue:** #259 (node config modal overflow) — replacing the internal-scrollbar fix.
 **Date:** 2026-07-01
 **Branch:** `fix-259-node-config-modal-overflow`

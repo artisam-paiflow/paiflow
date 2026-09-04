@@ -185,21 +185,40 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 ### Stack at a glance
 
-| Layer         | Tech                                                                          |
-| ------------- | ----------------------------------------------------------------------------- |
-| Runtime       | Node.js 22 LTS, pnpm 10                                                       |
-| Framework     | Next.js 15 (App Router, RSC, Server Actions), React 19                        |
-| UI            | Tailwind 4, shadcn/ui, lucide-react, framer-motion, @xyflow/react             |
-| State         | zustand (canvas), TanStack Query (server), react-hook-form + zod (forms)      |
-| Auth          | Auth.js v5 (`next-auth`) with Prisma adapter; WebAuthn via `@simplewebauthn`  |
-| DB            | PostgreSQL 16 + Prisma 6                                                      |
-| Cache / queue | Redis 7 (`ioredis`)                                                           |
-| Storage       | MinIO (dev) / Railway Volume (prod)                                           |
-| Email         | Resend (transactional — password reset, notifications)                        |
-| AI            | Groq — Whisper (STT, raft-log voice input) + Llama (text)                     |
-| Blockchain    | Stellar / Soroban — `@stellar/stellar-sdk`, `@creit.tech/stellar-wallets-kit` |
-| Contracts     | Rust 1.88, `soroban-sdk` 22, `wasm32v1-none`                                  |
-| Observability | Sentry, pino                                                                  |
+> This table is the **single source of truth** for the stack. `SPEC.md` and
+> `CLAUDE.md` link here rather than restating it.
+
+| Layer         | Tech                                                                                         |
+| ------------- | -------------------------------------------------------------------------------------------- |
+| Runtime       | Node.js 22 LTS (`>=22.11 <23`), pnpm 10.4.1                                                  |
+| Language      | TypeScript 5.7 — `strict`, `noUncheckedIndexedAccess`                                        |
+| Framework     | Next.js 15 (App Router, RSC, Route Handlers), React 19                                       |
+| UI            | Tailwind 4 (CSS-first `@theme`), Material Symbols (self-hosted), `@xyflow/react` 12          |
+| Forms         | `react-hook-form` + `zod`                                                                    |
+| Auth          | Auth.js v5 (`next-auth` 5.0.0-beta) + Prisma adapter; WebAuthn via `@simplewebauthn`; argon2 |
+| DB            | PostgreSQL 16 + Prisma 6                                                                     |
+| Cache / queue | Redis 7 (`ioredis`) — rate limits, SSE pub/sub                                               |
+| Storage       | MinIO (dev) / Railway Volume (prod)                                                          |
+| Email         | Resend (transactional — password reset, notifications)                                       |
+| Off-ramp      | PDAX Institution API (fiat payout), mock provider by default                                 |
+| AI            | Groq — Whisper (STT, raft-log voice input) + Llama (text)                                    |
+| Blockchain    | Stellar / Soroban — `@stellar/stellar-sdk` 15, `@creit.tech/stellar-wallets-kit` 1.9         |
+| Contracts     | Rust (CI toolchain 1.95), `soroban-sdk` 26, target `wasm32v1-none`                           |
+| Tests         | vitest 3 (unit), `@playwright/test` 1.49 (e2e, run locally)                                  |
+| Observability | pino (+ pino-pretty in dev). Sentry is stubbed out — see note below.                         |
+
+**Notes on things people expect to find and won't:**
+
+- **No component library.** Components are hand-rolled per feature folder under
+  `components/`. There is no `components/ui/` and no shadcn/ui.
+- **No client state library.** The builder canvas uses `@xyflow/react`'s own
+  state; server state is fetched in RSCs, Route Handlers, or the small polling
+  hooks in `lib/hooks/`.
+- **No Server Actions.** Every mutation goes through a Route Handler under
+  `app/api/`.
+- **Sentry is not installed.** `sentry.*.config.ts` are no-op stubs that warn
+  when `SENTRY_DSN` is set; wiring it up means `pnpm add @sentry/nextjs` and
+  filling in the stub bodies.
 
 ### Prerequisites
 
@@ -285,25 +304,28 @@ cargo test --workspace
 ### Project layout
 
 ```
-app/             Next.js App Router (routes, layouts, Server Actions)
-  api/             Route handlers (trigger, cron, auth, transcribe, …)
+app/             Next.js App Router (routes + layouts; no Server Actions)
+  api/             Route handlers (deployments, payroll, offramp, cron, auth, …)
   flows/           Visual builder canvas
   deployments/     Deployment list + detail (with live event feed)
   trigger/         Public trigger page (QR target)
-  admin/           Admin console
-components/      Shared React components (shadcn/ui lives here)
-lib/             Server + shared utilities (auth, db, stellar, validation, …)
+  allowance/       Public allowance-approval page
+  payroll/         Employee / bank-detail management
+  admin/           Admin console (users, templates, off-ramp credentials)
+components/      Hand-rolled React components, grouped by feature
+lib/             Server + shared utilities (auth, db, stellar, offramp, validation, …)
 prisma/          schema.prisma, migrations, seed.ts
 contracts/       Soroban smart contracts (Rust workspace)
-  splitter/         60/30/10-style payment splitter
-  streamer/         time-based linear vesting / streaming
-  conditional/      release-on-condition escrow
-scripts/         Operational scripts (e.g. upload-wasm.ts)
+  triggers/         on-receive, webhook, subscription, oracle
+  conditions/       conditional, router, timelock, multisig
+  actions/          splitter, streamer, payer, payroll, cash-out, swapper, yield
+  factory/          deploys + wires a whole pipeline atomically
+scripts/         Operational scripts (upload-wasm, deploy-factory, update-hashes, …)
 tests/
   unit/             Vitest specs
   e2e/              Playwright specs
 screenshots/     Generated UI screenshots (committed)
-docs/            Pitch deck, mainnet runbook, features changelog
+docs/            Architecture, runbooks, features changelog, design records
 ```
 
 ### Branching & CI
@@ -350,10 +372,19 @@ Configured for **Railway** (`railway.toml`, `nixpacks.toml`):
 
 ### Further reading
 
-- [`SPEC.md`](./SPEC.md) — full product + architecture spec (~1k lines)
-- [`docs/features.md`](./docs/features.md) — running changelog of user-visible features
-- [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) — contract API surface
-- [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md) — mainnet-go-live runbook
+| Document                                                               | What it covers                                                                      |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [`SPEC.md`](./SPEC.md)                                                 | Product + architecture spec                                                         |
+| [`CLAUDE.md`](./CLAUDE.md)                                             | How to build in this repo — commands, architecture, conventions, security checklist |
+| [`BRAND.md`](./BRAND.md)                                               | Visual system: tokens, effects, typography, component patterns                      |
+| [`docs/architecture-diagrams.md`](./docs/architecture-diagrams.md)     | Editable mermaid sources for the diagrams above                                     |
+| [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) | Contract surface, build/upload pipeline, how to add a contract                      |
+| [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md)                 | Mainnet go-live runbook                                                             |
+| [`docs/pdax-institution-api.md`](./docs/pdax-institution-api.md)       | Fiat off-ramp API + UAT constraints                                                 |
+| [`docs/features.md`](./docs/features.md)                               | Running changelog of user-visible features                                          |
+| [`docs/design/`](./docs/design/)                                       | Design records for shipped work                                                     |
+| [`docs/archive/`](./docs/archive/)                                     | Superseded / out-of-scope documents — historical record only                        |
+| [`docs/marketing/`](./docs/marketing/)                                 | Pitch deck, submission copy                                                         |
 
 ## License
 
