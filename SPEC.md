@@ -148,9 +148,9 @@ has something to deploy; the palette entry is hidden because `pay` and `split` a
 `amount_out = amount * rate_bps / 10_000` from a rate stored at deploy, then pays `assetOut` out of
 the contract's own pre-funded balance, panicking with `InsufficientOutput` if that balance is short.
 Its own comment: _"In a real DEX integration this would call the AMM. Here we simulate."_ There is
-no market rate and no counterparty. Wiring it to a real router is deliverable **D1** in
-[`docs/instawards-phase-1.md`](./docs/instawards-phase-1.md); until that lands, treat this block as
-a fixed-rate payout from a pre-funded balance, not an exchange.
+no market rate and no counterparty. Wiring it to a real router is Deliverable 1 of the approved
+SOW, [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md); until that lands, treat
+this block as a fixed-rate payout from a pre-funded balance, not an exchange.
 
 ### 3.3 Logic
 

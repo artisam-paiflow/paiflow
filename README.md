@@ -267,7 +267,6 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 | `pnpm typecheck` | `tsc --noEmit`                               |
 | `pnpm lint`      | `next lint`                                  |
 | `pnpm format`    | Prettier across the repo                     |
-| `pnpm docs:pdf`  | Render a self-contained HTML doc to PDF      |
 
 #### Tests
 
@@ -395,20 +394,18 @@ Configured for **Railway** (`railway.toml`, `nixpacks.toml`):
 
 ### Further reading
 
-| Document                                                                         | What it covers                                                                                          |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| [`SPEC.md`](./SPEC.md)                                                           | Product + architecture spec                                                                             |
-| [`CLAUDE.md`](./CLAUDE.md)                                                       | How to build in this repo — commands, architecture, conventions, security checklist                     |
-| [`BRAND.md`](./BRAND.md)                                                         | Visual system: tokens, effects, typography, component patterns                                          |
-| [`docs/architecture-diagrams.md`](./docs/architecture-diagrams.md)               | Editable mermaid sources for the diagrams above                                                         |
-| [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md)           | Contract surface, build/upload pipeline, how to add a contract                                          |
-| [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md)                           | Mainnet go-live runbook                                                                                 |
-| [`docs/pdax-institution-api.md`](./docs/pdax-institution-api.md)                 | Fiat off-ramp API + UAT constraints                                                                     |
-| [`docs/instawards-phase-1-onepager.pdf`](./docs/instawards-phase-1-onepager.pdf) | Instaward Phase 1 executive one-pager (A4); source is the sibling `.html`, rebuild with `pnpm docs:pdf` |
-| [`docs/instawards-phase-1-overview.md`](./docs/instawards-phase-1-overview.md)   | Instaward Phase 1 at a glance — what each deliverable is and why it matters                             |
-| [`docs/instawards-phase-1.md`](./docs/instawards-phase-1.md)                     | Instaward Phase 1 sprint deliverables, evidence, and open decisions                                     |
-| [`docs/design/`](./docs/design/)                                                 | Design records — why a decision was made; see its README for the convention                             |
-| [`docs/archive/`](./docs/archive/)                                               | Superseded / out-of-scope documents — historical record only                                            |
+| Document                                                               | What it covers                                                                                     |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [`SPEC.md`](./SPEC.md)                                                 | Product + architecture spec                                                                        |
+| [`CLAUDE.md`](./CLAUDE.md)                                             | How to build in this repo — commands, architecture, conventions, security checklist                |
+| [`BRAND.md`](./BRAND.md)                                               | Visual system: tokens, effects, typography, component patterns                                     |
+| [`docs/architecture-diagrams.md`](./docs/architecture-diagrams.md)     | Editable mermaid sources for the diagrams above                                                    |
+| [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) | Contract surface, build/upload pipeline, how to add a contract                                     |
+| [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md)                 | Mainnet go-live runbook                                                                            |
+| [`docs/pdax-institution-api.md`](./docs/pdax-institution-api.md)       | Fiat off-ramp API + UAT constraints                                                                |
+| [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md)   | Approved Instawards Phase 1 Statement of Work (verbatim) — deliverables, evidence, success metrics |
+| [`docs/design/`](./docs/design/)                                       | Design records — why a decision was made; see its README for the convention                        |
+| [`docs/archive/`](./docs/archive/)                                     | Superseded / out-of-scope documents — historical record only                                       |
 
 ## License
 
