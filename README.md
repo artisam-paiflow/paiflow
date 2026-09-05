@@ -137,8 +137,8 @@ Key boundaries:
 
 ```bash
 # 1. Clone
-git clone https://github.com/webnxt-2030/paiflow.git
-cd paiflow
+git clone https://github.com/webnxt-2030/pinkraft.git
+cd pinkraft
 
 # 2. Install deps (requires Node 22.11.x and pnpm 10.4.1)
 corepack enable && corepack prepare pnpm@10.4.1 --activate

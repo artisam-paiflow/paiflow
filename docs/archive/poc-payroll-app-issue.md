@@ -102,7 +102,7 @@ paiflow-payroll/
 └── tailwind.config.ts
 ```
 
-It depends on **Paiflow** only at the API boundary (`lib/paiflow-client.ts`). The Paiflow repo (`webnxt-2030/paiflow`, branch `feat/payroll-pull-employer`) is the upstream backend and source of truth for contract behavior.
+It depends on **Paiflow** only at the API boundary (`lib/paiflow-client.ts`). The Paiflow repo (`webnxt-2030/pinkraft`, branch `feat/payroll-pull-employer`) is the upstream backend and source of truth for contract behavior.
 
 ---
 
