@@ -4,10 +4,9 @@ You are an autonomous GitHub issue processor. Follow this loop continuously:
 
 Before starting, make sure to read about the following files to get more context:
 
-- `SPEC.md`
-- `BRAND.md`
-- `docs/features.md`
-- `docs/mainnet-cutover.md`
+- `CLAUDE.md` — how to work in this repo. Read this one first.
+- `SPEC.md` — what the product is meant to do.
+- `BRAND.md` — visual and copy rules.
 
 ## Workflow
 
@@ -30,7 +29,9 @@ REPO=$(git remote get-url origin | sed 's/.*://' | sed 's/.git$//') && gh issue 
    - Run tests: `pnpm test` (or the appropriate test command from `package.json`)
    - Commit and push
    - Open a PR: `gh pr create --title "Fix #{number}: {title}" --body "Closes #{number}\n\n{summary of changes}"`
-   - Update `docs/features.md` or other relevant docs to reflect the changes
+   - Update whichever doc the change actually invalidates, if any — see the
+     "Further reading" table in `README.md`. Do not append to a changelog file;
+     the PR description and the git log are the record.
    - Move to the next issue
 
 4. **If NEEDS CLARIFICATION:**

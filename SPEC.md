@@ -202,6 +202,30 @@ a non-technical operator can check the flow without reading the graph:
 This is a product requirement, not a nicety: it is the last human-readable checkpoint before a user
 signs a transaction that moves real money.
 
+### 3.6 Beyond the block library
+
+The block library is what a user assembles. This is the rest of the product surface — the parts that
+have no palette entry. Each is one line plus where the truth lives; nothing here restates an
+implementation.
+
+| Surface                    | What it is                                                                                                                                                                      | Where it lives                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Relayer automation**     | Why `on_schedule`, `subscription`, `payroll` and timelock conditions fire at all. Paiflow's own key signs `*_by_relayer` calls on a cron so the user doesn't sign every period. | `app/api/cron/*`, `lib/stellar/relayer.ts`; [`CLAUDE.md` §2](./CLAUDE.md#2-architecture) |
+| **Payroll**                | A recipient roster that changes between runs: employees, bank details, per-run payout records, and a catch-up limit so a lapsed schedule can't fire a year of charges at once.  | `Employee`, `PayrollRun`, `PayrollPayout`; `cron/auto-charge-payroll`                    |
+| **Fiat off-ramp**          | Payouts marked fiat become jobs walking `PENDING → RUNNING → QUOTED → INITIATED → COMPLETED \| FAILED \| CANCELLED`. A **mock provider is the default**; PDAX is opt-in.        | [`docs/pdax-institution-api.md`](./docs/pdax-institution-api.md)                         |
+| **Dev mode**               | A per-flow flag swapping in `_DEV` contract variants so values left blank at design time can be filled after deploy, authenticated by a token rather than a session.            | [`docs/archive/dev-mode-mutable-flows.md`](./docs/archive/dev-mode-mutable-flows.md)     |
+| **QR-triggered execution** | Every deployment renders a public SEP-7 URL. Anyone with a wallet can scan, sign, and fire it — no account on Paiflow required.                                                 | `/trigger/[deploymentId]`                                                                |
+| **Live event feed**        | On-chain events are ingested, never trusted from the client: cron poll → `ContractEvent` → Redis → SSE to the open page.                                                        | [`CLAUDE.md` §2](./CLAUDE.md#2-architecture)                                             |
+| **Raft Log**               | Edit a flow by voice or text. Speech → transcript → a JSON patch that must pass the same validator as a hand-drawn edit before it touches the graph.                            | `/api/transcribe`, `/api/flows/[id]/edit`                                                |
+| **Address book**           | Saved labels for Stellar addresses, reused by the builder and given to the AI so "pay Alice" resolves.                                                                          | `AddressBookEntry`, `lib/address-book.ts`                                                |
+| **Admin console**          | Users, audit log, and off-ramp provider credentials — the last so PDAX's ~10-minute tokens can be rotated without a redeploy.                                                   | `/admin/*`                                                                               |
+| **Deploys via a factory**  | One transaction deploys a whole pipeline, with child addresses pre-computed from deterministic salts.                                                                           | [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) §4                |
+
+Two things deliberately absent: there is **no** per-deploy network picker (the network is pinned per
+environment — [`CLAUDE.md` §7.5](./CLAUDE.md#75-networks)), and **no** in-app changelog. Feature
+history is the git log; `docs/archive/features-through-2026-06.md` holds an earlier hand-kept log
+that stopped.
+
 ---
 
 ## 4. Authentication & Authorization

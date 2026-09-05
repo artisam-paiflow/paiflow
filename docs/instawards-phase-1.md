@@ -104,7 +104,8 @@ arity task below), so there is no live on-chain swapper and no production data t
       `"swap XLM to USDC at 95% rate"`). Watch for false greens: several `expect(r.ok).toBe(false)`
       cases would keep passing for the wrong reason — a Zod failure instead of the asset mismatch
       they were written to catch.
-- [ ] `docs/features.md` documents `asset_out = amount * rate_bps / 10_000`.
+- [ ] `SPEC.md` §3.2 — the "**`swap` does not swap**" paragraph and the `amount * rate_bps / 10_000`
+      formula both describe the pre-D1 behaviour and must change when a real router lands.
 - [ ] Build + upload wasm, then `pnpm contracts:update-hashes`. Upload auto-discovers the artifact;
       no swapper hash is committed today, so the `ContractTemplate` row does not exist until this
       runs. A running dev server caches hashes process-globally and needs a restart afterwards.

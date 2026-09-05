@@ -1,6 +1,26 @@
-# Features
+# Features — hand-kept log, 2026-06 and earlier
 
-Running log of user-visible features.
+> **Archived — the log stopped.** Entries run from the early builder work to
+> 2026-06-15 and were never resumed; payroll, the fiat off-ramp, cash-out, dev
+> mode and the deploy factory all landed afterwards and appear nowhere below.
+> Three-hundred-odd commits are missing. Read this as a record of a period, not
+> a description of the system.
+>
+> Three entries describe state that has since changed, left as written because
+> that is what a record is: **"Decoupled contracts base"** names
+> `contracts/trigger`, `contracts/timelock`, `contracts/router` and
+> `contracts/splitter`, which now live under `triggers/`, `conditions/` and
+> `actions/`; and **"Builder integration"** and **"Builder page polish"** both
+> describe the pre-factory model where one flow inferred a single
+> `SPLITTER` / `STREAMER` / `CONDITIONAL` template. A flow now deploys a
+> pipeline of contracts.
+>
+> Kept for what is recorded nowhere else: the **streamer ABI break** and its
+> re-upload/re-deploy warning, and the rationale behind the decoupled
+> `receive_and_forward` architecture — the _why_ the crates don't explain.
+>
+> For what the product does today see [`SPEC.md`](../../SPEC.md) §3; for what
+> changed, the git log.
 
 ## Streamer retrieve-unvested and deposit live events
 

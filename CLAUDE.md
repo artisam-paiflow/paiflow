@@ -499,7 +499,6 @@ and don't cite them as already-true when reviewing.
 
 Being worked through; don't trust these yet:
 
-- `docs/features.md` — last updated before payroll, off-ramp, cash-out, and the factory landed.
 - `app/about/page.tsx` claims mainnet is "gated behind a per-user allowlist". No allowlist exists —
   the claim stands and the control is being built to match it in
   [#377](https://github.com/webnxt-2030/pinkraft/issues/377), which also rewrites [§7.5](#75-networks).

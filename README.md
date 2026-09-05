@@ -382,7 +382,6 @@ Configured for **Railway** (`railway.toml`, `nixpacks.toml`):
 | [`docs/instawards-phase-1-onepager.pdf`](./docs/instawards-phase-1-onepager.pdf) | Instaward Phase 1 executive one-pager (A4); source is the sibling `.html`, rebuild with `pnpm docs:pdf` |
 | [`docs/instawards-phase-1-overview.md`](./docs/instawards-phase-1-overview.md)   | Instaward Phase 1 at a glance — what each deliverable is and why it matters                             |
 | [`docs/instawards-phase-1.md`](./docs/instawards-phase-1.md)                     | Instaward Phase 1 sprint deliverables, evidence, and open decisions                                     |
-| [`docs/features.md`](./docs/features.md)                                         | Running changelog of user-visible features                                                              |
 | [`docs/design/`](./docs/design/)                                                 | Design records for shipped work                                                                         |
 | [`docs/archive/`](./docs/archive/)                                               | Superseded / out-of-scope documents — historical record only                                            |
 | [`docs/marketing/`](./docs/marketing/)                                           | Pitch deck, submission copy                                                                             |
