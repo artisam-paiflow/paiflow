@@ -384,7 +384,6 @@ Configured for **Railway** (`railway.toml`, `nixpacks.toml`):
 | [`docs/instawards-phase-1.md`](./docs/instawards-phase-1.md)                     | Instaward Phase 1 sprint deliverables, evidence, and open decisions                                     |
 | [`docs/design/`](./docs/design/)                                                 | Design records for shipped work                                                                         |
 | [`docs/archive/`](./docs/archive/)                                               | Superseded / out-of-scope documents — historical record only                                            |
-| [`docs/marketing/`](./docs/marketing/)                                           | Pitch deck, submission copy                                                                             |
 
 ## License
 
