@@ -8,7 +8,15 @@ instantiates per deployment. Members are grouped by block category —
 ```bash
 rustup target add wasm32v1-none   # once
 pnpm contracts:build              # from the repo root
-cargo test --workspace            # from this directory
+```
+
+Everything CI gates on, from this directory — run all three before opening a PR, since `clippy` is
+`-D warnings` there and a warning fails the build:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test --workspace
 ```
 
 **The build, test, upload, and factory-deploy pipeline is documented in

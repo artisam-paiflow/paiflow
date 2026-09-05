@@ -206,7 +206,7 @@ using `soroban-sdk`'s test env):
 
 ```bash
 cd contracts
-cargo fmt --all --check
+cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test --workspace
 ```
