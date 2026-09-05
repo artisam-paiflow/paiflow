@@ -155,7 +155,7 @@ UAT asset/bank constraints.
 A per-flow `devMode` flag on the graph swaps nodes that have a `_DEV` counterpart (`splitter_dev`,
 `payer_dev`, `subscription_dev`, `cash_out_dev`) for on-chain-mutable variants. Values left blank at
 design time are filled after deploy through the `/api/deployments/[id]/dev-*` routes, authenticated
-by a `DevApiToken` rather than a session. Background in `docs/archive/dev-mode-mutable-flows.md`.
+by a `DevApiToken` rather than a session. Background in `docs/design/2026-06-24-dev-mode-mutable-flows.md`.
 
 ---
 

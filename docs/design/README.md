@@ -26,7 +26,7 @@ re-litigates.
 **State the decision and its date. Never assert that current code implements it.**
 
 `Status: shipped. Implemented in <file>` is a claim about the present tense, and
-it is the sentence that goes stale. The one record in this directory carried
+it is the sentence that goes stale. The canvas-config-panel record carried
 exactly that line, and every decision under it was reversed within three weeks —
 its central design point was overturned _two days_ after it was written, while
 the banner went on saying the code implemented it.

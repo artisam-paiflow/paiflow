@@ -400,7 +400,7 @@ Each stub function must contain a `// TODO(PAIFLOW_API): replace with real HTTP 
 ## 17. Related work
 
 - Current branch: `feat/payroll-pull-employer` — contains the `PAYROLL` contract and mutable recipient APIs.
-- `docs/archive/dev-mode-mutable-flows.md` — explains the `_DEV` contract decomposition (`SUBSCRIPTION_DEV → SPLITTER_DEV`) that this app will eventually consume.
+- `docs/design/2026-06-24-dev-mode-mutable-flows.md` — explains the `_DEV` contract decomposition (`SUBSCRIPTION_DEV → SPLITTER_DEV`) that this app will eventually consume.
 - `lib/offramp/*` — PDAX off-ramp jobs the fiat flow will use once wired.
 - `SPEC.md` and `CLAUDE.md` — Paiflow's product spec and engineering guidelines.
 
