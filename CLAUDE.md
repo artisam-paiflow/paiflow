@@ -502,7 +502,9 @@ Being worked through; don't trust these yet:
   `triggers/`, `conditions/`, `actions/`, `factory/`. §5 Step 5 also points at `flowToParams()`,
   `@deprecated` at `lib/flows/to-params.ts:1323`; use `flowToPipeline()` (`:569`). Only §4.2–4.3 are current.
 - `docs/features.md` — last updated before payroll, off-ramp, cash-out, and the factory landed.
-- `app/about/page.tsx` claims mainnet is "gated behind a per-user allowlist". No allowlist exists.
+- `app/about/page.tsx` claims mainnet is "gated behind a per-user allowlist". No allowlist exists —
+  the claim stands and the control is being built to match it in
+  [#377](https://github.com/webnxt-2030/pinkraft/issues/377), which also rewrites [§7.5](#75-networks).
 
 ---
 

@@ -23,9 +23,10 @@ export default function AboutPage() {
         Stellar in seconds.
       </p>
       <p className="mt-md text-body-md text-on-surface-variant">
-        We pick three contract shapes — <span className="text-on-surface">Splitter</span>,{" "}
+        We ship a library of contract shapes — <span className="text-on-surface">Splitter</span>,{" "}
         <span className="text-on-surface">Streamer</span>,{" "}
-        <span className="text-on-surface">Conditional</span> — and let you parameterize them
+        <span className="text-on-surface">Subscription</span>,{" "}
+        <span className="text-on-surface">Payroll</span> and more — and let you parameterize them
         visually. No Rust required. The contract templates ship pre-audited; deployments are
         non-custodial; you sign every transaction yourself.
       </p>
