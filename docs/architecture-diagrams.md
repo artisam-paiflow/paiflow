@@ -6,11 +6,30 @@ diagrams display everywhere (GitHub's client-side mermaid renderer is flaky and
 unsupported in the mobile app); the sources are kept here so they stay editable
 and still preview as live mermaid where rendering works.
 
-**After editing a diagram here, regenerate the SVG:**
+**After editing a diagram here, regenerate its SVG** — the README embeds the rendered file, so a
+source edit that isn't re-rendered changes nothing a reader sees.
 
-```bash
-npx -y @mermaid-js/mermaid-cli -i <diagram>.mmd -o docs/diagrams/<diagram>.svg -b transparent
-```
+| Section below                                    | Renders to                                   |
+| ------------------------------------------------ | -------------------------------------------- |
+| System architecture                              | `docs/diagrams/system-architecture.svg`      |
+| Sequence — deploy a flow                         | `docs/diagrams/sequence-deploy.svg`          |
+| Sequence — payer executes via QR                 | `docs/diagrams/sequence-qr-execution.svg`    |
+| Sequence — Raft Log voice edit                   | `docs/diagrams/sequence-voice-edit.svg`      |
+| Sequence — scheduled automation (cron + relayer) | `docs/diagrams/sequence-cron-automation.svg` |
+
+The sources are the fenced blocks below, not standalone `.mmd` files, so extract one before
+rendering. From the repo root, setting `SECTION` and `OUT` from the table:
+
+````bash
+SECTION='System architecture'
+OUT='system-architecture'
+
+awk -v s="## $SECTION" '$0==s{f=1} f&&/^```mermaid$/{c=1;next} c&&/^```$/{exit} c' \
+  docs/architecture-diagrams.md > /tmp/diagram.mmd
+
+npx -y @mermaid-js/mermaid-cli -i /tmp/diagram.mmd \
+  -o "docs/diagrams/$OUT.svg" -b transparent
+````
 
 ## System architecture
 
@@ -18,7 +37,7 @@ npx -y @mermaid-js/mermaid-cli -i <diagram>.mmd -o docs/diagrams/<diagram>.svg -
 flowchart TB
     subgraph Client["Client (browser / phone)"]
         Builder["Visual builder<br/>(@xyflow/react canvas)"]
-        Wallet["Wallet — Freighter / xBull / Albedo /<br/>LOBSTR / WalletConnect<br/>(@creit.tech/stellar-wallets-kit)"]
+        Wallet["Wallet — Freighter (desktop) or<br/>WalletConnect → xBull / LOBSTR / Freighter<br/>(@creit.tech/stellar-wallets-kit)"]
         Payer["Payer — scans QR /<br/>opens dApp URL"]
     end
 
@@ -27,7 +46,7 @@ flowchart TB
         API["API routes — /api/deployments/*<br/>/api/flows/* /api/transcribe<br/>/api/webhooks/* /api/cron/*"]
         Auth["Auth.js v5 — argon2 +<br/>WebAuthn + middleware"]
         StellarLib["lib/stellar — XDR build /<br/>simulate / submit / relayer"]
-        Cron["Cron jobs — poll-events,<br/>auto-release, auto-charge-*,<br/>process-streamer/offramp-jobs"]
+        Cron["Cron jobs — poll-events, auto-release,<br/>auto-charge-*, finalize-deployments,<br/>process-streamer/offramp-jobs"]
     end
 
     subgraph Data["Data plane"]
@@ -40,7 +59,7 @@ flowchart TB
         RPC["Soroban RPC —<br/>simulate / send / getEvents"]
         Horizon["Horizon —<br/>account funding checks"]
         Factory["Factory contract<br/>(deploy_pipeline)"]
-        Contracts["Deployed pipelines —<br/>triggers: deposit / webhook / subscription / oracle<br/>actions: splitter / streamer / payer / payroll /<br/>cash_out / swapper / yield<br/>conditions: timelock / amount / oracle"]
+        Contracts["Deployed pipelines —<br/>triggers: deposit / webhook / subscription / oracle<br/>actions: splitter / streamer / payer / payroll /<br/>cash_out / swapper / yield<br/>conditions: conditional / timelock / router / multisig"]
     end
 
     subgraph External["External services"]
@@ -66,8 +85,7 @@ flowchart TB
     StellarLib --> Horizon
     RPC --> Factory
     Factory --> Contracts
-    Wallet -. signs XDR .-> API
-    Wallet -. submits signed tx .-> RPC
+    Wallet -. signs XDR, returns envelope .-> API
 ```
 
 ## Sequence — deploy a flow

@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Paiflow — Sprint Scope One-Pager</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 8mm 9mm;
+      }
+
+      :root {
+        --ink: #171516;
+        --muted: #6f676a;
+        --faint: #938a8d;
+        --accent: #ba005b;
+        --accent-deep: #8f0044;
+        --line: #e4dde0;
+        --line-soft: #efe9eb;
+        --tint: #faf6f8;
+        --tint-strip: #fdf3f7;
+        --shipped: #7b7276;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Liberation Sans", Arial, Helvetica, sans-serif;
+        font-size: 6.9pt;
+        line-height: 1.3;
+        color: var(--ink);
+        background: #fff;
+      }
+
+      code,
+      .mono {
+        font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+        font-size: 0.9em;
+      }
+
+      /* ---------- header ---------- */
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 8mm;
+        padding-bottom: 1.5mm;
+      }
+
+      .eyebrow {
+        font-size: 6.6pt;
+        font-weight: 700;
+        letter-spacing: 0.19em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 1.2mm;
+      }
+
+      h1 {
+        font-size: 13.8pt;
+        line-height: 1.1;
+        font-weight: 700;
+        margin: 0;
+        letter-spacing: -0.005em;
+      }
+
+      .meta {
+        text-align: right;
+        font-size: 6.7pt;
+        line-height: 1.55;
+        color: var(--muted);
+        white-space: nowrap;
+        padding-top: 0.6mm;
+      }
+
+      .meta b {
+        color: var(--ink);
+      }
+
+      /* ---------- intro ---------- */
+
+      .intro {
+        border-top: 1.4px solid var(--ink);
+        padding-top: 1.8mm;
+        margin-bottom: 2.2mm;
+        font-size: 7pt;
+        line-height: 1.42;
+      }
+
+      /* ---------- card grid ---------- */
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2.3mm;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 2.4px;
+        padding: 2mm 2.3mm 2.1mm;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .card h2 {
+        font-size: 8.7pt;
+        font-weight: 700;
+        margin: 0 0 0.7mm;
+        letter-spacing: -0.004em;
+      }
+
+      .card h2 .n {
+        color: var(--accent);
+      }
+
+      .tags {
+        font-size: 6.2pt;
+        font-weight: 700;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: var(--faint);
+        margin-bottom: 1.2mm;
+      }
+
+      .lead {
+        margin: 0 0 1.3mm;
+      }
+
+      .label {
+        font-size: 6.2pt;
+        font-weight: 700;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 0.95mm;
+      }
+
+      ul {
+        margin: 0 0 1mm;
+        padding-left: 2.9mm;
+      }
+
+      li {
+        margin-bottom: 0.65mm;
+      }
+
+      li::marker {
+        color: var(--accent);
+      }
+
+      p {
+        margin: 0 0 1.05mm;
+      }
+
+      .push {
+        margin-top: auto;
+      }
+
+      /* ---------- tables ---------- */
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 1.3mm;
+      }
+
+      th {
+        text-align: left;
+        font-size: 6pt;
+        font-weight: 700;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: var(--muted);
+        background: var(--tint);
+        padding: 0.9mm 1.2mm;
+        border: 1px solid var(--line-soft);
+      }
+
+      td {
+        padding: 0.9mm 1.2mm;
+        border: 1px solid var(--line-soft);
+        vertical-align: top;
+      }
+
+      td.step {
+        white-space: nowrap;
+        font-weight: 700;
+        width: 1%;
+      }
+
+      .pill {
+        display: inline-block;
+        font-size: 5.7pt;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        padding: 0.35mm 1.1mm;
+        border-radius: 1.5px;
+        text-transform: uppercase;
+      }
+
+      .pill.shipped {
+        background: #f1eef0;
+        color: var(--shipped);
+      }
+      .pill.extract {
+        background: #fbe9f1;
+        color: var(--accent-deep);
+      }
+      .pill.new {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      /* ---------- done-when callout ---------- */
+
+      .done {
+        background: var(--tint);
+        border-left: 1.6px solid var(--accent);
+        padding: 1.15mm 1.6mm;
+        font-size: 6.6pt;
+        line-height: 1.32;
+      }
+
+      .done .k {
+        font-size: 6.1pt;
+        font-weight: 700;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-right: 0.8mm;
+      }
+
+      .note {
+        font-size: 6.7pt;
+        margin-bottom: 1.2mm;
+      }
+
+      /* ---------- bottom strip ---------- */
+
+      .strip {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 0;
+        margin-top: 2.3mm;
+        border: 1px solid var(--line);
+        border-radius: 2.4px;
+        background: var(--tint-strip);
+      }
+
+      .strip > div {
+        padding: 1.8mm 2.3mm;
+        border-right: 1px solid var(--line);
+      }
+
+      .strip > div:last-child {
+        border-right: 0;
+      }
+
+      .strip .label {
+        color: var(--accent-deep);
+      }
+
+      .flow {
+        font-size: 6.3pt;
+        line-height: 1.4;
+        margin-bottom: 1.2mm;
+        color: var(--accent-deep);
+      }
+
+      /* ---------- footer ---------- */
+
+      footer {
+        margin-top: 1.6mm;
+        padding-top: 1.1mm;
+        border-top: 1px solid var(--line);
+        font-size: 6.4pt;
+        line-height: 1.45;
+        color: var(--faint);
+        text-align: center;
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <div>
+        <div class="eyebrow">Paiflow · Stellar · Instawards</div>
+        <h1>Sprint Scope — Executive One-Pager</h1>
+      </div>
+      <div class="meta">
+        <b>Repo</b> webnxt-2030/pinkraft @ 4aeab87 · branch develop<br />
+        <b>Network</b> Stellar Testnet (Soroban) · <b>Sprint</b> 8-Sep → 7-Oct-2026<br />
+        <b>Scope</b> 4 deliverables · 3 engineering gaps · 30 days · $5,000
+      </div>
+    </header>
+
+    <div class="intro">
+      Four deliverables, sequenced below as <b>D1 → D4</b>. Nearly all of the work is
+      <b>extension of shipped code</b>, not greenfield — the factory, six flow templates, the
+      builder canvas and a payroll machine API already run on testnet. Net-new concentrates in three
+      places: the <b>Soroswap router call</b>, the <b>versioned <code>/api/v1</code> surface</b>,
+      and the <b>shared input primitives</b>. Full detail in
+      <code>docs/instawards-phase-1.md</code>.
+    </div>
+
+    <div class="grid">
+      <!-- D1 -->
+      <div class="card">
+        <h2><span class="n">D1</span> · Real DEX swap</h2>
+        <div class="tags">Soroban / Rust — extend + net new · Week 1</div>
+        <p class="lead">
+          Wire the existing swapper to the Soroswap testnet router, unhide it in the builder, and
+          produce a verifiable swap transaction. Today it fulfils swaps from a pre-funded balance —
+          its own comment says <i>“here we simulate.”</i>
+        </p>
+
+        <div class="label">What gets built</div>
+        <ul>
+          <li>
+            <b>Contract-to-contract authorization</b> —
+            <code>authorize_as_current_contract</code> so the router can pull <code>asset_in</code>.
+            No crate here does this yet, and it is the one piece unit tests cannot prove.
+          </li>
+          <li>
+            <b>The router call</b> — quote via <code>router_get_amounts_out</code>, derive
+            <code>amount_out_min</code> from <code>slippage_bps</code>, deadline-bounded, revert on
+            shortfall.
+          </li>
+          <li>
+            <b><code>parent</code> + <code>require_auth</code></b> — swapper and yield are the only
+            two pipeline contracts missing it, so <code>receive_and_forward</code> is callable by
+            anyone today.
+          </li>
+          <li>
+            <b>Constructor arity fix</b> — <code>scval.ts</code> sends 6 args where Rust takes 5.
+            Swap flows cannot deploy at all today; the same bug sits in <code>yield</code>.
+          </li>
+          <li>
+            <b>Schema move</b> — <code>rateBps</code> → <code>slippageBps</code> +
+            <code>routerAddress</code>, with a <code>migrateFlowGraph</code> branch so saved flows
+            still load. Router is an allowlist, never free text.
+          </li>
+        </ul>
+
+        <div class="done push">
+          <span class="k">Done when</span> a flow built on the canvas deploys to testnet and a
+          triggered swap routes through the <i>real</i> Soroswap router — verifiable on
+          stellar.expert, not a mock.
+        </div>
+      </div>
+
+      <!-- D2 -->
+      <div class="card">
+        <h2><span class="n">D2</span> · Partner-drivable API</h2>
+        <div class="tags">TypeScript / Next — extend + net new · Week 2</div>
+        <p class="lead">
+          Today Paiflow is a thing people use. D2 makes it a thing <i>software</i> uses. Payroll
+          already has a machine interface, but it is one-off and payroll-specific.
+        </p>
+
+        <div class="label">The v1 surface</div>
+        <table>
+          <tr>
+            <td class="step">Execute</td>
+            <td>
+              <code>POST /api/v1/deployments/[id]/execute</code> — relayer-signed, no user signature
+              at request time
+            </td>
+          </tr>
+          <tr>
+            <td class="step">Events</td>
+            <td>
+              <code>GET …/events</code> — cursor-paged, reusing the payroll
+              <code>(occurredAt, id)</code> cursor
+            </td>
+          </tr>
+          <tr>
+            <td class="step">Tokens</td>
+            <td>Hashed, per-deployment. Closes open security issue <b>#247</b></td>
+          </tr>
+          <tr>
+            <td class="step">Wrapper</td>
+            <td><code>withApiV1</code> — auth + rate limit + audit, extracted from payroll</td>
+          </tr>
+          <tr>
+            <td class="step">Docs</td>
+            <td>OpenAPI + Postman, hand-written — no spec tooling exists in the repo</td>
+          </tr>
+        </table>
+
+        <p class="note">
+          <b>Load-bearing decision:</b> the swapper has no execute entrypoint and the relayer cannot
+          call it directly. The one path that works fronts the flow with a webhook contract, whose
+          <code>execute_escrow</code> needs <i>only</i> relayer auth: the user pre-funds once, the
+          partner then fires swaps with no signature. Zero contract changes — but the endpoint
+          executes a <i>pipeline</i>, not a swapper.
+        </p>
+
+        <div class="done push">
+          <span class="k">Done when</span> an authenticated <code>curl</code> from outside the app
+          causes a real swap on testnet and returns a tx hash, and the events endpoint pages through
+          that deployment's events.
+        </div>
+      </div>
+
+      <!-- D3 -->
+      <div class="card">
+        <h2><span class="n">D3</span> · Reusable builder inputs</h2>
+        <div class="tags">React / TSX — extends shipped code · Week 3</div>
+        <p class="lead">
+          The builder ships today. This deliverable is consolidation, not construction: 14 node
+          types and 14 hand-written config forms live in one 2,800-line file, each inventing its own
+          way to ask for an amount, an address, or a percentage.
+        </p>
+
+        <div class="label">What gets built</div>
+        <p>
+          <code>AmountInput</code> and <code>ShareInput</code> are new — hand-rolled at 8 sites and
+          copy-pasted verbatim twice. <code>AssetSelect</code> is an extraction of an existing
+          file-private component; <code>AddressPicker</code> already ships and is used 7×. A jsdom +
+          RTL component harness has to exist before any of it can be tested.
+        </p>
+
+        <div class="label">Design posture</div>
+        <ul>
+          <li>
+            <b>Test harness first.</b> A <code>.test.tsx</code> is not collected by the current
+            runner — it reports green having run nothing. Prove CI goes red before trusting it.
+          </li>
+          <li>
+            <b>Build four, adopt what fits.</b> The Swapper panel has no amount field, so
+            <code>AmountInput</code> is proven only if adoption widens to the split panel. Name that
+            choice.
+          </li>
+          <li>
+            <b>Lossless bps.</b> The split's share input rounds 5 bps to 10 — reused as-is on
+            slippage it silently doubles the user's tolerance.
+          </li>
+        </ul>
+
+        <div class="done push">
+          <span class="k">Done when</span> the Swapper panel renders shared primitives, error markup
+          is consistent, and component tests run green in CI <i>on a runner that collects them</i>.
+        </div>
+      </div>
+
+      <!-- D4 -->
+      <div class="card">
+        <h2><span class="n">D4</span> · Validation package</h2>
+        <div class="tags">Video · guide · evidence — net new · Week 4</div>
+        <p class="lead">
+          The Chapter Lead does not review pull requests. They review evidence, against the grid in
+          SOW §6.2 — which carries a row for this package alongside D1–D3. Work finished in the repo
+          but unevidenced is, for this award, not finished.
+        </p>
+
+        <div class="label">Artifacts</div>
+        <ul>
+          <li><b>3–5 min technical demo video</b> — published, cross-linked from the repo.</li>
+          <li>
+            <b>Integration guide</b> — curl examples and sample XDR payloads. Written
+            <i>during</i> D2: if they are painful to write, the API is painful to use.
+          </li>
+          <li>
+            <b>Receipt list</b> — every tx hash on Stellar Expert, plus contract and WASM hashes.
+          </li>
+          <li><b>Screen recordings</b> — deploy, trigger, and the API-driven swap.</li>
+        </ul>
+
+        <p class="note">
+          <b>The numbers it carries:</b> ≥5 unique flows · ≥6 distinct wallets · ≥60 on-chain events
+          · ≥5 swapper executions · ≥1 WASM uploaded · live testnet URL. Most of the counting is
+          already automated by <code>/admin/submission-proof</code> — three added counts finish it.
+        </p>
+
+        <div class="done push">
+          <span class="k">Done when</span> the Chapter Lead can verify all four rows of §6.2 without
+          asking a follow-up question.
+        </div>
+      </div>
+    </div>
+
+    <!-- bottom strip -->
+    <div class="strip">
+      <div>
+        <div class="label">Timeline — where the slack is</div>
+        <p>
+          <b>160 hours across 30 days.</b> 123 h development + 37 h QA is ~6 focused hours every
+          working day for a month — one person, no bus factor, no slack for a bad week.
+        </p>
+        <p>
+          Week 4 holds 9 calendar days against a ~4-day task list. That is the entire buffer. The
+          cut is named before the sprint starts: hand-write the OpenAPI spec rather than adding
+          generation tooling, then D3's mobile pass.
+        </p>
+      </div>
+
+      <div>
+        <div class="label">Critical path — one gate dominates</div>
+        <div class="flow mono">
+          D1 palette unhide → D3 build a swap flow → D3 evidence<br />
+          D1 router auth → D1 swap tx → D2 execute demo → D4 video
+        </div>
+        <p>
+          The swap block is hidden, so <b>no swapper flow can be built at all</b> — which silently
+          gates every D3 artifact. It is a one-line change plus 8 AI-prompt edits, and it lands Day
+          1, before the DEX call works.
+        </p>
+        <p>Router authorization gates everything else. Both are answerable on Day 1.</p>
+      </div>
+
+      <div>
+        <div class="label">Top risks</div>
+        <ul>
+          <li>Contract-to-contract auth → day-1 spike; only a testnet tx counts</li>
+          <li>No Soroswap pool for our pair → confirm Day 1, else seed one</li>
+          <li>Evidence captured late → capture as it happens, assemble in W4</li>
+          <li><code>.test.tsx</code> silently skipped → prove CI goes red first</li>
+          <li>6 wallets / 60 events don't accrue → recruit testers in W1</li>
+          <li>Unnamed work (~12 items) → the build sheet is the real checklist</li>
+        </ul>
+      </div>
+    </div>
+
+    <footer>
+      Out of scope this sprint: mainnet anything · new contract templates · fiat off-ramp (PDAX
+      stays mocked) · oracle triggers · x402 / MPP · multi-chain · builder-wide UI refactor ·
+      third-party audit (recommended as the immediate follow-up). Budget: 160 h at $31.25/h.
+    </footer>
+  </body>
+</html>

@@ -21,7 +21,7 @@ The aesthetic is **cyber-industrial**: dark, technical, dense, confident. Think 
 
 ## 2. Color system
 
-All UI must consume colors via the Tailwind tokens below. Do not hardcode hex values in components. The full token map already lives in `tailwind.config` inside each HTML mockup — copy it verbatim into the real Tailwind config.
+All UI must consume colors via the Tailwind tokens below. Do not hardcode hex values in components. The token map is implemented in the `@theme` block of [`app/globals.css`](app/globals.css) — see [§11](#11-where-the-tokens-live).
 
 ### Core palette
 
@@ -342,7 +342,7 @@ Edges between nodes are dashed `stroke-primary` SVG paths with animated `stroke-
 
 ## 7. Iconography
 
-**Use Material Symbols Outlined.** Loaded from Google Fonts via the variable axis link in the mockups.
+**Use Material Symbols Outlined.** Self-hosted via `next/font/local` in `app/layout.tsx` — the variable `woff2` is committed rather than fetched, so no runtime request to Google Fonts.
 
 ```html
 <link
@@ -401,7 +401,7 @@ Respect `prefers-reduced-motion`: kill the dashed-line animation and pulse, keep
 
 ## 9. Page-level patterns
 
-The HTML mockups define four canonical surfaces. Match these when implementing new pages.
+Four canonical surfaces. Match these when implementing new pages; the shipped routes are the reference.
 
 ### Landing page (`/`)
 
@@ -411,7 +411,7 @@ The HTML mockups define four canonical surfaces. Match these when implementing n
 - Bento grid features section: 3 columns on desktop, glass panels, hover border color shifts to the block category color
 - No footer needed for v1
 
-### Dashboard (`/`)
+### Dashboard (`/dashboard`)
 
 - Top nav + left sidebar (`w-64`)
 - Header row: page title (`headline-md`) left, status pill ("RPC Connected: 12ms") right
@@ -419,15 +419,15 @@ The HTML mockups define four canonical surfaces. Match these when implementing n
 - Data table below: "My Automations" with grid-based rows
 - Mobile: sidebar hidden, FAB for "New Pipeline" at bottom-right
 
-### Builder (`/builder` or `/builder/[id]`)
+### Builder (`/flows/new`, `/flows/[flowId]`)
 
 - Top nav + left sidebar
-- Three-column main: implicit palette (handled via right sidebar drawer in mockup), canvas center, configuration panel right (`w-80`)
+- Three-column main: implicit palette (handled via a right sidebar drawer), canvas center, configuration panel right (`w-80`)
 - Canvas: full-bleed dotted grid, draggable nodes, SVG-rendered animated edges
 - Configuration sidebar: scrollable form, deploy CTA pinned to bottom with estimated gas cost above
 - Canvas controls: floating glass panel bottom-left with zoom/fit buttons
 
-### Vault / deployment detail (`/flows/[id]`)
+### Deployment detail (`/deployments/[deploymentId]`)
 
 - Top nav + left sidebar
 - Header: eyebrow ("Soroban Contract"), live status chip, page title, contract address + deploy time meta row
@@ -453,197 +453,43 @@ Things that will break the brand. The agent must refuse these even if asked.
 - ❌ **Rounded corners larger than `rounded-full` (12px).** No pill buttons. No `rounded-2xl` or `rounded-3xl`.
 - ❌ **Drop shadows.** Use neon glow (color box-shadow) for elevation, not gray blur. The only acceptable gray shadow is the FAB on mobile.
 - ❌ **Sans-serif for amounts or addresses.** All numeric and on-chain data goes in JetBrains Mono. Always.
-- ❌ **Emoji.** None. Use Material Symbols for everything visual.
+- ❌ **Emoji in the product.** None in the app UI, marketing pages, or anything a user sees —
+  use Material Symbols for everything visual. Developer-facing docs (`README.md` and friends)
+  are outside this rule.
 - ❌ **Lottie or heavy animation libraries.** CSS keyframes + Tailwind transitions only.
 - ❌ **Filled solid colors on icons by default.** Icons default to outlined; fill only for active nav items and live status icons.
 - ❌ **Background images, photos, stock illustrations.** Paiflow is generative geometry only: grids, glass, glow, monospace.
 
 ---
 
-## 11. Tailwind config snippet
+## 11. Where the tokens live
 
-This is the authoritative config block. Copy verbatim into `apps/web/tailwind.config.ts`. Do not modify token names — components throughout the codebase reference them.
+Every token named in this document is implemented in the `@theme` block of
+[`app/globals.css`](app/globals.css) — Tailwind v4 is configured there, not in a JS config object.
+`tailwind.config.ts` carries only `content` and `darkMode`.
 
-```js
-module.exports = {
-  darkMode: "class",
-  theme: {
-    extend: {
-      colors: {
-        background: "#131313",
-        surface: "#131313",
-        "surface-container-lowest": "#0e0e0e",
-        "surface-container-low": "#1c1b1b",
-        "surface-container": "#201f1f",
-        "surface-container-high": "#2a2a2a",
-        "surface-container-highest": "#353534",
-        "surface-bright": "#3a3939",
-        "surface-dim": "#131313",
-        "surface-variant": "#353534",
-        "surface-tint": "#ffb1c4",
-        primary: "#ffb1c4",
-        "primary-container": "#ff4a8d",
-        "primary-fixed": "#ffd9e1",
-        "primary-fixed-dim": "#ffb1c4",
-        "on-primary": "#65002e",
-        "on-primary-fixed": "#3f001a",
-        "on-primary-fixed-variant": "#8f0044",
-        "on-primary-container": "#590028",
-        "inverse-primary": "#ba005b",
-        secondary: "#98cbff",
-        "secondary-container": "#00a2fd",
-        "secondary-fixed": "#cfe5ff",
-        "secondary-fixed-dim": "#98cbff",
-        "on-secondary": "#003354",
-        "on-secondary-fixed": "#001d33",
-        "on-secondary-fixed-variant": "#004a77",
-        "on-secondary-container": "#003558",
-        tertiary: "#ffba20",
-        "tertiary-container": "#bc8700",
-        "tertiary-fixed": "#ffdea8",
-        "tertiary-fixed-dim": "#ffba20",
-        "on-tertiary": "#412d00",
-        "on-tertiary-fixed": "#271900",
-        "on-tertiary-fixed-variant": "#5e4200",
-        "on-tertiary-container": "#392600",
-        error: "#ffb4ab",
-        "error-container": "#93000a",
-        "on-error": "#690005",
-        "on-error-container": "#ffdad6",
-        outline: "#ac878f",
-        "outline-variant": "#5c3f46",
-        "on-surface": "#e5e2e1",
-        "on-surface-variant": "#e5bcc5",
-        "on-background": "#e5e2e1",
-        "inverse-surface": "#e5e2e1",
-        "inverse-on-surface": "#313030",
-      },
-      borderRadius: {
-        DEFAULT: "0.125rem",
-        lg: "0.25rem",
-        xl: "0.5rem",
-        full: "0.75rem",
-      },
-      spacing: {
-        xs: "4px",
-        sm: "12px",
-        base: "8px",
-        md: "24px",
-        gutter: "24px",
-        margin: "32px",
-        lg: "48px",
-        xl: "80px",
-      },
-      fontFamily: {
-        "headline-lg": ["Space Grotesk", "sans-serif"],
-        "headline-lg-mobile": ["Space Grotesk", "sans-serif"],
-        "headline-md": ["Space Grotesk", "sans-serif"],
-        "headline-sm": ["Space Grotesk", "sans-serif"],
-        "body-lg": ["Geist", "sans-serif"],
-        "body-md": ["Geist", "sans-serif"],
-        "label-md": ["JetBrains Mono", "monospace"],
-        "label-sm": ["JetBrains Mono", "monospace"],
-      },
-      fontSize: {
-        "headline-lg": ["48px", { lineHeight: "1.1", letterSpacing: "-0.02em", fontWeight: "700" }],
-        "headline-lg-mobile": ["32px", { lineHeight: "1.2", fontWeight: "700" }],
-        "headline-md": ["32px", { lineHeight: "1.2", letterSpacing: "-0.01em", fontWeight: "600" }],
-        "headline-sm": ["24px", { lineHeight: "1.3", fontWeight: "600" }],
-        "body-lg": ["18px", { lineHeight: "1.6", fontWeight: "400" }],
-        "body-md": ["16px", { lineHeight: "1.5", fontWeight: "400" }],
-        "label-md": ["14px", { lineHeight: "1.4", letterSpacing: "0.05em", fontWeight: "500" }],
-        "label-sm": ["12px", { lineHeight: "1.4", letterSpacing: "0.08em", fontWeight: "500" }],
-      },
-    },
-  },
-};
-```
+**`app/globals.css` is the implementation; this file is the intent.** The token values are not
+restated here, because a second copy is a second thing to keep true — §2 gives each token a role,
+which is the part the CSS cannot tell you.
+
+The effect classes described in [§3](#3-effects-the-visual-signatures) — `.glass-panel`,
+`.neon-glow`, `.neon-border-primary`, the `pulse-glow` keyframes — also live in `app/globals.css`.
+
+Two things that look like details and are not:
+
+- **Fonts are self-hosted at build time** via `next/font/google` and `next/font/local` in
+  `app/layout.tsx`. Do not add a `fonts.googleapis.com` `@import`: it was deliberately removed in
+  PR #51, and `lib/csp.ts` sets `font-src: 'self' data:`, so the browser would block it and every
+  webfont on the page would fall back.
+- **Dark-only is enforced, not assumed** — `darkMode: "class"` in `tailwind.config.ts`, plus the
+  `dark` class hard-coded on the root element in `app/layout.tsx`. See
+  [§10](#10-anti-patterns) before touching it.
+
+To add or change a token, edit `app/globals.css` and update §2 in the same commit.
 
 ---
 
-## 12. Global CSS to ship
-
-Put this in `apps/web/src/app/globals.css` after Tailwind's base layer.
-
-```css
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700;800&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap");
-
-body {
-  background-color: #0e0e0e;
-  color: #e5e2e1;
-  background-image:
-    radial-gradient(circle at 50% 50%, rgba(255, 0, 127, 0.03) 0%, transparent 100%),
-    linear-gradient(to right, rgba(0, 162, 253, 0.02) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0, 162, 253, 0.02) 1px, transparent 1px);
-  background-size:
-    100% 100%,
-    32px 32px,
-    32px 32px;
-}
-
-.glass-panel {
-  background: rgba(28, 27, 27, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(92, 63, 70, 0.2);
-}
-
-.neon-glow {
-  border: 1px solid #ffb1c4;
-  box-shadow: 0 0 15px rgba(255, 177, 196, 0.3);
-}
-
-.neon-border-primary {
-  border: 1px solid #ffb1c4;
-  box-shadow: 0 0 8px #ffb1c4;
-}
-
-@keyframes pulse-glow {
-  0% {
-    box-shadow: 0 0 0 0 rgba(255, 177, 196, 0.7);
-  }
-  70% {
-    box-shadow: 0 0 0 6px rgba(255, 177, 196, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(255, 177, 196, 0);
-  }
-}
-
-.status-dot-live {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: #ffb1c4;
-  animation: pulse-glow 2s infinite;
-}
-
-@keyframes flow-dash {
-  to {
-    stroke-dashoffset: -1000;
-  }
-}
-
-path.connection-line {
-  stroke: #ffb1c4;
-  stroke-width: 2;
-  fill: none;
-  stroke-dasharray: 6;
-  animation: flow-dash 20s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .status-dot-live,
-  path.connection-line {
-    animation: none;
-  }
-}
-```
-
----
-
-## 13. Quick reference for the agent
+## 12. Quick reference for the agent
 
 When building any new UI:
 
@@ -653,17 +499,20 @@ When building any new UI:
 4. Primary CTA is pink (`primary`), secondary is blue outline (`secondary`). One primary per screen.
 5. Live indicators always include a pulsing dot. Address strings always truncate `G ABC1...XYZ4`. Amounts always mono.
 6. Hover states use color transitions, not motion. Buttons can lift 1px on hover; nothing else moves.
-7. When in doubt, look at the four HTML mockups in the repo (`/mockups/landing.html`, `dashboard.html`, `builder.html`, `vault.html`) — they are the visual truth.
+7. When in doubt, run the app and look at a page that already does the thing — the shipped UI plus
+   `app/globals.css` is the visual truth. (Earlier revisions pointed at four HTML mockups under
+   `/mockups/`; they are no longer in the repo.)
 
 ---
 
-## 14. Updating this document
+## 13. Updating this document
 
 If you (the agent) need to deviate from this guide:
 
-1. Write an ADR in `docs/adr/` proposing the change with rationale
+1. Write a design record in [`docs/design/`](docs/design/) proposing the change with rationale,
+   dated and following the shape of the records already there
 2. Reference the affected sections of this file
 3. Wait for human approval
-4. Update both this `BRAND.md` and the relevant Tailwind config / global CSS
+4. Update both this `BRAND.md` and `app/globals.css` in the same commit
 
 Do not silently introduce new colors, new fonts, new effects, or new component patterns.

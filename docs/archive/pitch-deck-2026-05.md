@@ -110,6 +110,33 @@ style: |
   footer { color: var(--pr-muted); font-family: "JetBrains Mono", monospace; }
 ---
 
+# Paiflow — investor pitch deck, 2026-05
+
+> **Archived.** Marketing copy here is made per competition — each one gets its own deck — so there
+> is no evergreen marketing directory keeping this in sync with the product. The content dates from
+> **2026-05-21**; the only later edit was the Pinkraft → Paiflow rename. The committed
+> [`pitch-deck-2026-05.pdf`](./pitch-deck-2026-05.pdf) matches this source, and cannot be rebuilt
+> from this repo: it is marp, and there is no marp tooling in `package.json`.
+>
+> **If you crib from this for a new deck, do not carry these forward.** Every row was true when
+> written and is false now:
+>
+> | Claim in this deck                                              | What is true today                                                                                                                                                             |
+> | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+> | `paiflow.app` · `github.com/webnxt-2030/paiflow` (final slide)  | **`paiflow.xyz`** and **`github.com/webnxt-2030/pinkraft`**                                                                                                                    |
+> | "pay grants **per-second** over 12 months"                      | The streamer meters an amount per interval; rate-per-second is explicitly deprecated in `lib/flows/schema.ts`                                                                  |
+> | "Every flow becomes **one** Soroban contract on Stellar"        | A flow deploys a _pipeline_ of contracts, wired by the factory in one transaction — [`CLAUDE.md` §2](../../CLAUDE.md#2-architecture)                                           |
+> | "**Three** audited templates (Splitter, Streamer, Conditional)" | [`SPEC.md` §3](../../SPEC.md#3-block-library) documents 14 blocks across 20 contract crates                                                                                    |
+> | Email as a trigger; SMS notifications                           | Neither exists. `email_notify` is a **terminal action** — the spec forbids anything downstream of it, which is exactly the shape "invoice paid → release commission" describes |
+> | "release funds if BTC > $X"                                     | The `oracle` block is hidden from the palette, and its value is relayer-reported rather than read from a price feed                                                            |
+> | "**pre-audited**" / "audited templates"                         | No audit has been performed. This deck's own ask slide asks for seed money to fund one                                                                                         |
+> | The `NOW · Q2'26` roadmap                                       | Written in Q2'26. Webhook triggers, AI flow authoring and email notification have since shipped; mainnet GA and SMS have not                                                   |
+>
+> Kept for the three things recorded nowhere else: the pricing tiers, the market wedge, and the
+> roadmap framing.
+
+---
+
 <!-- _class: title -->
 <!-- _paginate: false -->
 

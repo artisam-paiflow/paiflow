@@ -1,5 +1,26 @@
 # Dev Mode — Mutable / Parameterized Flows (design discussion)
 
+> **Decided 2026-06-24, and built. Not superseded** — nothing below has been
+> reversed.
+>
+> It landed as the `_DEV` contract variants, the per-flow `devMode` flag on the
+> graph, the `*_DEV` `TemplateKind`s, and a `DevApiToken`-authenticated dev API.
+> For what any of that does today read the code, and
+> [`CLAUDE.md` §2](../../CLAUDE.md#2-architecture) for where it lives — this
+> record is the reasoning, not a description of the system.
+>
+> Kept for the _why_: the tradeoffs behind on-chain mutability, the dual-auth
+> (admin vs relayer) execution model, and why dev variants are separate
+> `TemplateKind`s rather than a boolean flag.
+>
+> One decision here is live and contested — **"Do NOT rewrite the swapper. Keep
+> it as the on-chain swap."** Deliverable D1 in
+> [`../instawards-phase-1.md`](../instawards-phase-1.md) reverses it. That is a
+> decision to take deliberately, not by forgetting this record exists.
+>
+> This file was in `../archive/` until 2026-09-05. It is a design record, not a
+> document that stopped being true — see [`README.md`](./README.md).
+
 > **Concept:** Shift from purely immutable flows (recipients + details fixed at
 > flow-design time) to _parameterized_ flows where details can be left blank at
 > design time and filled / changed later via API. This abstracts the
@@ -54,7 +75,7 @@ recipients (`NoRecipients`). Dev variants must support a blank/deferred state:
 
 ## Status: all four questions resolved — issue #235 created.
 
-GitHub issue: https://github.com/webnxt-2030/paiflow/issues/235
+GitHub issue: https://github.com/webnxt-2030/pinkraft/issues/235
 
 ---
 
