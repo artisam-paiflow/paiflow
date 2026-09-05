@@ -344,20 +344,16 @@ Both lanes must be green before merge.
 
 ### Environment variables
 
-`.env.example` is the source of truth — copy it and fill the marked secrets. The shape:
+[`.env.example`](./.env.example) is the source of truth — copy it to `.env` and fill the blanks.
+Every variable the app reads is listed there, commented with what it does and what happens when it
+is unset, whether it is validated by [`lib/env.ts`](./lib/env.ts) or read straight from
+`process.env`. Deliberately not restated here: a second copy of the list is a second copy to keep
+true, and this one had already fallen four sections behind.
 
-- **App** — `NEXT_PUBLIC_APP_URL`, `LOG_LEVEL`
-- **Auth** — `AUTH_SECRET`, `AUTH_URL`, `AUTH_RP_ID`, `AUTH_RP_NAME`, `ALLOW_PUBLIC_REGISTRATION`, `ADMIN_SEED_USERNAME`, `ADMIN_SEED_PASSWORD`
-- **Database** — `DATABASE_URL`
-- **Redis** — `REDIS_URL`
-- **File storage** — `FILE_STORAGE_DRIVER`, `FILE_STORAGE_PATH`, `MINIO_*`
-- **Stellar** — `STELLAR_NETWORK` (pinned per environment), `STELLAR_*_TESTNET`, `STELLAR_*_MAINNET`, `STELLAR_FRIENDBOT_URL` (testnet only), `STELLAR_WASM_HASH_*_TESTNET`, `STELLAR_WASM_HASH_*_MAINNET`
-- **Cron** — `CRON_SECRET`
-- **AI / STT** — `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_STT_MODEL_PRIMARY`, `GROQ_STT_MODEL_FALLBACK`
-- **Email** — `RESEND_API_KEY`, `EMAIL_FROM`
-- **Optional** — `SENTRY_DSN`, `HIBP_CHECK_ENABLED`
-
-> **Never** put a Stellar secret key in `.env`. Paiflow is non-custodial — the backend builds and submits transactions, but only the user's wallet signs them.
+> **Never put a _user's_ Stellar secret key anywhere on the server.** Paiflow is non-custodial — the
+> backend builds and submits transactions, but only the user's own wallet signs them. The two server
+> keys that do belong in `.env` are Paiflow's own: `STELLAR_RELAYER_SECRET_KEY` for automation, and
+> `UPLOADER_SECRET`, used only by the contract-upload scripts.
 
 ### Deployment infrastructure
 

@@ -411,8 +411,11 @@ assert the event feed animates the fan-out. Runs locally only; not wired into CI
   typed helpers (`stellarRpcUrl()`, `stellarWasmHash()`, `offRampTreasuryAddress()`, …). Prefer a
   helper over reaching into `env()` directly when one exists.
 - Adding a var: define it in `lib/env.ts` with the right type and default policy, add it to
-  `.env.example` under the right `# ---- section ----`, extend the env list in `README.md`, and set
-  it in Railway before merging.
+  `.env.example` under the right `# ---- section ----`, and set it in Railway before merging.
+  `.env.example` is the only list — `README.md` points at it rather than restating it. A var read
+  straight from `process.env` (a `NEXT_PUBLIC_*`, or a script-only one like `UPLOADER_SECRET`) still
+  belongs in `.env.example`; that file documents what the app reads, not just what the schema
+  validates.
 - `NEXT_PUBLIC_*` is read directly from `process.env` at the point of use — the bundler needs a
   literal member access and cannot see through `env()`.
 
