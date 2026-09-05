@@ -95,9 +95,20 @@ is documented in [`docs/soroban-smart-contracts.md`](docs/soroban-smart-contract
 ## 3. Block Library
 
 A flow is a directed acyclic graph of **blocks**. Every block has a strict Zod schema validated on
-save and again server-side at deploy time; `lib/flows/schema.ts` is the authority on field-level
-shape, and `FlowNodeSchema` there is the complete list. This section says what each block is _for_
-and which invariants exist because money is at stake — the parts a reader cannot infer from a type.
+save and again server-side at deploy time. This section says what each block is _for_ and which
+invariants exist because money is at stake — the parts a reader cannot infer from a type.
+
+Three files hold the truth about a block, and they answer different questions:
+
+| Question                  | Authority                                                     |
+| ------------------------- | ------------------------------------------------------------- |
+| What fields does it take? | `lib/flows/schema.ts` (`FlowNodeSchema` is the complete list) |
+| Can a user place it?      | `components/builder/palette.tsx` (the `hidden` flag)          |
+| What does it do on-chain? | its crate under `contracts/`                                  |
+
+**Availability** below is read from the palette. Five blocks are defined, deployable, and reachable
+from an older saved flow, but are not in the palette today — they are documented rather than
+dropped, and marked ◦ instead of ●.
 
 `lib/flows/validate.ts` enforces the invariants. `lib/flows/to-params.ts` (`flowToPipeline()`)
 turns a valid graph into the array of contracts the factory deploys.
@@ -106,32 +117,44 @@ turns a valid graph into the array of contracts the factory deploys.
 
 A trigger is the root of the graph and decides **when** money moves. Exactly one per flow.
 
-| Block          | Fires when                                                          | Why it exists                                                                                     |
-| -------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `on_receive`   | The contract receives the configured asset (optional minimum)       | The default. Turns an address into a programmable inbox — the QR-code demo path.                  |
-| `on_schedule`  | A recurring interval elapses (minute … month, optional end / count) | Push payments the payer does not want to initiate by hand. Optionally pausable and reclaimable.   |
-| `subscription` | A period elapses **and** the subscriber has authorized an allowance | Pull payments. The subscriber consents once; the relayer charges per period without them signing. |
-| `payroll`      | A payroll period elapses, charged against the employer's allowance  | Subscription semantics with a recipient roster that changes between runs.                         |
-| `webhook`      | A named relayer address invokes the contract                        | Lets an off-chain system decide the moment of payment while the rules stay on-chain.              |
-| `web2_webhook` | An authenticated HTTP call arrives at the deployment's trigger URL  | The same, for callers that have no Stellar key at all.                                            |
-| `oracle`       | A reported value crosses the configured threshold                   | Payment conditional on external state.                                                            |
+|     | Block          | Fires when                                                          | Why it exists                                                                                     |
+| --- | -------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| ●   | `on_receive`   | The contract receives the configured asset (optional minimum)       | The default. Turns an address into a programmable inbox — the QR-code demo path.                  |
+| ●   | `on_schedule`  | A recurring interval elapses (minute … month, optional end / count) | Push payments the payer does not want to initiate by hand. Optionally pausable and reclaimable.   |
+| ●   | `subscription` | A period elapses **and** the subscriber has authorized an allowance | Pull payments. The subscriber consents once; the relayer charges per period without them signing. |
+| ●   | `payroll`      | A payroll period elapses, charged against the employer's allowance  | Subscription semantics with a recipient roster that changes between runs.                         |
+| ●   | `web2_webhook` | An authenticated HTTP call arrives at the deployment's trigger URL  | For callers with no Stellar key at all. Labelled **"HTTP Webhook"** in the builder.               |
+| ◦   | `webhook`      | A named relayer address invokes the contract                        | The Stellar-native variant of the above. Superseded by `web2_webhook`; hidden.                    |
+| ◦   | `oracle`       | A relayer reports a value that crosses the configured threshold     | Payment conditional on external state. The value is relayer-reported, not read from a feed.       |
 
 ### 3.2 Actions
 
 An action decides **where** money goes. A flow must contain at least one.
 
-| Block          | Does                                                | Notes that matter                                                                                                             |
-| -------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `pay`          | Sends to one recipient                              | Fixed amount, a percentage of what arrived, or the full amount. Supports a fiat payout mode.                                  |
-| `split`        | Fans out to up to 20 recipients                     | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                         |
-| `cash_out`     | Sends to the off-ramp treasury against bank details | The bridge out of crypto: the contract holds the destination bank account, so the payout is as immutable as the on-chain leg. |
-| `swap`         | Exchanges one asset for another before continuing   | Lets a flow accept what the payer has and pay what the recipient wants.                                                       |
-| `yield`        | Deposits into a vault address                       | Parks idle balance between scheduled payouts.                                                                                 |
-| `email_notify` | Emails recipients when the flow pays out            | Terminal only — it must have no outgoing edges, because it moves no money and nothing can be downstream of a notification.    |
+|     | Block          | Does                                                  | Notes that matter                                                                                                                                              |
+| --- | -------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ●   | `pay`          | Sends to one recipient                                | Fixed amount, a percentage of what arrived, or the full amount. Supports a fiat payout mode.                                                                   |
+| ●   | `split`        | Fans out to up to 20 recipients                       | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                                                          |
+| ●   | `email_notify` | Emails recipients when the flow pays out              | Terminal only — it must have no outgoing edges, because it moves no money and nothing can be downstream of a notification.                                     |
+| ◦   | `cash_out`     | Sends to the off-ramp treasury against bank details   | The bridge out of crypto: the contract holds the destination bank account, so the payout is as immutable as the on-chain leg. Not placed directly — see below. |
+| ◦   | `swap`         | Pays `assetOut` at a rate fixed when the flow deploys | **Does not exchange anything yet.** See below.                                                                                                                 |
+| ◦   | `yield`        | Transfers the balance to a vault address              | A plain token transfer; it does not call a vault protocol's deposit function and nothing accrues. Downstream steps are then invoked with `amount=0`.           |
+
+**`cash_out` is not dragged onto the canvas.** Setting a `pay` or `split` recipient to fiat payout
+generates a cash-out contract for that recipient at deploy time. The block exists so the pipeline
+has something to deploy; the palette entry is hidden because `pay` and `split` already reach it.
+
+**`swap` does not swap.** `contracts/actions/swapper/src/lib.rs` computes
+`amount_out = amount * rate_bps / 10_000` from a rate stored at deploy, then pays `assetOut` out of
+the contract's own pre-funded balance, panicking with `InsufficientOutput` if that balance is short.
+Its own comment: _"In a real DEX integration this would call the AMM. Here we simulate."_ There is
+no market rate and no counterparty. Wiring it to a real router is deliverable **D1** in
+[`docs/instawards-phase-1.md`](./docs/instawards-phase-1.md); until that lands, treat this block as
+a fixed-rate payout from a pre-funded balance, not an exchange.
 
 ### 3.3 Logic
 
-`condition` gates everything downstream of it. Its `kind` selects the test: `amount_gt`,
+`condition` (●) gates everything downstream of it. Its `kind` selects the test: `amount_gt`,
 `amount_lt`, `oracle_gte`, `time_after`, `time_before`, or `multisig` (N-of-M signer approval).
 `multisig` is a condition kind, not a block of its own.
 
