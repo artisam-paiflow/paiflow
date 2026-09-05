@@ -126,8 +126,11 @@ that the relayer's sequence number hasn't exceeded `MAX_SAFE_INTEGER`.
 
 WASM hashes and the factory address resolve through `lib/stellar/config.ts`, which reads the
 `ContractTemplate` / `FactoryDeployment` **tables** first and falls back to env. `pnpm
-contracts:update-hashes` copies `.env.local` values into those tables — uploading alone does not
-make a new template visible to the app.
+contracts:update-hashes` copies `.env.local` values into those tables. Locally, uploading alone is
+enough — `.env.local` _is_ the app's environment, so the fallback picks the new hash up. Anywhere
+else it isn't: the upload writes to the operator's machine, not the deployed service. Note
+`update-hashes` has no `--network` flag; it reads `STELLAR_NETWORK`, so it will happily sync testnet
+hashes after a mainnet upload. See [`docs/mainnet-cutover.md`](docs/mainnet-cutover.md).
 
 ### Events: cron poll → Postgres → Redis → SSE
 
