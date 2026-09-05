@@ -86,10 +86,9 @@ This allows SDKs and tools to auto-generate typed clients (e.g., `SplitterClient
 
 ## 3. The Soroban Rust SDK
 
-```toml
-[dependencies]
-soroban-sdk = "22.0.0"
-```
+Every crate depends on `soroban-sdk` through the workspace, so the version is declared once in
+`[workspace.dependencies]` in [`contracts/Cargo.toml`](../contracts/Cargo.toml) — read it there
+rather than pinning a number here.
 
 Key SDK constructs:
 
@@ -125,47 +124,42 @@ impl MyContract {
 
 ## 4. How Paiflow Implements Soroban Contracts
 
-Paiflow uses a **pre-compiled WASM, instantiate-on-deploy** model:
+Paiflow uses a **pre-compiled WASM, deploy-through-a-factory** model. Contract logic is never
+compiled per user; the WASM is built ahead of time and uploaded once per network, and a user's
+"Deploy" instantiates a whole pipeline of those templates in a single transaction:
 
 ```
-Build contracts (Rust) → Upload WASM once per network → User hits "Deploy" → Backend builds instantiation tx → User signs → Backend submits
+Build contracts (Rust) → Upload WASM once per network → Deploy the factory once per network
+  → User hits "Deploy" → Backend pre-computes each child address and builds one
+    deploy_pipeline tx → User signs → Backend submits
 ```
 
-### 4.1 The Three Contracts (`contracts/` workspace)
+The factory (`contracts/factory/src/lib.rs`) is deliberately small and **kind-agnostic**: it takes a
+`Vec<NodeBlueprint>` of `{ wasm_hash, salt, constructor_args }` and deploys each with
+`env.deployer().with_address(source, salt)`, so child addresses are deterministic from
+`source + salt` (CAP-46) and can be computed off-chain before the call. It knows nothing about node
+types, which is why adding one never touches it. The wiring between nodes is TypeScript-side: each
+child's address is computed first and passed to its neighbours as a constructor argument, so one
+transaction lands a fully-connected pipeline.
 
-#### Splitter (`contracts/splitter/src/lib.rs`)
+### 4.1 The contract workspace
 
-The "hero" contract — fans out incoming funds proportionally.
+Twenty crates, grouped by block category — `contracts/triggers/`, `contracts/conditions/`,
+`contracts/actions/`, plus `contracts/factory/`.
+[`contracts/Cargo.toml`](../contracts/Cargo.toml) is the authoritative member list; the crates
+themselves are the authority on storage, constructor arguments, and functions. Neither is restated
+here, because a copy of either goes stale silently.
 
-- **Storage**: `admin`, `asset`, `recipients: Vec<(Address, bps)>`, `paused`
-- **Constructor params**: `admin`, `asset`, `recipients` (vector of `{ address, bps }` pairs that must sum to exactly 10,000 BPS)
-- **Functions**:
-  - `distribute(from, amount)` — Pulls `amount` from `from`'s wallet, splits it among recipients pro-rata. Rounding remainder goes to last recipient. Emits `distrib` and `payout` events.
-  - `pause()` / `unpause()` — Admin-only toggle
-  - `recipients()` — Read-only view of the recipient list
+Two things are not obvious from reading one crate:
 
-#### Streamer (`contracts/streamer/src/lib.rs`)
-
-Time-based linear vesting / streaming.
-
-- **Storage**: `admin`, `recipient`, `asset`, `rate_per_second`, `start_ts`, `end_ts`, `claimed`
-- **Constructor params**: `admin`, `recipient`, `asset`, `rate_per_second`, `start_ts`, `end_ts`
-- **Functions**:
-  - `claim()` — Recipient-authorized. Computes vested amount by elapsed time × rate. Transfers the difference.
-  - `top_up(from, amount)` — Anyone can fund the contract.
-  - `cancel()` — Admin-authorized. Returns remaining balance to admin.
-
-#### Conditional (`contracts/conditional/src/lib.rs`)
-
-Release funds when a condition is met.
-
-- **Storage**: `admin`, `recipient`, `asset`, `amount`, `condition` (JSON string), `released`
-- **Constructor params**: `admin`, `recipient`, `asset`, `amount`, `condition`
-- **Functions**:
-  - `release()` — Admin-authorized in v1 (admin acts as off-chain validator). Transfers held `amount` to `recipient`.
-  - `cancel()` — Admin-authorized. Returns remaining balance.
-  - `status()` — Returns whether funds have been released.
-- **Future**: Decode `condition` payload on-chain for timeout, oracle, or multisig enforcement.
+- **How a crate joins a pipeline.** The inbound edge is `execute_step(env, asset, amount)`, invoked
+  by the upstream node — 11 crates implement it. The outbound edge is a stored
+  `Vec<WorkflowTarget>` (`{ address, data }`), exposed by `next_steps()` on the 7 crates that
+  forward, of which 4 also expose `set_next_steps()` for post-deploy rewiring. A crate with neither
+  can only sit at the end of a pipeline.
+- **`_dev` variants.** `splitter_dev`, `payer_dev`, `subscription_dev` and `cash_out_dev` are
+  on-chain-mutable counterparts of their siblings, swapped in when a flow has `devMode` set so that
+  values left blank at design time can be filled after deploy. See `CLAUDE.md` §2.
 
 ### 4.2 Contract build pipeline
 
@@ -193,21 +187,14 @@ Artifact names are the crate name with `-` replaced by `_`, e.g.
 `paiflow_splitter.wasm`, `paiflow_factory.wasm`, `payer.wasm`,
 `cash_out.wasm`.
 
-The size/safety profile is declared **once** on the workspace, not per crate
-(`contracts/Cargo.toml`):
+The size/safety `[profile.release]` — size-optimized, `overflow-checks = true` so integer overflow
+traps rather than wraps, `panic = "abort"`, stripped, LTO — is declared **once** on the workspace in
+[`contracts/Cargo.toml`](../contracts/Cargo.toml), not per crate. Don't add one to a crate.
 
-```toml
-[profile.release]
-opt-level = "z"        # optimize for size
-overflow-checks = true # trap on integer overflow rather than wrap
-panic = "abort"        # smaller binary
-strip = "symbols"
-codegen-units = 1
-lto = true
-```
-
-Individual crates only declare `crate-type = ["cdylib"]` and their
-`soroban-sdk` dependency.
+Individual crates declare little more than `crate-type` and their `soroban-sdk` dependency.
+`["cdylib"]` alone is enough for a contract that only has to compile to WASM; add `"rlib"` when
+another crate needs to link it, which today is only for cross-contract tests (splitter's
+dev-dependency on payer, for instance).
 
 To run the contract test suites (each crate carries its own `#[test]` module
 using `soroban-sdk`'s test env):
@@ -273,62 +260,70 @@ See [`mainnet-cutover.md`](./mainnet-cutover.md) for the production runbook.
 
 When a user hits "Deploy" on a flow:
 
-1. **`prepareDeployTx()`** — Server-side:
-   - Creates `Operation.createCustomContract()` with the correct Wasm hash, a random 32-byte salt, and constructor arguments
-   - Constructor args are built from the flow's visual blocks via `constructorArgs()` (`lib/stellar/scval.ts`)
-   - Simulates the transaction to compute resource fees
-   - Returns unsigned **XDR** + pre-computed **contract address** (deterministic from source account + salt)
+1. **`preparePipelineDeployTx()`** — Server-side:
+   - `buildPipelinePlan()` draws a random 32-byte salt per node and derives each node's contract
+     address with `computeContractAddress(sourceAccount, salt)` **before** anything is submitted.
+     This is what makes wiring possible: a node's constructor can be handed the address of a sibling
+     that does not exist yet.
+   - Each node's constructor args come from `pipelineNodeConstructorArgs()` (§4.5), which receives
+     the parent's address and the full `nodeId → address` map.
+   - The nodes become one `Vec<NodeBlueprint>` passed to a single
+     `Operation.invokeContractFunction` against the factory's `deploy_pipeline`.
+   - Simulates to compute resource fees, then `rpc.assembleTransaction(tx, sim).build()`. A
+     simulation error is mapped back through the address map to the node that rejected, so the user
+     sees which block failed rather than a bare contract address.
+   - Returns unsigned **XDR** plus the pre-computed pipeline (`nodeId`, `contractAddress`, `salt`,
+     `templateKind`). `/api/deployments/prepare` stores that as `Deployment.pipelineSnapshot` — the
+     durable `nodeId → contractAddress → templateKind` map everything downstream resolves through
+     (`lib/flows/pipeline-snapshot.ts`), rather than re-deriving it from the graph.
 
 2. **User signs** — Client-side via stellar-wallets-kit (Freighter, xBull, Albedo, etc.)
 
 3. **`submitDeployTx()`** — Server-side:
    - Submits the signed XDR
-   - Polls `getTransaction()` every 1.5s until `SUCCESS` or `FAILED`
-   - Extracts the deployed contract address from the `returnValue`
+   - Polls `getTransaction()` every 1.5s until `SUCCESS` or `FAILED`, giving up after 30s
+   - Because the addresses were computed in step 1, nothing has to be read back out of the result to
+     know what was deployed
+
+`deployPipelineByRelayer()` runs the same plan signed by Paiflow's own relayer key instead of the
+user, for flows the backend deploys on a user's behalf.
 
 **Key security property**: The backend never sees or holds the user's secret key. It builds the transaction, the user signs, the backend submits.
 
 ### 4.5 Constructor Argument Encoding (`lib/stellar/scval.ts`)
 
-Translates Paiflow's typed `ContractParams` into Soroban `xdr.ScVal[]`:
+Translates Paiflow's typed params into Soroban `xdr.ScVal[]`, using `nativeToScVal()` for `i128`,
+`u32`, `u64`, `Address`, and vectors. Two entry points, one per deploy path:
 
-```typescript
-function constructorArgs(params: ContractParams, admin: string): xdr.ScVal[] {
-  switch (params.kind) {
-    case "splitter":
-      return [addr(admin), addr(assetContractId(params.asset)), recipientsVec];
-    case "streamer":
-      return [addr(admin), addr(params.recipient), addr(asset), i128(rate), u64(start), u64(end)];
-    case "conditional":
-      return [addr(admin), addr(params.recipient), addr(asset), i128(amount), cond];
-  }
-}
-```
+| Function                                                               | Used by                                                               |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `pipelineNodeConstructorArgs(params, admin, parentAddress, addresses)` | The factory path (§4.4). The trailing two arguments carry the wiring. |
+| `constructorArgs(params, admin)`                                       | Single-contract deploys in `lib/stellar/dev-mutate.ts`.               |
 
-Uses `nativeToScVal()` for type-safe XDR encoding of `i128`, `u32`, `u64`, `Address`, and vectors.
+`nodeBlueprint(wasmHash, salt, args)` wraps the result in the `NodeBlueprint` map the factory
+expects. Each contract kind gets its own `case`; the switches are the reference for what a given
+contract's constructor takes.
 
 ### 4.6 Event Polling (`lib/stellar/events.ts`)
 
 A cron job calls `pollEventsFor(deploymentId)` every minute:
 
-1. Queries Soroban RPC `getEvents` with a cursor (last seen ledger)
-2. Filters events for the deployment's contract address
-3. Decodes `SCVal` topics and data via `scValToNative()`
-4. Classifies events: `PAYOUT`, `RECEIVE`, `CLAIM`, `STATUS_CHANGE`
-5. Persists to `ContractEvent` table in Postgres
-6. Publishes to Redis pub/sub channel for SSE streaming to clients
+1. Resolves every contract in the deployment's `pipelineSnapshot`, not just the trigger address
+2. Queries Soroban RPC `getEvents` with a cursor (last seen ledger)
+3. Decodes `SCVal` topics and data — hand-rolled, since topic order is not guaranteed
+4. Classifies each event into an `EventKind` (see `prisma/schema.prisma` for the current set)
+5. Persists to the `ContractEvent` table in Postgres. Idempotency is the `eventId` unique
+   constraint, not `(txHash, kind)`
+6. Publishes to a Redis pub/sub channel for SSE streaming to clients
 
 This gives users a real-time feed of their contract's activity.
 
 ### 4.7 Flow-to-Contract Mapping (`lib/flows/to-params.ts`)
 
-The visual builder's nodes map to contracts:
-
-| Flow Template | Trigger       | Action                    | Contract        |
-| ------------- | ------------- | ------------------------- | --------------- |
-| Splitter      | `on_receive`  | `split`                   | **Splitter**    |
-| Streamer      | `on_schedule` | `pay`                     | **Streamer**    |
-| Conditional   | any           | `pay` + `condition` block | **Conditional** |
+`flowToPipeline(graph, relayer?, treasury?)` turns the builder's node graph into a
+`PipelineNode[]` — one entry per contract to deploy, each with its `templateKind`, WASM hash and
+constructor params. It is an array, not a single template: one flow generally deploys several
+contracts. `CLAUDE.md` §2 traces the full graph → params → XDR → snapshot chain.
 
 ---
 
@@ -413,48 +408,59 @@ template.
 
 ### Step 4: Add a Prisma Template
 
-Add a new `TemplateKind` enum value in `prisma/schema.prisma`:
+Add an `ESCROW` value to the `TemplateKind` enum in `prisma/schema.prisma` and migrate.
 
-```prisma
-enum TemplateKind {
-  SPLITTER
-  STREAMER
-  CONDITIONAL
-  ESCROW
-}
-```
-
-Update the seed script accordingly.
+Lean on the compiler for the rest: `TEMPLATE_LABELS` in `lib/flows/template-labels.ts` is an
+exhaustive `Record<TemplateKind, string>`, so `pnpm typecheck` will name that site for you the
+moment the enum grows.
 
 ### Step 5: Add Flow Schema & Params
 
 1. Add new node types in `lib/flows/schema.ts` if the builder needs new UI blocks
 2. Add a new `EscrowParams` type in `lib/flows/to-params.ts`
-3. Extend the `flowToParams()` function to handle the new template kind
+3. Emit it from `flowToPipeline()` (`lib/flows/to-params.ts`). Note the sibling `flowToParams()` is
+   `@deprecated` — it predates the factory and returns a single `ContractParams` rather than a
+   pipeline. Don't extend it.
 
 ### Step 6: Add Constructor Args Encoding
 
-In `lib/stellar/scval.ts`, add a case for the new contract:
+In `lib/stellar/scval.ts`, add a `case` to `pipelineNodeConstructorArgs()` — the factory path (§4.5).
+Its `parentAddress` and `nodeAddresses` arguments are how a node receives the addresses of
+neighbours that don't exist yet:
 
 ```typescript
 case "escrow":
   return [
     addr(admin),
-    addr(params.recipient),
     addr(assetContractId(params.asset)),
     i128(params.amountStroops),
-    // ... additional args
+    addr(parentAddress),
+    workflowTargets(params.nextStepNodeIds, nodeAddresses),
   ];
 ```
 
 ### Step 7: Add Builder UI (React)
 
 - Add a new action/trigger node type in `components/builder/`
-- Register it in the palette
+- Register it in `components/builder/palette.tsx`
 - Wire up the config panel
 - Add validation in `lib/flows/validate.ts`
 
-### Step 8: Re-upload WASM
+### Step 8: The three easily-missed sites
+
+Adding a kind touches more than the builder. None of these break the build if skipped, which is
+exactly why they get skipped:
+
+- **`lib/stellar/soroban-errors.ts`** — add the contract's error codes to `CONTRACT_ERRORS` and map
+  the kind in `contractKeyForTemplate()`. Without it a failed simulation surfaces to the user as a
+  raw numeric code instead of a message naming the block.
+- **`lib/flows/template-labels.ts`** — the human-readable name (the compiler will insist, per
+  Step 4).
+- **`lib/stellar/balances.ts`** — if the contract holds funds the deployment view should show.
+
+And in `lib/flows/english.ts` if the block should read as prose in the builder's preview pane.
+
+### Step 9: Re-upload WASM
 
 ```bash
 pnpm contracts:deploy:testnet
@@ -480,7 +486,10 @@ pnpm contracts:update-hashes
 | **Pre-compiled** (current) | No Rust toolchain in deploy path, smaller audit surface, fast deploy (<1 min) | Cannot customize contract logic per deployment        |
 | **Compile on deploy**      | Full customization                                                            | Slow, requires build servers, larger security surface |
 
-Paiflow chooses pre-compiled because the 3 templates cover the target use cases, and instant deploy + pre-audited contracts is more important than arbitrary custom logic.
+Paiflow chooses pre-compiled because a library of parameterizable templates covers the target use
+cases, and instant deploy + pre-audited contracts is more important than arbitrary custom logic.
+Composition is what buys back the expressiveness: a flow wires several templates into a pipeline
+rather than asking for one bespoke contract.
 
 ### Why Client-Signed Transactions?
 

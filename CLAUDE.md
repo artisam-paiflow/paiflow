@@ -496,9 +496,6 @@ and don't cite them as already-true when reviewing.
 
 Being worked through; don't trust these yet:
 
-- `docs/soroban-smart-contracts.md` §4.1 ("The Three Contracts") — the workspace has 20 crates under
-  `triggers/`, `conditions/`, `actions/`, `factory/`. §5 Step 5 also points at `flowToParams()`,
-  `@deprecated` at `lib/flows/to-params.ts:1323`; use `flowToPipeline()` (`:569`). Only §4.2–4.3 are current.
 - `docs/features.md` — last updated before payroll, off-ramp, cash-out, and the factory landed.
 - `app/about/page.tsx` claims mainnet is "gated behind a per-user allowlist". No allowlist exists —
   the claim stands and the control is being built to match it in

@@ -112,8 +112,8 @@ arity task below), so there is no live on-chain swapper and no production data t
 
 **The factory does not change.** `contracts/factory/src/lib.rs` is 37 lines and fully generic — it
 takes `constructor_args: Vec<Val>` and forwards them to `deploy_v2`. A constructor signature change
-is TS-only, so no factory redeploy. (`CLAUDE.md` §2 overstates this; `docs/soroban-smart-contracts.md`
-§5 step 8 has it right.)
+is TS-only, so no factory redeploy — as `CLAUDE.md` §2 and `docs/soroban-smart-contracts.md` §4 both
+now state.
 
 **Prior art:** `origin/157-contract-swapper-soroswap-amm` (commit `0b8ea30`) already attempted this
 and touches almost exactly these files. It is from June 2026, **426 commits behind `develop`, never
