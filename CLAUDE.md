@@ -97,10 +97,15 @@ graph. `lib/flows/english.ts` renders the same graph as prose for the builder's 
 ### Deploys go through a factory, atomically
 
 The app does **not** instantiate contracts one at a time. WASM is uploaded once per network; a
-`factory` contract then deploys and wires an entire pipeline in a single `deploy_pipeline`
-invocation, with child addresses pre-computed from deterministic salts (CAP-46). Adding a node type
-means touching the Rust factory, `to-params.ts`, `scval.ts`, the `TemplateKind` enum, and
-`scripts/update-hashes.ts` together — see `docs/soroban-smart-contracts.md` §5.
+`factory` contract then deploys an entire pipeline in a single `deploy_pipeline` invocation, with
+child addresses pre-computed from deterministic salts (CAP-46). The wiring itself is TypeScript-side:
+each child's address is computed before the call and passed to its neighbours as a constructor
+argument, so one transaction lands a fully-connected pipeline.
+
+The factory is **kind-agnostic** — `contracts/factory/src/lib.rs` is 37 lines, takes
+`NodeBlueprint { wasm_hash, constructor_args }`, and knows nothing about node types. Adding a node
+type means a new contract crate plus `to-params.ts`, `scval.ts`, the `TemplateKind` enum, and
+`scripts/update-hashes.ts` — **not** the factory. See `docs/soroban-smart-contracts.md` §5.
 
 ### The one server-held key is the relayer
 
@@ -156,9 +161,10 @@ by a `DevApiToken` rather than a session. Background in `docs/archive/dev-mode-m
 ### 3.1 Directory layout
 
 - `app/` — routes. Delegate real work to `lib/`.
-- `components/` — UI. **No DB access, ever** (no `@/lib/db`, no Prisma). Server components receive
-  data via props; client components `fetch` their own `/api/*` route handlers. Type-only imports
-  from `lib/` are fine.
+- `components/` — UI. **No DB access, ever** (no `@/lib/db`, no Prisma client). Server components
+  receive data via props; client components `fetch` their own `/api/*` route handlers. Type-only
+  imports are fine, from `lib/` and from `@prisma/client` alike —
+  `import type { TemplateKind } from "@prisma/client"` is the right way to type a prop.
 - `lib/` — domain logic. **Pure where possible.** Side effects gated by single-purpose modules
   (`lib/db.ts`, `lib/redis.ts`, `lib/stellar/*`).
 - `prisma/` — schema + seed. `contracts/` — Rust workspace; do not import from TS.
@@ -215,7 +221,8 @@ by a `DevApiToken` rather than a session. Background in `docs/archive/dev-mode-m
 
 ### 4.2 Data access
 
-- Import `{ db } from "@/lib/db"` (98 files do). `lib/db.ts` is a thin `server-only` re-export; the
+- Import `{ db } from "@/lib/db"` (98 files under `app/`, `lib/`, `components/` do; ~110 counting
+  `tests/` and `scripts/`). `lib/db.ts` is a thin `server-only` re-export; the
   Prisma singleton itself lives in `lib/prisma.ts`. Don't add a second client.
 - Wrap related writes in `db.$transaction([...])` or an interactive transaction when order matters.
 - Never accept a `where` clause from user input. Build it from validated fields.
@@ -247,7 +254,9 @@ keep-alive`, plus an `AbortSignal` cleanup that unsubscribes Redis listeners. He
 - Passwords hashed with argon2id; never logged; redacted in Pino serializers.
 - After successful login: rotate session ID, set `lastLoginAt`, write `AuditLog{ action: "USER_LOGIN" }`.
 - After 5 failed attempts: `User.lockedUntil = now + 15min`. Return a generic error.
-- Passkey registration requires a fresh session and a recent password re-auth (last 5 min).
+- Passkey registration currently requires only an authenticated session (`requireSession()` in
+  `app/api/auth/passkey/register/options/route.ts`). It does **not** re-verify the password, so
+  adding a second credential is as easy as holding a live session — see [§19](#19-known-gaps--rules-not-enforced-yet).
 
 ---
 
@@ -389,7 +398,7 @@ assert the event feed animates the fan-out. Runs locally only; not wired into CI
 - Success responses use `{ data: T }` in most handlers; match the surrounding file.
 - Never `console.log`; use `log.info({ ...ctx }, "message")` — `log` is the Pino root in `lib/log.ts`.
 - Redact: `req.headers.cookie`, `req.headers.authorization`, `*.password`, `*.passwordHash`,
-  `*.signedXdr`, `*.secretKey`.
+  `*.signedXdr`, `*.secretKey`, `*.AUTH_SECRET` (`REDACT_PATHS` in `lib/log.ts` is the list).
 
 ---
 
@@ -467,15 +476,19 @@ assert the event feed animates the fan-out. Runs locally only; not wired into CI
 These are real rules the project wants, currently unbacked by tooling. Don't assume CI catches them,
 and don't cite them as already-true when reviewing.
 
-| Rule                                                       | Reality                                                                                                                                                                                                                               |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No `any`; import ordering                                  | `eslint.config.mjs` doesn't extend `next/core-web-vitals` and explicitly disables `no-explicit-any` and `no-unused-vars`. No import-order plugin is installed. `pnpm lint` is close to a no-op; 14 `any` sites exist, none justified. |
-| Secrets only via `lib/env.ts`                              | 26 `process.env` reads sit outside it. Most are legitimate `NEXT_PUBLIC_*`, but `GROQ_API_KEY` (`lib/ai/groq.ts`) and `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` (`lib/files/storage.ts`) are genuine violations.                        |
-| Re-parse signed XDR before submit ([§7.3](#73-submitting)) | Not implemented. `app/api/deployments/[id]/submit/route.ts` recomputes the tx hash but never compares operations against the prepared tx.                                                                                             |
-| Branded Stellar types ([§6](#6-validation))                | `lib/stellar/strkey.ts` implements them and is imported by **nothing**. Adopt or delete — the current state is the worst of both.                                                                                                     |
-| `safeRaw` tagged template                                  | Doesn't exist. Raw SQL is plain `$queryRaw` in `app/api/health` and `lib/admin-stats.ts`.                                                                                                                                             |
-| `app/` routes stay thin                                    | Several are not: `cron/auto-charge-payroll` (807 lines), `cron/process-offramp-jobs` (562), `deployments/[id]/submit` (507).                                                                                                          |
-| E2E in CI                                                  | No Playwright job exists in `.github/workflows/ci.yml`.                                                                                                                                                                               |
+| Rule                                                                 | Reality                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No `any`; import ordering                                            | `eslint.config.mjs` doesn't extend `next/core-web-vitals` and explicitly disables `no-explicit-any` and `no-unused-vars`. No import-order plugin is installed. `pnpm lint` is close to a no-op; 14 `any` sites exist, none justified.                                                          |
+| Secrets only via `lib/env.ts`                                        | 29 `process.env` reads sit outside it, of which only 11 are `NEXT_PUBLIC_*` and 6 are `NODE_ENV`. `GROQ_API_KEY` (`lib/ai/groq.ts`) and `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` (`lib/files/storage.ts`) are genuine violations; the rest is non-secret config that still bypasses the schema. |
+| Re-parse signed XDR before submit ([§7.3](#73-submitting))           | Not implemented. `app/api/deployments/[id]/submit/route.ts` recomputes the tx hash but never compares operations against the prepared tx.                                                                                                                                                      |
+| Branded Stellar types ([§6](#6-validation))                          | `lib/stellar/strkey.ts` implements them and is imported by **nothing**. Adopt or delete — the current state is the worst of both.                                                                                                                                                              |
+| `safeRaw` tagged template                                            | Doesn't exist. Raw SQL is plain `$queryRaw` in `app/api/health` and `lib/admin-stats.ts`.                                                                                                                                                                                                      |
+| `app/` routes stay thin                                              | Several are not: `cron/auto-charge-payroll` (807 lines), `cron/process-offramp-jobs` (562), `deployments/[id]/submit` (507).                                                                                                                                                                   |
+| E2E in CI                                                            | No Playwright job exists in `.github/workflows/ci.yml`.                                                                                                                                                                                                                                        |
+| Mandatory unit tests ([§12](#12-testing))                            | `lib/flows/validate.ts`, `to-params.ts` and `english.ts` are covered. `lib/stellar/deploy.ts` and the `lib/auth.ts` helpers are not, and "every Zod schema" is not met.                                                                                                                        |
+| `withErrorHandler` on every handler ([§13](#13-errors--logging))     | 8 of 83 routes skip it. Five are defensible (SSE `events`, `[...nextauth]`, binary `qr` / `files`, `health`); `balances`, `poll-events` and `status` are unexplained.                                                                                                                          |
+| Rate-limit on write endpoints ([§10](#10-security-checklist-per-pr)) | 31 mutating routes have none, including `deployments/[id]/submit`. Tracked in [#371](https://github.com/webnxt-2030/pinkraft/issues/371).                                                                                                                                                      |
+| Passkey add requires password re-auth ([§5](#5-authentication))      | Not implemented; session alone is enough. Tracked in [#375](https://github.com/webnxt-2030/pinkraft/issues/375).                                                                                                                                                                               |
 
 ---
 
@@ -485,8 +498,9 @@ Being worked through; don't trust these yet:
 
 - `BRAND.md` §11–§12 — a Tailwind v3 config and `apps/web/` paths; this is not a monorepo and tokens
   live in `app/globals.css`. §9's page paths are also stale. The palette itself is accurate.
-- `docs/soroban-smart-contracts.md` §4.1 ("The Three Contracts") — the workspace has 21 crates under
-  `triggers/`, `conditions/`, `actions/`, `factory/`. §4.2–4.3 and §5 are current.
+- `docs/soroban-smart-contracts.md` §4.1 ("The Three Contracts") — the workspace has 20 crates under
+  `triggers/`, `conditions/`, `actions/`, `factory/`. §5 Step 5 also points at `flowToParams()`,
+  `@deprecated` at `lib/flows/to-params.ts:1323`; use `flowToPipeline()` (`:569`). Only §4.2–4.3 are current.
 - `docs/features.md` — last updated before payroll, off-ramp, cash-out, and the factory landed.
 - `app/about/page.tsx` claims mainnet is "gated behind a per-user allowlist". No allowlist exists.
 
