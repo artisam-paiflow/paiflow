@@ -1,5 +1,10 @@
 # Soroban Smart Contracts on Stellar & How They Work in Paiflow
 
+> **§1–§3 are about Soroban, §4–§6 are about Paiflow.** The first three sections describe the
+> platform, not this repo, so they don't go stale as the code moves — keep them that way. The rest
+> describes our pipeline, and holds only what the code can't state for itself: the crates,
+> `contracts/Cargo.toml`, and `prisma/schema.prisma` are the authorities on what exists.
+
 ## 1. What Are Soroban Smart Contracts?
 
 **Soroban** is the smart contracts platform integrated into the **Stellar blockchain**. It is not a separate chain — it lives alongside Stellar's existing operations (payments, trustlines, DEX).
