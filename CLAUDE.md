@@ -496,8 +496,6 @@ and don't cite them as already-true when reviewing.
 
 Being worked through; don't trust these yet:
 
-- `BRAND.md` §11–§12 — a Tailwind v3 config and `apps/web/` paths; this is not a monorepo and tokens
-  live in `app/globals.css`. §9's page paths are also stale. The palette itself is accurate.
 - `docs/soroban-smart-contracts.md` §4.1 ("The Three Contracts") — the workspace has 20 crates under
   `triggers/`, `conditions/`, `actions/`, `factory/`. §5 Step 5 also points at `flowToParams()`,
   `@deprecated` at `lib/flows/to-params.ts:1323`; use `flowToPipeline()` (`:569`). Only §4.2–4.3 are current.
