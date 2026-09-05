@@ -82,8 +82,6 @@ Long-term, Paiflow is the canonical "no-code Stellar surface": the layer between
 
 ## 🎯 Purpose
 
-Built for the **Stellar Hackathon 2026**.
-
 We picked this problem because the Stellar Soroban toolchain is genuinely excellent for backend developers and genuinely opaque to everyone else. Pre-audited templates (splitter, streamer, conditional, subscription, payroll) cover the long tail of real-world payment workflows — most "programmable payment" use cases reduce to one of them. By shipping them as visual blocks instead of as Rust libraries, we put the chain's full power in the hands of the operators who have the use case but not the engineering team.
 
 The mission: **make Stellar the easiest chain on which to ship a payment flow**, full stop, without changing what makes Stellar good (fast, cheap, atomic, non-custodial).
