@@ -1,7 +1,27 @@
 # Canvas-anchored, draggable config panel
 
-> **Status: shipped.** Implemented in `components/builder/canvas-config-panel.tsx`.
-> Kept as a design record for the _why_; the code is the _what_.
+> **Status: superseded.** Shipped as designed, then reversed between 2026-07-03
+> and 2026-07-19. `components/builder/canvas-config-panel.tsx` no longer works
+> the way this record describes — read the record for the _why_, and the code
+> for the _what_.
+>
+> | This record says                                                                                      | What shipped instead                                                                                                               |
+> | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+> | Goal 1 — remove the height cap and internal scrollbar so the panel renders at its natural full height | `5a127dd` (2026-07-04) "cap config panel height". Today the body is `max-h-[60vh] overflow-y-auto` (`canvas-config-panel.tsx:197`) |
+> | Design §2 — the panel stays an overlay sibling of `<ReactFlow>`, **not** inside the transformed pane  | `83096c9` (2026-07-03, two days after this record) "render config panel in ViewportPortal layer". It is now inside the pane        |
+> | Design §2 — `onMove` accumulates a `prevViewport` delta into an `offset`                              | Gone. `useViewport()` plus a node-anchored `panelPosition` and `NODE_ANCHOR_OFFSET_X`                                              |
+> | Non-goal — the panel does not scale with canvas zoom                                                  | `4d51906` (2026-07-13) "let node config panel zoom with the canvas"                                                                |
+> | Non-goal — no drag bounds or snapping in this iteration                                               | `1581f68` (2026-07-19) "keep node config panel inside viewport" — viewport clamping and a left-side flip                           |
+>
+> Two things survived. **Goal 3**, the draggable header handle, is still there
+> (`onHeaderPointerDown` and `cursor-grab` / `active:cursor-grabbing`,
+> `canvas-config-panel.tsx:174-177`). And **Goal 2's outcome** — the panel
+> follows canvas panning — holds, by the opposite mechanism: it now lives in the
+> pane this record said to stay out of.
+>
+> Nothing below this banner has been edited. A design record is a decision at a
+> point in time; rewriting it to agree with the present would destroy the only
+> thing it is for. See [`README.md`](./README.md).
 
 **Issue:** #259 (node config modal overflow) — replacing the internal-scrollbar fix.
 **Date:** 2026-07-01
