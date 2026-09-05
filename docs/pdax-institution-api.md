@@ -2,26 +2,35 @@
 
 Base URL: `https://api.pdax.ph` (confirm UAT base URL with PDAX).
 
+> **Two halves, two maintenance rules.** "Configuration", "UAT environment constraints" and the
+> notes under "Webhook registration" describe **Paiflow's** behaviour — check them against
+> `lib/offramp/`. Everything else is **PDAX's** API contract: endpoint shapes, request/response
+> tables, bank codes. Nothing in this repo can confirm those, and they go stale when PDAX changes,
+> not when we do — verify them against PDAX's own documentation.
+
 ## Configuration
 
 The app defaults to a built-in mock off-ramp provider. To use the real PDAX API,
 set `OFFRAMP_PROVIDER=pdax` and store your PDAX Institution credentials in the
 app database via **Admin → Off-ramp** (`/admin/offramp`).
 
-| Field         | Required | Description                                        |
-| ------------- | -------- | -------------------------------------------------- |
-| Username      | yes      | PDAX account username.                             |
-| Access token  | yes      | Current PDAX access token.                         |
-| ID token      | yes      | Current PDAX id token (sent as `id_token` header). |
-| Refresh token | yes      | Used to refresh the access token on `401`.         |
-| API URL       | no       | Override base URL, e.g. PDAX UAT sandbox.          |
-| Expires at    | no       | ISO timestamp for informational use.               |
+The admin form has five fields, stored on `OffRampProviderCredential`:
 
-Environment variables (`OFFRAMP_USERNAME`, `OFFRAMP_ACCESS_TOKEN`,
-`OFFRAMP_ID_TOKEN`, `OFFRAMP_REFRESH_TOKEN`) are still read as a fallback. The
-refresh token lasts ~30 days, so it can live in env for a short-lived event.
-Access/id tokens rotate every ~10 minutes, so they are best kept in the database
-where the admin UI can update them without a redeploy.
+| Field        | Required | Description                                                                                                                |
+| ------------ | -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Username     | yes      | PDAX account username. Also sent when refreshing.                                                                          |
+| Access token | yes      | Current PDAX access token.                                                                                                 |
+| ID token     | yes      | Current PDAX id token (sent as `id_token` header).                                                                         |
+| API URL      | no       | Override base URL, e.g. PDAX UAT sandbox.                                                                                  |
+| Expires at   | no       | ISO expiry of the access token. **Not decorative** — it drives refresh; see below. Left blank, every call refreshes first. |
+
+**The refresh token is not one of them.** It lives only in `OFFRAMP_REFRESH_TOKEN`, by design —
+there is no admin field and no database column for it (`lib/offramp/pdax-auth.ts`). That is
+workable because it lasts ~30 days, where the access/id tokens rotate every ~10 minutes and so
+belong somewhere the admin UI can update without a redeploy.
+
+`OFFRAMP_USERNAME`, `OFFRAMP_ACCESS_TOKEN` and `OFFRAMP_ID_TOKEN` are read as a fallback when the
+database row is absent. `OFFRAMP_REFRESH_TOKEN` is not a fallback — it is the only source.
 
 Authentication:
 
@@ -29,7 +38,14 @@ Authentication:
   - `Authorization: Bearer <access_token>`
   - `id_token: <id_token>`
 - The app reads the current access/id tokens from the database.
-- When a request returns `401`, the app calls `PUT /pdax-institution/v1/refresh-token` (using the stored refresh token and username) to obtain a new `access_token` and `id_token`, updates the stored credentials, then retries the original request once.
+- Tokens are refreshed on **two** paths, both calling `PUT /pdax-institution/v1/refresh-token` with
+  the stored username and `OFFRAMP_REFRESH_TOKEN`:
+  - **Proactively**, before a request, when `Expires at` is within two minutes or absent. This is
+    the usual path — the cron and payout paths should not lose a race with token expiry.
+  - **Reactively**, when a request returns `401`: refresh, then retry the original request once. If
+    the refresh fails, the call throws rather than retrying further.
+- A successful refresh persists the new `access_token` / `id_token` and stamps `Expires at` ten
+  minutes out.
 
 ---
 
@@ -114,6 +130,10 @@ Content-Type: application/json
 ### Response
 
 Returns a new access token and id token (and optionally a new refresh token). The app accepts both snake_case and camelCase response keys.
+
+**The app reads only `access_token` and `id_token`.** A rotated `refresh_token` in the response is
+ignored, and `OFFRAMP_REFRESH_TOKEN` keeps whatever it was set to. If PDAX ever rotates refresh
+tokens on use, that env var goes stale silently and every refresh fails once the old token expires.
 
 Example:
 
@@ -308,6 +328,11 @@ account number), even though the withdraw request itself is accepted.
 
 Track fiat deposits and withdrawals by identifier or mode.
 
+> **The app does not call this endpoint.** It is documented for manual reconciliation only. The
+> cron picks up jobs in `PENDING` (and stale `RUNNING`); a job in `QUOTED` or `INITIATED` moves on
+> only when the webhook below arrives, so this endpoint is how you find out what happened to one
+> that didn't.
+
 ```http
 GET /pdax-institution/v1/fiat/transactions?mode=CashOut&identifier=<identifier>&page=1&pageSize=10
 Authorization: Bearer <access-token>
@@ -377,9 +402,19 @@ URL. Set `OFFRAMP_WEBHOOK_SECRET` and register the endpoint with a matching
 webhook_endpoint = https://<your-app-domain>/api/webhooks/offramp?token=<OFFRAMP_WEBHOOK_SECRET>
 ```
 
-When `OFFRAMP_WEBHOOK_SECRET` is set, requests without a matching `token` are
-rejected with `401`. When it is unset, the token check is skipped (the handler
-still rate-limits and only acts on events matching a known pending job).
+`OFFRAMP_WEBHOOK_SECRET` is **required in production** — with `NODE_ENV=production` and the secret
+unset, the handler throws rather than skipping the check, so every webhook fails. Since the webhook
+is the only signal that moves an off-ramp job out of `INITIATED`, deploying without it strands
+payouts whose crypto leg has already executed.
+
+| `OFFRAMP_WEBHOOK_SECRET` | Behaviour                                                                                 |
+| ------------------------ | ----------------------------------------------------------------------------------------- |
+| set to a secret          | Requests without a matching `?token=` are rejected with `401`                             |
+| set to `skip`            | Token check disabled. Satisfies the production guard too, so it must not reach production |
+| unset, non-production    | Token check skipped                                                                       |
+| unset, production        | **Handler throws; every webhook fails**                                                   |
+
+In all cases the handler rate-limits and only acts on events matching a known pending job.
 
 ### Webhook payload — Fiat Event Data
 
