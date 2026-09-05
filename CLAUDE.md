@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > This is the single guide for working in this repo.
 > `SPEC.md` is the product spec — the authority on _what_ to build; this file is the authority on
-> _how_. On a security question, the **stricter** rule wins. Parts of `SPEC.md` predate the current
-> architecture — see [§20 Known doc drift](#20-known-doc-drift). When in doubt: stop and ask.
+> _how_. On a security question, the **stricter** rule wins. `SPEC.md` deliberately does not restate
+> implementation, so for the current shape of the code read the code. When in doubt: stop and ask.
 
 ---
 
@@ -430,8 +430,9 @@ assert the event feed animates the fan-out. Runs locally only; not wired into CI
 
 ## 17. Process
 
-1. **Read the relevant `SPEC.md` section first** and quote it in the PR description — but check it
-   against the code, and against [§20](#20-known-doc-drift), before treating it as current.
+1. **If the change touches product behaviour or block semantics, read `SPEC.md` §3 first** and quote
+   it in the PR description. `SPEC.md` covers intent, not implementation; many PRs have no relevant
+   section, and that is expected rather than a gap to fill by adding one.
 2. **Plan in three bullets**: what files change, what schema migrates, what tests are added.
 3. **Make incorrect states unrepresentable.** Zod at every boundary, exhaustive `switch` with a
    `never` check.
@@ -482,8 +483,6 @@ and don't cite them as already-true when reviewing.
 
 Being worked through; don't trust these yet:
 
-- `SPEC.md` §3.1 / §4 / §7 / §8 / Appendix A — a pre-factory deploy model, 9 of 25 Prisma models, a
-  route table missing ~75 endpoints, and a file tree with route groups that don't exist.
 - `BRAND.md` §11–§12 — a Tailwind v3 config and `apps/web/` paths; this is not a monorepo and tokens
   live in `app/globals.css`. §9's page paths are also stale. The palette itself is accurate.
 - `docs/soroban-smart-contracts.md` §4.1 ("The Three Contracts") — the workspace has 21 crates under
