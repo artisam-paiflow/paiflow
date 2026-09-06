@@ -8,6 +8,7 @@ import { SignClient } from "@walletconnect/sign-client";
 import { usePollTxStatus } from "@/lib/hooks/use-poll-tx-status";
 import { apiError } from "@/lib/friendly-error";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
+import { WALLET_CONNECT_UNCONFIGURED, walletConnectProjectId } from "./wallet-connect-config";
 
 type TriggerButtonProps = {
   deploymentId: string;
@@ -52,8 +53,8 @@ export function TriggerButton({
 
   const initLockRef = useRef<Promise<any> | null>(null);
   const wcRef = useRef<{
-    client: InstanceType<typeof SignClient>;
-    modal: WalletConnectModal;
+    client: InstanceType<typeof SignClient> | null;
+    modal: WalletConnectModal | null;
     module: any;
     kit: any;
     method: string;
@@ -74,7 +75,27 @@ export function TriggerButton({
           import("@creit.tech/stellar-wallets-kit/modules/walletconnect.module"),
         ]);
 
-        const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID!;
+        const walletNetwork = network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET;
+        const projectId = walletConnectProjectId();
+
+        if (!projectId) {
+          // Same guard as wallet-kit.ts: the SDK accepts an undefined project id
+          // and fails later on the relay. Mobile has no other wallet path.
+          if (isMobile()) throw new Error(WALLET_CONNECT_UNCONFIGURED);
+          const kit = new StellarWalletsKit({
+            network: walletNetwork,
+            modules: [new FreighterModule()],
+          });
+          wcRef.current = {
+            client: null,
+            modal: null,
+            module: null,
+            kit,
+            method: WalletConnectAllowedMethods.SIGN,
+          };
+          return wcRef.current;
+        }
+
         const chain = network === "mainnet" ? "stellar:pubnet" : "stellar:testnet";
 
         // WalletConnect v2 emits harmless "No matching key. expirer" noise when
@@ -148,7 +169,7 @@ export function TriggerButton({
           url: typeof window !== "undefined" ? window.location.origin : "",
           icons: ["/logo.png"],
           method: WalletConnectAllowedMethods.SIGN,
-          network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
+          network: walletNetwork,
           client:
             walletConnectClient as unknown as typeof import("@walletconnect/sign-client").SignClient,
           modal: walletConnectModal,
@@ -159,7 +180,7 @@ export function TriggerButton({
           : [new FreighterModule(), walletConnectModule];
 
         const kit = new StellarWalletsKit({
-          network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
+          network: walletNetwork,
           modules,
         });
 
@@ -317,6 +338,7 @@ export function TriggerButton({
       setBusy(true);
       ensureWalletConnect()
         .then(async ({ kit, module: walletConnectModule }) => {
+          if (!walletConnectModule) throw new Error(WALLET_CONNECT_UNCONFIGURED);
           kit.setWallet("wallet_connect");
           const sessions = await walletConnectModule.getSessions();
           if (sessions.length === 0) {
@@ -348,6 +370,7 @@ export function TriggerButton({
     setBusy(true);
     try {
       const { kit, module: walletConnectModule, client, method } = await ensureWalletConnect();
+      if (!client || !walletConnectModule) throw new Error(WALLET_CONNECT_UNCONFIGURED);
       kit.setWallet("wallet_connect");
 
       const sessions = await walletConnectModule.getSessions();
