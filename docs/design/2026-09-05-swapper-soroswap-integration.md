@@ -72,7 +72,7 @@ resolves the swap node to `SWAPPER`.
   Soroban token with no classic issuer, which `AssetSchema` cannot represent.
   Checked on 2026-09-05 by simulating `router_get_amounts_out`: a pool for XLM
   against **Circle's** testnet USDC (Paiflow's existing `known` USDC) exists with
-  roughly 417k XLM and 3.94M USDC in reserves and about 0.3% impact on a 10,000 XLM
+  roughly 417k USDC and 3.94M XLM in reserves (USDC is the pair's `token_0`) and about 0.3% impact on a 10,000 XLM
   swap. The swapper uses that pool. Adding contract-id assets would touch
   `AssetSchema`, SEP-7 URIs, notifications and the asset select, and was rejected
   for this sprint.
@@ -174,6 +174,15 @@ spot-price decision above, none is needed for `amount_out_min` either). And the 
 compute it with Soroswap's `pair_for`. The `#[contractclient]` trait approach for
 the router compiled and worked in the spike. Spike source is attached to issue
 #390.
+
+**Confirmed live on 2026-09-06.** A standalone swapper built from the rewritten crate
+(`CDEEJZG6DYN65DTZLS6WU7YJ3I4RJ4TSOHF5VXEFO7PTTHWRNREPDOOU`) swapped its own 10 XLM
+through the real testnet router in tx
+`5389cdee87826b944f4fca397c0fadc8524cbb2429c2a657a306a06a4c5fc673`, receiving
+1.0562889 USDC; the same code then ran inside a factory-deployed pipeline (tx
+`4d99fec3ebc93abee20ebe105545f93a94f1ea929a8245e9e678bab9fbd26838`). Evidence and
+the eleven findings are in the verification copy `SaltinStillWaters/pinkraft-d1`,
+`docs/evidence/d1/VERIFICATION.md`.
 
 The router client is a hand-written `#[contractclient] trait SoroswapRouter` with
 the two functions above. `soroswap-router` is not on crates.io and the router crate
