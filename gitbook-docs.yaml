@@ -1,0 +1,12 @@
+$schema: https://api.gitbook.com/gitbook-docs.yaml
+site:
+  title: Paiflow — Instawards Phase 1
+  structure:
+    - type: space
+      key: instawards
+      title: Instawards Phase 1
+      path: instawards
+      default: true
+      content:
+        directory: ./docs
+        language: en
