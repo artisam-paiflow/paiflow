@@ -13,10 +13,14 @@
 > (admin vs relayer) execution model, and why dev variants are separate
 > `TemplateKind`s rather than a boolean flag.
 >
-> One decision here is live and contested — **"Do NOT rewrite the swapper. Keep
-> it as the on-chain swap."** Deliverable D1 in
-> [`../instawards-phase-1.md`](../instawards-phase-1.md) reverses it. That is a
-> decision to take deliberately, not by forgetting this record exists.
+> One decision here is easy to misread — **"Do NOT rewrite the swapper. Keep
+> it as the on-chain swap."** (§2.2). It rules out turning the swapper into a
+> fiat off-ramp; it does not rule out making the on-chain swap real. Deliverable
+> 1 of the approved Instawards SOW,
+> [`../instawards-phase-1-sow.md`](../instawards-phase-1-sow.md) §4.1, wires the
+> swapper to the Soroswap router and is consistent with §2.2. The scope of that
+> work is in
+> [`2026-09-05-swapper-soroswap-integration.md`](./2026-09-05-swapper-soroswap-integration.md).
 >
 > This file was in `../archive/` until 2026-09-05. It is a design record, not a
 > document that stopped being true — see [`README.md`](./README.md).

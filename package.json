@@ -17,7 +17,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "docs:pdf": "node scripts/render-pdf.mjs",
     "screenshots": "playwright test --project=chromium-desktop screenshots.spec.ts",
     "screenshots:mobile": "playwright test --project=mobile screenshots.spec.ts",
     "db:generate": "prisma generate",
