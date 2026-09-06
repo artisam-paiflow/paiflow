@@ -2,7 +2,7 @@
 
 > **Zaps for money.** A visual builder where you connect triggers (_"when this happens"_) to actions (_"pay this"_) and deploy a live Soroban contract on Stellar in under a minute.
 
-Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a QR code. Anyone who scans it sends funds straight to a pre-audited smart contract that fans out the money automatically.
+Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a QR code. Anyone who scans it sends funds straight to a reviewed, unit-tested smart contract that fans out the money automatically.
 
 ---
 
@@ -89,7 +89,7 @@ Long-term, Paiflow is the canonical "no-code Stellar surface": the layer between
 
 ## 🎯 Purpose
 
-We picked this problem because the Stellar Soroban toolchain is genuinely excellent for backend developers and genuinely opaque to everyone else. Pre-audited templates (splitter, streamer, conditional, subscription, payroll) cover the long tail of real-world payment workflows — most "programmable payment" use cases reduce to one of them. By shipping them as visual blocks instead of as Rust libraries, we put the chain's full power in the hands of the operators who have the use case but not the engineering team.
+We picked this problem because the Stellar Soroban toolchain is genuinely excellent for backend developers and genuinely opaque to everyone else. A fixed library of unit-tested templates (splitter, streamer, conditional, subscription, payroll) covers the long tail of real-world payment workflows — most "programmable payment" use cases reduce to one of them. By shipping them as visual blocks instead of as Rust libraries, we put the chain's full power in the hands of the operators who have the use case but not the engineering team.
 
 The mission: **make Stellar the easiest chain on which to ship a payment flow**, full stop, without changing what makes Stellar good (fast, cheap, atomic, non-custodial).
 

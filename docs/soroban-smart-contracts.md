@@ -492,7 +492,7 @@ pnpm contracts:update-hashes
 | **Compile on deploy**      | Full customization                                                            | Slow, requires build servers, larger security surface |
 
 Paiflow chooses pre-compiled because a library of parameterizable templates covers the target use
-cases, and instant deploy + pre-audited contracts is more important than arbitrary custom logic.
+cases, and instant deploy + a fixed library of tested contracts is more important than arbitrary custom logic.
 Composition is what buys back the expressiveness: a flow wires several templates into a pipeline
 rather than asking for one bespoke contract.
 
