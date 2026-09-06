@@ -55,7 +55,7 @@ Paiflow is the missing middle layer:
 
 - Drag a trigger (`On Receive`, `On Schedule`, …) onto a canvas.
 - Drop actions (`Pay`, `Split`, `Cash Out`, …) and optional logic (`Condition`).
-- Click **Deploy** — pre-audited Soroban contracts are instantiated on Stellar with the user's
+- Click **Deploy** — reviewed, unit-tested Soroban contracts are instantiated on Stellar with the user's
   parameters, wired together as one pipeline in a single transaction.
 - Show a QR code; anyone can send funds to it.
 - A live event feed animates the contract's execution in real time.
@@ -69,7 +69,7 @@ Paiflow is the missing middle layer:
 ### 1.4 Non-Goals
 
 - Multi-tenant org / team management beyond admin + user accounts.
-- A general-purpose Soroban IDE. Users compose pre-audited templates; they do not author Rust.
+- A general-purpose Soroban IDE. Users compose the shipped templates; they do not author Rust.
 - A per-deploy network picker. The Stellar network is pinned per environment — see
   [`CLAUDE.md` §7.5](./CLAUDE.md#75-networks). Which network a deployment lands on is an
   environment property, not a user choice.

@@ -19,16 +19,16 @@ export default function AboutPage() {
 
       <p className="mt-md text-body-lg text-on-surface-variant">
         Paiflow is the missing layer between non-coders and programmable payments. Drag triggers and
-        actions onto a canvas, hit deploy, and a pre-audited Soroban contract is instantiated on
-        Stellar in seconds.
+        actions onto a canvas, hit deploy, and a reviewed, unit-tested Soroban contract is
+        instantiated on Stellar in seconds.
       </p>
       <p className="mt-md text-body-md text-on-surface-variant">
         We ship a library of contract shapes — <span className="text-on-surface">Splitter</span>,{" "}
         <span className="text-on-surface">Streamer</span>,{" "}
         <span className="text-on-surface">Subscription</span>,{" "}
         <span className="text-on-surface">Payroll</span> and more — and let you parameterize them
-        visually. No Rust required. The contract templates ship pre-audited; deployments are
-        non-custodial; you sign every transaction yourself.
+        visually. No Rust required. The contract templates are a fixed, unit-tested library;
+        deployments are non-custodial; you sign every transaction yourself.
       </p>
 
       <h2 className="mt-xl text-headline-sm text-on-surface">Principles</h2>
@@ -37,7 +37,7 @@ export default function AboutPage() {
           { label: "NON-CUSTODIAL", body: "We never hold your keys." },
           { label: "TESTNET BY DEFAULT", body: "Mainnet is gated behind a per-user allowlist." },
           {
-            label: "AUDITED TEMPLATES ONLY",
+            label: "FIXED TEMPLATES ONLY",
             body: "No user-authored Rust on the request path.",
           },
           {
