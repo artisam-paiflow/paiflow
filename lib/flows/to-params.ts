@@ -160,7 +160,10 @@ export type SwapperNodeParams = {
   kind: "swapper";
   assetIn: Asset;
   assetOut: Asset;
-  rateBps: number;
+  slippageBps: number;
+  deadlineSecs: number;
+  /** Soroswap router; injected at deploy time from env, never stored on the graph. */
+  router?: string;
   nextStepNodeIds: string[];
 };
 
@@ -1065,7 +1068,8 @@ function contractActionToPipelineNode(
           kind: "swapper",
           assetIn: action.config.assetIn,
           assetOut: action.config.assetOut,
-          rateBps: action.config.rateBps,
+          slippageBps: action.config.slippageBps,
+          deadlineSecs: action.config.deadlineSecs,
           nextStepNodeIds,
         },
       };

@@ -48,6 +48,16 @@ const boolishDefault = (defaultValue: boolean) =>
     .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
     .default(defaultValue);
 
+// Soroswap router address, pinned per network. Validated at config load so a
+// typo fails at startup rather than when the first swap flow is deployed.
+const optionalContractAddress = z
+  .string()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined))
+  .refine((v) => v === undefined || StrKey.isValidContract(v), {
+    message: "Must be a valid Stellar contract address (C...)",
+  });
+
 const optionalPositiveInt = (defaultValue: number) =>
   z
     .string()
@@ -156,6 +166,12 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_CASH_OUT_MAINNET: optionalWasmHash,
   STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
   STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
+
+  // ---- Soroswap ----
+  // Router the swapper action calls. Soroswap redeploys its testnet router on
+  // every reset, so this is config, not something stored on a flow graph.
+  STELLAR_SOROSWAP_ROUTER_TESTNET: optionalContractAddress,
+  STELLAR_SOROSWAP_ROUTER_MAINNET: optionalContractAddress,
 
   // ---- Relayer ----
   // Used for auto-releasing timelock contracts and for signing webhook
@@ -326,6 +342,16 @@ export function stellarWasmHash(
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
   const key = `STELLAR_WASM_HASH_${kind}_${suffix}` as keyof EnvShape;
+  return e[key] as string | undefined;
+}
+
+export const SWAP_ROUTER_UNSET_MESSAGE =
+  "Swap flows need the Soroswap router address. Set STELLAR_SOROSWAP_ROUTER_TESTNET (or _MAINNET) in the environment.";
+
+export function soroswapRouterAddress(): string | undefined {
+  const e = env();
+  const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
+  const key = `STELLAR_SOROSWAP_ROUTER_${suffix}` as keyof EnvShape;
   return e[key] as string | undefined;
 }
 

@@ -149,7 +149,12 @@ function makeGraph(kind: TemplateKind): Prisma.InputJsonValue {
           {
             id: actionId,
             type: "swap",
-            config: { assetIn: asset, assetOut: { kind: "known", symbol: "USDC" }, rateBps: 9900 },
+            config: {
+              assetIn: asset,
+              assetOut: { kind: "known", symbol: "USDC" },
+              slippageBps: 100,
+              deadlineSecs: 300,
+            },
           },
         ],
         edges: [baseEdge],

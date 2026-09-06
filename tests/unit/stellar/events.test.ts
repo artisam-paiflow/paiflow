@@ -367,4 +367,48 @@ describe("pollEventsFor", () => {
       }),
     );
   });
+  it("decodes swapper swap events as PAYOUT with both assets and amounts (Instawards D1)", async () => {
+    const XLM_SAC = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+    const USDC_SAC = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
+    // Shape of the event emitted by contracts/actions/swapper on testnet
+    // (tx 5389cdee87826b944f4fca397c0fadc8524cbb2429c2a657a306a06a4c5fc673):
+    // topics ("swap", asset_in, asset_out), data (amount_in, amount_out).
+    const event = makeMockEvent({
+      topic: ["swap", XLM_SAC, USDC_SAC],
+      value: ["100000000", "10562889"],
+      ledger: 600,
+      txHash: "tx-swap",
+      ledgerClosedAt: "2026-09-06T00:01:42Z",
+    });
+
+    vi.mocked(db.deployment.findUnique).mockResolvedValue({
+      id: "dep-1",
+      contractAddress: "C123",
+      status: "CONFIRMED",
+      cursor: { lastLedger: 500 },
+      deployTxHash: "dtx1",
+      flow: { templateKind: TemplateKind.SWAPPER },
+    } as unknown as Prisma.PromiseReturnType<typeof db.deployment.findUnique>);
+
+    mockServer({
+      getEvents: async () => ({
+        events: [event],
+        latestLedger: 600,
+      }),
+    });
+
+    const result = await pollEventsFor("dep-1");
+    expect(result).toBe(1);
+    expect(db.contractEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        kind: "PAYOUT",
+        decodedData: {
+          assetIn: XLM_SAC,
+          assetOut: USDC_SAC,
+          amountIn: "100000000",
+          amountOut: "10562889",
+        },
+      }),
+    });
+  });
 });

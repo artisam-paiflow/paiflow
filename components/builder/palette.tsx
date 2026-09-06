@@ -176,7 +176,8 @@ const TEMPLATES: Template[] = [
       config: {
         assetIn: { kind: "native" },
         assetOut: { kind: "known", symbol: "USDC" },
-        rateBps: 9500,
+        slippageBps: 100,
+        deadlineSecs: 300,
       },
     }),
   },

@@ -1,4 +1,5 @@
 import "server-only";
+import { type SorobanErrorHint } from "./soroban-errors";
 import { Keypair, TransactionBuilder } from "@stellar/stellar-sdk";
 import { sorobanRpc, withRelayerLock } from "./client";
 import { stellarPassphrase, stellarRelayerSecretKey, stellarRelayerAddress } from "@/lib/env";
@@ -15,12 +16,14 @@ export async function prepareTriggerTx(opts: {
   amount: string;
   fromAddress: string;
   isPipeline?: boolean;
+  hint?: SorobanErrorHint;
 }): Promise<{ xdr: string }> {
   const result = opts.isPipeline
     ? await prepareDepositInvocation({
         contractAddress: opts.contractAddress,
         amount: opts.amount,
         invokerAddress: opts.fromAddress,
+        hint: opts.hint,
       })
     : await prepareDistributeInvocation({
         contractAddress: opts.contractAddress,
@@ -34,11 +37,13 @@ export async function prepareWebhookDepositTx(opts: {
   contractAddress: string;
   amount: string;
   fromAddress: string;
+  hint?: SorobanErrorHint;
 }): Promise<{ xdr: string }> {
   const result = await prepareWebhookDepositInvocation({
     contractAddress: opts.contractAddress,
     amount: opts.amount,
     from: opts.fromAddress,
+    hint: opts.hint,
   });
   return { xdr: result.xdr };
 }

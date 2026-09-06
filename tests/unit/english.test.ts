@@ -300,14 +300,15 @@ describe("flowToEnglish", () => {
           config: {
             assetIn: { kind: "native" },
             assetOut: { kind: "known", symbol: "USDC" },
-            rateBps: 9500,
+            slippageBps: 100,
+            deadlineSecs: 300,
           },
         },
       ],
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
     expect(out).toContain("When HTTP webhook fires for USDC");
-    expect(out).toContain("swap XLM to USDC at 95% rate");
+    expect(out).toContain("swap XLM to USDC via Soroswap with up to 1% slippage");
   });
 
   it("describes a subscription trigger with interval", () => {

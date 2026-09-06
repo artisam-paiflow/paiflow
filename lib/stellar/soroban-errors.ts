@@ -14,6 +14,7 @@ export type ContractErrorKey =
   | "splitter"
   | "splitter_dev"
   | "swapper"
+  | "soroswap_router"
   | "yield"
   | "payer"
   | "payer_dev"
@@ -148,11 +149,49 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     4: {
       name: "InsufficientOutput",
       friendly:
-        "The swap would produce no output, or the contract doesn't hold enough of the output asset.",
+        "The swap returned less than the minimum allowed by the slippage setting, or nothing at all.",
     },
     5: {
-      name: "BadRate",
-      friendly: "The swap rate must be greater than 0 and at most 100%.",
+      name: "BadSlippage",
+      friendly: "Max slippage must be between 0% and 100%.",
+    },
+    6: {
+      name: "BadDeadline",
+      friendly: "The swap deadline must be at least 1 second.",
+    },
+    7: {
+      name: "TooManyNextSteps",
+      friendly: "A swap can forward to only one next step.",
+    },
+  },
+  // Soroswap router (CombinedRouterError in soroswap/core). Not a Paiflow
+  // template; reached through `addressMap` on the trigger path.
+  soroswap_router: {
+    503: {
+      name: "RouterDeadlineExpired",
+      friendly: "The swap's deadline passed before it executed. Try again.",
+    },
+    507: {
+      name: "RouterInsufficientOutputAmount",
+      friendly:
+        "Soroswap would return less than the minimum allowed by the swap's slippage setting. Raise the max slippage or swap a smaller amount.",
+    },
+    509: {
+      name: "RouterPairDoesNotExist",
+      friendly: "Soroswap has no liquidity pool for this asset pair on this network.",
+    },
+    511: {
+      name: "LibraryInsufficientLiquidity",
+      friendly: "The Soroswap pool for this pair has no liquidity.",
+    },
+    513: {
+      name: "LibraryInsufficientOutputAmount",
+      friendly:
+        "Soroswap would return less than the minimum allowed by the swap's slippage setting. Raise the max slippage or swap a smaller amount.",
+    },
+    514: {
+      name: "LibraryInvalidPath",
+      friendly: "The swap path is invalid.",
     },
   },
   yield: {

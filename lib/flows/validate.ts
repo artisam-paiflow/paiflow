@@ -63,6 +63,8 @@ const FRIENDLY = {
     "A scheduled split needs an amount per interval — the total released each interval, divided among the recipients by their shares. Set it on the split step, or switch the recipients to fixed amounts (each then receives their amount every interval).",
   ASSET_CONFLICT:
     "This step can receive different assets depending on which path funds arrive through. Make sure every path leading into it carries the same asset, or add a swap so they match before merging.",
+  SWAP_SINGLE_EDGE:
+    "A swap sends its whole output to one next step. Remove the extra connections coming out of it, or add a Split block after the swap.",
 } as const;
 
 // Triggers whose flows route payouts through the payer/splitter contracts,
@@ -636,6 +638,21 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     });
   }
 
+  // A swap forwards its entire output to next_steps[0]; the contract rejects
+  // more than one next step at construction, so catch it here first.
+  for (const n of graph.nodes) {
+    if (n.type === "swap") {
+      const outgoing = graph.edges.filter((e) => e.source === n.id);
+      if (outgoing.length > 1) {
+        errors.push({
+          path: `nodes.${n.id}`,
+          message: "Swap node can have at most one outgoing edge",
+          friendlyMessage: FRIENDLY.SWAP_SINGLE_EDGE,
+        });
+      }
+    }
+  }
+
   // Email notify nodes are decorator leaves — they cannot have children.
   for (const n of graph.nodes) {
     if (n.type === "email_notify") {
@@ -1010,11 +1027,11 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   } else if (isOnReceive && isCashOut) {
     templateKind = TemplateKind.CASH_OUT;
   } else if (isOnReceive && isSwapOrYield) {
-    templateKind = TemplateKind.SPLITTER;
+    templateKind = action.type === "swap" ? TemplateKind.SWAPPER : TemplateKind.YIELD;
   } else if (isWebhookLike && isPayOrSplit) {
     templateKind = TemplateKind.SPLITTER;
   } else if (isWebhookLike && isSwapOrYield) {
-    templateKind = TemplateKind.SPLITTER;
+    templateKind = action.type === "swap" ? TemplateKind.SWAPPER : TemplateKind.YIELD;
   } else if (trigger!.type === "oracle") {
     templateKind = TemplateKind.CONDITIONAL;
   } else {

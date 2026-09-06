@@ -1376,26 +1376,50 @@ export default function ConfigPanel({
               onChange({ ...node, config: { ...node.config, assetOut } } as FlowNode)
             }
           />
-          <Field label="Rate (basis points, 1–10000)" error={fieldError("rateBps")}>
+          <Field label="Max slippage (%)" error={fieldError("slippageBps")}>
             <input
               className="input"
               type="number"
-              min={1}
-              max={10000}
-              value={node.config.rateBps}
+              min={0}
+              max={100}
+              step={0.1}
+              value={node.config.slippageBps / 100}
               onChange={(e) => {
                 const v = Number(e.target.value);
                 onChange({
                   ...node,
                   config: {
                     ...node.config,
-                    rateBps: isNaN(v) ? 1 : Math.min(10000, Math.max(1, v)),
+                    slippageBps: isNaN(v) ? 100 : Math.round(Math.min(100, Math.max(0, v)) * 100),
                   },
                 });
               }}
             />
             <div className="mt-0.5 text-[11px] text-zinc-500">
-              = {(node.config.rateBps / 100).toFixed(0)}%
+              Minimum output is the pool&apos;s spot price less this percentage. It must cover
+              Soroswap&apos;s 0.3% fee plus price impact, so values under 0.3% always fail.
+            </div>
+          </Field>
+          <Field label="Deadline (seconds)" error={fieldError("deadlineSecs")}>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              value={node.config.deadlineSecs}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                onChange({
+                  ...node,
+                  config: {
+                    ...node.config,
+                    deadlineSecs: isNaN(v) ? 300 : Math.max(1, Math.floor(v)),
+                  },
+                });
+              }}
+            />
+            <div className="mt-0.5 text-[11px] text-zinc-500">
+              Bounds the ledger close time the router accepts. On the direct trigger path it is
+              computed in the same transaction and cannot expire.
             </div>
           </Field>
         </>
