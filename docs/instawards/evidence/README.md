@@ -33,9 +33,7 @@ link stops resolving.
 | ---- | ----------- | ---- |
 |      |             |      |
 
-## Not counted
+## Scope
 
-The pre-sprint validation trial produced a working swap on 6 September 2026 from a throwaway
-copy of the repository, with its own keys and its own factory contract. It is described in
-[week 0](../week-0.md) and is deliberately **excluded** from every table above and from the
-[metrics](../metrics.md).
+Only transactions produced from [paiflow.xyz](https://paiflow.xyz) during the sprint are
+listed here, and only those count toward the [metrics](../metrics.md).

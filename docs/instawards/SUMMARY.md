@@ -5,7 +5,6 @@
 
 ## Weekly reports
 
-- [Week 0 — before the sprint](instawards/week-0.md)
 - [Week 1 — 7–13 Sep](instawards/week-1.md)
 - [Week 2 — 14–20 Sep](instawards/week-2.md)
 - [Week 3 — 21–27 Sep](instawards/week-3.md)

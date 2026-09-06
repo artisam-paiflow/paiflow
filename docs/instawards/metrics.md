@@ -4,9 +4,8 @@ The success metrics from the [Statement of Work](../instawards-phase-1-sow.md), 
 with the running totals and how each one is counted.
 
 **Counting rules.** Only activity produced from the public application at
-[paiflow.xyz](https://paiflow.xyz) on Stellar testnet counts. Deployments made from a local
-development environment, and everything from the pre-sprint validation trial described in
-[week 0](week-0.md), are excluded.
+[paiflow.xyz](https://paiflow.xyz) on Stellar testnet, during the sprint, counts. Anything
+deployed or triggered from a development environment is excluded.
 
 | Metric                                   | Target | Current | Source                                  |
 | ---------------------------------------- | ------ | ------- | --------------------------------------- |
