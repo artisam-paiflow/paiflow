@@ -164,12 +164,11 @@ const TEMPLATES: Template[] = [
       },
     }),
   },
-  // Hidden: Swap action (disabled for now).
+  // Swap: a real Soroswap swap since Instawards D1; the router is server env.
   {
     group: "Actions",
     label: "Swap",
     icon: "swap_horiz",
-    hidden: true,
     make: () => ({
       id: makeId("swap"),
       type: "swap",
@@ -360,6 +359,7 @@ export default function Palette({
                 return (
                   <div key={tpl.label} className="group relative">
                     <button
+                      data-testid={`palette-${tpl.label.toLowerCase().replace(/\s+/g, "-")}`}
                       onClick={() => !disabled && onAdd(tpl.make())}
                       disabled={disabled}
                       className={`group inline-flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left font-mono transition-all ${

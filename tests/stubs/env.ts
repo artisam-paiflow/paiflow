@@ -148,3 +148,16 @@ export function stellarHorizonUrl(network?: StellarNetworkName) {
     ? "https://horizon.stellar.org"
     : "https://horizon-testnet.stellar.org";
 }
+
+// Instawards D1: Soroswap router, pinned per network. Tests toggle it through
+// process.env so the prepare route's "router unset" guard can be exercised.
+export const SWAP_ROUTER_UNSET_MESSAGE =
+  "Swap flows need the Soroswap router address. Set STELLAR_SOROSWAP_ROUTER_TESTNET (or _MAINNET) in the environment.";
+
+export function soroswapRouterAddress(): string | undefined {
+  const v =
+    active === "mainnet"
+      ? process.env.STELLAR_SOROSWAP_ROUTER_MAINNET
+      : process.env.STELLAR_SOROSWAP_ROUTER_TESTNET;
+  return v && v.length > 0 ? v : undefined;
+}
