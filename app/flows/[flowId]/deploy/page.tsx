@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
-import { FlowGraphSchema, type Asset, assetLabel } from "@/lib/flows/schema";
+import { FlowGraphSchema, type Asset, type FlowGraph, assetLabel } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToEnglish } from "@/lib/flows/english";
 import {
@@ -46,6 +46,18 @@ export default async function DeployReviewPage({
       schedule: boolean;
     };
   } | null = null;
+  const swapNode = graph.success
+    ? graph.data.nodes.find(
+        (n): n is Extract<FlowGraph["nodes"][number], { type: "swap" }> => n.type === "swap",
+      )
+    : undefined;
+  const swapPreview = swapNode
+    ? {
+        assetIn: swapNode.config.assetIn,
+        assetOut: swapNode.config.assetOut,
+        slippageBps: swapNode.config.slippageBps,
+      }
+    : null;
   const isSubscriptionTrigger = graph.data!.nodes.some((n) => n.type === "subscription");
   const isPayrollTrigger = graph.data!.nodes.some((n) => n.type === "payroll");
   if (pipeline) {
@@ -294,7 +306,13 @@ export default async function DeployReviewPage({
           </div>
         )}
 
-        {validation?.ok && <DeployReview flowId={flow.id} network={env().STELLAR_NETWORK} />}
+        {validation?.ok && (
+          <DeployReview
+            flowId={flow.id}
+            network={env().STELLAR_NETWORK}
+            swapPreview={swapPreview}
+          />
+        )}
       </main>
     </>
   );
