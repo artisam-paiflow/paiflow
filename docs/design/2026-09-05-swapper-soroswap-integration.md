@@ -89,10 +89,12 @@ resolves the swap node to `SWAPPER`.
 - **No client-supplied quote.** The trigger path is `deposit()` on the trigger
   contract, so there is nowhere for an off-chain quote to travel. `amount_out_min`
   is computed in-transaction from the pool's **spot** price, so `slippage_bps`
-  bounds Soroswap's 0.3% fee plus price impact and rejects a thin or manipulated
-  pool. It does not protect against front-running within the same ledger; that
-  limitation is accepted and stated in the user-facing copy. (Quoting
-  `router_get_amounts_out` in the same transaction, the original plan, was a
+  bounds Soroswap's 0.3% fee plus this swap's own price impact, which is what
+  rejects a pool too thin for the trade. It does **not** detect a pool whose
+  reserves were already pushed off-market before this transaction — the spot
+  price moves with them — nor does it protect against front-running within the
+  same ledger; both limitations are accepted and stated in the user-facing copy.
+  (Quoting `router_get_amounts_out` in the same transaction, the original plan, was a
   tautology: the router computes its actual output with that same call on the same
   reserves, so the check could never fail. Corrected 2026-09-06.)
 
