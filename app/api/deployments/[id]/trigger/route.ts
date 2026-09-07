@@ -5,8 +5,8 @@ import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { prepareTriggerTx, prepareWebhookDepositTx } from "@/lib/stellar/trigger";
 import { prepareStreamerTopUpInvocation } from "@/lib/stellar/invoke";
-import { stellarPassphrase, soroswapRouterAddress } from "@/lib/env";
-import { contractKeyForTemplate, type ContractErrorKey } from "@/lib/stellar/soroban-errors";
+import { stellarPassphrase } from "@/lib/env";
+import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 
 const PostSchema = z.object({
@@ -47,16 +47,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       throw new AppError("VALIDATION", "Contract address not available");
     }
 
-    // Map every contract the trigger can reach back to its error table, so a
-    // revert deep in the pipeline (or in the Soroswap router) reads as prose.
-    const addressMap: Record<string, ContractErrorKey> = {};
-    for (const n of pipeline ?? []) {
-      const key = contractKeyForTemplate(n.templateKind);
-      if (key && n.contractAddress) addressMap[n.contractAddress] = key;
-    }
-    const router = soroswapRouterAddress();
-    if (router) addressMap[router] = "soroswap_router";
-    const hint = { addressMap };
+    const hint = await buildPipelineErrorHint(pipeline);
 
     let xdr: string;
     if (isWebhook) {

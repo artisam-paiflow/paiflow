@@ -15,6 +15,7 @@ export type ContractErrorKey =
   | "splitter_dev"
   | "swapper"
   | "soroswap_router"
+  | "soroswap_factory"
   | "yield"
   | "payer"
   | "payer_dev"
@@ -176,6 +177,11 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
       friendly:
         "Soroswap would return less than the minimum allowed by the swap's slippage setting. Raise the max slippage or swap a smaller amount.",
     },
+    // Unreachable on the current swapper path: do_swap calls factory.get_pair
+    // before the router, so a missing pool raises FactoryError::PairDoesNotExist
+    // (see soroswap_factory below). Kept because the code is real in
+    // CombinedRouterError and any path that calls the router without that
+    // pre-step will raise it.
     509: {
       name: "RouterPairDoesNotExist",
       friendly: "Soroswap has no liquidity pool for this asset pair on this network.",
@@ -192,6 +198,17 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     514: {
       name: "LibraryInvalidPath",
       friendly: "The swap path is invalid.",
+    },
+  },
+  // Soroswap factory (FactoryError in soroswap/core factory-interface/src/error.rs).
+  // Only the one code verified against that source is listed; the rest of the
+  // band is deliberately absent rather than guessed. do_swap resolves the pair
+  // through the factory before touching the router, so this is the frame a
+  // missing pool actually fails in.
+  soroswap_factory: {
+    205: {
+      name: "PairDoesNotExist",
+      friendly: "Soroswap has no liquidity pool for this asset pair on this network.",
     },
   },
   yield: {
@@ -609,6 +626,10 @@ export function translateSorobanError(
   // first one we have a table entry for, so a Soroswap router revert reads as
   // the router's message rather than "the deposit trigger rejected #507".
   for (const frame of findContractErrors(raw).reverse()) {
+    // The `hint.contract` fallback is per-frame, so with a `{ contract }`-only
+    // hint (every caller of simulationFailure except the trigger path) an
+    // unmapped inner frame's code is looked up in the hinted contract's table.
+    // Pass an `addressMap` whenever more than one contract can be reached.
     const key = hint?.addressMap?.[frame.address] ?? hint?.contract;
     const entry = key ? CONTRACT_ERRORS[key][frame.code] : undefined;
     if (entry) {

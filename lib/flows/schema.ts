@@ -362,7 +362,11 @@ export const SwapAction = z.object({
     // pool fee is 0.3%, so anything under 30 bps always reverts.
     slippageBps: z.number().int().min(0).max(10_000).default(100),
     // Seconds added to the ledger timestamp for the router's deadline check.
-    deadlineSecs: z.number().int().min(1).default(300),
+    // Bounded above because scval.ts serializes this as a u64: `.int()` accepts
+    // any integer-valued float, and anything past 2^64 makes nativeToScVal throw
+    // a plain Error, surfacing from /api/deployments/prepare as a 500 instead of
+    // a 422. A day is already far beyond a useful router deadline.
+    deadlineSecs: z.number().int().min(1).max(86_400).default(300),
   }),
 });
 

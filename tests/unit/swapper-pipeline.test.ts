@@ -77,6 +77,20 @@ describe("schema", () => {
     expect(bad({ assetIn: XLM, assetOut: USDC, deadlineSecs: 0 })).toBe(false);
     expect(bad({ assetIn: XLM, assetOut: USDC, slippageBps: -1 })).toBe(false);
   });
+
+  it("rejects a deadline past the u64 the constructor serializes", () => {
+    const parse = (deadlineSecs: number) =>
+      FlowGraphSchema.safeParse({
+        nodes: [{ id: "s", type: "swap", config: { assetIn: XLM, assetOut: USDC, deadlineSecs } }],
+        edges: [],
+      }).success;
+    // `.int()` accepts any integer-valued float, so without an upper bound 1e20
+    // reaches scval.ts and makes nativeToScVal throw a plain Error, surfacing
+    // from /api/deployments/prepare as a 500 rather than a 422 field error.
+    expect(parse(1e20)).toBe(false);
+    expect(parse(86_401)).toBe(false);
+    expect(parse(86_400)).toBe(true);
+  });
 });
 
 describe("validateFlow", () => {
@@ -124,6 +138,33 @@ describe("validateFlow", () => {
     if (!r.ok) {
       const issue = r.errors.find((e) => e.path === "nodes.s");
       expect(issue?.friendlyMessage).toMatch(/one next step/);
+    }
+  });
+
+  it("does not count an email_notify edge toward the swap's single next step", () => {
+    // getPipelineChildren in to-params.ts drops every edge touching an
+    // email_notify node, so this graph still constructs the swapper with
+    // exactly one next step.
+    const base = swapFlow();
+    const r = validateFlow({
+      ...base,
+      nodes: [
+        ...base.nodes,
+        {
+          id: "n",
+          type: "email_notify",
+          config: { recipients: [{ address: RECIPIENT, email: "a@b.com" }], subject: "Swapped" },
+        },
+      ],
+      edges: [...base.edges, { id: "e3", source: "s", target: "n" }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.pipeline).toEqual([
+        TemplateKind.DEPOSIT_TRIGGER,
+        TemplateKind.SWAPPER,
+        TemplateKind.PAYER,
+      ]);
     }
   });
 
@@ -236,6 +277,25 @@ describe("soroban error mapping", () => {
   it("maps the swapper's own codes", () => {
     const t = translateSorobanError(dump(PARENT, 7), { addressMap: { [PARENT]: "swapper" } });
     expect(t.errorName).toBe("TooManyNextSteps");
+  });
+
+  it("maps a missing pool to the factory's frame, not a bare error code", () => {
+    // do_swap resolves the pair through the factory before it touches the
+    // router, so a missing pool fails with FactoryError::PairDoesNotExist (205)
+    // in the factory's frame. Without the factory in the map the walk finds no
+    // table for it and the user sees "error #205".
+    const FACTORY = "CDGXPBJPUBLIB4IMEIJXWUJXBLHVK6X33UAHIVLXPHMEGYCHZWLYBLQY";
+    const raw = dump(FACTORY, 205);
+    expect(
+      translateSorobanError(raw, { addressMap: { [ROUTER]: "soroswap_router" } }).matched,
+    ).toBe(false);
+
+    const t = translateSorobanError(raw, {
+      addressMap: { [ROUTER]: "soroswap_router", [FACTORY]: "soroswap_factory" },
+    });
+    expect(t.matched).toBe(true);
+    expect(t.errorName).toBe("PairDoesNotExist");
+    expect(t.friendly).toMatch(/no liquidity pool/i);
   });
 });
 

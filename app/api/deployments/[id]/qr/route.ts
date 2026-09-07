@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { sep7PaymentUri } from "@/lib/stellar/sep7";
 import { prepareDistributeTx, prepareDepositInvocation } from "@/lib/stellar/invoke";
+import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
 import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
 import { z } from "zod";
 
@@ -99,6 +100,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         contractAddress: d.contractAddress,
         amount,
         invokerAddress: d.sourceAccount,
+        // Same on-chain path as the trigger route, so it needs the same map:
+        // without it a Soroswap revert here renders as a bare error code.
+        hint: await buildPipelineErrorHint(pipeline),
       });
       uri = `web+stellar:tx?xdr=${encodeURIComponent(xdr)}`;
     } else {

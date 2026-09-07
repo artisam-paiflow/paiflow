@@ -639,10 +639,15 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   }
 
   // A swap forwards its entire output to next_steps[0]; the contract rejects
-  // more than one next step at construction, so catch it here first.
+  // more than one next step at construction, so catch it here first. Only
+  // on-chain children count: getPipelineChildren in to-params.ts drops every
+  // edge touching an email_notify node, so those never become next steps and
+  // `swap -> pay` plus `swap -> email_notify` still constructs with exactly one.
   for (const n of graph.nodes) {
     if (n.type === "swap") {
-      const outgoing = graph.edges.filter((e) => e.source === n.id);
+      const outgoing = graph.edges.filter(
+        (e) => e.source === n.id && nodesById.get(e.target)?.type !== "email_notify",
+      );
       if (outgoing.length > 1) {
         errors.push({
           path: `nodes.${n.id}`,

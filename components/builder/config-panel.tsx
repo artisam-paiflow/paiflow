@@ -1405,6 +1405,7 @@ export default function ConfigPanel({
               className="input"
               type="number"
               min={1}
+              max={86400}
               value={node.config.deadlineSecs}
               onChange={(e) => {
                 const v = Number(e.target.value);
@@ -1412,7 +1413,8 @@ export default function ConfigPanel({
                   ...node,
                   config: {
                     ...node.config,
-                    deadlineSecs: isNaN(v) ? 300 : Math.max(1, Math.floor(v)),
+                    // Clamped to the schema's bound so the panel and the server agree.
+                    deadlineSecs: isNaN(v) ? 300 : Math.min(86_400, Math.max(1, Math.floor(v))),
                   },
                 });
               }}
