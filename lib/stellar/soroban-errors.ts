@@ -632,16 +632,23 @@ export function translateSorobanError(
   // Walk the error-bearing frames from the originator outwards and take the
   // first one we have a table entry for, so a Soroswap router revert reads as
   // the router's message rather than "the deposit trigger rejected #507".
+  //
+  // A frame that fails traps with the *same* code its callee raised, so once a
+  // frame cannot explain a code, every outer frame carrying that code is a
+  // re-raise and is skipped. Otherwise a token contract's #6 on the pay leg
+  // would be looked up in the swapper's table and read as "bad deadline". A
+  // frame with a different code is a genuine originator and is still checked.
+  // With an addressMap, an unmapped frame is left unexplained rather than
+  // looked up in `hint.contract`, for the same reason.
+  let rejected: number | undefined;
   for (const frame of findContractErrors(raw).reverse()) {
-    // The `hint.contract` fallback is per-frame, so with a `{ contract }`-only
-    // hint (every caller of simulationFailure except the trigger path) an
-    // unmapped inner frame's code is looked up in the hinted contract's table.
-    // Pass an `addressMap` whenever more than one contract can be reached.
-    const key = hint?.addressMap?.[frame.address] ?? hint?.contract;
+    if (rejected !== undefined && frame.code === rejected) continue;
+    const key = hint?.addressMap ? hint.addressMap[frame.address] : hint?.contract;
     const entry = key ? CONTRACT_ERRORS[key][frame.code] : undefined;
     if (entry) {
       return { friendly: entry.friendly, matched: true, errorName: entry.name };
     }
+    rejected = frame.code;
   }
   const contractError = findContractError(raw);
   if (contractError) {

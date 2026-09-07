@@ -66,7 +66,7 @@ const FRIENDLY = {
   SWAP_SINGLE_EDGE:
     "A swap sends its whole output to one next step. Remove the extra connections coming out of it, or add a Split block after the swap.",
   SWAP_NEEDS_NEXT_STEP:
-    "A swap sends its whole output to one next step, so it needs one. Connect it to a Pay, Split or Cash-out block — an email notification doesn't count as a destination.",
+    "A swap sends its whole output to one next step, so it needs one. Connect it to a Pay or Split block — an email notification doesn't count as a destination.",
 } as const;
 
 // Triggers whose flows route payouts through the payer/splitter contracts,

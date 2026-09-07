@@ -311,6 +311,36 @@ describe("soroban error mapping", () => {
     expect(t.friendly).toMatch(/slippage/i);
   });
 
+  it("does not map a re-raised token error against an intermediate frame's table", () => {
+    // A frame traps with the same code its callee raised, so a token contract's
+    // #6 (AccountMissing) on the pay leg reaches the swapper's frame as #6 too.
+    // Without the re-raise check that read as the swapper's BadDeadline — a
+    // confidently wrong message where develop showed the numbered fallback.
+    const TRIGGER = "CCH3TIPZCI35FM3BOOBQA4JLLTU6KYOPQEFKWQMYMR5P2J47G3BZDWWN";
+    const SWAPPER = "CDLLYSUI3U4BZBQXQJENHZUHTO4PQ2X54LSVSPQ3SQXC6RAGJYIKGKV6";
+    const SAC = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
+    const entry = (address: string, code: number) =>
+      `[Diagnostic Event] contract:${address}, topics:[error, Error(Contract, #${code})], data:"escalating error to VM trap from failed host function call: call"`;
+    const raw =
+      "HostError: Error(Contract, #6) Event log (newest first): " +
+      `0: ${entry(TRIGGER, 6)} 1: ${entry(SWAPPER, 6)} 2: ${entry(NEXT, 6)} 3: ${entry(SAC, 6)}`;
+    const t = translateSorobanError(raw, {
+      addressMap: { [TRIGGER]: "deposit_trigger", [SWAPPER]: "swapper", [NEXT]: "payer" },
+    });
+    expect(t.matched).toBe(false);
+    expect(t.friendly).toMatch(/error #6/);
+
+    // A frame that raises a *different* code is a genuine originator and is
+    // still translated: here the swapper turns an inner #6 into its own #4.
+    const converted =
+      "HostError: Error(Contract, #4) Event log (newest first): " +
+      `0: ${entry(TRIGGER, 4)} 1: ${entry(SWAPPER, 4)} 2: ${entry(NEXT, 6)} 3: ${entry(SAC, 6)}`;
+    const c = translateSorobanError(converted, {
+      addressMap: { [TRIGGER]: "deposit_trigger", [SWAPPER]: "swapper", [NEXT]: "payer" },
+    });
+    expect(c.errorName).toBe("InsufficientOutput");
+  });
+
   it("maps the swapper's own codes", () => {
     const t = translateSorobanError(dump(PARENT, 7), { addressMap: { [PARENT]: "swapper" } });
     expect(t.errorName).toBe("TooManyNextSteps");
