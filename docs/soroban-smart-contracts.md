@@ -259,6 +259,24 @@ pnpm contracts:deploy:testnet
 pnpm contracts:deploy:mainnet
 ```
 
+**A fresh environment must end with a factory address.** Nothing can deploy without one: the app
+resolves the factory through `getFactoryAddress()` in `lib/stellar/config.ts`, and
+`deploy_pipeline` is the only path that instantiates a pipeline. `deploy-factory` skips only when
+the built Wasm hash is unchanged **and** an address already exists — in
+`STELLAR_FACTORY_ADDRESS_{TESTNET|MAINNET}` or as a `FactoryDeployment` row for the network — and it
+logs which of the two it found. On a new machine, a rebuilt service or after a testnet reset,
+neither exists and it deploys.
+
+Verify before trusting the chain:
+
+```bash
+pnpm exec tsx -e 'import{db}from"@/lib/prisma";db.factoryDeployment.findMany().then(r=>console.log(r))'
+```
+
+A row for the network, with an address, is the proof. `update-hashes` logging
+`STELLAR_FACTORY_ADDRESS_… not set, skipping` means the chain did not finish and the environment
+cannot deploy yet.
+
 See [`mainnet-cutover.md`](./mainnet-cutover.md) for the production runbook.
 
 ### 4.4 Deployment Flow (`lib/stellar/deploy.ts`)

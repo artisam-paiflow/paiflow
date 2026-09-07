@@ -117,8 +117,15 @@ deployed through an on-chain factory; with no factory address,
 
 The script deploys `paiflow_factory.wasm`, writes the address to both the
 database and `.env.local`, and records the factory's own WASM hash. It no-ops
-when the built hash already matches `STELLAR_WASM_HASH_FACTORY_MAINNET`, so
-re-running it after an unrelated contract change is safe.
+only when the built hash already matches `STELLAR_WASM_HASH_FACTORY_MAINNET`
+**and** an address exists — in `STELLAR_FACTORY_ADDRESS_MAINNET` or as a
+`FactoryDeployment` row — so re-running it after an unrelated contract change is
+safe, and a fresh environment still gets a factory even though step 2 wrote that
+hash moments earlier. The log line names which of the two it found.
+
+**Every environment must end this step with a factory address**, production and
+staging alike. Confirm it before moving on with the `FactoryDeployment` query
+under [Step 6 — Verify](#step-6--verify).
 
 ## Step 4 — Sync hashes into the production database
 

@@ -25,7 +25,7 @@ import {
 } from "@stellar/stellar-sdk";
 import { TemplateKind } from "@prisma/client";
 import { db } from "@/lib/prisma";
-import { setFactoryAddress, setWasmHash } from "@/lib/stellar/template-db";
+import { getFactoryAddressFromDb, setFactoryAddress, setWasmHash } from "@/lib/stellar/template-db";
 import { writeEnvLocal } from "./env-file";
 
 const WASM_DIR = "contracts/target/wasm32v1-none/release";
@@ -71,6 +71,31 @@ function extractContractAddress(returnValue: xdr.ScVal): string {
   return Address.fromScAddress(returnValue.address()).toString();
 }
 
+/**
+ * An already-deployed factory for this network, from env or the
+ * `FactoryDeployment` table, or undefined when neither knows of one.
+ *
+ * The DB is best-effort: a fresh machine may have no reachable DATABASE_URL,
+ * and being unable to ask must mean "deploy", never "crash".
+ */
+async function findDeployedFactory(
+  network: NetworkName,
+  addressKey: string,
+): Promise<{ address: string; source: string } | undefined> {
+  const fromEnv = process.env[addressKey];
+  if (fromEnv) return { address: fromEnv, source: addressKey };
+
+  try {
+    const fromDb = await getFactoryAddressFromDb(network);
+    if (fromDb) return { address: fromDb, source: "FactoryDeployment table" };
+  } catch (err) {
+    console.warn(
+      `[deploy-factory] could not read the FactoryDeployment table: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  return undefined;
+}
+
 async function main() {
   const network = parseNetworkFlag();
   const rpcUrl = getRpcUrl(network);
@@ -95,11 +120,21 @@ async function main() {
   const existingHash = process.env[hashKey];
 
   if (existingHash === wasmHash) {
-    console.log(`[deploy-factory] factory wasm hash unchanged, skipping deploy`);
-    return;
-  }
-
-  if (existingHash) {
+    // An unchanged hash does NOT imply a deployed factory: on a fresh
+    // environment the upload step wrote this variable seconds ago and no
+    // instance exists. Skip only once an address proves one does, or the
+    // deploy chain finishes leaving nothing able to deploy (#394).
+    const deployed = await findDeployedFactory(network, addressKey);
+    if (deployed) {
+      console.log(
+        `[deploy-factory] factory wasm hash unchanged and ${deployed.address} already deployed (${deployed.source}), skipping deploy`,
+      );
+      return;
+    }
+    console.log(
+      `[deploy-factory] factory wasm hash unchanged but no factory address found in ${addressKey} or the FactoryDeployment table, deploying`,
+    );
+  } else if (existingHash) {
     console.log(
       `[deploy-factory] factory wasm hash changed (${existingHash.slice(0, 12)}... -> ${wasmHash.slice(0, 12)}...), deploying`,
     );
