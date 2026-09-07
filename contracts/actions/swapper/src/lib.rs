@@ -136,6 +136,17 @@ impl Swapper {
 
     /// Called by receive_and_forward triggers (webhook, oracle, subscription).
     /// Funds are expected to already be held by this contract.
+    //
+    // Kept as a plain comment, not a doc comment: `#[contractimpl]` embeds doc
+    // strings in the contract spec, so editing one changes the WASM hash.
+    //
+    // `from` is whoever calls, so this is permissionless: any account can
+    // authorize as itself and swap `asset_in` sitting idle here. That is
+    // acceptable because the output can only reach `next_steps[0]` or stay in
+    // this contract, so nothing is divertible; the splitter's version has no
+    // auth at all, so this is the stricter of the two. In practice there is no
+    // idle balance, because the trigger transfers and calls `execute_step` in
+    // one transaction.
     pub fn receive_and_forward(
         env: Env,
         from: Address,
@@ -198,6 +209,12 @@ fn do_swap(env: &Env, asset: &Address, amount: i128) {
     // the router's own quote in this transaction: the router computes its
     // actual output with that same call on the same reserves, so such a check
     // could never fail.
+    //
+    // The limit of that: these reserves are the same pool state the router
+    // swaps against, so the bound caps the 0.3% fee plus *this* swap's price
+    // impact. It cannot detect a pool whose reserves were already pushed
+    // off-market before this transaction, because the spot price moves with
+    // them.
     let (reserve_0, reserve_1) = pair.get_reserves();
     let (reserve_in, reserve_out) = if pair.token_0() == asset_in {
         (reserve_0, reserve_1)
