@@ -164,6 +164,11 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
       name: "TooManyNextSteps",
       friendly: "A swap can forward to only one next step.",
     },
+    8: {
+      name: "NoNextStep",
+      friendly:
+        "A swap needs a next step to send its output to. Connect the swap to a payout step and redeploy.",
+    },
   },
   // Soroswap router (CombinedRouterError in soroswap/core). Not a Paiflow
   // template; reached through `addressMap` on the trigger path.

@@ -1339,7 +1339,7 @@ describe("validateFlow", () => {
   });
 
   // ── web2_webhook compatibility ──
-  it("accepts web2_webhook → swap", () => {
+  it("accepts web2_webhook → swap → pay", () => {
     const r = validateFlow({
       nodes: [
         {
@@ -1357,12 +1357,24 @@ describe("validateFlow", () => {
             deadlineSecs: 300,
           },
         },
+        {
+          id: "p",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "10",
+            asset: { kind: "known", symbol: "USDC" },
+          },
+        },
       ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "a", target: "p" },
+      ],
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.pipeline).toEqual([TemplateKind.WEBHOOK, TemplateKind.SWAPPER]);
+      expect(r.pipeline).toEqual([TemplateKind.WEBHOOK, TemplateKind.SWAPPER, TemplateKind.PAYER]);
     }
   });
 

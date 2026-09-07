@@ -137,7 +137,44 @@ describe("validateFlow", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) {
       const issue = r.errors.find((e) => e.path === "nodes.s");
-      expect(issue?.friendlyMessage).toMatch(/one next step/);
+      expect(issue?.friendlyMessage).toMatch(/Remove the extra connections/);
+    }
+  });
+
+  it("rejects a terminal swap: the output would strand in a contract with no way out", () => {
+    const g = swapFlow();
+    const r = validateFlow({
+      ...g,
+      nodes: g.nodes.filter((n) => n.id !== "p"),
+      edges: g.edges.filter((e) => e.id !== "e2"),
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      const issue = r.errors.find((e) => e.path === "nodes.s");
+      expect(issue?.friendlyMessage).toMatch(/needs one/);
+    }
+  });
+
+  it("rejects a swap whose only outgoing edge targets an email_notify", () => {
+    // The email edge is dropped by getPipelineChildren, so the swapper would be
+    // constructed with zero next steps — the same stranding as a terminal swap.
+    const g = swapFlow();
+    const r = validateFlow({
+      ...g,
+      nodes: [
+        ...g.nodes.filter((n) => n.id !== "p"),
+        {
+          id: "n",
+          type: "email_notify",
+          config: { recipients: [{ address: RECIPIENT, email: "a@b.com" }], subject: "Swapped" },
+        },
+      ],
+      edges: [...g.edges.filter((e) => e.id !== "e2"), { id: "e3", source: "s", target: "n" }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      const issue = r.errors.find((e) => e.path === "nodes.s");
+      expect(issue?.friendlyMessage).toMatch(/needs one/);
     }
   });
 
@@ -277,6 +314,10 @@ describe("soroban error mapping", () => {
   it("maps the swapper's own codes", () => {
     const t = translateSorobanError(dump(PARENT, 7), { addressMap: { [PARENT]: "swapper" } });
     expect(t.errorName).toBe("TooManyNextSteps");
+
+    const none = translateSorobanError(dump(PARENT, 8), { addressMap: { [PARENT]: "swapper" } });
+    expect(none.errorName).toBe("NoNextStep");
+    expect(none.friendly).toMatch(/needs a next step/i);
   });
 
   it("maps a missing pool to the factory's frame, not a bare error code", () => {

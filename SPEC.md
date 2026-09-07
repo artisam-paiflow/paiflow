@@ -137,7 +137,7 @@ An action decides **where** money goes. A flow must contain at least one.
 | ●   | `split`        | Fans out to up to 20 recipients                     | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                                                          |
 | ●   | `email_notify` | Emails recipients when the flow pays out            | Terminal only — it must have no outgoing edges, because it moves no money and nothing can be downstream of a notification.                                     |
 | ◦   | `cash_out`     | Sends to the off-ramp treasury against bank details | The bridge out of crypto: the contract holds the destination bank account, so the payout is as immutable as the on-chain leg. Not placed directly — see below. |
-| ◦   | `swap`         | Exchanges `assetIn` for `assetOut` on Soroswap      | A real DEX swap with a slippage bound; forwards the whole output to at most one next step. See below.                                                          |
+| ◦   | `swap`         | Exchanges `assetIn` for `assetOut` on Soroswap      | A real DEX swap with a slippage bound; forwards the whole output to exactly one next step. See below.                                                          |
 | ◦   | `yield`        | Transfers the balance to a vault address            | A plain token transfer; it does not call a vault protocol's deposit function and nothing accrues. Downstream steps are then invoked with `amount=0`.           |
 
 **`cash_out` is not dragged onto the canvas.** Setting a `pay` or `split` recipient to fiat payout
@@ -149,9 +149,10 @@ receives for `assetOut` with `swap_exact_tokens_for_tokens` on the Soroswap rout
 `STELLAR_SOROSWAP_ROUTER_*`, then forwards the entire output to its single downstream step. The
 minimum output is the pool's spot price less `slippageBps` (default 1%), so the bound covers
 Soroswap's 0.3% fee plus price impact; the router reverts below it and the swapper asserts the same
-bound as its own backstop, so a failed swap moves nothing downstream. A swap node may have at most
-one outgoing edge; splitting is the splitter's job. The router is environment config, never part of
-the graph. Instawards Phase 1 Deliverable 1, [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md).
+bound as its own backstop, so a failed swap moves nothing downstream. A swap node must have exactly
+one outgoing edge: splitting is the splitter's job, and a swap with nowhere to send its output would
+strand it in a contract that has no way to release it. The router is environment config, never part
+of the graph. Instawards Phase 1 Deliverable 1, [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md).
 
 ### 3.3 Logic
 

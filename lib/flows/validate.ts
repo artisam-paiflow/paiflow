@@ -65,6 +65,8 @@ const FRIENDLY = {
     "This step can receive different assets depending on which path funds arrive through. Make sure every path leading into it carries the same asset, or add a swap so they match before merging.",
   SWAP_SINGLE_EDGE:
     "A swap sends its whole output to one next step. Remove the extra connections coming out of it, or add a Split block after the swap.",
+  SWAP_NEEDS_NEXT_STEP:
+    "A swap sends its whole output to one next step, so it needs one. Connect it to a Pay, Split or Cash-out block — an email notification doesn't count as a destination.",
 } as const;
 
 // Triggers whose flows route payouts through the payer/splitter contracts,
@@ -639,16 +641,25 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   }
 
   // A swap forwards its entire output to next_steps[0]; the contract rejects
-  // more than one next step at construction, so catch it here first. Only
-  // on-chain children count: getPipelineChildren in to-params.ts drops every
-  // edge touching an email_notify node, so those never become next steps and
-  // `swap -> pay` plus `swap -> email_notify` still constructs with exactly one.
+  // both zero and more than one next step at construction, so catch it here
+  // first. Zero matters as much as two: do_swap still executes the trade and
+  // then leaves asset_out in the swapper, which has no withdrawal path, so the
+  // output would be unrecoverable. Only on-chain children count:
+  // getPipelineChildren in to-params.ts drops every edge touching an
+  // email_notify node, so those never become next steps and `swap -> pay` plus
+  // `swap -> email_notify` still constructs with exactly one.
   for (const n of graph.nodes) {
     if (n.type === "swap") {
       const outgoing = graph.edges.filter(
         (e) => e.source === n.id && nodesById.get(e.target)?.type !== "email_notify",
       );
-      if (outgoing.length > 1) {
+      if (outgoing.length === 0) {
+        errors.push({
+          path: `nodes.${n.id}`,
+          message: "Swap node must have exactly one outgoing edge",
+          friendlyMessage: FRIENDLY.SWAP_NEEDS_NEXT_STEP,
+        });
+      } else if (outgoing.length > 1) {
         errors.push({
           path: `nodes.${n.id}`,
           message: "Swap node can have at most one outgoing edge",
