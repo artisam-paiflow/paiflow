@@ -537,6 +537,21 @@ export type SorobanErrorTranslation = {
  * belongs to the innermost (most relevant) failure. The address on the same
  * event identifies which contract in a pipeline rejected.
  */
+/**
+ * Every diagnostic entry whose topics carry a contract error, in log order.
+ * The simulate log is newest-first: when a contract error escalates through
+ * a pipeline (deposit trigger → swapper → Soroswap router), the outermost
+ * frame comes first and the frame that originated the error comes last.
+ */
+function findContractErrors(raw: string): Array<{ address: string; code: number }> {
+  const out: Array<{ address: string; code: number }> = [];
+  const re = /contract:(C[A-Z0-9]{55}),\s*topics:\[error,\s*Error\(Contract,\s*#?(\d+)\)\]/g;
+  for (const m of raw.matchAll(re)) {
+    out.push({ address: m[1]!, code: Number(m[2]) });
+  }
+  return out;
+}
+
 function findContractError(raw: string): { address?: string; code: number } | undefined {
   const withAddress = /contract:(C[A-Z0-9]{55})[\s\S]{0,500}?Error\(Contract,\s*#?(\d+)\)/.exec(
     raw,
@@ -590,6 +605,16 @@ export function translateSorobanError(
   raw: string,
   hint?: SorobanErrorHint,
 ): SorobanErrorTranslation {
+  // Walk the error-bearing frames from the originator outwards and take the
+  // first one we have a table entry for, so a Soroswap router revert reads as
+  // the router's message rather than "the deposit trigger rejected #507".
+  for (const frame of findContractErrors(raw).reverse()) {
+    const key = hint?.addressMap?.[frame.address] ?? hint?.contract;
+    const entry = key ? CONTRACT_ERRORS[key][frame.code] : undefined;
+    if (entry) {
+      return { friendly: entry.friendly, matched: true, errorName: entry.name };
+    }
+  }
   const contractError = findContractError(raw);
   if (contractError) {
     const key =

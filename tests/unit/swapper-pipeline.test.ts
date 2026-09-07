@@ -209,6 +209,30 @@ describe("soroban error mapping", () => {
     expect(t.friendly).toMatch(/slippage/i);
   });
 
+  it("prefers the originating frame when the error escalates through the pipeline", () => {
+    // Shape of the real simulate log for a 0 bps swap on testnet (2026-09-06):
+    // newest first, so the deposit trigger re-raises the router's 507 before
+    // the swapper and the router itself appear.
+    const TRIGGER = "CCH3TIPZCI35FM3BOOBQA4JLLTU6KYOPQEFKWQMYMR5P2J47G3BZDWWN";
+    const SWAPPER = "CDLLYSUI3U4BZBQXQJENHZUHTO4PQ2X54LSVSPQ3SQXC6RAGJYIKGKV6";
+    const entry = (address: string) =>
+      `[Diagnostic Event] contract:${address}, topics:[error, Error(Contract, #507)], data:"escalating error to VM trap from failed host function call: call"`;
+    const raw =
+      "HostError: Error(Contract, #507) Event log (newest first): " +
+      `0: ${entry(TRIGGER)} 1: ${entry(SWAPPER)} 2: ${entry(ROUTER)} ` +
+      `3: [Diagnostic Event] contract:${ROUTER}, topics:[fn_call, ${PARENT}, get_reserves], data:Void`;
+    const t = translateSorobanError(raw, {
+      addressMap: {
+        [TRIGGER]: "deposit_trigger",
+        [SWAPPER]: "swapper",
+        [ROUTER]: "soroswap_router",
+      },
+    });
+    expect(t.matched).toBe(true);
+    expect(t.errorName).toBe("RouterInsufficientOutputAmount");
+    expect(t.friendly).toMatch(/slippage/i);
+  });
+
   it("maps the swapper's own codes", () => {
     const t = translateSorobanError(dump(PARENT, 7), { addressMap: { [PARENT]: "swapper" } });
     expect(t.errorName).toBe("TooManyNextSteps");
