@@ -200,11 +200,13 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
       friendly: "The swap path is invalid.",
     },
   },
-  // Soroswap factory (FactoryError in soroswap/core factory-interface/src/error.rs).
-  // Only the one code verified against that source is listed; the rest of the
-  // band is deliberately absent rather than guessed. do_swap resolves the pair
-  // through the factory before touching the router, so this is the frame a
-  // missing pool actually fails in.
+  // Soroswap factory (FactoryError in soroswap/core
+  // contracts/factory-interface/src/error.rs; band is 201-206, read 2026-09-07).
+  // do_swap resolves the pair through the factory before it touches the router,
+  // so this is the frame a missing pool actually fails in. Only 205 is listed
+  // because get_pair is the sole factory call on the swap path — the rest of the
+  // band belongs to create_pair / initialize / all_pairs, which Paiflow never
+  // calls.
   soroswap_factory: {
     205: {
       name: "PairDoesNotExist",
