@@ -35,7 +35,8 @@ export const TEMPLATE_DESCRIPTIONS: Record<TemplateKind, string> = {
   SUBSCRIPTION: "Recurring billing puller using pre-authorized funds.",
   ORACLE: "Price-conditioned trigger that executes when a threshold is met.",
   MULTISIG: "N-of-M human approval gate before funds are released.",
-  SWAPPER: "Fixed-rate token swap from asset_in to asset_out.",
+  SWAPPER:
+    "Swaps asset_in for asset_out through the Soroswap router with a slippage bound, then forwards the output.",
   YIELD: "Deposits incoming funds into a vault or lending pool.",
   PAYER: "Sends a fixed amount to a single recipient.",
   PAYROLL: "Pulls fixed salaries from an employer and distributes to employees on a schedule.",

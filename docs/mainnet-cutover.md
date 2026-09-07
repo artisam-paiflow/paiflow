@@ -141,6 +141,10 @@ In the production service's **Variables**:
 
 - `STELLAR_NETWORK=mainnet`
 - `STELLAR_RELAYER_SECRET_KEY=<Paiflow's funded mainnet key>`
+- `STELLAR_SOROSWAP_ROUTER_MAINNET=<Soroswap's mainnet router>` — required only if
+  any flow uses a Swap block. Unlike the WASM hashes, this has no database
+  fallback: `soroswapRouterAddress()` reads the environment alone, so deploying
+  a swap flow without it fails with a plain-English error.
 - Leave `STELLAR_FRIENDBOT_URL` **unset** (Friendbot does not run on mainnet).
 
 The `STELLAR_WASM_HASH_*_MAINNET` and `STELLAR_FACTORY_ADDRESS_MAINNET`

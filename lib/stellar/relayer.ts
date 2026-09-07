@@ -1113,7 +1113,10 @@ export async function readSplitterRecipients(
 }
 
 /** Simulate a no-arg getter on a contract and return its native value. */
-async function simulateGetter(contractAddress: string, functionName: string): Promise<unknown> {
+export async function simulateGetter(
+  contractAddress: string,
+  functionName: string,
+): Promise<unknown> {
   const server = sorobanRpc();
 
   const source = stellarRelayerAddress();

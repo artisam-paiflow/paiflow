@@ -47,7 +47,7 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
   } else if (n.type === "swap") {
     icon = "swap_horiz";
     title = "Swap";
-    detail = `${assetLabel(n.config.assetIn)} → ${assetLabel(n.config.assetOut)} @ ${(n.config.rateBps / 100).toFixed(0)}%`;
+    detail = `${assetLabel(n.config.assetIn)} → ${assetLabel(n.config.assetOut)} via Soroswap, ≤${n.config.slippageBps / 100}% slippage`;
   } else if (n.type === "yield") {
     icon = "savings";
     title = "Yield";

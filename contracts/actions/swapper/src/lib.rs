@@ -1,7 +1,7 @@
 #![no_std]
 #![allow(clippy::too_many_arguments)]
 //! Swapper action: exchanges `asset_in` for `asset_out` through the Soroswap
-//! router and forwards the whole output to at most one downstream step.
+//! router and forwards the whole output to exactly one downstream step.
 //!
 //! Instawards Phase 1, Deliverable 1. Scope of record:
 //! `docs/design/2026-09-05-swapper-soroswap-integration.md`.
@@ -42,6 +42,7 @@ pub enum Error {
     BadSlippage = 5,
     BadDeadline = 6,
     TooManyNextSteps = 7,
+    NoNextStep = 8,
 }
 
 const VERSION: u32 = 1;
@@ -107,8 +108,14 @@ impl Swapper {
             panic_with_error!(&env, Error::BadDeadline);
         }
         // The whole output goes to one step; splitting is the splitter's job.
+        // Zero is rejected too: `do_swap` would still execute the trade and
+        // then leave `asset_out` sitting here, and this contract has no way to
+        // release it: no withdrawal function, and `admin` is stored but never read.
         if next_steps.len() > 1 {
             panic_with_error!(&env, Error::TooManyNextSteps);
+        }
+        if next_steps.is_empty() {
+            panic_with_error!(&env, Error::NoNextStep);
         }
         env.storage().instance().set(&Key::Admin, &admin);
         env.storage().instance().set(&Key::AssetIn, &asset_in);
@@ -265,6 +272,9 @@ fn do_swap(env: &Env, asset: &Address, amount: i128) {
         panic_with_error!(env, Error::InsufficientOutput);
     }
 
+    // The constructor guarantees exactly one, so this never falls through.
+    // Kept as `if let` rather than an `unwrap` so a stored empty vec could only
+    // ever strand the output, not trap after the swap has already moved funds.
     if let Some(step) = next_steps.first() {
         token::Client::new(env, &asset_out).transfer(&me, &step.address, &amount_out);
         invoke_execute_step(env, &step.address, &asset_out, &amount_out);
@@ -584,12 +594,13 @@ mod test {
     }
 
     #[test]
-    fn without_a_next_step_the_output_stays_in_the_contract() {
+    #[should_panic(expected = "Error(Contract, #8)")]
+    fn without_a_next_step_construction_is_rejected() {
+        // Constructing with no next step used to succeed, and the swap then
+        // ran to completion and left `asset_out` in a contract with no
+        // withdrawal path. Rejected here so the funds never arrive.
         let w = world(100_000 * XLM, 100_000 * XLM, true);
-        let swapper = deploy(&w, 100, 300, false);
-        MockParentClient::new(&w.env, &w.parent).run(&swapper, &w.tok_in.address, &(10 * XLM));
-        assert!(w.tok_out.balance(&swapper) > 99_600_000);
-        assert_eq!(w.tok_out.balance(&w.next), 0);
+        deploy(&w, 100, 300, false);
     }
 
     #[test]

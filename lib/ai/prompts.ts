@@ -369,7 +369,7 @@ ACTIONS — a flow needs ≥1 of pay/split (email_notify does NOT satisfy this; 
     • fixed recipient:      { address: stellarAddress, mode: "fixed", amountStroops: string, label?: string, payoutMode?: "crypto"|"fiat", accountName?: string, accountNumber?: string, bankCode?: string }    — each amount > 0
     • amountPerIntervalStroops (optional): when set, the split streams this total amount per interval across recipients.
     • FIAT PAYOUT on a recipient: set payoutMode="fiat" + accountName/accountNumber/bankCode on that recipient. That recipient does NOT need a real Stellar address — use "PENDING:<label>". Contract addresses (C...) MUST have payoutMode="fiat".
-- swap (HIDDEN): { assetIn: Asset, assetOut: Asset, rateBps: int 1–10000 }   // rateBps 9500 = 95%
+- swap (HIDDEN): { assetIn: Asset, assetOut: Asset, slippageBps: int 0–10000, deadlineSecs: int 1–86400 }   // slippageBps 100 = max 1% below the Soroswap pool's spot price (must cover the 0.3% fee); deadlineSecs 300
 - yield (HIDDEN): { asset: Asset, vault: stellarAddress }   // vault may be "PENDING:<label>"
 - cash_out (HIDDEN — auto-generated, never add by hand): { asset: Asset, accountName: string, accountNumber: string, bankCode: string }
 - email_notify: { recipients: [{ address: string, email: string }], subject: string (non-empty), body?: string }
@@ -438,7 +438,7 @@ Templates (XXXX = random 4-digit number). Use the asset already present in the f
   SPLIT: {"id":"node-split-XXXX","type":"split","config":{"asset":{"kind":"known","symbol":"USDC"},"recipients":[{"address":"PENDING:Recipient1","mode":"percentage","bps":5000,"label":"Recipient 1","payoutMode":"crypto"},{"address":"PENDING:Recipient2","mode":"percentage","bps":5000,"label":"Recipient 2","payoutMode":"crypto"}]}}
   EMAIL_NOTIFY: {"id":"node-email-XXXX","type":"email_notify","config":{"recipients":[{"address":"PENDING:<label>","email":"<email>"}],"subject":"<subject>","body":""}}
   Actions (HIDDEN — do not add unless explicitly requested by name; never add cash_out by hand):
-  SWAP: {"id":"node-swap-XXXX","type":"swap","config":{"assetIn":{"kind":"native"},"assetOut":{"kind":"known","symbol":"USDC"},"rateBps":9500}}
+  SWAP: {"id":"node-swap-XXXX","type":"swap","config":{"assetIn":{"kind":"native"},"assetOut":{"kind":"known","symbol":"USDC"},"slippageBps":100,"deadlineSecs":300}}
   YIELD: {"id":"node-yield-XXXX","type":"yield","config":{"asset":{"kind":"known","symbol":"USDC"},"vault":"PENDING:vault"}}
   Logic:
   CONDITION: {"id":"node-condition-XXXX","type":"condition","config":{"kind":"amount_gt","amountStroops":"10000000"}}
