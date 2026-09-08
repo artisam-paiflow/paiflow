@@ -17,7 +17,7 @@ import {
   assetLabel,
 } from "./schema";
 import { checkHardLimits } from "./limits";
-import { flowToPipeline } from "./to-params";
+import { flowToPipeline, type PipelineNode } from "./to-params";
 
 export type ValidationIssue = { path: string; message: string; friendlyMessage: string };
 
@@ -1067,9 +1067,11 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   }
 
   // Compute pipeline mapping
+  let pipelineNodes: PipelineNode[];
   let pipeline: TemplateKind[];
   try {
-    pipeline = flowToPipeline(graph).map((n) => n.templateKind);
+    pipelineNodes = flowToPipeline(graph);
+    pipeline = pipelineNodes.map((n) => n.templateKind);
     if (pipeline.length === 0) {
       return {
         ok: false,
@@ -1105,7 +1107,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   // dropped silently: the deploy would pay out an asset the flow never acquired.
   // Catch it here rather than letting money move against a pipeline the user
   // didn't draw. Tracked in #405 — the real fix is to order by topology.
-  const deployedNodeIds = new Set(flowToPipeline(graph).map((n) => n.nodeId));
+  const deployedNodeIds = new Set(pipelineNodes.map((n) => n.nodeId));
   for (const a of contractActions) {
     if (!deployedNodeIds.has(a.id)) {
       errors.push({
