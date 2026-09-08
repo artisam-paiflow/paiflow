@@ -264,13 +264,15 @@ resolves the factory through `getFactoryAddress()` in `lib/stellar/config.ts`, a
 `deploy_pipeline` is the only path that instantiates a pipeline. `deploy-factory` skips only when
 the built Wasm hash is unchanged **and** an address already exists — in
 `STELLAR_FACTORY_ADDRESS_{TESTNET|MAINNET}` or as a `FactoryDeployment` row for the network — and it
-logs which of the two it found. On a new machine, a rebuilt service or after a testnet reset,
-neither exists and it deploys.
+logs which of the two it found. On a new machine or a rebuilt service neither exists and it
+deploys. A testnet reset is different: it erases chain state but not `.env.local` and not the
+`FactoryDeployment` row, so clear `STELLAR_FACTORY_ADDRESS_{TESTNET|MAINNET}` and delete the row for
+the network before re-running, or the script will skip on a factory that no longer exists.
 
 Verify before trusting the chain:
 
 ```bash
-pnpm exec tsx -e 'import{db}from"@/lib/prisma";db.factoryDeployment.findMany().then(r=>console.log(r))'
+pnpm contracts:show-factory
 ```
 
 A row for the network, with an address, is the proof. `update-hashes` logging

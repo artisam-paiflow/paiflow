@@ -129,6 +129,14 @@ async function main() {
       console.log(
         `[deploy-factory] factory wasm hash unchanged and ${deployed.address} already deployed (${deployed.source}), skipping deploy`,
       );
+      // update-hashes reads the address from process.env alone, so a skip
+      // justified by the database has to leave it in .env.local too — without
+      // this, the next link in the chain logs "not set, skipping" and a healthy
+      // run reads as the failure that line is documented to mean (#404).
+      if (deployed.source !== addressKey) {
+        writeEnvLocal({ [addressKey]: deployed.address });
+        console.log(`[deploy-factory] wrote ${addressKey} to .env.local`);
+      }
       return;
     }
     console.log(
@@ -195,14 +203,26 @@ async function main() {
   const factoryAddress = extractContractAddress(result.returnValue);
   console.log(`[deploy-factory] deployed at ${factoryAddress}`);
 
-  await setFactoryAddress(network, factoryAddress, wasmHash);
-  await setWasmHash(TemplateKind.FACTORY, network, wasmHash);
-
+  // Record the address locally BEFORE the database writes. The salt is
+  // Date.now()-derived, so a rerun that cannot see this address deploys a
+  // second factory rather than recovering the first — and .env.local is the
+  // only store guaranteed reachable on the fresh machine this path serves.
   writeEnvLocal({
     [hashKey]: wasmHash,
     [addressKey]: factoryAddress,
   });
   console.log(`[deploy-factory] wrote ${addressKey} to .env.local`);
+
+  try {
+    await setFactoryAddress(network, factoryAddress, wasmHash);
+    await setWasmHash(TemplateKind.FACTORY, network, wasmHash);
+  } catch (err) {
+    console.error(
+      `[deploy-factory] deployed ${factoryAddress} but could not record it in the database: ${err instanceof Error ? err.message : String(err)}. ` +
+        `.env.local holds the address — rerunning will skip rather than deploy again; run pnpm contracts:update-hashes once the database is reachable.`,
+    );
+    throw err;
+  }
 }
 
 main()
