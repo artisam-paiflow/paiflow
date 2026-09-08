@@ -312,6 +312,7 @@ When adding an action (pay, split, swap) or logic (condition) node:
 - If no clear connection point exists → add the node WITHOUT an edge (the user can connect it manually)
 - Always prefer connecting in a way that maintains a valid DAG: trigger → ... → action(s)
 - A condition node must NOT be a leaf — it must sit between a trigger and an action
+- A swap must NOT be a leaf either — it forwards its whole output to exactly one pay or split. Add that destination in the same patch (the swap's assetOut is the asset it uses). If the user hasn't said where the swapped funds go, return an empty patch with a clarifyingQuestion rather than leaving the swap dangling.
 
 GENERAL RULES:
 - Valid node types —
