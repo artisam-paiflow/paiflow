@@ -988,7 +988,12 @@ export function flowToPipeline(
           recipients,
           amountStroops: amount,
           condition: cond.config,
-          nextStepNodeIds: children.get(cond.id) ?? [],
+          // Empty on purpose. `release()` in contracts/conditions/conditional
+          // transfers to the recipients above and stops; it stores next_steps
+          // and never reads them. Passing the graph's children here would name
+          // the absorbed pay/split, which is never deployed, and serializing
+          // the target would throw "Missing computed address" at prepare time.
+          nextStepNodeIds: [],
         },
       });
       terminal = true; // see absorbedActionIds() — the conditional pays out itself
