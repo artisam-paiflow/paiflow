@@ -149,10 +149,12 @@ receives for `assetOut` with `swap_exact_tokens_for_tokens` on the Soroswap rout
 `STELLAR_SOROSWAP_ROUTER_*`, then forwards the entire output to its single downstream step. The
 minimum output is the pool's spot price less `slippageBps` (default 1%), so the bound covers
 Soroswap's 0.3% fee plus price impact; the router reverts below it and the swapper asserts the same
-bound as its own backstop, so a failed swap moves nothing downstream. A swap node must have exactly
-one outgoing edge: splitting is the splitter's job, and a swap with nowhere to send its output would
-strand it in a contract that has no way to release it. The router is environment config, never part
-of the graph. Instawards Phase 1 Deliverable 1, [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md).
+bound as its own backstop, so a failed swap moves nothing downstream. `assetIn` and `assetOut` must
+differ: Soroswap has no pair for an asset against itself, so a same-asset swap would deploy and then
+revert on its first trigger. A swap node must have exactly one outgoing edge that carries money:
+splitting is the splitter's job, and a swap with nowhere to send its output would strand it in a
+contract that has no way to release it. An `email_notify` edge is a decorator, moves nothing, and
+does not count toward that one. The router is environment config, never part of the graph. Instawards Phase 1 Deliverable 1, [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md).
 
 ### 3.3 Logic
 

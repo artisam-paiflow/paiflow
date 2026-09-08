@@ -146,6 +146,12 @@ test.describe("Swap block (Instawards D1)", () => {
       graph: graph({ extraEdge: true }),
       expect: /one next step/,
     },
+    {
+      name: "both sides of the swap are the same asset",
+      file: "06-error-same-asset.png",
+      graph: graph({ swap: { assetOut: XLM } }),
+      expect: /two different assets/,
+    },
   ];
 
   for (const c of panelCases) {

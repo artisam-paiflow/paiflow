@@ -67,6 +67,8 @@ const FRIENDLY = {
     "A swap sends its whole output to one next step. Remove the extra connections coming out of it, or add a Split block after the swap.",
   SWAP_NEEDS_NEXT_STEP:
     "A swap sends its whole output to one next step, so it needs one. Connect it to a Pay or Split block — an email notification doesn't count as a destination.",
+  SWAP_SAME_ASSET: (asset: string) =>
+    `A swap has to exchange two different assets, and both sides of this one are ${asset}. Change "Asset Out" to the asset you want back, or remove the swap.`,
   ACTION_NOT_DEPLOYED: (label: string) =>
     `The ${label} step wouldn't reach the chain, so this flow would deploy as something you didn't draw. Rebuilding the steps in the order the money moves usually fixes it. If it doesn't, this trigger or condition can't carry that step and it has to go.`,
 } as const;
@@ -652,6 +654,19 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   // `swap -> email_notify` still constructs with exactly one.
   for (const n of graph.nodes) {
     if (n.type === "swap") {
+      // Both sides the same asset is not a trade: Soroswap has no pair for it,
+      // so `factory.get_pair` panics on the first trigger and the flow reverts
+      // after the user has already paid to deploy it. Nothing downstream
+      // catches this — the constructor stores the pair without checking it, and
+      // computeAssetFlow propagates assetOut, so the rest of the graph agrees.
+      if (assetsEqual(n.config.assetIn, n.config.assetOut)) {
+        errors.push({
+          path: `nodes.${n.id}.config.assetOut`,
+          message: "Swap node must exchange two different assets",
+          friendlyMessage: FRIENDLY.SWAP_SAME_ASSET(assetLabel(n.config.assetOut)),
+        });
+      }
+
       const outgoing = graph.edges.filter(
         (e) => e.source === n.id && nodesById.get(e.target)?.type !== "email_notify",
       );

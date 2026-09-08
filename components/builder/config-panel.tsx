@@ -1385,6 +1385,7 @@ export default function ConfigPanel({
             onChange={(assetOut) =>
               onChange({ ...node, config: { ...node.config, assetOut } } as FlowNode)
             }
+            error={fieldError("assetOut")}
           />
           <Field label="Router">
             {/* One option, disabled: the router address is pinned per environment
