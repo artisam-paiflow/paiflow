@@ -101,7 +101,7 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 
 ## ✨ Features
 
-- **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`, `HTTP Webhook`, `Subscription`, `Payroll`), actions (`Pay`, `Split`, `Email Notify`), and logic blocks (`Condition`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
+- **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`, `HTTP Webhook`, `Subscription`, `Payroll`), actions (`Pay`, `Split`, `Swap`, `Email Notify`), and logic blocks (`Condition`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
 - **Native fiat payouts** — pay and split steps can settle directly to a recipient's bank account via a PDAX off-ramp integration. Bank details and sender KYC are captured in the builder and baked into immutable contracts at deploy time; an automated off-ramp pipeline settles the payouts.
 - **Non-custodial deploy** — the backend prepares simulated XDR; the user's wallet — Freighter on desktop, or xBull / LOBSTR / Freighter over WalletConnect, via `@creit.tech/stellar-wallets-kit` — signs. Private keys never touch the server.
 - **QR-triggered execution** — every deployment renders a public QR / dApp URL. Anyone with a wallet can scan it, sign, and fire `distribute()` — useful for audience-funded demos, public crowdpay flows, and self-fund-back tests. Rate-limited + audit-logged on the public endpoints.

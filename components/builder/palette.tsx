@@ -164,7 +164,6 @@ const TEMPLATES: Template[] = [
       },
     }),
   },
-  // Swap: a real Soroswap swap since Instawards D1; the router is server env.
   {
     group: "Actions",
     label: "Swap",

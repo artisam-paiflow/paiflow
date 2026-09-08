@@ -87,8 +87,11 @@ describe("POST /api/deployments/prepare with a swap node", () => {
     );
     const res = await POST(request());
     const json = await res.json();
-    // The next check (WASM hashes) fails in this mocked world; what matters is
-    // that the failure is no longer the router guard.
+    // Assert the route reached the guard and moved on: the next check (WASM
+    // hashes, mocked to an empty map) is what fails now. Without naming that
+    // failure the test would also pass if the route crashed before the guard.
+    expect(soroswapRouterAddress).toHaveBeenCalled();
     expect(json.error?.message ?? "").not.toMatch(/Soroswap router address/);
+    expect(json.error?.message ?? "").toMatch(/No WASM uploaded for/);
   });
 });

@@ -67,6 +67,8 @@ const FRIENDLY = {
     "A swap sends its whole output to one next step. Remove the extra connections coming out of it, or add a Split block after the swap.",
   SWAP_NEEDS_NEXT_STEP:
     "A swap sends its whole output to one next step, so it needs one. Connect it to a Pay or Split block — an email notification doesn't count as a destination.",
+  ACTION_NOT_DEPLOYED: (label: string) =>
+    `The ${label} step wouldn't reach the chain, so this flow would deploy as something you didn't draw. Delete the steps after it and re-add them in the order the money moves, or — if this trigger can't carry that step at all — remove it.`,
 } as const;
 
 // Triggers whose flows route payouts through the payer/splitter contracts,
@@ -1094,6 +1096,26 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       ],
     };
   }
+
+  // Every contract action the user drew must actually reach the chain. Both the
+  // template ladder above and flowToPipeline pick "the" action as
+  // contractActions[0] — node array order, which is the order blocks were added
+  // to the canvas, not graph order. So a flow drawn trigger → swap → pay whose
+  // pay block was added first maps to a plain payer pipeline and the swap is
+  // dropped silently: the deploy would pay out an asset the flow never acquired.
+  // Catch it here rather than letting money move against a pipeline the user
+  // didn't draw. Tracked in #405 — the real fix is to order by topology.
+  const deployedNodeIds = new Set(flowToPipeline(graph).map((n) => n.nodeId));
+  for (const a of contractActions) {
+    if (!deployedNodeIds.has(a.id)) {
+      errors.push({
+        path: `nodes.${a.id}`,
+        message: `Action ${a.id} (${a.type}) is not represented in the deployed pipeline`,
+        friendlyMessage: FRIENDLY.ACTION_NOT_DEPLOYED(nodeLabels.get(a.id) ?? a.type),
+      });
+    }
+  }
+  if (errors.length) return { ok: false, errors };
 
   return { ok: true, templateKind, pipeline, graph, pendingLabels: [...pendingLabels] };
 }

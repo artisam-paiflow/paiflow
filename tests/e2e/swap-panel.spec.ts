@@ -7,6 +7,7 @@
  *   PLAYWRIGHT_NO_SERVER=1 ADMIN_SEED_PASSWORD=… pnpm exec playwright test \
  *     tests/e2e/swap-panel.spec.ts --project=chromium-desktop
  */
+import { mkdir } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 
 const OUT = "docs/instawards/evidence/d1";
@@ -83,14 +84,29 @@ async function openSwapPanel(page: Page, flowId: string) {
 }
 
 test.describe("Swap block (Instawards D1)", () => {
-  let flowId: string;
+  // Desktop only. The evidence PNGs are written to fixed paths, so a second
+  // project would overwrite them, and below 768px the builder starts with the
+  // sidebar collapsed (builder-client.tsx), which hides the palette entirely.
+  test.skip(({ isMobile }) => isMobile, "D1 evidence is captured on the desktop project");
+
+  let flowId!: string;
 
   test.beforeAll(async ({ request }) => {
+    // page.screenshot() creates its parent directory but writeFile() does not,
+    // so the JSON cases below would depend on a screenshot having run first.
+    await mkdir(OUT, { recursive: true });
     const res = await request.post("/api/flows", {
       data: { name: "D1 swap evidence", graph: graph() },
     });
     expect(res.ok(), await res.text()).toBeTruthy();
     flowId = (await res.json()).data.id;
+  });
+
+  // The spec runs against a live server (paiflow.xyz on evidence day), so it
+  // takes its flow away with it rather than leaving one behind per run.
+  test.afterAll(async ({ request }) => {
+    if (!flowId) return;
+    await request.delete(`/api/flows/${flowId}`);
   });
 
   test("Swap is in the palette and the panel shows slippage, deadline and the router", async ({
