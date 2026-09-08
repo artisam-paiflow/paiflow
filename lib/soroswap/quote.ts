@@ -1,13 +1,18 @@
 /**
  * Pure helpers for the Soroswap quote preview (Instawards D1, #391).
  *
- * The maths mirrors `contracts/actions/swapper` exactly: the contract's
- * minimum output is the pool's spot price less `slippageBps`, so the preview
- * shows the same number the contract will enforce.
+ * The maths mirrors `contracts/actions/swapper`: the contract's minimum output
+ * is the pool's spot price less `slippageBps`, so the preview shows the same
+ * number the contract will enforce.
+ *
+ * One deliberate divergence, in `spotOut` — see its doc comment.
  */
 import { z } from "zod";
 import type { Asset } from "@/lib/flows/schema";
+import { assetToParam } from "@/lib/soroswap/asset-param";
 import { StrKey } from "@stellar/stellar-sdk";
+
+export { assetToParam };
 
 export const TOTAL_BPS = 10_000n;
 
@@ -25,17 +30,6 @@ export function parseAssetParam(raw: string): Asset {
     return { kind: "custom", code, issuer };
   }
   throw new Error(`Unrecognised asset "${raw}"`);
-}
-
-export function assetToParam(asset: Asset): string {
-  switch (asset.kind) {
-    case "native":
-      return "native";
-    case "known":
-      return asset.symbol;
-    case "custom":
-      return `${asset.code}:${asset.issuer}`;
-  }
 }
 
 const assetParam = z
@@ -63,7 +57,17 @@ export const QuoteQuerySchema = z
   });
 export type QuoteQuery = z.infer<typeof QuoteQuerySchema>;
 
-/** `amount * reserveOut / reserveIn`, as the contract computes it. */
+/**
+ * `amount * reserveOut / reserveIn`, as the contract computes it.
+ *
+ * Diverges from the contract on the degenerate inputs only: `do_swap` panics
+ * with `InsufficientOutput` when either reserve is non-positive
+ * (`contracts/actions/swapper/src/lib.rs:231-233`), while this returns `0n` so
+ * the function stays total and the preview layer decides how to present it.
+ * `readSoroswapQuote` never reaches that case with a zero — the router quote is
+ * validated first and an empty pool fails there — so a `0n` here means the
+ * caller passed reserves it had no business passing.
+ */
 export function spotOut(amountIn: bigint, reserveIn: bigint, reserveOut: bigint): bigint {
   if (amountIn <= 0n || reserveIn <= 0n || reserveOut <= 0n) return 0n;
   return (amountIn * reserveOut) / reserveIn;

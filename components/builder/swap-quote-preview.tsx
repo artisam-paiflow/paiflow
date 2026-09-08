@@ -1,6 +1,7 @@
 "use client";
 import type { Asset } from "@/lib/flows/schema";
 import { useSoroswapQuote } from "@/lib/hooks/use-soroswap-quote";
+import { assetToParam } from "@/lib/soroswap/asset-param";
 
 const SAMPLE_UNITS = 10n;
 const STROOPS_PER_UNIT = 10_000_000n;
@@ -44,7 +45,11 @@ export default function SwapQuotePreview({
   compact?: boolean;
 }) {
   const sample = (SAMPLE_UNITS * STROOPS_PER_UNIT).toString();
-  const state = useSoroswapQuote({ assetIn, assetOut, amountStroops: sample, slippageBps });
+  const state = useSoroswapQuote(
+    assetToParam(assetIn) === assetToParam(assetOut)
+      ? null
+      : { assetIn, assetOut, amountStroops: sample, slippageBps },
+  );
   const base = compact
     ? "text-label-sm text-on-surface-variant font-mono"
     : "text-[11px] text-zinc-400";
@@ -52,21 +57,26 @@ export default function SwapQuotePreview({
   if (state.status === "idle") return null;
   if (state.status === "loading") {
     return (
-      <div className={base} data-testid="swap-quote" aria-busy="true">
+      <div className={base} data-testid="swap-quote" aria-live="polite" aria-busy="true">
         Fetching a live Soroswap quote…
       </div>
     );
   }
   if (state.status === "error") {
     return (
-      <div className={`${base} text-error`} data-testid="swap-quote" role="status">
+      <div
+        className={`${base} text-error`}
+        data-testid="swap-quote"
+        aria-live="polite"
+        role="status"
+      >
         {state.message}
       </div>
     );
   }
   const { quote } = state;
   return (
-    <div className={base} data-testid="swap-quote">
+    <div className={base} data-testid="swap-quote" aria-live="polite">
       {SAMPLE_UNITS.toString()} {label(assetIn)} → ~{units(quote.amountOutStroops)}{" "}
       {label(assetOut)} via Soroswap (live). Minimum at {slippageBps / 100}% slippage: ~
       {units(quote.amountOutMinStroops)} {label(assetOut)}

@@ -46,18 +46,20 @@ export default async function DeployReviewPage({
       schedule: boolean;
     };
   } | null = null;
-  const swapNode = graph.success
-    ? graph.data.nodes.find(
-        (n): n is Extract<FlowGraph["nodes"][number], { type: "swap" }> => n.type === "swap",
-      )
-    : undefined;
-  const swapPreview = swapNode
-    ? {
-        assetIn: swapNode.config.assetIn,
-        assetOut: swapNode.config.assetOut,
-        slippageBps: swapNode.config.slippageBps,
-      }
-    : null;
+  // One per swap node: nothing caps a flow at a single swap, and a chained
+  // swap -> swap would otherwise show a quote for the first leg only.
+  const swapPreviews = graph.success
+    ? graph.data.nodes
+        .filter(
+          (n): n is Extract<FlowGraph["nodes"][number], { type: "swap" }> => n.type === "swap",
+        )
+        .map((n) => ({
+          id: n.id,
+          assetIn: n.config.assetIn,
+          assetOut: n.config.assetOut,
+          slippageBps: n.config.slippageBps,
+        }))
+    : [];
   const isSubscriptionTrigger = graph.data!.nodes.some((n) => n.type === "subscription");
   const isPayrollTrigger = graph.data!.nodes.some((n) => n.type === "payroll");
   if (pipeline) {
@@ -310,7 +312,7 @@ export default async function DeployReviewPage({
           <DeployReview
             flowId={flow.id}
             network={env().STELLAR_NETWORK}
-            swapPreview={swapPreview}
+            swapPreviews={swapPreviews}
           />
         )}
       </main>

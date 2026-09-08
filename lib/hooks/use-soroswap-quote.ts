@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { Asset } from "@/lib/flows/schema";
-import { assetToParam, type SoroswapQuote } from "@/lib/soroswap/quote";
+import { assetToParam } from "@/lib/soroswap/asset-param";
+import type { SoroswapQuote } from "@/lib/soroswap/quote";
 
 export type SoroswapQuoteInput = {
   assetIn: Asset;

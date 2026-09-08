@@ -72,13 +72,16 @@ export async function readSoroswapPool(input: {
   const inId = assetContractId(input.assetIn);
   const outId = assetContractId(input.assetOut);
 
-  const factoryAddress = await readSoroswapFactory(routerAddress);
+  const factoryAddress = await cachedSoroswapFactoryReader()(routerAddress);
   let pairAddress: string;
   try {
     pairAddress = String(
       await simulateContractCall(factoryAddress, "get_pair", [addr(inId), addr(outId)]),
     );
   } catch (err) {
+    // Only a failing simulation frame means "no pool". An unfunded relayer or a
+    // misconfigured router must not reach the operator as a claim about chain state.
+    if (err instanceof AppError && err.code !== "UPSTREAM_RPC") throw err;
     throw new AppError(
       "VALIDATION",
       "Soroswap has no liquidity pool for this asset pair on this network.",
@@ -114,12 +117,31 @@ export async function readSoroswapQuote(input: {
   const outId = assetContractId(input.assetOut);
   const amount = BigInt(input.amountStroops);
 
-  const amounts = (await simulateContractCall(pool.routerAddress, "router_get_amounts_out", [
-    nativeToScVal(amount, { type: "i128" }),
-    xdr.ScVal.scvVec([addr(inId), addr(outId)]),
-  ])) as bigint[];
-  const amountOut = BigInt(amounts[amounts.length - 1] ?? 0n);
+  const amounts: unknown = await simulateContractCall(
+    pool.routerAddress,
+    "router_get_amounts_out",
+    [nativeToScVal(amount, { type: "i128" }), xdr.ScVal.scvVec([addr(inId), addr(outId)])],
+  );
+  // An empty vec or a scalar would otherwise fall through as a real "~0" quote,
+  // which is worse than a visible failure on a screen the operator signs from.
+  const last = Array.isArray(amounts) ? amounts[amounts.length - 1] : undefined;
+  if (typeof last !== "bigint" || last <= 0n) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `Soroswap router ${pool.routerAddress} returned an unusable quote`,
+    );
+  }
+  const amountOut = last;
 
+  // `token_0` decides which reserve is the input side. Without this check a decode
+  // that is neither asset picks the opposite orientation silently, and the minimum
+  // shown is the reciprocal price.
+  if (pool.token0 !== inId && pool.token0 !== outId) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `Soroswap pair ${pool.pairAddress} reported an unexpected token_0`,
+    );
+  }
   const { reserveIn, reserveOut } = orientReserves(
     pool.reserve0,
     pool.reserve1,

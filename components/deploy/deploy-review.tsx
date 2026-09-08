@@ -47,12 +47,12 @@ async function connectWallet(network: StellarNetwork): Promise<WalletKit> {
 export default function DeployReview({
   flowId,
   network,
-  swapPreview,
+  swapPreviews,
 }: {
   flowId: string;
   network: StellarNetwork;
-  /** Present when the flow contains a swap node: drives the live Soroswap preview. */
-  swapPreview?: { assetIn: Asset; assetOut: Asset; slippageBps: number } | null;
+  /** One entry per swap node in the flow: drives the live Soroswap previews. */
+  swapPreviews?: Array<{ id: string; assetIn: Asset; assetOut: Asset; slippageBps: number }>;
 }) {
   const [busy, setBusy] = useState(false);
   const [pipeline, setPipeline] = useState<
@@ -117,14 +117,15 @@ export default function DeployReview({
             PINNED BY ENVIRONMENT
           </span>
         </div>
-        {swapPreview && (
+        {swapPreviews?.map((s) => (
           <SwapQuotePreview
-            assetIn={swapPreview.assetIn}
-            assetOut={swapPreview.assetOut}
-            slippageBps={swapPreview.slippageBps}
+            key={s.id}
+            assetIn={s.assetIn}
+            assetOut={s.assetOut}
+            slippageBps={s.slippageBps}
             compact
           />
-        )}
+        ))}
       </div>
       {pipeline.length > 0 && (
         <div className="grid gap-2">
