@@ -97,3 +97,20 @@ describe("a conditional that absorbs its action still serializes", () => {
     expect(recipients.map((r) => r.address)).toEqual([RECIPIENT]);
   });
 });
+
+describe("only the action the conditional absorbs is exempt from the not-deployed guard", () => {
+  it("rejects a second pay the conditional cannot carry", () => {
+    const v = validateFlow({
+      nodes: [
+        trigger,
+        condition,
+        pay,
+        { ...pay, id: "p2", config: { ...pay.config, recipient: OTHER } },
+      ],
+      edges: [...edges, { id: "e3", source: "t", target: "p2" }],
+    } as never);
+    expect(v.ok).toBe(false);
+    if (v.ok) return;
+    expect(v.errors.some((e) => /wouldn't reach the chain/.test(e.friendlyMessage))).toBe(true);
+  });
+});

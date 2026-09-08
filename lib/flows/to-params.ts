@@ -598,9 +598,12 @@ export function absorbedActionIds(graph: FlowGraph): Set<string> {
   }
   const hasOracleGte = graph.nodes.some((n) => isLogic(n) && n.config.kind === "oracle_gte");
   if (!hasOracleGte) return absorbed;
-  for (const a of graph.nodes.filter(isContractAction)) {
-    if (a.type === "pay" || a.type === "split") absorbed.add(a.id);
-  }
+  // Exactly one action is absorbed: the `contractActions[0]` this file picks as
+  // `action` below, whose recipients become the CONDITIONAL's. Every other
+  // pay/split in the graph is dropped rather than absorbed, and must still trip
+  // validateFlow's not-deployed guard.
+  const [primary] = graph.nodes.filter(isContractAction);
+  if (primary && (primary.type === "pay" || primary.type === "split")) absorbed.add(primary.id);
   return absorbed;
 }
 
