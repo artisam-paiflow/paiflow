@@ -44,7 +44,7 @@ const FRIENDLY = {
     `The percentages for your split don't add up to 100% (currently ${got / 100}%). Adjust them to total 100%.`,
   DUPLICATE_ADDRESS: (addr: string) =>
     `The address ${addr} appears more than once in your split recipients. Each recipient should only appear once.`,
-  ACTION_UNREACHABLE: (label: string) =>
+  NODE_UNREACHABLE: (label: string) =>
     `${label} isn't connected to anything. Connect it to the trigger or another step.`,
   UNSUPPORTED_COMBO:
     "This trigger/action combination isn't supported. You can use: receive→pay, receive→split, schedule→pay, schedule→split, or add a condition to any of these.",
@@ -69,6 +69,8 @@ const FRIENDLY = {
     "A swap sends its whole output to one next step, so it needs one. Connect it to a Pay or Split block — an email notification doesn't count as a destination.",
   SWAP_SAME_ASSET: (asset: string) =>
     `A swap has to exchange two different assets, and both sides of this one are ${asset}. Change "Asset Out" to the asset you want back, or remove the swap.`,
+  DANGLING_NEXT_STEP: (label: string) =>
+    `${label} is still connected as a next step, but it isn't part of the pipeline this flow would deploy. Remove the connection into it, or rebuild the steps in the order the money moves.`,
   ACTION_NOT_DEPLOYED: (label: string) =>
     `The ${label} step wouldn't reach the chain, so this flow would deploy as something you didn't draw. Rebuilding the steps in the order the money moves usually fixes it. If it doesn't, this trigger or condition can't carry that step and it has to go.`,
 } as const;
@@ -967,12 +969,17 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         }
       }
     }
-    for (const a of actions) {
-      if (!seen.has(a.id)) {
+    // Every node, not just the actions. A condition dropped on the canvas and
+    // never wired still makes the template ladder pick CONDITIONAL and still
+    // compiles to a pipeline node, so the flow deploys as something the user
+    // didn't draw — see the dangling-next-step guard below for what that costs.
+    for (const n of graph.nodes) {
+      if (n.id === trigger.id) continue;
+      if (!seen.has(n.id)) {
         errors.push({
-          path: `nodes.${a.id}`,
-          message: `Action ${a.id} is not reachable from the trigger`,
-          friendlyMessage: FRIENDLY.ACTION_UNREACHABLE(nodeLabels.get(a.id) ?? a.id),
+          path: `nodes.${n.id}`,
+          message: `Node ${n.id} is not reachable from the trigger`,
+          friendlyMessage: FRIENDLY.NODE_UNREACHABLE(nodeLabels.get(n.id) ?? n.id),
         });
       }
     }
@@ -1138,6 +1145,35 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       friendlyMessage: FRIENDLY.ACTION_NOT_DEPLOYED(nodeLabels.get(a.id) ?? a.type),
     });
   }
+
+  // The same set, read the other way round: a pipeline node may not point at a
+  // node that was never emitted. deploy.ts builds its address map from the
+  // emitted nodes alone, so workflowTargets in scval.ts throws "Missing
+  // computed address" on any such reference — a 500 from /deployments/prepare
+  // on a flow the builder called valid. An oracle_gte conditional is where
+  // this bites today (it goes terminal and absorbs its action, while the
+  // trigger may still name that action directly), but the guard is the general
+  // precondition, not that one shape.
+  for (const n of pipelineNodes) {
+    const p = n.params as {
+      nextStepNodeIds?: string[];
+      pathANodeIds?: string[];
+      pathBNodeIds?: string[];
+    };
+    for (const ref of [
+      ...(p.nextStepNodeIds ?? []),
+      ...(p.pathANodeIds ?? []),
+      ...(p.pathBNodeIds ?? []),
+    ]) {
+      if (deployedNodeIds.has(ref)) continue;
+      errors.push({
+        path: `nodes.${ref}`,
+        message: `Pipeline node ${n.nodeId} points at ${ref}, which is not in the deployed pipeline`,
+        friendlyMessage: FRIENDLY.DANGLING_NEXT_STEP(nodeLabels.get(ref) ?? ref),
+      });
+    }
+  }
+
   if (errors.length) return { ok: false, errors };
 
   return { ok: true, templateKind, pipeline, graph, pendingLabels: [...pendingLabels] };

@@ -114,3 +114,36 @@ describe("only the action the conditional absorbs is exempt from the not-deploye
     expect(v.errors.some((e) => /wouldn't reach the chain/.test(e.friendlyMessage))).toBe(true);
   });
 });
+
+describe("nothing may point at a node the pipeline never emits", () => {
+  // Both shapes used to validate clean and then throw "Missing computed
+  // address for node p" inside preparePipelineDeployTx: the conditional goes
+  // terminal so the pay is never emitted, while the deposit trigger still
+  // names it as a next step.
+  it("rejects an oracle_gte left unwired on the canvas", () => {
+    const graph = {
+      nodes: [trigger, pay, condition],
+      edges: [{ id: "e1", source: "t", target: "p" }],
+    } as never;
+    expect(() => serializeAll(graph)).toThrow(/Missing computed address/);
+    const v = validateFlow(graph);
+    expect(v.ok).toBe(false);
+    if (v.ok) return;
+    expect(v.errors.some((e) => /isn't connected to anything/.test(e.friendlyMessage))).toBe(true);
+  });
+
+  it("rejects a pay wired through the condition and straight from the trigger", () => {
+    // The condition does carry this pay, so a connectivity test on the
+    // absorption alone would let it through; the trigger's own edge is what
+    // leaves the dangling reference.
+    const graph = {
+      nodes: [trigger, condition, pay],
+      edges: [...edges, { id: "e3", source: "t", target: "p" }],
+    } as never;
+    expect(() => serializeAll(graph)).toThrow(/Missing computed address/);
+    const v = validateFlow(graph);
+    expect(v.ok).toBe(false);
+    if (v.ok) return;
+    expect(v.errors.some((e) => /isn't part of the pipeline/.test(e.friendlyMessage))).toBe(true);
+  });
+});

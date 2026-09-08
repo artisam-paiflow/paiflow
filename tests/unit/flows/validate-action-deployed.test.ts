@@ -91,8 +91,12 @@ describe("every contract action reaches the deployed pipeline", () => {
   it("refuses a schedule flow whose second chained pay the streamer would drop", () => {
     // The streamer carries one payout step, taken from contractActions[0]; the
     // second pay reaches no contract at all, so that recipient is never paid.
+    // The pays match the schedule's asset: getTriggerAsset returns null for
+    // on_schedule so validate wouldn't object either way, but an XLM stream
+    // paying USDC is not the flow this test is about.
+    const scheduled = { ...pay, config: { ...pay.config, asset: XLM } };
     const v = validateFlow({
-      nodes: [onSchedule, pay, { ...pay, id: "p2" }],
+      nodes: [onSchedule, scheduled, { ...scheduled, id: "p2" }],
       edges: [
         { id: "e1", source: "t", target: "p" },
         { id: "e2", source: "p", target: "p2" },
