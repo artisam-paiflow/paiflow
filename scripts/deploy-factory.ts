@@ -203,26 +203,43 @@ async function main() {
   const factoryAddress = extractContractAddress(result.returnValue);
   console.log(`[deploy-factory] deployed at ${factoryAddress}`);
 
-  // Record the address locally BEFORE the database writes. The salt is
-  // Date.now()-derived, so a rerun that cannot see this address deploys a
-  // second factory rather than recovering the first — and .env.local is the
-  // only store guaranteed reachable on the fresh machine this path serves.
-  writeEnvLocal({
-    [hashKey]: wasmHash,
-    [addressKey]: factoryAddress,
-  });
-  console.log(`[deploy-factory] wrote ${addressKey} to .env.local`);
+  // Record the address in every store that is reachable before anything throws.
+  // The salt is Date.now()-derived, so a rerun that cannot see this address
+  // deploys a second factory rather than recovering the first — and on the fresh
+  // machine this path serves neither .env.local nor the database may be assumed
+  // writable, so a failure of one must not skip the other.
+  let persistError: unknown;
+
+  try {
+    writeEnvLocal({
+      [hashKey]: wasmHash,
+      [addressKey]: factoryAddress,
+    });
+    console.log(`[deploy-factory] wrote ${addressKey} to .env.local`);
+  } catch (err) {
+    persistError = err;
+    console.error(
+      `[deploy-factory] deployed ${factoryAddress} but could not write .env.local: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 
   try {
     await setFactoryAddress(network, factoryAddress, wasmHash);
     await setWasmHash(TemplateKind.FACTORY, network, wasmHash);
   } catch (err) {
+    const envLocalHoldsAddress = persistError === undefined;
+    persistError ??= err;
     console.error(
       `[deploy-factory] deployed ${factoryAddress} but could not record it in the database: ${err instanceof Error ? err.message : String(err)}. ` +
-        `.env.local holds the address — rerunning will skip rather than deploy again; run pnpm contracts:update-hashes once the database is reachable.`,
+        (envLocalHoldsAddress
+          ? `.env.local holds the address — rerunning will skip rather than deploy again; run pnpm contracts:update-hashes once the database is reachable.`
+          : `.env.local could not be written either — set ${addressKey}=${factoryAddress} by hand before rerunning, or the next run deploys a second factory.`),
     );
-    throw err;
   }
+
+  // Exit 1 on the first failure: the environment really is incompletely
+  // configured, and the && chain must not run update-hashes after it.
+  if (persistError) throw persistError;
 }
 
 main()

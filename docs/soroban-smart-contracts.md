@@ -266,8 +266,15 @@ the built Wasm hash is unchanged **and** an address already exists — in
 `STELLAR_FACTORY_ADDRESS_{TESTNET|MAINNET}` or as a `FactoryDeployment` row for the network — and it
 logs which of the two it found. On a new machine or a rebuilt service neither exists and it
 deploys. A testnet reset is different: it erases chain state but not `.env.local` and not the
-`FactoryDeployment` row, so clear `STELLAR_FACTORY_ADDRESS_{TESTNET|MAINNET}` and delete the row for
-the network before re-running, or the script will skip on a factory that no longer exists.
+`FactoryDeployment` row, so both still name a contract that is gone and the script skips on it.
+Clear them before re-running. Delete the `STELLAR_FACTORY_ADDRESS_{TESTNET|MAINNET}` line from
+`.env.local` **itself** — unsetting the variable in the shell or passing it empty on the command
+line does nothing, because the script reloads `.env.local` with `override: true` — then drop the
+row:
+
+```sql
+DELETE FROM "FactoryDeployment" WHERE network = 'testnet';
+```
 
 Verify before trusting the chain:
 
