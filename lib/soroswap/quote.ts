@@ -64,9 +64,10 @@ export type QuoteQuery = z.infer<typeof QuoteQuerySchema>;
  * with `InsufficientOutput` when either reserve is non-positive
  * (`contracts/actions/swapper/src/lib.rs:231-233`), while this returns `0n` so
  * the function stays total and the preview layer decides how to present it.
- * `readSoroswapQuote` never reaches that case with a zero — the router quote is
- * validated first and an empty pool fails there — so a `0n` here means the
- * caller passed reserves it had no business passing.
+ * `readSoroswapQuote` never reaches that case with a zero: `readSoroswapPool`
+ * rejects a `get_reserves` decode that isn't two positive `bigint`s before these
+ * reserves exist — so a `0n` here means the caller passed reserves it had no
+ * business passing.
  */
 export function spotOut(amountIn: bigint, reserveIn: bigint, reserveOut: bigint): bigint {
   if (amountIn <= 0n || reserveIn <= 0n || reserveOut <= 0n) return 0n;

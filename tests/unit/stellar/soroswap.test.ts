@@ -126,6 +126,21 @@ describe("readSoroswapQuote", () => {
     });
   });
 
+  const unusableReserves: Array<[string, unknown]> = [
+    ["a non-array", { reserve_0: USDC_RESERVE, reserve_1: XLM_RESERVE }],
+    ["a short vec", [USDC_RESERVE]],
+    ["a non-bigint element", [USDC_RESERVE, "39364110253472"]],
+    ["a zero reserve", [USDC_RESERVE, 0n]],
+  ];
+
+  it.each(unusableReserves)("rejects reserves that decode to %s", async (_label, value) => {
+    stub.reserves = value;
+    await expect(readSoroswapQuote(NATIVE_TO_USDC)).rejects.toMatchObject({
+      code: "UPSTREAM_RPC",
+      message: expect.stringContaining("unusable reserves"),
+    });
+  });
+
   it("rejects a token_0 that is neither side of the pair rather than inverting silently", async () => {
     stub.token0 = {};
     await expect(readSoroswapQuote(NATIVE_TO_USDC)).rejects.toMatchObject({

@@ -89,7 +89,20 @@ export async function readSoroswapPool(input: {
       err instanceof Error ? err.message : String(err),
     );
   }
-  const reserves = (await simulateContractCall(pairAddress, "get_reserves")) as [bigint, bigint];
+  const rawReserves: unknown = await simulateContractCall(pairAddress, "get_reserves");
+  // Same reasoning as the router quote below: an unvalidated decode reaches the
+  // operator as a plausible number on a screen they sign from. A zero here would
+  // spot at 0 and render "Minimum: ~0" beside a real expected output.
+  const reserve0 = Array.isArray(rawReserves) ? rawReserves[0] : undefined;
+  const reserve1 = Array.isArray(rawReserves) ? rawReserves[1] : undefined;
+  if (
+    typeof reserve0 !== "bigint" ||
+    typeof reserve1 !== "bigint" ||
+    reserve0 <= 0n ||
+    reserve1 <= 0n
+  ) {
+    throw new AppError("UPSTREAM_RPC", `Soroswap pair ${pairAddress} returned unusable reserves`);
+  }
   const token0 = String(await simulateContractCall(pairAddress, "token_0"));
 
   return {
@@ -97,8 +110,8 @@ export async function readSoroswapPool(input: {
     factoryAddress,
     pairAddress,
     token0,
-    reserve0: BigInt(reserves[0]),
-    reserve1: BigInt(reserves[1]),
+    reserve0,
+    reserve1,
   };
 }
 
