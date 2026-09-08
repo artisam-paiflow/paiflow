@@ -17,7 +17,7 @@ import {
   assetLabel,
 } from "./schema";
 import { checkHardLimits } from "./limits";
-import { flowToPipeline, type PipelineNode } from "./to-params";
+import { flowToPipeline, absorbedActionIds, type PipelineNode } from "./to-params";
 
 export type ValidationIssue = { path: string; message: string; friendlyMessage: string };
 
@@ -68,7 +68,7 @@ const FRIENDLY = {
   SWAP_NEEDS_NEXT_STEP:
     "A swap sends its whole output to one next step, so it needs one. Connect it to a Pay or Split block — an email notification doesn't count as a destination.",
   ACTION_NOT_DEPLOYED: (label: string) =>
-    `The ${label} step wouldn't reach the chain, so this flow would deploy as something you didn't draw. Delete the steps after it and re-add them in the order the money moves, or — if this trigger can't carry that step at all — remove it.`,
+    `The ${label} step wouldn't reach the chain, so this flow would deploy as something you didn't draw. Rebuilding the steps in the order the money moves usually fixes it. If it doesn't, this trigger or condition can't carry that step and it has to go.`,
 } as const;
 
 // Triggers whose flows route payouts through the payer/splitter contracts,
@@ -1105,17 +1105,23 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   // to the canvas, not graph order. So a flow drawn trigger → swap → pay whose
   // pay block was added first maps to a plain payer pipeline and the swap is
   // dropped silently: the deploy would pay out an asset the flow never acquired.
+  // A schedule flow with two chained pays loses the second the same way.
   // Catch it here rather than letting money move against a pipeline the user
   // didn't draw. Tracked in #405 — the real fix is to order by topology.
+  //
+  // "Not emitted" is not the same as "lost": an oracle_gte condition compiles to
+  // a CONDITIONAL that owns the recipients and pays them itself, so its pay or
+  // split is absorbed on purpose. absorbedActionIds() carries that rule, and
+  // lives beside the code that applies it.
   const deployedNodeIds = new Set(pipelineNodes.map((n) => n.nodeId));
+  const absorbed = absorbedActionIds(graph);
   for (const a of contractActions) {
-    if (!deployedNodeIds.has(a.id)) {
-      errors.push({
-        path: `nodes.${a.id}`,
-        message: `Action ${a.id} (${a.type}) is not represented in the deployed pipeline`,
-        friendlyMessage: FRIENDLY.ACTION_NOT_DEPLOYED(nodeLabels.get(a.id) ?? a.type),
-      });
-    }
+    if (deployedNodeIds.has(a.id) || absorbed.has(a.id)) continue;
+    errors.push({
+      path: `nodes.${a.id}`,
+      message: `Action ${a.id} (${a.type}) is not represented in the deployed pipeline`,
+      friendlyMessage: FRIENDLY.ACTION_NOT_DEPLOYED(nodeLabels.get(a.id) ?? a.type),
+    });
   }
   if (errors.length) return { ok: false, errors };
 

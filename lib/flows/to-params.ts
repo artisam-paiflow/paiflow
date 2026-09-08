@@ -569,6 +569,41 @@ function synthesizeCashOutNodes(
   return { action, cashOutNodes };
 }
 
+/**
+ * Contract actions that `flowToPipeline` deliberately does NOT emit as their own
+ * pipeline node, because another node carries their semantics.
+ *
+ * There is exactly one such case today: an `oracle_gte` condition compiles to a
+ * CONDITIONAL that owns the payout recipients and pays them itself, so it sets
+ * `terminal` and the action loop never runs. That only works for actions the
+ * CONDITIONAL's params can express — a recipient list. A swap or a yield has no
+ * recipients, so it is genuinely lost rather than absorbed, and stays out of
+ * this set.
+ *
+ * Kept beside the `terminal = true` it mirrors: validateFlow uses this to tell
+ * "absorbed by design" apart from "silently dropped", and the two must not drift.
+ */
+export function absorbedActionIds(graph: FlowGraph): Set<string> {
+  const absorbed = new Set<string>();
+  const trigger = graph.nodes.find(isTrigger);
+  if (!trigger) return absorbed;
+  // Only receive-like flows reach the condition compiler; schedule-like triggers
+  // return before it.
+  if (
+    trigger.type === "on_schedule" ||
+    trigger.type === "subscription" ||
+    trigger.type === "payroll"
+  ) {
+    return absorbed;
+  }
+  const hasOracleGte = graph.nodes.some((n) => isLogic(n) && n.config.kind === "oracle_gte");
+  if (!hasOracleGte) return absorbed;
+  for (const a of graph.nodes.filter(isContractAction)) {
+    if (a.type === "pay" || a.type === "split") absorbed.add(a.id);
+  }
+  return absorbed;
+}
+
 export function flowToPipeline(
   graph: FlowGraph,
   relayerAddress?: string,
@@ -956,7 +991,7 @@ export function flowToPipeline(
           nextStepNodeIds: children.get(cond.id) ?? [],
         },
       });
-      terminal = true;
+      terminal = true; // see absorbedActionIds() — the conditional pays out itself
     } else if (cond.config.kind === "multisig") {
       pipeline.push({
         nodeId: cond.id,
