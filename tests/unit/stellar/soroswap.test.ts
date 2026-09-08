@@ -141,6 +141,22 @@ describe("readSoroswapQuote", () => {
     });
   });
 
+  const unusablePair: Array<[string, unknown]> = [
+    ["a non-string", { pair: PAIR }],
+    ["an account id, not a contract", "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"],
+    ["an empty string", ""],
+  ];
+
+  // The guard sits below the catch on purpose: raised inside it, this
+  // UPSTREAM_RPC would be re-reported as "no liquidity pool".
+  it.each(unusablePair)("rejects a get_pair that decodes to %s", async (_label, value) => {
+    stub.getPair = () => value;
+    await expect(readSoroswapQuote(NATIVE_TO_USDC)).rejects.toMatchObject({
+      code: "UPSTREAM_RPC",
+      message: expect.stringContaining("unusable pair address"),
+    });
+  });
+
   it("rejects a token_0 that is neither side of the pair rather than inverting silently", async () => {
     stub.token0 = {};
     await expect(readSoroswapQuote(NATIVE_TO_USDC)).rejects.toMatchObject({

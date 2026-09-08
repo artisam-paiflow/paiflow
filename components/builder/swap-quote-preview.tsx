@@ -2,6 +2,7 @@
 import type { Asset } from "@/lib/flows/schema";
 import { useSoroswapQuote } from "@/lib/hooks/use-soroswap-quote";
 import { assetToParam } from "@/lib/soroswap/asset-param";
+import { quoteAlwaysReverts } from "@/lib/soroswap/preview";
 
 const SAMPLE_UNITS = 10n;
 const STROOPS_PER_UNIT = 10_000_000n;
@@ -75,11 +76,23 @@ export default function SwapQuotePreview({
     );
   }
   const { quote } = state;
+  const alwaysReverts = quoteAlwaysReverts(quote);
   return (
-    <div className={base} data-testid="swap-quote" aria-live="polite">
+    <div
+      className={alwaysReverts ? `${base} text-error` : base}
+      data-testid="swap-quote"
+      aria-live="polite"
+    >
       {SAMPLE_UNITS.toString()} {label(assetIn)} → ~{units(quote.amountOutStroops)}{" "}
       {label(assetOut)} via Soroswap (live). Minimum at {slippageBps / 100}% slippage: ~
       {units(quote.amountOutMinStroops)} {label(assetOut)}
+      {alwaysReverts && (
+        <>
+          {" "}
+          — above the router&apos;s expected output, so this swap would always revert. Raise the
+          slippage allowance to cover the 0.3% pool fee and price impact.
+        </>
+      )}
     </div>
   );
 }

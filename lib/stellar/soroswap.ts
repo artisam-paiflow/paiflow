@@ -73,11 +73,9 @@ export async function readSoroswapPool(input: {
   const outId = assetContractId(input.assetOut);
 
   const factoryAddress = await cachedSoroswapFactoryReader()(routerAddress);
-  let pairAddress: string;
+  let rawPair: unknown;
   try {
-    pairAddress = String(
-      await simulateContractCall(factoryAddress, "get_pair", [addr(inId), addr(outId)]),
-    );
+    rawPair = await simulateContractCall(factoryAddress, "get_pair", [addr(inId), addr(outId)]);
   } catch (err) {
     // Only a failing simulation frame means "no pool". An unfunded relayer or a
     // misconfigured router must not reach the operator as a claim about chain state.
@@ -89,6 +87,15 @@ export async function readSoroswapPool(input: {
       err instanceof Error ? err.message : String(err),
     );
   }
+  // Validated below the catch, not inside it: that branch re-maps every
+  // UPSTREAM_RPC to "no liquidity pool", which this is not.
+  if (typeof rawPair !== "string" || !StrKey.isValidContract(rawPair)) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `Soroswap factory ${factoryAddress} returned an unusable pair address`,
+    );
+  }
+  const pairAddress = rawPair;
   const rawReserves: unknown = await simulateContractCall(pairAddress, "get_reserves");
   // Same reasoning as the router quote below: an unvalidated decode reaches the
   // operator as a plausible number on a screen they sign from. A zero here would

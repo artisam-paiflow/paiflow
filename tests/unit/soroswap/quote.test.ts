@@ -7,6 +7,7 @@ import {
   parseAssetParam,
   spotOut,
 } from "@/lib/soroswap/quote";
+import { quoteAlwaysReverts } from "@/lib/soroswap/preview";
 
 const ISSUER = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 
@@ -93,6 +94,26 @@ describe("stroops maths (mirrors contracts/actions/swapper)", () => {
     expect(ROUTER_OUTPUT).toBeLessThan(spot);
     // and at 0 bps the minimum equals spot, which the fee can never clear
     expect(ROUTER_OUTPUT).toBeLessThan(minOut(spot, 0));
+  });
+
+  it("flags a slippage the pool fee can never clear", () => {
+    const { reserveIn, reserveOut } = orientReserves(r0, r1, false);
+    const spot = spotOut(100_000_000n, reserveIn, reserveOut);
+    const quote = (slippageBps: number) => ({
+      amountOutStroops: ROUTER_OUTPUT.toString(),
+      amountOutMinStroops: minOut(spot, slippageBps).toString(),
+    });
+    // 0.3% fee plus impact: 1% clears it, 0 bps and 10 bps cannot, so the
+    // contract's amount_out_min assertion would revert every time.
+    expect(quoteAlwaysReverts(quote(100))).toBe(false);
+    expect(quoteAlwaysReverts(quote(10))).toBe(true);
+    expect(quoteAlwaysReverts(quote(0))).toBe(true);
+  });
+
+  it("does not flag a minimum that merely equals the expected output", () => {
+    expect(
+      quoteAlwaysReverts({ amountOutStroops: "10562889", amountOutMinStroops: "10562889" }),
+    ).toBe(false);
   });
 
   it("returns 0 for empty reserves or a non-positive amount", () => {
