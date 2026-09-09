@@ -1112,8 +1112,17 @@ export async function readSplitterRecipients(
   return readSplitterDevRecipients(contractAddress);
 }
 
-/** Simulate a no-arg getter on a contract and return its native value. */
-async function simulateGetter(contractAddress: string, functionName: string): Promise<unknown> {
+/**
+ * Simulate a read-only contract call and return its native value.
+ *
+ * Never submitted, so the relayer signs nothing and needs no authorization —
+ * it is only the source account a simulation has to quote against.
+ */
+export async function simulateContractCall(
+  contractAddress: string,
+  functionName: string,
+  args: xdr.ScVal[] = [],
+): Promise<unknown> {
   const server = sorobanRpc();
 
   const source = stellarRelayerAddress();
@@ -1138,7 +1147,7 @@ async function simulateGetter(contractAddress: string, functionName: string): Pr
     new xdr.InvokeContractArgs({
       contractAddress: scAddress,
       functionName,
-      args: [],
+      args,
     }),
   );
 
@@ -1151,13 +1160,27 @@ async function simulateGetter(contractAddress: string, functionName: string): Pr
     .build();
 
   const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim) || !sim.result?.retval) {
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new AppError(
+      "UPSTREAM_RPC",
+      `${functionName}() simulation failed for ${contractAddress}: ${sim.error}`,
+    );
+  }
+  if (!sim.result?.retval) {
     throw new AppError(
       "UPSTREAM_RPC",
       `${functionName}() simulation failed for ${contractAddress}`,
     );
   }
   return scValToNative(sim.result.retval);
+}
+
+/** Simulate a no-arg getter on a contract and return its native value. */
+export async function simulateGetter(
+  contractAddress: string,
+  functionName: string,
+): Promise<unknown> {
+  return simulateContractCall(contractAddress, functionName);
 }
 
 /**

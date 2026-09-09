@@ -286,7 +286,7 @@ describe("flowToEnglish", () => {
     expect(out).toContain("pay full incoming XLM");
   });
 
-  it("describes a web2_webhook → swap flow", () => {
+  it("describes a web2_webhook → swap → pay flow", () => {
     const out = flowToEnglish({
       nodes: [
         {
@@ -300,14 +300,29 @@ describe("flowToEnglish", () => {
           config: {
             assetIn: { kind: "native" },
             assetOut: { kind: "known", symbol: "USDC" },
-            rateBps: 9500,
+            slippageBps: 100,
+            deadlineSecs: 300,
+          },
+        },
+        {
+          id: "p",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "20000000",
+            asset: { kind: "known", symbol: "USDC" },
+            mode: "fixed",
+            fullAmount: false,
           },
         },
       ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "a", target: "p" },
+      ],
     });
     expect(out).toContain("When HTTP webhook fires for USDC");
-    expect(out).toContain("swap XLM to USDC at 95% rate");
+    expect(out).toContain("swap XLM to USDC via Soroswap with up to 1% slippage");
   });
 
   it("describes a subscription trigger with interval", () => {

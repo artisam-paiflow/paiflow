@@ -2,7 +2,7 @@
 
 > **Zaps for money.** A visual builder where you connect triggers (_"when this happens"_) to actions (_"pay this"_) and deploy a live Soroban contract on Stellar in under a minute.
 
-Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a QR code. Anyone who scans it sends funds straight to a pre-audited smart contract that fans out the money automatically.
+Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a QR code. Anyone who scans it sends funds straight to a reviewed, unit-tested smart contract that fans out the money automatically.
 
 ---
 
@@ -27,7 +27,9 @@ The repo ships both desktop and mobile screenshots in [`screenshots/`](./screens
 - **Desktop gallery:** [`screenshots/*`](./screenshots/)
 - **Mobile gallery:** [`screenshots/*-mobile.png`](./screenshots/)
 
-Key flows covered: landing, auth, dashboard, builder, deploy review, admin overview, and submission proof.
+Nine flows, desktop and mobile: login, register, dashboard, builder, account, deploy review, admin
+overview, and submission proof. (`01-landing` captures `/`, which redirects to the dashboard — there
+is no separate landing page.)
 
 ---
 
@@ -35,13 +37,18 @@ Key flows covered: landing, auth, dashboard, builder, deploy review, admin overv
 
 All contracts are deployed on the **Stellar testnet**. Every flow deployed from the app produces a fresh set of pipeline contracts with deterministic addresses (via the factory's `deploy_pipeline`), and each deployment page in the UI deep-links its contracts to stellar.expert — the fastest way to see a live pipeline is to [deploy one in the app](https://paiflow.xyz) and click through.
 
-**Factory contract** — deploys and wires every pipeline atomically:
+**Factory contract** — deploys every pipeline in one transaction:
 
 | Contract                    | Address                                                                                                                                                                 |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Factory (`deploy_pipeline`) | [`CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK`](https://stellar.expert/explorer/testnet/contract/CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK) |
 
-**Template WASM uploads** — the pre-audited contract code the factory instantiates per deployment:
+**Template WASM uploads** — the contract code the factory instantiates per deployment. A snapshot
+of what was uploaded to testnet, not a live view: the authoritative per-network list is the
+`ContractTemplate` table, written by `pnpm contracts:update-hashes`, and
+[`scripts/update-hashes.ts`](./scripts/update-hashes.ts) enumerates all 20 `TemplateKind`s. A kind
+absent below is one that has not been uploaded to testnet, or one this table has not kept up with —
+resolve it against `ContractTemplate`, not against this file.
 
 | Template           | Role      | WASM hash (testnet)                                                |
 | ------------------ | --------- | ------------------------------------------------------------------ |
@@ -82,9 +89,7 @@ Long-term, Paiflow is the canonical "no-code Stellar surface": the layer between
 
 ## 🎯 Purpose
 
-Built for the **Stellar Hackathon 2026**.
-
-We picked this problem because the Stellar Soroban toolchain is genuinely excellent for backend developers and genuinely opaque to everyone else. Pre-audited templates (splitter, streamer, conditional, subscription, payroll) cover the long tail of real-world payment workflows — most "programmable payment" use cases reduce to one of them. By shipping them as visual blocks instead of as Rust libraries, we put the chain's full power in the hands of the operators who have the use case but not the engineering team.
+We picked this problem because the Stellar Soroban toolchain is genuinely excellent for backend developers and genuinely opaque to everyone else. A fixed library of unit-tested templates (splitter, streamer, conditional, subscription, payroll) covers the long tail of real-world payment workflows — most "programmable payment" use cases reduce to one of them. By shipping them as visual blocks instead of as Rust libraries, we put the chain's full power in the hands of the operators who have the use case but not the engineering team.
 
 The mission: **make Stellar the easiest chain on which to ship a payment flow**, full stop, without changing what makes Stellar good (fast, cheap, atomic, non-custodial).
 
@@ -96,10 +101,10 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 
 ## ✨ Features
 
-- **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`, `HTTP Webhook`, `Subscription`, `Payroll`), actions (`Pay`, `Split`, `Email Notify`), and logic blocks (`Condition`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
+- **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`, `HTTP Webhook`, `Subscription`, `Payroll`), actions (`Pay`, `Split`, `Swap`, `Email Notify`), and logic blocks (`Condition`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
 - **Native fiat payouts** — pay and split steps can settle directly to a recipient's bank account via a PDAX off-ramp integration. Bank details and sender KYC are captured in the builder and baked into immutable contracts at deploy time; an automated off-ramp pipeline settles the payouts.
-- **Non-custodial deploy** — the backend prepares simulated XDR; the user's wallet (Freighter / xBull / Albedo / Hana / LOBSTR via `@creit.tech/stellar-wallets-kit`) signs. Private keys never touch the server.
-- **QR-triggered execution** — some deployment renders a public QR / dApp URL. Anyone with a wallet can scan it, sign, and fire `distribute()` — useful for audience-funded demos, public crowdpay flows, and self-fund-back tests. Rate-limited + audit-logged on the public endpoints.
+- **Non-custodial deploy** — the backend prepares simulated XDR; the user's wallet — Freighter on desktop, or xBull / LOBSTR / Freighter over WalletConnect, via `@creit.tech/stellar-wallets-kit` — signs. Private keys never touch the server.
+- **QR-triggered execution** — every deployment renders a public QR / dApp URL. Anyone with a wallet can scan it, sign, and fire `distribute()` — useful for audience-funded demos, public crowdpay flows, and self-fund-back tests. Rate-limited + audit-logged on the public endpoints.
 - **Live event feed** — two-phase poller seeded from the deployment transaction's ledger writes `ContractEvent` rows in real time; the deployment page animates payouts as they finalize on-chain.
 - **Raft Log AI assistant** — voice-to-text via Groq Whisper (large-v3 with fallback to large-v3-turbo) + Llama text edits. Talk to the builder in plain English ("change Alice to 55%"); the AI emits a JSON patch the validator can apply.
 - **Admin console** — user management, audit log, seeded admin on first boot, rate-limited public endpoints, HIBP-pwned-password check (opt-in).
@@ -107,7 +112,7 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 
 ## 🏗️ System Architecture
 
-A single Next.js 15 app (App Router) is the whole control plane: it serves the visual builder, prepares (but never signs) Stellar transactions, and runs cron-style automation over relayer-signed contracts. Wallets sign anything that moves user funds; a server-side relayer account signs only scheduled/automated actions (streamer claims, subscription charges, timelock releases, webhooks).
+A single Next.js 15 app (App Router) is the whole control plane: it serves the visual builder, prepares (but never signs) Stellar transactions, and runs cron-style automation over relayer-signed contracts. Wallets sign anything that moves user funds; a server-side relayer account signs only scheduled/automated actions (streamer claims, subscription and payroll charges, timelock releases, webhooks).
 
 ![System architecture](docs/diagrams/system-architecture.svg)
 
@@ -116,7 +121,9 @@ A single Next.js 15 app (App Router) is the whole control plane: it serves the v
 Key boundaries:
 
 - **Non-custodial by construction** — the server only ever builds and simulates XDR (`lib/stellar/deploy.ts`, `lib/stellar/invoke.ts`). User funds move only on transactions signed by the user's wallet. The relayer key (server-side) can only execute the _automation_ surface: scheduled streamer claims, subscription/payroll charges, timelock releases, and webhook-triggered executes — all serialized through a global relayer lock (`withRelayerLock`).
-- **Deploys go through a factory contract** — the app pre-computes child contract addresses (deterministic salts, CAP-46), then submits one `deploy_pipeline` invocation that deploys and wires the whole graph atomically.
+- **Deploys go through a factory contract** — the app pre-computes child contract addresses (deterministic salts, CAP-46), then submits one `deploy_pipeline` invocation that deploys them all in one transaction. The
+  wiring itself is TypeScript-side: each child's address is computed before the call and passed to
+  its neighbours as a constructor argument, so one transaction lands a fully-connected pipeline.
 - **Events are ingested, not trusted from clients** — a cron poller (`app/api/cron/poll-events`) reads Soroban events per deployment via an `EventCursor` (bootstrapped from the deploy tx's ledger, then incremental), dedupes into `ContractEvent`, and fans out over Redis pub/sub to the live UI. `CASH_OUT` events additionally spawn PDAX off-ramp jobs.
 
 ### Sequence — deploy a flow
@@ -139,8 +146,8 @@ Key boundaries:
 
 ```bash
 # 1. Clone
-git clone https://github.com/webnxt-2030/paiflow.git
-cd paiflow
+git clone https://github.com/webnxt-2030/pinkraft.git
+cd pinkraft
 
 # 2. Install deps (requires Node 22.11.x and pnpm 10.4.1)
 corepack enable && corepack prepare pnpm@10.4.1 --activate
@@ -185,21 +192,40 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 ### Stack at a glance
 
-| Layer         | Tech                                                                          |
-| ------------- | ----------------------------------------------------------------------------- |
-| Runtime       | Node.js 22 LTS, pnpm 10                                                       |
-| Framework     | Next.js 15 (App Router, RSC, Server Actions), React 19                        |
-| UI            | Tailwind 4, shadcn/ui, lucide-react, framer-motion, @xyflow/react             |
-| State         | zustand (canvas), TanStack Query (server), react-hook-form + zod (forms)      |
-| Auth          | Auth.js v5 (`next-auth`) with Prisma adapter; WebAuthn via `@simplewebauthn`  |
-| DB            | PostgreSQL 16 + Prisma 6                                                      |
-| Cache / queue | Redis 7 (`ioredis`)                                                           |
-| Storage       | MinIO (dev) / Railway Volume (prod)                                           |
-| Email         | Resend (transactional — password reset, notifications)                        |
-| AI            | Groq — Whisper (STT, raft-log voice input) + Llama (text)                     |
-| Blockchain    | Stellar / Soroban — `@stellar/stellar-sdk`, `@creit.tech/stellar-wallets-kit` |
-| Contracts     | Rust 1.88, `soroban-sdk` 22, `wasm32v1-none`                                  |
-| Observability | Sentry, pino                                                                  |
+> This table is the **single source of truth** for the stack. `SPEC.md` and
+> `CLAUDE.md` link here rather than restating it.
+
+| Layer         | Tech                                                                                         |
+| ------------- | -------------------------------------------------------------------------------------------- |
+| Runtime       | Node.js 22 LTS (`>=22.11 <23`), pnpm 10.4.1                                                  |
+| Language      | TypeScript 5.7 — `strict`, `noUncheckedIndexedAccess`                                        |
+| Framework     | Next.js 15 (App Router, RSC, Route Handlers), React 19                                       |
+| UI            | Tailwind 4 beta (CSS-first `@theme`), Material Symbols (self-hosted), `@xyflow/react` 12     |
+| Forms         | `react-hook-form` + `zod`                                                                    |
+| Auth          | Auth.js v5 (`next-auth` 5.0.0-beta) + Prisma adapter; WebAuthn via `@simplewebauthn`; argon2 |
+| DB            | PostgreSQL 16 + Prisma 6                                                                     |
+| Cache / queue | Redis 7 (`ioredis`) — rate limits, SSE pub/sub                                               |
+| Storage       | MinIO (dev) / Railway Volume (prod)                                                          |
+| Email         | Resend (transactional — password reset, notifications)                                       |
+| Off-ramp      | PDAX Institution API (fiat payout), mock provider by default                                 |
+| AI            | Groq — Whisper (STT, raft-log voice input) + Llama (text)                                    |
+| Blockchain    | Stellar / Soroban — `@stellar/stellar-sdk` 15, `@creit.tech/stellar-wallets-kit` 1.9         |
+| Contracts     | Rust (CI toolchain 1.95), `soroban-sdk` 26, target `wasm32v1-none`                           |
+| Tests         | vitest 3 (unit), `@playwright/test` 1.49 (e2e, run locally)                                  |
+| Observability | pino (+ pino-pretty in dev). Sentry is stubbed out — see note below.                         |
+
+**Notes on things people expect to find and won't:**
+
+- **No component library.** Components are hand-rolled per feature folder under
+  `components/`. There is no `components/ui/` and no shadcn/ui.
+- **No client state library.** The builder canvas uses `@xyflow/react`'s own
+  state; server state is fetched in RSCs, Route Handlers, or the small polling
+  hooks in `lib/hooks/`.
+- **No Server Actions.** Every mutation goes through a Route Handler under
+  `app/api/`.
+- **Sentry is not installed.** `sentry.*.config.ts` are no-op stubs that warn
+  when `SENTRY_DSN` is set; wiring it up means `pnpm add @sentry/nextjs` and
+  filling in the stub bodies.
 
 ### Prerequisites
 
@@ -208,11 +234,14 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 - Docker (for Postgres / Redis / MinIO)
 - _(Optional)_ A [Resend](https://resend.com) account for outbound transactional email (password reset). When unset, emails are logged to the dev console.
 - _(Optional)_ A [Groq](https://groq.com) API key for raft-log voice input + AI features. When unset, those features degrade gracefully.
-- _(Optional, for contract work)_ Rust `1.88.0` with the `wasm32v1-none` target:
+- _(Optional, for contract work)_ Rust with the `wasm32v1-none` target. CI pins the version in
+  [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — currently `1.95.0`, and that file is the
+  authority ([#379](https://github.com/webnxt-2030/pinkraft/issues/379) tracks pinning it in one
+  place):
   ```bash
-  rustup install 1.88.0
-  rustup component add rustfmt clippy --toolchain 1.88.0
-  rustup target add wasm32v1-none --toolchain 1.88.0
+  rustup install 1.95.0
+  rustup component add rustfmt clippy --toolchain 1.95.0
+  rustup target add wasm32v1-none --toolchain 1.95.0
   ```
 
 ### Local services map
@@ -259,18 +288,30 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 | `pnpm db:seed`           | Run `prisma/seed.ts`                 |
 | `pnpm db:studio`         | Open Prisma Studio                   |
 
+`pnpm dev-token:create` mints a `DevApiToken` for the dev-mode API; `pnpm db:seed:events` and
+`db:seed:all-events` populate a deployment's event feed for demos.
+
 #### Contracts (Soroban)
 
-| Script                  | Purpose                                             |
-| ----------------------- | --------------------------------------------------- |
-| `pnpm contracts:build`  | `cargo build --release --target wasm32v1-none`      |
-| `pnpm contracts:upload` | Upload WASM to testnet, write hashes back to `.env` |
+`package.json` holds all twelve `contracts:*` scripts; the ones that matter in order:
+
+| Script                                    | Purpose                                                          |
+| ----------------------------------------- | ---------------------------------------------------------------- |
+| `pnpm contracts:build`                    | `cargo build --release --target wasm32v1-none`                   |
+| `pnpm contracts:upload:<network>`         | Upload each WASM, write hashes into `.env.local`                 |
+| `pnpm contracts:deploy-factory:<network>` | Deploy the factory; without it nothing can deploy                |
+| `pnpm contracts:update-hashes`            | Sync `.env` hashes into `ContractTemplate` / `FactoryDeployment` |
+| `pnpm contracts:deploy:<network>`         | All four above, in order                                         |
+| `pnpm contracts:estimate`                 | Quote the mainnet upload cost before spending                    |
+
+`update-hashes` reads `STELLAR_NETWORK` and has no `--network` flag. Full runbook:
+[`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md).
 
 Or directly:
 
 ```bash
 cd contracts
-cargo fmt --all --check
+cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test --workspace
 ```
@@ -285,59 +326,62 @@ cargo test --workspace
 ### Project layout
 
 ```
-app/             Next.js App Router (routes, layouts, Server Actions)
-  api/             Route handlers (trigger, cron, auth, transcribe, …)
+app/             Next.js App Router (routes + layouts; no Server Actions)
+  api/             Route handlers (deployments, payroll, offramp, cron, auth, …)
   flows/           Visual builder canvas
   deployments/     Deployment list + detail (with live event feed)
   trigger/         Public trigger page (QR target)
-  admin/           Admin console
-components/      Shared React components (shadcn/ui lives here)
-lib/             Server + shared utilities (auth, db, stellar, validation, …)
+  allowance/       Public allowance-approval page
+  payroll/         Employee / bank-detail management
+  admin/           Admin console (users, templates, off-ramp credentials)
+components/      Hand-rolled React components, grouped by feature
+lib/             Server + shared utilities (auth, db, stellar, offramp, validation, …)
 prisma/          schema.prisma, migrations, seed.ts
 contracts/       Soroban smart contracts (Rust workspace)
-  splitter/         60/30/10-style payment splitter
-  streamer/         time-based linear vesting / streaming
-  conditional/      release-on-condition escrow
-scripts/         Operational scripts (e.g. upload-wasm.ts)
+  triggers/         deposit_trigger, webhook, subscription, subscription_dev, oracle
+  conditions/       conditional, router, timelock, multisig
+  actions/          splitter, streamer, payer, payroll, cash_out, swapper, yield,
+                    splitter_dev, payer_dev, cash_out_dev
+  factory/          deploys a whole pipeline in one transaction (kind-agnostic)
+scripts/         Operational scripts (upload-wasm, deploy-factory, update-hashes, …)
 tests/
   unit/             Vitest specs
   e2e/              Playwright specs
 screenshots/     Generated UI screenshots (committed)
-docs/            Pitch deck, mainnet runbook, features changelog
+docs/            Architecture, runbooks, design records, archive/
 ```
 
 ### Branching & CI
 
-| Branch                  | Role                                       |
-| ----------------------- | ------------------------------------------ |
-| `main`                  | Production-ready; protected. PRs go here.  |
-| `staging`               | Pre-prod deploy target.                    |
-| `develop`               | Integration branch for in-flight features. |
-| `claude/*`, `feat/*`, … | Short-lived feature branches.              |
+| Branch                  | Role                                                                   |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `main`                  | Production-ready; protected. Not a PR target.                          |
+| `staging`               | Pre-prod deploy target.                                                |
+| `develop`               | Integration branch, and **the base branch for PRs** (`CLAUDE.md` §17). |
+| `claude/*`, `feat/*`, … | Short-lived feature branches.                                          |
 
 CI (`.github/workflows/ci.yml`) runs on every push to `main` and every PR:
 
-- **node** lane — `pnpm install --frozen-lockfile`, `db:generate`, `typecheck`, `test`, `db:migrate:deploy`, `db:seed`, `build`, `pnpm audit`
-- **rust** lane — `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test --workspace`
+- **node** lane — `pnpm install --frozen-lockfile`, `db:generate`, `db:migrate:deploy`, `typecheck`, `test`, `db:seed`, `build`, `pnpm audit`
+- **rust** lane — `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --workspace`
 
-Both lanes must be green before merge.
+Both lanes must be green before merge — except the audit step, which runs as
+`pnpm audit --prod || true` and can never fail the build
+([#373](https://github.com/webnxt-2030/pinkraft/issues/373)). There is **no** Playwright job; e2e
+runs locally only.
 
 ### Environment variables
 
-`.env.example` is the source of truth — copy it and fill the marked secrets. The shape:
+[`.env.example`](./.env.example) is the source of truth — copy it to `.env` and fill the blanks.
+Every variable the app reads is listed there, commented with what it does and what happens when it
+is unset, whether it is validated by [`lib/env.ts`](./lib/env.ts) or read straight from
+`process.env`. Deliberately not restated here: a second copy of the list is a second copy to keep
+true, and this one had already fallen four sections behind.
 
-- **App** — `NEXT_PUBLIC_APP_URL`, `LOG_LEVEL`
-- **Auth** — `AUTH_SECRET`, `AUTH_URL`, `AUTH_RP_ID`, `AUTH_RP_NAME`, `ALLOW_PUBLIC_REGISTRATION`, `ADMIN_SEED_USERNAME`, `ADMIN_SEED_PASSWORD`
-- **Database** — `DATABASE_URL`
-- **Redis** — `REDIS_URL`
-- **File storage** — `FILE_STORAGE_DRIVER`, `FILE_STORAGE_PATH`, `MINIO_*`
-- **Stellar** — `STELLAR_NETWORK` (pinned per environment), `STELLAR_*_TESTNET`, `STELLAR_*_MAINNET`, `STELLAR_FRIENDBOT_URL` (testnet only), `STELLAR_WASM_HASH_*_TESTNET`, `STELLAR_WASM_HASH_*_MAINNET`
-- **Cron** — `CRON_SECRET`
-- **AI / STT** — `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_STT_MODEL_PRIMARY`, `GROQ_STT_MODEL_FALLBACK`
-- **Email** — `RESEND_API_KEY`, `EMAIL_FROM`
-- **Optional** — `SENTRY_DSN`, `HIBP_CHECK_ENABLED`
-
-> **Never** put a Stellar secret key in `.env`. Paiflow is non-custodial — the backend builds and submits transactions, but only the user's wallet signs them.
+> **Never put a _user's_ Stellar secret key anywhere on the server.** Paiflow is non-custodial — the
+> backend builds and submits transactions, but only the user's own wallet signs them. The two server
+> keys that do belong in `.env` are Paiflow's own: `STELLAR_RELAYER_SECRET_KEY` for automation, and
+> `UPLOADER_SECRET`, used only by the contract-upload scripts.
 
 ### Deployment infrastructure
 
@@ -350,10 +394,18 @@ Configured for **Railway** (`railway.toml`, `nixpacks.toml`):
 
 ### Further reading
 
-- [`SPEC.md`](./SPEC.md) — full product + architecture spec (~1k lines)
-- [`docs/features.md`](./docs/features.md) — running changelog of user-visible features
-- [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) — contract API surface
-- [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md) — mainnet-go-live runbook
+| Document                                                               | What it covers                                                                                     |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [`SPEC.md`](./SPEC.md)                                                 | Product + architecture spec                                                                        |
+| [`CLAUDE.md`](./CLAUDE.md)                                             | How to build in this repo — commands, architecture, conventions, security checklist                |
+| [`BRAND.md`](./BRAND.md)                                               | Visual system: tokens, effects, typography, component patterns                                     |
+| [`docs/architecture-diagrams.md`](./docs/architecture-diagrams.md)     | Editable mermaid sources for the diagrams above                                                    |
+| [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) | Contract surface, build/upload pipeline, how to add a contract                                     |
+| [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md)                 | Mainnet go-live runbook                                                                            |
+| [`docs/pdax-institution-api.md`](./docs/pdax-institution-api.md)       | Fiat off-ramp API + UAT constraints                                                                |
+| [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md)   | Approved Instawards Phase 1 Statement of Work (verbatim) — deliverables, evidence, success metrics |
+| [`docs/design/`](./docs/design/)                                       | Design records — why a decision was made; see its README for the convention                        |
+| [`docs/archive/`](./docs/archive/)                                     | Superseded / out-of-scope documents — historical record only                                       |
 
 ## License
 

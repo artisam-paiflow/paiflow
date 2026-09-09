@@ -149,7 +149,7 @@ export function flowToEnglish(graph: FlowGraph): string {
       )} to ${who}`;
     }
   } else if (action.type === "swap") {
-    actionText = `swap ${assetLabel(action.config.assetIn)} to ${assetLabel(action.config.assetOut)} at ${(action.config.rateBps / 100).toFixed(0)}% rate`;
+    actionText = `swap ${assetLabel(action.config.assetIn)} to ${assetLabel(action.config.assetOut)} via Soroswap with up to ${action.config.slippageBps / 100}% slippage`;
   } else if (action.type === "yield") {
     const vault = isPendingAddress(action.config.vault)
       ? "(needs address)"

@@ -2,8 +2,8 @@ import type { Config } from "tailwindcss";
 
 /**
  * Tailwind v4 is configured via the `@theme` block in app/globals.css per
- * BRAND.md §11 + §12. This file only keeps `content` paths and `darkMode`
- * declared so editors and the `prettier-plugin-tailwindcss` resolver find them.
+ * BRAND.md §11. This file only keeps `content` paths and `darkMode` declared
+ * so editors and the `prettier-plugin-tailwindcss` resolver find them.
  *
  * Dark-mode policy: Paiflow is dark-only by design (BRAND.md §10 lists
  * light mode as an anti-pattern). `darkMode: "class"` + an always-on

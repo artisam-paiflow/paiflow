@@ -2,6 +2,7 @@
 
 import { WalletConnectModal } from "@walletconnect/modal";
 import { SignClient } from "@walletconnect/sign-client";
+import { WALLET_CONNECT_UNCONFIGURED, walletConnectProjectId } from "./wallet-connect-config";
 
 function isMobile() {
   if (typeof window === "undefined") return false;
@@ -13,8 +14,9 @@ function isMobile() {
 
 export type WalletKit = {
   kit: any;
+  /** null when WalletConnect is not configured; the kit then carries Freighter only. */
   module: any;
-  client: InstanceType<typeof SignClient>;
+  client: InstanceType<typeof SignClient> | null;
 };
 
 const cache = new Map<string, Promise<WalletKit>>();
@@ -32,7 +34,22 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
       import("@creit.tech/stellar-wallets-kit/modules/walletconnect.module"),
     ]);
 
-    const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID!;
+    const walletNetwork = network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET;
+    const projectId = walletConnectProjectId();
+
+    if (!projectId) {
+      // The WalletConnect SDK accepts an undefined project id at init and only
+      // fails later, when the relay rejects the pairing. On mobile WalletConnect
+      // is the only wallet path, so fail here with a message instead of there
+      // with a timeout. Desktop still has the Freighter extension.
+      if (isMobile()) throw new Error(WALLET_CONNECT_UNCONFIGURED);
+      const kit = new StellarWalletsKit({
+        network: walletNetwork,
+        modules: [new FreighterModule()],
+      });
+      return { kit, module: null, client: null };
+    }
+
     const chain = network === "mainnet" ? "stellar:pubnet" : "stellar:testnet";
 
     const originalConsoleError = console.error;
@@ -103,7 +120,7 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
       url: typeof window !== "undefined" ? window.location.origin : "",
       icons: ["/logo.png"],
       method: WalletConnectAllowedMethods.SIGN,
-      network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
+      network: walletNetwork,
       client:
         walletConnectClient as unknown as typeof import("@walletconnect/sign-client").SignClient,
       modal: walletConnectModal,
@@ -114,7 +131,7 @@ export async function getWalletKit(network: "testnet" | "mainnet"): Promise<Wall
       : [new FreighterModule(), walletConnectModule];
 
     const kit = new StellarWalletsKit({
-      network: network === "mainnet" ? WalletNetwork.PUBLIC : WalletNetwork.TESTNET,
+      network: walletNetwork,
       modules,
     });
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import SwapQuotePreview from "@/components/builder/swap-quote-preview";
 import type { FlowNode, FlowGraph, Asset } from "@/lib/flows/schema";
 import {
   isPendingAddress,
@@ -19,6 +20,7 @@ import { cn, formatStroops, shortAddr } from "@/lib/utils";
 import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
+import type { StellarNetwork } from "@/lib/stellar/explorer";
 import {
   computeAssetFlow,
   assetsEqual,
@@ -109,6 +111,12 @@ type Props = {
   addressBookError?: string | null;
   className?: string;
   /**
+   * The network this environment is pinned to, resolved from STELLAR_NETWORK on
+   * the server and passed down as a prop (the same route DeployReview takes).
+   * Named on the swap panel's router selector.
+   */
+  network: StellarNetwork;
+  /**
    * Hide the internal node-type label + Delete header row. Set when the floating
    * wrapper renders its own draggable header with the title and Delete control,
    * so the title isn't duplicated.
@@ -126,6 +134,7 @@ export default function ConfigPanel({
   addressBookLoading,
   addressBookError,
   className,
+  network,
   hideHeader = false,
 }: Props) {
   const expectedAsset = useMemo(
@@ -236,6 +245,7 @@ export default function ConfigPanel({
 
   return (
     <aside
+      data-testid="config-panel"
       className={cn(
         // Render at natural full height (no internal scrollbar / height cap):
         // a tall panel (e.g. the splitter) is brought into view by panning the
@@ -1368,6 +1378,7 @@ export default function ConfigPanel({
               onChange({ ...node, config: { ...node.config, assetIn } } as FlowNode)
             }
             expectedAsset={expectedAsset}
+            error={fieldError("assetIn")}
           />
           <AssetSimpleSelect
             label="Asset Out"
@@ -1375,29 +1386,70 @@ export default function ConfigPanel({
             onChange={(assetOut) =>
               onChange({ ...node, config: { ...node.config, assetOut } } as FlowNode)
             }
+            error={fieldError("assetOut")}
           />
-          <Field label="Rate (basis points, 1–10000)" error={fieldError("rateBps")}>
+          <Field label="Router">
+            {/* One option, disabled: the router address is pinned per environment
+                on the server and injected at deploy time. Soroswap redeploys its
+                testnet router on every reset, so a user-typed address would go
+                stale and widen the trust surface. */}
+            <select className="input" disabled value="soroswap" data-testid="swap-router">
+              <option value="soroswap">Soroswap ({network})</option>
+            </select>
+          </Field>
+          <Field label="Max slippage (%)" error={fieldError("slippageBps")}>
             <input
               className="input"
               type="number"
-              min={1}
-              max={10000}
-              value={node.config.rateBps}
+              min={0}
+              max={100}
+              step={0.1}
+              value={node.config.slippageBps / 100}
               onChange={(e) => {
                 const v = Number(e.target.value);
                 onChange({
                   ...node,
                   config: {
                     ...node.config,
-                    rateBps: isNaN(v) ? 1 : Math.min(10000, Math.max(1, v)),
+                    slippageBps: isNaN(v) ? 100 : Math.round(Math.min(100, Math.max(0, v)) * 100),
                   },
                 });
               }}
             />
             <div className="mt-0.5 text-[11px] text-zinc-500">
-              = {(node.config.rateBps / 100).toFixed(0)}%
+              Minimum output is the pool&apos;s spot price less this percentage. It must cover
+              Soroswap&apos;s 0.3% fee plus price impact, so values under 0.3% always fail.
             </div>
           </Field>
+          <Field label="Deadline (seconds)" error={fieldError("deadlineSecs")}>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={86400}
+              value={node.config.deadlineSecs}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                onChange({
+                  ...node,
+                  config: {
+                    ...node.config,
+                    // Clamped to the schema's bound so the panel and the server agree.
+                    deadlineSecs: isNaN(v) ? 300 : Math.min(86_400, Math.max(1, Math.floor(v))),
+                  },
+                });
+              }}
+            />
+            <div className="mt-0.5 text-[11px] text-zinc-500">
+              Bounds the ledger close time the router accepts. On the direct trigger path it is
+              computed in the same transaction and cannot expire.
+            </div>
+          </Field>
+          <SwapQuotePreview
+            assetIn={node.config.assetIn}
+            assetOut={node.config.assetOut}
+            slippageBps={node.config.slippageBps}
+          />
         </>
       )}
 
@@ -2665,11 +2717,13 @@ function AssetSelectOrReadout({
   asset,
   onChange,
   expectedAsset,
+  error,
 }: {
   label: React.ReactNode;
   asset: SimpleAsset;
   onChange: (a: SimpleAsset) => void;
   expectedAsset?: Asset | null;
+  error?: string | null;
 }) {
   useEffect(() => {
     if (expectedAsset?.kind === "custom" && !assetsEqual(expectedAsset, asset)) {
@@ -2679,7 +2733,7 @@ function AssetSelectOrReadout({
 
   if (expectedAsset?.kind === "custom") {
     return (
-      <Field label={<AssetFieldLabel label={label} expectedAsset={expectedAsset} />}>
+      <Field label={<AssetFieldLabel label={label} expectedAsset={expectedAsset} />} error={error}>
         <div className="input flex items-center text-zinc-400">{assetLabel(expectedAsset)}</div>
       </Field>
     );
@@ -2689,7 +2743,7 @@ function AssetSelectOrReadout({
   const usdcDisabled =
     !!expectedAsset && !assetsEqual(expectedAsset, { kind: "known", symbol: "USDC" });
   return (
-    <Field label={<AssetFieldLabel label={label} expectedAsset={expectedAsset} />}>
+    <Field label={<AssetFieldLabel label={label} expectedAsset={expectedAsset} />} error={error}>
       <select
         className="input"
         value={asset.kind === "known" ? `known:${asset.symbol}` : asset.kind}
@@ -2734,11 +2788,13 @@ function AssetSimpleSelect({
   asset,
   onChange,
   expectedAsset,
+  error,
 }: {
   label: string;
   asset: SimpleAsset;
   onChange: (a: SimpleAsset) => void;
   expectedAsset?: Asset | null;
+  error?: string | null;
 }) {
   return (
     <AssetSelectOrReadout
@@ -2746,6 +2802,7 @@ function AssetSimpleSelect({
       asset={asset}
       onChange={onChange}
       expectedAsset={expectedAsset}
+      error={error}
     />
   );
 }

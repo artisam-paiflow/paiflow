@@ -6,7 +6,7 @@ import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit } from "@/lib/rate-limit";
-import { env } from "@/lib/env";
+import { env, soroswapRouterAddress, SWAP_ROUTER_UNSET_MESSAGE } from "@/lib/env";
 import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
@@ -63,6 +63,10 @@ export async function POST(req: NextRequest) {
         "VALIDATION",
         "STELLAR_RELAYER_ADDRESS is required to deploy an HTTP Webhook flow. Set it in your environment.",
       );
+    }
+
+    if (v.graph.nodes.some((n) => n.type === "swap") && !soroswapRouterAddress()) {
+      throw new AppError("VALIDATION", SWAP_ROUTER_UNSET_MESSAGE);
     }
 
     const pipeline = flowToPipeline(v.graph, relayerAddress, offRampTreasuryAddress());

@@ -1,3 +1,22 @@
+# Paiflow — hackathon submission copy, 2026-07
+
+> **Archived.** This is the text submitted to a competition in **July 2026** — a record of what was
+> sent, not a description of the product. Which competition is not recorded anywhere in the repo;
+> the PDAX off-ramp it describes ran against what `lib/offramp/assets.ts` calls "the hackathon UAT
+> environment". Submission copy is written per competition, so nothing here is maintained.
+>
+> **This paragraph is worth reusing** — it is the tightest statement of the value proposition
+> anywhere in the repo. Fix these four things first:
+>
+> | In the copy below                                           | What is true today                                                                                                                                                                             |
+> | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | "ships a live, non-custodial Soroban **contract**"          | A flow deploys a _pipeline_ of contracts, wired by the factory in one transaction — [`CLAUDE.md` §2](../../CLAUDE.md#2-architecture)                                                           |
+> | "**Pre-audited** templates"                                 | No audit has been performed                                                                                                                                                                    |
+> | "(splitter, streamer, conditional, subscription, payroll)"  | Mixes triggers with actions, and omits `pay`, `email_notify` and `cash_out` — the last being the very thing the sentence is selling. [`SPEC.md` §3](../../SPEC.md#3-block-library) is the list |
+> | "watch it fan out — crypto on-chain, **pesos to the bank**" | The default off-ramp provider is the **mock**. Only `OFFRAMP_PROVIDER=pdax` reaches a real bank, so a reviewer following this instruction verbatim gets a simulated payout                     |
+
+---
+
 # Paiflow — Zaps for Money
 
 Programmable payments on Stellar are genuinely excellent for backend developers and genuinely opaque to everyone else. Today, a creator splitting revenue with collaborators, an MSME paying a contractor pool, or an OFW automating family remittances has only two paths: hire a scarce, expensive Rust engineer to write a Soroban contract, or surrender to a closed SaaS that locks them into someone else's rails and fees. There is no middle layer — no Stripe Connect, no Zapier-for-money. Paiflow is that layer. It's a visual builder where a non-technical operator drags "when this happens" triggers onto "pay this" actions, hits **Deploy**, and ships a live, non-custodial Soroban contract in under 90 seconds — without ever touching Rust or XDR. And unlike other no-code payment tools, a Paiflow flow doesn't have to end on-chain: payouts can land directly in a recipient's bank account. Pay and split steps carry a native fiat payout mode backed by a PDAX off-ramp integration — bank details and sender KYC are captured in the builder, baked into immutable contracts at deploy time, and settled by an automated off-ramp pipeline. Pre-audited templates (splitter, streamer, conditional, subscription, payroll) cover the long tail of real-world money flows, since most programmable-payment use cases reduce to one of them. The result is direct impact for Stellar: it turns Soroban's power into a drag-and-drop primitive, dramatically widening the funnel of people who can actually ship on the network. Because deploys are non-custodial — the user's own wallet signs, keys never leave their hands — Paiflow onboards new builders and new capital onto Stellar while preserving exactly what makes the chain good: fast, cheap, atomic, self-custodial payments.

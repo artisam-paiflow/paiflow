@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
-import { FlowGraphSchema, type Asset, assetLabel } from "@/lib/flows/schema";
+import { FlowGraphSchema, type Asset, type FlowGraph, assetLabel } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToEnglish } from "@/lib/flows/english";
 import {
@@ -46,6 +46,20 @@ export default async function DeployReviewPage({
       schedule: boolean;
     };
   } | null = null;
+  // One per swap node: nothing caps a flow at a single swap, and a chained
+  // swap -> swap would otherwise show a quote for the first leg only.
+  const swapPreviews = graph.success
+    ? graph.data.nodes
+        .filter(
+          (n): n is Extract<FlowGraph["nodes"][number], { type: "swap" }> => n.type === "swap",
+        )
+        .map((n) => ({
+          id: n.id,
+          assetIn: n.config.assetIn,
+          assetOut: n.config.assetOut,
+          slippageBps: n.config.slippageBps,
+        }))
+    : [];
   const isSubscriptionTrigger = graph.data!.nodes.some((n) => n.type === "subscription");
   const isPayrollTrigger = graph.data!.nodes.some((n) => n.type === "payroll");
   if (pipeline) {
@@ -294,7 +308,13 @@ export default async function DeployReviewPage({
           </div>
         )}
 
-        {validation?.ok && <DeployReview flowId={flow.id} network={env().STELLAR_NETWORK} />}
+        {validation?.ok && (
+          <DeployReview
+            flowId={flow.id}
+            network={env().STELLAR_NETWORK}
+            swapPreviews={swapPreviews}
+          />
+        )}
       </main>
     </>
   );

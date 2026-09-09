@@ -1,4 +1,5 @@
 import "server-only";
+import { type SorobanErrorHint } from "./soroban-errors";
 import {
   Address,
   BASE_FEE,
@@ -119,6 +120,7 @@ export async function prepareWebhookExecuteInvocation(opts: {
 }
 
 export async function prepareWebhookDepositInvocation(opts: {
+  hint?: SorobanErrorHint;
   contractAddress: string;
   from: string;
   amount: string;
@@ -151,7 +153,7 @@ export async function prepareWebhookDepositInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw simulationFailure(sim.error, { contract: "webhook" });
+    throw simulationFailure(sim.error, opts.hint ?? { contract: "webhook" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -243,6 +245,7 @@ export async function prepareTokenTransferInvocation(opts: {
 }
 
 export async function prepareDepositInvocation(opts: {
+  hint?: SorobanErrorHint;
   contractAddress: string;
   amount: string;
   invokerAddress: string;
@@ -275,7 +278,7 @@ export async function prepareDepositInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw simulationFailure(sim.error);
+    throw simulationFailure(sim.error, opts.hint);
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 

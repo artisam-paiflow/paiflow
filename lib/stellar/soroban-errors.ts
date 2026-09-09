@@ -14,6 +14,8 @@ export type ContractErrorKey =
   | "splitter"
   | "splitter_dev"
   | "swapper"
+  | "soroswap_router"
+  | "soroswap_factory"
   | "yield"
   | "payer"
   | "payer_dev"
@@ -148,11 +150,72 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     4: {
       name: "InsufficientOutput",
       friendly:
-        "The swap would produce no output, or the contract doesn't hold enough of the output asset.",
+        "The swap returned less than the minimum allowed by the slippage setting, or nothing at all.",
     },
     5: {
-      name: "BadRate",
-      friendly: "The swap rate must be greater than 0 and at most 100%.",
+      name: "BadSlippage",
+      friendly: "Max slippage must be between 0% and 100%.",
+    },
+    6: {
+      name: "BadDeadline",
+      friendly: "The swap deadline must be at least 1 second.",
+    },
+    7: {
+      name: "TooManyNextSteps",
+      friendly: "A swap can forward to only one next step.",
+    },
+    8: {
+      name: "NoNextStep",
+      friendly:
+        "A swap needs a next step to send its output to. Connect the swap to a payout step and redeploy.",
+    },
+  },
+  // Soroswap router (CombinedRouterError in soroswap/core). Not a Paiflow
+  // template; reached through `addressMap` on the trigger path.
+  soroswap_router: {
+    503: {
+      name: "RouterDeadlineExpired",
+      friendly: "The swap's deadline passed before it executed. Try again.",
+    },
+    507: {
+      name: "RouterInsufficientOutputAmount",
+      friendly:
+        "Soroswap would return less than the minimum allowed by the swap's slippage setting. Raise the max slippage or swap a smaller amount.",
+    },
+    // Unreachable on the current swapper path: do_swap calls factory.get_pair
+    // before the router, so a missing pool raises FactoryError::PairDoesNotExist
+    // (see soroswap_factory below). Kept because the code is real in
+    // CombinedRouterError and any path that calls the router without that
+    // pre-step will raise it.
+    509: {
+      name: "RouterPairDoesNotExist",
+      friendly: "Soroswap has no liquidity pool for this asset pair on this network.",
+    },
+    511: {
+      name: "LibraryInsufficientLiquidity",
+      friendly: "The Soroswap pool for this pair has no liquidity.",
+    },
+    513: {
+      name: "LibraryInsufficientOutputAmount",
+      friendly:
+        "Soroswap would return less than the minimum allowed by the swap's slippage setting. Raise the max slippage or swap a smaller amount.",
+    },
+    514: {
+      name: "LibraryInvalidPath",
+      friendly: "The swap path is invalid.",
+    },
+  },
+  // Soroswap factory (FactoryError in soroswap/core
+  // contracts/factory-interface/src/error.rs; band is 201-206, read 2026-09-07).
+  // do_swap resolves the pair through the factory before it touches the router,
+  // so this is the frame a missing pool actually fails in. Only 205 is listed
+  // because get_pair is the sole factory call on the swap path — the rest of the
+  // band belongs to create_pair / initialize / all_pairs, which Paiflow never
+  // calls.
+  soroswap_factory: {
+    205: {
+      name: "PairDoesNotExist",
+      friendly: "Soroswap has no liquidity pool for this asset pair on this network.",
     },
   },
   yield: {
@@ -498,6 +561,21 @@ export type SorobanErrorTranslation = {
  * belongs to the innermost (most relevant) failure. The address on the same
  * event identifies which contract in a pipeline rejected.
  */
+/**
+ * Every diagnostic entry whose topics carry a contract error, in log order.
+ * The simulate log is newest-first: when a contract error escalates through
+ * a pipeline (deposit trigger → swapper → Soroswap router), the outermost
+ * frame comes first and the frame that originated the error comes last.
+ */
+function findContractErrors(raw: string): Array<{ address: string; code: number }> {
+  const out: Array<{ address: string; code: number }> = [];
+  const re = /contract:(C[A-Z0-9]{55}),\s*topics:\[error,\s*Error\(Contract,\s*#?(\d+)\)\]/g;
+  for (const m of raw.matchAll(re)) {
+    out.push({ address: m[1]!, code: Number(m[2]) });
+  }
+  return out;
+}
+
 function findContractError(raw: string): { address?: string; code: number } | undefined {
   const withAddress = /contract:(C[A-Z0-9]{55})[\s\S]{0,500}?Error\(Contract,\s*#?(\d+)\)/.exec(
     raw,
@@ -551,6 +629,27 @@ export function translateSorobanError(
   raw: string,
   hint?: SorobanErrorHint,
 ): SorobanErrorTranslation {
+  // Walk the error-bearing frames from the originator outwards and take the
+  // first one we have a table entry for, so a Soroswap router revert reads as
+  // the router's message rather than "the deposit trigger rejected #507".
+  //
+  // A frame that fails traps with the *same* code its callee raised, so once a
+  // frame cannot explain a code, every outer frame carrying that code is a
+  // re-raise and is skipped. Otherwise a token contract's #6 on the pay leg
+  // would be looked up in the swapper's table and read as "bad deadline". A
+  // frame with a different code is a genuine originator and is still checked.
+  // With an addressMap, an unmapped frame is left unexplained rather than
+  // looked up in `hint.contract`, for the same reason.
+  let rejected: number | undefined;
+  for (const frame of findContractErrors(raw).reverse()) {
+    if (rejected !== undefined && frame.code === rejected) continue;
+    const key = hint?.addressMap ? hint.addressMap[frame.address] : hint?.contract;
+    const entry = key ? CONTRACT_ERRORS[key][frame.code] : undefined;
+    if (entry) {
+      return { friendly: entry.friendly, matched: true, errorName: entry.name };
+    }
+    rejected = frame.code;
+  }
   const contractError = findContractError(raw);
   if (contractError) {
     const key =

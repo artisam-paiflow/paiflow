@@ -6,6 +6,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { prepareTriggerTx, prepareWebhookDepositTx } from "@/lib/stellar/trigger";
 import { prepareStreamerTopUpInvocation } from "@/lib/stellar/invoke";
 import { stellarPassphrase } from "@/lib/env";
+import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 
 const PostSchema = z.object({
@@ -46,12 +47,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       throw new AppError("VALIDATION", "Contract address not available");
     }
 
+    const hint = await buildPipelineErrorHint(pipeline);
+
     let xdr: string;
     if (isWebhook) {
       const result = await prepareWebhookDepositTx({
         contractAddress: d.contractAddress,
         amount: body.amount,
         fromAddress: body.userAddress,
+        hint,
       });
       xdr = result.xdr;
     } else if (isStreamer) {
@@ -67,6 +71,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         amount: body.amount,
         fromAddress: body.userAddress,
         isPipeline,
+        hint,
       });
       xdr = result.xdr;
     }

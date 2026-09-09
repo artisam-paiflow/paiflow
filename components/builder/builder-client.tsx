@@ -27,6 +27,7 @@ import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { validateFlow, flowHasFiatPayout } from "@/lib/flows/validate";
 import type { AddressEntry } from "@/lib/address-book.types";
+import type { StellarNetwork } from "@/lib/stellar/explorer";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import AnimatedStraightEdge from "@/components/nodes/animated-edge";
 import CanvasConfigPanel from "./canvas-config-panel";
@@ -57,6 +58,8 @@ type BuilderProps = {
   flowId: string;
   initialName: string;
   initialGraph: FlowGraph;
+  /** Pinned per environment on the server; the swap panel names it on the router selector. */
+  network: StellarNetwork;
 };
 
 function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["positions"]): Node {
@@ -163,7 +166,7 @@ export default function BuilderClient(props: BuilderProps) {
   );
 }
 
-function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
+function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
   const [name, setName] = useState(initialName);
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>(initialGraph.nodes);
   const [rfNodes, setRfNodes] = useState<Node[]>(
@@ -786,6 +789,7 @@ function Builder({ flowId, initialName, initialGraph }: BuilderProps) {
                   selectedId={selectedId}
                   node={selectedNode}
                   graph={graph}
+                  network={network}
                   onChange={updateNode}
                   onDelete={deleteNode}
                   addressBook={addressBook}

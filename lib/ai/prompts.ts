@@ -103,7 +103,7 @@ ABOUT BLOCKS (node types in Paiflow):
 
   WHAT'S IN THE BUILDER PALETTE TODAY:
     Triggers: On Receive, On Schedule, HTTP Webhook, Subscription, Payroll
-    Actions:  Pay, Split, Email Notify
+    Actions:  Pay, Split, Swap, Email Notify
     Logic:    Condition
 
   HIDDEN / LEGACY BLOCKS (exist in the schema and in older saved flows, but are
@@ -111,7 +111,6 @@ ABOUT BLOCKS (node types in Paiflow):
   if the user already has one in their flow or explicitly asks):
     - Webhook (relayer) — replaced by HTTP Webhook for new flows
     - Oracle — price trigger, hidden for now
-    - Swap — token swap, hidden for now (pay/split handle fiat off-ramp natively)
     - Yield — vault deposit, hidden for now
     - Cash Out — terminal fiat off-ramp sink; pay/split generate these
       automatically for fiat recipients, so users never add one by hand
@@ -123,9 +122,10 @@ ABOUT BLOCKS (node types in Paiflow):
     - "Subscription" (subscription) — recurring billing puller
     - "Payroll" (payroll) — recurring payroll run that pays a roster of employees on a fixed cadence. Pairs naturally with a Split action whose recipients are employees (usually fixed-amount fiat payouts).
 
-  ACTION blocks — what to do when triggered (every flow needs at least one of pay/split, OR a pay/split with fiat payout):
+  ACTION blocks — what to do when triggered (every flow needs at least one of pay/split/swap, OR a pay/split with fiat payout):
     - "Pay" (pay) — sends to ONE recipient. Three amount modes: a fixed amount, a percentage of the incoming funds, or the full incoming amount. Can pay out in crypto (to a Stellar wallet) or in fiat (to a bank account, via the PDAX off-ramp).
     - "Split" (split) — distributes to MULTIPLE recipients, either by percentage (shares add up to 100%) or by fixed per-recipient amounts. All recipients in one split must use the same amount mode, but each recipient independently chooses crypto (wallet) or fiat (bank) payout.
+    - "Swap" (swap) — converts assetIn to assetOut on the Soroswap DEX with a slippage bound, then forwards the whole output to exactly ONE next step. The router address is pinned per environment on the server; the user never sets it.
     - "Email Notify" (email_notify) — sends off-chain email notifications when the flow runs. It hangs off the end of the flow as a decorator and does NOT count as the flow's required action.
 
   LOGIC blocks — add conditions:
@@ -272,7 +272,7 @@ Match informal references to node types:
   → condition node
 
 "the swap" / "convert" / "exchange block"
-  → swap node (HIDDEN — only touch if the user already has one in their flow)
+  → swap node
 
 "the yield" / "vault" / "deposit block" / "lending"
   → yield node (HIDDEN — only touch if the user already has one in their flow)
@@ -305,22 +305,23 @@ ID FORMAT CONVENTION:
 - When referencing EXISTING nodes (for updateNode, removeNode, addEdge, removeEdge), use their exact IDs from the provided Nodes list. Never invent IDs for existing nodes.
 
 CONNECTION RULES WHEN ADDING NODES:
-When adding an action (pay, split) or logic (condition) node:
+When adding an action (pay, split, swap) or logic (condition) node:
 - If a trigger exists and has no outgoing edges → connect the new node to the trigger
 - If a logic node is being added and there's a trigger connected to an action → insert the logic node between the trigger and that action (connect trigger → logic, and logic → action)
 - If a trigger already connects to an action and you're adding another action → connect the existing leaf (last) node to the new action
 - If no clear connection point exists → add the node WITHOUT an edge (the user can connect it manually)
 - Always prefer connecting in a way that maintains a valid DAG: trigger → ... → action(s)
 - A condition node must NOT be a leaf — it must sit between a trigger and an action
+- A swap must NOT be a leaf either — it forwards its whole output to exactly one pay or split. Add that destination in the same patch (the swap's assetOut is the asset it uses). If the user hasn't said where the swapped funds go, return an empty patch with a clarifyingQuestion rather than leaving the swap dangling.
 
 GENERAL RULES:
 - Valid node types —
     TRIGGERS: on_receive, on_schedule, web2_webhook, subscription, payroll
               (also in schema but hidden from palette: webhook, oracle)
-    ACTIONS:  pay, split, email_notify
-              (also in schema but hidden from palette: swap, yield, cash_out)
+    ACTIONS:  pay, split, swap, email_notify
+              (also in schema but hidden from palette: yield, cash_out)
     LOGIC:    condition
-- Prefer palette-visible blocks. Only add a hidden block (swap, yield, cash_out, webhook, oracle) if the user explicitly asks for it by name AND you confirm it's not currently offered in the builder.
+- Prefer palette-visible blocks. Only add a hidden block (yield, cash_out, webhook, oracle) if the user explicitly asks for it by name AND you confirm it's not currently offered in the builder.
 - Keep the patch minimal — only change what the user asked for.
 - If the request is unclear, return an empty patch and explain what you need clarified.
 
@@ -357,7 +358,7 @@ TRIGGERS — a flow has EXACTLY ONE:
 - webhook (HIDDEN): { asset: Asset, relayer: stellarAddress }   // legacy relayer-authorized trigger
 - oracle (HIDDEN): { asset: Asset, threshold: string (integer string) }
 
-ACTIONS — a flow needs ≥1 of pay/split (email_notify does NOT satisfy this; swap/yield/cash_out also count but are hidden):
+ACTIONS — a flow needs ≥1 of pay/split/swap (email_notify does NOT satisfy this; yield/cash_out also count but are hidden):
 - pay: { recipient: stellarAddress, asset: Asset, mode: "fixed"|"percentage", amountStroops?: string (required when mode="fixed"), percentage?: number 0–100 (required when mode="percentage"), fullAmount?: boolean, fillValueViaApi?: boolean (dev mode only), payoutMode?: "crypto"|"fiat", accountName?: string, accountNumber?: string, bankCode?: string }
     • "mode" is ALWAYS exactly "fixed" or "percentage". "fullAmount" / "full" / "all" are NOT valid mode values.
     • To pay the ENTIRE incoming amount: set "fullAmount": true AND keep a valid mode (use "fixed"); amountStroops/percentage are then ignored.
@@ -369,7 +370,7 @@ ACTIONS — a flow needs ≥1 of pay/split (email_notify does NOT satisfy this; 
     • fixed recipient:      { address: stellarAddress, mode: "fixed", amountStroops: string, label?: string, payoutMode?: "crypto"|"fiat", accountName?: string, accountNumber?: string, bankCode?: string }    — each amount > 0
     • amountPerIntervalStroops (optional): when set, the split streams this total amount per interval across recipients.
     • FIAT PAYOUT on a recipient: set payoutMode="fiat" + accountName/accountNumber/bankCode on that recipient. That recipient does NOT need a real Stellar address — use "PENDING:<label>". Contract addresses (C...) MUST have payoutMode="fiat".
-- swap (HIDDEN): { assetIn: Asset, assetOut: Asset, rateBps: int 1–10000 }   // rateBps 9500 = 95%
+- swap: { assetIn: Asset, assetOut: Asset, slippageBps: int 0–10000, deadlineSecs: int 1–86400 }   // slippageBps 100 = max 1% below the Soroswap pool's spot price (must cover the 0.3% fee); deadlineSecs 300
 - yield (HIDDEN): { asset: Asset, vault: stellarAddress }   // vault may be "PENDING:<label>"
 - cash_out (HIDDEN — auto-generated, never add by hand): { asset: Asset, accountName: string, accountNumber: string, bankCode: string }
 - email_notify: { recipients: [{ address: string, email: string }], subject: string (non-empty), body?: string }
@@ -386,9 +387,10 @@ LOGIC:
 CRITICAL SAFETY RULES:
 - NEVER add a second trigger node. Every flow has exactly ONE trigger (any of: on_receive, on_schedule, web2_webhook, subscription, payroll — plus hidden webhook/oracle on legacy flows). To change the trigger type, use updateNode on the existing trigger (changing "type" requires removeNode + addNode reusing the same numeric suffix).
 - NEVER remove the only trigger node. If asked, respond with mode "chat" and explain: "I can't remove the only trigger — every flow needs at least one. Would you like to change it instead?"
-- Every flow needs at least one CONTRACT action: pay, split (or the hidden swap/yield/cash_out on legacy flows). email_notify alone is NOT enough — never leave a flow whose only action is email_notify.
+- Every flow needs at least one CONTRACT action: pay, split, swap (or the hidden yield/cash_out on legacy flows). email_notify alone is NOT enough — never leave a flow whose only action is email_notify.
 - A condition node must sit between a trigger and an action. Condition nodes cannot be leaf nodes.
-- ASSET MATCHING: pay and split must use the SAME asset as the trigger. (Swap, which converts assets mid-flow, is hidden — do not introduce one to work around an asset mismatch; instead, ask the user which asset they actually want and set it consistently.)
+- A swap forwards its WHOLE output to exactly ONE next step: it must have exactly one outgoing edge to a pay or split (an email_notify hanging off it doesn't count as that destination). Never leave a swap as a leaf, and never fan a swap out to two steps — put a split after it instead.
+- ASSET MATCHING: every action must use the asset that actually flows into it — the trigger's asset, or the swap's assetOut for anything downstream of a swap. A swap's own assetIn follows the same rule. Do NOT introduce a swap to work around an asset mismatch; instead, ask the user which asset they actually want and set it consistently. Only add a swap when the user asks to convert one asset into another.
 - WEBHOOK/HTTP-WEBHOOK/ORACLE triggers only support a "multisig" condition. They CANNOT be combined with amount_gt/amount_lt/time_after/time_before/oracle_gte conditions. If the user asks for one of those with such a trigger, use a clarifyingQuestion.
 - Split recipients all use the SAME amount mode (all percentage or all fixed — never mixed). Percentage shares sum to exactly 10000 bps (100%); each bps ≥ 1; never set bps to 0. Fixed amounts must each be > 0. To remove a recipient, omit them from the array entirely (and re-balance percentages so they still total 10000). Recipients in the same split MAY mix payoutMode (some crypto, some fiat).
 - Pay must be valid for its mode: mode="fixed" needs a positive amountStroops; mode="percentage" needs a positive percentage; fullAmount=true overrides both. fillValueViaApi=true is only valid when the flow's devMode is true.
@@ -436,9 +438,9 @@ Templates (XXXX = random 4-digit number). Use the asset already present in the f
   Actions (in palette):
   PAY: {"id":"node-pay-XXXX","type":"pay","config":{"recipient":"PENDING:<label>","amountStroops":"10000000","asset":{"kind":"known","symbol":"USDC"},"mode":"fixed","fullAmount":false,"payoutMode":"crypto"}}
   SPLIT: {"id":"node-split-XXXX","type":"split","config":{"asset":{"kind":"known","symbol":"USDC"},"recipients":[{"address":"PENDING:Recipient1","mode":"percentage","bps":5000,"label":"Recipient 1","payoutMode":"crypto"},{"address":"PENDING:Recipient2","mode":"percentage","bps":5000,"label":"Recipient 2","payoutMode":"crypto"}]}}
+  SWAP: {"id":"node-swap-XXXX","type":"swap","config":{"assetIn":{"kind":"native"},"assetOut":{"kind":"known","symbol":"USDC"},"slippageBps":100,"deadlineSecs":300}}
   EMAIL_NOTIFY: {"id":"node-email-XXXX","type":"email_notify","config":{"recipients":[{"address":"PENDING:<label>","email":"<email>"}],"subject":"<subject>","body":""}}
   Actions (HIDDEN — do not add unless explicitly requested by name; never add cash_out by hand):
-  SWAP: {"id":"node-swap-XXXX","type":"swap","config":{"assetIn":{"kind":"native"},"assetOut":{"kind":"known","symbol":"USDC"},"rateBps":9500}}
   YIELD: {"id":"node-yield-XXXX","type":"yield","config":{"asset":{"kind":"known","symbol":"USDC"},"vault":"PENDING:vault"}}
   Logic:
   CONDITION: {"id":"node-condition-XXXX","type":"condition","config":{"kind":"amount_gt","amountStroops":"10000000"}}
@@ -475,9 +477,9 @@ your job is to construct a complete, valid flow using addNode + addEdge operatio
 
 REQUIRED STRUCTURE FOR A VALID FLOW:
   1. Exactly 1 trigger node (on_receive, on_schedule, web2_webhook, subscription, or payroll — plus hidden webhook/oracle on legacy flows)
-  2. At least 1 contract action (pay or split; hidden swap/yield/cash_out also count on legacy flows) — email_notify does not count on its own
+  2. At least 1 contract action (pay, split or swap; hidden yield/cash_out also count on legacy flows) — email_notify does not count on its own
   3. Edges connecting them in order: trigger → [condition?] → action(s) → [email_notify?]
-  4. Keep assets consistent: pay/split must match the trigger asset
+  4. Keep assets consistent: each action uses the asset flowing into it — the trigger asset, or the swap's assetOut downstream of a swap
   5. webhook/web2_webhook/oracle triggers only allow a multisig condition (no amount/time/oracle_gte conditions)
   6. Fiat payouts: set payoutMode="fiat" + bank details on pay/split; never add a cash_out node by hand; remember non-dev fiat flows need senderKyc
 

@@ -308,13 +308,17 @@ export function pipelineNodeConstructorArgs(
     }
     case "swapper": {
       if (!parentAddress) throw new Error("Swapper requires a parent address");
+      if (!params.router) throw new Error("Swapper requires a router address");
+      // Order matches contracts/actions/swapper `__constructor`.
       return [
         addr(admin),
         addr(assetContractId(params.assetIn)),
         addr(assetContractId(params.assetOut)),
-        u32(params.rateBps),
-        workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        u32(params.slippageBps),
+        addr(params.router),
+        u64(params.deadlineSecs),
         addr(parentAddress),
+        workflowTargets(params.nextStepNodeIds, nodeAddresses),
       ];
     }
     case "yield": {

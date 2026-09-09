@@ -1,6 +1,12 @@
 # [POC] Build `payroll-poc` — a web2 freelancer payroll app powered by Paiflow
 
-> **Status:** design / ready for implementation  
+> **Archived — describes a different repository.** This is an implementation
+> brief for `webnxt-2030/paiflow-payroll`, a standalone consumer app. Nothing
+> here describes code in _this_ repo, and no work item in it tracks against
+> this codebase. Kept only as a record of the "Paiflow as a web2 backend"
+> narrative it was written for.
+
+> **Status:** archived (was: design / ready for implementation)  
 > **Owner:** TBD  
 > **Repo:** `webnxt-2030/paiflow-payroll` (standalone, not under `paiflow`)  
 > **Branch target:** `main`  
@@ -96,7 +102,7 @@ paiflow-payroll/
 └── tailwind.config.ts
 ```
 
-It depends on **Paiflow** only at the API boundary (`lib/paiflow-client.ts`). The Paiflow repo (`webnxt-2030/paiflow`, branch `feat/payroll-pull-employer`) is the upstream backend and source of truth for contract behavior.
+It depends on **Paiflow** only at the API boundary (`lib/paiflow-client.ts`). The Paiflow repo (`webnxt-2030/pinkraft`, branch `feat/payroll-pull-employer`) is the upstream backend and source of truth for contract behavior.
 
 ---
 
@@ -394,9 +400,9 @@ Each stub function must contain a `// TODO(PAIFLOW_API): replace with real HTTP 
 ## 17. Related work
 
 - Current branch: `feat/payroll-pull-employer` — contains the `PAYROLL` contract and mutable recipient APIs.
-- `docs/dev-mode-mutable-flows.md` — explains the `_DEV` contract decomposition (`SUBSCRIPTION_DEV → SPLITTER_DEV`) that this app will eventually consume.
+- `docs/design/2026-06-24-dev-mode-mutable-flows.md` — explains the `_DEV` contract decomposition (`SUBSCRIPTION_DEV → SPLITTER_DEV`) that this app will eventually consume.
 - `lib/offramp/*` — PDAX off-ramp jobs the fiat flow will use once wired.
-- `SPEC.md` and `AGENT.md` — Paiflow's product spec and engineering guidelines.
+- `SPEC.md` and `CLAUDE.md` — Paiflow's product spec and engineering guidelines.
 
 ---
 

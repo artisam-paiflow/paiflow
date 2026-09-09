@@ -13,26 +13,22 @@ import {
 import { randomBytes } from "node:crypto";
 import { sorobanRpc, horizon, withRelayerLock } from "./client";
 import { getFactoryAddress } from "@/lib/stellar/config";
-import { stellarPassphrase, stellarRelayerAddress, stellarRelayerSecretKey } from "@/lib/env";
-import { AppError } from "@/lib/errors";
-import type { ContractParams, PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
-import type { FlowGraph } from "@/lib/flows/schema";
-import { constructorArgs, nodeBlueprint, pipelineNodeConstructorArgs } from "./scval";
-import { simulationFailure } from "./sim-error";
 import {
-  contractKeyForParamsKind,
-  contractKeyForTemplate,
-  type ContractErrorKey,
-} from "./soroban-errors";
+  stellarPassphrase,
+  stellarRelayerAddress,
+  stellarRelayerSecretKey,
+  soroswapRouterAddress,
+  SWAP_ROUTER_UNSET_MESSAGE,
+} from "@/lib/env";
+import { AppError } from "@/lib/errors";
+import type { PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
+import type { FlowGraph } from "@/lib/flows/schema";
+import { nodeBlueprint, pipelineNodeConstructorArgs } from "./scval";
+import { simulationFailure } from "./sim-error";
+import { contractKeyForTemplate, type ContractErrorKey } from "./soroban-errors";
 
 // 2 XLM covers: 1 XLM base reserve + ~0.5 XLM Soroban storage entries + ~0.5 XLM tx fee buffer
 const MIN_DEPLOYMENT_XLM_STROOPS = 20_000_000n;
-
-export type PreparedDeploy = {
-  xdr: string;
-  contractAddress: string;
-  salt: Buffer;
-};
 
 export async function checkAccountFunding(
   sourceAccount: string,
@@ -59,51 +55,6 @@ export async function checkAccountFunding(
       `Account has ${native?.balance ?? "0"} XLM. Minimum ${Number(minLumens) / 10_000_000} XLM required for deployment fees and rent.`,
     );
   }
-}
-
-/** Build & simulate a Soroban contract creation tx. Returns unsigned XDR. */
-export async function prepareDeployTx(opts: {
-  wasmHash: string; // hex
-  sourceAccount: string; // G... user pubkey
-  params: ContractParams;
-}): Promise<PreparedDeploy> {
-  const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.sourceAccount);
-  const wasmHashBuf = Buffer.from(opts.wasmHash, "hex");
-  if (wasmHashBuf.length !== 32) {
-    throw new AppError("VALIDATION", "wasmHash must be 32 bytes");
-  }
-  const salt = randomBytes(32);
-
-  const args = constructorArgs(opts.params, opts.sourceAccount);
-
-  const op = Operation.createCustomContract({
-    address: new Address(opts.sourceAccount),
-    wasmHash: wasmHashBuf,
-    salt,
-    constructorArgs: args,
-  });
-
-  const tx = new TransactionBuilder(sourceAcct, {
-    fee: BASE_FEE,
-    networkPassphrase: stellarPassphrase(),
-  })
-    .addOperation(op)
-    .setTimeout(180)
-    .build();
-
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw simulationFailure(sim.error, {
-      contract: contractKeyForParamsKind(opts.params.kind),
-    });
-  }
-  const assembled = rpc.assembleTransaction(tx, sim).build();
-
-  // Pre-compute the contract address (deterministic from source + salt + network).
-  const contractAddress = computeContractAddress(opts.sourceAccount, salt);
-
-  return { xdr: assembled.toXDR(), contractAddress, salt };
 }
 
 export type PipelineDeployNode = {
@@ -199,6 +150,14 @@ async function preparePipelineDeployTxFromPlan(
         ...params,
         relayer: stellarRelayerAddress() ?? sourceAccount,
       };
+    }
+    // The Soroswap router is pinned per environment, never taken from the graph.
+    if (params.kind === "swapper") {
+      const router = soroswapRouterAddress();
+      if (!router) {
+        throw new AppError("VALIDATION", SWAP_ROUTER_UNSET_MESSAGE);
+      }
+      params = { ...params, router };
     }
 
     const args = pipelineNodeConstructorArgs(
