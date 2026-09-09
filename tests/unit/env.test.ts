@@ -5,8 +5,9 @@
  *   - Called without an argument, the helpers return the active network's URL.
  *
  * These drive `lib/env.ts` by mutating `process.env` and clearing its memoized
- * parse via `vi.resetModules()`. `tests/unit/setup.ts` has already scrubbed the
- * ambient environment, so each case starts from the schema's defaults.
+ * parse via `vi.resetModules()`. `tests/unit/setup.ts` scrubs the ambient
+ * environment once per test file, not per case: cleanliness between the
+ * describes below comes from their own `beforeEach` deletes.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
