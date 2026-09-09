@@ -128,6 +128,45 @@ describe("pipelineNodeConstructorArgs", () => {
     expect(args).toHaveLength(7);
   });
 
+  // contracts/actions/yield __constructor takes (admin, asset, vault,
+  // next_steps) and has no parent slot, so a fifth argument fails the factory
+  // deploy for every flow containing a yield node.
+  it("encodes yield as the four arguments its constructor declares", () => {
+    const args = pipelineNodeConstructorArgs(
+      {
+        kind: "yield",
+        asset: { kind: "native" },
+        vault: ADDR2,
+        nextStepNodeIds: ["n"],
+      },
+      ADDR,
+      undefined,
+      { n: ADDR2 },
+    );
+
+    expect(args).toHaveLength(4);
+    expect(scValToNative(args[0]!)).toBe(ADDR);
+    expect(scValToNative(args[1]!)).toBe(
+      "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+    );
+    expect(scValToNative(args[2]!)).toBe(ADDR2);
+    expect(args[3]!.switch()).toBe(xdr.ScValType.scvVec());
+    expect((args[3]!.value() as xdr.ScVal[]).length).toBe(1);
+  });
+
+  it("does not require a parent address for yield", () => {
+    // It used to throw here, which is how the arity bug stayed hidden: no flow
+    // with a yield node ever reached the factory.
+    expect(() =>
+      pipelineNodeConstructorArgs(
+        { kind: "yield", asset: { kind: "native" }, vault: ADDR2, nextStepNodeIds: [] },
+        ADDR,
+        undefined,
+        {},
+      ),
+    ).not.toThrow();
+  });
+
   it("encodes streamer with pauseAllowed and retrieveAllowed as last bool args", () => {
     const args = pipelineNodeConstructorArgs(
       {

@@ -107,7 +107,10 @@ describe("validateFlow", () => {
     }
   });
 
-  it("labels on_receive → yield as YIELD", () => {
+  it("refuses on_receive → yield until the yield crate has an execute_step", () => {
+    // The deposit trigger calls execute_step on its next steps; the yield
+    // contract only implements receive_and_forward, so this shape would deploy
+    // and then revert on the first deposit. See the yield guard in validate.ts.
     const r = validateFlow({
       nodes: [
         { id: "t", type: "on_receive", config: { asset: USDC } },
@@ -115,8 +118,9 @@ describe("validateFlow", () => {
       ],
       edges: [{ id: "e1", source: "t", target: "y" }],
     });
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.templateKind).toBe(TemplateKind.YIELD);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors.some((e) => /only come straight after/.test(e.friendlyMessage))).toBe(true);
   });
 
   it("rejects a swap with more than one outgoing edge with a friendly message", () => {
