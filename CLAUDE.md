@@ -46,10 +46,19 @@ pnpm dev
 | **One E2E spec**                          | `pnpm test:e2e tests/e2e/happy-path.spec.ts`                                       |
 | Screenshots (committed to `screenshots/`) | `pnpm screenshots` / `pnpm screenshots:mobile`                                     |
 
-Vitest only picks up `tests/unit/**/*.test.ts`. `vitest.config.ts` aliases `server-only`,
-`@/lib/env`, and `dotenv` to stubs in `tests/stubs/` — **import `@/lib/env` in code under test and
-you get the stub, not the real schema.** Playwright reuses an existing dev server if one is up and
-needs `tests/e2e/.auth/admin.json` from its global setup.
+Vitest only picks up `tests/unit/**/*.test.ts`. `vitest.config.ts` aliases `server-only` and
+`dotenv` to stubs in `tests/stubs/` — **there is no `@/lib/env` stub; code under test gets the real
+schema.** Isolation comes from `tests/unit/setup.ts` instead: before each test **file** it deletes
+every variable `EnvSchema` knows (`ENV_VAR_NAMES`), then sets `AUTH_SECRET`, pins `NODE_ENV=test`
+(vitest only does `??=`, so a shell `production` would otherwise leak), and puts back `DATABASE_URL`
+and `LOG_LEVEL` from your shell — falling back to the local Postgres and `silent` — so you can still
+point the suite's `deleteMany()` wipes at a scratch DB or turn logging up. No other
+**schema-backed** variable reaches the suite from your shell; the `process.env` reads that bypass
+`lib/env.ts` ([§19](#19-known-gaps--rules-not-enforced-yet)) are not covered. Nothing re-scrubs
+between cases in a file, so a test that mutates `process.env` cleans up after itself; one that
+needs a specific value sets it and calls `vi.resetModules()` to clear `env()`'s memoized parse.
+Playwright reuses an existing dev server if one is up and needs `tests/e2e/.auth/admin.json` from
+its global setup.
 
 Contracts (Rust workspace, not built by the Node build):
 
