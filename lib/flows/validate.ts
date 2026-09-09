@@ -17,6 +17,7 @@ import {
   assetLabel,
 } from "./schema";
 import { checkHardLimits } from "./limits";
+import { inFlowOrder } from "./graph";
 import { flowToPipeline, absorbedActionIds, type PipelineNode } from "./to-params";
 
 export type ValidationIssue = { path: string; message: string; friendlyMessage: string };
@@ -73,6 +74,10 @@ const FRIENDLY = {
     `${label} is still connected as a next step, but it isn't part of the pipeline this flow would deploy. Remove the connection into it, or rebuild the steps in the order the money moves.`,
   ACTION_NOT_DEPLOYED: (label: string) =>
     `The ${label} step wouldn't reach the chain, so this flow would deploy as something you didn't draw. Rebuilding the steps in the order the money moves usually fixes it. If it doesn't, this trigger or condition can't carry that step and it has to go.`,
+  YIELD_PARENT: (label: string) =>
+    `A Yield step can only come straight after a Webhook, HTTP Webhook, or Oracle trigger for now, not after ${label}. Move it, or use a Pay or Split step here.`,
+  YIELD_TERMINAL:
+    "A Yield step is the end of the line for now — nothing can come after it except an email notification. Remove the connections coming out of it.",
 } as const;
 
 // Triggers whose flows route payouts through the payer/splitter contracts,
@@ -371,7 +376,9 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     });
   }
   const actions = graph.nodes.filter(isAction);
-  const contractActions = actions.filter(isContractAction);
+  // Flow order, so the template ladder below infers the kind from the action
+  // the trigger reaches first rather than the one added to the canvas first.
+  const contractActions = inFlowOrder(graph, actions.filter(isContractAction));
   if (contractActions.length < 1) {
     errors.push({
       path: "nodes",
@@ -644,6 +651,42 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       message: "Sender KYC is required before deploying a flow with fiat payouts.",
       friendlyMessage: "Add the sender KYC details from the toolbar (required to deploy).",
     });
+  }
+
+  // A yield node can only be entered through `receive_and_forward`: the crate
+  // has no `execute_step`, which is what the deposit trigger, payer, splitter,
+  // swapper, timelock and router call on their next steps, so a yield behind
+  // any of those deploys and then reverts on the first run. It also forwards
+  // `amount = 0` downstream, which every next-step contract rejects. Until #158
+  // gives it an execute_step and a real forward, only a receive_and_forward
+  // trigger may feed it and nothing on-chain may follow it. multisig and
+  // subscription dispatch receive_and_forward too, but neither pipeline has
+  // been exercised with a yield in it (the conditional wrapper, and the
+  // relayer-driven per-period charge), so both stay out of the allowlist.
+  const YIELD_PARENT_TYPES = new Set(["webhook", "web2_webhook", "oracle"]);
+  for (const n of graph.nodes) {
+    if (n.type !== "yield") continue;
+    for (const e of graph.edges) {
+      if (e.target !== n.id) continue;
+      const src = nodesById.get(e.source);
+      // A missing source is reported by the edge checks above.
+      if (!src || YIELD_PARENT_TYPES.has(src.type)) continue;
+      errors.push({
+        path: `nodes.${n.id}`,
+        message: `Yield node cannot follow a ${src.type} node`,
+        friendlyMessage: FRIENDLY.YIELD_PARENT(nodeLabels.get(src.id) ?? src.type),
+      });
+    }
+    const outgoing = graph.edges.filter(
+      (e) => e.source === n.id && nodesById.get(e.target)?.type !== "email_notify",
+    );
+    if (outgoing.length > 0) {
+      errors.push({
+        path: `nodes.${n.id}`,
+        message: "Yield node cannot have next steps",
+        friendlyMessage: FRIENDLY.YIELD_TERMINAL,
+      });
+    }
   }
 
   // A swap forwards its entire output to next_steps[0]; the contract rejects
@@ -1123,13 +1166,14 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   // Every contract action the user drew must actually reach the chain. Both the
   // template ladder above and flowToPipeline pick "the" action as
-  // contractActions[0] — node array order, which is the order blocks were added
-  // to the canvas, not graph order. So a flow drawn trigger → swap → pay whose
-  // pay block was added first maps to a plain payer pipeline and the swap is
-  // dropped silently: the deploy would pay out an asset the flow never acquired.
-  // A schedule flow with two chained pays loses the second the same way.
-  // Catch it here rather than letting money move against a pipeline the user
-  // didn't draw. Tracked in #405 — the real fix is to order by topology.
+  // contractActions[0], in flow order via inFlowOrder() — the action the trigger
+  // reaches first along the edges, so the pipeline follows what the user drew
+  // rather than the order they dropped the blocks. That is not enough on its
+  // own: an action can still end up neither emitted nor absorbed, and a
+  // schedule flow with two chained pays is the live example — the streamer
+  // carries one payout step, so the second pay reaches no contract and that
+  // recipient is never paid. Catch it here rather than letting money move
+  // against a pipeline the user didn't draw.
   //
   // "Not emitted" is not the same as "lost": an oracle_gte condition compiles to
   // a CONDITIONAL that owns the recipients and pays them itself, so its pay or

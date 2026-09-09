@@ -9,6 +9,7 @@ import {
   assetLabel,
   subscriptionAmountPerPeriodStroops,
 } from "./schema";
+import { inFlowOrder } from "./graph";
 
 function isApiFillAddress(addr: string): boolean {
   return addr === "PENDING:__api__";
@@ -68,7 +69,7 @@ function describeCondition(c: Extract<FlowNode, { type: "condition" }>, asset?: 
 
 export function flowToEnglish(graph: FlowGraph): string {
   const trigger = graph.nodes.find(isTrigger);
-  const action = graph.nodes.find(isContractAction);
+  const action = inFlowOrder(graph, graph.nodes.filter(isContractAction))[0];
   const condition = graph.nodes.find(isLogic);
   const emailNodes = graph.nodes.filter((n) => n.type === "email_notify");
   if (!trigger || !action) return "(incomplete flow)";

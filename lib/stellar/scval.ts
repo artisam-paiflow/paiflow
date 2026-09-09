@@ -322,13 +322,17 @@ export function pipelineNodeConstructorArgs(
       ];
     }
     case "yield": {
-      if (!parentAddress) throw new Error("Yield requires a parent address");
+      // Four args, matching __constructor in contracts/actions/yield: the crate
+      // has no ParentNode slot, so a fifth argument fails the factory deploy.
+      // Giving it a parent and an execute_step is the feature work in #158;
+      // until then receive_and_forward on the deployed node is unauthenticated,
+      // and validate.ts refuses the shapes the crate cannot run (an
+      // execute_step parent, or an on-chain next step).
       return [
         addr(admin),
         addr(assetContractId(params.asset)),
         addr(params.vault),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
-        addr(parentAddress),
       ];
     }
     case "payer": {

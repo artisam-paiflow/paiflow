@@ -253,6 +253,9 @@ const EnvSchema = z.object({
 
 type EnvShape = z.infer<typeof EnvSchema>;
 
+/** Every variable name EnvSchema knows about; tests/unit/setup.ts scrubs these. */
+export const ENV_VAR_NAMES = EnvSchema.keyof().options;
+
 let cached: EnvShape | null = null;
 
 export function env(): EnvShape {

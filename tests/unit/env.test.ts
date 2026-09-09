@@ -4,9 +4,10 @@
  *     caller asks for a network that doesn't match `STELLAR_NETWORK`.
  *   - Called without an argument, the helpers return the active network's URL.
  *
- * We import the real `lib/env.ts` here (bypassing the test stub alias) by
- * using a relative path, then drive it by mutating `process.env` and clearing
- * its memoized cache via `vi.resetModules()`.
+ * These drive `lib/env.ts` by mutating `process.env` and clearing its memoized
+ * parse via `vi.resetModules()`. `tests/unit/setup.ts` scrubs the ambient
+ * environment once per test file, not per case: cleanliness between the
+ * describes below comes from their own `beforeEach` deletes.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
@@ -20,8 +21,7 @@ async function loadEnv(stellarNetwork: "testnet" | "mainnet") {
   for (const [k, v] of Object.entries(requiredEnv)) process.env[k] = v;
   process.env.STELLAR_NETWORK = stellarNetwork;
   vi.resetModules();
-  // Relative path dodges the vitest alias that swaps `@/lib/env` for the stub.
-  return await import("../../lib/env");
+  return await import("@/lib/env");
 }
 
 describe("env helpers — fail-fast on network mismatch", () => {
