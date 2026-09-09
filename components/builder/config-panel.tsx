@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import SwapQuotePreview from "@/components/builder/swap-quote-preview";
 import type { FlowNode, FlowGraph, Asset } from "@/lib/flows/schema";
 import {
   isPendingAddress,
@@ -1444,6 +1445,11 @@ export default function ConfigPanel({
               computed in the same transaction and cannot expire.
             </div>
           </Field>
+          <SwapQuotePreview
+            assetIn={node.config.assetIn}
+            assetOut={node.config.assetOut}
+            slippageBps={node.config.slippageBps}
+          />
         </>
       )}
 

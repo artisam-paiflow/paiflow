@@ -89,6 +89,10 @@ test.describe("Swap block (Instawards D1)", () => {
   // sidebar collapsed (builder-client.tsx), which hides the palette entirely.
   test.skip(({ isMobile }) => isMobile, "D1 evidence is captured on the desktop project");
 
+  // The floating config panel is taller than the default viewport; element
+  // screenshots clip to the viewport, so give the evidence room.
+  test.use({ viewport: { width: 1440, height: 1600 } });
+
   let flowId!: string;
 
   test.beforeAll(async ({ request }) => {
@@ -203,17 +207,57 @@ test.describe("Swap block (Instawards D1)", () => {
     });
   }
 
-  test("deploy review shows the TESTNET chip for a swap flow", async ({ page, request }) => {
+  test("deploy review shows the TESTNET chip and a live Soroswap quote for a swap flow", async ({
+    page,
+    request,
+  }) => {
     const res = await request.patch(`/api/flows/${flowId}`, { data: { graph: graph() } });
     expect(res.ok()).toBeTruthy();
     await page.goto(`/flows/${flowId}/deploy`);
     await expect(page.getByTestId("network-chip")).toBeVisible();
     await expect(page.getByTestId("network-chip")).toContainText("TESTNET");
     await expect(page.getByText(/swap XLM to USDC via Soroswap/)).toBeVisible();
+    const quote = page.getByTestId("swap-quote");
+    await expect(quote).toContainText(/10 XLM → ~\d+\.\d+ USDC via Soroswap \(live\)/, {
+      timeout: 30_000,
+    });
+    await expect(quote).toContainText(/Minimum at 1% slippage: ~\d+\.\d+ USDC/);
     await page.screenshot({
       path: `${OUT}/07-deploy-review.png`,
       fullPage: true,
       animations: "disabled",
     });
+  });
+
+  test("the config panel shows the same live quote (#391)", async ({ page, request }) => {
+    const res = await request.patch(`/api/flows/${flowId}`, { data: { graph: graph() } });
+    expect(res.ok()).toBeTruthy();
+    const panel = await openSwapPanel(page, flowId);
+    const quote = panel.getByTestId("swap-quote");
+    await expect(quote).toContainText(/10 XLM → ~\d+\.\d+ USDC via Soroswap \(live\)/, {
+      timeout: 30_000,
+    });
+    await expect(quote).toContainText(/Minimum at 1% slippage/);
+    await panel.screenshot({ path: `${OUT}/08-swap-panel-live-quote.png`, animations: "disabled" });
+    await page.screenshot({ path: `${OUT}/09-builder-live-quote.png`, animations: "disabled" });
+  });
+
+  test("the quote endpoint answers with strings and rejects a bad query", async ({ request }) => {
+    const ok = await request.get(
+      "/api/soroswap/quote?assetIn=native&assetOut=USDC&amountStroops=100000000",
+    );
+    expect(ok.status()).toBe(200);
+    const json = await ok.json();
+    expect(typeof json.data.amountOutStroops).toBe("string");
+    expect(typeof json.data.amountOutMinStroops).toBe("string");
+    expect(BigInt(json.data.amountOutStroops)).toBeGreaterThan(
+      BigInt(json.data.amountOutMinStroops),
+    );
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(`${OUT}/10-quote-endpoint.json`, JSON.stringify(json, null, 2));
+    const bad = await request.get(
+      "/api/soroswap/quote?assetIn=native&assetOut=native&amountStroops=1",
+    );
+    expect(bad.status()).toBe(422);
   });
 });
