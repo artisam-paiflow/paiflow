@@ -74,7 +74,7 @@ const FRIENDLY = {
   ACTION_NOT_DEPLOYED: (label: string) =>
     `The ${label} step wouldn't reach the chain, so this flow would deploy as something you didn't draw. Rebuilding the steps in the order the money moves usually fixes it. If it doesn't, this trigger or condition can't carry that step and it has to go.`,
   YIELD_PARENT: (label: string) =>
-    `A Yield step can only come straight after an HTTP Webhook or Oracle trigger for now, not after ${label}. Move it, or use a Pay or Split step here.`,
+    `A Yield step can only come straight after a Webhook, HTTP Webhook, or Oracle trigger for now, not after ${label}. Move it, or use a Pay or Split step here.`,
   YIELD_TERMINAL:
     "A Yield step is the end of the line for now — nothing can come after it except an email notification. Remove the connections coming out of it.",
 } as const;
@@ -656,9 +656,10 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   // any of those deploys and then reverts on the first run. It also forwards
   // `amount = 0` downstream, which every next-step contract rejects. Until #158
   // gives it an execute_step and a real forward, only a receive_and_forward
-  // trigger may feed it and nothing on-chain may follow it. multisig dispatches
-  // receive_and_forward too, but the conditional pipeline with a yield in it is
-  // untested, so it stays out of the allowlist for now.
+  // trigger may feed it and nothing on-chain may follow it. multisig and
+  // subscription dispatch receive_and_forward too, but neither pipeline has
+  // been exercised with a yield in it (the conditional wrapper, and the
+  // relayer-driven per-period charge), so both stay out of the allowlist.
   const YIELD_PARENT_TYPES = new Set(["webhook", "web2_webhook", "oracle"]);
   for (const n of graph.nodes) {
     if (n.type !== "yield") continue;
