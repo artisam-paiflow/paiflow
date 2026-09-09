@@ -17,6 +17,7 @@ import {
   assetLabel,
 } from "./schema";
 import { checkHardLimits } from "./limits";
+import { inFlowOrder } from "./graph";
 import { flowToPipeline, absorbedActionIds, type PipelineNode } from "./to-params";
 
 export type ValidationIssue = { path: string; message: string; friendlyMessage: string };
@@ -371,7 +372,9 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     });
   }
   const actions = graph.nodes.filter(isAction);
-  const contractActions = actions.filter(isContractAction);
+  // Flow order, so the template ladder below infers the kind from the action
+  // the trigger reaches first rather than the one added to the canvas first.
+  const contractActions = inFlowOrder(graph, actions.filter(isContractAction));
   if (contractActions.length < 1) {
     errors.push({
       path: "nodes",

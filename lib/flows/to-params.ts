@@ -20,6 +20,7 @@ import {
   subscriptionAmountPerPeriodStroops,
   TOTAL_BPS,
 } from "./schema";
+import { inFlowOrder } from "./graph";
 
 export type PipelineRecipient = {
   address: string;
@@ -629,7 +630,9 @@ export function flowToPipeline(
 ): PipelineNode[] {
   const trigger = graph.nodes.find(isTrigger)!;
   const actions = graph.nodes.filter(isAction);
-  const contractActions = actions.filter(isContractAction);
+  // In flow order, not canvas order: every consumer of contractActions[0]
+  // below means "the action the trigger reaches first".
+  const contractActions = inFlowOrder(graph, actions.filter(isContractAction));
   const conditions = graph.nodes.filter(isLogic);
   const children = getPipelineChildren(graph);
   const devMode = graph.devMode === true;
@@ -1384,7 +1387,7 @@ export function getPayrollPreviewFromPipeline(pipeline: PipelineNode[]) {
  */
 export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): ContractParams {
   const trigger = graph.nodes.find(isTrigger)!;
-  const action = graph.nodes.find(isContractAction)!;
+  const action = inFlowOrder(graph, graph.nodes.filter(isContractAction))[0]!;
   const condition = graph.nodes.find(isLogic);
   const recipients = toRecipients(action);
 
