@@ -253,6 +253,15 @@ const EnvSchema = z.object({
 
 type EnvShape = z.infer<typeof EnvSchema>;
 
+/**
+ * Every variable name EnvSchema knows about. Exported so the unit-test setup
+ * can clear the ambient environment before a run: env() parses process.env, so
+ * without a scrub a stray STELLAR_* in a developer's shell parses into env()
+ * and fails tests that never mention it. Derived from the schema so the two
+ * cannot drift apart.
+ */
+export const ENV_VAR_NAMES: readonly string[] = Object.keys(EnvSchema.shape);
+
 let cached: EnvShape | null = null;
 
 export function env(): EnvShape {

@@ -401,7 +401,7 @@ describe("soroswapRouterAddress", () => {
     if (router !== undefined)
       process.env[`STELLAR_SOROSWAP_ROUTER_${network.toUpperCase()}`] = router;
     vi.resetModules();
-    return await import("../../lib/env");
+    return await import("@/lib/env");
   }
   beforeEach(() => vi.resetModules());
 

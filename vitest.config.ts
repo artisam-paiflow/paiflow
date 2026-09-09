@@ -9,10 +9,11 @@ export default defineConfig({
     setupFiles: ["tests/unit/setup.ts"],
   },
   resolve: {
+    // Vite takes the first prefix match, so "@" shadows any longer "@/..."
+    // entry placed after it. Keep that in mind before adding one.
     alias: {
       "@": path.resolve(__dirname, "./"),
       "server-only": path.resolve(__dirname, "./tests/stubs/server-only.ts"),
-      "@/lib/env": path.resolve(__dirname, "./tests/stubs/env.ts"),
       dotenv: path.resolve(__dirname, "./tests/stubs/dotenv.ts"),
     },
   },

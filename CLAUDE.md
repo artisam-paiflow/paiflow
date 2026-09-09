@@ -46,10 +46,14 @@ pnpm dev
 | **One E2E spec**                          | `pnpm test:e2e tests/e2e/happy-path.spec.ts`                                       |
 | Screenshots (committed to `screenshots/`) | `pnpm screenshots` / `pnpm screenshots:mobile`                                     |
 
-Vitest only picks up `tests/unit/**/*.test.ts`. `vitest.config.ts` aliases `server-only`,
-`@/lib/env`, and `dotenv` to stubs in `tests/stubs/` — **import `@/lib/env` in code under test and
-you get the stub, not the real schema.** Playwright reuses an existing dev server if one is up and
-needs `tests/e2e/.auth/admin.json` from its global setup.
+Vitest only picks up `tests/unit/**/*.test.ts`. `vitest.config.ts` aliases `server-only` and
+`dotenv` to stubs in `tests/stubs/` — **there is no `@/lib/env` stub; code under test gets the real
+schema.** Isolation comes from `tests/unit/setup.ts` instead: it deletes every variable
+`EnvSchema` knows (`ENV_VAR_NAMES`) before each run and sets only `AUTH_SECRET` and `DATABASE_URL`,
+so the suite never reads your shell. A test that needs a specific value sets it and calls
+`vi.resetModules()` to clear `env()`'s memoized parse. Note Vite takes the first matching alias
+prefix, so a `"@/lib/..."` entry placed after `"@"` is dead. Playwright reuses an existing dev
+server if one is up and needs `tests/e2e/.auth/admin.json` from its global setup.
 
 Contracts (Rust workspace, not built by the Node build):
 
