@@ -600,10 +600,12 @@ export function absorbedActionIds(graph: FlowGraph): Set<string> {
   const oracleGte = graph.nodes.filter((n) => isLogic(n) && n.config.kind === "oracle_gte");
   if (oracleGte.length === 0) return absorbed;
   // Exactly one action is absorbed: the `contractActions[0]` this file picks as
-  // `action` below, whose recipients become the CONDITIONAL's. Every other
-  // pay/split in the graph is dropped rather than absorbed, and must still trip
-  // validateFlow's not-deployed guard.
-  const [primary] = graph.nodes.filter(isContractAction);
+  // `action` below, whose recipients become the CONDITIONAL's. Same
+  // `inFlowOrder` pick, or the two drift and the not-deployed guard names the
+  // action the conditional actually pays instead of the one that is dropped.
+  // Every other pay/split in the graph is dropped rather than absorbed, and
+  // must still trip validateFlow's not-deployed guard.
+  const [primary] = inFlowOrder(graph, graph.nodes.filter(isContractAction));
   if (!primary || (primary.type !== "pay" && primary.type !== "split")) return absorbed;
   // And only when a conditional actually carries it. An oracle_gte sitting
   // unwired on the canvas still sets `terminal` below, but it absorbs nothing:

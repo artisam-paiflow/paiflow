@@ -55,6 +55,14 @@ export function pipelineTopoOrder(graph: FlowGraph): string[] {
  * canvas first. Nodes the traversal never reached keep their original relative
  * order at the end, so the caller still sees every node it passed in — a
  * dropped node would silently change what validation counts.
+ *
+ * The `[0]` guarantee holds only where every node is reachable from the
+ * trigger. A reachable node that also has an incoming edge from an unreachable
+ * one never drains its in-degree, so the traversal treats it as unreached and
+ * an orphan earlier in the array sorts ahead of it. validateFlow rejects
+ * unreachable nodes before it reads this order; the callers that run before
+ * validation — flowToEnglish and getFlowAsset — see no worse than the canvas
+ * order this replaces.
  */
 export function inFlowOrder<T extends FlowNode>(graph: FlowGraph, nodes: T[]): T[] {
   const position = new Map(pipelineTopoOrder(graph).map((id, i) => [id, i]));
