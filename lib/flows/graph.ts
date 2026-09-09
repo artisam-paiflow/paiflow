@@ -11,6 +11,10 @@ import { isTrigger } from "./schema";
  * and are never wired as pipeline next steps, so they must not carry ordering
  * between the contracts that are.
  *
+ * Only edges from nodes the trigger can reach count towards in-degree, so an
+ * edge from an orphan into a reachable node does not hold that node back: the
+ * orphan is not part of the pipeline, and neither is its edge.
+ *
  * Nodes unreachable from the trigger, and nodes trapped behind a cycle, are
  * absent from the result rather than appended: only the caller knows whether
  * dropping them or keeping them in place is right.
@@ -21,15 +25,29 @@ export function pipelineTopoOrder(graph: FlowGraph): string[] {
 
   const emailIds = new Set(graph.nodes.filter((n) => n.type === "email_notify").map((n) => n.id));
   const adj = new Map<string, string[]>();
-  const remaining = new Map<string, number>();
-  for (const n of graph.nodes) {
-    adj.set(n.id, []);
-    remaining.set(n.id, 0);
-  }
+  for (const n of graph.nodes) adj.set(n.id, []);
   for (const e of graph.edges) {
     if (emailIds.has(e.source) || emailIds.has(e.target)) continue;
     adj.get(e.source)?.push(e.target);
-    remaining.set(e.target, (remaining.get(e.target) ?? 0) + 1);
+  }
+
+  const reachable = new Set<string>([trigger.id]);
+  const stack = [trigger.id];
+  while (stack.length) {
+    const id = stack.pop()!;
+    for (const next of adj.get(id) ?? []) {
+      if (!reachable.has(next)) {
+        reachable.add(next);
+        stack.push(next);
+      }
+    }
+  }
+
+  const remaining = new Map<string, number>();
+  for (const id of reachable) {
+    for (const next of adj.get(id) ?? []) {
+      remaining.set(next, (remaining.get(next) ?? 0) + 1);
+    }
   }
 
   const order: string[] = [];
@@ -55,14 +73,6 @@ export function pipelineTopoOrder(graph: FlowGraph): string[] {
  * canvas first. Nodes the traversal never reached keep their original relative
  * order at the end, so the caller still sees every node it passed in — a
  * dropped node would silently change what validation counts.
- *
- * The `[0]` guarantee holds only where every node is reachable from the
- * trigger. A reachable node that also has an incoming edge from an unreachable
- * one never drains its in-degree, so the traversal treats it as unreached and
- * an orphan earlier in the array sorts ahead of it. validateFlow rejects
- * unreachable nodes before it reads this order; the callers that run before
- * validation — flowToEnglish and getFlowAsset — see no worse than the canvas
- * order this replaces.
  */
 export function inFlowOrder<T extends FlowNode>(graph: FlowGraph, nodes: T[]): T[] {
   const position = new Map(pipelineTopoOrder(graph).map((id, i) => [id, i]));

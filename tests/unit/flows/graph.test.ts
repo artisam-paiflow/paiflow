@@ -123,12 +123,10 @@ describe("inFlowOrder", () => {
     expect(inFlowOrder(g, actions).map((n) => n.id)).toEqual(["s", "p", "orphan"]);
   });
 
-  it("ranks an orphan ahead of the reachable node it feeds", () => {
-    // Documented limit, not desired behaviour: `pay` has an incoming edge from
-    // a node the trigger cannot reach, so its in-degree never drains and the
-    // traversal treats it as unreached too. validateFlow rejects the orphan
-    // before it reads this order, so only the preview paths can see it. Pinned
-    // so a change here is deliberate.
+  it("ignores an edge from an unreachable node into a reachable one", () => {
+    // The orphan is not part of the pipeline, so its edge must not hold `pay`
+    // back: `pay` is still the action the trigger reaches first. This is what
+    // the preview paths see before validateFlow has rejected the orphan.
     const orphan = { ...pay, id: "orphan" };
     const g = graph(
       [trigger, orphan, pay],
@@ -137,9 +135,9 @@ describe("inFlowOrder", () => {
         { source: "orphan", target: "p" },
       ],
     );
-    expect(pipelineTopoOrder(g)).toEqual(["t"]);
+    expect(pipelineTopoOrder(g)).toEqual(["t", "p"]);
     const actions = [orphan, pay] as unknown as FlowNode[];
-    expect(inFlowOrder(g, actions).map((n) => n.id)).toEqual(["orphan", "p"]);
+    expect(inFlowOrder(g, actions).map((n) => n.id)).toEqual(["p", "orphan"]);
   });
 
   it("does not mutate the array it is given", () => {
