@@ -73,6 +73,10 @@ const FRIENDLY = {
     `${label} is still connected as a next step, but it isn't part of the pipeline this flow would deploy. Remove the connection into it, or rebuild the steps in the order the money moves.`,
   ACTION_NOT_DEPLOYED: (label: string) =>
     `The ${label} step wouldn't reach the chain, so this flow would deploy as something you didn't draw. Rebuilding the steps in the order the money moves usually fixes it. If it doesn't, this trigger or condition can't carry that step and it has to go.`,
+  YIELD_PARENT: (label: string) =>
+    `A Yield step can only come straight after an HTTP Webhook or Oracle trigger for now, not after ${label}. Move it, or use a Pay or Split step here.`,
+  YIELD_TERMINAL:
+    "A Yield step is the end of the line for now — nothing can come after it except an email notification. Remove the connections coming out of it.",
 } as const;
 
 // Triggers whose flows route payouts through the payer/splitter contracts,
@@ -644,6 +648,41 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       message: "Sender KYC is required before deploying a flow with fiat payouts.",
       friendlyMessage: "Add the sender KYC details from the toolbar (required to deploy).",
     });
+  }
+
+  // A yield node can only be entered through `receive_and_forward`: the crate
+  // has no `execute_step`, which is what the deposit trigger, payer, splitter,
+  // swapper, timelock and router call on their next steps, so a yield behind
+  // any of those deploys and then reverts on the first run. It also forwards
+  // `amount = 0` downstream, which every next-step contract rejects. Until #158
+  // gives it an execute_step and a real forward, only a receive_and_forward
+  // trigger may feed it and nothing on-chain may follow it. multisig dispatches
+  // receive_and_forward too, but the conditional pipeline with a yield in it is
+  // untested, so it stays out of the allowlist for now.
+  const YIELD_PARENT_TYPES = new Set(["webhook", "web2_webhook", "oracle"]);
+  for (const n of graph.nodes) {
+    if (n.type !== "yield") continue;
+    for (const e of graph.edges) {
+      if (e.target !== n.id) continue;
+      const src = nodesById.get(e.source);
+      // A missing source is reported by the edge checks above.
+      if (!src || YIELD_PARENT_TYPES.has(src.type)) continue;
+      errors.push({
+        path: `nodes.${n.id}`,
+        message: `Yield node cannot follow a ${src.type} node`,
+        friendlyMessage: FRIENDLY.YIELD_PARENT(nodeLabels.get(src.id) ?? src.type),
+      });
+    }
+    const outgoing = graph.edges.filter(
+      (e) => e.source === n.id && nodesById.get(e.target)?.type !== "email_notify",
+    );
+    if (outgoing.length > 0) {
+      errors.push({
+        path: `nodes.${n.id}`,
+        message: "Yield node cannot have next steps",
+        friendlyMessage: FRIENDLY.YIELD_TERMINAL,
+      });
+    }
   }
 
   // A swap forwards its entire output to next_steps[0]; the contract rejects
