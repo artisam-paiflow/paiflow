@@ -9,7 +9,7 @@ _Interim report, written on Wednesday 9 September. Final figures on 13 September
 The Swap block now exists end to end in the code: the contract calls the Soroswap router, the
 pipeline compiles a swap block into it, and the builder shows the block and its settings. On
 9 September it was exercised in a browser for the first time and behaved as specified, and the
-live price preview that shows what a swap will return before deployment is in review. What is
+live price preview that shows what a swap will return before deployment was merged the same day. What is
 still missing is the proof the Statement of Work asks for — a swap flow deployed and triggered
 from the public app, with its transaction on the explorer.
 
@@ -24,13 +24,14 @@ pnpm instawards:changelog --since 2026-09-07 --until 2026-09-13 \
 
 | Date       | Change                                                                            | Issues | Commit                                                                 |
 | ---------- | --------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------- |
+| 2026-09-09 | fix(tooling): deploy the factory when the hash is unchanged but none exists       | #394   | `05645d4` — mirror sync pending                                        |
+| 2026-09-09 | feat(builder): live Soroswap quote in the swap panel and the deploy review        | #391   | `6ddd138` — mirror sync pending                                        |
 | 2026-09-09 | feat(builder): show the Swap block, name the router's network, surface its errors | #402   | `b8fd9b8` — mirror sync pending                                        |
 | 2026-09-07 | feat(pipeline): route the swap block through the Soroswap-backed swapper          | #388   | [`3a76e93`](https://github.com/artisam-paiflow/paiflow/commit/3a76e93) |
 | 2026-09-07 | feat(swapper): swap through the Soroswap router with a spot-price slippage bound  | #387   | [`3315ea3`](https://github.com/artisam-paiflow/paiflow/commit/3315ea3) |
 
-Open at the time of writing: the simulation preview (#391, PR #403, verified locally) and the
-factory-deploy tooling fix (#394, PR #404, verified end to end on a fresh environment against
-testnet).
+Every code change planned for D1 is merged. The one item still open is #390, the testnet
+deploy-and-trigger run that produces the SOW evidence.
 
 ## Statement of Work progress
 
@@ -41,7 +42,7 @@ Rows that moved this week. The full tables live on the deliverable pages.
 | Call `swap_exact_tokens_for_tokens` on the Soroswap router; `execute_step`; `amount_out_min` from `slippage_bps`; constructor arguments | D1          | Done        | contract + unit tests; stage-1 tx `5389cdee…` (verification copy) |
 | Swap flows no longer map to the splitter kind; constructor serialization; swap validation rules; swap event parsing                     | D1          | Done        | unit tests; local e2e stills 03–06                                |
 | Swap block visible in the palette; configuration panel; edge-case errors display clearly                                                | D1          | Done        | local e2e stills 01–06                                            |
-| Swapper simulation preview                                                                                                              | D1          | In progress | local e2e stills 07–10; live testnet quote                        |
+| Swapper simulation preview                                                                                                              | D1          | Done        | local e2e stills 07–10; live testnet quote                        |
 | Deploy and trigger a swapper flow on testnet                                                                                            | D1          | In progress | stage 1 proven 6 Sep; stage 2 not started                         |
 
 Status values: Not started · In progress · Done · **Evidenced** (done _and_ proven by a public
@@ -88,7 +89,7 @@ retaken on 13 September.
 - **Fresh-environment deploy bug.** `pnpm contracts:deploy:testnet` never deployed a factory on
   a machine with no prior state, so nothing could deploy. Reproduced against `develop`, fixed,
   and verified on 9 September (factory `CBYIUUKY…GZ726A`). This would have blocked the
-  testnet evidence run; fix in review.
+  testnet evidence run; merged.
 - **No blocker to the deliverable.** The remaining work is the deploy-and-trigger run itself,
   which depends on the public app being updated to `develop`.
 
