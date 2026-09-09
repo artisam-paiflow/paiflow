@@ -13,9 +13,9 @@
 // tests/unit/env.test.ts.
 import { ENV_VAR_NAMES } from "@/lib/env";
 
-// Read before the scrub. DATABASE_URL because streamer-jobs.test.ts and
-// api/dev-splitter.test.ts run unscoped deleteMany() against the real Prisma
-// client — hard-coding it aims those wipes at whatever the default names.
+// Read before the scrub. DATABASE_URL because streamer-jobs.test.ts runs
+// unscoped deleteMany() against the real Prisma client — hard-coding it aims
+// those wipes at whatever the default names.
 // LOG_LEVEL because lib/log.ts has no NODE_ENV=test special case, so this is
 // the only way to quiet (or unquiet) pino for a run.
 const passthrough = {
