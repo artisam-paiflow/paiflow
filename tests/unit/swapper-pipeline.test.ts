@@ -205,6 +205,23 @@ describe("validateFlow", () => {
     }
   });
 
+  it("rejects a swap whose two sides are the same asset", () => {
+    // Soroswap has no pair for an asset against itself: without this the flow
+    // deploys clean and reverts inside factory.get_pair on the first trigger.
+    const base = swapFlow();
+    const r = validateFlow({
+      ...base,
+      nodes: base.nodes.map((n) =>
+        n.id === "s" ? { ...n, config: { ...n.config, assetOut: XLM } } : n,
+      ),
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      const issue = r.errors.find((e) => e.path === "nodes.s.config.assetOut");
+      expect(issue?.friendlyMessage).toMatch(/two different assets/);
+    }
+  });
+
   it("accepts a dev-mode flow containing a swap", () => {
     const r = validateFlow(swapFlow({ devMode: true }));
     expect(r.ok).toBe(true);

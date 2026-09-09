@@ -6,6 +6,7 @@ import ConfigPanel from "./config-panel";
 import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import type { FlowNode, FlowGraph } from "@/lib/flows/schema";
 import type { AddressEntry } from "@/lib/address-book.types";
+import type { StellarNetwork } from "@/lib/stellar/explorer";
 
 type CanvasConfigPanelProps = {
   selectedId: string;
@@ -19,6 +20,7 @@ type CanvasConfigPanelProps = {
   addressBookError?: string | null;
   chatCollapsed: boolean;
   canvasRef: React.RefObject<HTMLDivElement | null>;
+  network: StellarNetwork;
 };
 
 const NODE_ANCHOR_OFFSET_X = 240;
@@ -35,6 +37,7 @@ export default function CanvasConfigPanel({
   addressBookError,
   chatCollapsed,
   canvasRef,
+  network,
 }: CanvasConfigPanelProps) {
   const { getNode, screenToFlowPosition } = useReactFlow();
   const { x, y, zoom } = useViewport();
@@ -204,6 +207,7 @@ export default function CanvasConfigPanel({
                 refreshAddressBook={refreshAddressBook}
                 addressBookLoading={addressBookLoading}
                 addressBookError={addressBookError}
+                network={network}
                 hideHeader
                 className="border-0"
               />

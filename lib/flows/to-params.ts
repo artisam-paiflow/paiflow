@@ -569,6 +569,59 @@ function synthesizeCashOutNodes(
   return { action, cashOutNodes };
 }
 
+/**
+ * Contract actions that `flowToPipeline` deliberately does NOT emit as their own
+ * pipeline node, because another node carries their semantics.
+ *
+ * There is exactly one such case today: an `oracle_gte` condition compiles to a
+ * CONDITIONAL that owns the payout recipients and pays them itself, so it sets
+ * `terminal` and the action loop never runs. That only works for actions the
+ * CONDITIONAL's params can express — a recipient list. A swap or a yield has no
+ * recipients, so it is genuinely lost rather than absorbed, and stays out of
+ * this set.
+ *
+ * Kept beside the `terminal = true` it mirrors: validateFlow uses this to tell
+ * "absorbed by design" apart from "silently dropped", and the two must not drift.
+ */
+export function absorbedActionIds(graph: FlowGraph): Set<string> {
+  const absorbed = new Set<string>();
+  const trigger = graph.nodes.find(isTrigger);
+  if (!trigger) return absorbed;
+  // Only receive-like flows reach the condition compiler; schedule-like triggers
+  // return before it.
+  if (
+    trigger.type === "on_schedule" ||
+    trigger.type === "subscription" ||
+    trigger.type === "payroll"
+  ) {
+    return absorbed;
+  }
+  const oracleGte = graph.nodes.filter((n) => isLogic(n) && n.config.kind === "oracle_gte");
+  if (oracleGte.length === 0) return absorbed;
+  // Exactly one action is absorbed: the `contractActions[0]` this file picks as
+  // `action` below, whose recipients become the CONDITIONAL's. Every other
+  // pay/split in the graph is dropped rather than absorbed, and must still trip
+  // validateFlow's not-deployed guard.
+  const [primary] = graph.nodes.filter(isContractAction);
+  if (!primary || (primary.type !== "pay" && primary.type !== "split")) return absorbed;
+  // And only when a conditional actually carries it. An oracle_gte sitting
+  // unwired on the canvas still sets `terminal` below, but it absorbs nothing:
+  // treating the primary as absorbed there would hide a pay that reaches no
+  // contract at all.
+  const children = getPipelineChildren(graph);
+  const seen = new Set(oracleGte.map((c) => c.id));
+  const stack = [...seen];
+  while (stack.length) {
+    for (const child of children.get(stack.pop()!) ?? []) {
+      if (seen.has(child)) continue;
+      seen.add(child);
+      stack.push(child);
+    }
+  }
+  if (seen.has(primary.id)) absorbed.add(primary.id);
+  return absorbed;
+}
+
 export function flowToPipeline(
   graph: FlowGraph,
   relayerAddress?: string,
@@ -953,10 +1006,15 @@ export function flowToPipeline(
           recipients,
           amountStroops: amount,
           condition: cond.config,
-          nextStepNodeIds: children.get(cond.id) ?? [],
+          // Empty on purpose. `release()` in contracts/conditions/conditional
+          // transfers to the recipients above and stops; it stores next_steps
+          // and never reads them. Passing the graph's children here would name
+          // the absorbed pay/split, which is never deployed, and serializing
+          // the target would throw "Missing computed address" at prepare time.
+          nextStepNodeIds: [],
         },
       });
-      terminal = true;
+      terminal = true; // see absorbedActionIds() — the conditional pays out itself
     } else if (cond.config.kind === "multisig") {
       pipeline.push({
         nodeId: cond.id,

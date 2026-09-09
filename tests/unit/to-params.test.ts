@@ -1534,7 +1534,9 @@ describe("flowToPipeline", () => {
     expect(pipeline[1]!.params.kind).toBe("conditional");
     expect(pipeline[1]!.params).toMatchObject({
       amountStroops: "500",
-      nextStepNodeIds: ["a"],
+      // The conditional pays "a" itself and is never deployed, so it must not
+      // name it as a next step — nothing would compute an address for it.
+      nextStepNodeIds: [],
     });
   });
 
