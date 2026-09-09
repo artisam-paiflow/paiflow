@@ -324,7 +324,8 @@ export function pipelineNodeConstructorArgs(
     case "yield": {
       // Four args, matching __constructor in contracts/actions/yield: the crate
       // has no ParentNode slot, so a fifth argument fails the factory deploy.
-      // Giving it a parent and an execute_step is the feature work in #158.
+      // Giving it a parent and an execute_step is the feature work in #158;
+      // until then receive_and_forward on the deployed node is unauthenticated.
       return [
         addr(admin),
         addr(assetContractId(params.asset)),
