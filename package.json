@@ -30,6 +30,7 @@
     "contracts:upload:testnet": "tsx scripts/upload-wasm.ts --network=testnet",
     "contracts:upload:mainnet": "tsx scripts/upload-wasm.ts --network=mainnet",
     "contracts:update-hashes": "tsx scripts/update-hashes.ts",
+    "contracts:show-factory": "tsx scripts/show-factory.ts",
     "instawards:changelog": "tsx scripts/instawards-changelog.ts",
     "contracts:deploy-factory": "tsx scripts/deploy-factory.ts",
     "contracts:deploy-factory:testnet": "tsx scripts/deploy-factory.ts --network=testnet",

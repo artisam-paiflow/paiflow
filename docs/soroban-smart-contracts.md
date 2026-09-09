@@ -259,6 +259,33 @@ pnpm contracts:deploy:testnet
 pnpm contracts:deploy:mainnet
 ```
 
+**A fresh environment must end with a factory address.** Nothing can deploy without one: the app
+resolves the factory through `getFactoryAddress()` in `lib/stellar/config.ts`, and
+`deploy_pipeline` is the only path that instantiates a pipeline. `deploy-factory` skips only when
+the built Wasm hash is unchanged **and** an address already exists — in
+`STELLAR_FACTORY_ADDRESS_{TESTNET|MAINNET}` or as a `FactoryDeployment` row for the network — and it
+logs which of the two it found. On a new machine or a rebuilt service neither exists and it
+deploys. A testnet reset is different: it erases chain state but not `.env.local` and not the
+`FactoryDeployment` row, so both still name a contract that is gone and the script skips on it.
+Clear them before re-running. Delete the `STELLAR_FACTORY_ADDRESS_{TESTNET|MAINNET}` line from
+`.env.local` **itself** — unsetting the variable in the shell or passing it empty on the command
+line does nothing, because the script reloads `.env.local` with `override: true` — then drop the
+row:
+
+```sql
+DELETE FROM "FactoryDeployment" WHERE network = 'testnet';
+```
+
+Verify before trusting the chain:
+
+```bash
+pnpm contracts:show-factory
+```
+
+A row for the network, with an address, is the proof. `update-hashes` logging
+`STELLAR_FACTORY_ADDRESS_… not set, skipping` means the chain did not finish and the environment
+cannot deploy yet.
+
 See [`mainnet-cutover.md`](./mainnet-cutover.md) for the production runbook.
 
 ### 4.4 Deployment Flow (`lib/stellar/deploy.ts`)
