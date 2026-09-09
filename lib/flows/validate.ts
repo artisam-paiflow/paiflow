@@ -17,6 +17,7 @@ import {
   assetLabel,
 } from "./schema";
 import { checkHardLimits } from "./limits";
+import { inFlowOrder } from "./graph";
 import { flowToPipeline, absorbedActionIds, type PipelineNode } from "./to-params";
 
 export type ValidationIssue = { path: string; message: string; friendlyMessage: string };
@@ -371,7 +372,9 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     });
   }
   const actions = graph.nodes.filter(isAction);
-  const contractActions = actions.filter(isContractAction);
+  // Flow order, so the template ladder below infers the kind from the action
+  // the trigger reaches first rather than the one added to the canvas first.
+  const contractActions = inFlowOrder(graph, actions.filter(isContractAction));
   if (contractActions.length < 1) {
     errors.push({
       path: "nodes",
@@ -1123,13 +1126,14 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   // Every contract action the user drew must actually reach the chain. Both the
   // template ladder above and flowToPipeline pick "the" action as
-  // contractActions[0] — node array order, which is the order blocks were added
-  // to the canvas, not graph order. So a flow drawn trigger → swap → pay whose
-  // pay block was added first maps to a plain payer pipeline and the swap is
-  // dropped silently: the deploy would pay out an asset the flow never acquired.
-  // A schedule flow with two chained pays loses the second the same way.
-  // Catch it here rather than letting money move against a pipeline the user
-  // didn't draw. Tracked in #405 — the real fix is to order by topology.
+  // contractActions[0], in flow order via inFlowOrder() — the action the trigger
+  // reaches first along the edges, so the pipeline follows what the user drew
+  // rather than the order they dropped the blocks. That is not enough on its
+  // own: an action can still end up neither emitted nor absorbed, and a
+  // schedule flow with two chained pays is the live example — the streamer
+  // carries one payout step, so the second pay reaches no contract and that
+  // recipient is never paid. Catch it here rather than letting money move
+  // against a pipeline the user didn't draw.
   //
   // "Not emitted" is not the same as "lost": an oracle_gte condition compiles to
   // a CONDITIONAL that owns the recipients and pays them itself, so its pay or
