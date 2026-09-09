@@ -81,13 +81,13 @@ function extractContractAddress(returnValue: xdr.ScVal): string {
 async function findDeployedFactory(
   network: NetworkName,
   addressKey: string,
-): Promise<{ address: string; source: string } | undefined> {
+): Promise<{ address: string; source: "env" | "db"; label: string } | undefined> {
   const fromEnv = process.env[addressKey];
-  if (fromEnv) return { address: fromEnv, source: addressKey };
+  if (fromEnv) return { address: fromEnv, source: "env", label: addressKey };
 
   try {
     const fromDb = await getFactoryAddressFromDb(network);
-    if (fromDb) return { address: fromDb, source: "FactoryDeployment table" };
+    if (fromDb) return { address: fromDb, source: "db", label: "FactoryDeployment table" };
   } catch (err) {
     console.warn(
       `[deploy-factory] could not read the FactoryDeployment table: ${err instanceof Error ? err.message : String(err)}`,
@@ -127,13 +127,13 @@ async function main() {
     const deployed = await findDeployedFactory(network, addressKey);
     if (deployed) {
       console.log(
-        `[deploy-factory] factory wasm hash unchanged and ${deployed.address} already deployed (${deployed.source}), skipping deploy`,
+        `[deploy-factory] factory wasm hash unchanged and ${deployed.address} already deployed (${deployed.label}), skipping deploy`,
       );
       // update-hashes reads the address from process.env alone, so a skip
       // justified by the database has to leave it in .env.local too — without
       // this, the next link in the chain logs "not set, skipping" and a healthy
       // run reads as the failure that line is documented to mean (#404).
-      if (deployed.source !== addressKey) {
+      if (deployed.source === "db") {
         writeEnvLocal({ [addressKey]: deployed.address });
         console.log(`[deploy-factory] wrote ${addressKey} to .env.local`);
       }
