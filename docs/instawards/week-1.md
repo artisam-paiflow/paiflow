@@ -22,13 +22,14 @@ pnpm instawards:changelog --since 2026-09-07 --until 2026-09-13 \
   --ref mirror/develop --repo https://github.com/artisam-paiflow/paiflow
 ```
 
-| Date       | Change                                                                            | Issues | Commit                                                                 |
-| ---------- | --------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------- |
-| 2026-09-09 | fix(tooling): deploy the factory when the hash is unchanged but none exists       | #394   | `05645d4` — mirror sync pending                                        |
-| 2026-09-09 | feat(builder): live Soroswap quote in the swap panel and the deploy review        | #391   | `6ddd138` — mirror sync pending                                        |
-| 2026-09-09 | feat(builder): show the Swap block, name the router's network, surface its errors | #402   | `b8fd9b8` — mirror sync pending                                        |
-| 2026-09-07 | feat(pipeline): route the swap block through the Soroswap-backed swapper          | #388   | [`3a76e93`](https://github.com/artisam-paiflow/paiflow/commit/3a76e93) |
-| 2026-09-07 | feat(swapper): swap through the Soroswap router with a spot-price slippage bound  | #387   | [`3315ea3`](https://github.com/artisam-paiflow/paiflow/commit/3315ea3) |
+| Date       | Change                                                                            | Issues | Commit                                                                                                  |
+| ---------- | --------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| 2026-09-09 | docs(instawards): D1 status and week-1 interim report as of 9 September           | #409   | [`3da0c2e`](https://github.com/artisam-paiflow/paiflow/commit/3da0c2edb98a750c256f9fb801cf365424a85824) |
+| 2026-09-09 | fix(tooling): deploy the factory when the hash is unchanged but none exists       | #394   | [`861bc5b`](https://github.com/artisam-paiflow/paiflow/commit/861bc5bfdd37afc94e268ef20cdf9a9b43ba5d4a) |
+| 2026-09-09 | feat(builder): live Soroswap quote in the swap panel and the deploy review        | #391   | [`51b3f6f`](https://github.com/artisam-paiflow/paiflow/commit/51b3f6f5fb92e2d3d8fe063fef3987fb1fd07056) |
+| 2026-09-09 | feat(builder): show the Swap block, name the router's network, surface its errors | #402   | [`74a91e6`](https://github.com/artisam-paiflow/paiflow/commit/74a91e61a6f84f1e983d9d84bdbb20541b200540) |
+| 2026-09-07 | feat(pipeline): route the swap block through the Soroswap-backed swapper          | #388   | [`3a76e93`](https://github.com/artisam-paiflow/paiflow/commit/3a76e93)                                  |
+| 2026-09-07 | feat(swapper): swap through the Soroswap router with a spot-price slippage bound  | #387   | [`3315ea3`](https://github.com/artisam-paiflow/paiflow/commit/3315ea3)                                  |
 
 Every code change planned for D1 is merged. The one item still open is #390, the testnet
 deploy-and-trigger run that produces the SOW evidence.
@@ -56,11 +57,12 @@ environment, and the counting rule is activity from [paiflow.xyz](https://paiflo
 _Screenshots, recordings, transaction hashes and API samples added this week, linked from the_
 _[evidence index](evidence/README.md)._
 
-| Item                                                                                     | Type                          | Link                                                                                                                       |
-| ---------------------------------------------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Contract-as-payer swap through the real router (stage-1 proof, verification copy, 6 Sep) | Transaction                   | [`5389cdee…`](https://stellar.expert/explorer/testnet/tx/5389cdee87826b944f4fca397c0fadc8524cbb2429c2a657a306a06a4c5fc673) |
-| Swapper WASM hash on testnet                                                             | Contract                      | `e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a`                                                         |
-| Builder, panel, five edge-case errors, deploy review, live quote (local e2e run, 9 Sep)  | 7 screenshots + 3 API samples | held until the deploy-and-trigger run                                                                                      |
+| Item                                                                                     | Type                          | Link                                                                                                                                                  |
+| ---------------------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contract-as-payer swap through the real router (stage-1 proof, verification copy, 6 Sep) | Transaction                   | [`5389cdee…`](https://stellar.expert/explorer/testnet/tx/5389cdee87826b944f4fca397c0fadc8524cbb2429c2a657a306a06a4c5fc673)                            |
+| Swapper WASM hash on testnet                                                             | Contract                      | [`e9482ff0…b23d1a`](https://api.stellar.expert/explorer/testnet/wasm/e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a) — 25,371 bytes |
+| Swapper panel, builder and palette **before** D1, from paiflow.xyz (9 Sep)               | 3 screenshots                 | `d3/00`–`02` — the D3 "before" evidence, capturable only while the public app still ran pre-D1 code                                                   |
+| Builder, panel, five edge-case errors, deploy review, live quote (local e2e run, 9 Sep)  | 7 screenshots + 3 API samples | held until the deploy-and-trigger run                                                                                                                 |
 
 ## Metrics
 
@@ -96,6 +98,7 @@ retaken on 13 September.
 ## Next week
 
 If the deploy-and-trigger run does not land by 13 September it is the first thing in week 2,
-before any D2 work starts: deploy a swap flow from paiflow.xyz, fund it, capture the swap
-transaction and the recording, publish the held screenshot set, and sync the public mirror so
-every commit link resolves. D2 (developer API) starts once that evidence is public.
+before any D2 work starts: update the public app to `develop`, deploy a swap flow from
+paiflow.xyz, fund it, capture the swap transaction and the recording, and publish the held
+screenshot set. The public mirror is already synced — every commit link in this report resolves.
+D2 (developer API) starts once the swap evidence is public.
