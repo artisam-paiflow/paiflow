@@ -12,9 +12,10 @@ import type { SoroswapQuote } from "@/lib/soroswap/quote";
  * The minimum is the pool's spot price less `slippageBps`, while the router's
  * output has the 0.3% pool fee and this swap's price impact already deducted —
  * so a `slippageBps` that doesn't cover both produces a swap that reverts every
- * time. `lib/flows/schema.ts` accepts a slippage that low and nothing in
- * `lib/flows/validate.ts` rejects it, which makes the preview the only place an
- * operator can see it before signing.
+ * time. `lib/flows/validate.ts` refuses anything under the pool fee
+ * (`MIN_SWAP_SLIPPAGE_BPS`), but a legal bound can still fall short of this
+ * trade's price impact, and the preview is the only place an operator sees
+ * that before signing.
  */
 export function quoteAlwaysReverts(
   quote: Pick<SoroswapQuote, "amountOutStroops" | "amountOutMinStroops">,

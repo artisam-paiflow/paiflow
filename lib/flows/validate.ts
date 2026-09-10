@@ -15,6 +15,7 @@ import {
   splitTotalFixedStroops,
   subscriptionAmountPerPeriodStroops,
   assetLabel,
+  MIN_SWAP_SLIPPAGE_BPS,
 } from "./schema";
 import { checkHardLimits } from "./limits";
 import { inFlowOrder } from "./graph";
@@ -68,6 +69,8 @@ const FRIENDLY = {
     "A swap sends its whole output to one next step. Remove the extra connections coming out of it, or add a Split block after the swap.",
   SWAP_NEEDS_NEXT_STEP:
     "A swap sends its whole output to one next step, so it needs one. Connect it to a Pay or Split block — an email notification doesn't count as a destination.",
+  SWAP_SLIPPAGE_TOO_LOW:
+    "Soroswap's pool fee is 0.3%, so a max slippage under 0.3% makes every swap revert. Set it to at least 0.3%.",
   SWAP_SAME_ASSET: (asset: string) =>
     `A swap has to exchange two different assets, and both sides of this one are ${asset}. Change "Asset Out" to the asset you want back, or remove the swap.`,
   DANGLING_NEXT_STEP: (label: string) =>
@@ -709,6 +712,19 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
           path: `nodes.${n.id}.config.assetOut`,
           message: "Swap node must exchange two different assets",
           friendlyMessage: FRIENDLY.SWAP_SAME_ASSET(assetLabel(n.config.assetOut)),
+        });
+      }
+
+      // The contract's amount_out_min is spot less slippageBps, while the router
+      // has already taken its 0.3% fee off the output, so a bound under the fee
+      // fails the router's check on every trigger (see the swapper crate's
+      // `zero_slippage_reverts_on_the_pool_fee_alone`). Schema keeps min(0) so
+      // graphs saved before this rule still load; only deploying is refused.
+      if (n.config.slippageBps < MIN_SWAP_SLIPPAGE_BPS) {
+        errors.push({
+          path: `nodes.${n.id}.config.slippageBps`,
+          message: `Swap slippage must be at least ${MIN_SWAP_SLIPPAGE_BPS} bps`,
+          friendlyMessage: FRIENDLY.SWAP_SLIPPAGE_TOO_LOW,
         });
       }
 

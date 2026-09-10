@@ -5,7 +5,8 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { db } from "@/lib/db";
-import { recordAllowanceEvent } from "@/lib/stellar/events";
+import { log } from "@/lib/log";
+import { pollEventsFor, recordAllowanceEvent } from "@/lib/stellar/events";
 import type { FlowGraph } from "@/lib/flows/schema";
 
 const QuerySchema = z.object({
@@ -32,6 +33,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         ip,
         metadata: { deploymentId: id, txHash },
       });
+
+      // Pull this transaction's contract events into the store now, so the
+      // deployment page the user opens next renders them from the database
+      // instead of waiting up to a minute for the cron poller.
+      try {
+        await pollEventsFor(id);
+      } catch (err) {
+        log.warn({ err, deploymentId: id, txHash }, "tx-status: event ingestion failed");
+      }
 
       const envelopeXdr = (got as any).envelopeXdr as string | undefined;
       if (envelopeXdr) {

@@ -110,6 +110,20 @@ export default function DeploymentView({
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
 
+    // The SSE route only relays rows written after it subscribes, so events the
+    // cron stored between server render and this connect would never arrive.
+    // One poll on mount, and one on each drop, reads the store directly.
+    const pollOnce = () => {
+      fetch(`/api/deployments/${deploymentId}/poll-events`)
+        .then((r) => r.json())
+        .then(({ events: polledEvents }: { events: Evt[] }) => {
+          if (cancelled) return;
+          setEvents((prev) => mergeEvents(prev, polledEvents));
+          polledEvents.forEach((ev) => scheduleClearIsNew(ev.eventId, ev.txHash, ev.kind));
+        })
+        .catch(() => null);
+    };
+
     const connectSSE = () => {
       if (cancelled) return;
       es = new EventSource(`/api/deployments/${deploymentId}/events`);
@@ -145,15 +159,7 @@ export default function DeploymentView({
         }
 
         // Fallback: poll once for any missed events, then reconnect.
-        const fallbackUrl = `/api/deployments/${deploymentId}/poll-events`;
-        fetch(fallbackUrl)
-          .then((r) => r.json())
-          .then(({ events: polledEvents }: { events: Evt[] }) => {
-            if (cancelled) return;
-            setEvents((prev) => mergeEvents(prev, polledEvents));
-            polledEvents.forEach((ev) => scheduleClearIsNew(ev.eventId, ev.txHash, ev.kind));
-          })
-          .catch(() => null);
+        pollOnce();
 
         reconnectTimer = setTimeout(() => {
           if (!cancelled) {
@@ -164,6 +170,7 @@ export default function DeploymentView({
       };
     };
 
+    if (status === "CONFIRMED") pollOnce();
     connectSSE();
 
     return () => {
@@ -175,7 +182,7 @@ export default function DeploymentView({
       }
       setConnectionStatus("disconnected");
     };
-  }, [deploymentId]);
+  }, [deploymentId, status]);
 
   // Poll status while waiting for the deployment to be confirmed.
   useEffect(() => {
