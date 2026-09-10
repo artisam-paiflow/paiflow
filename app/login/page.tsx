@@ -1,7 +1,8 @@
 import LoginForm from "@/components/auth/login-form";
-import JudgeCredentials from "@/components/auth/judge-credentials";
+import SandboxEntry from "@/components/auth/sandbox-entry";
 import Link from "next/link";
 import Logo from "@/components/app/logo";
+import { env } from "@/lib/env";
 
 export const metadata = { title: "Sign in · Paiflow" };
 
@@ -10,9 +11,7 @@ export default function LoginPage({
 }: {
   searchParams: Promise<{ from?: string; error?: string }>;
 }) {
-  const judgeUsername = process.env.NEXT_PUBLIC_JUDGE_USERNAME;
-  const judgePassword = process.env.NEXT_PUBLIC_JUDGE_PASSWORD;
-  const showJudgeCreds = Boolean(judgeUsername && judgePassword);
+  const sandboxEnabled = env().SANDBOX_ENABLED;
 
   return (
     <main className="px-margin py-lg relative mx-auto flex min-h-screen w-full max-w-md flex-col justify-center">
@@ -27,9 +26,7 @@ export default function LoginPage({
 
       <LoginFormWrapper params={searchParams} />
 
-      {showJudgeCreds ? (
-        <JudgeCredentials username={judgeUsername!} password={judgePassword!} />
-      ) : null}
+      {sandboxEnabled ? <SandboxEntry /> : null}
     </main>
   );
 }

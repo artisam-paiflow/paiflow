@@ -21,7 +21,11 @@ export default function Topbar({ username }: { username: string }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const isAdmin = (session?.user as { role?: string } | undefined)?.role === "ADMIN";
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const isAdmin = role === "ADMIN";
+  // Sandbox sessions are disposable and have no account surface to manage;
+  // middleware blocks those routes, so don't offer them.
+  const isSandbox = role === "SANDBOX";
 
   useEffect(() => {
     if (!open) return;
@@ -74,17 +78,24 @@ export default function Topbar({ username }: { username: string }) {
 
         <div className="flex items-center gap-3">
           <div className="relative" ref={menuRef}>
+            {/* aria-label replaces the descendant text, so the SANDBOX badge
+                inside the button is only announced if it is named here too. */}
             <button
               onClick={() => setOpen((v) => !v)}
               aria-expanded={open}
               aria-haspopup="true"
-              aria-label={username}
+              aria-label={isSandbox ? `${username} (SANDBOX)` : username}
               className="border-outline-variant/30 bg-surface-container-low/60 text-label-sm text-on-surface-variant hover:border-primary/40 hover:text-on-surface inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors"
             >
               <span aria-hidden="true" className="material-symbols-outlined text-[14px]">
                 person
               </span>
               <span className="hidden sm:inline">{username}</span>
+              {isSandbox && (
+                <span className="border-tertiary/40 text-tertiary rounded border px-1.5 py-0.5 text-[10px] leading-none">
+                  SANDBOX
+                </span>
+              )}
               <span aria-hidden="true" className="material-symbols-outlined text-[14px]">
                 {open ? "expand_less" : "expand_more"}
               </span>
@@ -92,7 +103,7 @@ export default function Topbar({ username }: { username: string }) {
 
             {open && (
               <div className="glass-panel absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border p-1 shadow-[0_8px_24px_-4px_rgba(0,0,0,0.6)]">
-                {accountItems.map((item) => {
+                {(isSandbox ? [] : accountItems).map((item) => {
                   const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
                   return (
                     <Link

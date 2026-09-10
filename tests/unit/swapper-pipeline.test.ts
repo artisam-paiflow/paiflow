@@ -230,6 +230,30 @@ describe("validateFlow", () => {
     const r = validateFlow(swapFlow({ devMode: true }));
     expect(r.ok).toBe(true);
   });
+
+  it("rejects a slippage under the 0.3% pool fee with a message bound to slippageBps", () => {
+    // Spot less 0 bps sits above what the router returns once its fee is off,
+    // so the swap reverts on every trigger; the schema still parses it so a
+    // graph saved before this rule loads, but it must not deploy.
+    const withSlippage = (slippageBps: number) => {
+      const base = swapFlow();
+      return validateFlow({
+        ...base,
+        nodes: base.nodes.map((n) =>
+          n.id === "s" ? { ...n, config: { ...n.config, slippageBps } } : n,
+        ),
+      });
+    };
+    for (const bps of [0, 29]) {
+      const r = withSlippage(bps);
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        const issue = r.errors.find((e) => e.path === "nodes.s.config.slippageBps");
+        expect(issue?.friendlyMessage).toMatch(/at least 0\.3%/);
+      }
+    }
+    expect(withSlippage(30).ok).toBe(true);
+  });
 });
 
 describe("flowToPipeline", () => {
