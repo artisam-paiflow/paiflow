@@ -78,11 +78,13 @@ export default function Topbar({ username }: { username: string }) {
 
         <div className="flex items-center gap-3">
           <div className="relative" ref={menuRef}>
+            {/* aria-label replaces the descendant text, so the SANDBOX badge
+                inside the button is only announced if it is named here too. */}
             <button
               onClick={() => setOpen((v) => !v)}
               aria-expanded={open}
               aria-haspopup="true"
-              aria-label={username}
+              aria-label={isSandbox ? `${username} (SANDBOX)` : username}
               className="border-outline-variant/30 bg-surface-container-low/60 text-label-sm text-on-surface-variant hover:border-primary/40 hover:text-on-surface inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors"
             >
               <span aria-hidden="true" className="material-symbols-outlined text-[14px]">

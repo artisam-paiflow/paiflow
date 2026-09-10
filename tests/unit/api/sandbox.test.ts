@@ -8,11 +8,17 @@
  * a single-use ticket.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SANDBOX_PASSWORD_SENTINEL } from "@/lib/sandbox";
 
 const { mockDb, mockSaveChallenge, mockRateLimit, mockAudit } = vi.hoisted(() => ({
-  mockDb: { user: { create: vi.fn() } },
+  mockDb: { user: { create: vi.fn(), delete: vi.fn() } },
   mockSaveChallenge: vi.fn(),
-  mockRateLimit: vi.fn(async (_key: string) => ({ ok: true, remaining: 4, resetAt: 0 })),
+  mockRateLimit: vi.fn(async (_key: string) => ({
+    ok: true,
+    remaining: 4,
+    resetAt: 0,
+    shared: true,
+  })),
   mockAudit: vi.fn(),
 }));
 
@@ -38,8 +44,10 @@ async function post() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockRateLimit.mockResolvedValue({ ok: true, remaining: 4, resetAt: 0 });
+  mockRateLimit.mockResolvedValue({ ok: true, remaining: 4, resetAt: 0, shared: true });
   mockDb.user.create.mockResolvedValue({ id: "user-sandbox-1", username: "sandbox-deadbeef" });
+  mockDb.user.delete.mockResolvedValue({});
+  mockSaveChallenge.mockResolvedValue(undefined);
   process.env.SANDBOX_ENABLED = "true";
 });
 
@@ -78,7 +86,7 @@ describe("POST /api/auth/sandbox", () => {
     // No argon2 over a random string: that would be a 19 MiB, 2-pass amplifier
     // on an unauthenticated endpoint. The stored value is a sentinel that
     // verifyPassword() can never match, so no password opens the account.
-    expect(arg.data.passwordHash).toBe("sandbox:no-password-login");
+    expect(arg.data.passwordHash).toBe(SANDBOX_PASSWORD_SENTINEL);
 
     expect(mockSaveChallenge).toHaveBeenCalledWith("ticket", body.data.ticket, "user-sandbox-1");
     expect(mockAudit).toHaveBeenCalledWith(
@@ -87,7 +95,7 @@ describe("POST /api/auth/sandbox", () => {
   });
 
   it("is capped per IP so throwaway identities cannot be minted in a loop", async () => {
-    mockRateLimit.mockResolvedValue({ ok: false, remaining: 0, resetAt: 0 });
+    mockRateLimit.mockResolvedValue({ ok: false, remaining: 0, resetAt: 0, shared: true });
     const res = await post();
     expect(res.status).toBe(429);
     expect(mockDb.user.create).not.toHaveBeenCalled();
@@ -101,10 +109,35 @@ describe("POST /api/auth/sandbox", () => {
       ok: key !== "sandbox:global",
       remaining: 0,
       resetAt: 0,
+      shared: true,
     }));
     const res = await post();
     expect(res.status).toBe(429);
     expect(mockDb.user.create).not.toHaveBeenCalled();
     expect(mockRateLimit).toHaveBeenCalledWith("sandbox:global", 120, 3600);
+  });
+
+  it("refuses to mint when the instance-wide cap has no shared limiter behind it", async () => {
+    // rateLimit() degrades to a per-process bucket when Redis is unreachable.
+    // A per-process count does not cap an anonymous row-creating endpoint
+    // across replicas, so this one fails closed rather than trusting it.
+    mockRateLimit.mockImplementation(async (key: string) => ({
+      ok: true,
+      remaining: 0,
+      resetAt: 0,
+      shared: key !== "sandbox:global",
+    }));
+    const res = await post();
+    expect(res.status).toBe(429);
+    expect(mockDb.user.create).not.toHaveBeenCalled();
+  });
+
+  it("deletes the user again when the ticket cannot be stored", async () => {
+    // The row and its flow are already committed and the ticket is the only way
+    // in, so without this the failure strands an active SANDBOX account.
+    mockSaveChallenge.mockRejectedValue(new Error("redis down"));
+    const res = await post();
+    expect(res.status).toBe(500);
+    expect(mockDb.user.delete).toHaveBeenCalledWith({ where: { id: "user-sandbox-1" } });
   });
 });

@@ -23,6 +23,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (target.id === admin.id && body.isActive === false) {
       throw new AppError("FORBIDDEN", "Cannot deactivate yourself");
     }
+    // A sandbox account is a throwaway anyone can mint. Promoting it out of the
+    // role would hand it the whole app, and setting a password would replace
+    // the sentinel that keeps the credentials path from ever opening it (see
+    // lib/sandbox.ts). Deactivating and unlocking stay available.
+    if (target.role === Role.SANDBOX && (body.role || body.resetPassword)) {
+      throw new AppError("FORBIDDEN", "A sandbox account's role and password cannot be changed");
+    }
 
     const data: {
       role?: Role;

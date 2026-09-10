@@ -160,7 +160,8 @@ export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionU
   }
 
   // Per-developer machine tokens also grant access to dev endpoints; they carry
-  // an owner, unlike the shared secret above.
+  // an owner, unlike the shared secret above. requireDevApiToken() rejects a
+  // SANDBOX owner itself, so both user-bearing paths here are covered.
   try {
     return { user: await requireDevApiToken(req) };
   } catch (err) {
@@ -208,6 +209,13 @@ export async function requireDevApiToken(req: NextRequest): Promise<SessionUser>
       include: { user: true },
     });
     if (token && !token.revokedAt && token.user.isActive) {
+      // scripts/create-dev-api-token.ts will mint a token for any existing user,
+      // SANDBOX included. The endpoints behind this helper mutate deployed
+      // contracts and sign with the relayer key, so the role is refused here
+      // rather than only on the session fallback in requireDevAuth().
+      if (token.user.role === Role.SANDBOX) {
+        throw new AppError("FORBIDDEN", "Not available in the sandbox");
+      }
       // Best-effort last-used stamp; never block the request on it.
       db.devApiToken
         .update({ where: { id: token.id }, data: { lastUsedAt: new Date() } })

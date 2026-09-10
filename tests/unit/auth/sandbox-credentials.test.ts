@@ -12,8 +12,7 @@
  */
 import { describe, expect, it } from "vitest";
 import argon2 from "argon2";
-
-const SENTINEL = "sandbox:no-password-login";
+import { SANDBOX_PASSWORD_SENTINEL as SENTINEL } from "@/lib/sandbox";
 
 describe("the sandbox account's stored password can never open it", () => {
   it("argon2 refuses the sentinel as a hash, for every candidate password", async () => {
