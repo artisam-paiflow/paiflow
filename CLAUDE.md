@@ -166,6 +166,18 @@ A per-flow `devMode` flag on the graph swaps nodes that have a `_DEV` counterpar
 design time are filled after deploy through the `/api/deployments/[id]/dev-*` routes, authenticated
 by a `DevApiToken` rather than a session. Background in `docs/design/2026-06-24-dev-mode-mutable-flows.md`.
 
+### Sandbox sessions
+
+With `SANDBOX_ENABLED=true` (testnet only — `env()` refuses the flag under
+`STELLAR_NETWORK=mainnet`) the login page offers "Try the sandbox". `POST /api/auth/sandbox`
+mints a disposable `SANDBOX`-role user whose stored password is a sentinel that can never verify,
+and signs it in through the same single-use ticket handshake the passkey login uses.
+`lib/sandbox-paths.ts` is the **allowlist** of what that role may reach, checked in
+`middleware.ts` ahead of `PUBLIC_PATHS` so the machine-auth endpoints listed there stay closed.
+`SANDBOX_TEMPLATE_KINDS` in `lib/sandbox.ts` is enforced against **every node** of the generated
+pipeline in `/api/deployments/prepare`: a sandbox session may only deploy pipelines the visitor's
+own wallet signs end to end, never one the relayer later acts on.
+
 ---
 
 ## 3. Project conventions
@@ -266,6 +278,10 @@ keep-alive`, plus an `AbortSignal` cleanup that unsubscribes Redis listeners. He
 - Passwords hashed with argon2id; never logged; redacted in Pino serializers.
 - After successful login: rotate session ID, set `lastLoginAt`, write `AuditLog{ action: "USER_LOGIN" }`.
 - After 5 failed attempts: `User.lockedUntil = now + 15min`. Return a generic error.
+- `Role.SANDBOX` is a real, disposable user anyone on the internet can mint. `requireSession()`
+  accepts it like any role, so a route is closed to it only by the allowlist in
+  `lib/sandbox-paths.ts`; add new routes there deliberately, and never add a relayer-signed
+  template kind to `SANDBOX_TEMPLATE_KINDS` ([§2](#2-architecture), "Sandbox sessions").
 - Passkey registration currently requires only an authenticated session (`requireSession()` in
   `app/api/auth/passkey/register/options/route.ts`). It does **not** re-verify the password, so
   adding a second credential is as easy as holding a live session — see [§19](#19-known-gaps--rules-not-enforced-yet).

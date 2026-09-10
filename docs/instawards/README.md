@@ -4,15 +4,15 @@ Weekly milestone reports for the Stellar Development Foundation Instawards progr
 (Philippines chapter). Each week records what shipped, links every Statement of Work item to
 the commits and on-chain transactions that prove it, and updates the success metrics.
 
-|          |                                                                                  |
-| -------- | -------------------------------------------------------------------------------- |
-| Project  | Paiflow — a visual, non-custodial payment-flow builder on Stellar / Soroban      |
-| Builder  | Mychal Andres B. Pejana                                                          |
-| Chapter  | Philippines — Chapter Lead Nelson Lumbres                                        |
-| Sprint   | 7 September – 4 October 2026                                                     |
-| Live app | [paiflow.xyz](https://paiflow.xyz) (Stellar **testnet**)                         |
-| Source   | [github.com/artisam-paiflow/paiflow](https://github.com/artisam-paiflow/paiflow) |
-| Network  | Testnet only. Mainnet is out of scope for this Instaward.                        |
+|          |                                                                                                                       |
+| -------- | --------------------------------------------------------------------------------------------------------------------- |
+| Project  | Paiflow — a visual, non-custodial payment-flow builder on Stellar / Soroban                                           |
+| Builder  | Mychal Andres B. Pejana                                                                                               |
+| Chapter  | Philippines — Chapter Lead Nelson Lumbres                                                                             |
+| Sprint   | 7 September – 4 October 2026                                                                                          |
+| Live app | [paiflow.xyz](https://paiflow.xyz) (Stellar **testnet**) — no account needed: use _Try the sandbox_ on the login page |
+| Source   | [github.com/artisam-paiflow/paiflow](https://github.com/artisam-paiflow/paiflow)                                      |
+| Network  | Testnet only. Mainnet is out of scope for this Instaward.                                                             |
 
 ## How to read this book
 
