@@ -13,6 +13,19 @@ import { flowToPipeline } from "@/lib/flows/to-params";
 import { preparePipelineDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
 import { getWasmHashes } from "@/lib/stellar/config";
 import { stellarRelayerAddress, offRampTreasuryAddress } from "@/lib/env";
+import { Role, TemplateKind } from "@prisma/client";
+
+/**
+ * Template kinds a SANDBOX session may deploy: every on-chain move in these is
+ * signed by the visitor's own wallet, so none of them can draw on the
+ * server-held relayer key. Anything else is refused above.
+ */
+const SANDBOX_TEMPLATE_KINDS: TemplateKind[] = [
+  TemplateKind.SWAPPER,
+  TemplateKind.SPLITTER,
+  TemplateKind.PAYER,
+  TemplateKind.DEPOSIT_TRIGGER,
+];
 
 const PrepareSchema = z.object({
   flowId: z.string().uuid(),
@@ -53,6 +66,20 @@ export async function POST(req: NextRequest) {
       throw new AppError(
         "VALIDATION",
         `Cannot deploy: these recipients need Stellar addresses first: ${pending.join(", ")}. Resolve them in the flow editor before deploying.`,
+      );
+    }
+
+    // A sandbox identity is disposable and needs no account, so it must not be
+    // able to create a deployment the platform later signs for. SUBSCRIPTION,
+    // PAYROLL, CASH_OUT and STREAMER pipelines are picked up by the
+    // `cron/auto-charge-*`, `auto-release` and `process-*-jobs` jobs, which
+    // select on status and template kind alone and then sign with
+    // STELLAR_RELAYER_SECRET_KEY. Restrict the sandbox to the kinds whose every
+    // on-chain move is signed by the visitor's own wallet.
+    if (user.role === Role.SANDBOX && !SANDBOX_TEMPLATE_KINDS.includes(v.templateKind)) {
+      throw new AppError(
+        "FORBIDDEN",
+        `The sandbox can deploy swap and split flows only. This flow is a ${v.templateKind} pipeline, which runs on Paiflow's scheduled signer — sign in with a full account to deploy it.`,
       );
     }
 

@@ -62,8 +62,9 @@ async function authorizeUser(input: unknown): Promise<{
   if (!parsed.success) return null;
   const { username, password, passkeyTicket } = parsed.data;
 
-  // Passkey login: ticket was issued by /api/auth/passkey/login/verify after
-  // a successful WebAuthn assertion. Single-use, ≤60s.
+  // Passkey login: ticket was issued by /api/auth/passkey/login/verify after a
+  // successful WebAuthn assertion. Also the handshake /api/auth/sandbox uses.
+  // Single-use (popChallenge deletes it), ≤5 min — challenges.ts stores EX 300.
   if (passkeyTicket) {
     const { popChallenge } = await import("./passkey/challenges");
     const userId = await popChallenge("ticket", passkeyTicket);
@@ -164,7 +165,15 @@ export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionU
     return { user: await requireDevApiToken(req) };
   } catch (err) {
     if (err instanceof AppError && err.code === "UNAUTHENTICATED") {
-      return { user: await requireSession() };
+      const user = await requireSession();
+      // These endpoints mutate deployed contracts and several sign with the
+      // relayer key. A SANDBOX session is a throwaway identity anyone can mint
+      // without an account, so it never reaches them — middleware blocks these
+      // paths too, but this must not be the only thing standing in the way.
+      if (user.role === Role.SANDBOX) {
+        throw new AppError("FORBIDDEN", "Not available in the sandbox");
+      }
+      return { user };
     }
     throw err;
   }
