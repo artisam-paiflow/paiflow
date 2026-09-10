@@ -6,6 +6,7 @@ import {
   buildCorrectionPrompt,
   EditResponseSchema,
 } from "@/lib/ai/prompts";
+import { MIN_SWAP_SLIPPAGE_BPS } from "@/lib/flows/schema";
 import type { FlowGraph } from "@/lib/flows/schema";
 
 const ADDR = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
@@ -148,6 +149,12 @@ describe("prompts", () => {
     expect(msg).toContain("BRAND NEW EMPTY FLOW");
     expect(msg).toContain("addNode and addEdge operations");
     expect(msg).toContain("Do not use updateNode or removeNode");
+  });
+
+  it("buildSystemPrompt documents the swap slippage floor", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain(`slippageBps: int ${MIN_SWAP_SLIPPAGE_BPS}–10000`);
+    expect(prompt).not.toContain("slippageBps: int 0–10000");
   });
 
   it("buildSystemPrompt mentions building from scratch", () => {

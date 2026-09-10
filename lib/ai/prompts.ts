@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { FlowGraph, FlowNode, FlowEdge } from "@/lib/flows/schema";
-import { isPendingAddress } from "@/lib/flows/schema";
+import { isPendingAddress, MIN_SWAP_SLIPPAGE_BPS } from "@/lib/flows/schema";
 import { flowToEnglish } from "@/lib/flows/english";
 import type { AddressEntry } from "@/lib/address-book";
 
@@ -370,7 +370,7 @@ ACTIONS — a flow needs ≥1 of pay/split/swap (email_notify does NOT satisfy t
     • fixed recipient:      { address: stellarAddress, mode: "fixed", amountStroops: string, label?: string, payoutMode?: "crypto"|"fiat", accountName?: string, accountNumber?: string, bankCode?: string }    — each amount > 0
     • amountPerIntervalStroops (optional): when set, the split streams this total amount per interval across recipients.
     • FIAT PAYOUT on a recipient: set payoutMode="fiat" + accountName/accountNumber/bankCode on that recipient. That recipient does NOT need a real Stellar address — use "PENDING:<label>". Contract addresses (C...) MUST have payoutMode="fiat".
-- swap: { assetIn: Asset, assetOut: Asset, slippageBps: int 0–10000, deadlineSecs: int 1–86400 }   // slippageBps 100 = max 1% below the Soroswap pool's spot price (must cover the 0.3% fee); deadlineSecs 300
+- swap: { assetIn: Asset, assetOut: Asset, slippageBps: int ${MIN_SWAP_SLIPPAGE_BPS}–10000, deadlineSecs: int 1–86400 }   // slippageBps 100 = max 1% below the Soroswap pool's spot price; the floor of ${MIN_SWAP_SLIPPAGE_BPS} is Soroswap's 0.3% pool fee, and anything under it is refused at deploy; deadlineSecs 300
 - yield (HIDDEN): { asset: Asset, vault: stellarAddress }   // vault may be "PENDING:<label>"
 - cash_out (HIDDEN — auto-generated, never add by hand): { asset: Asset, accountName: string, accountNumber: string, bankCode: string }
 - email_notify: { recipients: [{ address: string, email: string }], subject: string (non-empty), body?: string }

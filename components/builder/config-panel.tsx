@@ -14,6 +14,7 @@ import {
   stroopsToDisplay,
   tokenAmountToStroops,
   splitTotalFixedStroops,
+  MIN_SWAP_SLIPPAGE_BPS,
   type SplitRecipient,
 } from "@/lib/flows/schema";
 import { cn, formatStroops, shortAddr } from "@/lib/utils";
@@ -1401,7 +1402,7 @@ export default function ConfigPanel({
             <input
               className="input"
               type="number"
-              min={0}
+              min={MIN_SWAP_SLIPPAGE_BPS / 100}
               max={100}
               step={0.1}
               value={node.config.slippageBps / 100}
@@ -1411,14 +1412,19 @@ export default function ConfigPanel({
                   ...node,
                   config: {
                     ...node.config,
-                    slippageBps: isNaN(v) ? 100 : Math.round(Math.min(100, Math.max(0, v)) * 100),
+                    slippageBps: isNaN(v)
+                      ? 100
+                      : Math.max(
+                          MIN_SWAP_SLIPPAGE_BPS,
+                          Math.round(Math.min(100, Math.max(0, v)) * 100),
+                        ),
                   },
                 });
               }}
             />
             <div className="mt-0.5 text-[11px] text-zinc-500">
               Minimum output is the pool&apos;s spot price less this percentage. It must cover
-              Soroswap&apos;s 0.3% fee plus price impact, so values under 0.3% always fail.
+              Soroswap&apos;s 0.3% fee plus price impact, so at least 0.3% is required.
             </div>
           </Field>
           <Field label="Deadline (seconds)" error={fieldError("deadlineSecs")}>

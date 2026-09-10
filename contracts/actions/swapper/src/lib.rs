@@ -462,12 +462,23 @@ mod test {
             );
         }
         pub fn run_rf(env: Env, swapper: Address, asset: Address, amount: i128) {
+            let none = Vec::<WorkflowTarget>::new(&env);
+            Self::run_rf_to(env, swapper, asset, amount, none);
+        }
+        /// Same as `run_rf` but passes a caller-chosen `next_steps`, which the
+        /// swapper must ignore in favour of the one it was constructed with.
+        pub fn run_rf_to(
+            env: Env,
+            swapper: Address,
+            asset: Address,
+            amount: i128,
+            next_steps: Vec<WorkflowTarget>,
+        ) {
             token::Client::new(&env, &asset).transfer(
                 &env.current_contract_address(),
                 &swapper,
                 &amount,
             );
-            let empty = Vec::<WorkflowTarget>::new(&env);
             env.invoke_contract::<()>(
                 &swapper,
                 &Symbol::new(&env, "receive_and_forward"),
@@ -476,7 +487,7 @@ mod test {
                     env.current_contract_address().into_val(&env),
                     asset.into_val(&env),
                     amount.into_val(&env),
-                    empty.into_val(&env),
+                    next_steps.into_val(&env),
                 ],
             );
         }
@@ -672,6 +683,59 @@ mod test {
             .try_execute_step(&w.tok_in.address, &(10 * XLM))
             .is_err());
         assert_eq!(w.tok_in.balance(&swapper), 10 * XLM, "nothing moved");
+    }
+
+    #[test]
+    fn receive_and_forward_requires_the_callers_auth() {
+        // `from.require_auth()` is the only gate on this entry point: with no
+        // auth mocked for `from`, the call must fail before do_swap runs, and
+        // the asset_in it would have traded stays put.
+        let w = world(100_000 * XLM, 100_000 * XLM, true);
+        let swapper = deploy(&w, 100, 300, true);
+        w.tok_in
+            .mock_all_auths()
+            .transfer(&w.parent, &swapper, &(10 * XLM));
+        let stranger = Address::generate(&w.env);
+        let client = SwapperClient::new(&w.env, &swapper);
+        assert!(client
+            .try_receive_and_forward(
+                &stranger,
+                &w.tok_in.address,
+                &(10 * XLM),
+                &Vec::<WorkflowTarget>::new(&w.env),
+            )
+            .is_err());
+        assert_eq!(w.tok_in.balance(&swapper), 10 * XLM, "nothing moved");
+        assert_eq!(w.tok_out.balance(&w.next), 0);
+    }
+
+    #[test]
+    fn receive_and_forward_ignores_caller_supplied_next_steps() {
+        // The output destination is the stored next step, never the argument:
+        // an authenticated caller naming a different contract still sees the
+        // swap land on the one the pipeline was deployed with.
+        let w = world(100_000 * XLM, 100_000 * XLM, true);
+        let swapper = deploy(&w, 100, 300, true);
+        let decoy = w.env.register(Dummy, ());
+        let forged = vec![
+            &w.env,
+            WorkflowTarget {
+                address: decoy.clone(),
+                data: String::from_str(&w.env, ""),
+            },
+        ];
+        MockParentClient::new(&w.env, &w.parent).run_rf_to(
+            &swapper,
+            &w.tok_in.address,
+            &(10 * XLM),
+            &forged,
+        );
+        assert!(
+            w.tok_out.balance(&w.next) > 99_600_000,
+            "stored next step paid"
+        );
+        assert_eq!(w.tok_out.balance(&decoy), 0, "forged next step got nothing");
+        assert_eq!(w.tok_out.balance(&swapper), 0);
     }
 
     #[test]
