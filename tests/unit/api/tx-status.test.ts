@@ -59,6 +59,25 @@ describe("GET /api/deployments/[id]/tx-status", () => {
     expect((await res.json()).data.status).toBe("SUCCESS");
   });
 
+  it("still reports SUCCESS when ingestion outruns its deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
+      // A stalled getEvents: the SDK sets no HTTP timeout, so nothing else
+      // would ever settle this.
+      vi.mocked(pollEventsFor).mockReturnValueOnce(new Promise<number>(() => {}));
+
+      const pending = call();
+      await vi.advanceTimersByTimeAsync(5_000);
+      const res = await pending;
+
+      expect(res.status).toBe(200);
+      expect((await res.json()).data.status).toBe("SUCCESS");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not poll while the transaction is still pending", async () => {
     mockRpc.getTransaction.mockResolvedValue({ status: "NOT_FOUND" });
     const res = await call();

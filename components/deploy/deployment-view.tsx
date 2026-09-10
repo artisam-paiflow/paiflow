@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import DeploymentCanvas from "./deployment-canvas";
+import { eventsReducer } from "./deployment-events";
 import { LiveEvents, type Evt } from "./live-events";
 import LiveBalances from "./live-balances";
 import ContractCallButton from "./contract-call-button";
@@ -42,65 +43,18 @@ export default function DeploymentView({
 }) {
   const explorerUrl =
     contractAddress && network ? stellarExpertContractUrl(contractAddress, network) : null;
-  const [pulse, setPulse] = useState(0);
-  const [balanceTick, setBalanceTick] = useState(0);
-  const [events, setEvents] = useState<Evt[]>(initialEvents);
+  const [{ events, pulse, balanceTick }, dispatchEvents] = useReducer(eventsReducer, {
+    events: initialEvents,
+    pulse: 0,
+    balanceTick: 0,
+  });
   const [connectionStatus, setConnectionStatus] = useState<
     "live" | "reconnecting" | "disconnected"
   >("live");
   const esRef = useRef<EventSource | null>(null);
 
-  const mergeEvents = (prev: Evt[], incoming: Evt[]) => {
-    const merged = [...prev];
-    let addedPulses = 0;
-    let balanceChanges = 0;
-    for (const data of incoming) {
-      const isDuplicate = merged.some(
-        (p) =>
-          (p.eventId && data.eventId && p.eventId === data.eventId) ||
-          (p.txHash === data.txHash && p.kind === data.kind),
-      );
-      if (!isDuplicate) {
-        merged.push({ ...data, _isNew: true });
-        if (data.kind === "RECEIVE" || data.kind === "PAYOUT") {
-          addedPulses += 1;
-        }
-        if (
-          data.kind === "RECEIVE" ||
-          data.kind === "PAYOUT" ||
-          data.kind === "CLAIM" ||
-          data.kind === "CANCEL" ||
-          data.kind === "SHORTFALL" ||
-          data.kind === "FORWARD" ||
-          data.kind === "ALLOWANCE"
-        ) {
-          balanceChanges += 1;
-        }
-      }
-    }
-
-    merged.sort((a, b) => {
-      if (a.ledger !== b.ledger) return b.ledger - a.ledger;
-      return (b.eventId ?? "").localeCompare(a.eventId ?? "");
-    });
-
-    if (addedPulses > 0) setPulse((p) => p + addedPulses);
-    if (balanceChanges > 0) setBalanceTick((t) => t + balanceChanges);
-    return merged.slice(0, 100);
-  };
-
-  const clearIsNew = (eventId: string | undefined, txHash: string, kind: string) => {
-    setEvents((curr) =>
-      curr.map((e) =>
-        (e.eventId && eventId && e.eventId === eventId) || (e.txHash === txHash && e.kind === kind)
-          ? { ...e, _isNew: false }
-          : e,
-      ),
-    );
-  };
-
   const scheduleClearIsNew = (eventId: string | undefined, txHash: string, kind: string) => {
-    setTimeout(() => clearIsNew(eventId, txHash, kind), 250);
+    setTimeout(() => dispatchEvents({ type: "clearIsNew", eventId, txHash, kind }), 250);
   };
 
   // Single source of live events for the deployment page. Uses SSE with a
@@ -115,10 +69,13 @@ export default function DeploymentView({
     // One poll on mount, and one on each drop, reads the store directly.
     const pollOnce = () => {
       fetch(`/api/deployments/${deploymentId}/poll-events`)
-        .then((r) => r.json())
-        .then(({ events: polledEvents }: { events: Evt[] }) => {
-          if (cancelled) return;
-          setEvents((prev) => mergeEvents(prev, polledEvents));
+        // 401 and 429 (30/60s per IP, shared by every tab and reconnect) answer
+        // with `{ error }`, which has no events to merge.
+        .then((r) => (r.ok ? r.json() : null))
+        .then((body: { events?: Evt[] } | null) => {
+          if (cancelled || !Array.isArray(body?.events)) return;
+          const polledEvents = body.events;
+          dispatchEvents({ type: "merge", incoming: polledEvents });
           polledEvents.forEach((ev) => scheduleClearIsNew(ev.eventId, ev.txHash, ev.kind));
         })
         .catch(() => null);
@@ -142,7 +99,7 @@ export default function DeploymentView({
             return;
           }
           const contractEvent = event as Evt;
-          setEvents((prev) => mergeEvents(prev, [contractEvent]));
+          dispatchEvents({ type: "merge", incoming: [contractEvent] });
           scheduleClearIsNew(contractEvent.eventId, contractEvent.txHash, contractEvent.kind);
         } catch {
           /* ignore malformed SSE messages */
@@ -410,7 +367,7 @@ export default function DeploymentView({
                     return { txHash: json.data.txHash };
                   }}
                   onSuccess={() => {
-                    setBalanceTick((t) => t + 1);
+                    dispatchEvents({ type: "refreshBalances" });
                   }}
                 />
                 {isCancelled === null ? (
@@ -462,7 +419,7 @@ export default function DeploymentView({
                     }}
                     onSuccess={() => {
                       setIsCancelled(false);
-                      setBalanceTick((t) => t + 1);
+                      dispatchEvents({ type: "refreshBalances" });
                     }}
                   />
                 ) : (
@@ -507,7 +464,7 @@ export default function DeploymentView({
                     onSuccess={() => {
                       setIsCancelled(true);
                       setAllowance(0n);
-                      setBalanceTick((t) => t + 1);
+                      dispatchEvents({ type: "refreshBalances" });
                     }}
                   />
                 )}
