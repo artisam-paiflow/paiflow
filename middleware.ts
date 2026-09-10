@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import NextAuth from "next-auth";
 import { authConfig } from "@/auth.config";
 import { cspHeader, makeNonce } from "@/lib/csp";
+import { isSandboxAllowed } from "@/lib/sandbox-paths";
 
 const { auth } = NextAuth(authConfig);
 
@@ -61,40 +62,61 @@ function applySecurityHeaders(res: NextResponse, req: NextRequest): NextResponse
   return res;
 }
 
-export default auth((req: NextRequest & { auth: { user?: { id?: string } } | null }) => {
-  const { pathname } = req.nextUrl;
-  const isAuthed = Boolean(req.auth?.user?.id);
+export default auth(
+  (req: NextRequest & { auth: { user?: { id?: string; role?: string } } | null }) => {
+    const { pathname } = req.nextUrl;
+    const isAuthed = Boolean(req.auth?.user?.id);
+    const isSandbox = req.auth?.user?.role === "SANDBOX";
 
-  // Already signed in? Don't show the login/register/forgot-password screens —
-  // send the user straight to the dashboard.
-  if (isAuthed && isAuthEntryPage(pathname)) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/dashboard";
-    url.search = "";
-    return applySecurityHeaders(NextResponse.redirect(url), req);
-  }
-
-  if (isPublic(pathname)) {
-    return applySecurityHeaders(NextResponse.next(), req);
-  }
-
-  if (!isAuthed) {
-    if (pathname.startsWith("/api/")) {
-      return applySecurityHeaders(
-        NextResponse.json(
-          { error: { code: "UNAUTHENTICATED", message: "Authentication required" } },
-          { status: 401 },
-        ),
-        req,
-      );
+    // Already signed in? Don't show the login/register/forgot-password screens —
+    // send the user straight to the dashboard.
+    if (isAuthed && isAuthEntryPage(pathname)) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/dashboard";
+      url.search = "";
+      return applySecurityHeaders(NextResponse.redirect(url), req);
     }
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("from", pathname);
-    return applySecurityHeaders(NextResponse.redirect(url), req);
-  }
-  return applySecurityHeaders(NextResponse.next(), req);
-});
+
+    // Checked ahead of isPublic so the machine-auth endpoints listed there stay
+    // out of reach of a sandbox session.
+    if (isSandbox && !isSandboxAllowed(pathname)) {
+      if (pathname.startsWith("/api/")) {
+        return applySecurityHeaders(
+          NextResponse.json(
+            { error: { code: "FORBIDDEN", message: "Not available in the sandbox" } },
+            { status: 403 },
+          ),
+          req,
+        );
+      }
+      const url = req.nextUrl.clone();
+      url.pathname = "/dashboard";
+      url.search = "";
+      return applySecurityHeaders(NextResponse.redirect(url), req);
+    }
+
+    if (isPublic(pathname)) {
+      return applySecurityHeaders(NextResponse.next(), req);
+    }
+
+    if (!isAuthed) {
+      if (pathname.startsWith("/api/")) {
+        return applySecurityHeaders(
+          NextResponse.json(
+            { error: { code: "UNAUTHENTICATED", message: "Authentication required" } },
+            { status: 401 },
+          ),
+          req,
+        );
+      }
+      const url = req.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("from", pathname);
+      return applySecurityHeaders(NextResponse.redirect(url), req);
+    }
+    return applySecurityHeaders(NextResponse.next(), req);
+  },
+);
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)).*)"],

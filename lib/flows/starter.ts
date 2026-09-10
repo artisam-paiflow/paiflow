@@ -38,3 +38,47 @@ export const STARTER_GRAPH = {
   ],
   edges: [{ id: "e1", source: "trigger-1", target: "action-1" }],
 } as const;
+
+/**
+ * The flow seeded into a brand-new sandbox session (`POST /api/auth/sandbox`).
+ *
+ * This is the D1 evidence path: a visitor with no account lands on it and can
+ * see, configure and deploy the Swap block. `assetOut` is USDC so the swap
+ * exchanges two different assets (`validateFlow` rejects a same-asset swap),
+ * and the Pay node is required because a swap sends its whole output to
+ * exactly one next step. The recipient is the same unfunded placeholder the
+ * splitter starter uses.
+ */
+export const SANDBOX_STARTER_GRAPH = {
+  nodes: [
+    {
+      id: "trigger-1",
+      type: "on_receive",
+      config: { asset: { kind: "native" } },
+    },
+    {
+      id: "action-1",
+      type: "swap",
+      config: {
+        assetIn: { kind: "native" },
+        assetOut: { kind: "known", symbol: "USDC" },
+        slippageBps: 100,
+        deadlineSecs: 300,
+      },
+    },
+    {
+      id: "action-2",
+      type: "pay",
+      config: {
+        recipient: DEMO_RECIPIENT_ALICE,
+        asset: { kind: "known", symbol: "USDC" },
+        mode: "fixed",
+        fullAmount: true,
+      },
+    },
+  ],
+  edges: [
+    { id: "e1", source: "trigger-1", target: "action-1" },
+    { id: "e2", source: "action-1", target: "action-2" },
+  ],
+} as const;

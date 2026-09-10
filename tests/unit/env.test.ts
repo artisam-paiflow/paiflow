@@ -128,3 +128,32 @@ describe("env — splitter hard limits", () => {
     expect(e.NEXT_PUBLIC_SPLITTER_USDC_MAX).toBe(110);
   });
 });
+
+describe("env — the sandbox is testnet-only", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    delete process.env.SANDBOX_ENABLED;
+  });
+
+  it("refuses to boot with SANDBOX_ENABLED on mainnet", async () => {
+    // The sandbox hands a working session to anyone who asks, with no account
+    // and no credential. On mainnet that would point an anonymous visitor at
+    // real money, so the combination fails closed rather than relying on an
+    // operator remembering to unset it during a cutover.
+    process.env.SANDBOX_ENABLED = "true";
+    const mod = await loadEnv("mainnet");
+    expect(() => mod.env()).toThrow(/SANDBOX_ENABLED/);
+    expect(() => mod.env()).toThrow(/mainnet/);
+  });
+
+  it("allows it on testnet", async () => {
+    process.env.SANDBOX_ENABLED = "true";
+    const mod = await loadEnv("testnet");
+    expect(mod.env().SANDBOX_ENABLED).toBe(true);
+  });
+
+  it("leaves mainnet alone when the sandbox is off", async () => {
+    const mod = await loadEnv("mainnet");
+    expect(mod.env().SANDBOX_ENABLED).toBe(false);
+  });
+});

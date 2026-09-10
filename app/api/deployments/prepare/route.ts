@@ -13,6 +13,8 @@ import { flowToPipeline } from "@/lib/flows/to-params";
 import { preparePipelineDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
 import { getWasmHashes } from "@/lib/stellar/config";
 import { stellarRelayerAddress, offRampTreasuryAddress } from "@/lib/env";
+import { Role } from "@prisma/client";
+import { SANDBOX_TEMPLATE_KINDS } from "@/lib/sandbox";
 
 const PrepareSchema = z.object({
   flowId: z.string().uuid(),
@@ -54,6 +56,26 @@ export async function POST(req: NextRequest) {
         "VALIDATION",
         `Cannot deploy: these recipients need Stellar addresses first: ${pending.join(", ")}. Resolve them in the flow editor before deploying.`,
       );
+    }
+
+    // A sandbox identity is disposable and needs no account, so it must not be
+    // able to create a deployment the platform later signs for. Checked against
+    // every node of the pipeline rather than the flow's top-level kind: a
+    // `web2_webhook -> swap` graph classifies as SWAPPER yet emits a WEBHOOK
+    // node the public /api/webhooks/:id route signs with the relayer key, and a
+    // devMode graph swaps in relayer-admin `*_DEV` contracts under an otherwise
+    // allowed kind. `v.pipeline` is the real flowToPipeline() output, so it
+    // reflects both.
+    if (user.role === Role.SANDBOX) {
+      const disallowed = [
+        ...new Set(v.pipeline.filter((k) => !SANDBOX_TEMPLATE_KINDS.includes(k))),
+      ];
+      if (disallowed.length > 0) {
+        throw new AppError(
+          "FORBIDDEN",
+          `The sandbox cannot deploy this flow: it builds ${disallowed.join(", ")} ${disallowed.length === 1 ? "contract" : "contracts"}, which run on Paiflow's own signer. The sandbox is limited to ${SANDBOX_TEMPLATE_KINDS.join(", ")} pipelines, where every on-chain move is signed by your wallet — sign in with a full account to deploy it.`,
+        );
+      }
     }
 
     const trigger = v.graph.nodes.find((n) => n.type === "web2_webhook");
