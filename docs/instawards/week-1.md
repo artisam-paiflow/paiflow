@@ -2,7 +2,7 @@
 
 **Window:** 7–13 September 2026 · **Focus:** D1 — the swapper executes a real swap through the Soroswap testnet router
 
-_Interim report, written on Wednesday 9 September. Final figures on 13 September._
+_Interim report, updated Thursday 10 September. Final figures on 13 September._
 
 ## Summary
 
@@ -13,8 +13,9 @@ deployed to the public app on 9 September and verified there, not on a developme
 builder spec passes 9/9 against paiflow.xyz and the eleven screenshots and API samples in the
 evidence index are its output.
 
-What is still missing is the last piece the Statement of Work asks for — a swap flow deployed
-and triggered from the public app, with its transaction on the explorer.
+A swap flow was then deployed from the public app and triggered on 9 September: 10 XLM swapped
+to 1.0564010 USDC through the Soroswap router and paid on to the recipient, [`2ceacb95…`](https://stellar.expert/explorer/testnet/tx/2ceacb95695c5def25ee8c4b84ac44e596d3b936099e3239ef0a9af47164db1b). What is still
+missing is the screen recording of that journey through the builder.
 
 ## Changelog
 
@@ -34,41 +35,44 @@ pnpm instawards:changelog --since 2026-09-07 --until 2026-09-13 \
 | 2026-09-07 | feat(pipeline): route the swap block through the Soroswap-backed swapper          | #388   | [`3a76e93`](https://github.com/artisam-paiflow/paiflow/commit/3a76e93)                                  |
 | 2026-09-07 | feat(swapper): swap through the Soroswap router with a spot-price slippage bound  | #387   | [`3315ea3`](https://github.com/artisam-paiflow/paiflow/commit/3315ea3)                                  |
 
-Every code change planned for D1 is merged. The one item still open is #390, the testnet
-deploy-and-trigger run that produces the SOW evidence.
+Every code change planned for D1 is merged, and #390 — the testnet deploy-and-trigger run that
+produces the SOW evidence — ran on 9 September. The screen recording of that journey is the one
+item still open.
 
 ## Statement of Work progress
 
 Rows that moved this week. The full tables live on the deliverable pages.
 
-| SOW clause                                                                                                                              | Deliverable | Status      | Evidence                                                          |
-| --------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------- | ----------------------------------------------------------------- |
-| Call `swap_exact_tokens_for_tokens` on the Soroswap router; `execute_step`; `amount_out_min` from `slippage_bps`; constructor arguments | D1          | Done        | contract + unit tests; stage-1 tx `5389cdee…` (verification copy) |
-| Swap flows no longer map to the splitter kind; constructor serialization; swap validation rules; swap event parsing                     | D1          | Evidenced   | unit tests; paiflow.xyz captures 03–06                            |
-| Swap block visible in the palette; configuration panel; edge-case errors display clearly                                                | D1          | Evidenced   | paiflow.xyz captures 01–06                                        |
-| Swapper simulation preview                                                                                                              | D1          | Evidenced   | paiflow.xyz captures 07–10; live quote from the public app        |
-| Deploy and trigger a swapper flow on testnet                                                                                            | D1          | In progress | stage 1 proven 6 Sep; stage 2 not started                         |
+| SOW clause                                                                                                                              | Deliverable | Status    | Evidence                                                     |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ----------- | --------- | ------------------------------------------------------------ |
+| Call `swap_exact_tokens_for_tokens` on the Soroswap router; `execute_step`; `amount_out_min` from `slippage_bps`; constructor arguments | D1          | Evidenced | contract + unit tests; swap tx `2ceacb95…` from paiflow.xyz  |
+| Swap flows no longer map to the splitter kind; constructor serialization; swap validation rules; swap event parsing                     | D1          | Evidenced | unit tests; paiflow.xyz captures 03–06                       |
+| Swap block visible in the palette; configuration panel; edge-case errors display clearly                                                | D1          | Evidenced | paiflow.xyz captures 01–06                                   |
+| Swapper simulation preview                                                                                                              | D1          | Evidenced | paiflow.xyz captures 07–10; live quote from the public app   |
+| Deploy and trigger a swapper flow on testnet                                                                                            | D1          | Evidenced | deploy `775af303…`; swaps `3bded301…` and `2ceacb95…`, 9 Sep |
 
 Status values: Not started · In progress · Done · **Evidenced** (done _and_ proven by a public
 link).
 
 The three builder rows became **Evidenced** on 9 September, when D1 was deployed to
-[paiflow.xyz](https://paiflow.xyz) and the capture set was retaken there. The contract row stays
-**Done** rather than Evidenced: its only on-chain proof is still the 6 September transaction from
-the verification copy, which the counting rule excludes. Both it and the last row clear once the
-deploy-and-trigger run produces a swap transaction from the public app.
+[paiflow.xyz](https://paiflow.xyz) and the capture set was retaken there. The contract row and the
+last row cleared the same day, when a flow deployed from the public app swapped through the
+Soroswap router: the 6 September transaction from the verification copy, which the counting rule
+excludes, is no longer what the deliverable rests on. That the router is Soroswap's own deployment
+rather than a contract of ours is verified in the [evidence index](evidence/README.md).
 
 ## Evidence added
 
 _Screenshots, recordings, transaction hashes and API samples added this week, linked from the_
 _[evidence index](evidence/README.md)._
 
-| Item                                                                                     | Type                          | Link                                                                                                                                                  |
-| ---------------------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Contract-as-payer swap through the real router (stage-1 proof, verification copy, 6 Sep) | Transaction                   | [`5389cdee…`](https://stellar.expert/explorer/testnet/tx/5389cdee87826b944f4fca397c0fadc8524cbb2429c2a657a306a06a4c5fc673)                            |
-| Swapper WASM hash on testnet                                                             | Contract                      | [`e9482ff0…b23d1a`](https://api.stellar.expert/explorer/testnet/wasm/e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a) — 25,371 bytes |
-| Swapper panel, builder and palette **before** D1, from paiflow.xyz (9 Sep)               | 3 screenshots                 | `d3/00`–`02` — the D3 "before" evidence, capturable only while the public app still ran pre-D1 code                                                   |
-| Builder, panel, five edge-case errors, deploy review, live quote (local e2e run, 9 Sep)  | 7 screenshots + 3 API samples | held until the deploy-and-trigger run                                                                                                                 |
+| Item                                                                                                  | Type                          | Link                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------------------------------------------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Swap flow deployed from paiflow.xyz and triggered twice: 50 XLM and 10 XLM through the router (9 Sep) | 3 transactions                | deploy [`775af303…`](https://stellar.expert/explorer/testnet/tx/775af303e24ebd7f59923544df3963cc17fa05e1db66174f38f4c3ae10670943), swaps [`3bded301…`](https://stellar.expert/explorer/testnet/tx/3bded301fff23b2f34d9ffcfefcb6528de7d594928cdc39a5d261c9dfbf8e927) and [`2ceacb95…`](https://stellar.expert/explorer/testnet/tx/2ceacb95695c5def25ee8c4b84ac44e596d3b936099e3239ef0a9af47164db1b) |
+| Contract-as-payer swap through the real router (stage-1 proof, verification copy, 6 Sep)              | Transaction                   | [`5389cdee…`](https://stellar.expert/explorer/testnet/tx/5389cdee87826b944f4fca397c0fadc8524cbb2429c2a657a306a06a4c5fc673)                                                                                                                                                                                                                                                                         |
+| Swapper WASM hash on testnet                                                                          | Contract                      | [`e9482ff0…b23d1a`](https://api.stellar.expert/explorer/testnet/wasm/e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a) — 25,371 bytes                                                                                                                                                                                                                                              |
+| Swapper panel, builder and palette **before** D1, from paiflow.xyz (9 Sep)                            | 3 screenshots                 | `d3/00`–`02` — the D3 "before" evidence, capturable only while the public app still ran pre-D1 code                                                                                                                                                                                                                                                                                                |
+| Builder, panel, five edge-case errors, deploy review, live quote, from paiflow.xyz (9 Sep)            | 7 screenshots + 3 API samples | `d1/01`–`10` — retaken against the public app after the D1 deploy; published in the [evidence index](evidence/README.md)                                                                                                                                                                                                                                                                           |
 
 ## Metrics
 
@@ -76,15 +80,17 @@ See [metrics](metrics.md) for the running totals and how each number is measured
 
 | Metric                        | Target | At end of week 1 | Change |
 | ----------------------------- | ------ | ---------------- | ------ |
-| Unique flows deployed         | ≥ 5    | 0 (9 Sep)        | —      |
-| Contract executions / events  | ≥ 60   | 0 (9 Sep)        | —      |
-| Unique swapper flows executed | ≥ 5    | 0 (9 Sep)        | —      |
-| Distinct deploying wallets    | ≥ 6    | 0 (9 Sep)        | —      |
+| Unique flows deployed         | ≥ 5    | 1 (9 Sep)        | +1     |
+| Contract executions / events  | ≥ 60   | 24 (9 Sep)       | +24    |
+| Unique swapper flows executed | ≥ 5    | 1 (9 Sep)        | +1     |
+| Distinct deploying wallets    | ≥ 6    | 1 (9 Sep)        | +1     |
 | Contract WASM uploaded        | ≥ 1    | 0 (9 Sep)        | —      |
 
-All zero because nothing has yet been deployed from the public app; the swapper WASM was
-uploaded from a development environment, which the counting rule excludes. Snapshot to be
-retaken on 13 September.
+One flow, deployed from the public app and triggered twice. The executions figure counts the
+contract events those two transactions emitted on-chain, twelve each; the app-side recorded count
+comes from the submission-proof view and is taken at the 13 September snapshot. WASM stays at zero
+because the swapper binary was uploaded from a development environment, which the counting rule
+excludes.
 
 ## Decisions and blockers
 
@@ -110,14 +116,13 @@ retaken on 13 September.
   Actions run, so the platform recorded the merge and skipped the build. Pull requests into
   `develop` are unaffected, and the same commits pass there. The deploy was made explicitly
   instead. The Actions failure is not new to this work and is being tracked separately.
-- **No blocker to the deliverable.** The public app now runs D1. The remaining work is the
-  deploy-and-trigger run itself.
+- **No blocker to the deliverable.** The public app runs D1 and has produced the swap
+  transaction. The remaining work is the screen recording.
 
 ## Next week
 
-If the deploy-and-trigger run does not land by 13 September it is the first thing in week 2,
-before any D2 work starts: deploy a swap flow from paiflow.xyz with a browser wallet, fund it,
-and capture the swap transaction and the recording. The public app is already updated and the
-capture set already published, so that run is all that is left. The public mirror is synced —
-every commit link in this report resolves. D2 (developer API) starts once the swap evidence is
-public.
+The deploy-and-trigger run landed on 9 September, so what carries into week 2 is the screen
+recording: the same journey through the builder with a browser wallet, showing a validation error
+and the simulation preview along the way. Everything it needs is already live. The public mirror
+is synced — every commit link in this report resolves. D2 (developer API) starts now that the swap
+evidence is public.
