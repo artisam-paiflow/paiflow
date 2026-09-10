@@ -6,7 +6,7 @@
  */
 import type { NextAuthConfig } from "next-auth";
 
-type Role = "ADMIN" | "USER";
+type Role = "ADMIN" | "USER" | "SANDBOX";
 
 export const authConfig: NextAuthConfig = {
   trustHost: true,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { StrKey } from "@stellar/stellar-sdk";
 import {
+  SANDBOX_STARTER_GRAPH,
   STARTER_GRAPH,
   DEMO_RECIPIENT_ALICE,
   DEMO_RECIPIENT_BOB,
@@ -8,7 +9,7 @@ import {
 } from "@/lib/flows/starter";
 import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
-import { flowToParams } from "@/lib/flows/to-params";
+import { flowToParams, flowToPipeline } from "@/lib/flows/to-params";
 
 // This guards the demo path. The starter flow seeded into every new flow at
 // `/flows/new` MUST be deployable as-is, otherwise the hero demo
@@ -67,5 +68,45 @@ describe("starter flow seeds a deployable graph", () => {
         expect(node.config.recipient.startsWith("PENDING:")).toBe(false);
       }
     }
+  });
+});
+
+// The sandbox session seeds this graph instead (`POST /api/auth/sandbox`), and
+// the route refuses to create a session if it stops validating. It is the D1
+// evidence path: someone with no account opens it and configures the Swap
+// block, so it has to be deployable as-is.
+describe("sandbox starter flow seeds a deployable swap graph", () => {
+  it("parses with FlowGraphSchema", () => {
+    expect(() => FlowGraphSchema.parse(SANDBOX_STARTER_GRAPH)).not.toThrow();
+  });
+
+  it("passes validateFlow as a SWAPPER with no pending addresses", () => {
+    const v = validateFlow(SANDBOX_STARTER_GRAPH);
+    expect(v.ok).toBe(true);
+    if (v.ok) {
+      expect(v.templateKind).toBe("SWAPPER");
+      expect(v.pendingLabels).toEqual([]);
+    }
+  });
+
+  it("contains a swap block, which is the whole point of the sandbox", () => {
+    const parsed = FlowGraphSchema.parse(SANDBOX_STARTER_GRAPH);
+    const swap = parsed.nodes.find((n) => n.type === "swap");
+    expect(swap).toBeDefined();
+    // A swap of one asset for itself is rejected by validateFlow; guard the
+    // two sides staying different if someone edits the constant.
+    if (swap?.type === "swap") {
+      expect(swap.config.assetIn).not.toEqual(swap.config.assetOut);
+    }
+  });
+
+  it("builds a three-node pipeline the factory can deploy", () => {
+    const v = validateFlow(SANDBOX_STARTER_GRAPH);
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    // flowToPipeline, not flowToParams: the swapper only exists on the pipeline
+    // path, and this is what the sandbox route stores as Flow.parameters.
+    const pipeline = flowToPipeline(v.graph);
+    expect(pipeline.map((n) => n.templateKind)).toEqual(["DEPOSIT_TRIGGER", "SWAPPER", "PAYER"]);
   });
 });

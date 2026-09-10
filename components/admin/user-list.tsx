@@ -7,7 +7,7 @@ import { toastError } from "@/lib/friendly-toast";
 type AdminUser = {
   id: string;
   username: string;
-  role: "ADMIN" | "USER";
+  role: "ADMIN" | "USER" | "SANDBOX";
   isActive: boolean;
   createdAt: string;
   lastLoginAt: string | null;

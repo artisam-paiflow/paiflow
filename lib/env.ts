@@ -107,6 +107,8 @@ const EnvSchema = z.object({
   AUTH_RP_ID: z.string().default("localhost"),
   AUTH_RP_NAME: z.string().default("Paiflow"),
   ALLOW_PUBLIC_REGISTRATION: boolish,
+  // Offers a no-account, limited sandbox session from the login page.
+  SANDBOX_ENABLED: boolish,
 
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url().optional(),
@@ -267,6 +269,21 @@ export function env(): EnvShape {
       .join("\n");
     throw new Error(`Invalid environment variables:\n${issues}`);
   }
+  // Cross-field guard, not a schema .superRefine(): ENV_VAR_NAMES relies on
+  // EnvSchema staying a ZodObject so `.keyof()` works.
+  //
+  // The sandbox mints a usable session for anyone who asks, with no account and
+  // no credential. On mainnet that is an anonymous party pointing the builder at
+  // real money, so the combination is refused outright rather than left to an
+  // operator's memory. See CLAUDE.md §7.5 for the network model.
+  if (parsed.data.SANDBOX_ENABLED && parsed.data.STELLAR_NETWORK === "mainnet") {
+    throw new Error(
+      "Invalid environment variables:\n" +
+        "  - SANDBOX_ENABLED: cannot be true when STELLAR_NETWORK=mainnet. " +
+        "The public sandbox is testnet-only.",
+    );
+  }
+
   cached = parsed.data;
   return cached;
 }
