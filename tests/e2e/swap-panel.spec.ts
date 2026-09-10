@@ -229,6 +229,66 @@ test.describe("Swap block (Instawards D1)", () => {
     });
   });
 
+  test("deploy review renders one live quote per Swap node, not just the first", async ({
+    page,
+    request,
+  }) => {
+    // XLM → USDC → XLM: each leg's assetIn matches the upstream assetOut, so the
+    // chain validates, and the review must show a quote for both legs rather
+    // than silently previewing the first only (QA-D1 TC-008 steps 3–5).
+    const twoSwaps = {
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: XLM } },
+        {
+          id: "s1",
+          type: "swap",
+          config: { assetIn: XLM, assetOut: USDC, slippageBps: 100, deadlineSecs: 300 },
+        },
+        {
+          id: "s2",
+          type: "swap",
+          config: { assetIn: USDC, assetOut: XLM, slippageBps: 200, deadlineSecs: 300 },
+        },
+        {
+          id: "p",
+          type: "pay",
+          config: {
+            recipient: RECIPIENT,
+            asset: XLM,
+            mode: "fixed",
+            amountStroops: "1000000",
+            fullAmount: true,
+          },
+        },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "s1" },
+        { id: "e2", source: "s1", target: "s2" },
+        { id: "e3", source: "s2", target: "p" },
+      ],
+      positions: {
+        t: { x: 40, y: 120 },
+        s1: { x: 360, y: 120 },
+        s2: { x: 680, y: 120 },
+        p: { x: 1000, y: 120 },
+      },
+    };
+    const res = await request.patch(`/api/flows/${flowId}`, { data: { graph: twoSwaps } });
+    expect(res.ok(), await res.text()).toBeTruthy();
+    await page.goto(`/flows/${flowId}/deploy`);
+    await expect(page.getByTestId("network-chip")).toContainText("TESTNET");
+    const quotes = page.getByTestId("swap-quote");
+    await expect(quotes).toHaveCount(2);
+    await expect(quotes.nth(0)).toContainText(/10 XLM → ~\d+\.\d+ USDC via Soroswap \(live\)/, {
+      timeout: 30_000,
+    });
+    await expect(quotes.nth(0)).toContainText(/Minimum at 1% slippage/);
+    await expect(quotes.nth(1)).toContainText(/10 USDC → ~\d+\.\d+ XLM via Soroswap \(live\)/, {
+      timeout: 30_000,
+    });
+    await expect(quotes.nth(1)).toContainText(/Minimum at 2% slippage/);
+  });
+
   test("the config panel shows the same live quote (#391)", async ({ page, request }) => {
     const res = await request.patch(`/api/flows/${flowId}`, { data: { graph: graph() } });
     expect(res.ok()).toBeTruthy();
