@@ -38,17 +38,17 @@ testnet reset.
 | 11 Sep | The recorded run: a sandbox session's swap flow deployed from the builder with a browser wallet               | D1          | [`c0460040…`](https://stellar.expert/explorer/testnet/tx/c04600408d910f55639a09b54725f65b38881820bbd468358be6546ce3416f18) |
 | 11 Sep | The recorded run: 100 XLM swapped to 10.5594796 USDC through the Soroswap router and paid on to the recipient | D1          | [`94be52e8…`](https://stellar.expert/explorer/testnet/tx/94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d) |
 
-The two 9 September swaps are the same deployed flow triggered twice. `d1/11-happy-path.json`
+The two 9 September swaps are the same deployed flow triggered twice. [`d1/11-happy-path.json`](d1/11-happy-path.json)
 records the deployment, the three contracts the factory produced and the amounts in and out;
-`d1/11-happy-path.getTransaction.json` is the raw RPC response for both, saved so the record
-survives a testnet reset. `d1/13-recording-run.json` and
-`d1/13-recording-run.getTransaction.json` are the same pair for the recorded 11 September run.
+[`d1/11-happy-path.getTransaction.json`](d1/11-happy-path.getTransaction.json) is the raw RPC response for both, saved so the record
+survives a testnet reset. [`d1/13-recording-run.json`](d1/13-recording-run.json) and
+[`d1/13-recording-run.getTransaction.json`](d1/13-recording-run.getTransaction.json) are the same pair for the recorded 11 September run.
 
 ## Swapper flows executed on testnet
 
 Every deployment from paiflow.xyz whose swapper emitted a `swap` event through the Soroswap
 router, from the application's own event records (snapshot of 11 September, details in
-`d1/14-swapper-flows.json`). This is the source of the "unique swapper flows executed" metric.
+[`d1/14-swapper-flows.json`](d1/14-swapper-flows.json)). This is the source of the "unique swapper flows executed" metric.
 "judge" and "sandbox" are the QA account and the no-account sandbox sessions.
 
 | #   | Date   | Session                    | Deployment | Swapper contract                                                                                                             | Swap transactions                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -73,7 +73,7 @@ Every one of these transactions carries the `SoroswapRouter / swap` event from
 The Statement of Work asks for a swap executed through **the Soroswap router**. Two things have to
 hold: that the transaction called that contract, and that the contract is Soroswap's rather than
 one of ours. Each link is checkable without an account, and all four are recorded in
-`d1/11-soroswap-router-proof.json`.
+[`d1/11-soroswap-router-proof.json`](d1/11-soroswap-router-proof.json).
 
 **The address is Soroswap's, by their own publication.** Soroswap lists its testnet deployment in
 [`soroswap/core` → `public/testnet.contracts.json`](https://raw.githubusercontent.com/soroswap/core/main/public/testnet.contracts.json):
@@ -113,17 +113,17 @@ All captured from [paiflow.xyz](https://paiflow.xyz) itself, not a development e
 | Item                                                   | Deliverable | File                                                                                                                |
 | ------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------- |
 | **Screen recording of deploy and trigger** (11 Sep)    | D1          | [Google Drive, `ScreenRec.mp4`](https://drive.google.com/file/d/1hcaNcojXrLmEYmTEHrNavQ_Wu9xgqaHL/view?usp=sharing) |
-| Swap block on the canvas, palette and English preview  | D1          | `d1/01-builder-swap-flow.png`                                                                                       |
-| Swapper config panel: router, slippage, deadline       | D1          | `d1/02-swap-panel-after.png`                                                                                        |
-| Error: `assetIn` does not match the incoming asset     | D1          | `d1/03-error-asset-mismatch.png`                                                                                    |
-| Error: more than one outgoing edge                     | D1          | `d1/04-error-two-edges.png`                                                                                         |
-| Error: both sides of the swap are the same asset       | D1          | `d1/06-error-same-asset.png`                                                                                        |
-| Deploy review with the TESTNET chip and the live quote | D1          | `d1/07-deploy-review.png`                                                                                           |
-| Live Soroswap quote in the config panel                | D1          | `d1/08-swap-panel-live-quote.png`                                                                                   |
-| Live quote on the builder canvas                       | D1          | `d1/09-builder-live-quote.png`                                                                                      |
-| Swapper config panel as it was **before** D1 (9 Sep)   | D3          | `d3/02-swap-panel-before.png`                                                                                       |
-| Builder with the pre-D1 swap node selected (9 Sep)     | D3          | `d3/01-builder-before.png`                                                                                          |
-| Palette before the Swap block was unhidden (9 Sep)     | D3          | `d3/00-palette-before.png`                                                                                          |
+| Swap block on the canvas, palette and English preview  | D1          | [`d1/01-builder-swap-flow.png`](d1/01-builder-swap-flow.png)                                                        |
+| Swapper config panel: router, slippage, deadline       | D1          | [`d1/02-swap-panel-after.png`](d1/02-swap-panel-after.png)                                                          |
+| Error: `assetIn` does not match the incoming asset     | D1          | [`d1/03-error-asset-mismatch.png`](d1/03-error-asset-mismatch.png)                                                  |
+| Error: more than one outgoing edge                     | D1          | [`d1/04-error-two-edges.png`](d1/04-error-two-edges.png)                                                            |
+| Error: both sides of the swap are the same asset       | D1          | [`d1/06-error-same-asset.png`](d1/06-error-same-asset.png)                                                          |
+| Deploy review with the TESTNET chip and the live quote | D1          | [`d1/07-deploy-review.png`](d1/07-deploy-review.png)                                                                |
+| Live Soroswap quote in the config panel                | D1          | [`d1/08-swap-panel-live-quote.png`](d1/08-swap-panel-live-quote.png)                                                |
+| Live quote on the builder canvas                       | D1          | [`d1/09-builder-live-quote.png`](d1/09-builder-live-quote.png)                                                      |
+| Swapper config panel as it was **before** D1 (9 Sep)   | D3          | [`d3/02-swap-panel-before.png`](d3/02-swap-panel-before.png)                                                        |
+| Builder with the pre-D1 swap node selected (9 Sep)     | D3          | [`d3/01-builder-before.png`](d3/01-builder-before.png)                                                              |
+| Palette before the Swap block was unhidden (9 Sep)     | D3          | [`d3/00-palette-before.png`](d3/00-palette-before.png)                                                              |
 
 The recording is the journey the SOW asks for, made on paiflow.xyz through the no-account
 sandbox: build `Receive XLM → Swap → Pay USDC` in the builder, deploy it with a browser wallet,
@@ -132,22 +132,70 @@ trigger rather than by opening the explorer; the transaction behind it is
 [`94be52e8…`](https://stellar.expert/explorer/testnet/tx/94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d)
 (100 XLM → 10.5594796 USDC), deployed by
 [`c0460040…`](https://stellar.expert/explorer/testnet/tx/c04600408d910f55639a09b54725f65b38881820bbd468358be6546ce3416f18),
-with the raw records in `d1/13-recording-run.json` and `d1/13-recording-run.getTransaction.json`.
+with the raw records in [`d1/13-recording-run.json`](d1/13-recording-run.json) and [`d1/13-recording-run.getTransaction.json`](d1/13-recording-run.getTransaction.json).
 
 The D1 and D3 panel shots are the two halves of the same comparison. Before: `Asset In`,
 `Asset Out` and a raw `Rate (basis points, 1–10000)`. After: the same two assets plus a
 read-only `Soroswap (testnet)` router, `Max slippage (%)`, `Deadline (seconds)` and a live
 quote reading `10 XLM → ~1.0564 USDC`.
 
+### The captures
+
+Each screenshot in the table, in order. Every one was taken from paiflow.xyz.
+
+![Swap block on the canvas, with the palette and the English preview](d1/01-builder-swap-flow.png)
+
+_Swap block on the canvas, with the palette and the English preview._
+
+![Swapper config panel: read-only Soroswap router, max slippage, deadline](d1/02-swap-panel-after.png)
+
+_Swapper config panel: read-only Soroswap router, max slippage, deadline._
+
+![Validation error: the swap's asset in does not match the incoming asset](d1/03-error-asset-mismatch.png)
+
+_Validation error: the swap's asset in does not match the incoming asset._
+
+![Validation error: a swap block with more than one outgoing edge](d1/04-error-two-edges.png)
+
+_Validation error: a swap block with more than one outgoing edge._
+
+![Validation error: both sides of the swap are the same asset](d1/06-error-same-asset.png)
+
+_Validation error: both sides of the swap are the same asset._
+
+![Deploy review with the TESTNET chip and the live quote](d1/07-deploy-review.png)
+
+_Deploy review with the TESTNET chip and the live quote._
+
+![Live Soroswap quote in the config panel](d1/08-swap-panel-live-quote.png)
+
+_Live Soroswap quote in the config panel._
+
+![Live quote on the builder canvas](d1/09-builder-live-quote.png)
+
+_Live quote on the builder canvas._
+
+![Before D1: the swapper panel with a raw rate field (9 Sep)](d3/02-swap-panel-before.png)
+
+_Before D1: the swapper panel with a raw rate field (9 Sep)._
+
+![Before D1: the builder with the old swap node selected (9 Sep)](d3/01-builder-before.png)
+
+_Before D1: the builder with the old swap node selected (9 Sep)._
+
+![Before D1: the palette without the Swap block (9 Sep)](d3/00-palette-before.png)
+
+_Before D1: the palette without the Swap block (9 Sep)._
+
 ## API samples
 
 Request and response pairs recorded against the public app.
 
-| Item                                                       | Deliverable | File                              |
-| ---------------------------------------------------------- | ----------- | --------------------------------- |
-| `slippageBps` outside 0–10000 rejected at the API boundary | D1          | `d1/05-error-slippage-range.json` |
-| `deadlineSecs` below 1 rejected at the API boundary        | D1          | `d1/06-error-deadline.json`       |
-| Live Soroswap quote endpoint response                      | D1          | `d1/10-quote-endpoint.json`       |
+| Item                                                       | Deliverable | File                                                                 |
+| ---------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
+| `slippageBps` outside 0–10000 rejected at the API boundary | D1          | [`d1/05-error-slippage-range.json`](d1/05-error-slippage-range.json) |
+| `deadlineSecs` below 1 rejected at the API boundary        | D1          | [`d1/06-error-deadline.json`](d1/06-error-deadline.json)             |
+| Live Soroswap quote endpoint response                      | D1          | [`d1/10-quote-endpoint.json`](d1/10-quote-endpoint.json)             |
 
 The quote sample is a real answer from the public app: 10 XLM quotes at `10564278` stroops of
 USDC with a `10490132` minimum at 1 % slippage, through pair `CCBX3NZT…7RQS` on router
@@ -155,9 +203,9 @@ USDC with a `10490132` minimum at 1 % slippage, through pair `CCBX3NZT…7RQS` o
 
 ## Metrics snapshots
 
-| Date   | File                      | Source                                                                           |
-| ------ | ------------------------- | -------------------------------------------------------------------------------- |
-| 11 Sep | `metrics-2026-09-11.json` | Read-only query on the public app's database; each figure carries its definition |
+| Date   | File                                                 | Source                                                                           |
+| ------ | ---------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 11 Sep | [`metrics-2026-09-11.json`](metrics-2026-09-11.json) | Read-only query on the public app's database; each figure carries its definition |
 
 ## Scope
 

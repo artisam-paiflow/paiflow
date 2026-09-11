@@ -2,6 +2,8 @@
 
 **Window:** 21–27 September 2026 · **Focus:** D3 — reusable builder input components
 
+**Deliverable:** [D3 — Shared builder inputs](deliverables/d3.md) · **Evidence:** [before-and-after captures](evidence/README.md#screenshots-and-recordings)
+
 ## Summary
 
 _Three sentences, plain English, written for a reader who is not an engineer._
@@ -36,7 +38,7 @@ link).
 ## Evidence added
 
 _Screenshots, recordings, transaction hashes and API samples added this week, linked from the_
-_[evidence index](evidence/README.md)._
+_[evidence index](evidence/README.md#transactions)._
 
 | Item | Type | Link |
 | ---- | ---- | ---- |
