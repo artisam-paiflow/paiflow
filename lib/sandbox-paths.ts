@@ -13,13 +13,20 @@
  *  - `/api/flows/:id/edit` and `/api/transcribe` bill a third-party AI
  *    provider, and their per-user rate limits would not hold behind a fresh
  *    identity every session.
- *  - `invoke`, `submit-invoke`, `tx-status` and `streamer-state` are the four
- *    `/api/deployments/:id/*` routes that look up a deployment by id WITHOUT an
- *    ownership check. That is a pre-existing gap; do not widen its blast radius
- *    to callers who never signed up. Deploy-and-trigger does not need them —
- *    `submit-invoke` is only used by the subscription/payroll allowance flow,
- *    which a sandbox session cannot deploy anyway (see
+ *  - `invoke`, `submit-invoke` and `streamer-state` look up a deployment by id
+ *    WITHOUT an ownership check. That is a pre-existing gap; do not widen its
+ *    blast radius to callers who never signed up. Deploy-and-trigger does not
+ *    need them — `submit-invoke` is only used by the subscription/payroll
+ *    allowance flow, which a sandbox session cannot deploy anyway (see
  *    `app/api/deployments/prepare/route.ts`).
+ *
+ * `tx-status` used to sit in that list and no longer does. Its answer is a
+ * transaction's status on a public chain, for a hash the caller already holds,
+ * so there was never anything there to own; what needed binding to the
+ * deployment was the bookkeeping it runs on a confirmation, and that now checks
+ * `wasTxSubmittedFor` before it touches anything. Deploy-and-trigger genuinely
+ * needs the route — `usePollTxStatus` is how the trigger button learns the
+ * deposit confirmed.
  *
  * No module in this file may import `server-only`; middleware runs on the edge
  * runtime.
@@ -62,7 +69,7 @@ const SANDBOX_PATHS = [
   /^\/api\/deployments\/prepare$/,
   new RegExp(`^/api/deployments/${ID}$`),
   new RegExp(
-    `^/api/deployments/${ID}/(submit|submit-trigger|trigger|status|events|poll-events|balances|sep7|qr)$`,
+    `^/api/deployments/${ID}/(submit|submit-trigger|trigger|tx-status|status|events|poll-events|balances|sep7|qr)$`,
   ),
 ];
 

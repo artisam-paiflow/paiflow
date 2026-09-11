@@ -43,6 +43,9 @@ const ALLOWED = [
   `/api/deployments/${DEPLOYMENT}/balances`,
   `/api/deployments/${DEPLOYMENT}/trigger`,
   `/api/deployments/${DEPLOYMENT}/submit-trigger`,
+  // Polled by `usePollTxStatus` after every trigger; it verifies the txHash
+  // belongs to this deployment inside the route.
+  `/api/deployments/${DEPLOYMENT}/tx-status`,
   `/api/deployments/${DEPLOYMENT}/sep7`,
   `/api/deployments/${DEPLOYMENT}/qr`,
 ];
@@ -62,11 +65,11 @@ const BLOCKED = [
   "/api/auth/register",
   "/api/auth/password-reset",
   "/api/auth/passkey/register/options",
-  // The four /api/deployments/:id/* routes with no ownership check. Reachable
-  // by any signed-in user today; not widened to callers with no account.
+  // The /api/deployments/:id/* routes with no ownership check. Reachable by any
+  // signed-in user today; not widened to callers with no account. `tx-status`
+  // left this list once it started binding the txHash to the deployment.
   `/api/deployments/${DEPLOYMENT}/invoke`,
   `/api/deployments/${DEPLOYMENT}/submit-invoke`,
-  `/api/deployments/${DEPLOYMENT}/tx-status`,
   `/api/deployments/${DEPLOYMENT}/streamer-state`,
   // Billed AI provider calls.
   `/api/flows/${FLOW}/edit`,

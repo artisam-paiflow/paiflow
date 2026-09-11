@@ -1,0 +1,121 @@
+{
+  "question": "How do we know the swap in this transaction was executed through the Soroswap router, and not through a contract of our own?",
+  "transaction": "2ceacb95695c5def25ee8c4b84ac44e596d3b936099e3239ef0a9af47164db1b",
+  "stellarExpert": "https://stellar.expert/explorer/testnet/tx/2ceacb95695c5def25ee8c4b84ac44e596d3b936099e3239ef0a9af47164db1b",
+  "link1_addressIsSoroswaps": {
+    "source": "https://raw.githubusercontent.com/soroswap/core/main/public/testnet.contracts.json",
+    "fetchedAt": "2026-09-10T04:33:51.883Z",
+    "manifest": {
+      "ids": {
+        "factory": "CDP3HMUH6SMS3S7NPGNDJLULCOXXEPSHY4JKUKMBNQMATHDHWXRRJTBY",
+        "router": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD"
+      },
+      "hashes": {
+        "pair": "8447525edd62f72ffaf52136358034657ea0511a8fec1cd0ebde649f86cca464",
+        "factory": "86285a9234d3f0d687eaf88efe8d5d72172b38c9a86624c9934c0cbf2aff2993",
+        "router": "4b95bbf9caec2c6e00c786f53c5f392c2fcdb8435ac0a862ab5e0645eb65824c",
+        "token": "263d165c1a1bf5a0dddbd0f21744a55cd8cacedf96ade78f53c570df11490e46"
+      }
+    },
+    "pinnedByPaiflowAs": "STELLAR_SOROSWAP_ROUTER_TESTNET",
+    "matchesPinnedRouter": true,
+    "note": "lib/stellar/deploy.ts injects this address at deploy time; it is never read from the flow graph."
+  },
+  "link2_deployedCodeIsSoroswaps": {
+    "note": "Soroswap publishes the code hash of each contract. These are the hashes actually deployed on testnet.",
+    "codeHashes": [
+      {
+        "contract": "router",
+        "address": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+        "publishedBySoroswap": "4b95bbf9caec2c6e00c786f53c5f392c2fcdb8435ac0a862ab5e0645eb65824c",
+        "onChainWasmHash": "4b95bbf9caec2c6e00c786f53c5f392c2fcdb8435ac0a862ab5e0645eb65824c",
+        "matches": true
+      },
+      {
+        "contract": "factory",
+        "address": "CDP3HMUH6SMS3S7NPGNDJLULCOXXEPSHY4JKUKMBNQMATHDHWXRRJTBY",
+        "publishedBySoroswap": "86285a9234d3f0d687eaf88efe8d5d72172b38c9a86624c9934c0cbf2aff2993",
+        "onChainWasmHash": "86285a9234d3f0d687eaf88efe8d5d72172b38c9a86624c9934c0cbf2aff2993",
+        "matches": true
+      },
+      {
+        "contract": "pair (XLM/USDC)",
+        "address": "CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS",
+        "publishedBySoroswap": "8447525edd62f72ffaf52136358034657ea0511a8fec1cd0ebde649f86cca464",
+        "onChainWasmHash": "8447525edd62f72ffaf52136358034657ea0511a8fec1cd0ebde649f86cca464",
+        "matches": true
+      }
+    ],
+    "allMatch": true
+  },
+  "link3_transactionCalledIt": {
+    "note": "Decoded from diagnosticEventsXdr in 11-happy-path.getTransaction.json. The Paiflow swapper CC4AMKQP3JMTUAWP3734PB4BZVWCYC6AYVJLWXQLFSLHK7ACB5UHZJWE calls swap_exact_tokens_for_tokens on the router, and the router calls the pair.",
+    "swapper": "CC4AMKQP3JMTUAWP3734PB4BZVWCYC6AYVJLWXQLFSLHK7ACB5UHZJWE",
+    "router": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+    "callTrace": [
+      {
+        "index": 9,
+        "kind": "fn_call",
+        "caller": "CC4AMKQP3JMTUAWP3734PB4BZVWCYC6AYVJLWXQLFSLHK7ACB5UHZJWE",
+        "callee": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+        "fn": "get_factory",
+        "successful": true
+      },
+      {
+        "index": 10,
+        "kind": "fn_return",
+        "returnedBy": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+        "fn": "get_factory",
+        "successful": true
+      },
+      {
+        "index": 17,
+        "kind": "fn_call",
+        "caller": "CC4AMKQP3JMTUAWP3734PB4BZVWCYC6AYVJLWXQLFSLHK7ACB5UHZJWE",
+        "callee": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+        "fn": "swap_exact_tokens_for_tokens",
+        "successful": true
+      },
+      {
+        "index": 18,
+        "kind": "fn_call",
+        "caller": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+        "callee": "CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS",
+        "fn": "get_reserves",
+        "successful": true
+      },
+      {
+        "index": 20,
+        "kind": "fn_call",
+        "caller": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+        "callee": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "fn": "transfer",
+        "successful": true
+      },
+      {
+        "index": 23,
+        "kind": "fn_call",
+        "caller": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+        "callee": "CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS",
+        "fn": "swap",
+        "successful": true
+      },
+      {
+        "index": 35,
+        "kind": "fn_return",
+        "returnedBy": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+        "fn": "swap_exact_tokens_for_tokens",
+        "successful": true
+      }
+    ]
+  },
+  "link4_eventsCorroborate": {
+    "note": "SoroswapRouter and SoroswapPair are symbols compiled into Soroswap's own binaries. The full event list is in 11-happy-path.getTransaction.json.",
+    "routerEventTopics": ["SoroswapRouter", "swap"],
+    "pairEventTopics": [
+      ["SoroswapPair", "swap"],
+      ["SoroswapPair", "sync"]
+    ],
+    "transactionStatus": "SUCCESS"
+  }
+}
