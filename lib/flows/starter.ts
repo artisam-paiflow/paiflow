@@ -26,11 +26,9 @@ export const DEMO_RECIPIENT_CHARLIE = "GAOVXKYHSRGPK4ZOCKDIJKAQ76K2CAIJZWESVWECZ
  * the issuer in `lib/stellar/assets.ts`. The sandbox flow is deployed and
  * triggered as-is by visitors who never edit it, and `deposit` simulates the
  * whole pipeline down to the final SAC `transfer` — so a recipient without a
- * trustline fails pre-flight and the sandbox can never complete a swap. This
- * is the same sink the D1 evidence run used
- * (`docs/instawards/evidence/d1/11-happy-path.json`).
+ * trustline fails pre-flight and the sandbox can never complete a swap.
  */
-export const SANDBOX_DEMO_RECIPIENT = "GAEBH5ZALWM4SFBG3XEE7FBGKNPUVX5JT7URH34XHQ6SVRT6IGY4SXAM";
+export const SANDBOX_DEMO_RECIPIENT = "GCVJW2CEXCJ6WPRYAMYFIDA6LLIYX5NJIJ6T76NW2BXQXFNPV2V62J7H";
 
 export const STARTER_GRAPH = {
   nodes: [
