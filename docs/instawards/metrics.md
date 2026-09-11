@@ -8,18 +8,18 @@ with the running totals and how each one is counted.
 deployed or triggered from a development environment is excluded. The public application is the
 project's staging service; there is no other public environment.
 
-| Metric                                   | Target | Current | Source                                                                          |
-| ---------------------------------------- | ------ | ------- | ------------------------------------------------------------------------------- |
-| Unique flows deployed                    | ≥ 5    | 21      | Confirmed deployments since 7 September                                         |
-| Contract executions / events published   | ≥ 60   | 43      | Contract events the app recorded for those deployments                          |
-| Unique swapper flows executed on testnet | ≥ 5    | 11      | Deployments whose swapper emitted a `swap` event                                |
-| Distinct wallets deploying               | ≥ 6    | 7       | Distinct signing wallets across confirmed deployments                           |
-| Contract WASM uploaded                   | ≥ 1    | 1       | The swapper binary `e9482ff0…b23d1a` on testnet                                 |
-| Public testnet URL live and accessible   | Yes    | Yes     | [paiflow.xyz](https://paiflow.xyz) — no account needed                          |
-| Demo video published                     | Yes    | No      | Week 4 (the D1 screen recording is in the [evidence index](evidence/README.md)) |
+| Metric                                   | Target | Current | Source                                                                                                     |
+| ---------------------------------------- | ------ | ------- | ---------------------------------------------------------------------------------------------------------- |
+| Unique flows deployed                    | ≥ 5    | 21      | Confirmed deployments since 7 September                                                                    |
+| Contract executions / events published   | ≥ 60   | 43      | Contract events the app recorded for those deployments                                                     |
+| Unique swapper flows executed on testnet | ≥ 5    | 11      | Deployments whose swapper emitted a `swap` event                                                           |
+| Distinct wallets deploying               | ≥ 6    | 7       | Distinct signing wallets across confirmed deployments                                                      |
+| Contract WASM uploaded                   | ≥ 1    | 1       | The swapper binary `e9482ff0…b23d1a` on testnet                                                            |
+| Public testnet URL live and accessible   | Yes    | Yes     | [paiflow.xyz](https://paiflow.xyz) — no account needed                                                     |
+| Demo video published                     | Yes    | No      | Week 4 (the D1 screen recording is in the [evidence index](evidence/README.md#screenshots-and-recordings)) |
 
 _Last updated: 11 September, from a snapshot of the public app's database
-(`evidence/metrics-2026-09-11.json`). Week-1 closing snapshot on 13 September._
+([`evidence/metrics-2026-09-11.json`](evidence/metrics-2026-09-11.json))._
 
 ## How the numbers are produced
 
@@ -35,7 +35,7 @@ The definitions:
   the chain emits (each swap transaction alone emits twelve contract events on-chain); the
   application-recorded figure is the one reported, so the number is conservative.
 - **Unique swapper flows executed** — distinct deployments with at least one `swap` event, each
-  listed with its transactions in the [evidence index](evidence/README.md).
+  listed with its transactions in the [evidence index](evidence/README.md#swapper-flows-executed-on-testnet).
 - **Distinct wallets deploying** — distinct signing accounts across confirmed deployments.
   Connecting a wallet is not deploying a flow, so wallet-connection counts are not used as a
   substitute; for reference, 6 distinct wallets connected in the same window.

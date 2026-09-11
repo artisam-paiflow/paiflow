@@ -2,7 +2,9 @@
 
 **Window:** 7–13 September 2026 · **Focus:** D1 — the swapper executes a real swap through the Soroswap testnet router
 
-_Interim report, updated Friday 11 September with a metrics snapshot of the same day. Final figures on 13 September._
+**Deliverable:** [D1 — Real-DEX swapper](deliverables/d1.md) · **Evidence:** [recording and captures](evidence/README.md#screenshots-and-recordings) · [transactions](evidence/README.md#transactions) · [executed swap flows](evidence/README.md#swapper-flows-executed-on-testnet)
+
+_Interim report, updated Friday 11 September with a metrics snapshot of the same day._
 
 ## Summary
 
@@ -76,7 +78,7 @@ The three builder rows became **Evidenced** on 9 September, when D1 was deployed
 last row cleared the same day, when a flow deployed from the public app swapped through the
 Soroswap router: the 6 September transaction from the verification copy, which the counting rule
 excludes, is no longer what the deliverable rests on. That the router is Soroswap's own deployment
-rather than a contract of ours is verified in the [evidence index](evidence/README.md).
+rather than a contract of ours is verified in the [evidence index](evidence/README.md#how-to-verify-the-router).
 
 ## Evidence added
 
@@ -90,9 +92,9 @@ _[evidence index](evidence/README.md)._
 | Swapper WASM hash on testnet                                                                          | Contract                        | [`e9482ff0…b23d1a`](https://api.stellar.expert/explorer/testnet/wasm/e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a) — 25,371 bytes                                                                                                                                                                                                                                              |
 | Swapper panel, builder and palette **before** D1, from paiflow.xyz (9 Sep)                            | 3 screenshots                   | `d3/00`–`02` — the D3 "before" evidence, capturable only while the public app still ran pre-D1 code                                                                                                                                                                                                                                                                                                |
 | Screen recording of deploy and trigger from paiflow.xyz through the sandbox (11 Sep)                  | Recording                       | [Google Drive](https://drive.google.com/file/d/1hcaNcojXrLmEYmTEHrNavQ_Wu9xgqaHL/view?usp=sharing); deploy [`c0460040…`](https://stellar.expert/explorer/testnet/tx/c04600408d910f55639a09b54725f65b38881820bbd468358be6546ce3416f18), swap [`94be52e8…`](https://stellar.expert/explorer/testnet/tx/94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d)                             |
-| Eleven swapper flows executed from paiflow.xyz, 9–11 Sep (QA account and sandbox visitors)            | 11 deployments, 14 transactions | listed in the [evidence index](evidence/README.md); raw list `d1/14-swapper-flows.json`                                                                                                                                                                                                                                                                                                            |
+| Eleven swapper flows executed from paiflow.xyz, 9–11 Sep (QA account and sandbox visitors)            | 11 deployments, 14 transactions | listed in the [evidence index](evidence/README.md#swapper-flows-executed-on-testnet); raw list `d1/14-swapper-flows.json`                                                                                                                                                                                                                                                                          |
 | Metrics snapshot from the public app's database (11 Sep)                                              | JSON                            | `evidence/metrics-2026-09-11.json`                                                                                                                                                                                                                                                                                                                                                                 |
-| Builder, panel, five edge-case errors, deploy review, live quote, from paiflow.xyz (9 Sep)            | 7 screenshots + 3 API samples   | `d1/01`–`10` — retaken against the public app after the D1 deploy; published in the [evidence index](evidence/README.md)                                                                                                                                                                                                                                                                           |
+| Builder, panel, five edge-case errors, deploy review, live quote, from paiflow.xyz (9 Sep)            | 7 screenshots + 3 API samples   | `d1/01`–`10` — retaken against the public app after the D1 deploy; published in the [evidence index](evidence/README.md#screenshots-and-recordings)                                                                                                                                                                                                                                                |
 
 ## Metrics
 
@@ -171,5 +173,5 @@ events the application recorded, which is the smaller and stricter number.
 D2 (developer API) starts: deployment-scoped tokens, `POST /api/v1/deployments/[id]/execute`
 for the Swapper action, `GET /api/v1/deployments/[id]/events`, tests, OpenAPI spec and Postman
 collection. The first operational task is extending the swapper WASM entry's time-to-live on
-testnet. The week-1 closing snapshot of the metrics is taken on 13 September. The public mirror
+testnet. The public mirror
 is synced — every commit link in this report resolves.

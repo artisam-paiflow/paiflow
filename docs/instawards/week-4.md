@@ -2,6 +2,8 @@
 
 **Window:** 28 September – 4 October 2026 · **Focus:** Integration, demo and evidence handoff
 
+**Deliverables:** [D1](deliverables/d1.md) · [D2](deliverables/d2.md) · [D3](deliverables/d3.md) · **Validation package:** [metrics](metrics.md) · [evidence index](evidence/README.md)
+
 ## Summary
 
 _Three sentences, plain English, written for a reader who is not an engineer._
@@ -36,7 +38,7 @@ link).
 ## Evidence added
 
 _Screenshots, recordings, transaction hashes and API samples added this week, linked from the_
-_[evidence index](evidence/README.md)._
+_[evidence index](evidence/README.md#transactions)._
 
 | Item | Type | Link |
 | ---- | ---- | ---- |
