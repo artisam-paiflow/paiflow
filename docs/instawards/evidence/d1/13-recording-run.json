@@ -1,0 +1,73 @@
+{
+  "note": "Screen-recorded run from paiflow.xyz on 2026-09-11: a sandbox session built on_receive XLM → swap (XLM→USDC, 1%) → pay USDC in the builder, deployed it with a browser wallet through the app's own factory, and triggered it with 100 XLM. The recording shows the recipient's USDC balance before and after; the router call is verified from the trigger transaction below.",
+  "recording": "https://drive.google.com/file/d/1hcaNcojXrLmEYmTEHrNavQ_Wu9xgqaHL/view?usp=sharing",
+  "deploymentId": "992a754f-cf30-4689-a449-a352f0dcff2b",
+  "sandboxUser": "sandbox-bcf30435",
+  "deployTxHash": "c04600408d910f55639a09b54725f65b38881820bbd468358be6546ce3416f18",
+  "deployStellarExpert": "https://stellar.expert/explorer/testnet/tx/c04600408d910f55639a09b54725f65b38881820bbd468358be6546ce3416f18",
+  "deployLedger": 4616797,
+  "deployLedgerClosedAt": "2026-09-11T06:19:32.000Z",
+  "factory": "CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK",
+  "swapperWasmHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+  "pipelineSnapshot": [
+    {
+      "salt": "Yjc4dg78J2Jptr99+PBKf3ksx2te1lTpTfZebcEwdOU=",
+      "nodeId": "trigger-1",
+      "templateKind": "DEPOSIT_TRIGGER",
+      "contractAddress": "CBJE3DVI3753PUZEUGFJWX4AAXUCULU427OMMAQVERB3A7JJRNJRQ3IM"
+    },
+    {
+      "salt": "pydOOxYKHJY4i8I2K8PbioPLO3MpjEaB6JM/cGxtius=",
+      "nodeId": "swap-nk1y0b",
+      "templateKind": "SWAPPER",
+      "contractAddress": "CBZ53HMVYRCJDDTVOJ73SJ6KFXPUGDWU6TPZM4JJYEYIOC5DRRK5QA3V"
+    },
+    {
+      "salt": "3WI6TVyaUmqFaTd+mJIyHBX8quXvnZ2t86nRaMB1JVs=",
+      "nodeId": "pay-i402se",
+      "templateKind": "PAYER",
+      "contractAddress": "CC2XTEP2Z2CQS2WCCLLQJSDYZKZX72PWFE7ZOJO37UKHYXIQ3OKE4ILJ"
+    }
+  ],
+  "deployerAccount": "GA3H23J5NNSYOKHLJXGVVYFMW4PRE6DQ7SBKWRC5Y6MK7I7DPSKLI6CV",
+  "triggerTxHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+  "triggerStatus": "SUCCESS",
+  "triggerLedger": 4616809,
+  "triggerLedgerClosedAt": "2026-09-11T06:20:32.000Z",
+  "soroswapRouter": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+  "soroswapPair": "CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS",
+  "assetInStroops": "1000000000",
+  "assetOutStroops": "105594796",
+  "slippageBps": 100,
+  "recipient": "GAEBH5ZALWM4SFBG3XEE7FBGKNPUVX5JT7URH34XHQ6SVRT6IGY4SXAM",
+  "contractsEmittingEvents": [
+    "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+    "CBJE3DVI3753PUZEUGFJWX4AAXUCULU427OMMAQVERB3A7JJRNJRQ3IM",
+    "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+    "CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS",
+    "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+    "CC2XTEP2Z2CQS2WCCLLQJSDYZKZX72PWFE7ZOJO37UKHYXIQ3OKE4ILJ",
+    "CBZ53HMVYRCJDDTVOJ73SJ6KFXPUGDWU6TPZM4JJYEYIOC5DRRK5QA3V"
+  ],
+  "eventsRecordedByApp": [
+    {
+      "kind": "RECEIVE",
+      "topic": "deposit",
+      "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+      "occurredAt": "2026-09-11T06:20:32"
+    },
+    {
+      "kind": "PAYOUT",
+      "topic": "swap",
+      "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+      "occurredAt": "2026-09-11T06:20:32"
+    },
+    {
+      "kind": "PAYOUT",
+      "topic": "pay",
+      "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+      "occurredAt": "2026-09-11T06:20:32"
+    }
+  ],
+  "stellarExpert": "https://stellar.expert/explorer/testnet/tx/94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d"
+}

@@ -1,0 +1,38 @@
+{
+  "snapshotAt": "2026-09-11T07:00:00Z",
+  "source": "Read-only SQL against the paiflow.xyz application database (Railway project paiflow, environment staging). Window: rows created on or after 2026-09-07T00:00:00Z, Stellar testnet.",
+  "metrics": {
+    "uniqueFlowsDeployed": {
+      "value": 21,
+      "definition": "COUNT(*) FROM Deployment WHERE status = 'CONFIRMED' AND createdAt >= window",
+      "note": "16 distinct Flow ids; a flow deployed twice counts twice, matching 'deployments' in the SOW wording"
+    },
+    "contractExecutionsEventsPublished": {
+      "value": 43,
+      "definition": "COUNT(*) FROM ContractEvent joined to deployments created in the window",
+      "note": "Rows the app decoded and published to the live feed. On-chain each swap transaction emits 12 contract events, so the raw on-chain count is higher; the app-recorded figure is the one reported."
+    },
+    "uniqueSwapperFlowsExecutedOnTestnet": {
+      "value": 11,
+      "definition": "COUNT(DISTINCT deploymentId) FROM ContractEvent WHERE payload.topics[0] = 'swap'",
+      "note": "Each is a confirmed deployment whose swapper emitted a swap event through the Soroswap router; listed in d1/14-swapper-flows.json"
+    },
+    "distinctWalletsDeploying": {
+      "value": 7,
+      "definition": "COUNT(DISTINCT sourceAccount) FROM Deployment WHERE status = 'CONFIRMED' AND createdAt >= window",
+      "note": "6 of them executed a swapper flow; one is the builder's own wallet"
+    },
+    "distinctWalletsConnected": {
+      "value": 6,
+      "definition": "COUNT(DISTINCT metadata.address) FROM AuditLog WHERE action = 'WALLET_CONNECT' AND createdAt >= window"
+    },
+    "contractWasmUploaded": {
+      "value": 1,
+      "definition": "Swapper WASM e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a on testnet; ContractTemplate SWAPPER/TESTNET row points at it and every public-app swap flow instantiates it"
+    },
+    "sandboxSessions": { "value": 17, "definition": "COUNT(*) FROM User WHERE role = 'SANDBOX'" },
+    "usersTotal": { "value": 19 },
+    "deploymentsAllTime": { "value": 38 },
+    "contractEventsAllTime": { "value": 68 }
+  }
+}
