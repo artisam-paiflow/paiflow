@@ -20,11 +20,13 @@
  *    allowance flow, which a sandbox session cannot deploy anyway (see
  *    `app/api/deployments/prepare/route.ts`).
  *
- * `tx-status` used to sit in that list and no longer does: it now requires an
- * `AuditLog` row tying the queried txHash to the deployment in the path, so a
- * caller can only ask about a transaction this app submitted for that
- * deployment. Deploy-and-trigger genuinely needs it — `usePollTxStatus` is how
- * the trigger button learns the deposit confirmed.
+ * `tx-status` used to sit in that list and no longer does. Its answer is a
+ * transaction's status on a public chain, for a hash the caller already holds,
+ * so there was never anything there to own; what needed binding to the
+ * deployment was the bookkeeping it runs on a confirmation, and that now checks
+ * `wasTxSubmittedFor` before it touches anything. Deploy-and-trigger genuinely
+ * needs the route — `usePollTxStatus` is how the trigger button learns the
+ * deposit confirmed.
  *
  * No module in this file may import `server-only`; middleware runs on the edge
  * runtime.
