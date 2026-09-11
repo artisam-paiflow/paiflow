@@ -1,11 +1,15 @@
 /**
  * The starter flow seeded into a brand-new flow on `/flows/new`.
  *
- * Recipient addresses are **placeholder demo accounts** — valid Stellar
- * Ed25519 public keys but unfunded and without USDC trustlines. They exist
- * so the starter flow passes validation and can be deployed end-to-end on
- * the demo path. For a real audience-fund-and-distribute run the user
- * should edit each recipient to point at their own funded testnet account.
+ * `STARTER_GRAPH`'s recipient addresses are **placeholder demo accounts** —
+ * valid Stellar Ed25519 public keys but unfunded and without USDC trustlines.
+ * They exist so the starter flow passes validation and can be deployed
+ * end-to-end on the demo path. For a real audience-fund-and-distribute run the
+ * user should edit each recipient to point at their own funded testnet account.
+ *
+ * `SANDBOX_STARTER_GRAPH` is the exception and must not use them: nobody edits
+ * it before deploying, so its recipient has to be able to receive the asset.
+ * See `SANDBOX_DEMO_RECIPIENT`.
  *
  * The constants live here (not in `app/flows/new/page.tsx`) so unit tests
  * can import the graph without dragging the NextAuth-touching page module
@@ -15,6 +19,18 @@
 export const DEMO_RECIPIENT_ALICE = "GBIRFIVLH6OJXRL7ZTFEYL66NZAGAVEAFGAGRSXB6625QZXAWDFFWGEY";
 export const DEMO_RECIPIENT_BOB = "GBGPI4CKOPJMMHEBRC43DPTNLGY4EXUKR2R56VSW4CQX4XPYY3BCZTWH";
 export const DEMO_RECIPIENT_CHARLIE = "GAOVXKYHSRGPK4ZOCKDIJKAQ76K2CAIJZWESVWECZDETVCG4DMJQWLK2";
+
+/**
+ * The Pay recipient in the sandbox starter, and the one address here that is
+ * NOT a placeholder: it is funded on testnet and holds a USDC trustline for
+ * the issuer in `lib/stellar/assets.ts`. The sandbox flow is deployed and
+ * triggered as-is by visitors who never edit it, and `deposit` simulates the
+ * whole pipeline down to the final SAC `transfer` — so a recipient without a
+ * trustline fails pre-flight and the sandbox can never complete a swap. This
+ * is the same sink the D1 evidence run used
+ * (`docs/instawards/evidence/d1/11-happy-path.json`).
+ */
+export const SANDBOX_DEMO_RECIPIENT = "GAEBH5ZALWM4SFBG3XEE7FBGKNPUVX5JT7URH34XHQ6SVRT6IGY4SXAM";
 
 export const STARTER_GRAPH = {
   nodes: [
@@ -46,8 +62,8 @@ export const STARTER_GRAPH = {
  * see, configure and deploy the Swap block. `assetOut` is USDC so the swap
  * exchanges two different assets (`validateFlow` rejects a same-asset swap),
  * and the Pay node is required because a swap sends its whole output to
- * exactly one next step. The recipient is the same unfunded placeholder the
- * splitter starter uses.
+ * exactly one next step. The recipient is `SANDBOX_DEMO_RECIPIENT` rather than
+ * a placeholder, because this graph is deployed and triggered unedited.
  */
 export const SANDBOX_STARTER_GRAPH = {
   nodes: [
@@ -70,7 +86,7 @@ export const SANDBOX_STARTER_GRAPH = {
       id: "action-2",
       type: "pay",
       config: {
-        recipient: DEMO_RECIPIENT_ALICE,
+        recipient: SANDBOX_DEMO_RECIPIENT,
         asset: { kind: "known", symbol: "USDC" },
         mode: "fixed",
         fullAmount: true,

@@ -37,6 +37,45 @@ export type AuditAction =
   | "ADMIN_USER_UPDATE"
   | "ADMIN_USER_DEACTIVATE";
 
+/**
+ * The actions whose metadata carries `{ deploymentId, txHash }` for a transaction
+ * this app submitted on a deployment's behalf: `submit-trigger` (DEPLOY_TRIGGER),
+ * `submit-invoke` (DEPLOY_INVOKE) and `submit` (DEPLOY_CONFIRM).
+ *
+ * `satisfies` rather than a plain array so renaming a member of the union above
+ * is a type error here, instead of a list that silently stops matching.
+ */
+const SUBMITTED_TX_ACTIONS = [
+  "DEPLOY_TRIGGER",
+  "DEPLOY_INVOKE",
+  "DEPLOY_CONFIRM",
+] satisfies AuditAction[];
+
+/**
+ * Did this app submit `txHash` for `deploymentId`? Used to decide whether a
+ * status poll may run the deployment-specific bookkeeping that follows a
+ * confirmation — not to decide whether the caller may read the status, which is
+ * public chain data.
+ *
+ * The audit row is a best-effort write (see `audit` below), so a false here can
+ * mean "we lost the row" as well as "not ours". That is why callers must treat
+ * it as permission for an optimisation, never as the only thing standing
+ * between a caller and a correct answer.
+ */
+export async function wasTxSubmittedFor(deploymentId: string, txHash: string): Promise<boolean> {
+  const row = await db.auditLog.findFirst({
+    where: {
+      action: { in: SUBMITTED_TX_ACTIONS },
+      AND: [
+        { metadata: { path: ["deploymentId"], equals: deploymentId } },
+        { metadata: { path: ["txHash"], equals: txHash } },
+      ],
+    },
+    select: { id: true },
+  });
+  return row !== null;
+}
+
 export async function audit(opts: {
   action: AuditAction;
   userId?: string | null;

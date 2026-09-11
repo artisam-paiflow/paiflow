@@ -6,6 +6,7 @@ import {
   DEMO_RECIPIENT_ALICE,
   DEMO_RECIPIENT_BOB,
   DEMO_RECIPIENT_CHARLIE,
+  SANDBOX_DEMO_RECIPIENT,
 } from "@/lib/flows/starter";
 import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
@@ -98,6 +99,23 @@ describe("sandbox starter flow seeds a deployable swap graph", () => {
     if (swap?.type === "swap") {
       expect(swap.config.assetIn).not.toEqual(swap.config.assetOut);
     }
+  });
+
+  // The sandbox graph is deployed AND triggered without anyone editing it, and
+  // `deposit` simulates the pipeline down to the payer's SAC transfer. Pointing
+  // the Pay node at one of the unfunded placeholders made every sandbox trigger
+  // fail pre-flight with a 502 (they have no account on testnet, let alone a
+  // USDC trustline).
+  it("pays a recipient that is not one of the unfunded placeholders", () => {
+    const parsed = FlowGraphSchema.parse(SANDBOX_STARTER_GRAPH);
+    const pay = parsed.nodes.find((n) => n.type === "pay");
+    expect(pay).toBeDefined();
+    if (pay?.type !== "pay") return;
+    expect(pay.config.recipient).toBe(SANDBOX_DEMO_RECIPIENT);
+    expect([DEMO_RECIPIENT_ALICE, DEMO_RECIPIENT_BOB, DEMO_RECIPIENT_CHARLIE]).not.toContain(
+      pay.config.recipient,
+    );
+    expect(StrKey.isValidEd25519PublicKey(SANDBOX_DEMO_RECIPIENT)).toBe(true);
   });
 
   it("builds a three-node pipeline the factory can deploy", () => {
