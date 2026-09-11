@@ -2,7 +2,7 @@
 
 **Window:** 7–13 September 2026 · **Focus:** D1 — the swapper executes a real swap through the Soroswap testnet router
 
-_Interim report, updated Thursday 10 September. Final figures on 13 September._
+_Interim report, updated Friday 11 September. Final figures on 13 September._
 
 ## Summary
 
@@ -14,8 +14,11 @@ builder spec passes 9/9 against paiflow.xyz and the eleven screenshots and API s
 evidence index are its output.
 
 A swap flow was then deployed from the public app and triggered on 9 September: 10 XLM swapped
-to 1.0564010 USDC through the Soroswap router and paid on to the recipient, [`2ceacb95…`](https://stellar.expert/explorer/testnet/tx/2ceacb95695c5def25ee8c4b84ac44e596d3b936099e3239ef0a9af47164db1b). What is still
-missing is the screen recording of that journey through the builder.
+to 1.0564010 USDC through the Soroswap router and paid on to the recipient, [`2ceacb95…`](https://stellar.expert/explorer/testnet/tx/2ceacb95695c5def25ee8c4b84ac44e596d3b936099e3239ef0a9af47164db1b).
+On 10 September a written QA pass against the public app found an empty event feed after a
+trigger and a slippage setting the pool fee would always defeat; both fixes are merged and
+deployed. The login page now offers "try the sandbox", so a reviewer reaches the Swap block with
+no account. What is still missing is the screen recording of that journey through the builder.
 
 ## Changelog
 
@@ -26,14 +29,24 @@ pnpm instawards:changelog --since 2026-09-07 --until 2026-09-13 \
   --ref mirror/develop --repo https://github.com/artisam-paiflow/paiflow
 ```
 
-| Date       | Change                                                                            | Issues | Commit                                                                                                  |
-| ---------- | --------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
-| 2026-09-09 | docs(instawards): D1 status and week-1 interim report as of 9 September           | #409   | [`3da0c2e`](https://github.com/artisam-paiflow/paiflow/commit/3da0c2edb98a750c256f9fb801cf365424a85824) |
-| 2026-09-09 | fix(tooling): deploy the factory when the hash is unchanged but none exists       | #394   | [`861bc5b`](https://github.com/artisam-paiflow/paiflow/commit/861bc5bfdd37afc94e268ef20cdf9a9b43ba5d4a) |
-| 2026-09-09 | feat(builder): live Soroswap quote in the swap panel and the deploy review        | #391   | [`51b3f6f`](https://github.com/artisam-paiflow/paiflow/commit/51b3f6f5fb92e2d3d8fe063fef3987fb1fd07056) |
-| 2026-09-09 | feat(builder): show the Swap block, name the router's network, surface its errors | #402   | [`74a91e6`](https://github.com/artisam-paiflow/paiflow/commit/74a91e61a6f84f1e983d9d84bdbb20541b200540) |
-| 2026-09-07 | feat(pipeline): route the swap block through the Soroswap-backed swapper          | #388   | [`3a76e93`](https://github.com/artisam-paiflow/paiflow/commit/3a76e93)                                  |
-| 2026-09-07 | feat(swapper): swap through the Soroswap router with a spot-price slippage bound  | #387   | [`3315ea3`](https://github.com/artisam-paiflow/paiflow/commit/3315ea3)                                  |
+| Date       | Change                                                                                   | Issues | Commit                                                                                                  |
+| ---------- | ---------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| 2026-09-10 | fix(docs): put SUMMARY.md at the GitBook root so its pages import                        | #431   | [`688b54d`](https://github.com/artisam-paiflow/paiflow/commit/688b54dfe1a622581ebd1065386f91892986bd36) |
+| 2026-09-10 | docs(instawards): week-1 interim report as of 10 September                               | #430   | [`535c855`](https://github.com/artisam-paiflow/paiflow/commit/535c85506f107142a86de78a56f3589a14966f6e) |
+| 2026-09-10 | feat(auth): public sandbox session replaces the judge credentials panel                  | #423   | [`728d4c9`](https://github.com/artisam-paiflow/paiflow/commit/728d4c9f0642445b31e6e91e10d8abe6331928db) |
+| 2026-09-10 | fix(swap): ingest events on trigger confirm, refuse sub-fee slippage, cover swapper auth | #422   | [`8b39daa`](https://github.com/artisam-paiflow/paiflow/commit/8b39daad26f55c3fe0c09a9bb7ec4b555891fdda) |
+| 2026-09-10 | ci: run the workflow on develop, staging and main only                                   | #421   | [`7782295`](https://github.com/artisam-paiflow/paiflow/commit/77822959be30ec780deec7eec87a1902b6bdd525) |
+| 2026-09-09 | fix(scval): serialize the yield constructor with the four args it declares               | #392   | [`8de1e20`](https://github.com/artisam-paiflow/paiflow/commit/8de1e2038cc9ee0ed2efccc18cea6b504c0f14c4) |
+| 2026-09-09 | fix(flows): compile the action the trigger reaches first, not the one drawn first        | #405   | [`55494be`](https://github.com/artisam-paiflow/paiflow/commit/55494bea6fe240d18d9cb0ac6da88a769c1df553) |
+| 2026-09-09 | fix(tests): isolate the unit suite from the developer's shell environment                | #406   | [`8ee010b`](https://github.com/artisam-paiflow/paiflow/commit/8ee010b8c0de1187decf67389db7531e31c1edd7) |
+| 2026-09-09 | docs(instawards): D3 "before" evidence from paiflow.xyz, and public commit links         | #411   | [`4302aa6`](https://github.com/artisam-paiflow/paiflow/commit/4302aa66b1eb427db9197f24cf845dd972bcdbfd) |
+| 2026-09-09 | test(d1): soroswap check script and the testnet deploy-and-trigger spec                  | #410   | [`c5c50af`](https://github.com/artisam-paiflow/paiflow/commit/c5c50afed0c2976f5a573da7a5d1ae87accf6560) |
+| 2026-09-09 | docs(instawards): D1 status and week-1 interim report as of 9 September                  | #409   | [`3da0c2e`](https://github.com/artisam-paiflow/paiflow/commit/3da0c2edb98a750c256f9fb801cf365424a85824) |
+| 2026-09-09 | fix(tooling): deploy the factory when the hash is unchanged but none exists              | #394   | [`861bc5b`](https://github.com/artisam-paiflow/paiflow/commit/861bc5bfdd37afc94e268ef20cdf9a9b43ba5d4a) |
+| 2026-09-09 | feat(builder): live Soroswap quote in the swap panel and the deploy review               | #403   | [`51b3f6f`](https://github.com/artisam-paiflow/paiflow/commit/51b3f6f5fb92e2d3d8fe063fef3987fb1fd07056) |
+| 2026-09-09 | feat(builder): show the Swap block, name the router's network, surface its errors        | #402   | [`74a91e6`](https://github.com/artisam-paiflow/paiflow/commit/74a91e61a6f84f1e983d9d84bdbb20541b200540) |
+| 2026-09-07 | feat(pipeline): route the swap block through the Soroswap-backed swapper                 | #388   | [`3a76e93`](https://github.com/artisam-paiflow/paiflow/commit/3a76e93695b4b6cd78ab39adf3b0f451ddf8f2a3) |
+| 2026-09-07 | feat(swapper): swap through the Soroswap router with a spot-price slippage bound         | #387   | [`3315ea3`](https://github.com/artisam-paiflow/paiflow/commit/3315ea35023471bb75cd281fa9aa488ee9e820d5) |
 
 Every code change planned for D1 is merged, and #390 — the testnet deploy-and-trigger run that
 produces the SOW evidence — ran on 9 September. The screen recording of that journey is the one
@@ -88,18 +101,36 @@ See [metrics](metrics.md) for the running totals and how each number is measured
 
 One flow, deployed from the public app and triggered twice. The executions figure counts the
 contract events those two transactions emitted on-chain, twelve each; the app-side recorded count
-comes from the submission-proof view and is taken at the 13 September snapshot. WASM stays at zero
-because the swapper binary was uploaded from a development environment, which the counting rule
-excludes.
+comes from the submission-proof view and is taken at the 13 September snapshot, when the swap
+flow from the 10 September QA pass is also counted. WASM stays at zero because the swapper binary
+was uploaded from a development environment, which the counting rule excludes.
 
 ## Decisions and blockers
 
+- **Where the evidence comes from.** [paiflow.xyz](https://paiflow.xyz) is the project's
+  staging service, pinned to Stellar testnet, and it is the public app — there is no separate
+  private environment. Everything deployed or triggered there counts under the counting rule;
+  local runs and the 6 September verification copy do not.
 - **Router not user-selectable; no new asset type; one output per swap.** Recorded as scope
   notes on the [D1 page](deliverables/d1.md) rather than by editing the approved SOW.
-- **Action ordering.** The pipeline compiles the first contract action in canvas-insertion
+- **Public access without an account.** The login page used to display a shared username and
+  password. That panel is gone; "try the sandbox" now creates a disposable sandbox identity
+  for the visitor, signed in without a password, that can reach only the builder, the deploy
+  screen and the read-only deployment views, and opens on a ready-made XLM → USDC swap flow.
+  A sandbox session can deploy only pipelines where every on-chain move is signed by the
+  visitor's own wallet; payroll, subscription, cash-out, streaming and webhook pipelines, which
+  Paiflow's own signer later acts on, are refused. The feature is off by default and refuses to
+  start on mainnet. Nothing custodial changes — the visitor still signs every deployment.
+- **QA pass, 10 September.** A written test-case run against the public app deployed and
+  triggered a swap flow. Two things went wrong and are fixed: the deployment page showed an
+  empty event feed until the background poller ran (events are now read the moment the trigger
+  confirms, and the page reads once on open), and a slippage setting below the pool's 0.3 % fee
+  could be deployed and then fail on every trigger (refused at validation; the panel floors the
+  input at 0.3 %).
+- **Action ordering.** The pipeline compiled the first contract action in canvas-insertion
   order, so a correctly drawn `receive → swap → pay` could silently drop the swap if the Pay
-  block was added first. A fail-closed guard is merged (the flow is refused rather than
-  mis-deployed); compiling in topological order is deferred to its own change.
+  block was added first. Fixed on 9 September: the action the trigger reaches first is the one
+  compiled.
 - **Fresh-environment deploy bug.** `pnpm contracts:deploy:testnet` never deployed a factory on
   a machine with no prior state, so nothing could deploy. Reproduced against `develop`, fixed,
   and verified on 9 September (factory `CBYIUUKY…GZ726A`). This would have blocked the
