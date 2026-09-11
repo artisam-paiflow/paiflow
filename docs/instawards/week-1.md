@@ -121,8 +121,11 @@ events the application recorded, which is the smaller and stricter number.
   staging service, pinned to Stellar testnet, and it is the public app — there is no separate
   private environment. Everything deployed or triggered there counts under the counting rule;
   local runs and the 6 September verification copy do not.
-- **Router not user-selectable; no new asset type; one output per swap.** Recorded as scope
-  notes on the [D1 page](deliverables/d1.md) rather than by editing the approved SOW.
+- **Two narrowings of the SOW's wording: the router is not user-selectable, and a swap block
+  forwards to one next step.** Recorded as scope notes on the
+  [D1 page](deliverables/d1.md#scope-notes) rather than by editing the approved SOW. The asset
+  range and the sandbox are on the same page under implementation choices: the SOW prescribes
+  neither, so neither is a deviation.
 - **Public access without an account.** The login page used to display a shared username and
   password. That panel is gone; "try the sandbox" now creates a disposable sandbox identity
   for the visitor, signed in without a password, that can reach only the builder, the deploy
