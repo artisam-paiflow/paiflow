@@ -52,16 +52,20 @@ export function errorResponse(err: unknown): NextResponse {
     // A 5xx AppError is a real failure the operator has to be able to see. It
     // used to return in silence, so an UPSTREAM_RPC from a failed Soroban
     // simulation left nothing in the logs at all and the only evidence was a
-    // 502 in the edge access log. `details` is a raw diagnostic dump and runs
-    // to tens of kilobytes, so it is truncated rather than dropped.
+    // 502 in the edge access log.
+    //
+    // `message` is deliberately NOT logged: it is where raw upstream text ends
+    // up (`lib/ai/groq.ts` interpolates a provider response body and model
+    // output straight into it), and nothing here can scrub a free-text string —
+    // pino's redact list is path-based. `details` is safe by construction: the
+    // only place that sets it is `lib/stellar/sim-error.ts`, whose payload is a
+    // Soroban diagnostic dump — contract addresses, error codes, ledger state,
+    // all public on-chain data — and it is the one thing worth reading when a
+    // simulation fails. Truncated because those dumps run to tens of kilobytes.
+    // Anything else still leaves a code and a status, so no 5xx is silent.
     if (err.status >= 500) {
       log.error(
-        {
-          code: err.code,
-          status: err.status,
-          reason: err.message,
-          details: err.details?.slice(0, 2000),
-        },
+        { code: err.code, status: err.status, details: err.details?.slice(0, 2000) },
         "request failed",
       );
     }

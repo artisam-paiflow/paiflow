@@ -155,6 +155,41 @@ describe("GET /api/deployments/[id]/tx-status", () => {
     expect(mockRpc.getTransaction).toHaveBeenCalledWith(TX_HASH);
   });
 
+  // The comment above the lookup calls the audit row "permission for an
+  // optimisation". A database blip must therefore cost the optimisation, not the
+  // answer: the hook reports any non-OK response as a failed transaction.
+  it("still answers when the submit lookup itself fails", async () => {
+    vi.mocked(wasTxSubmittedFor).mockRejectedValue(new Error("db down"));
+    mockRpc.getTransaction.mockResolvedValue({
+      status: "SUCCESS",
+      ledger: 4598539,
+      createdAt: 1789094227,
+      envelopeXdr: "AAAA",
+    });
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ data: { status: "SUCCESS", txHash: TX_HASH } });
+    expect(recordAllowanceEvent).not.toHaveBeenCalled();
+    expect(pollEventsFor).not.toHaveBeenCalled();
+    expect(audit).not.toHaveBeenCalled();
+  });
+
+  // `ledgerClosedAt` belongs to the getEvents shape, not to getTransaction, so
+  // reading it only ever produced the Date.now() fallback and occurredAt
+  // recorded ingestion time.
+  it("records the ledger close time, not the time we ingested", async () => {
+    mockRpc.getTransaction.mockResolvedValue({
+      status: "SUCCESS",
+      ledger: 4598539,
+      createdAt: 1789094227,
+      envelopeXdr: "AAAA",
+    });
+    await call();
+    expect(recordAllowanceEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ occurredAt: new Date(1789094227 * 1000) }),
+    );
+  });
+
   // The route is public, so a limit keyed on the caller-controlled deployment id
   // would hand out a fresh bucket per request.
   it("rate-limits on the ip alone before the per-deployment bucket", async () => {

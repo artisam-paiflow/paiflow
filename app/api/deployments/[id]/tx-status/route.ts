@@ -32,10 +32,17 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const ip = clientIp(req);
     // IP-wide first, and deliberately NOT keyed on `id`: the route is public, so
     // a caller who varies the deployment id would otherwise get a fresh bucket
-    // per request and never hit a limit at all. The per-deployment limit below
-    // stays as a second control on a single deployment's pollers. 120/min is
-    // about four concurrent tabs at the hook's 2s interval.
-    await enforceRateLimit({ key: `tx-status:ip:${ip}`, limit: 120, windowSeconds: 60 });
+    // per request and never hit a limit at all.
+    //
+    // Loose on purpose. This bucket exists to stop that amplification, not to be
+    // fair between pollers — the per-deployment limit below does that. Everyone
+    // behind one NAT shares this one, and a demo-booth wifi or a carrier's CGNAT
+    // is exactly the sandbox audience; a dev-mode payroll save also polls every
+    // returned hash in parallel from a single browser. 600/min is about twenty
+    // concurrent pollers at the hook's 2s interval, and still caps a single
+    // address at 10 req/s of work that no longer touches the database unless the
+    // transaction has confirmed.
+    await enforceRateLimit({ key: `tx-status:ip:${ip}`, limit: 600, windowSeconds: 60 });
     await enforceRateLimit({ key: `tx-status:${id}:${ip}`, limit: 60, windowSeconds: 60 });
 
     const { searchParams } = new URL(req.url);
@@ -60,7 +67,21 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       // fast ingest and nothing else: the cron poller picks the same events up
       // within the minute. That is the whole penalty for guessing wrong here,
       // which is why this gates the side effects rather than the response.
-      if (await wasTxSubmittedFor(id, txHash)) {
+      //
+      // For the same reason the lookup itself may not throw: a database blip on
+      // the one SUCCESS poll would otherwise 500, and the hook reports any
+      // non-OK response as "Failed to check transaction status" for a
+      // transaction that confirmed. Every other database touch below is
+      // swallowed; this one has to be too.
+      const submittedHere = await wasTxSubmittedFor(id, txHash).catch((err) => {
+        log.warn(
+          { err, deploymentId: id, txHash },
+          "tx-status: submit lookup failed, leaving ingest to the cron poller",
+        );
+        return false;
+      });
+
+      if (submittedHere) {
         await audit({
           action: "DEPLOY_TRIGGER_CONFIRMED",
           ip,
@@ -104,7 +125,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
               envelopeXdr,
               txHash,
               ledger: got.ledger,
-              occurredAt: new Date((got as any).ledgerClosedAt ?? Date.now()),
+              // `createdAt` is the ledger close time in Unix seconds. There is no
+              // `ledgerClosedAt` on a getTransaction response — that field belongs
+              // to the getEvents shape — so reading it only ever produced the
+              // fallback, and occurredAt recorded ingestion time instead.
+              occurredAt: new Date(got.createdAt * 1000),
               graph,
             });
           } catch {
