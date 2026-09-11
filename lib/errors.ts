@@ -49,6 +49,22 @@ export class AppError extends Error {
 
 export function errorResponse(err: unknown): NextResponse {
   if (err instanceof AppError) {
+    // A 5xx AppError is a real failure the operator has to be able to see. It
+    // used to return in silence, so an UPSTREAM_RPC from a failed Soroban
+    // simulation left nothing in the logs at all and the only evidence was a
+    // 502 in the edge access log. `details` is a raw diagnostic dump and runs
+    // to tens of kilobytes, so it is truncated rather than dropped.
+    if (err.status >= 500) {
+      log.error(
+        {
+          code: err.code,
+          status: err.status,
+          reason: err.message,
+          details: err.details?.slice(0, 2000),
+        },
+        "request failed",
+      );
+    }
     return NextResponse.json(
       { error: { code: err.code, message: err.message, fields: err.fields, details: err.details } },
       { status: err.status },

@@ -2,12 +2,17 @@
  * QA-D1 ISSUE-002: a confirmed trigger must land its contract events in the
  * store before the status response returns, so the deployment page the user
  * opens next renders them without waiting for the cron poller.
+ *
+ * Also covers the txHash -> deployment binding. The route is public (the
+ * `/trigger/:id` page has no session) and reachable by a sandbox identity, so
+ * the only thing standing between an arbitrary caller and a `pollEventsFor`
+ * run on someone else's deployment is that lookup.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockRpc, mockDb } = vi.hoisted(() => ({
   mockRpc: { getTransaction: vi.fn() },
-  mockDb: { deployment: { findUnique: vi.fn() } },
+  mockDb: { deployment: { findUnique: vi.fn() }, auditLog: { findFirst: vi.fn() } },
 }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/stellar/client", () => ({ sorobanRpc: () => mockRpc }));
@@ -41,6 +46,8 @@ describe("GET /api/deployments/[id]/tx-status", () => {
   beforeEach(() => {
     vi.mocked(pollEventsFor).mockClear();
     mockDb.deployment.findUnique.mockResolvedValue({ graphSnapshot: null });
+    mockDb.auditLog.findFirst.mockReset();
+    mockDb.auditLog.findFirst.mockResolvedValue({ id: "audit-1" });
   });
 
   it("ingests the deployment's events once the transaction succeeds", async () => {
@@ -83,5 +90,30 @@ describe("GET /api/deployments/[id]/tx-status", () => {
     const res = await call();
     expect((await res.json()).data.status).toBe("PENDING");
     expect(pollEventsFor).not.toHaveBeenCalled();
+  });
+
+  it("404s a txHash this app never submitted for this deployment", async () => {
+    mockDb.auditLog.findFirst.mockResolvedValue(null);
+    const res = await call();
+    expect(res.status).toBe(404);
+    expect((await res.json()).error.code).toBe("NOT_FOUND");
+  });
+
+  it("does not reach the network or ingest events for an unbound txHash", async () => {
+    mockDb.auditLog.findFirst.mockResolvedValue(null);
+    mockRpc.getTransaction.mockClear();
+    await call();
+    expect(mockRpc.getTransaction).not.toHaveBeenCalled();
+    expect(pollEventsFor).not.toHaveBeenCalled();
+  });
+
+  it("looks the pair up on both the deployment id and the txHash", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
+    await call();
+    const where = mockDb.auditLog.findFirst.mock.calls[0]![0].where;
+    expect(where.AND).toEqual([
+      { metadata: { path: ["deploymentId"], equals: DEPLOYMENT_ID } },
+      { metadata: { path: ["txHash"], equals: TX_HASH } },
+    ]);
   });
 });

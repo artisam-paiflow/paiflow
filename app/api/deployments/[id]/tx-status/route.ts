@@ -19,6 +19,17 @@ const QuerySchema = z.object({
 // deadline cut short — so the status answer never waits longer than this.
 const EVENT_INGEST_DEADLINE_MS = 5_000;
 
+/**
+ * The `AuditLog.action` values written when this app submits a transaction for
+ * a deployment: `submit-trigger` (DEPLOY_TRIGGER), `submit-invoke`
+ * (DEPLOY_INVOKE) and `submit` (DEPLOY_CONFIRM). Each writes
+ * `metadata: { deploymentId, txHash }`, which is what makes the pair lookup
+ * below possible without a new column. The first two are what
+ * `usePollTxStatus` actually polls today; DEPLOY_CONFIRM is listed so the
+ * deploy transaction stays answerable rather than 404ing if a caller asks.
+ */
+const POLLABLE_SUBMIT_ACTIONS = ["DEPLOY_TRIGGER", "DEPLOY_INVOKE", "DEPLOY_CONFIRM"];
+
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
@@ -30,6 +41,26 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (!parsed.success) throw new AppError("VALIDATION", "Missing or invalid txHash");
 
     const { txHash } = parsed.data;
+
+    // Bind the hash to the deployment before touching the network. Nothing else
+    // in this route uses `id` for anything but the audit row and the event
+    // ingest, so without this an unauthenticated caller could ask about any
+    // hash at all and, worse, make us run `pollEventsFor` for a deployment they
+    // have nothing to do with. Every submit path that is later polled records
+    // the pair, so "we submitted this tx for this deployment" is the check —
+    // and it is one a public `/trigger/:id` payer with no session can pass.
+    const claimed = await db.auditLog.findFirst({
+      where: {
+        action: { in: POLLABLE_SUBMIT_ACTIONS },
+        AND: [
+          { metadata: { path: ["deploymentId"], equals: id } },
+          { metadata: { path: ["txHash"], equals: txHash } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!claimed) throw new AppError("NOT_FOUND", "Unknown transaction for this deployment");
+
     const server = sorobanRpc();
     const got = await server.getTransaction(txHash);
 
