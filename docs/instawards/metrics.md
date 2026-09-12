@@ -30,11 +30,13 @@ _Last updated: 12 September, from a snapshot of the public app's database
 Each snapshot is a read-only query against the application's own database, run from the
 repository with the same definitions every time and saved in the evidence index with the figures.
 `pnpm instawards:metrics` is the generator, and every snapshot file carries each metric's target
-and whether it is met:
+and whether it is met. `--source` names the database the run read: the generator will not assert
+which system that was on its own, since `DATABASE_URL` decides it.
 
 ```bash
 railway run -p <project> -s Postgres -e staging -- \
-  bash -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" pnpm -s tsx scripts/instawards-metrics.ts' \
+  bash -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" pnpm -s tsx scripts/instawards-metrics.ts \
+    --source="Read-only SQL against the paiflow.xyz application database (Railway project paiflow, environment staging)."' \
   > docs/instawards/evidence/metrics-$(date +%F).json
 ```
 
