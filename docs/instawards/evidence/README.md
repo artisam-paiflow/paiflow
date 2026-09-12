@@ -28,6 +28,16 @@ deployed swapper's own page, for example [`CC4AMKQP…ZJWE`](https://stellar.exp
 be re-checked at any time with `pnpm soroswap:check`, which is the gate to run after a Soroswap
 testnet reset.
 
+The code entry holding those bytes has its own time-to-live, separate from the instance storage a
+contract extends when it runs. It was extended on 12 September to ledger 7742749, roughly 11 March
+2027, in [`dd94ca8c…`](https://stellar.expert/explorer/testnet/tx/dd94ca8c6ce4c3606448706afbab902ac7ef1e781434a56fab292eb191975302).
+The other nineteen binaries the public app instantiates were extended to the same horizon on the
+same day. Most of them renew themselves in normal use — an action contract's `extend_ttl` call
+covers its code entry as well as its instance — so the extension is a precaution for all but two
+cases: the factory, which holds no state and never calls `extend_ttl`, and templates nobody has
+deployed recently, which are never invoked and so never renew. `pnpm contracts:extend-ttl` reports
+the current figure for any entry and extends it again.
+
 ## Transactions
 
 | Date   | What it proves                                                                                                | Deliverable | Transaction                                                                                                                |
@@ -47,7 +57,7 @@ survives a testnet reset. [`d1/13-recording-run.json`](d1/13-recording-run.json)
 ## Swapper flows executed on testnet
 
 Every deployment from paiflow.xyz whose swapper emitted a `swap` event through the Soroswap
-router, from the application's own event records (snapshot of 11 September, details in
+router, from the application's own event records (snapshot of 12 September, details in
 [`d1/14-swapper-flows.json`](d1/14-swapper-flows.json)). This is the source of the "unique swapper flows executed" metric.
 "judge" and "sandbox" are the QA account and the no-account sandbox sessions.
 
@@ -63,7 +73,12 @@ router, from the application's own event records (snapshot of 11 September, deta
 | 8   | 11 Sep | sandbox                    | `2a419805` | [`CD3I26JV…DX3Z`](https://stellar.expert/explorer/testnet/contract/CD3I26JV527M3GV3RR2Y2CUCHGP3SE4UDT2RQ7AJ7EINUNFXBQ2QDX3Z) | [`079c7516…`](https://stellar.expert/explorer/testnet/tx/079c7516ebdc2f71c7a659af5460ac8b51def0fd33d9307d806b1b4c6b4ba55e) (50 XLM → 5.2802084 USDC)<br>[`1327d15f…`](https://stellar.expert/explorer/testnet/tx/1327d15f9c8008d8f529540dae82511a85f25b9b85d25356dea587ff3b744e77) (50 XLM → 5.2800745 USDC)<br>[`cf401926…`](https://stellar.expert/explorer/testnet/tx/cf4019268431d6b399b1badbc315495792d4c6ff2dbdc9a1673cc32b23819fe4) (50 XLM → 5.2799405 USDC) |
 | 9   | 11 Sep | sandbox (the recorded run) | `992a754f` | [`CBZ53HMV…QA3V`](https://stellar.expert/explorer/testnet/contract/CBZ53HMVYRCJDDTVOJ73SJ6KFXPUGDWU6TPZM4JJYEYIOC5DRRK5QA3V) | [`94be52e8…`](https://stellar.expert/explorer/testnet/tx/94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d) (100 XLM → 10.5594796 USDC)                                                                                                                                                                                                                                                                                                               |
 | 10  | 11 Sep | sandbox                    | `27b4c2e9` | [`CBXLZKQU…XKRE`](https://stellar.expert/explorer/testnet/contract/CBXLZKQUZIBQ4JO7JU74N2F57JRKHLKH7QIQKRXUA5IBMQOH2TCTXKRE) | [`590128ed…`](https://stellar.expert/explorer/testnet/tx/590128ed492ac9da010d0d63110cfcd120c62ca7dc1542728fca084501f56135) (1000 XLM → 105.5653820 USDC)                                                                                                                                                                                                                                                                                                             |
-| 11  | 11 Sep | sandbox                    | `f8269f58` | [`CCQUJUM3…G4YR`](https://stellar.expert/explorer/testnet/contract/CCQUJUM3GTE6BCZHPTPLW5SC4WC7JIJMOGYK6Y4WWOXMPY5ZWBTYG4YR) | [`b36bb060…`](https://stellar.expert/explorer/testnet/tx/b36bb06098966ac2c7274be08dbca5465d6e8941e32c4298d3d16c5fb56fa5be) (100 XLM → 10.5535904 USDC)                                                                                                                                                                                                                                                                                                               |
+| 11  | 11 Sep | sandbox                    | `f8269f58` | [`CCQUJUM3…G4YR`](https://stellar.expert/explorer/testnet/contract/CCQUJUM3GTE6BCZHPTPLW5SC4WC7JIJMOGYK6Y4WWOXMPY5ZWBTYG4YR) | [`b36bb060…`](https://stellar.expert/explorer/testnet/tx/b36bb06098966ac2c7274be08dbca5465d6e8941e32c4298d3d16c5fb56fa5be) (100 XLM → 10.5535904 USDC)<br>[`a6331c04…`](https://stellar.expert/explorer/testnet/tx/a6331c0456acd76727479a418ac06571ebf1a612f1bfa17ff533ceff6f5a7381) (100 XLM → 10.5530552 USDC)                                                                                                                                                     |
+| 12  | 11 Sep | sandbox                    | `8feb8e75` | [`CA3WPY3B…DX5H`](https://stellar.expert/explorer/testnet/contract/CA3WPY3BMHUI5MXQKRUGJE4ZZ22I2GUG7NUPVSAOIDTAIPJ7XUKTDX5H) | [`8ebe2275…`](https://stellar.expert/explorer/testnet/tx/8ebe22756cf53cc19a992e2ad926fb279c660771662cc6589ab3731371b47ada) (100 XLM → 10.5525201 USDC)                                                                                                                                                                                                                                                                                                               |
+| 13  | 11 Sep | sandbox                    | `bf9ef099` | [`CCJZ3XMB…IQ3D`](https://stellar.expert/explorer/testnet/contract/CCJZ3XMB4ULW5GHTDPBMFSNSIAO3EHKWYJWR5EXYCDDIPS67GJQAIQ3D) | [`6ab282e3…`](https://stellar.expert/explorer/testnet/tx/6ab282e31fd24422ac1d647bdba3ff2124c597e2659b945a026cde3aa659265e) (100 XLM → 10.5519851 USDC)                                                                                                                                                                                                                                                                                                               |
+| 14  | 11 Sep | sandbox                    | `122213b2` | [`CCWS5BMF…45GR`](https://stellar.expert/explorer/testnet/contract/CCWS5BMFMFZ6GGBI55CXU36OBHUBEPL3ZZB5OAISSESJS74VUKT445GR) | [`bca93ce6…`](https://stellar.expert/explorer/testnet/tx/bca93ce69b1592fc477d3f9f5735ab3eaf6a15293f75dbd01d84946e945b71cb) (100 XLM → 10.5514500 USDC)                                                                                                                                                                                                                                                                                                               |
+| 15  | 11 Sep | sandbox                    | `e7965d6a` | [`CD2KQNHM…5MDF`](https://stellar.expert/explorer/testnet/contract/CD2KQNHMOQHFSPS5RYDZLTG7NHDO2Y6VQRF2UFCIRS6Y5KTOWJWN5MDF) | [`838373ba…`](https://stellar.expert/explorer/testnet/tx/838373ba332a7a2077c38af523816a6ded49805834fde1f6331c4e380281961d) (1000 XLM → 105.4851198 USDC)                                                                                                                                                                                                                                                                                                             |
+| 16  | 11 Sep | sandbox                    | `3090cd4b` | [`CDKUIRIA…7LHE`](https://stellar.expert/explorer/testnet/contract/CDKUIRIABBD7RELDHG74Y4DJCS3YOY4OPMZVVJRFZF27A4LMFZJZ7LHE) | [`8a07ac54…`](https://stellar.expert/explorer/testnet/tx/8a07ac5445f19a26388554c32b26d251e965890d33132fe6cb78b26edd968190) (10 XLM → 1.0540171 USDC)                                                                                                                                                                                                                                                                                                                 |
 
 Every one of these transactions carries the `SoroswapRouter / swap` event from
 `CCJUD55A…7BRD`; the checks in the next section apply to each.
@@ -206,6 +221,10 @@ USDC with a `10490132` minimum at 1 % slippage, through pair `CCBX3NZT…7RQS` o
 | Date   | File                                                 | Source                                                                           |
 | ------ | ---------------------------------------------------- | -------------------------------------------------------------------------------- |
 | 11 Sep | [`metrics-2026-09-11.json`](metrics-2026-09-11.json) | Read-only query on the public app's database; each figure carries its definition |
+| 12 Sep | [`metrics-2026-09-12.json`](metrics-2026-09-12.json) | Same query, re-run at the close of week 1; each figure also carries its target   |
+
+Both are the output of `pnpm instawards:metrics`, so any figure here can be recomputed against
+the public app's database with the same definitions.
 
 ## Scope
 
