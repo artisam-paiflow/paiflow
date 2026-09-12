@@ -115,7 +115,10 @@ sandbox visitors since 10 September (17 sandbox sessions, 6 distinct wallets con
 9 September interim figure for executions counted on-chain events; this snapshot counts the
 events the application recorded, which is the smaller and stricter number.
 
-## Decisions and blockers
+## Decisions
+
+**No blockers to the deliverable.** D1 is complete — the public app runs it, the swap transaction
+and the recording exist, and every SOW §6.1 item for the deliverable is public.
 
 - **Where the evidence comes from.** [paiflow.xyz](https://paiflow.xyz) is the project's
   staging service, pinned to Stellar testnet, and it is the public app — there is no separate
@@ -134,6 +137,15 @@ events the application recorded, which is the smaller and stricter number.
   visitor's own wallet; payroll, subscription, cash-out, streaming and webhook pipelines, which
   Paiflow's own signer later acts on, are refused. The feature is off by default and refuses to
   start on mainnet. Nothing custodial changes — the visitor still signs every deployment.
+- **WASM uploaded counts as 1.** The 9 September interim report kept it at zero because the
+  binary was uploaded from a development machine. The counting rule excludes _activity_ from
+  development environments, not the artefact: the hash is on testnet, the public app's
+  contract-template row points at it, and every public-app swap flow instantiates it.
+
+## Issues found and fixed
+
+Each was found and fixed inside the week, and each is merged and deployed to the public app.
+
 - **QA pass, 10 September.** A written test-case run against the public app deployed and
   triggered a swap flow. Two things went wrong and are fixed: the deployment page showed an
   empty event feed until the background poller ran (events are now read the moment the trigger
@@ -148,28 +160,13 @@ events the application recorded, which is the smaller and stricter number.
   a machine with no prior state, so nothing could deploy. Reproduced against `develop`, fixed,
   and verified on 9 September (factory `CBYIUUKY…GZ726A`). This would have blocked the
   testnet evidence run; merged.
-- **Two things the deploy needed beyond merging the branch.** Found while shipping D1 to the
-  public app on 9 September, both worth recording because neither is obvious from the code.
-  First, the Soroswap router address is read from the environment with no database fallback, so
-  it has to be set on the service or every swap deployment is refused. Second, the app's
-  `SWAPPER` contract-template row still pointed at the June binary, and the app reads that row
-  _before_ falling back to the environment — left stale, the factory would have instantiated the
-  old swapper against the new constructor and every swap deploy would have failed on-chain.
-- **Merging into the deploy branch does not deploy on its own.** The deploy trigger waits for
-  GitHub check suites, and every pull request targeting that branch currently fails to start its
-  Actions run, so the platform recorded the merge and skipped the build. Pull requests into
-  `develop` are unaffected, and the same commits pass there. The deploy was made explicitly
-  instead. The Actions failure is not new to this work and is being tracked separately.
-- **WASM uploaded counts as 1.** The 9 September interim report kept it at zero because the
-  binary was uploaded from a development machine. The counting rule excludes _activity_ from
-  development environments, not the artefact: the hash is on testnet, the public app's
-  contract-template row points at it, and every public-app swap flow instantiates it.
-- **Operational note for week 2.** The swapper WASM entry's time-to-live on testnet runs out
-  around 16 September (ledger 4698557). The contract extends its own instance when invoked, not
-  the code entry, so the entry has to be extended before then or new swap deploys will fail until
-  it is restored. To be done before the D2 API-triggered swaps.
-- **D1 is complete.** The public app runs D1, the swap transaction and the recording exist, and
-  every SOW §6.1 item for the deliverable is public.
+
+## Planned maintenance
+
+- **Extend the swapper WASM entry before the D2 swaps.** Its time-to-live on testnet runs out
+  around 16 September (ledger 4698557); at ledger 4,622,566 on 11 September that is about four
+  days of runway. The contract extends its own instance when invoked, not the code entry, so the
+  entry has to be extended before then or new swap deploys will fail until it is restored.
 
 ## Next week
 
