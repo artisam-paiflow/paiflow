@@ -34,8 +34,11 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 
+// Neither call overrides, so dotenv's first-write-wins gives shell > .env.local
+// > .env. An operator who exports UPLOADER_SECRET to choose a signer must not
+// have a stale .env.local silently substitute another one.
+dotenvConfig({ path: resolve(".env.local") });
 dotenvConfig({ path: resolve(".env") });
-dotenvConfig({ path: resolve(".env.local"), override: true });
 
 type NetworkName = "testnet" | "mainnet";
 
@@ -136,7 +139,11 @@ function collectTargets(network: NetworkName): Target[] {
   for (const [key, raw] of Object.entries(process.env)) {
     if (!key.startsWith(prefix) || !key.endsWith(`_${suffix}`)) continue;
     const value = raw?.trim().toLowerCase();
-    if (!value || !HASH_RE.test(value) || seen.has(value)) continue;
+    if (!value) continue;
+    if (!HASH_RE.test(value)) {
+      throw new Error(`Invalid ${key}: expected 64 hex characters, got ${JSON.stringify(raw)}`);
+    }
+    if (seen.has(value)) continue;
 
     seen.add(value);
     targets.push(wasmTarget(value, key.slice(prefix.length, key.length - suffix.length - 1)));
@@ -246,7 +253,8 @@ async function main() {
   const latest = (await server.getLatestLedger()).sequence;
   const floor = latest + extendTo;
 
-  console.log(`[ttl] network=${network} rpc=${rpcUrl}`);
+  // Origin only: an RPC provider's key often rides in the URL path or query.
+  console.log(`[ttl] network=${network} rpc=${new URL(rpcUrl).origin}`);
   console.log(`[ttl] latest ledger ${latest}; extending to ${extendTo} ledgers ahead (${floor})`);
   if (dryRun) console.log("[ttl] dry run — nothing will be submitted");
 

@@ -20,15 +20,20 @@ import { config as dotenvConfig } from "dotenv";
 import { resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 
-// An explicit DATABASE_URL from the caller's environment is the point of this
-// script: `railway run` injects the public app's URL, and .env.local would
-// otherwise override it with the local development database.
-const injectedDatabaseUrl = process.env.DATABASE_URL;
+// Neither call overrides, so dotenv's first-write-wins gives shell > .env.local
+// > .env. That ordering is the point of this script: `railway run` exports the
+// public app's DATABASE_URL, and .env.local would otherwise replace it with the
+// local development database and report figures for the wrong system.
+dotenvConfig({ path: resolve(".env.local") });
 dotenvConfig({ path: resolve(".env") });
-dotenvConfig({ path: resolve(".env.local"), override: true });
-if (injectedDatabaseUrl) process.env.DATABASE_URL = injectedDatabaseUrl;
 
 const SPRINT_START = "2026-09-07";
+
+/** Owners reported by name in the evidence file. These are the project's own
+ *  operational accounts, and naming them tells a reviewer which runs were the
+ *  builder's and which were the QA pass. Every other owner is reported as
+ *  "user": the flow list is committed and published on the public mirror. */
+const NAMED_OWNERS = ["admin", "judge"];
 
 function arg(name: string, fallback: string): string {
   const hit = process.argv.slice(2).find((a) => a.startsWith(`--${name}=`));
@@ -68,7 +73,11 @@ async function collectSwapperFlows(windowStart: Date) {
   const rows = await db.$queryRaw<FlowRow[]>`
     SELECT d."id"::text        AS "deploymentId",
            d."confirmedAt"     AS "confirmedAt",
-           CASE WHEN u."role" = 'SANDBOX' THEN 'sandbox' ELSE u."username" END AS "owner",
+           CASE
+             WHEN u."role" = 'SANDBOX' THEN 'sandbox'
+             WHEN u."username" = ANY (${NAMED_OWNERS}) THEN u."username"
+             ELSE 'user'
+           END AS "owner",
            d."sourceAccount"   AS "signer",
            d."deployTxHash"    AS "deployTxHash",
            (SELECT n ->> 'contractAddress' FROM jsonb_array_elements(d."pipelineSnapshot"::jsonb) AS n
@@ -110,7 +119,7 @@ async function collectSwapperFlows(windowStart: Date) {
     existing.swaps.push({
       txHash: r.txHash,
       ledger: r.ledger,
-      occurredAt: r.occurredAt.toISOString().replace(/\.\d+Z$/, ""),
+      occurredAt: r.occurredAt.toISOString().replace(/\.\d{3}Z$/, "Z"),
       amountInStroops: r.amountIn,
       amountOutStroops: r.amountOut,
     });
@@ -127,6 +136,9 @@ async function count(rows: Promise<{ n: bigint }[]>): Promise<number> {
 async function main() {
   const since = arg("since", SPRINT_START);
   const wasmUploaded = Number(arg("wasm-count", "1"));
+  if (!Number.isSafeInteger(wasmUploaded) || wasmUploaded < 0) {
+    throw new Error(`Invalid --wasm-count: expected a non-negative integer`);
+  }
   const windowStart = new Date(`${since}T00:00:00Z`);
 
   if (Number.isNaN(windowStart.getTime())) throw new Error(`Invalid --since=${since}`);
@@ -158,7 +170,8 @@ async function main() {
 
   const swapTransactions = await count(db.$queryRaw`
     SELECT COUNT(DISTINCT e."txHash")::bigint AS n FROM "ContractEvent" e
-    WHERE e."payload" -> 'topics' ->> 0 = 'swap'`);
+    JOIN "Deployment" d ON d."id" = e."deploymentId"
+    WHERE d."createdAt" >= ${windowStart} AND e."payload" -> 'topics' ->> 0 = 'swap'`);
 
   const walletsDeploying = await count(db.$queryRaw`
     SELECT COUNT(DISTINCT "sourceAccount")::bigint AS n FROM "Deployment"
