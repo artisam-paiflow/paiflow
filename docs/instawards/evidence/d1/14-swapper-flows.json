@@ -11,14 +11,14 @@
       {
         "txHash": "3bded301fff23b2f34d9ffcfefcb6528de7d594928cdc39a5d261c9dfbf8e927",
         "ledger": 4581431,
-        "occurredAt": "2026-09-09T05:12:22",
+        "occurredAt": "2026-09-09T05:12:22Z",
         "amountInStroops": "500000000",
         "amountOutStroops": "52820859"
       },
       {
         "txHash": "2ceacb95695c5def25ee8c4b84ac44e596d3b936099e3239ef0a9af47164db1b",
         "ledger": 4581448,
-        "occurredAt": "2026-09-09T05:13:47",
+        "occurredAt": "2026-09-09T05:13:47Z",
         "amountInStroops": "100000000",
         "amountOutStroops": "10564010"
       }
@@ -36,7 +36,7 @@
       {
         "txHash": "8d8707228a6b1d30b01dd2f5c6d956961f090cd9cd690c73d994f7a8a4ec8f3f",
         "ledger": 4598539,
-        "occurredAt": "2026-09-10T04:58:02",
+        "occurredAt": "2026-09-10T04:58:02Z",
         "amountInStroops": "100000000",
         "amountOutStroops": "10563957"
       }
@@ -54,7 +54,7 @@
       {
         "txHash": "9f7fa585eac0f8b11cf3dee864438d6c078b1673d52c2c7584b56746e7a4aa4b",
         "ledger": 4600357,
-        "occurredAt": "2026-09-10T07:29:32",
+        "occurredAt": "2026-09-10T07:29:32Z",
         "amountInStroops": "1000000000",
         "amountOutStroops": "105636628"
       }
@@ -72,7 +72,7 @@
       {
         "txHash": "baed3c00d905467baa369d0d14573226ce587b21b030ddad028f05f3837bcba6",
         "ledger": 4606392,
-        "occurredAt": "2026-09-10T15:52:27",
+        "occurredAt": "2026-09-10T15:52:27Z",
         "amountInStroops": "100000000",
         "amountOutStroops": "10562831"
       }
@@ -90,7 +90,7 @@
       {
         "txHash": "4e71709730f3e5f29737c77b1ce4db1a270f2997537d2fc094ca73b23a20614f",
         "ledger": 4613259,
-        "occurredAt": "2026-09-11T01:24:42",
+        "occurredAt": "2026-09-11T01:24:42Z",
         "amountInStroops": "100000000",
         "amountOutStroops": "10561648"
       }
@@ -108,7 +108,7 @@
       {
         "txHash": "957f9bc89c21821a61c7594010d1e957a91a24166449a381a779e793ce139349",
         "ledger": 4614174,
-        "occurredAt": "2026-09-11T02:40:57",
+        "occurredAt": "2026-09-11T02:40:57Z",
         "amountInStroops": "1000000000",
         "amountOutStroops": "105613545"
       }
@@ -126,7 +126,7 @@
       {
         "txHash": "d393d24844103fc6678f52dc6bb16a1a36296b4ffba447033e9c6471dc62332f",
         "ledger": 4614237,
-        "occurredAt": "2026-09-11T02:46:12",
+        "occurredAt": "2026-09-11T02:46:12Z",
         "amountInStroops": "500000000",
         "amountOutStroops": "52803423"
       }
@@ -144,21 +144,21 @@
       {
         "txHash": "079c7516ebdc2f71c7a659af5460ac8b51def0fd33d9307d806b1b4c6b4ba55e",
         "ledger": 4616249,
-        "occurredAt": "2026-09-11T05:33:52",
+        "occurredAt": "2026-09-11T05:33:52Z",
         "amountInStroops": "500000000",
         "amountOutStroops": "52802084"
       },
       {
         "txHash": "1327d15f9c8008d8f529540dae82511a85f25b9b85d25356dea587ff3b744e77",
         "ledger": 4616692,
-        "occurredAt": "2026-09-11T06:10:47",
+        "occurredAt": "2026-09-11T06:10:47Z",
         "amountInStroops": "500000000",
         "amountOutStroops": "52800745"
       },
       {
         "txHash": "cf4019268431d6b399b1badbc315495792d4c6ff2dbdc9a1673cc32b23819fe4",
         "ledger": 4616706,
-        "occurredAt": "2026-09-11T06:11:57",
+        "occurredAt": "2026-09-11T06:11:57Z",
         "amountInStroops": "500000000",
         "amountOutStroops": "52799405"
       }
@@ -176,7 +176,7 @@
       {
         "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
         "ledger": 4616809,
-        "occurredAt": "2026-09-11T06:20:32",
+        "occurredAt": "2026-09-11T06:20:32Z",
         "amountInStroops": "1000000000",
         "amountOutStroops": "105594796"
       }
@@ -194,7 +194,7 @@
       {
         "txHash": "590128ed492ac9da010d0d63110cfcd120c62ca7dc1542728fca084501f56135",
         "ledger": 4616916,
-        "occurredAt": "2026-09-11T06:29:27",
+        "occurredAt": "2026-09-11T06:29:27Z",
         "amountInStroops": "10000000000",
         "amountOutStroops": "1055653820"
       }
@@ -212,14 +212,14 @@
       {
         "txHash": "b36bb06098966ac2c7274be08dbca5465d6e8941e32c4298d3d16c5fb56fa5be",
         "ledger": 4616950,
-        "occurredAt": "2026-09-11T06:32:17",
+        "occurredAt": "2026-09-11T06:32:17Z",
         "amountInStroops": "1000000000",
         "amountOutStroops": "105535904"
       },
       {
         "txHash": "a6331c0456acd76727479a418ac06571ebf1a612f1bfa17ff533ceff6f5a7381",
         "ledger": 4617377,
-        "occurredAt": "2026-09-11T07:07:52",
+        "occurredAt": "2026-09-11T07:07:52Z",
         "amountInStroops": "1000000000",
         "amountOutStroops": "105530552"
       }
@@ -237,7 +237,7 @@
       {
         "txHash": "8ebe22756cf53cc19a992e2ad926fb279c660771662cc6589ab3731371b47ada",
         "ledger": 4617413,
-        "occurredAt": "2026-09-11T07:10:52",
+        "occurredAt": "2026-09-11T07:10:52Z",
         "amountInStroops": "1000000000",
         "amountOutStroops": "105525201"
       }
@@ -255,7 +255,7 @@
       {
         "txHash": "6ab282e31fd24422ac1d647bdba3ff2124c597e2659b945a026cde3aa659265e",
         "ledger": 4617650,
-        "occurredAt": "2026-09-11T07:30:37",
+        "occurredAt": "2026-09-11T07:30:37Z",
         "amountInStroops": "1000000000",
         "amountOutStroops": "105519851"
       }
@@ -273,7 +273,7 @@
       {
         "txHash": "bca93ce69b1592fc477d3f9f5735ab3eaf6a15293f75dbd01d84946e945b71cb",
         "ledger": 4617678,
-        "occurredAt": "2026-09-11T07:32:57",
+        "occurredAt": "2026-09-11T07:32:57Z",
         "amountInStroops": "1000000000",
         "amountOutStroops": "105514500"
       }
@@ -291,7 +291,7 @@
       {
         "txHash": "838373ba332a7a2077c38af523816a6ded49805834fde1f6331c4e380281961d",
         "ledger": 4617724,
-        "occurredAt": "2026-09-11T07:36:47",
+        "occurredAt": "2026-09-11T07:36:47Z",
         "amountInStroops": "10000000000",
         "amountOutStroops": "1054851198"
       }
@@ -309,7 +309,7 @@
       {
         "txHash": "8a07ac5445f19a26388554c32b26d251e965890d33132fe6cb78b26edd968190",
         "ledger": 4621184,
-        "occurredAt": "2026-09-11T12:25:07",
+        "occurredAt": "2026-09-11T12:25:07Z",
         "amountInStroops": "100000000",
         "amountOutStroops": "10540171"
       }

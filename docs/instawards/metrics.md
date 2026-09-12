@@ -42,7 +42,7 @@ The definitions:
 
 - **Unique flows deployed** — confirmed deployments created since 7 September. A flow deployed
   twice counts twice, which is what the SOW's "deployed" measures; the 12 September snapshot also
-  records 20 distinct flow definitions behind the 26.
+  records 19 distinct flow definitions behind the 26.
 - **Contract executions / events published** — contract events the application decoded and
   published to a deployment's live feed, for deployments in the window. This is a subset of what
   the chain emits: at twelve contract events per swap transaction, the twenty swap transactions

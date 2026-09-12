@@ -68,8 +68,9 @@ produces the SOW evidence, ran on 9 September and was screen-recorded on 11 Sept
 complete.
 
 _The table lists the merges published on the public mirror when this report was generated. Four
-dependency-maintenance merges of 12 September (#444, #445, #457, #458) carry no D1 change and
-publish to the mirror with this report, so their commit links appear in the week-2 table._
+dependency-maintenance merges of 12 September (#444, #445, #457, #458) carry no D1 change and are
+not yet on the mirror, so they have no commit link to give. They reach it at the next sync and are
+listed in the week-2 table._
 
 ## Statement of Work progress
 

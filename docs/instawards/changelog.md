@@ -37,4 +37,5 @@ D1: the swapper executes a real swap through the Soroswap testnet router. Report
 | 2026-09-07 | feat(swapper): swap through the Soroswap router with a spot-price slippage bound            | #387   | [`3315ea3`](https://github.com/artisam-paiflow/paiflow/commit/3315ea35023471bb75cd281fa9aa488ee9e820d5) |
 
 _Four dependency-maintenance merges of 12 September (#444, #445, #457, #458) carry no deliverable
-change and publish to the mirror with this report; their commit links appear in the week-2 table._
+change and are not yet on the public mirror, so they have no commit link to give. They reach it at
+the next sync and are listed in the week-2 table._
