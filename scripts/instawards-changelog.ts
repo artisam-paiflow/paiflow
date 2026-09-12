@@ -58,7 +58,11 @@ function collect(ref: string, since: string, until: string): Row[] {
   const log = git([
     "log",
     "--first-parent",
-    `--since=${since}`,
+    // Both bounds carry an explicit time. Git's approxidate resolves a bare
+    // YYYY-MM-DD using the current time of day, so `--since=2026-09-07` run in
+    // the evening silently drops that morning's commits and the same command
+    // yields a different table depending on when it runs.
+    `--since=${since} 00:00:00`,
     `--until=${until} 23:59:59`,
     `--format=%H%x1f%cs%x1f%s`,
     ref,
