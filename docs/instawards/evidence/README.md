@@ -32,11 +32,14 @@ The code entry holding those bytes has its own time-to-live, separate from the i
 contract extends when it runs. It was extended on 12 September to ledger 7742749, roughly 11 March
 2027, in [`dd94ca8c…`](https://stellar.expert/explorer/testnet/tx/dd94ca8c6ce4c3606448706afbab902ac7ef1e781434a56fab292eb191975302).
 The other nineteen binaries the public app instantiates were extended to the same horizon on the
-same day. Most of them renew themselves in normal use — an action contract's `extend_ttl` call
-covers its code entry as well as its instance — so the extension is a precaution for all but two
-cases: the factory, which holds no state and never calls `extend_ttl`, and templates nobody has
-deployed recently, which are never invoked and so never renew. `pnpm contracts:extend-ttl` reports
-the current figure for any entry and extends it again.
+same day. Most of them renew themselves in normal use — twelve of the twenty contracts call
+`extend_ttl` when invoked, which covers the code entry as well as the instance — so the extension
+is a precaution for all but two cases: the eight contracts with no such call (the factory, payroll,
+yield, multisig, oracle, subscription and its dev variant, and webhook), and templates nobody has
+deployed recently, which are never invoked and so never renew. The factory's own instance entry,
+which every deploy invokes, was extended on 13 September to ledger 7756749 in
+[`9302db7d…`](https://stellar.expert/explorer/testnet/tx/9302db7d72ecaa9f61ba26de36095a098fc363f288cdc155bc8f10e9fa012005). `pnpm contracts:extend-ttl` reports the current figure for any entry and
+extends it again.
 
 ## Transactions
 

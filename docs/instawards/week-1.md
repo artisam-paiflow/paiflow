@@ -180,20 +180,25 @@ Each was found and fixed inside the week, and each is merged and deployed to the
 - **The contract binaries were extended to roughly 11 March 2027, and the factory is the one
   that needed it.** Uploaded binaries on testnet start with about seven days of life, and the
   set the public app runs was uploaded on 6 September. That looked alarming on the 12th, but most
-  of it renews itself: every action contract calls `extend_ttl(50_000, 500_000)` when it is
-  invoked, which the Soroban SDK applies to the contract's instance **and** to the code entry
-  behind it, taking both to about 29 days once under about three days of runway. The 10 September
+  of it renews itself: twelve of the twenty contracts — every action the public app exercises,
+  the deposit trigger, and the router, conditional and timelock conditions — call
+  `extend_ttl(50_000, 500_000)` when invoked, which the Soroban SDK applies to the contract's
+  instance **and** to the code entry behind it, taking both to about 29 days once under about
+  three days of runway. The 10 September
   QA run shows it working — the deposit trigger and the payer had 48,559 and 48,571 ledgers left,
   fell under the threshold, and renewed themselves; the swapper had 100,018 left, stayed above it,
   and was untouched.
 
-  Two things sit outside that mechanism. The factory holds no state and has no `extend_ttl` call
-  at all, so nothing renews it and a lapse there stops every deploy rather than one template.
-  Templates nobody exercises on the public app — splitter, timelock, payroll and the rest — never
-  get invoked, so they never renew either. All twenty binaries were extended on 12 September to
-  ledger 7742749; the swapper's is
+  Two things sit outside that mechanism. Eight contracts have no `extend_ttl` call at all: the
+  factory, payroll, yield, multisig, oracle, subscription and its dev variant, and webhook. The
+  factory is the one that matters, since every deploy invokes it and a lapse there stops every
+  deploy rather than one template. And templates that carry the call but that nobody exercises
+  on the public app — splitter, timelock and the rest — are never invoked, so they never renew
+  either. All twenty binaries were extended on 12 September to ledger 7742749; the swapper's is
   [`dd94ca8c…`](https://stellar.expert/explorer/testnet/tx/dd94ca8c6ce4c3606448706afbab902ac7ef1e781434a56fab292eb191975302).
-  The factory's own instance entry still lapses around 16 September and is extended the same way.
+  The factory's own instance entry was the last gap: still due to lapse around 16 September, it
+  was extended on 13 September to ledger 7756749, roughly 12 March 2027, in
+  [`9302db7d…`](https://stellar.expert/explorer/testnet/tx/9302db7d72ecaa9f61ba26de36095a098fc363f288cdc155bc8f10e9fa012005) (#460).
   `pnpm contracts:extend-ttl` reports and extends both kinds of entry, so this is a repeatable
   check rather than a note in a report.
 
