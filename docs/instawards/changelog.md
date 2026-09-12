@@ -12,6 +12,10 @@ D1: the swapper executes a real swap through the Soroswap testnet router. Report
 
 | Date       | Change                                                                                      | Issues | Commit                                                                                                  |
 | ---------- | ------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| 2026-09-12 | Merge pull request #458 from webnxt-2030/chore/bump-simplewebauthn-14                       | #458   | [`c424958`](https://github.com/artisam-paiflow/paiflow/commit/c424958496fa92d132e54d839306661052c1392e) |
+| 2026-09-12 | chore(deps): bump vitest to 4.1.11                                                          | #457   | [`55ac6ed`](https://github.com/artisam-paiflow/paiflow/commit/55ac6edc3d0e36ee77409efba309bede1d73e682) |
+| 2026-09-12 | chore(deps): bump next to 15.5.25 and next-auth to beta.32                                  | #445   | [`ccdaa9f`](https://github.com/artisam-paiflow/paiflow/commit/ccdaa9fc2245d153720a23bac0d95aae995c08de) |
+| 2026-09-12 | chore(deps): refresh stale pnpm overrides and pin transitive advisories                     | #444   | [`5214f21`](https://github.com/artisam-paiflow/paiflow/commit/5214f21bf9eb61606a0e44b3be516a01ff2ad618) |
 | 2026-09-11 | docs(instawards): group the week report by decision, fix and maintenance                    | #449   | [`f56fb4c`](https://github.com/artisam-paiflow/paiflow/commit/f56fb4c39ee32fb8866536148628df5d6386f08e) |
 | 2026-09-11 | docs(instawards): separate the two SOW narrowings from the choices it leaves open           | #443   | [`fd1b594`](https://github.com/artisam-paiflow/paiflow/commit/fd1b594b2a9116f5e8ec4a94b23676942a1b844c) |
 | 2026-09-11 | docs(instawards): evidence table first on the D1 page, embedded captures, anchored links    | #441   | [`4430193`](https://github.com/artisam-paiflow/paiflow/commit/44301930815f6f144d86326c89ad2097f5cf56db) |
@@ -35,7 +39,3 @@ D1: the swapper executes a real swap through the Soroswap testnet router. Report
 | 2026-09-09 | feat(builder): show the Swap block, name the router's network, surface its errors           | #402   | [`74a91e6`](https://github.com/artisam-paiflow/paiflow/commit/74a91e61a6f84f1e983d9d84bdbb20541b200540) |
 | 2026-09-07 | feat(pipeline): route the swap block through the Soroswap-backed swapper                    | #388   | [`3a76e93`](https://github.com/artisam-paiflow/paiflow/commit/3a76e93695b4b6cd78ab39adf3b0f451ddf8f2a3) |
 | 2026-09-07 | feat(swapper): swap through the Soroswap router with a spot-price slippage bound            | #387   | [`3315ea3`](https://github.com/artisam-paiflow/paiflow/commit/3315ea35023471bb75cd281fa9aa488ee9e820d5) |
-
-_Four dependency-maintenance merges of 12 September (#444, #445, #457, #458) carry no deliverable
-change and are not yet on the public mirror, so they have no commit link to give. They reach it at
-the next sync and are listed in the week-2 table._
