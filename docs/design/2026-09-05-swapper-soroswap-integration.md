@@ -80,8 +80,9 @@ resolves the swap node to `SWAPPER`.
   read-only "Router: Soroswap (testnet)" line and the address is injected
   server-side at deploy time. A free-text address widens the trust surface and
   breaks every flow on a reset.
-- **No multi-output swap.** A swap node may have at most one outgoing edge. Splitting
-  is the splitter's job.
+- **No multi-output swap, and no terminal swap.** A swap node must have exactly one
+  outgoing edge. Splitting is the splitter's job; and a swap with nowhere to send its
+  output would strand it (see step 6 below).
 - **No `SWAPPER_DEV` variant**, no relayer-driven swap, no `top_up`. Once the swap is
   real there is no pre-funded balance to top up. In a dev-mode flow the swapper stays
   immutable beside its `_DEV` siblings: dev mode leaves nodes without a `_DEV`
@@ -89,10 +90,12 @@ resolves the swap node to `SWAPPER`.
 - **No client-supplied quote.** The trigger path is `deposit()` on the trigger
   contract, so there is nowhere for an off-chain quote to travel. `amount_out_min`
   is computed in-transaction from the pool's **spot** price, so `slippage_bps`
-  bounds Soroswap's 0.3% fee plus price impact and rejects a thin or manipulated
-  pool. It does not protect against front-running within the same ledger; that
-  limitation is accepted and stated in the user-facing copy. (Quoting
-  `router_get_amounts_out` in the same transaction, the original plan, was a
+  bounds Soroswap's 0.3% fee plus this swap's own price impact, which is what
+  rejects a pool too thin for the trade. It does **not** detect a pool whose
+  reserves were already pushed off-market before this transaction — the spot
+  price moves with them — nor does it protect against front-running within the
+  same ledger; both limitations are accepted and stated in the user-facing copy.
+  (Quoting `router_get_amounts_out` in the same transaction, the original plan, was a
   tautology: the router computes its actual output with that same call on the same
   reserves, so the check could never fail. Corrected 2026-09-06.)
 
@@ -132,8 +135,12 @@ Entry points:
 6. `amount_out = amounts.last()`; assert `amount_out >= amount_out_min` and
    `amount_out > 0` (`InsufficientOutput`), the swapper's own backstop behind the
    router's check. Transfer it to `next_steps.first()` and invoke
-   `execute_step(asset_out, amount_out)` on it, the splitter pattern. A swap with no
-   next step keeps the output in the contract for the admin.
+   `execute_step(asset_out, amount_out)` on it, the splitter pattern. Zero next steps
+   is rejected at construction (`NoNextStep`), not tolerated: `do_swap` would still
+   execute the trade and then leave `asset_out` here, and the swapper has no way to
+   release it — there is no withdrawal function and `admin` is stored but never read.
+   Corrected 2026-09-07; an earlier draft of this record claimed the output was
+   "kept in the contract for the admin", which no code path delivers.
 7. Emit `("swap", asset_in, asset_out) -> (amount, amount_out)`.
 
 #### Auth spike result (2026-09-05)
@@ -192,8 +199,8 @@ list is `soroswap/core` `public/testnet.contracts.json`.
 
 Tests use a mock router in the crate's test module (returns a fixed quote and moves
 tokens), covering the happy path, slippage revert, deadline, unauthenticated caller,
-wrong asset, and more than one next step. `crate-type` gains `rlib` so the mock is
-reusable.
+wrong asset, and both the zero and the more-than-one next step cases. `crate-type`
+gains `rlib` so the mock is reusable.
 
 ### TypeScript
 
@@ -207,8 +214,9 @@ reusable.
   relayer address.
 - `lib/stellar/scval.ts`: eight arguments in constructor order. The `yield` branch
   has the same spurious trailing `parentAddress`; out of D1 scope, tracked in #392.
-- `lib/flows/validate.ts`: a swap node may have at most one outgoing edge; the
-  `templateKind` ladder labels swap and yield flows `SWAPPER` / `YIELD`.
+- `lib/flows/validate.ts`: a swap node must have exactly one outgoing edge (email
+  notify targets don't count); the `templateKind` ladder labels swap and yield flows
+  `SWAPPER` / `YIELD`.
 - `components/builder/palette.tsx`: unhide; default `slippageBps: 100`.
 - Simulation preview (SOW §5.1 Week 1 output): a session-guarded, rate-limited
   `GET /api/soroswap/quote` that simulates `router_get_amounts_out` for the expected

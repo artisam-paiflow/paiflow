@@ -4,9 +4,10 @@
  *     caller asks for a network that doesn't match `STELLAR_NETWORK`.
  *   - Called without an argument, the helpers return the active network's URL.
  *
- * We import the real `lib/env.ts` here (bypassing the test stub alias) by
- * using a relative path, then drive it by mutating `process.env` and clearing
- * its memoized cache via `vi.resetModules()`.
+ * These drive `lib/env.ts` by mutating `process.env` and clearing its memoized
+ * parse via `vi.resetModules()`. `tests/unit/setup.ts` scrubs the ambient
+ * environment once per test file, not per case: cleanliness between the
+ * describes below comes from their own `beforeEach` deletes.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
@@ -20,8 +21,7 @@ async function loadEnv(stellarNetwork: "testnet" | "mainnet") {
   for (const [k, v] of Object.entries(requiredEnv)) process.env[k] = v;
   process.env.STELLAR_NETWORK = stellarNetwork;
   vi.resetModules();
-  // Relative path dodges the vitest alias that swaps `@/lib/env` for the stub.
-  return await import("../../lib/env");
+  return await import("@/lib/env");
 }
 
 describe("env helpers — fail-fast on network mismatch", () => {
@@ -126,5 +126,34 @@ describe("env — splitter hard limits", () => {
     const e = mod.env();
     expect(e.NEXT_PUBLIC_SPLITTER_XLM_MIN).toBe(150);
     expect(e.NEXT_PUBLIC_SPLITTER_USDC_MAX).toBe(110);
+  });
+});
+
+describe("env — the sandbox is testnet-only", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    delete process.env.SANDBOX_ENABLED;
+  });
+
+  it("refuses to boot with SANDBOX_ENABLED on mainnet", async () => {
+    // The sandbox hands a working session to anyone who asks, with no account
+    // and no credential. On mainnet that would point an anonymous visitor at
+    // real money, so the combination fails closed rather than relying on an
+    // operator remembering to unset it during a cutover.
+    process.env.SANDBOX_ENABLED = "true";
+    const mod = await loadEnv("mainnet");
+    expect(() => mod.env()).toThrow(/SANDBOX_ENABLED/);
+    expect(() => mod.env()).toThrow(/mainnet/);
+  });
+
+  it("allows it on testnet", async () => {
+    process.env.SANDBOX_ENABLED = "true";
+    const mod = await loadEnv("testnet");
+    expect(mod.env().SANDBOX_ENABLED).toBe(true);
+  });
+
+  it("leaves mainnet alone when the sandbox is off", async () => {
+    const mod = await loadEnv("mainnet");
+    expect(mod.env().SANDBOX_ENABLED).toBe(false);
   });
 });

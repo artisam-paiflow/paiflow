@@ -236,14 +236,6 @@ const PAYER_REGISTRY: EventRegistry = {
 };
 
 const SWAPPER_REGISTRY: EventRegistry = {
-  topup: {
-    kind: EventKind.RECEIVE,
-    decode: (topics, value) => {
-      const from = topics[1] ?? null;
-      const amount = value ?? null;
-      return from && amount !== null ? { from, amount } : null;
-    },
-  },
   swap: {
     kind: EventKind.PAYOUT,
     decode: (topics, value) => {
@@ -660,7 +652,7 @@ function classifyEvent(topics: EventTopics): EventKind {
     "escrow",
     "retrieve",
   ]);
-  const receiveTopics = new Set(["receive", "deposit", "topup", "charge", "execute"]);
+  const receiveTopics = new Set(["receive", "deposit", "charge", "execute"]);
   if (payoutTopics.has(first)) return EventKind.PAYOUT;
   if (receiveTopics.has(first)) return EventKind.RECEIVE;
   if (first === "claim") return EventKind.CLAIM;

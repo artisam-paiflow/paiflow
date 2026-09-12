@@ -7,7 +7,7 @@ import { toastError } from "@/lib/friendly-toast";
 type AdminUser = {
   id: string;
   username: string;
-  role: "ADMIN" | "USER";
+  role: "ADMIN" | "USER" | "SANDBOX";
   isActive: boolean;
   createdAt: string;
   lastLoginAt: string | null;
@@ -134,14 +134,24 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
               className="px-md text-body-md hover:bg-surface-container-high/40 grid grid-cols-[1.5fr_120px_80px_80px_120px_1fr] items-center gap-3 py-2 transition-colors"
             >
               <span className="text-on-surface truncate">{u.username}</span>
-              <select
-                value={u.role}
-                onChange={(e) => patch(u.id, { role: e.target.value })}
-                className="admin-input"
-              >
-                <option value="USER">USER</option>
-                <option value="ADMIN">ADMIN</option>
-              </select>
+              {/* A SANDBOX row is read-only: the select has no matching option,
+                  so React would render it as USER and one interaction would
+                  silently promote a throwaway account. The PATCH route refuses
+                  it too. */}
+              {u.role === "SANDBOX" ? (
+                <span className="text-label-sm border-tertiary/40 text-tertiary inline-flex w-fit rounded border px-1.5 py-0.5 font-mono">
+                  SANDBOX
+                </span>
+              ) : (
+                <select
+                  value={u.role}
+                  onChange={(e) => patch(u.id, { role: e.target.value })}
+                  className="admin-input"
+                >
+                  <option value="USER">USER</option>
+                  <option value="ADMIN">ADMIN</option>
+                </select>
+              )}
               <span
                 className={`text-label-sm inline-flex w-fit rounded border px-1.5 py-0.5 font-mono ${
                   u.isActive
@@ -178,15 +188,19 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
                     UNLOCK
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    const pw = prompt("New password (min 12 chars):");
-                    if (pw && pw.length >= 12) patch(u.id, { resetPassword: pw });
-                  }}
-                  className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:border-primary/40 hover:text-on-surface rounded border px-2 py-0.5 font-mono transition-colors"
-                >
-                  RESET PW
-                </button>
+                {/* Setting a password on a sandbox account would replace the
+                    sentinel with a working credential — see lib/sandbox.ts. */}
+                {u.role !== "SANDBOX" && (
+                  <button
+                    onClick={() => {
+                      const pw = prompt("New password (min 12 chars):");
+                      if (pw && pw.length >= 12) patch(u.id, { resetPassword: pw });
+                    }}
+                    className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:border-primary/40 hover:text-on-surface rounded border px-2 py-0.5 font-mono transition-colors"
+                  >
+                    RESET PW
+                  </button>
+                )}
               </div>
             </div>
           ))}

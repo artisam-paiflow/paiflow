@@ -15,9 +15,11 @@ import {
   splitTotalFixedStroops,
   subscriptionAmountPerPeriodStroops,
   assetLabel,
+  MIN_SWAP_SLIPPAGE_BPS,
 } from "./schema";
 import { checkHardLimits } from "./limits";
-import { flowToPipeline } from "./to-params";
+import { inFlowOrder } from "./graph";
+import { flowToPipeline, absorbedActionIds, type PipelineNode } from "./to-params";
 
 export type ValidationIssue = { path: string; message: string; friendlyMessage: string };
 
@@ -44,7 +46,7 @@ const FRIENDLY = {
     `The percentages for your split don't add up to 100% (currently ${got / 100}%). Adjust them to total 100%.`,
   DUPLICATE_ADDRESS: (addr: string) =>
     `The address ${addr} appears more than once in your split recipients. Each recipient should only appear once.`,
-  ACTION_UNREACHABLE: (label: string) =>
+  NODE_UNREACHABLE: (label: string) =>
     `${label} isn't connected to anything. Connect it to the trigger or another step.`,
   UNSUPPORTED_COMBO:
     "This trigger/action combination isn't supported. You can use: receive→pay, receive→split, schedule→pay, schedule→split, or add a condition to any of these.",
@@ -63,6 +65,22 @@ const FRIENDLY = {
     "A scheduled split needs an amount per interval — the total released each interval, divided among the recipients by their shares. Set it on the split step, or switch the recipients to fixed amounts (each then receives their amount every interval).",
   ASSET_CONFLICT:
     "This step can receive different assets depending on which path funds arrive through. Make sure every path leading into it carries the same asset, or add a swap so they match before merging.",
+  SWAP_SINGLE_EDGE:
+    "A swap sends its whole output to one next step. Remove the extra connections coming out of it, or add a Split block after the swap.",
+  SWAP_NEEDS_NEXT_STEP:
+    "A swap sends its whole output to one next step, so it needs one. Connect it to a Pay or Split block — an email notification doesn't count as a destination.",
+  SWAP_SLIPPAGE_TOO_LOW:
+    "Soroswap's pool fee is 0.3%, so a max slippage under 0.3% makes every swap revert. Set it to at least 0.3%.",
+  SWAP_SAME_ASSET: (asset: string) =>
+    `A swap has to exchange two different assets, and both sides of this one are ${asset}. Change "Asset Out" to the asset you want back, or remove the swap.`,
+  DANGLING_NEXT_STEP: (label: string) =>
+    `${label} is still connected as a next step, but it isn't part of the pipeline this flow would deploy. Remove the connection into it, or rebuild the steps in the order the money moves.`,
+  ACTION_NOT_DEPLOYED: (label: string) =>
+    `The ${label} step wouldn't reach the chain, so this flow would deploy as something you didn't draw. Rebuilding the steps in the order the money moves usually fixes it. If it doesn't, this trigger or condition can't carry that step and it has to go.`,
+  YIELD_PARENT: (label: string) =>
+    `A Yield step can only come straight after a Webhook, HTTP Webhook, or Oracle trigger for now, not after ${label}. Move it, or use a Pay or Split step here.`,
+  YIELD_TERMINAL:
+    "A Yield step is the end of the line for now — nothing can come after it except an email notification. Remove the connections coming out of it.",
 } as const;
 
 // Triggers whose flows route payouts through the payer/splitter contracts,
@@ -361,7 +379,9 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     });
   }
   const actions = graph.nodes.filter(isAction);
-  const contractActions = actions.filter(isContractAction);
+  // Flow order, so the template ladder below infers the kind from the action
+  // the trigger reaches first rather than the one added to the canvas first.
+  const contractActions = inFlowOrder(graph, actions.filter(isContractAction));
   if (contractActions.length < 1) {
     errors.push({
       path: "nodes",
@@ -634,6 +654,97 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       message: "Sender KYC is required before deploying a flow with fiat payouts.",
       friendlyMessage: "Add the sender KYC details from the toolbar (required to deploy).",
     });
+  }
+
+  // A yield node can only be entered through `receive_and_forward`: the crate
+  // has no `execute_step`, which is what the deposit trigger, payer, splitter,
+  // swapper, timelock and router call on their next steps, so a yield behind
+  // any of those deploys and then reverts on the first run. It also forwards
+  // `amount = 0` downstream, which every next-step contract rejects. Until #158
+  // gives it an execute_step and a real forward, only a receive_and_forward
+  // trigger may feed it and nothing on-chain may follow it. multisig and
+  // subscription dispatch receive_and_forward too, but neither pipeline has
+  // been exercised with a yield in it (the conditional wrapper, and the
+  // relayer-driven per-period charge), so both stay out of the allowlist.
+  const YIELD_PARENT_TYPES = new Set(["webhook", "web2_webhook", "oracle"]);
+  for (const n of graph.nodes) {
+    if (n.type !== "yield") continue;
+    for (const e of graph.edges) {
+      if (e.target !== n.id) continue;
+      const src = nodesById.get(e.source);
+      // A missing source is reported by the edge checks above.
+      if (!src || YIELD_PARENT_TYPES.has(src.type)) continue;
+      errors.push({
+        path: `nodes.${n.id}`,
+        message: `Yield node cannot follow a ${src.type} node`,
+        friendlyMessage: FRIENDLY.YIELD_PARENT(nodeLabels.get(src.id) ?? src.type),
+      });
+    }
+    const outgoing = graph.edges.filter(
+      (e) => e.source === n.id && nodesById.get(e.target)?.type !== "email_notify",
+    );
+    if (outgoing.length > 0) {
+      errors.push({
+        path: `nodes.${n.id}`,
+        message: "Yield node cannot have next steps",
+        friendlyMessage: FRIENDLY.YIELD_TERMINAL,
+      });
+    }
+  }
+
+  // A swap forwards its entire output to next_steps[0]; the contract rejects
+  // both zero and more than one next step at construction, so catch it here
+  // first. Zero matters as much as two: do_swap still executes the trade and
+  // then leaves asset_out in the swapper, which has no withdrawal path, so the
+  // output would be unrecoverable. Only on-chain children count:
+  // getPipelineChildren in to-params.ts drops every edge touching an
+  // email_notify node, so those never become next steps and `swap -> pay` plus
+  // `swap -> email_notify` still constructs with exactly one.
+  for (const n of graph.nodes) {
+    if (n.type === "swap") {
+      // Both sides the same asset is not a trade: Soroswap has no pair for it,
+      // so `factory.get_pair` panics on the first trigger and the flow reverts
+      // after the user has already paid to deploy it. Nothing downstream
+      // catches this — the constructor stores the pair without checking it, and
+      // computeAssetFlow propagates assetOut, so the rest of the graph agrees.
+      if (assetsEqual(n.config.assetIn, n.config.assetOut)) {
+        errors.push({
+          path: `nodes.${n.id}.config.assetOut`,
+          message: "Swap node must exchange two different assets",
+          friendlyMessage: FRIENDLY.SWAP_SAME_ASSET(assetLabel(n.config.assetOut)),
+        });
+      }
+
+      // The contract's amount_out_min is spot less slippageBps, while the router
+      // has already taken its 0.3% fee off the output, so a bound under the fee
+      // fails the router's check on every trigger (see the swapper crate's
+      // `zero_slippage_reverts_on_the_pool_fee_alone`). Schema keeps min(0) so
+      // graphs saved before this rule still load; only deploying is refused.
+      if (n.config.slippageBps < MIN_SWAP_SLIPPAGE_BPS) {
+        errors.push({
+          path: `nodes.${n.id}.config.slippageBps`,
+          message: `Swap slippage must be at least ${MIN_SWAP_SLIPPAGE_BPS} bps`,
+          friendlyMessage: FRIENDLY.SWAP_SLIPPAGE_TOO_LOW,
+        });
+      }
+
+      const outgoing = graph.edges.filter(
+        (e) => e.source === n.id && nodesById.get(e.target)?.type !== "email_notify",
+      );
+      if (outgoing.length === 0) {
+        errors.push({
+          path: `nodes.${n.id}`,
+          message: "Swap node must have exactly one outgoing edge",
+          friendlyMessage: FRIENDLY.SWAP_NEEDS_NEXT_STEP,
+        });
+      } else if (outgoing.length > 1) {
+        errors.push({
+          path: `nodes.${n.id}`,
+          message: "Swap node can have at most one outgoing edge",
+          friendlyMessage: FRIENDLY.SWAP_SINGLE_EDGE,
+        });
+      }
+    }
   }
 
   // Email notify nodes are decorator leaves — they cannot have children.
@@ -917,12 +1028,17 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         }
       }
     }
-    for (const a of actions) {
-      if (!seen.has(a.id)) {
+    // Every node, not just the actions. A condition dropped on the canvas and
+    // never wired still makes the template ladder pick CONDITIONAL and still
+    // compiles to a pipeline node, so the flow deploys as something the user
+    // didn't draw — see the dangling-next-step guard below for what that costs.
+    for (const n of graph.nodes) {
+      if (n.id === trigger.id) continue;
+      if (!seen.has(n.id)) {
         errors.push({
-          path: `nodes.${a.id}`,
-          message: `Action ${a.id} is not reachable from the trigger`,
-          friendlyMessage: FRIENDLY.ACTION_UNREACHABLE(nodeLabels.get(a.id) ?? a.id),
+          path: `nodes.${n.id}`,
+          message: `Node ${n.id} is not reachable from the trigger`,
+          friendlyMessage: FRIENDLY.NODE_UNREACHABLE(nodeLabels.get(n.id) ?? n.id),
         });
       }
     }
@@ -1010,11 +1126,11 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   } else if (isOnReceive && isCashOut) {
     templateKind = TemplateKind.CASH_OUT;
   } else if (isOnReceive && isSwapOrYield) {
-    templateKind = TemplateKind.SPLITTER;
+    templateKind = action.type === "swap" ? TemplateKind.SWAPPER : TemplateKind.YIELD;
   } else if (isWebhookLike && isPayOrSplit) {
     templateKind = TemplateKind.SPLITTER;
   } else if (isWebhookLike && isSwapOrYield) {
-    templateKind = TemplateKind.SPLITTER;
+    templateKind = action.type === "swap" ? TemplateKind.SWAPPER : TemplateKind.YIELD;
   } else if (trigger!.type === "oracle") {
     templateKind = TemplateKind.CONDITIONAL;
   } else {
@@ -1032,9 +1148,11 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   }
 
   // Compute pipeline mapping
+  let pipelineNodes: PipelineNode[];
   let pipeline: TemplateKind[];
   try {
-    pipeline = flowToPipeline(graph).map((n) => n.templateKind);
+    pipelineNodes = flowToPipeline(graph);
+    pipeline = pipelineNodes.map((n) => n.templateKind);
     if (pipeline.length === 0) {
       return {
         ok: false,
@@ -1061,6 +1179,62 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       ],
     };
   }
+
+  // Every contract action the user drew must actually reach the chain. Both the
+  // template ladder above and flowToPipeline pick "the" action as
+  // contractActions[0], in flow order via inFlowOrder() — the action the trigger
+  // reaches first along the edges, so the pipeline follows what the user drew
+  // rather than the order they dropped the blocks. That is not enough on its
+  // own: an action can still end up neither emitted nor absorbed, and a
+  // schedule flow with two chained pays is the live example — the streamer
+  // carries one payout step, so the second pay reaches no contract and that
+  // recipient is never paid. Catch it here rather than letting money move
+  // against a pipeline the user didn't draw.
+  //
+  // "Not emitted" is not the same as "lost": an oracle_gte condition compiles to
+  // a CONDITIONAL that owns the recipients and pays them itself, so its pay or
+  // split is absorbed on purpose. absorbedActionIds() carries that rule, and
+  // lives beside the code that applies it.
+  const deployedNodeIds = new Set(pipelineNodes.map((n) => n.nodeId));
+  const absorbed = absorbedActionIds(graph);
+  for (const a of contractActions) {
+    if (deployedNodeIds.has(a.id) || absorbed.has(a.id)) continue;
+    errors.push({
+      path: `nodes.${a.id}`,
+      message: `Action ${a.id} (${a.type}) is not represented in the deployed pipeline`,
+      friendlyMessage: FRIENDLY.ACTION_NOT_DEPLOYED(nodeLabels.get(a.id) ?? a.type),
+    });
+  }
+
+  // The same set, read the other way round: a pipeline node may not point at a
+  // node that was never emitted. deploy.ts builds its address map from the
+  // emitted nodes alone, so workflowTargets in scval.ts throws "Missing
+  // computed address" on any such reference — a 500 from /deployments/prepare
+  // on a flow the builder called valid. An oracle_gte conditional is where
+  // this bites today (it goes terminal and absorbs its action, while the
+  // trigger may still name that action directly), but the guard is the general
+  // precondition, not that one shape.
+  for (const n of pipelineNodes) {
+    const p = n.params as {
+      nextStepNodeIds?: string[];
+      pathANodeIds?: string[];
+      pathBNodeIds?: string[];
+    };
+    for (const ref of [
+      ...(p.nextStepNodeIds ?? []),
+      ...(p.pathANodeIds ?? []),
+      ...(p.pathBNodeIds ?? []),
+    ]) {
+      if (deployedNodeIds.has(ref)) continue;
+      errors.push({
+        path: `nodes.${ref}`,
+        message: `Pipeline node ${n.nodeId} points at ${ref}, which is not in the deployed pipeline`,
+        friendlyMessage: FRIENDLY.DANGLING_NEXT_STEP(nodeLabels.get(ref) ?? ref),
+      });
+    }
+  }
+
+  if (errors.length) return { ok: false, errors };
 
   return { ok: true, templateKind, pipeline, graph, pendingLabels: [...pendingLabels] };
 }

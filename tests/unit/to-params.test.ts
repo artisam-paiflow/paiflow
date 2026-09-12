@@ -1534,7 +1534,9 @@ describe("flowToPipeline", () => {
     expect(pipeline[1]!.params.kind).toBe("conditional");
     expect(pipeline[1]!.params).toMatchObject({
       amountStroops: "500",
-      nextStepNodeIds: ["a"],
+      // The conditional pays "a" itself and is never deployed, so it must not
+      // name it as a next step — nothing would compute an address for it.
+      nextStepNodeIds: [],
     });
   });
 
@@ -1812,7 +1814,8 @@ describe("flowToPipeline", () => {
             config: {
               assetIn: { kind: "native" },
               assetOut: { kind: "known", symbol: "USDC" },
-              rateBps: 9500,
+              slippageBps: 100,
+              deadlineSecs: 300,
             },
           },
         ],
@@ -1845,7 +1848,8 @@ describe("flowToPipeline", () => {
           config: {
             assetIn: { kind: "native" },
             assetOut: { kind: "known", symbol: "USDC" },
-            rateBps: 9500,
+            slippageBps: 100,
+            deadlineSecs: 300,
           },
         },
       ],

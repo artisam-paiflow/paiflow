@@ -2,7 +2,18 @@ import "server-only";
 import { redis } from "./redis";
 import { AppError } from "./errors";
 
-export type RateLimitResult = { ok: boolean; remaining: number; resetAt: number };
+/**
+ * `shared` is true only when the count came from Redis, i.e. when the bucket is
+ * genuinely instance-wide. A caller whose limit is a security control rather
+ * than a courtesy (see app/api/auth/sandbox/route.ts) can refuse the request
+ * when it is false instead of trusting a per-process fallback.
+ */
+export type RateLimitResult = {
+  ok: boolean;
+  remaining: number;
+  resetAt: number;
+  shared: boolean;
+};
 
 const memBuckets = new Map<string, { count: number; resetAt: number }>();
 
@@ -12,13 +23,14 @@ function memRateLimit(key: string, limit: number, windowSeconds: number): RateLi
   if (!bucket || bucket.resetAt < now) {
     const resetAt = now + windowSeconds * 1000;
     memBuckets.set(key, { count: 1, resetAt });
-    return { ok: true, remaining: limit - 1, resetAt };
+    return { ok: true, remaining: limit - 1, resetAt, shared: false };
   }
   bucket.count += 1;
   return {
     ok: bucket.count <= limit,
     remaining: Math.max(0, limit - bucket.count),
     resetAt: bucket.resetAt,
+    shared: false,
   };
 }
 
@@ -40,7 +52,7 @@ export async function rateLimit(
     if (count === 1) await client.expire(k, windowSeconds);
     const ttl = await client.ttl(k);
     const resetAt = Date.now() + Math.max(ttl, 0) * 1000;
-    return { ok: count <= limit, remaining: Math.max(0, limit - count), resetAt };
+    return { ok: count <= limit, remaining: Math.max(0, limit - count), resetAt, shared: true };
   } catch {
     return memRateLimit(key, limit, windowSeconds);
   }

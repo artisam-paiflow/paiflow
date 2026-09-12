@@ -9,11 +9,13 @@ export default defineConfig({
     setupFiles: ["tests/unit/setup.ts"],
   },
   resolve: {
+    // Vite takes the first matching prefix, so "@" stays last: a longer
+    // "@/lib/..." entry has to be able to win. Ordering it first is what made
+    // the old tests/stubs/env.ts alias dead (#406).
     alias: {
-      "@": path.resolve(__dirname, "./"),
       "server-only": path.resolve(__dirname, "./tests/stubs/server-only.ts"),
-      "@/lib/env": path.resolve(__dirname, "./tests/stubs/env.ts"),
       dotenv: path.resolve(__dirname, "./tests/stubs/dotenv.ts"),
+      "@": path.resolve(__dirname, "./"),
     },
   },
 });

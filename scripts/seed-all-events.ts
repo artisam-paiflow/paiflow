@@ -32,6 +32,7 @@ function makeGraph(kind: TemplateKind): Prisma.InputJsonValue {
   const triggerId = "trigger";
   const actionId = "action";
   const conditionId = "condition";
+  const payoutId = "payout";
 
   const baseEdge = { id: "e1", source: triggerId, target: actionId };
 
@@ -143,16 +144,33 @@ function makeGraph(kind: TemplateKind): Prisma.InputJsonValue {
       };
     case TemplateKind.SWAPPER:
     case TemplateKind.ROUTER:
+      // A swap must have exactly one on-chain next step, so the payout node is
+      // part of the fixture rather than optional.
       return {
         nodes: [
           { id: triggerId, type: "on_receive", config: { asset } },
           {
             id: actionId,
             type: "swap",
-            config: { assetIn: asset, assetOut: { kind: "known", symbol: "USDC" }, rateBps: 9900 },
+            config: {
+              assetIn: asset,
+              assetOut: { kind: "known", symbol: "USDC" },
+              slippageBps: 100,
+              deadlineSecs: 300,
+            },
+          },
+          {
+            id: payoutId,
+            type: "pay",
+            config: {
+              recipient: addr(),
+              asset: { kind: "known", symbol: "USDC" },
+              mode: "fixed",
+              amountStroops: (5n * STROOP).toString(),
+            },
           },
         ],
-        edges: [baseEdge],
+        edges: [baseEdge, { id: "e2", source: actionId, target: payoutId }],
       };
     case TemplateKind.PAYER:
     case TemplateKind.DEPOSIT_TRIGGER:

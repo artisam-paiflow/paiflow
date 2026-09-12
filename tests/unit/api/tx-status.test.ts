@@ -1,0 +1,203 @@
+/**
+ * QA-D1 ISSUE-002: a confirmed trigger must land its contract events in the
+ * store before the status response returns, so the deployment page the user
+ * opens next renders them without waiting for the cron poller.
+ *
+ * Also covers the side-effect binding. The route is public (the `/trigger/:id`
+ * page has no session) and reachable by a sandbox identity. The status answer
+ * itself is public chain data and is deliberately NOT gated; what is gated is
+ * the bookkeeping that follows a confirmation — above all `recordAllowanceEvent`,
+ * which would otherwise let an arbitrary caller publish a fabricated ALLOWANCE
+ * event into another deployment's live feed.
+ */
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockRpc, mockDb, mockEnforceRateLimit } = vi.hoisted(() => ({
+  mockRpc: { getTransaction: vi.fn() },
+  mockDb: { deployment: { findUnique: vi.fn() } },
+  mockEnforceRateLimit: vi.fn(async (_opts: { key: string }) => undefined),
+}));
+vi.mock("@/lib/db", () => ({ db: mockDb }));
+vi.mock("@/lib/stellar/client", () => ({ sorobanRpc: () => mockRpc }));
+vi.mock("@/lib/rate-limit", () => ({
+  enforceRateLimit: mockEnforceRateLimit,
+  clientIp: vi.fn(() => "127.0.0.1"),
+}));
+vi.mock("@/lib/audit", () => ({ audit: vi.fn(), wasTxSubmittedFor: vi.fn() }));
+vi.mock("@/lib/log", () => ({ log: { warn: vi.fn(), info: vi.fn(), error: vi.fn() } }));
+vi.mock("@/lib/stellar/events", () => ({
+  pollEventsFor: vi.fn(async () => 1),
+  recordAllowanceEvent: vi.fn(async () => undefined),
+}));
+
+import { GET } from "@/app/api/deployments/[id]/tx-status/route";
+import { pollEventsFor, recordAllowanceEvent } from "@/lib/stellar/events";
+import { audit, wasTxSubmittedFor } from "@/lib/audit";
+
+const DEPLOYMENT_ID = "44c3ed53-9b6d-4be0-bade-e5fcc6c7a0eb";
+const TX_HASH = "8d8707228a6b1d30b01dd2f5c6d956961f090cd9cd690c73d994f7a8a4ec8f3f";
+
+function call(hash: string = TX_HASH) {
+  const req = new Request(
+    `http://localhost/api/deployments/${DEPLOYMENT_ID}/tx-status?txHash=${hash}`,
+  );
+  return GET(req as unknown as import("next/server").NextRequest, {
+    params: Promise.resolve({ id: DEPLOYMENT_ID }),
+  });
+}
+
+describe("GET /api/deployments/[id]/tx-status", () => {
+  beforeEach(() => {
+    vi.mocked(pollEventsFor).mockClear();
+    vi.mocked(recordAllowanceEvent).mockClear();
+    vi.mocked(audit).mockClear();
+    mockRpc.getTransaction.mockReset();
+    mockEnforceRateLimit.mockClear();
+    mockDb.deployment.findUnique.mockResolvedValue({ graphSnapshot: null });
+    vi.mocked(wasTxSubmittedFor).mockReset();
+    vi.mocked(wasTxSubmittedFor).mockResolvedValue(true);
+  });
+
+  it("ingests the deployment's events once the transaction succeeds", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ data: { status: "SUCCESS", txHash: TX_HASH } });
+    expect(pollEventsFor).toHaveBeenCalledWith(DEPLOYMENT_ID);
+  });
+
+  it("still reports SUCCESS when ingestion throws", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
+    vi.mocked(pollEventsFor).mockRejectedValueOnce(new Error("rpc down"));
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.status).toBe("SUCCESS");
+  });
+
+  it("still reports SUCCESS when ingestion outruns its deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
+      // A stalled getEvents: the SDK sets no HTTP timeout, so nothing else
+      // would ever settle this.
+      vi.mocked(pollEventsFor).mockReturnValueOnce(new Promise<number>(() => {}));
+
+      const pending = call();
+      await vi.advanceTimersByTimeAsync(5_000);
+      const res = await pending;
+
+      expect(res.status).toBe(200);
+      expect((await res.json()).data.status).toBe("SUCCESS");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not poll while the transaction is still pending", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "NOT_FOUND" });
+    const res = await call();
+    expect((await res.json()).data.status).toBe("PENDING");
+    expect(pollEventsFor).not.toHaveBeenCalled();
+  });
+
+  // The status of a transaction on a public chain is not ours to withhold, and
+  // the caller already has the hash. Gating the read is what broke the dev-mode
+  // payroll screen, whose relayer submissions write no audit row.
+  it("still answers with the status for a txHash it did not submit", async () => {
+    vi.mocked(wasTxSubmittedFor).mockResolvedValue(false);
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ data: { status: "SUCCESS", txHash: TX_HASH } });
+  });
+
+  // The regression guard that matters: recordAllowanceEvent writes a
+  // ContractEvent for `id` from whatever envelope the hash resolves to, and
+  // publishes it to that deployment's SSE channel.
+  it("runs none of the deployment bookkeeping for a txHash it did not submit", async () => {
+    vi.mocked(wasTxSubmittedFor).mockResolvedValue(false);
+    mockRpc.getTransaction.mockResolvedValue({
+      status: "SUCCESS",
+      ledger: 4598539,
+      envelopeXdr: "AAAA",
+    });
+    await call();
+    expect(recordAllowanceEvent).not.toHaveBeenCalled();
+    expect(pollEventsFor).not.toHaveBeenCalled();
+    expect(audit).not.toHaveBeenCalled();
+  });
+
+  it("asks the binding question with the deployment id and the txHash", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
+    await call();
+    expect(wasTxSubmittedFor).toHaveBeenCalledWith(DEPLOYMENT_ID, TX_HASH);
+  });
+
+  // PENDING is where the poller spends nearly all of its requests, so it must
+  // cost no database work at all.
+  it("does no database work while the transaction is still pending", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "NOT_FOUND" });
+    await call();
+    expect(wasTxSubmittedFor).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed txHash before reaching the network or the database", async () => {
+    const res = await call("not-a-hash");
+    expect(res.status).toBe(422);
+    expect(mockRpc.getTransaction).not.toHaveBeenCalled();
+    expect(wasTxSubmittedFor).not.toHaveBeenCalled();
+  });
+
+  it("lowercases the hash so it matches the form the audit rows carry", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
+    await call(TX_HASH.toUpperCase());
+    expect(wasTxSubmittedFor).toHaveBeenCalledWith(DEPLOYMENT_ID, TX_HASH);
+    expect(mockRpc.getTransaction).toHaveBeenCalledWith(TX_HASH);
+  });
+
+  // The comment above the lookup calls the audit row "permission for an
+  // optimisation". A database blip must therefore cost the optimisation, not the
+  // answer: the hook reports any non-OK response as a failed transaction.
+  it("still answers when the submit lookup itself fails", async () => {
+    vi.mocked(wasTxSubmittedFor).mockRejectedValue(new Error("db down"));
+    mockRpc.getTransaction.mockResolvedValue({
+      status: "SUCCESS",
+      ledger: 4598539,
+      createdAt: 1789094227,
+      envelopeXdr: "AAAA",
+    });
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ data: { status: "SUCCESS", txHash: TX_HASH } });
+    expect(recordAllowanceEvent).not.toHaveBeenCalled();
+    expect(pollEventsFor).not.toHaveBeenCalled();
+    expect(audit).not.toHaveBeenCalled();
+  });
+
+  // `ledgerClosedAt` belongs to the getEvents shape, not to getTransaction, so
+  // reading it only ever produced the Date.now() fallback and occurredAt
+  // recorded ingestion time.
+  it("records the ledger close time, not the time we ingested", async () => {
+    mockRpc.getTransaction.mockResolvedValue({
+      status: "SUCCESS",
+      ledger: 4598539,
+      createdAt: 1789094227,
+      envelopeXdr: "AAAA",
+    });
+    await call();
+    expect(recordAllowanceEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ occurredAt: new Date(1789094227 * 1000) }),
+    );
+  });
+
+  // The route is public, so a limit keyed on the caller-controlled deployment id
+  // would hand out a fresh bucket per request.
+  it("rate-limits on the ip alone before the per-deployment bucket", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "NOT_FOUND" });
+    await call();
+    const firstKey = mockEnforceRateLimit.mock.calls[0]![0].key;
+    expect(firstKey).not.toContain(DEPLOYMENT_ID);
+    expect(firstKey).toBe("tx-status:ip:127.0.0.1");
+    expect(mockEnforceRateLimit.mock.calls[1]![0].key).toContain(DEPLOYMENT_ID);
+  });
+});

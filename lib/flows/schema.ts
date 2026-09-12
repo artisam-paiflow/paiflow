@@ -352,13 +352,29 @@ export const SplitAction = z.object({
   }),
 });
 
+/**
+ * Soroswap's pool fee is 0.3%. A max slippage below it can never be met, because
+ * the contract's minimum is the spot price less this bound while the router's
+ * output already has the fee deducted. `lib/flows/validate.ts` refuses it; the
+ * schema keeps `min(0)` so graphs saved before that rule still parse.
+ */
+export const MIN_SWAP_SLIPPAGE_BPS = 30;
+
 export const SwapAction = z.object({
   id: z.string().min(1),
   type: z.literal("swap"),
   config: z.object({
     assetIn: AssetSchema,
     assetOut: AssetSchema,
-    rateBps: z.number().int().min(1).max(10_000),
+    // Max slippage vs the pool's spot price, in basis points. Values under
+    // MIN_SWAP_SLIPPAGE_BPS always revert and are rejected by validate.ts.
+    slippageBps: z.number().int().min(0).max(10_000).default(100),
+    // Seconds added to the ledger timestamp for the router's deadline check.
+    // Bounded above because scval.ts serializes this as a u64: `.int()` accepts
+    // any integer-valued float, and anything past 2^64 makes nativeToScVal throw
+    // a plain Error, surfacing from /api/deployments/prepare as a 500 instead of
+    // a 422. A day is already far beyond a useful router deadline.
+    deadlineSecs: z.number().int().min(1).max(86_400).default(300),
   }),
 });
 

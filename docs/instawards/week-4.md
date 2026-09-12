@@ -2,6 +2,8 @@
 
 **Window:** 28 September – 4 October 2026 · **Focus:** Integration, demo and evidence handoff
 
+**Deliverables:** [D1](deliverables/d1.md) · [D2](deliverables/d2.md) · [D3](deliverables/d3.md) · **Validation package:** [metrics](metrics.md) · [evidence index](evidence/README.md)
+
 ## Summary
 
 _Three sentences, plain English, written for a reader who is not an engineer._
@@ -36,7 +38,7 @@ link).
 ## Evidence added
 
 _Screenshots, recordings, transaction hashes and API samples added this week, linked from the_
-_[evidence index](evidence/README.md)._
+_[evidence index](evidence/README.md#transactions)._
 
 | Item | Type | Link |
 | ---- | ---- | ---- |
@@ -54,10 +56,19 @@ See [metrics](metrics.md) for the running totals and how each number is measured
 | Distinct deploying wallets    | ≥ 6    |                  |        |
 | Contract WASM uploaded        | ≥ 1    |                  |        |
 
-## Decisions and blockers
+## Decisions
 
 _Anything that changed the scope or the approach, and why. If nothing changed, say so —_
-_"no scope changes this week" is a useful sentence for a reviewer._
+_"no scope changes this week" is a useful sentence for a reviewer. Lead with whether anything_
+_blocked the deliverable._
+
+## Issues found and fixed
+
+_Defects caught and closed inside the week, and what each one would have done if it had shipped._
+
+## Planned maintenance
+
+_Scheduled operational work with a deadline — a contract entry to extend, a key to rotate._
 
 ## Next week
 

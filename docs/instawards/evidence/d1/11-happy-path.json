@@ -1,0 +1,93 @@
+{
+  "note": "Swapper pipeline deployed from paiflow.xyz through the app's own factory CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK and triggered twice on 2026-09-09. Both triggers swapped XLM for USDC through the Soroswap router and forwarded the proceeds to the recipient.",
+  "deployTxHash": "775af303e24ebd7f59923544df3963cc17fa05e1db66174f38f4c3ae10670943",
+  "deployStellarExpert": "https://stellar.expert/explorer/testnet/tx/775af303e24ebd7f59923544df3963cc17fa05e1db66174f38f4c3ae10670943",
+  "factory": "CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK",
+  "swapperWasmHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+  "runs": [
+    {
+      "deployTxHash": "775af303e24ebd7f59923544df3963cc17fa05e1db66174f38f4c3ae10670943",
+      "pipelineSnapshot": [
+        {
+          "nodeId": "t",
+          "contractAddress": "CC672N6Z77E4QEZ2JDEFLGNLVYUS5XS4J3WV7AUP5XVGU3JEVL2XXYIH",
+          "templateKind": "DEPOSIT_TRIGGER"
+        },
+        {
+          "nodeId": "s",
+          "contractAddress": "CC4AMKQP3JMTUAWP3734PB4BZVWCYC6AYVJLWXQLFSLHK7ACB5UHZJWE",
+          "templateKind": "SWAPPER"
+        },
+        {
+          "nodeId": "p",
+          "contractAddress": "CCI5K5UPIXJWETFEFBUIMUG6ZKE5LXNUZCAVVBDFAHGE6VTKL5ARVZA5",
+          "templateKind": "PAYER"
+        }
+      ],
+      "triggerTxHash": "3bded301fff23b2f34d9ffcfefcb6528de7d594928cdc39a5d261c9dfbf8e927",
+      "status": "SUCCESS",
+      "ledger": 4581431,
+      "ledgerClosedAt": "2026-09-09T05:12:22.000Z",
+      "deployerAccount": "GA3H23J5NNSYOKHLJXGVVYFMW4PRE6DQ7SBKWRC5Y6MK7I7DPSKLI6CV",
+      "soroswapRouter": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+      "soroswapPair": "CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS",
+      "assetInStroops": "500000000",
+      "assetOutStroops": "52820859",
+      "recipient": "GAEBH5ZALWM4SFBG3XEE7FBGKNPUVX5JT7URH34XHQ6SVRT6IGY4SXAM",
+      "contractsEmittingEvents": [
+        "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "CC672N6Z77E4QEZ2JDEFLGNLVYUS5XS4J3WV7AUP5XVGU3JEVL2XXYIH",
+        "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+        "CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS",
+        "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+        "CCI5K5UPIXJWETFEFBUIMUG6ZKE5LXNUZCAVVBDFAHGE6VTKL5ARVZA5",
+        "CC4AMKQP3JMTUAWP3734PB4BZVWCYC6AYVJLWXQLFSLHK7ACB5UHZJWE"
+      ],
+      "stellarExpert": "https://stellar.expert/explorer/testnet/tx/3bded301fff23b2f34d9ffcfefcb6528de7d594928cdc39a5d261c9dfbf8e927"
+    },
+    {
+      "deployTxHash": "775af303e24ebd7f59923544df3963cc17fa05e1db66174f38f4c3ae10670943",
+      "pipelineSnapshot": [
+        {
+          "nodeId": "t",
+          "contractAddress": "CC672N6Z77E4QEZ2JDEFLGNLVYUS5XS4J3WV7AUP5XVGU3JEVL2XXYIH",
+          "templateKind": "DEPOSIT_TRIGGER"
+        },
+        {
+          "nodeId": "s",
+          "contractAddress": "CC4AMKQP3JMTUAWP3734PB4BZVWCYC6AYVJLWXQLFSLHK7ACB5UHZJWE",
+          "templateKind": "SWAPPER"
+        },
+        {
+          "nodeId": "p",
+          "contractAddress": "CCI5K5UPIXJWETFEFBUIMUG6ZKE5LXNUZCAVVBDFAHGE6VTKL5ARVZA5",
+          "templateKind": "PAYER"
+        }
+      ],
+      "triggerTxHash": "2ceacb95695c5def25ee8c4b84ac44e596d3b936099e3239ef0a9af47164db1b",
+      "status": "SUCCESS",
+      "ledger": 4581448,
+      "ledgerClosedAt": "2026-09-09T05:13:47.000Z",
+      "deployerAccount": "GA3H23J5NNSYOKHLJXGVVYFMW4PRE6DQ7SBKWRC5Y6MK7I7DPSKLI6CV",
+      "soroswapRouter": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+      "soroswapPair": "CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS",
+      "assetInStroops": "100000000",
+      "assetOutStroops": "10564010",
+      "recipient": "GAEBH5ZALWM4SFBG3XEE7FBGKNPUVX5JT7URH34XHQ6SVRT6IGY4SXAM",
+      "contractsEmittingEvents": [
+        "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "CC672N6Z77E4QEZ2JDEFLGNLVYUS5XS4J3WV7AUP5XVGU3JEVL2XXYIH",
+        "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+        "CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS",
+        "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+        "CCI5K5UPIXJWETFEFBUIMUG6ZKE5LXNUZCAVVBDFAHGE6VTKL5ARVZA5",
+        "CC4AMKQP3JMTUAWP3734PB4BZVWCYC6AYVJLWXQLFSLHK7ACB5UHZJWE"
+      ],
+      "stellarExpert": "https://stellar.expert/explorer/testnet/tx/2ceacb95695c5def25ee8c4b84ac44e596d3b936099e3239ef0a9af47164db1b"
+    }
+  ],
+  "soroswapProof": {
+    "file": "11-soroswap-router-proof.json",
+    "summary": "Soroswap publishes CCJUD55A…7BRD as its testnet router; the router, factory and XLM/USDC pair deployed on testnet run exactly the WASM hashes Soroswap published; and the transaction's diagnostic trace shows the Paiflow swapper calling swap_exact_tokens_for_tokens on it."
+  }
+}

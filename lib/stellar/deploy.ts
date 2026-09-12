@@ -13,7 +13,13 @@ import {
 import { randomBytes } from "node:crypto";
 import { sorobanRpc, horizon, withRelayerLock } from "./client";
 import { getFactoryAddress } from "@/lib/stellar/config";
-import { stellarPassphrase, stellarRelayerAddress, stellarRelayerSecretKey } from "@/lib/env";
+import {
+  stellarPassphrase,
+  stellarRelayerAddress,
+  stellarRelayerSecretKey,
+  soroswapRouterAddress,
+  SWAP_ROUTER_UNSET_MESSAGE,
+} from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import type { PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
 import type { FlowGraph } from "@/lib/flows/schema";
@@ -144,6 +150,14 @@ async function preparePipelineDeployTxFromPlan(
         ...params,
         relayer: stellarRelayerAddress() ?? sourceAccount,
       };
+    }
+    // The Soroswap router is pinned per environment, never taken from the graph.
+    if (params.kind === "swapper") {
+      const router = soroswapRouterAddress();
+      if (!router) {
+        throw new AppError("VALIDATION", SWAP_ROUTER_UNSET_MESSAGE);
+      }
+      params = { ...params, router };
     }
 
     const args = pipelineNodeConstructorArgs(

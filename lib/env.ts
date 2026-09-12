@@ -48,6 +48,16 @@ const boolishDefault = (defaultValue: boolean) =>
     .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
     .default(defaultValue);
 
+// Soroswap router address, pinned per network. Validated at config load so a
+// typo fails at startup rather than when the first swap flow is deployed.
+const optionalContractAddress = z
+  .string()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined))
+  .refine((v) => v === undefined || StrKey.isValidContract(v), {
+    message: "Must be a valid Stellar contract address (C...)",
+  });
+
 const optionalPositiveInt = (defaultValue: number) =>
   z
     .string()
@@ -97,6 +107,8 @@ const EnvSchema = z.object({
   AUTH_RP_ID: z.string().default("localhost"),
   AUTH_RP_NAME: z.string().default("Paiflow"),
   ALLOW_PUBLIC_REGISTRATION: boolish,
+  // Offers a no-account, limited sandbox session from the login page.
+  SANDBOX_ENABLED: boolish,
 
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url().optional(),
@@ -156,6 +168,12 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_CASH_OUT_MAINNET: optionalWasmHash,
   STELLAR_FACTORY_ADDRESS_TESTNET: optionalString,
   STELLAR_FACTORY_ADDRESS_MAINNET: optionalString,
+
+  // ---- Soroswap ----
+  // Router the swapper action calls. Soroswap redeploys its testnet router on
+  // every reset, so this is config, not something stored on a flow graph.
+  STELLAR_SOROSWAP_ROUTER_TESTNET: optionalContractAddress,
+  STELLAR_SOROSWAP_ROUTER_MAINNET: optionalContractAddress,
 
   // ---- Relayer ----
   // Used for auto-releasing timelock contracts and for signing webhook
@@ -237,6 +255,9 @@ const EnvSchema = z.object({
 
 type EnvShape = z.infer<typeof EnvSchema>;
 
+/** Every variable name EnvSchema knows about; tests/unit/setup.ts scrubs these. */
+export const ENV_VAR_NAMES = EnvSchema.keyof().options;
+
 let cached: EnvShape | null = null;
 
 export function env(): EnvShape {
@@ -248,6 +269,21 @@ export function env(): EnvShape {
       .join("\n");
     throw new Error(`Invalid environment variables:\n${issues}`);
   }
+  // Cross-field guard, not a schema .superRefine(): ENV_VAR_NAMES relies on
+  // EnvSchema staying a ZodObject so `.keyof()` works.
+  //
+  // The sandbox mints a usable session for anyone who asks, with no account and
+  // no credential. On mainnet that is an anonymous party pointing the builder at
+  // real money, so the combination is refused outright rather than left to an
+  // operator's memory. See CLAUDE.md §7.5 for the network model.
+  if (parsed.data.SANDBOX_ENABLED && parsed.data.STELLAR_NETWORK === "mainnet") {
+    throw new Error(
+      "Invalid environment variables:\n" +
+        "  - SANDBOX_ENABLED: cannot be true when STELLAR_NETWORK=mainnet. " +
+        "The public sandbox is testnet-only.",
+    );
+  }
+
   cached = parsed.data;
   return cached;
 }
@@ -326,6 +362,16 @@ export function stellarWasmHash(
   const e = env();
   const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
   const key = `STELLAR_WASM_HASH_${kind}_${suffix}` as keyof EnvShape;
+  return e[key] as string | undefined;
+}
+
+export const SWAP_ROUTER_UNSET_MESSAGE =
+  "Swap flows need the Soroswap router address. Set STELLAR_SOROSWAP_ROUTER_TESTNET (or _MAINNET) in the environment.";
+
+export function soroswapRouterAddress(): string | undefined {
+  const e = env();
+  const suffix = e.STELLAR_NETWORK === "mainnet" ? "MAINNET" : "TESTNET";
+  const key = `STELLAR_SOROSWAP_ROUTER_${suffix}` as keyof EnvShape;
   return e[key] as string | undefined;
 }
 

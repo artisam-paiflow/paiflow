@@ -9,6 +9,7 @@ import {
   assetLabel,
   subscriptionAmountPerPeriodStroops,
 } from "./schema";
+import { inFlowOrder } from "./graph";
 
 function isApiFillAddress(addr: string): boolean {
   return addr === "PENDING:__api__";
@@ -68,7 +69,7 @@ function describeCondition(c: Extract<FlowNode, { type: "condition" }>, asset?: 
 
 export function flowToEnglish(graph: FlowGraph): string {
   const trigger = graph.nodes.find(isTrigger);
-  const action = graph.nodes.find(isContractAction);
+  const action = inFlowOrder(graph, graph.nodes.filter(isContractAction))[0];
   const condition = graph.nodes.find(isLogic);
   const emailNodes = graph.nodes.filter((n) => n.type === "email_notify");
   if (!trigger || !action) return "(incomplete flow)";
@@ -149,7 +150,7 @@ export function flowToEnglish(graph: FlowGraph): string {
       )} to ${who}`;
     }
   } else if (action.type === "swap") {
-    actionText = `swap ${assetLabel(action.config.assetIn)} to ${assetLabel(action.config.assetOut)} at ${(action.config.rateBps / 100).toFixed(0)}% rate`;
+    actionText = `swap ${assetLabel(action.config.assetIn)} to ${assetLabel(action.config.assetOut)} via Soroswap with up to ${action.config.slippageBps / 100}% slippage`;
   } else if (action.type === "yield") {
     const vault = isPendingAddress(action.config.vault)
       ? "(needs address)"

@@ -106,7 +106,7 @@ Three files hold the truth about a block, and they answer different questions:
 | Can a user place it?      | `components/builder/palette.tsx` (the `hidden` flag)          |
 | What does it do on-chain? | its crate under `contracts/`                                  |
 
-**Availability** below is read from the palette. Five blocks are defined, deployable, and reachable
+**Availability** below is read from the palette. Four blocks are defined, deployable, and reachable
 from an older saved flow, but are not in the palette today — they are documented rather than
 dropped, and marked ◦ instead of ●.
 
@@ -131,26 +131,30 @@ A trigger is the root of the graph and decides **when** money moves. Exactly one
 
 An action decides **where** money goes. A flow must contain at least one.
 
-|     | Block          | Does                                                  | Notes that matter                                                                                                                                              |
-| --- | -------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ●   | `pay`          | Sends to one recipient                                | Fixed amount, a percentage of what arrived, or the full amount. Supports a fiat payout mode.                                                                   |
-| ●   | `split`        | Fans out to up to 20 recipients                       | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                                                          |
-| ●   | `email_notify` | Emails recipients when the flow pays out              | Terminal only — it must have no outgoing edges, because it moves no money and nothing can be downstream of a notification.                                     |
-| ◦   | `cash_out`     | Sends to the off-ramp treasury against bank details   | The bridge out of crypto: the contract holds the destination bank account, so the payout is as immutable as the on-chain leg. Not placed directly — see below. |
-| ◦   | `swap`         | Pays `assetOut` at a rate fixed when the flow deploys | **Does not exchange anything yet.** See below.                                                                                                                 |
-| ◦   | `yield`        | Transfers the balance to a vault address              | A plain token transfer; it does not call a vault protocol's deposit function and nothing accrues. Downstream steps are then invoked with `amount=0`.           |
+|     | Block          | Does                                                | Notes that matter                                                                                                                                              |
+| --- | -------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ●   | `pay`          | Sends to one recipient                              | Fixed amount, a percentage of what arrived, or the full amount. Supports a fiat payout mode.                                                                   |
+| ●   | `split`        | Fans out to up to 20 recipients                     | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                                                          |
+| ●   | `swap`         | Exchanges `assetIn` for `assetOut` on Soroswap      | A real DEX swap with a slippage bound; forwards the whole output to exactly one next step. See below.                                                          |
+| ●   | `email_notify` | Emails recipients when the flow pays out            | Terminal only — it must have no outgoing edges, because it moves no money and nothing can be downstream of a notification.                                     |
+| ◦   | `cash_out`     | Sends to the off-ramp treasury against bank details | The bridge out of crypto: the contract holds the destination bank account, so the payout is as immutable as the on-chain leg. Not placed directly — see below. |
+| ◦   | `yield`        | Transfers the balance to a vault address            | A plain token transfer; it does not call a vault protocol's deposit function and nothing accrues. Downstream steps are then invoked with `amount=0`.           |
 
 **`cash_out` is not dragged onto the canvas.** Setting a `pay` or `split` recipient to fiat payout
 generates a cash-out contract for that recipient at deploy time. The block exists so the pipeline
 has something to deploy; the palette entry is hidden because `pay` and `split` already reach it.
 
-**`swap` does not swap.** `contracts/actions/swapper/src/lib.rs` computes
-`amount_out = amount * rate_bps / 10_000` from a rate stored at deploy, then pays `assetOut` out of
-the contract's own pre-funded balance, panicking with `InsufficientOutput` if that balance is short.
-Its own comment: _"In a real DEX integration this would call the AMM. Here we simulate."_ There is
-no market rate and no counterparty. Wiring it to a real router is Deliverable 1 of the approved
-SOW, [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md); until that lands, treat
-this block as a fixed-rate payout from a pre-funded balance, not an exchange.
+**`swap` calls the Soroswap router.** `contracts/actions/swapper/src/lib.rs` swaps the amount it
+receives for `assetOut` with `swap_exact_tokens_for_tokens` on the Soroswap router pinned by
+`STELLAR_SOROSWAP_ROUTER_*`, then forwards the entire output to its single downstream step. The
+minimum output is the pool's spot price less `slippageBps` (default 1%), so the bound covers
+Soroswap's 0.3% fee plus price impact; the router reverts below it and the swapper asserts the same
+bound as its own backstop, so a failed swap moves nothing downstream. `assetIn` and `assetOut` must
+differ: Soroswap has no pair for an asset against itself, so a same-asset swap would deploy and then
+revert on its first trigger. A swap node must have exactly one outgoing edge that carries money:
+splitting is the splitter's job, and a swap with nowhere to send its output would strand it in a
+contract that has no way to release it. An `email_notify` edge is a decorator, moves nothing, and
+does not count toward that one. The router is environment config, never part of the graph. Instawards Phase 1 Deliverable 1, [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md).
 
 ### 3.3 Logic
 

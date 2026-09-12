@@ -25,7 +25,7 @@ import {
 } from "@stellar/stellar-sdk";
 import { TemplateKind } from "@prisma/client";
 import { db } from "@/lib/prisma";
-import { setFactoryAddress, setWasmHash } from "@/lib/stellar/template-db";
+import { getFactoryAddressFromDb, setFactoryAddress, setWasmHash } from "@/lib/stellar/template-db";
 import { writeEnvLocal } from "./env-file";
 
 const WASM_DIR = "contracts/target/wasm32v1-none/release";
@@ -71,6 +71,31 @@ function extractContractAddress(returnValue: xdr.ScVal): string {
   return Address.fromScAddress(returnValue.address()).toString();
 }
 
+/**
+ * An already-deployed factory for this network, from env or the
+ * `FactoryDeployment` table, or undefined when neither knows of one.
+ *
+ * The DB is best-effort: a fresh machine may have no reachable DATABASE_URL,
+ * and being unable to ask must mean "deploy", never "crash".
+ */
+async function findDeployedFactory(
+  network: NetworkName,
+  addressKey: string,
+): Promise<{ address: string; source: "env" | "db"; label: string } | undefined> {
+  const fromEnv = process.env[addressKey];
+  if (fromEnv) return { address: fromEnv, source: "env", label: addressKey };
+
+  try {
+    const fromDb = await getFactoryAddressFromDb(network);
+    if (fromDb) return { address: fromDb, source: "db", label: "FactoryDeployment table" };
+  } catch (err) {
+    console.warn(
+      `[deploy-factory] could not read the FactoryDeployment table: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  return undefined;
+}
+
 async function main() {
   const network = parseNetworkFlag();
   const rpcUrl = getRpcUrl(network);
@@ -95,11 +120,29 @@ async function main() {
   const existingHash = process.env[hashKey];
 
   if (existingHash === wasmHash) {
-    console.log(`[deploy-factory] factory wasm hash unchanged, skipping deploy`);
-    return;
-  }
-
-  if (existingHash) {
+    // An unchanged hash does NOT imply a deployed factory: on a fresh
+    // environment the upload step wrote this variable seconds ago and no
+    // instance exists. Skip only once an address proves one does, or the
+    // deploy chain finishes leaving nothing able to deploy (#394).
+    const deployed = await findDeployedFactory(network, addressKey);
+    if (deployed) {
+      console.log(
+        `[deploy-factory] factory wasm hash unchanged and ${deployed.address} already deployed (${deployed.label}), skipping deploy`,
+      );
+      // update-hashes reads the address from process.env alone, so a skip
+      // justified by the database has to leave it in .env.local too — without
+      // this, the next link in the chain logs "not set, skipping" and a healthy
+      // run reads as the failure that line is documented to mean (#404).
+      if (deployed.source === "db") {
+        writeEnvLocal({ [addressKey]: deployed.address });
+        console.log(`[deploy-factory] wrote ${addressKey} to .env.local`);
+      }
+      return;
+    }
+    console.log(
+      `[deploy-factory] factory wasm hash unchanged but no factory address found in ${addressKey} or the FactoryDeployment table, deploying`,
+    );
+  } else if (existingHash) {
     console.log(
       `[deploy-factory] factory wasm hash changed (${existingHash.slice(0, 12)}... -> ${wasmHash.slice(0, 12)}...), deploying`,
     );
@@ -160,14 +203,43 @@ async function main() {
   const factoryAddress = extractContractAddress(result.returnValue);
   console.log(`[deploy-factory] deployed at ${factoryAddress}`);
 
-  await setFactoryAddress(network, factoryAddress, wasmHash);
-  await setWasmHash(TemplateKind.FACTORY, network, wasmHash);
+  // Record the address in every store that is reachable before anything throws.
+  // The salt is Date.now()-derived, so a rerun that cannot see this address
+  // deploys a second factory rather than recovering the first — and on the fresh
+  // machine this path serves neither .env.local nor the database may be assumed
+  // writable, so a failure of one must not skip the other.
+  let persistError: unknown;
 
-  writeEnvLocal({
-    [hashKey]: wasmHash,
-    [addressKey]: factoryAddress,
-  });
-  console.log(`[deploy-factory] wrote ${addressKey} to .env.local`);
+  try {
+    writeEnvLocal({
+      [hashKey]: wasmHash,
+      [addressKey]: factoryAddress,
+    });
+    console.log(`[deploy-factory] wrote ${addressKey} to .env.local`);
+  } catch (err) {
+    persistError = err;
+    console.error(
+      `[deploy-factory] deployed ${factoryAddress} but could not write .env.local: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  try {
+    await setFactoryAddress(network, factoryAddress, wasmHash);
+    await setWasmHash(TemplateKind.FACTORY, network, wasmHash);
+  } catch (err) {
+    const envLocalHoldsAddress = persistError === undefined;
+    persistError ??= err;
+    console.error(
+      `[deploy-factory] deployed ${factoryAddress} but could not record it in the database: ${err instanceof Error ? err.message : String(err)}. ` +
+        (envLocalHoldsAddress
+          ? `.env.local holds the address — rerunning will skip rather than deploy again; run pnpm contracts:update-hashes once the database is reachable.`
+          : `.env.local could not be written either — set ${addressKey}=${factoryAddress} by hand before rerunning, or the next run deploys a second factory.`),
+    );
+  }
+
+  // Exit 1 on the first failure: the environment really is incompletely
+  // configured, and the && chain must not run update-hashes after it.
+  if (persistError) throw persistError;
 }
 
 main()

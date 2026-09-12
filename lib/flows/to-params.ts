@@ -20,6 +20,7 @@ import {
   subscriptionAmountPerPeriodStroops,
   TOTAL_BPS,
 } from "./schema";
+import { inFlowOrder } from "./graph";
 
 export type PipelineRecipient = {
   address: string;
@@ -160,7 +161,10 @@ export type SwapperNodeParams = {
   kind: "swapper";
   assetIn: Asset;
   assetOut: Asset;
-  rateBps: number;
+  slippageBps: number;
+  deadlineSecs: number;
+  /** Soroswap router; injected at deploy time from env, never stored on the graph. */
+  router?: string;
   nextStepNodeIds: string[];
 };
 
@@ -566,6 +570,61 @@ function synthesizeCashOutNodes(
   return { action, cashOutNodes };
 }
 
+/**
+ * Contract actions that `flowToPipeline` deliberately does NOT emit as their own
+ * pipeline node, because another node carries their semantics.
+ *
+ * There is exactly one such case today: an `oracle_gte` condition compiles to a
+ * CONDITIONAL that owns the payout recipients and pays them itself, so it sets
+ * `terminal` and the action loop never runs. That only works for actions the
+ * CONDITIONAL's params can express — a recipient list. A swap or a yield has no
+ * recipients, so it is genuinely lost rather than absorbed, and stays out of
+ * this set.
+ *
+ * Kept beside the `terminal = true` it mirrors: validateFlow uses this to tell
+ * "absorbed by design" apart from "silently dropped", and the two must not drift.
+ */
+export function absorbedActionIds(graph: FlowGraph): Set<string> {
+  const absorbed = new Set<string>();
+  const trigger = graph.nodes.find(isTrigger);
+  if (!trigger) return absorbed;
+  // Only receive-like flows reach the condition compiler; schedule-like triggers
+  // return before it.
+  if (
+    trigger.type === "on_schedule" ||
+    trigger.type === "subscription" ||
+    trigger.type === "payroll"
+  ) {
+    return absorbed;
+  }
+  const oracleGte = graph.nodes.filter((n) => isLogic(n) && n.config.kind === "oracle_gte");
+  if (oracleGte.length === 0) return absorbed;
+  // Exactly one action is absorbed: the `contractActions[0]` this file picks as
+  // `action` below, whose recipients become the CONDITIONAL's. Same
+  // `inFlowOrder` pick, or the two drift and the not-deployed guard names the
+  // action the conditional actually pays instead of the one that is dropped.
+  // Every other pay/split in the graph is dropped rather than absorbed, and
+  // must still trip validateFlow's not-deployed guard.
+  const [primary] = inFlowOrder(graph, graph.nodes.filter(isContractAction));
+  if (!primary || (primary.type !== "pay" && primary.type !== "split")) return absorbed;
+  // And only when a conditional actually carries it. An oracle_gte sitting
+  // unwired on the canvas still sets `terminal` below, but it absorbs nothing:
+  // treating the primary as absorbed there would hide a pay that reaches no
+  // contract at all.
+  const children = getPipelineChildren(graph);
+  const seen = new Set(oracleGte.map((c) => c.id));
+  const stack = [...seen];
+  while (stack.length) {
+    for (const child of children.get(stack.pop()!) ?? []) {
+      if (seen.has(child)) continue;
+      seen.add(child);
+      stack.push(child);
+    }
+  }
+  if (seen.has(primary.id)) absorbed.add(primary.id);
+  return absorbed;
+}
+
 export function flowToPipeline(
   graph: FlowGraph,
   relayerAddress?: string,
@@ -573,7 +632,9 @@ export function flowToPipeline(
 ): PipelineNode[] {
   const trigger = graph.nodes.find(isTrigger)!;
   const actions = graph.nodes.filter(isAction);
-  const contractActions = actions.filter(isContractAction);
+  // In flow order, not canvas order: every consumer of contractActions[0]
+  // below means "the action the trigger reaches first".
+  const contractActions = inFlowOrder(graph, actions.filter(isContractAction));
   const conditions = graph.nodes.filter(isLogic);
   const children = getPipelineChildren(graph);
   const devMode = graph.devMode === true;
@@ -950,10 +1011,15 @@ export function flowToPipeline(
           recipients,
           amountStroops: amount,
           condition: cond.config,
-          nextStepNodeIds: children.get(cond.id) ?? [],
+          // Empty on purpose. `release()` in contracts/conditions/conditional
+          // transfers to the recipients above and stops; it stores next_steps
+          // and never reads them. Passing the graph's children here would name
+          // the absorbed pay/split, which is never deployed, and serializing
+          // the target would throw "Missing computed address" at prepare time.
+          nextStepNodeIds: [],
         },
       });
-      terminal = true;
+      terminal = true; // see absorbedActionIds() — the conditional pays out itself
     } else if (cond.config.kind === "multisig") {
       pipeline.push({
         nodeId: cond.id,
@@ -1065,7 +1131,8 @@ function contractActionToPipelineNode(
           kind: "swapper",
           assetIn: action.config.assetIn,
           assetOut: action.config.assetOut,
-          rateBps: action.config.rateBps,
+          slippageBps: action.config.slippageBps,
+          deadlineSecs: action.config.deadlineSecs,
           nextStepNodeIds,
         },
       };
@@ -1322,7 +1389,7 @@ export function getPayrollPreviewFromPipeline(pipeline: PipelineNode[]) {
  */
 export function flowToParams(graph: FlowGraph, templateKind: TemplateKind): ContractParams {
   const trigger = graph.nodes.find(isTrigger)!;
-  const action = graph.nodes.find(isContractAction)!;
+  const action = inFlowOrder(graph, graph.nodes.filter(isContractAction))[0]!;
   const condition = graph.nodes.find(isLogic);
   const recipients = toRecipients(action);
 

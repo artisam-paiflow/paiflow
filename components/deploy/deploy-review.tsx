@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import SwapQuotePreview from "@/components/builder/swap-quote-preview";
+import type { Asset } from "@/lib/flows/schema";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
@@ -45,9 +47,12 @@ async function connectWallet(network: StellarNetwork): Promise<WalletKit> {
 export default function DeployReview({
   flowId,
   network,
+  swapPreviews,
 }: {
   flowId: string;
   network: StellarNetwork;
+  /** One entry per swap node in the flow: drives the live Soroswap previews. */
+  swapPreviews?: Array<{ id: string; assetIn: Asset; assetOut: Asset; slippageBps: number }>;
 }) {
   const [busy, setBusy] = useState(false);
   const [pipeline, setPipeline] = useState<
@@ -112,6 +117,15 @@ export default function DeployReview({
             PINNED BY ENVIRONMENT
           </span>
         </div>
+        {swapPreviews?.map((s) => (
+          <SwapQuotePreview
+            key={s.id}
+            assetIn={s.assetIn}
+            assetOut={s.assetOut}
+            slippageBps={s.slippageBps}
+            compact
+          />
+        ))}
       </div>
       {pipeline.length > 0 && (
         <div className="grid gap-2">

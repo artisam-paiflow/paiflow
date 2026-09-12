@@ -1339,7 +1339,7 @@ describe("validateFlow", () => {
   });
 
   // ── web2_webhook compatibility ──
-  it("accepts web2_webhook → swap", () => {
+  it("accepts web2_webhook → swap → pay", () => {
     const r = validateFlow({
       nodes: [
         {
@@ -1353,15 +1353,28 @@ describe("validateFlow", () => {
           config: {
             assetIn: { kind: "native" },
             assetOut: { kind: "known", symbol: "USDC" },
-            rateBps: 9500,
+            slippageBps: 100,
+            deadlineSecs: 300,
+          },
+        },
+        {
+          id: "p",
+          type: "pay",
+          config: {
+            recipient: ADDR_B,
+            amountStroops: "10",
+            asset: { kind: "known", symbol: "USDC" },
           },
         },
       ],
-      edges: [{ id: "e1", source: "t", target: "a" }],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "a", target: "p" },
+      ],
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.pipeline).toEqual([TemplateKind.WEBHOOK, TemplateKind.SWAPPER]);
+      expect(r.pipeline).toEqual([TemplateKind.WEBHOOK, TemplateKind.SWAPPER, TemplateKind.PAYER]);
     }
   });
 
@@ -2001,7 +2014,8 @@ describe("validateFlow", () => {
           config: {
             assetIn: { kind: "native" },
             assetOut: { kind: "known", symbol: "USDC" },
-            rateBps: 9500,
+            slippageBps: 100,
+            deadlineSecs: 300,
           },
         },
         {
@@ -2032,7 +2046,8 @@ describe("validateFlow", () => {
           config: {
             assetIn: { kind: "native" },
             assetOut: { kind: "known", symbol: "USDC" },
-            rateBps: 9500,
+            slippageBps: 100,
+            deadlineSecs: 300,
           },
         },
         {
@@ -2059,7 +2074,8 @@ describe("validateFlow", () => {
           config: {
             assetIn: { kind: "known", symbol: "USDC" },
             assetOut: { kind: "native" },
-            rateBps: 9500,
+            slippageBps: 100,
+            deadlineSecs: 300,
           },
         },
       ],
@@ -2108,7 +2124,8 @@ describe("validateFlow", () => {
           config: {
             assetIn: { kind: "known", symbol: "USDC" },
             assetOut: { kind: "native" },
-            rateBps: 9500,
+            slippageBps: 100,
+            deadlineSecs: 300,
           },
         },
         {
@@ -2165,7 +2182,8 @@ describe("validateFlow", () => {
           config: {
             assetIn: { kind: "native" },
             assetOut: { kind: "known", symbol: "USDC" },
-            rateBps: 9500,
+            slippageBps: 100,
+            deadlineSecs: 300,
           },
         },
         {
@@ -2175,7 +2193,8 @@ describe("validateFlow", () => {
             // Wrong: s1 outputs USDC, but s2 declares it expects native.
             assetIn: { kind: "native" },
             assetOut: { kind: "native" },
-            rateBps: 9500,
+            slippageBps: 100,
+            deadlineSecs: 300,
           },
         },
         {
@@ -2376,7 +2395,8 @@ describe("computeAssetFlow", () => {
           config: {
             assetIn: { kind: "native" },
             assetOut: { kind: "known", symbol: "USDC" },
-            rateBps: 9500,
+            slippageBps: 100,
+            deadlineSecs: 300,
           },
         },
         {
@@ -2430,7 +2450,8 @@ describe("computeAssetFlow", () => {
           config: {
             assetIn: { kind: "native" },
             assetOut: { kind: "known", symbol: "USDC" },
-            rateBps: 9500,
+            slippageBps: 100,
+            deadlineSecs: 300,
           },
         },
         {
@@ -2439,7 +2460,8 @@ describe("computeAssetFlow", () => {
           config: {
             assetIn: { kind: "known", symbol: "USDC" },
             assetOut: { kind: "native" },
-            rateBps: 9500,
+            slippageBps: 100,
+            deadlineSecs: 300,
           },
         },
         {
@@ -2473,7 +2495,8 @@ describe("computeAssetFlow", () => {
           config: {
             assetIn: { kind: "known", symbol: "USDC" },
             assetOut: { kind: "native" },
-            rateBps: 9500,
+            slippageBps: 100,
+            deadlineSecs: 300,
           },
         },
         {
