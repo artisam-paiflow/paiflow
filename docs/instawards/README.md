@@ -31,11 +31,11 @@ address, WASM hash and transaction hash produced during the sprint.
 
 ## The three deliverables
 
-|                          | Deliverable                                                                | Week |
-| ------------------------ | -------------------------------------------------------------------------- | ---- |
-| [D1](deliverables/d1.md) | The swapper block executes a real swap through the Soroswap testnet router | 1    |
-| [D2](deliverables/d2.md) | A developer API with deployment-scoped tokens and execute/events endpoints | 2    |
-| [D3](deliverables/d3.md) | Reusable builder input components, adopted in the Swapper panel            | 3    |
+|                          | Deliverable                                                                | Week | Status      |
+| ------------------------ | -------------------------------------------------------------------------- | ---- | ----------- |
+| [D1](deliverables/d1.md) | The swapper block executes a real swap through the Soroswap testnet router | 1    | Complete    |
+| [D2](deliverables/d2.md) | A developer API with deployment-scoped tokens and execute/events endpoints | 2    | Not started |
+| [D3](deliverables/d3.md) | Reusable builder input components, adopted in the Swapper panel            | 3    | Not started |
 
 Week 4 is integration, the demo video, and the evidence handoff.
 
