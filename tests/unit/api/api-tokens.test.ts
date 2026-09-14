@@ -138,6 +138,18 @@ describe("POST /api/deployments/:id/api-tokens", () => {
     expect(mockAudit).not.toHaveBeenCalled();
   });
 
+  it("refuses a malformed JSON body with 422 instead of 500", async () => {
+    const bad = new Request(`http://localhost/api/deployments/${DEP_ID}/api-tokens`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{not json",
+    }) as unknown as NextRequest;
+    const res = await POST(bad, ctx());
+    expect(res.status).toBe(422);
+    expect((await res.json()).error.code).toBe("VALIDATION");
+    expect(mockDb.deploymentApiToken.create).not.toHaveBeenCalled();
+  });
+
   it("locks the deployment row before counting toward the cap", async () => {
     await POST(req("POST", {}), ctx());
     const [lock] = mockDb.$queryRaw.mock.invocationCallOrder;
@@ -211,15 +223,39 @@ describe("POST /api/deployments/:id/api-tokens", () => {
 
 describe("GET /api/deployments/:id/api-tokens", () => {
   it("lists tokens without a hash", async () => {
-    mockDb.deploymentApiToken.findMany.mockResolvedValue([tokenRow()]);
+    mockDb.deploymentApiToken.findMany
+      .mockResolvedValueOnce([tokenRow()])
+      .mockResolvedValueOnce([]);
     const res = await GET(req("GET"), ctx());
     expect(res.status).toBe(200);
     const { data } = await res.json();
     expect(data).toHaveLength(1);
     expect(data[0]).not.toHaveProperty("tokenHash");
-    const args = mockDb.deploymentApiToken.findMany.mock.calls[0]![0];
-    expect(args.where).toEqual({ deploymentId: DEP_ID });
-    expect(args.select).not.toHaveProperty("tokenHash");
+    const [activeArgs, inactiveArgs] = mockDb.deploymentApiToken.findMany.mock.calls.map(
+      (c) => c[0],
+    );
+    expect(activeArgs.where).toMatchObject({ deploymentId: DEP_ID, revokedAt: null });
+    expect(activeArgs.where.OR).toEqual([
+      { expiresAt: null },
+      { expiresAt: { gt: expect.any(Date) } },
+    ]);
+    expect(inactiveArgs.where).toEqual({ deploymentId: DEP_ID, NOT: expect.any(Object) });
+    expect(inactiveArgs.where.NOT).toMatchObject({ revokedAt: null });
+    expect(activeArgs.select).not.toHaveProperty("tokenHash");
+    expect(inactiveArgs.select).not.toHaveProperty("tokenHash");
+  });
+
+  it("lists active tokens first, so a full page of revoked rows cannot hide them", async () => {
+    const active = tokenRow({ id: "33333333-3333-4333-8333-333333333333" });
+    const revoked = Array.from({ length: 100 }, (_, i) =>
+      tokenRow({ id: `rev-${i}`, revokedAt: new Date("2026-09-14T01:00:00Z") }),
+    );
+    mockDb.deploymentApiToken.findMany
+      .mockResolvedValueOnce([active])
+      .mockResolvedValueOnce(revoked);
+    const { data } = await (await GET(req("GET"), ctx())).json();
+    expect(data).toHaveLength(100);
+    expect(data[0].id).toBe(active.id);
   });
 
   it("returns 404 for a deployment the caller does not own", async () => {

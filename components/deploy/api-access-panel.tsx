@@ -43,9 +43,19 @@ async function copy(text: string) {
     ta.style.position = "fixed";
     ta.style.opacity = "0";
     document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
-    document.body.removeChild(ta);
+    let ok = false;
+    try {
+      ta.select();
+      ok = document.execCommand("copy");
+    } catch {
+      ok = false;
+    } finally {
+      document.body.removeChild(ta);
+    }
+    if (!ok) {
+      toast.error("Couldn't copy. Select the text and copy it manually.");
+      return;
+    }
   }
   toast.success("Copied to clipboard.");
 }
@@ -62,15 +72,19 @@ export default function ApiAccessPanel({ deploymentId }: { deploymentId: string 
   const [revealed, setRevealed] = useState<CreatedApiToken | null>(null);
 
   async function refresh() {
-    const r = await fetch(base);
-    if (!r.ok) {
-      toast.error("Failed to load API tokens");
+    try {
+      const r = await fetch(base);
+      if (!r.ok) {
+        toast.error("Failed to load API tokens");
+        return;
+      }
+      const json = await r.json();
+      setTokens(json?.data ?? []);
+    } catch (err) {
+      toastError(err, "Failed to load API tokens");
+    } finally {
       setLoaded(true);
-      return;
     }
-    const json = await r.json();
-    setTokens(json?.data ?? []);
-    setLoaded(true);
   }
 
   useEffect(() => {
@@ -118,15 +132,19 @@ export default function ApiAccessPanel({ deploymentId }: { deploymentId: string 
 
   async function revoke(t: ApiToken) {
     if (!confirm(`Revoke ${t.tokenPrefix}…? Anything using it stops working immediately.`)) return;
-    const r = await fetch(`${base}/${t.id}`, { method: "DELETE" });
-    if (!r.ok) {
-      const json = await r.json().catch(() => ({}));
-      toastError(apiError(json, "Failed to revoke token"));
-      return;
+    try {
+      const r = await fetch(`${base}/${t.id}`, { method: "DELETE" });
+      if (!r.ok) {
+        const json = await r.json().catch(() => ({}));
+        toastError(apiError(json, "Failed to revoke token"));
+        return;
+      }
+      if (revealed?.id === t.id) setRevealed(null);
+      toast.success("Token revoked.");
+      await refresh();
+    } catch (err) {
+      toastError(err, "Failed to revoke token");
     }
-    if (revealed?.id === t.id) setRevealed(null);
-    toast.success("Token revoked.");
-    await refresh();
   }
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";

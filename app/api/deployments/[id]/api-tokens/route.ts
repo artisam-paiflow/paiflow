@@ -7,25 +7,41 @@ import { CreateApiTokenSchema } from "@/lib/api/v1/schema";
 import {
   API_TOKEN_SELECT,
   MAX_ACTIVE_API_TOKENS,
+  activeTokenFilter,
   generateDeploymentApiToken,
   requireTokenManager,
 } from "@/lib/api/v1/tokens";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** List a deployment's API tokens, newest first, revoked and expired included. */
+const LIST_LIMIT = 100;
+
+/**
+ * List a deployment's API tokens: active ones first, then revoked and expired, each newest first.
+ * Revoked rows are kept forever, so a plain newest-first page could push a still-working token
+ * off the list; active tokens are capped, so they always fit.
+ */
 export async function GET(_req: NextRequest, ctx: Ctx) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     const { deployment } = await requireTokenManager(id);
 
-    const tokens = await db.deploymentApiToken.findMany({
-      where: { deploymentId: deployment.id },
-      select: API_TOKEN_SELECT,
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
-    return NextResponse.json({ data: tokens });
+    const filter = activeTokenFilter(new Date());
+    const [active, inactive] = await Promise.all([
+      db.deploymentApiToken.findMany({
+        where: { deploymentId: deployment.id, ...filter },
+        select: API_TOKEN_SELECT,
+        orderBy: { createdAt: "desc" },
+        take: MAX_ACTIVE_API_TOKENS,
+      }),
+      db.deploymentApiToken.findMany({
+        where: { deploymentId: deployment.id, NOT: filter },
+        select: API_TOKEN_SELECT,
+        orderBy: { createdAt: "desc" },
+        take: LIST_LIMIT,
+      }),
+    ]);
+    return NextResponse.json({ data: [...active, ...inactive].slice(0, LIST_LIMIT) });
   });
 }
 
@@ -34,7 +50,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     const { user, deployment } = await requireTokenManager(id);
-    const input = CreateApiTokenSchema.parse(await req.json());
+    const input = CreateApiTokenSchema.parse(
+      await req.json().catch(() => {
+        throw new AppError("VALIDATION", "Request body must be valid JSON");
+      }),
+    );
 
     if (deployment.status !== "CONFIRMED") {
       throw new AppError("VALIDATION", "API tokens can only be created for a confirmed deployment");
@@ -51,11 +71,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       // count nine active tokens under READ COMMITTED and both insert past the cap.
       await tx.$queryRaw`SELECT id FROM "Deployment" WHERE id = ${deployment.id}::uuid FOR UPDATE`;
       const active = await tx.deploymentApiToken.count({
-        where: {
-          deploymentId: deployment.id,
-          revokedAt: null,
-          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-        },
+        where: { deploymentId: deployment.id, ...activeTokenFilter(now) },
       });
       if (active >= MAX_ACTIVE_API_TOKENS) {
         throw new AppError(

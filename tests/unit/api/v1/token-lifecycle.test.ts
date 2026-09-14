@@ -15,7 +15,7 @@ vi.mock("@/lib/redis", () => ({ redis: () => null }));
 import { db } from "@/lib/db";
 import { requireDeploymentToken } from "@/lib/api/v1/auth";
 import { hashApiToken } from "@/lib/auth/api-token";
-import { POST } from "@/app/api/deployments/[id]/api-tokens/route";
+import { GET, POST } from "@/app/api/deployments/[id]/api-tokens/route";
 import { DELETE } from "@/app/api/deployments/[id]/api-tokens/[tokenId]/route";
 
 const suffix = crypto.randomBytes(4).toString("hex");
@@ -163,5 +163,26 @@ describe("deployment API token lifecycle", () => {
       where: { deploymentId: deploymentC, revokedAt: null },
     });
     expect(active).toBe(10);
+  });
+
+  it("keeps active tokens on the list behind a page of newer revoked ones", async () => {
+    const later = new Date(Date.now() + 60_000);
+    await db.deploymentApiToken.createMany({
+      data: Array.from({ length: 100 }, () => ({
+        deploymentId: deploymentC,
+        createdById: userId,
+        tokenHash: crypto.randomBytes(32).toString("hex"),
+        tokenPrefix: "pfk_revoked0",
+        createdAt: later,
+        revokedAt: later,
+      })),
+    });
+
+    const res = await GET(routeReq("GET"), { params: Promise.resolve({ id: deploymentC }) });
+    const { data } = await res.json();
+    expect(data).toHaveLength(100);
+    const firstTen = data.slice(0, 10) as { revokedAt: string | null }[];
+    expect(firstTen.every((t) => t.revokedAt === null)).toBe(true);
+    expect(data.filter((t: { revokedAt: string | null }) => t.revokedAt === null)).toHaveLength(10);
   });
 });

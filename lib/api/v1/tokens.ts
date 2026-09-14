@@ -31,6 +31,11 @@ export function generateDeploymentApiToken(): {
   return { plaintext, tokenHash: hashApiToken(plaintext), tokenPrefix: plaintext.slice(0, 12) };
 }
 
+/** What counts toward `MAX_ACTIVE_API_TOKENS`: not revoked and not yet expired. */
+export function activeTokenFilter(now: Date) {
+  return { revokedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] };
+}
+
 export const isUuid = (v: string) => z.string().uuid().safeParse(v).success;
 
 /**
