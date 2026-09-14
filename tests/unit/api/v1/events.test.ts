@@ -218,6 +218,10 @@ describe("GET /api/v1/deployments/:id/events", () => {
     ["garbage", "not-a-cursor"],
     ["a non-numeric ledger", Buffer.from("abc|x").toString("base64url")],
     ["a negative ledger", Buffer.from("-1|x").toString("base64url")],
+    [
+      "whitespace inserted into a valid one",
+      ((c) => `${c.slice(0, 4)}%20${c.slice(4)}`)(Buffer.from("200|x").toString("base64url")),
+    ],
   ])("rejects a cursor with %s as 422", async (_name, cursor) => {
     const { status, body } = await call(deploymentA, `?cursor=${cursor}`);
     expect(status).toBe(422);
@@ -227,14 +231,21 @@ describe("GET /api/v1/deployments/:id/events", () => {
     });
   });
 
-  it.each(["limit=0", "limit=101", "limit=abc", "txHash=abc", "unknown=1"])(
-    "rejects %s as 422",
-    async (query) => {
-      const { status, body } = await call(deploymentA, `?${query}`);
-      expect(status).toBe(422);
-      expect(body.error.code).toBe("VALIDATION");
-    },
-  );
+  it.each([
+    "limit=0",
+    "limit=101",
+    "limit=abc",
+    "txHash=abc",
+    "unknown=1",
+    "cursor=",
+    "limit=",
+    "txHash=",
+    "unknown=",
+  ])("rejects %s as 422", async (query) => {
+    const { status, body } = await call(deploymentA, `?${query}`);
+    expect(status).toBe(422);
+    expect(body.error.code).toBe("VALIDATION");
+  });
 
   it("never leaks another deployment's events", async () => {
     const { body } = await call(deploymentA, "?limit=100");

@@ -40,10 +40,9 @@ function firstTopic(payload: Prisma.JsonValue): string | null {
 export const GET = v1Route(
   { rateLimit: { limit: 120, windowSeconds: 60 } },
   async ({ req, deployment }) => {
-    const raw = Object.fromEntries(
-      [...new URL(req.url).searchParams].filter(([, value]) => value !== ""),
-    );
-    const query = ListEventsQuerySchema.parse(raw);
+    // Empty values are validated, not dropped: `?cursor=` from an unset client variable must be a
+    // 422, never a silent restart from the first event.
+    const query = ListEventsQuerySchema.parse(Object.fromEntries(new URL(req.url).searchParams));
     const after = query.cursor ? parseCursor(query.cursor) : null;
 
     const rows = await db.contractEvent.findMany({

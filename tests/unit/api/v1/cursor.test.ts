@@ -14,7 +14,13 @@ describe("v1 opaque cursor", () => {
     expect(decodeCursor(encodeCursor("7", "a|b"))).toEqual({ head: "7", tail: "a|b" });
   });
 
+  const valid = encodeCursor("20", "manual-x-1");
+
   it.each([
+    ["a space inserted into a valid cursor", `${valid.slice(0, 4)} ${valid.slice(4)}`],
+    ["the standard Base64 form with padding", Buffer.from("20|manual-x-1").toString("base64")],
+    ["trailing junk characters", `${valid}!!`],
+    ["altered trailing bits on the last character", `${valid.slice(0, -1)}B`],
     ["no separator", b64("123456")],
     ["empty head", b64("|abc")],
     ["empty tail", b64("123|")],
