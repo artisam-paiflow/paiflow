@@ -47,6 +47,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       : null;
 
     const token = await db.$transaction(async (tx) => {
+      // Lock the deployment row so concurrent mints serialize; otherwise two requests can both
+      // count nine active tokens under READ COMMITTED and both insert past the cap.
+      await tx.$queryRaw`SELECT id FROM "Deployment" WHERE id = ${deployment.id}::uuid FOR UPDATE`;
       const active = await tx.deploymentApiToken.count({
         where: {
           deploymentId: deployment.id,

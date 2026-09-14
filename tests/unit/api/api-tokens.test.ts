@@ -13,6 +13,7 @@ const { mockDb, mockRequireSession, mockAudit, mockEnforceRateLimit } = vi.hoist
       updateMany: vi.fn(),
     },
     $transaction: vi.fn(),
+    $queryRaw: vi.fn(),
   };
   return {
     mockDb,
@@ -135,6 +136,16 @@ describe("POST /api/deployments/:id/api-tokens", () => {
     expect((await res.json()).error.code).toBe("CONFLICT");
     expect(mockDb.deploymentApiToken.create).not.toHaveBeenCalled();
     expect(mockAudit).not.toHaveBeenCalled();
+  });
+
+  it("locks the deployment row before counting toward the cap", async () => {
+    await POST(req("POST", {}), ctx());
+    const [lock] = mockDb.$queryRaw.mock.invocationCallOrder;
+    const [count] = mockDb.deploymentApiToken.count.mock.invocationCallOrder;
+    expect(lock).toBeLessThan(count!);
+    const [strings, lockedId] = mockDb.$queryRaw.mock.calls[0]!;
+    expect((strings as string[]).join("?")).toMatch(/FOR UPDATE/);
+    expect(lockedId).toBe(DEP_ID);
   });
 
   it("counts only unrevoked, unexpired tokens toward the cap", async () => {

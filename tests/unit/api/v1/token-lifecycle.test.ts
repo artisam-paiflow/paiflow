@@ -23,6 +23,7 @@ let userId: string;
 let flowId: string;
 let deploymentA: string;
 let deploymentB: string;
+let deploymentC: string;
 
 function bearer(token: string): NextRequest {
   return { headers: new Headers({ authorization: `Bearer ${token}` }) } as unknown as NextRequest;
@@ -64,16 +65,19 @@ beforeAll(async () => {
     });
   deploymentA = (await make()).id;
   deploymentB = (await make()).id;
+  deploymentC = (await make()).id;
 });
 
 afterAll(async () => {
-  for (const deploymentId of [deploymentA, deploymentB]) {
+  for (const deploymentId of [deploymentA, deploymentB, deploymentC]) {
     await db.auditLog.deleteMany({
       where: { metadata: { path: ["deploymentId"], equals: deploymentId } },
     });
   }
   // Tokens go with their deployments (onDelete: Cascade).
-  await db.deployment.deleteMany({ where: { id: { in: [deploymentA, deploymentB] } } });
+  await db.deployment.deleteMany({
+    where: { id: { in: [deploymentA, deploymentB, deploymentC] } },
+  });
   await db.flow.deleteMany({ where: { id: flowId } });
   await db.user.deleteMany({ where: { id: userId } });
 });
@@ -136,5 +140,28 @@ describe("deployment API token lifecycle", () => {
 
     const row = await db.deploymentApiToken.findUniqueOrThrow({ where: { id: data.id } });
     expect(row.revokedAt).toBeNull();
+  });
+
+  it("holds the active-token cap when mints race", async () => {
+    await db.deploymentApiToken.createMany({
+      data: Array.from({ length: 9 }, () => ({
+        deploymentId: deploymentC,
+        createdById: userId,
+        tokenHash: crypto.randomBytes(32).toString("hex"),
+        tokenPrefix: "pfk_seed0000",
+      })),
+    });
+
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        POST(routeReq("POST", {}), { params: Promise.resolve({ id: deploymentC }) }),
+      ),
+    );
+
+    expect(responses.map((r) => r.status).sort()).toEqual([201, 409, 409, 409, 409]);
+    const active = await db.deploymentApiToken.count({
+      where: { deploymentId: deploymentC, revokedAt: null },
+    });
+    expect(active).toBe(10);
   });
 });
