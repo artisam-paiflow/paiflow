@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { Role } from "@prisma/client";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
 import DeploymentView from "@/components/deploy/deployment-view";
+import ApiAccessPanel from "@/components/deploy/api-access-panel";
 import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
 import {
   isStellarNetwork,
@@ -191,6 +193,10 @@ export default async function DeploymentPage({
             occurredAt: e.occurredAt.toISOString(),
           }))}
         />
+
+        {d.status === "CONFIRMED" && user.role !== Role.SANDBOX ? (
+          <ApiAccessPanel deploymentId={d.id} />
+        ) : null}
       </main>
     </>
   );
