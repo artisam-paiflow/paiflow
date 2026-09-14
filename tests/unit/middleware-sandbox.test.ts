@@ -85,6 +85,10 @@ const BLOCKED = [
   "/api/deployments/dev-payroll",
   "/api/cron/poll-events",
   "/api/webhooks/offramp",
+  // The partner API: a surface for owner-minted deployment tokens.
+  "/api/v1",
+  `/api/v1/deployments/${DEPLOYMENT}/execute`,
+  `/api/v1/deployments/${DEPLOYMENT}/events`,
   // File upload and storage.
   "/api/files",
   `/api/files/${DEPLOYMENT}`,

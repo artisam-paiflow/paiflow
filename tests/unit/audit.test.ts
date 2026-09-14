@@ -17,7 +17,11 @@ const OTHER_TX_HASH = "1".repeat(64);
 describe("wasTxSubmittedFor", () => {
   afterEach(async () => {
     await db.auditLog.deleteMany({
-      where: { action: { in: ["DEPLOY_TRIGGER", "DEPLOY_INVOKE", "DEV_UPDATE_RECIPIENTS"] } },
+      where: {
+        action: {
+          in: ["DEPLOY_TRIGGER", "DEPLOY_INVOKE", "API_EXECUTE_SUBMITTED", "DEV_UPDATE_RECIPIENTS"],
+        },
+      },
     });
   });
 
@@ -32,6 +36,14 @@ describe("wasTxSubmittedFor", () => {
   it("matches on every submit action, not just the trigger", async () => {
     await audit({
       action: "DEPLOY_INVOKE",
+      metadata: { deploymentId: DEPLOYMENT_ID, txHash: TX_HASH },
+    });
+    expect(await wasTxSubmittedFor(DEPLOYMENT_ID, TX_HASH)).toBe(true);
+  });
+
+  it("matches a submission through the partner API", async () => {
+    await audit({
+      action: "API_EXECUTE_SUBMITTED",
       metadata: { deploymentId: DEPLOYMENT_ID, txHash: TX_HASH },
     });
     expect(await wasTxSubmittedFor(DEPLOYMENT_ID, TX_HASH)).toBe(true);

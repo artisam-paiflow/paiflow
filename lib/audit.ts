@@ -35,12 +35,18 @@ export type AuditAction =
   | "DEV_UPDATE_BANK"
   | "ADMIN_USER_CREATE"
   | "ADMIN_USER_UPDATE"
-  | "ADMIN_USER_DEACTIVATE";
+  | "ADMIN_USER_DEACTIVATE"
+  | "API_TOKEN_CREATED"
+  | "API_TOKEN_REVOKED"
+  | "API_EXECUTE_PREPARED"
+  | "API_EXECUTE_SUBMITTED"
+  | "API_EXECUTE_CONFIRMED";
 
 /**
  * The actions whose metadata carries `{ deploymentId, txHash }` for a transaction
  * this app submitted on a deployment's behalf: `submit-trigger` (DEPLOY_TRIGGER),
- * `submit-invoke` (DEPLOY_INVOKE) and `submit` (DEPLOY_CONFIRM).
+ * `submit-invoke` (DEPLOY_INVOKE), `submit` (DEPLOY_CONFIRM) and the partner API's
+ * `/api/v1/deployments/:id/execute/submit` (API_EXECUTE_SUBMITTED).
  *
  * `satisfies` rather than a plain array so renaming a member of the union above
  * is a type error here, instead of a list that silently stops matching.
@@ -49,6 +55,7 @@ const SUBMITTED_TX_ACTIONS = [
   "DEPLOY_TRIGGER",
   "DEPLOY_INVOKE",
   "DEPLOY_CONFIRM",
+  "API_EXECUTE_SUBMITTED",
 ] satisfies AuditAction[];
 
 /**
