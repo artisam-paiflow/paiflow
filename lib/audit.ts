@@ -70,9 +70,26 @@ const SUBMITTED_TX_ACTIONS = [
  * between a caller and a correct answer.
  */
 export async function wasTxSubmittedFor(deploymentId: string, txHash: string): Promise<boolean> {
+  return hasTxAuditRow(SUBMITTED_TX_ACTIONS, deploymentId, txHash);
+}
+
+/**
+ * Has the partner API already recorded `txHash` as confirmed for `deploymentId`?
+ * A resubmission of a confirmed envelope answers from the chain, and this keeps
+ * it from writing a second `API_EXECUTE_CONFIRMED` row each time.
+ */
+export async function wasTxConfirmedFor(deploymentId: string, txHash: string): Promise<boolean> {
+  return hasTxAuditRow(["API_EXECUTE_CONFIRMED"], deploymentId, txHash);
+}
+
+async function hasTxAuditRow(
+  actions: AuditAction[],
+  deploymentId: string,
+  txHash: string,
+): Promise<boolean> {
   const row = await db.auditLog.findFirst({
     where: {
-      action: { in: SUBMITTED_TX_ACTIONS },
+      action: { in: actions },
       AND: [
         { metadata: { path: ["deploymentId"], equals: deploymentId } },
         { metadata: { path: ["txHash"], equals: txHash } },
