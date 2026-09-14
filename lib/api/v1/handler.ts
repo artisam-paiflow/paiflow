@@ -17,7 +17,7 @@ export type V1Context<P extends V1Params> = DeploymentTokenAuth & {
   params: P;
 };
 
-const isUuid = (v: string) => z.string().uuid().safeParse(v).success;
+export const isUuid = (v: string) => z.string().uuid().safeParse(v).success;
 
 // A client-supplied id is echoed only if it looks like one; anything else is
 // replaced rather than reflected back. When the client sends none, the id

@@ -11,6 +11,9 @@ const REDACT_PATHS = [
   "*.signedXdr",
   "*.secretKey",
   "*.AUTH_SECRET",
+  // The one-time plaintext in the API token create response, and its stored hash.
+  "*.token",
+  "*.tokenHash",
 ];
 
 const g = globalThis as unknown as {
