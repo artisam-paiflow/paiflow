@@ -1,12 +1,12 @@
 import "server-only";
 import crypto from "node:crypto";
 import { Role, type DeploymentStatus } from "@prisma/client";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession, type SessionUser } from "@/lib/auth";
 import { hashApiToken } from "@/lib/auth/api-token";
 import { AppError } from "@/lib/errors";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { isUuid } from "@/lib/api/v1/handler";
 
 export const MAX_ACTIVE_API_TOKENS = 10;
 
@@ -35,8 +35,6 @@ export function generateDeploymentApiToken(): {
 export function activeTokenFilter(now: Date) {
   return { revokedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] };
 }
-
-export const isUuid = (v: string) => z.string().uuid().safeParse(v).success;
 
 /**
  * The guard shared by the token-management routes: a signed-in, non-sandbox

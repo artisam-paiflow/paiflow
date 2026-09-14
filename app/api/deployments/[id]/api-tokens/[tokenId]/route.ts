@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { clientIp } from "@/lib/rate-limit";
-import { API_TOKEN_SELECT, isUuid, requireTokenManager } from "@/lib/api/v1/tokens";
+import { isUuid } from "@/lib/api/v1/handler";
+import { API_TOKEN_SELECT, requireTokenManager } from "@/lib/api/v1/tokens";
 
 type Ctx = { params: Promise<{ id: string; tokenId: string }> };
 

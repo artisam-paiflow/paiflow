@@ -68,8 +68,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
     const token = await db.$transaction(async (tx) => {
       // Lock the deployment row so concurrent mints serialize; otherwise two requests can both
-      // count nine active tokens under READ COMMITTED and both insert past the cap.
-      await tx.$queryRaw`SELECT id FROM "Deployment" WHERE id = ${deployment.id}::uuid FOR UPDATE`;
+      // count nine active tokens under READ COMMITTED and both insert past the cap. NO KEY UPDATE
+      // still conflicts with itself but not with the KEY SHARE lock that child-row inserts
+      // (ContractEvent, jobs) take on this row, so event ingestion never waits on a mint.
+      await tx.$queryRaw`SELECT id FROM "Deployment" WHERE id = ${deployment.id}::uuid FOR NO KEY UPDATE`;
       const active = await tx.deploymentApiToken.count({
         where: { deploymentId: deployment.id, ...activeTokenFilter(now) },
       });

@@ -156,7 +156,7 @@ describe("POST /api/deployments/:id/api-tokens", () => {
     const [count] = mockDb.deploymentApiToken.count.mock.invocationCallOrder;
     expect(lock).toBeLessThan(count!);
     const [strings, lockedId] = mockDb.$queryRaw.mock.calls[0]!;
-    expect((strings as string[]).join("?")).toMatch(/FOR UPDATE/);
+    expect((strings as string[]).join("?")).toMatch(/FOR NO KEY UPDATE/);
     expect(lockedId).toBe(DEP_ID);
   });
 
