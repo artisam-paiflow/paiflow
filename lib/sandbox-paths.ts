@@ -19,6 +19,9 @@
  *    need them — `submit-invoke` is only used by the subscription/payroll
  *    allowance flow, which a sandbox session cannot deploy anyway (see
  *    `app/api/deployments/prepare/route.ts`).
+ *  - `/api/v1/*` is the partner API, a machine surface for a deployment token
+ *    an owner chose to mint. A sandbox identity is disposable; nothing it does
+ *    should reach a surface built for credentials that outlive a session.
  *
  * `tx-status` used to sit in that list and no longer does. Its answer is a
  * transaction's status on a public chain, for a hash the caller already holds,

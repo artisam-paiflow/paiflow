@@ -36,6 +36,10 @@ const PUBLIC_PATHS = [
   /^\/api\/deployments\/[^/]+\/payroll-runs(\/[^/]+)?$/,
   /^\/api\/deployments\/[^/]+\/offramp-.*$/,
   /^\/api\/deployments\/[^/]+\/employees\/bank$/,
+  // Unlike the entries above (#248), this line cannot open a deployment on its
+  // own: every /api/v1/deployments/:id handler is wrapped in v1Route
+  // (lib/api/v1/handler.ts), which authenticates a deployment token itself.
+  /^\/api\/v1(\/.*)?$/,
 ];
 
 function isPublic(pathname: string): boolean {

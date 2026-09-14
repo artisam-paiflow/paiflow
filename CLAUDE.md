@@ -178,6 +178,12 @@ and signs it in through the same single-use ticket handshake the passkey login u
 pipeline in `/api/deployments/prepare`: a sandbox session may only deploy pipelines the visitor's
 own wallet signs end to end, never one the relayer later acts on.
 
+### Partner API: `/api/v1`
+
+`/api/v1` is the partner-facing surface: machine callers authenticated by a
+`DeploymentApiToken` bound to exactly one deployment ([§5](#5-authentication)). It is separate from
+the older payroll and `dev-*` machine routes, which keep their `requireDevAuth` ladder.
+
 ---
 
 ## 3. Project conventions
@@ -285,6 +291,14 @@ keep-alive`, plus an `AbortSignal` cleanup that unsubscribes Redis listeners. He
 - Passkey registration currently requires only an authenticated session (`requireSession()` in
   `app/api/auth/passkey/register/options/route.ts`). It does **not** re-verify the password, so
   adding a second credential is as easy as holding a live session — see [§19](#19-known-gaps--rules-not-enforced-yet).
+- `/api/v1/deployments/:id/*` handlers are written as `v1Route({ rateLimit }, fn)`
+  (`lib/api/v1/handler.ts`), never with `requireSession()` or `requireDevAuth()`. The wrapper
+  applies `withErrorHandler`, a UUID check on `id`, `requireDeploymentToken()`
+  (`lib/api/v1/auth.ts`: `Authorization: Bearer pfk_…` only, one generic `UNAUTHENTICATED` for
+  every refusal), and a rate limit keyed on the token id rather than the IP. `middleware.ts` lists
+  `/api/v1` in `PUBLIC_PATHS`, so the wrapper is the only guard; a sandbox session is kept out by
+  `lib/sandbox-paths.ts`. Tokens are hashed with `hashApiToken()` (`lib/auth/api-token.ts`), shared
+  with `requireDevApiToken()`.
 
 ---
 
