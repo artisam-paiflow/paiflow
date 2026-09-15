@@ -43,9 +43,6 @@ const ID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA
 
 const SANDBOX_PATHS = [
   /^\/$/,
-  /^\/about$/,
-  /^\/privacy$/,
-  /^\/terms$/,
   /^\/dashboard$/,
   new RegExp(`^/flows/${ID}$`),
   new RegExp(`^/flows/${ID}/deploy$`),

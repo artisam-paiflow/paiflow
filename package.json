@@ -13,6 +13,7 @@
     "start": "prisma migrate deploy && next start -p ${PORT:-3000}",
     "lint": "next lint",
     "format": "prettier --write .",
+    "homepage:css": "tsx scripts/build-homepage-css.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

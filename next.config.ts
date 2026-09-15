@@ -17,6 +17,8 @@ const SECURITY_HEADERS = [
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
 ];
 
+const HOMEPAGE_URL = "https://beta.app.paiflow.xyz";
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -30,6 +32,15 @@ const nextConfig: NextConfig = {
   ],
   experimental: {
     serverActions: { bodySizeLimit: "1mb" },
+  },
+  // The marketing pages live in homepage/ as a separate static service, so the
+  // app only contains the app. Old links keep working.
+  async redirects() {
+    return [
+      { source: "/about", destination: `${HOMEPAGE_URL}/about.html`, permanent: true },
+      { source: "/privacy", destination: `${HOMEPAGE_URL}/privacy.html`, permanent: true },
+      { source: "/terms", destination: `${HOMEPAGE_URL}/terms.html`, permanent: true },
+    ];
   },
   async headers() {
     return [
