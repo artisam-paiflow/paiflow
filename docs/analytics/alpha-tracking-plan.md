@@ -9,8 +9,8 @@ and properties, so this page describes intent and doesn't restate every field.
 - **Where:** beta.paiflow.xyz only. Analytics is on only when the build has
   `NEXT_PUBLIC_POSTHOG_KEY`, and only the beta Railway service sets it. Local dev, tests and
   paiflow.xyz load nothing.
-- **Who:** the tester cohort is `app_env = beta` and person property `role = USER`. Filter out
-  `ADMIN`.
+- **Who:** testers are `app_env = beta` events from people whose `role` isn't `ADMIN`. Every
+  dashboard insight applies both filters.
 - **Identity:** `distinct_id` is `User.id`. Usernames, emails, recipient addresses, XDR and
   graph JSON are never sent. `lib/analytics/sanitize.ts` also redacts StrKeys, seeds and base64
   blobs from every property, including autocaptured element text.
@@ -39,17 +39,19 @@ Autocapture (clicks, including stellar.expert links), rage and dead clicks, `$pa
 
 ## Dashboards
 
-Built in the PostHog project **Paiflow-alpha** (US cloud, id 403714). Every insight filters to
-`app_env = beta`. There is also a cohort, _Alpha testers_ (`role = USER`).
+Built in the dedicated PostHog project **Paiflow beta** (US cloud, id 610680). Keep Paiflow data
+there: don't reuse another product's project key. Every insight filters to `app_env = beta` and
+excludes people with `role = ADMIN`, so your own check runs don't count as testers. There's also a
+cohort, _Alpha testers_ (`role = USER`).
 
 | Dashboard                                                                                       | Insights |
 | ----------------------------------------------------------------------------------------------- | -------- |
-| [Alpha 1 — Tester funnel](https://us.posthog.com/project/403714/dashboard/2098673)              | 3        |
-| [Alpha 2 — Test-case coverage](https://us.posthog.com/project/403714/dashboard/2098674)         | 2        |
-| [Alpha 3 — Friction](https://us.posthog.com/project/403714/dashboard/2098675)                   | 6        |
-| [Alpha 4 — Reliability](https://us.posthog.com/project/403714/dashboard/2098676)                | 8        |
-| [Alpha 5 — D3 swap panel before/after](https://us.posthog.com/project/403714/dashboard/2098678) | 2        |
-| [Alpha 6 — Scope drift](https://us.posthog.com/project/403714/dashboard/2098680)                | 2        |
+| [Alpha 1 — Tester funnel](https://us.posthog.com/project/610680/dashboard/2099054)              | 3        |
+| [Alpha 2 — Test-case coverage](https://us.posthog.com/project/610680/dashboard/2099055)         | 2        |
+| [Alpha 3 — Friction](https://us.posthog.com/project/610680/dashboard/2099056)                   | 6        |
+| [Alpha 4 — Reliability](https://us.posthog.com/project/610680/dashboard/2099057)                | 8        |
+| [Alpha 5 — D3 swap panel before/after](https://us.posthog.com/project/610680/dashboard/2099058) | 2        |
+| [Alpha 6 — Scope drift](https://us.posthog.com/project/610680/dashboard/2099059)                | 2        |
 
 What each one shows:
 
@@ -81,7 +83,8 @@ Use session replay on T7 (free exploration) sessions and on any session with a r
 Done on 15 September 2026:
 
 - **PostHog project settings:** replay and toolbar are limited to `https://beta.paiflow.xyz`,
-  IPs are anonymized, inputs are masked, and exception and dead-click capture are on. The app
+  IPs are anonymized, inputs and text are masked, and exception and dead-click capture are on.
+  Console-log capture, web vitals, surveys and heatmaps are off. The app
   itself also masks every text node in replays (`SESSION_RECORDING` in `lib/analytics/client.ts`).
 - **Railway `prod` environment** (beta.paiflow.xyz), service `pinkraft`:
   `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_APP_ENV=beta` are set. They take effect on the next
