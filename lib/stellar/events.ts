@@ -880,6 +880,33 @@ function resolveAssetSymbols(
   return next;
 }
 
+export const EVENTS_PAGE_LIMIT = 100;
+/** Bounds one poll's RPC calls per contract; a deployment far behind catches up over several polls. */
+export const MAX_EVENT_PAGES_PER_POLL = 5;
+
+/**
+ * The ledger a `getEvents` cursor points into. Its first part is a TOID, whose
+ * high 32 bits are the ledger sequence.
+ */
+function cursorLedger(cursor: string | undefined): number | null {
+  const toid = cursor?.split("-")[0];
+  if (!toid || !/^\d+$/.test(toid)) return null;
+  return Number(BigInt(toid) >> 32n);
+}
+
+type ScanResult = {
+  written: number;
+  /** Every event for the contract up to and including this ledger has been read. */
+  scannedThrough: number;
+  ok: boolean;
+};
+
+/**
+ * Pages forward through a contract's events from `startLedger`. An RPC scans a
+ * bounded ledger window per call (10,000 on SDF testnet) and answers a window
+ * with no events with an empty page and a cursor, so a single call from a stale
+ * start ledger never reaches the tip: the cursor has to be followed.
+ */
 async function pollEventsWithStartLedger(
   deploymentId: string,
   contractAddress: string,
@@ -889,27 +916,90 @@ async function pollEventsWithStartLedger(
   graph: FlowGraph | null,
   pipeline: PipelineNodeSnapshot[] | null,
   flowTemplateKind: TemplateKind,
-): Promise<{ written: number; maxLedger: number }> {
+): Promise<ScanResult> {
   const server = sorobanRpc();
+  const filters = [{ type: "contract" as const, contractIds: [contractAddress] }];
+  const failed: ScanResult = { written: 0, scannedThrough: startLedger - 1, ok: false };
+
   let resp: rpc.Api.GetEventsResponse;
   try {
-    resp = await server.getEvents({
-      startLedger,
-      filters: [{ type: "contract" as const, contractIds: [contractAddress] }],
-      limit: 100,
-    });
+    resp = await server.getEvents({ startLedger, filters, limit: EVENTS_PAGE_LIMIT });
   } catch (err) {
-    log.warn({ err, deploymentId, startLedger }, "getEvents failed");
-    return { written: 0, maxLedger: 0 };
+    // A start ledger older than the RPC's retention window is refused outright.
+    // Those ledgers are gone for good; resume from the oldest one it still holds.
+    const oldestLedger = await server.getHealth().then(
+      (h) => h.oldestLedger,
+      () => null,
+    );
+    if (oldestLedger === null || startLedger >= oldestLedger) {
+      log.warn({ err, deploymentId, contractAddress, startLedger }, "getEvents failed");
+      return failed;
+    }
+    log.warn(
+      { err, deploymentId, contractAddress, startLedger, oldestLedger },
+      "getEvents start ledger is past RPC retention; events before oldestLedger are unrecoverable",
+    );
+    try {
+      resp = await server.getEvents({
+        startLedger: oldestLedger,
+        filters,
+        limit: EVENTS_PAGE_LIMIT,
+      });
+    } catch (retryErr) {
+      log.warn(
+        { err: retryErr, deploymentId, contractAddress, oldestLedger },
+        "getEvents failed from the oldest retained ledger",
+      );
+      return failed;
+    }
   }
 
   let written = 0;
-  // startLedger - 1 is the correct empty-set sentinel: if no events are found,
-  // maxLedger stays below startLedger and the caller's > (startLedger - 1) guard
-  // prevents writing a stale cursor. This is load-bearing but safe because
-  // Soroban ledgers start well above 0 and the caller validates maxLedger > 0.
-  let maxLedger = startLedger - 1;
-  for (const ev of resp.events ?? []) {
+  for (let page = 1; ; page++) {
+    const events = resp.events ?? [];
+    written += await ingestEventPage(
+      deploymentId,
+      contractAddress,
+      templateKind,
+      events,
+      symbolMap,
+      graph,
+      pipeline,
+      flowTemplateKind,
+    );
+
+    const full = events.length >= EVENTS_PAGE_LIMIT;
+    const at = cursorLedger(resp.cursor);
+    if (!full && (at === null || at >= resp.latestLedger)) {
+      return { written, scannedThrough: resp.latestLedger, ok: true };
+    }
+    // A full page may stop mid-ledger, so only the ledger before it is complete.
+    // Re-reading that ledger next poll is harmless: eventId is unique.
+    const scannedThrough = full ? (at ?? events[events.length - 1]!.ledger) - 1 : at!;
+    if (page >= MAX_EVENT_PAGES_PER_POLL || !resp.cursor) {
+      return { written, scannedThrough, ok: true };
+    }
+    try {
+      resp = await server.getEvents({ cursor: resp.cursor, filters, limit: EVENTS_PAGE_LIMIT });
+    } catch (err) {
+      log.warn({ err, deploymentId, contractAddress, scannedThrough }, "getEvents page failed");
+      return { written, scannedThrough, ok: true };
+    }
+  }
+}
+
+async function ingestEventPage(
+  deploymentId: string,
+  contractAddress: string,
+  templateKind: TemplateKind,
+  events: rpc.Api.EventResponse[],
+  symbolMap: Map<string, string>,
+  graph: FlowGraph | null,
+  pipeline: PipelineNodeSnapshot[] | null,
+  flowTemplateKind: TemplateKind,
+): Promise<number> {
+  let written = 0;
+  for (const ev of events) {
     const topics: EventTopics = (ev.topic ?? []).map((t) => {
       try {
         return scValToNative(t);
@@ -1067,9 +1157,8 @@ async function pollEventsWithStartLedger(
       const code = (err as { code?: string })?.code;
       if (code !== "P2002") log.warn({ err, deploymentId }, "event upsert failed");
     }
-    if (ev.ledger > maxLedger) maxLedger = ev.ledger;
   }
-  return { written, maxLedger };
+  return written;
 }
 
 type PipelineNode = {
@@ -1185,7 +1274,9 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
   }
 
   let totalWritten = 0;
-  let maxLedger = emptySetSentinel;
+  // The cursor is shared by every contract, so it may only move as far as the
+  // least-advanced one; a failed scan holds it where it is.
+  let scannedThrough = Number.POSITIVE_INFINITY;
 
   for (const node of contracts) {
     const result = await pollEventsWithStartLedger(
@@ -1199,14 +1290,14 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
       flowTemplateKind,
     );
     totalWritten += result.written;
-    if (result.maxLedger > maxLedger) maxLedger = result.maxLedger;
+    scannedThrough = Math.min(scannedThrough, result.ok ? result.scannedThrough : emptySetSentinel);
   }
 
-  if (maxLedger > emptySetSentinel) {
+  if (scannedThrough > emptySetSentinel) {
     await db.eventCursor.upsert({
       where: { deploymentId },
-      update: { lastLedger: maxLedger },
-      create: { deploymentId, lastLedger: maxLedger },
+      update: { lastLedger: scannedThrough },
+      create: { deploymentId, lastLedger: scannedThrough },
     });
   }
 
