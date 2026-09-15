@@ -16,7 +16,7 @@ export async function prepareTriggerTx(opts: {
   amount: string;
   fromAddress: string;
   isPipeline?: boolean;
-  hint?: SorobanErrorHint;
+  hint?: SorobanErrorHint | (() => Promise<SorobanErrorHint>);
 }): Promise<{ xdr: string }> {
   const result = opts.isPipeline
     ? await prepareDepositInvocation({
