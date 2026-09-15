@@ -201,6 +201,11 @@ const errorTable = (Object.keys(ERROR_STATUS) as ErrorCode[])
   .map((code) => `| \`${code}\` | ${ERROR_STATUS[code]} |`)
   .join("\n");
 
+const TOKEN_ROUTES_RATE = rate(
+  V1_RATE_LIMITS.apiTokens,
+  "per signed-in user, shared across the token routes",
+);
+
 const executeShape = ExecutePrepareSchema.shape;
 const preparedShape = ExecutePreparedSchema.shape;
 const submittedShape = ExecuteSubmittedSchema.shape;
@@ -426,8 +431,7 @@ export const openApiDocument = {
         tags: ["Token management (owner session)"],
         operationId: "listApiTokens",
         summary: "List the deployment's API tokens",
-        description:
-          "Owner session only. Active tokens first, then revoked and expired ones, each newest first; at most 100. Never returns a token's plaintext or hash.",
+        description: `Owner session only. Active tokens first, then revoked and expired ones, each newest first; at most 100. Never returns a token's plaintext or hash. ${TOKEN_ROUTES_RATE}`,
         security: [{ cookieAuth: [] }],
         parameters: [deploymentIdParam],
         responses: {
@@ -451,8 +455,7 @@ export const openApiDocument = {
         tags: ["Token management (owner session)"],
         operationId: "createApiToken",
         summary: "Mint a deployment API token",
-        description:
-          "Owner session only, on a `CONFIRMED` deployment, at most 10 active tokens. The plaintext `token` is in this response and nowhere else: store it now.",
+        description: `Owner session only, on a \`CONFIRMED\` deployment, at most 10 active tokens. The plaintext \`token\` is in this response and nowhere else: store it now. ${TOKEN_ROUTES_RATE}`,
         security: [{ cookieAuth: [] }],
         parameters: [deploymentIdParam],
         requestBody: {
@@ -486,8 +489,7 @@ export const openApiDocument = {
         tags: ["Token management (owner session)"],
         operationId: "revokeApiToken",
         summary: "Revoke a deployment API token",
-        description:
-          "Owner session only. Takes effect on the next request. The row is kept for the audit trail; revoking an already-revoked token returns it unchanged.",
+        description: `Owner session only. Takes effect on the next request. The row is kept for the audit trail; revoking an already-revoked token returns it unchanged. ${TOKEN_ROUTES_RATE}`,
         security: [{ cookieAuth: [] }],
         parameters: [
           deploymentIdParam,

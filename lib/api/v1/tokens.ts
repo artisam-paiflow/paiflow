@@ -7,6 +7,7 @@ import { hashApiToken } from "@/lib/auth/api-token";
 import { AppError } from "@/lib/errors";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { isUuid } from "@/lib/api/v1/handler";
+import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
 
 export const MAX_ACTIVE_API_TOKENS = 10;
 
@@ -52,7 +53,7 @@ export async function requireTokenManager(
   }
   if (!isUuid(deploymentId)) throw new AppError("NOT_FOUND", "Deployment not found");
 
-  await enforceRateLimit({ key: `api-tokens:${user.id}`, limit: 20, windowSeconds: 60 });
+  await enforceRateLimit({ key: `api-tokens:${user.id}`, ...V1_RATE_LIMITS.apiTokens });
 
   const deployment = await db.deployment.findFirst({
     where: { id: deploymentId, ownerId: user.id },

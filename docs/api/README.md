@@ -304,12 +304,13 @@ Every response carries an `x-request-id` header. Include it when you report a pr
 Limits are counted **per token**, per endpoint, in fixed 60-second windows. Going over returns
 `429 RATE_LIMITED`.
 
-| Endpoint                   | Limit                                  |
-| -------------------------- | -------------------------------------- |
-| `POST …/execute`           | 30 per minute                          |
-| `POST …/execute/submit`    | 30 per minute                          |
-| `GET …/events`             | 120 per minute                         |
-| `GET /api/v1/openapi.json` | 60 per minute per client IP (no token) |
+| Endpoint                                      | Limit                                                     |
+| --------------------------------------------- | --------------------------------------------------------- |
+| `POST …/execute`                              | 30 per minute                                             |
+| `POST …/execute/submit`                       | 30 per minute                                             |
+| `GET …/events`                                | 120 per minute                                            |
+| `GET /api/v1/openapi.json`                    | 60 per minute per client IP (no token)                    |
+| Token management (owner session, not the API) | 20 per minute per signed-in user, across all three routes |
 
 ## Postman
 
