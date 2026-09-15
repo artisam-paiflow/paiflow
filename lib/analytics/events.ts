@@ -113,6 +113,8 @@ export type EventMap = {
     event_kind: string;
     is_swap: boolean;
     lag_ms: number | null;
+    /** How the row reached the page: pushed over SSE, or read by the fallback poll. */
+    source: "sse" | "poll";
   };
 };
 

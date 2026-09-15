@@ -30,8 +30,13 @@ and properties, so this page describes intent and doesn't restate every field.
 | Does the live Soroswap quote work?                        | `swap_quote_loaded` (`latency_ms`, `always_reverts`) / `swap_quote_failed`                                            |
 | Do deploys succeed, and where do they fail?               | `deploy_review_viewed`, `deploy_started`, `deploy_failed` (`stage`), `deploy_confirmed` (server)                      |
 | Does money move, and does the UI report it truthfully?    | `trigger_started`, `trigger_failed` (`stage`), `trigger_status_poll_failed`, `trigger_succeeded`, `trigger_confirmed` |
-| Can testers see the result?                               | `deployment_page_viewed`, `live_feed_disconnected`, `live_event_rendered` (`lag_ms`)                                  |
+| Can testers see the result?                               | `deployment_page_viewed`, `live_feed_disconnected`, `live_event_rendered` (`lag_ms`, `source`)                        |
 | Do testers wander into features that aren't in the round? | `off_script_feature_used` (`feature`)                                                                                 |
+
+`live_event_rendered` fires once per feed row, whether it arrived over SSE (`source = sse`) or
+from the fallback poll (`source = poll`); rows already in the server render aren't counted. Feed
+lag is only meaningful for `source = sse`. `live_feed_disconnected` ignores the stream closing
+because the page is being left.
 
 Server-side events carry `source = server` and are attributed to the deployment owner.
 Autocapture (clicks, including stellar.expert links), rage and dead clicks, `$pageview`,
