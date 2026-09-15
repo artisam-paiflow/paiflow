@@ -15,18 +15,21 @@ const DEFAULT_FALLBACK = "Something went wrong. Please try again.";
  */
 export function apiError(body: unknown, fallback: string = DEFAULT_FALLBACK): Error {
   const f = friendlyError(body, fallback);
-  const err = new Error(f.message) as Error & { details?: string };
+  const err = new Error(f.message) as Error & { details?: string; code?: string };
   if (f.details) err.details = f.details;
+  // The AppError code survives too, so analytics can group failures by it.
+  const code = (body as { error?: { code?: unknown } } | null)?.error?.code;
+  if (typeof code === "string") err.code = code;
   return err;
 }
 
 // Freighter / xBull / Lobstr / wallets-kit rejections.
-const WALLET_REJECTION =
+export const WALLET_REJECTION =
   /user (declined|rejected|denied|cancelled|canceled)|(declined|rejected|denied|cancelled|canceled) by (the )?user|request was rejected/i;
 
 // Browser fetch failures: Chrome "Failed to fetch", Firefox "NetworkError when
 // attempting to fetch resource", Safari "Load failed".
-const NETWORK_FAILURE =
+export const NETWORK_FAILURE =
   /failed to fetch|network ?error|load failed|fetch failed|network request failed/i;
 
 /**

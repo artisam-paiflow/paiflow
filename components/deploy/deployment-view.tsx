@@ -15,6 +15,7 @@ import { assetLabel, isTrigger } from "@/lib/flows/schema";
 import { formatStroops } from "@/lib/utils";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import { apiError } from "@/lib/friendly-error";
+import { track } from "@/lib/analytics/client";
 
 export default function DeploymentView({
   deploymentId,
@@ -53,6 +54,10 @@ export default function DeploymentView({
   >("live");
   const esRef = useRef<EventSource | null>(null);
 
+  useEffect(() => {
+    track("deployment_page_viewed", { deployment_id: deploymentId, status });
+  }, [deploymentId, status]);
+
   const scheduleClearIsNew = (eventId: string | undefined, txHash: string, kind: string) => {
     setTimeout(() => dispatchEvents({ type: "clearIsNew", eventId, txHash, kind }), 250);
   };
@@ -63,6 +68,7 @@ export default function DeploymentView({
     let es: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
+    let disconnects = 0;
 
     // The SSE route only relays rows written after it subscribes, so events the
     // cron stored between server render and this connect would never arrive.
@@ -99,6 +105,15 @@ export default function DeploymentView({
             return;
           }
           const contractEvent = event as Evt;
+          // Lag from ledger close to on-screen: the "live feed can lag" known issue.
+          const occurred = Date.parse(contractEvent.occurredAt);
+          track("live_event_rendered", {
+            deployment_id: deploymentId,
+            event_kind: contractEvent.kind,
+            is_swap:
+              (contractEvent.payload as { topics?: unknown[] } | null)?.topics?.[0] === "swap",
+            lag_ms: Number.isNaN(occurred) ? null : Date.now() - occurred,
+          });
           dispatchEvents({ type: "merge", incoming: [contractEvent] });
           scheduleClearIsNew(contractEvent.eventId, contractEvent.txHash, contractEvent.kind);
         } catch {
@@ -108,6 +123,11 @@ export default function DeploymentView({
 
       es.onerror = () => {
         if (cancelled) return;
+        disconnects += 1;
+        track("live_feed_disconnected", {
+          deployment_id: deploymentId,
+          disconnect_count: disconnects,
+        });
         setConnectionStatus("disconnected");
         if (es) {
           es.close();

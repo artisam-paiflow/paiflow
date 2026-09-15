@@ -9,7 +9,7 @@
  * environment once per test file, not per case: cleanliness between the
  * describes below comes from their own `beforeEach` deletes.
  */
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const requiredEnv = {
   AUTH_SECRET: "test_auth_secret_at_least_32_chars_long",
@@ -82,6 +82,37 @@ describe("env — PDAX deposit address validation", () => {
     process.env.OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET = "not-a-stellar-address";
     const mod = await loadEnv("testnet");
     expect(() => mod.env()).toThrow(/valid Stellar ed25519 public key/i);
+  });
+});
+
+describe("env — analytics", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    delete process.env.OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET;
+    delete process.env.NEXT_PUBLIC_APP_ENV;
+    delete process.env.POSTHOG_HOST;
+  });
+
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_APP_ENV;
+    delete process.env.POSTHOG_HOST;
+  });
+
+  it("defaults an absent NEXT_PUBLIC_APP_ENV to local", async () => {
+    const mod = await loadEnv("testnet");
+    expect(mod.env().NEXT_PUBLIC_APP_ENV).toBe("local");
+  });
+
+  it("throws on a misspelled NEXT_PUBLIC_APP_ENV instead of tagging events local", async () => {
+    process.env.NEXT_PUBLIC_APP_ENV = "betaa";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow();
+  });
+
+  it("throws on a plaintext POSTHOG_HOST", async () => {
+    process.env.POSTHOG_HOST = "http://us.i.posthog.com";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/POSTHOG_HOST must use https/);
   });
 });
 

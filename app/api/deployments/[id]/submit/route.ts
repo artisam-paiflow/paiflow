@@ -12,6 +12,7 @@ import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode, EmployeePayoutMode } from "@prisma/client";
 import { scheduleNextStreamerClaimJob } from "@/lib/streamer-jobs";
 import { log } from "@/lib/log";
+import { captureServer } from "@/lib/analytics/server";
 import type { StreamerParams } from "@/lib/flows/to-params";
 import { isPendingAddress, SenderKycSchema } from "@/lib/flows/schema";
 
@@ -265,6 +266,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         userId: user.id,
         metadata: { deploymentId: id, txHash: result.txHash },
       });
+      captureDeployConfirmed(user.id, deployment, pipeline);
 
       // Immutable non-dev payrolls bake recipients into the SPLITTER at deploy
       // time, so we must create Employee rows now so later charges can generate
@@ -294,6 +296,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       userId: user.id,
       metadata: { deploymentId: id, error: result.errorMessage },
     });
+    void captureServer(user.id, "deploy_failed", {
+      stage: "submit",
+      error_class: "upstream_rpc",
+      error_code: "UPSTREAM_RPC",
+      flow_id: deployment.flowId,
+      deployment_id: id,
+    });
     return NextResponse.json(
       {
         error: {
@@ -304,6 +313,30 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       { status: 502 },
     );
   });
+}
+
+// Runs after the chain has confirmed, so nothing in here may throw into the
+// response: a confirmed deploy answering 500 would invite a resubmit.
+function captureDeployConfirmed(
+  userId: string,
+  deployment: { id: string; flowId: string; createdAt: Date },
+  pipeline: Array<{ templateKind: string }> | null,
+) {
+  try {
+    const templateKinds = (pipeline ?? []).map((n) => n.templateKind);
+    // A legacy deployment has no snapshot, only the one scalar contractAddress.
+    const contractCount = pipeline ? pipeline.length : 1;
+    void captureServer(userId, "deploy_confirmed", {
+      deployment_id: deployment.id,
+      flow_id: deployment.flowId,
+      template_kinds: templateKinds,
+      has_swap: templateKinds.includes("SWAPPER"),
+      contract_count: contractCount,
+      created_to_confirmed_ms: Date.now() - deployment.createdAt.getTime(),
+    });
+  } catch (err) {
+    log.warn({ err, deploymentId: deployment.id }, "submit: analytics capture failed");
+  }
 }
 
 const OFFRAMP_SENDER_KINDS = new Set(["PAYROLL", "CASH_OUT", "CASH_OUT_DEV"]);

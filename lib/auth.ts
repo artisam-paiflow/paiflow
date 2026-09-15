@@ -10,6 +10,7 @@ import { log } from "./log";
 import { audit } from "./audit";
 import { AppError } from "./errors";
 import { hashApiToken } from "./auth/api-token";
+import { captureServer } from "./analytics/server";
 import { Role } from "@prisma/client";
 import { authConfig as edgeConfig } from "@/auth.config";
 
@@ -75,6 +76,7 @@ async function authorizeUser(input: unknown): Promise<{
       where: { id: u.id },
       data: { lastLoginAt: new Date(), failedLogins: 0, lockedUntil: null },
     });
+    void captureServer(u.id, "login_succeeded", { method: "ticket" });
     return { id: u.id, username: u.username, role: u.role };
   }
 
@@ -94,6 +96,7 @@ async function authorizeUser(input: unknown): Promise<{
   }
   if (user.lockedUntil && user.lockedUntil > new Date()) {
     log.warn({ username }, "login: account locked");
+    void captureServer(user.id, "login_failed", { reason: "locked" });
     return null;
   }
 
@@ -107,6 +110,7 @@ async function authorizeUser(input: unknown): Promise<{
       data: { failedLogins: failed, lockedUntil: lock },
     });
     await audit({ action: "USER_LOGIN_FAILED", userId: user.id, metadata: { username } });
+    void captureServer(user.id, "login_failed", { reason: "bad_password" });
     return null;
   }
 
@@ -115,6 +119,7 @@ async function authorizeUser(input: unknown): Promise<{
     data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() },
   });
   await audit({ action: "USER_LOGIN", userId: user.id });
+  void captureServer(user.id, "login_succeeded", { method: "password" });
 
   return { id: user.id, username: user.username, role: user.role };
 }

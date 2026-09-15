@@ -1,5 +1,7 @@
 import { toast } from "sonner";
 import { friendlyError } from "./friendly-error";
+import { classifyError } from "./analytics/classify-error";
+import { track } from "./analytics/client";
 
 /**
  * Toast an error with a user-friendly message. Raw technical detail (Soroban
@@ -8,6 +10,14 @@ import { friendlyError } from "./friendly-error";
  */
 export function toastError(err: unknown, fallback?: string): void {
   const { message, details } = friendlyError(err, fallback);
+  // Every user-visible error funnels through here, so this one call is the
+  // broadest friction signal analytics gets.
+  const c = classifyError(err, fallback);
+  track("error_shown", {
+    error_class: c.errorClass,
+    error_code: c.errorCode,
+    message_key: c.messageKey,
+  });
   if (!details) {
     toast.error(message);
     return;
