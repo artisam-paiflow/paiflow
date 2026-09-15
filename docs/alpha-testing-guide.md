@@ -14,9 +14,9 @@ transaction yourself, in your own wallet, and Paiflow never holds your keys.
 
 > **We record how the app is used during this round.** beta.paiflow.xyz sends usage analytics
 > and screen recordings of your sessions to PostHog, so we can see where things are confusing
-> without asking you to write it all down. Recordings mask what you type into fields. Events are
-> tied to your test account's internal ID, not your name, and never include wallet addresses or
-> keys. If you have concerns about this, contact us before you start.
+> without asking you to write it all down. Recordings mask all on-screen text and everything you
+> type into fields. Events are tied to your test account's internal ID, not your name, and never
+> include wallet addresses or keys. If you have concerns about this, contact us before you start.
 
 ---
 

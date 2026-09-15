@@ -324,12 +324,14 @@ function captureDeployConfirmed(
 ) {
   try {
     const templateKinds = (pipeline ?? []).map((n) => n.templateKind);
+    // A legacy deployment has no snapshot, only the one scalar contractAddress.
+    const contractCount = pipeline ? pipeline.length : 1;
     void captureServer(userId, "deploy_confirmed", {
       deployment_id: deployment.id,
       flow_id: deployment.flowId,
       template_kinds: templateKinds,
       has_swap: templateKinds.includes("SWAPPER"),
-      contract_count: templateKinds.length,
+      contract_count: contractCount,
       created_to_confirmed_ms: Date.now() - deployment.createdAt.getTime(),
     });
   } catch (err) {

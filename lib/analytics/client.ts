@@ -11,7 +11,7 @@ import { redactString, sanitizeProps } from "./sanitize";
  * bundle (CLAUDE.md §11). Events tracked before it finishes loading are queued.
  */
 
-// Same-origin reverse proxy (next.config.ts rewrites): keeps the CSP at 'self'
+// Same-origin proxy (app/ingest/[...path]/route.ts): keeps the CSP at 'self'
 // and survives Brave's default tracker blocking, which the alpha guide supports.
 const API_HOST = "/ingest";
 const UI_HOST = "https://us.posthog.com";
@@ -19,6 +19,11 @@ const UI_HOST = "https://us.posthog.com";
 let client: PostHog | null = null;
 let loading: Promise<PostHog | null> | null = null;
 const queue: Array<[string, Record<string, unknown>]> = [];
+
+// Replays mask every text node, not just inputs: the one-time API token, the
+// curl command and Stellar addresses render as plain text, and a snapshot is
+// not something before_send can redact.
+export const SESSION_RECORDING = { maskAllInputs: true, maskTextSelector: "*" } as const;
 
 export function analyticsEnabled(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_POSTHOG_KEY);
@@ -58,10 +63,10 @@ export function loadAnalytics(): Promise<PostHog | null> {
       capture_exceptions: true,
       capture_dead_clicks: true,
       disable_external_dependency_loading: true,
-      session_recording: { maskAllInputs: true },
+      session_recording: SESSION_RECORDING,
       // Autocapture records element text, which on this app includes recipient
       // and contract addresses. Replay snapshots are left alone: they are
-      // large, and inputs are already masked.
+      // large, and SESSION_RECORDING already masks their text.
       before_send: (event) => {
         if (!event || event.event === "$snapshot") return event;
         return { ...event, properties: redactDeep(event.properties) as typeof event.properties };

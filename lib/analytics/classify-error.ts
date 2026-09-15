@@ -49,7 +49,7 @@ function errorCode(err: unknown): string | null {
 }
 
 /** Bucket any thrown value or API error body for analytics. Never throws. */
-export function classifyError(err: unknown): ClassifiedError {
+export function classifyError(err: unknown, fallback?: string): ClassifiedError {
   const raw = rawMessage(err);
   const code = errorCode(err);
   const errorClass =
@@ -59,6 +59,6 @@ export function classifyError(err: unknown): ClassifiedError {
   return {
     errorClass,
     errorCode: code,
-    messageKey: messageKey(friendlyError(err).message),
+    messageKey: messageKey(friendlyError(err, fallback).message),
   };
 }

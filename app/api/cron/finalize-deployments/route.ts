@@ -14,28 +14,32 @@ export async function POST(req: NextRequest) {
     }
     // Mark stuck SUBMITTED deployments as FAILED after 5 minutes (submit() handles the common case).
     const cutoff = new Date(Date.now() - 5 * 60_000);
-    // Read the rows first so each timeout can be attributed to its owner; the
-    // update re-checks the status, so a deployment confirmed in between is kept.
+    // Read the rows first so each timeout can be attributed to its owner. Each
+    // update re-checks the status, so a deployment confirmed in between is kept
+    // and, because its count is 0, not reported as a failure either.
     const stuck = await db.deployment.findMany({
       where: { status: "SUBMITTED", createdAt: { lt: cutoff } },
       select: { id: true, ownerId: true, flowId: true },
     });
-    const updated = await db.deployment.updateMany({
-      where: { id: { in: stuck.map((d) => d.id) }, status: "SUBMITTED" },
-      data: { status: "FAILED", errorMessage: "Timed out before finality" },
-    });
-    await Promise.all(
-      stuck.map((d) =>
-        captureServer(d.ownerId, "deploy_failed", {
-          stage: "finality_timeout",
-          error_class: "timeout",
-          error_code: null,
-          flow_id: d.flowId,
-          deployment_id: d.id,
-        }),
-      ),
+    const counts = await Promise.all(
+      stuck.map(async (d) => {
+        const { count } = await db.deployment.updateMany({
+          where: { id: d.id, status: "SUBMITTED" },
+          data: { status: "FAILED", errorMessage: "Timed out before finality" },
+        });
+        if (count === 1) {
+          await captureServer(d.ownerId, "deploy_failed", {
+            stage: "finality_timeout",
+            error_class: "timeout",
+            error_code: null,
+            flow_id: d.flowId,
+            deployment_id: d.id,
+          });
+        }
+        return count;
+      }),
     );
-    return NextResponse.json({ data: { failed: updated.count } });
+    return NextResponse.json({ data: { failed: counts.reduce((a, b) => a + b, 0) } });
   });
 }
 

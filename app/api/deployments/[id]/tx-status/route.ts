@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { log } from "@/lib/log";
 import { pollEventsFor, recordAllowanceEvent } from "@/lib/stellar/events";
 import type { FlowGraph } from "@/lib/flows/schema";
+import { redis } from "@/lib/redis";
 import { captureServer } from "@/lib/analytics/server";
 
 const QuerySchema = z.object({
@@ -30,12 +31,28 @@ const EVENT_INGEST_DEADLINE_MS = 5_000;
 // The status route is public, so the caller has no session to attribute a
 // trigger to; the deployment's owner is the tester whose flow ran. Best-effort
 // like the rest of the bookkeeping here: it never affects the status answer.
+//
+// A terminal status stays terminal, so a remount, a second tab or a reload polls
+// it again. The Redis claim makes each (deployment, tx, outcome) count once;
+// without Redis there is nothing to claim against and it captures as before.
+const OUTCOME_CLAIM_TTL_SECONDS = 7 * 24 * 60 * 60;
 async function captureTriggerOutcome(
   deploymentId: string,
   txHash: string,
   outcome: "confirmed" | "failed",
 ): Promise<void> {
   try {
+    const client = redis();
+    if (client) {
+      const claimed = await client.set(
+        `analytics:trigger:${deploymentId}:${txHash}:${outcome}`,
+        "1",
+        "EX",
+        OUTCOME_CLAIM_TTL_SECONDS,
+        "NX",
+      );
+      if (claimed !== "OK") return;
+    }
     const d = await db.deployment.findUnique({
       where: { id: deploymentId },
       select: { ownerId: true, pipelineSnapshot: true },

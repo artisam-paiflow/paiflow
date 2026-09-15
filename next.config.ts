@@ -19,10 +19,6 @@ const SECURITY_HEADERS = [
 
 const HOMEPAGE_URL = "https://beta.app.paiflow.xyz";
 
-// PostHog US cloud, reached through a same-origin proxy (lib/analytics/client.ts).
-const POSTHOG_INGEST_HOST = "https://us.i.posthog.com";
-const POSTHOG_ASSETS_HOST = "https://us-assets.i.posthog.com";
-
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -51,12 +47,6 @@ const nextConfig: NextConfig = {
       { source: "/about", destination: `${HOMEPAGE_URL}/about.html`, permanent: true },
       { source: "/privacy", destination: `${HOMEPAGE_URL}/privacy.html`, permanent: true },
       { source: "/terms", destination: `${HOMEPAGE_URL}/terms.html`, permanent: true },
-    ];
-  },
-  async rewrites() {
-    return [
-      { source: "/ingest/static/:path*", destination: `${POSTHOG_ASSETS_HOST}/static/:path*` },
-      { source: "/ingest/:path*", destination: `${POSTHOG_INGEST_HOST}/:path*` },
     ];
   },
   async headers() {

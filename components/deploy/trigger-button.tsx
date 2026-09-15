@@ -453,7 +453,7 @@ export function TriggerButton({
       void trackWalletConnection({
         address,
         network,
-        walletId: pendingWallet ?? "wallet_connect",
+        walletId,
         surface: "trigger",
       });
       await submitTrigger(address, kit, () => setShowOpenWallet(true));

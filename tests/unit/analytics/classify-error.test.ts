@@ -51,4 +51,17 @@ describe("classifyError", () => {
     const { messageKey } = classifyError(new Error(`Pay G${"B".repeat(55)} failed: 3 retries`));
     expect(messageKey).toBe("Pay <address> failed: # retries");
   });
+
+  it("keys a message-less error on the caller's fallback, matching the toast", () => {
+    expect(classifyError(new Error(""), "Transaction failed").messageKey).toBe(
+      "Transaction failed",
+    );
+  });
+});
+
+describe("SESSION_RECORDING", () => {
+  it("masks all replay text, not just inputs", async () => {
+    const { SESSION_RECORDING } = await import("@/lib/analytics/client");
+    expect(SESSION_RECORDING).toMatchObject({ maskAllInputs: true, maskTextSelector: "*" });
+  });
 });

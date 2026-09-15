@@ -208,8 +208,12 @@ const EnvSchema = z.object({
   // beta service; unset means every capture is a no-op. APP_ENV tags events so
   // environments never mix in one PostHog project.
   NEXT_PUBLIC_POSTHOG_KEY: optionalString,
-  NEXT_PUBLIC_APP_ENV: z.enum(["local", "staging", "beta"]).default("local").catch("local"),
-  POSTHOG_HOST: z.string().url().default("https://us.i.posthog.com"),
+  NEXT_PUBLIC_APP_ENV: z.enum(["local", "staging", "beta"]).default("local"),
+  POSTHOG_HOST: z
+    .string()
+    .url()
+    .refine((u) => new URL(u).protocol === "https:", "POSTHOG_HOST must use https")
+    .default("https://us.i.posthog.com"),
   HIBP_CHECK_ENABLED: boolish,
 
   AI_API_KEY: optionalString,

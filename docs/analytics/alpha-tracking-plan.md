@@ -81,7 +81,8 @@ Use session replay on T7 (free exploration) sessions and on any session with a r
 Done on 15 September 2026:
 
 - **PostHog project settings:** replay and toolbar are limited to `https://beta.paiflow.xyz`,
-  IPs are anonymized, inputs are masked, and exception and dead-click capture are on.
+  IPs are anonymized, inputs are masked, and exception and dead-click capture are on. The app
+  itself also masks every text node in replays (`SESSION_RECORDING` in `lib/analytics/client.ts`).
 - **Railway `prod` environment** (beta.paiflow.xyz), service `pinkraft`:
   `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_APP_ENV=beta` are set. They take effect on the next
   build, because they're inlined at build time. `POSTHOG_HOST` defaults to US cloud, and
