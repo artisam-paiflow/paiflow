@@ -37,7 +37,21 @@ Server-side events carry `source = server` and are attributed to the deployment 
 Autocapture (clicks, including stellar.expert links), rage and dead clicks, `$pageview`,
 `$exception` and session replay come from posthog-js itself.
 
-## Dashboards to build
+## Dashboards
+
+Built in the PostHog project **Paiflow-alpha** (US cloud, id 403714). Every insight filters to
+`app_env = beta`. There is also a cohort, _Alpha testers_ (`role = USER`).
+
+| Dashboard                                                                                       | Insights |
+| ----------------------------------------------------------------------------------------------- | -------- |
+| [Alpha 1 — Tester funnel](https://us.posthog.com/project/403714/dashboard/2098673)              | 3        |
+| [Alpha 2 — Test-case coverage](https://us.posthog.com/project/403714/dashboard/2098674)         | 2        |
+| [Alpha 3 — Friction](https://us.posthog.com/project/403714/dashboard/2098675)                   | 6        |
+| [Alpha 4 — Reliability](https://us.posthog.com/project/403714/dashboard/2098676)                | 8        |
+| [Alpha 5 — D3 swap panel before/after](https://us.posthog.com/project/403714/dashboard/2098678) | 2        |
+| [Alpha 6 — Scope drift](https://us.posthog.com/project/403714/dashboard/2098680)                | 2        |
+
+What each one shows:
 
 1. **Alpha funnel, per tester:** `login_succeeded` → `builder_opened` → `deploy_confirmed` →
    `trigger_confirmed` → `live_event_rendered`. Break down by person to see who stalled where.
@@ -62,13 +76,17 @@ Autocapture (clicks, including stellar.expert links), rage and dead clicks, `$pa
 Use session replay on T7 (free exploration) sessions and on any session with a rage click or a
 `trigger_failed`.
 
-## Setup checklist
+## Setup
 
-1. Create a PostHog project in **US cloud**. Under _Project settings_, turn **session replay**
-   on and add `https://beta.paiflow.xyz` to the authorized URLs.
-2. On the beta Railway service, set **build** variables `NEXT_PUBLIC_POSTHOG_KEY=<project key>`
-   and `NEXT_PUBLIC_APP_ENV=beta`, then redeploy. `POSTHOG_HOST` defaults to US cloud.
-   `NEXT_PUBLIC_APP_VERSION` comes from `RAILWAY_GIT_COMMIT_SHA` automatically.
-3. Leave both unset on the staging service (paiflow.xyz).
-4. Sign in to beta with a test account, run T1, and check _Activity → Live events_ for
-   `builder_opened`, `deploy_confirmed` and `trigger_confirmed`.
+Done on 15 September 2026:
+
+- **PostHog project settings:** replay and toolbar are limited to `https://beta.paiflow.xyz`,
+  IPs are anonymized, inputs are masked, and exception and dead-click capture are on.
+- **Railway `prod` environment** (beta.paiflow.xyz), service `pinkraft`:
+  `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_APP_ENV=beta` are set. They take effect on the next
+  build, because they're inlined at build time. `POSTHOG_HOST` defaults to US cloud, and
+  `NEXT_PUBLIC_APP_VERSION` comes from `RAILWAY_GIT_COMMIT_SHA`.
+- **Staging** (paiflow.xyz) has no PostHog variables and must stay that way.
+
+After the first beta build with this code, sign in with a test account, run T1, and check
+_Activity → Live events_ for `builder_opened`, `deploy_confirmed` and `trigger_confirmed`.
