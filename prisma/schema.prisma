@@ -506,6 +506,7 @@ model ContractEvent {
   cashOutJobFailure CashOutJobFailure?
 
   @@index([deploymentId, occurredAt(sort: Desc)])
+  @@index([deploymentId, ledger, eventId])
 }
 
 model EmailNotification {

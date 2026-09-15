@@ -1,5 +1,9 @@
 import { z } from "zod";
 import type { OffRampPayoutJobStatus, PayrollRunStatus } from "@prisma/client";
+import {
+  decodeCursor as decodeOpaqueCursor,
+  encodeCursor as encodeOpaqueCursor,
+} from "@/lib/api/v1/cursor";
 
 /**
  * Event-feed synthesis + Zod contracts for the payroll live-feed endpoints
@@ -351,21 +355,15 @@ export function sortEventsDesc(events: PayrollEvent[]): PayrollEvent[] {
 
 /** Opaque cursor = base64url(`${occurredAtISO}|${id}`). */
 export function encodeCursor(event: PayrollEvent): string {
-  return Buffer.from(`${event.occurredAt.toISOString()}|${event.id}`, "utf8").toString("base64url");
+  return encodeOpaqueCursor(event.occurredAt.toISOString(), event.id);
 }
 
 export function decodeCursor(cursor: string): { time: number; id: string } | null {
-  try {
-    const raw = Buffer.from(cursor, "base64url").toString("utf8");
-    const sep = raw.lastIndexOf("|");
-    if (sep < 0) return null;
-    const time = new Date(raw.slice(0, sep)).getTime();
-    const id = raw.slice(sep + 1);
-    if (Number.isNaN(time) || !id) return null;
-    return { time, id };
-  } catch {
-    return null;
-  }
+  const parts = decodeOpaqueCursor(cursor);
+  if (!parts) return null;
+  const time = new Date(parts.head).getTime();
+  if (Number.isNaN(time)) return null;
+  return { time, id: parts.tail };
 }
 
 /**
