@@ -17,6 +17,10 @@ import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/exp
 import { apiError } from "@/lib/friendly-error";
 import { track } from "@/lib/analytics/client";
 
+function evtKey(ev: Evt): string {
+  return ev.eventId ?? `${ev.txHash}:${ev.kind}:${ev.ledger}`;
+}
+
 export default function DeploymentView({
   deploymentId,
   contractAddress,
@@ -53,6 +57,27 @@ export default function DeploymentView({
     "live" | "reconnecting" | "disconnected"
   >("live");
   const esRef = useRef<EventSource | null>(null);
+  // Feed rows already on screen or already reported, so a row that arrives over SSE
+  // and again from the fallback poll is counted once. Server-rendered rows are
+  // history, not live delivery: they only seed the set.
+  const reportedEvents = useRef<Set<string> | null>(null);
+  if (reportedEvents.current === null) reportedEvents.current = new Set(initialEvents.map(evtKey));
+
+  function trackRendered(ev: Evt, source: "sse" | "poll") {
+    const seen = reportedEvents.current!;
+    const key = evtKey(ev);
+    if (seen.has(key)) return;
+    seen.add(key);
+    // Lag from ledger close to on-screen: the "live feed can lag" known issue.
+    const occurred = Date.parse(ev.occurredAt);
+    track("live_event_rendered", {
+      deployment_id: deploymentId,
+      event_kind: ev.kind,
+      is_swap: (ev.payload as { topics?: unknown[] } | null)?.topics?.[0] === "swap",
+      lag_ms: Number.isNaN(occurred) ? null : Date.now() - occurred,
+      source,
+    });
+  }
 
   useEffect(() => {
     track("deployment_page_viewed", { deployment_id: deploymentId, status });
@@ -69,6 +94,13 @@ export default function DeploymentView({
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
     let disconnects = 0;
+    // A full-page navigation aborts the stream and fires onerror; that's the user
+    // leaving, not the feed dropping. pagehide fires before the abort.
+    let leaving = false;
+    const onPageHide = () => {
+      leaving = true;
+    };
+    window.addEventListener("pagehide", onPageHide);
 
     // The SSE route only relays rows written after it subscribes, so events the
     // cron stored between server render and this connect would never arrive.
@@ -81,6 +113,7 @@ export default function DeploymentView({
         .then((body: { events?: Evt[] } | null) => {
           if (cancelled || !Array.isArray(body?.events)) return;
           const polledEvents = body.events;
+          polledEvents.forEach((ev) => trackRendered(ev, "poll"));
           dispatchEvents({ type: "merge", incoming: polledEvents });
           polledEvents.forEach((ev) => scheduleClearIsNew(ev.eventId, ev.txHash, ev.kind));
         })
@@ -105,15 +138,7 @@ export default function DeploymentView({
             return;
           }
           const contractEvent = event as Evt;
-          // Lag from ledger close to on-screen: the "live feed can lag" known issue.
-          const occurred = Date.parse(contractEvent.occurredAt);
-          track("live_event_rendered", {
-            deployment_id: deploymentId,
-            event_kind: contractEvent.kind,
-            is_swap:
-              (contractEvent.payload as { topics?: unknown[] } | null)?.topics?.[0] === "swap",
-            lag_ms: Number.isNaN(occurred) ? null : Date.now() - occurred,
-          });
+          trackRendered(contractEvent, "sse");
           dispatchEvents({ type: "merge", incoming: [contractEvent] });
           scheduleClearIsNew(contractEvent.eventId, contractEvent.txHash, contractEvent.kind);
         } catch {
@@ -123,11 +148,13 @@ export default function DeploymentView({
 
       es.onerror = () => {
         if (cancelled) return;
-        disconnects += 1;
-        track("live_feed_disconnected", {
-          deployment_id: deploymentId,
-          disconnect_count: disconnects,
-        });
+        if (!leaving) {
+          disconnects += 1;
+          track("live_feed_disconnected", {
+            deployment_id: deploymentId,
+            disconnect_count: disconnects,
+          });
+        }
         setConnectionStatus("disconnected");
         if (es) {
           es.close();
@@ -152,6 +179,7 @@ export default function DeploymentView({
 
     return () => {
       cancelled = true;
+      window.removeEventListener("pagehide", onPageHide);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (es) {
         es.close();

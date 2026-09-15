@@ -48,6 +48,8 @@ describe("/ingest proxy", () => {
         "content-type": "text/plain",
         "user-agent": "tester",
         "x-forwarded-for": "203.0.113.7",
+        origin: "https://beta.paiflow.xyz",
+        referer: "https://beta.paiflow.xyz/flows/123",
       },
     });
 
@@ -59,6 +61,9 @@ describe("/ingest proxy", () => {
     expect(sent.get("content-type")).toBe("text/plain");
     expect(sent.get("user-agent")).toBe("tester");
     expect(sent.get("x-forwarded-for")).toBe("203.0.113.7");
+    // PostHog's recording_domains check reads Origin; without it replay is served disabled.
+    expect(sent.get("origin")).toBe("https://beta.paiflow.xyz");
+    expect(sent.get("referer")).toBe("https://beta.paiflow.xyz/flows/123");
   });
 
   it("sends static paths to the assets host", async () => {
