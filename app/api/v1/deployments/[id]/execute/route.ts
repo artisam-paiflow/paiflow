@@ -3,6 +3,7 @@ import { audit } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { env, stellarPassphrase } from "@/lib/env";
 import { v1Route } from "@/lib/api/v1/handler";
+import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
 import { envelopeExpiresAt, resolveSwapperPipeline } from "@/lib/api/v1/execute";
 import {
   EXECUTE_PREREQUISITES,
@@ -18,7 +19,7 @@ import { prepareTriggerTx } from "@/lib/stellar/trigger";
  * it with the `from` key and posts it to `…/execute/submit`; no key is held here.
  */
 export const POST = v1Route(
-  { rateLimit: { limit: 30, windowSeconds: 60 } },
+  { rateLimit: V1_RATE_LIMITS.execute },
   async ({ req, params, token, deployment }) => {
     const input = ExecutePrepareSchema.parse(
       await req.json().catch(() => {

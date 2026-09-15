@@ -1,0 +1,509 @@
+{
+  "info": {
+    "name": "Paiflow API v1",
+    "description": "Execute a deployed swapper flow and poll its events. Fill in the collection variables `deploymentId`, `apiToken` (minted by the deployment's owner in the API access panel), `from` and `amount`.\n\nThe API never signs. Run **Prepare execute**, sign the `unsignedXdr` variable it stores with the `from` key on your side (`stellar tx sign --sign-with-key S… --network testnet`), paste the result into `signedXdr`, then run **Submit execute**. Guide: docs/api/README.md in the repository.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{apiToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://paiflow.xyz"
+    },
+    {
+      "key": "deploymentId",
+      "value": ""
+    },
+    {
+      "key": "apiToken",
+      "value": ""
+    },
+    {
+      "key": "from",
+      "value": ""
+    },
+    {
+      "key": "amount",
+      "value": "10000000"
+    },
+    {
+      "key": "unsignedXdr",
+      "value": ""
+    },
+    {
+      "key": "signedXdr",
+      "value": ""
+    },
+    {
+      "key": "txHash",
+      "value": ""
+    },
+    {
+      "key": "cursor",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "OpenAPI document",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/openapi.json",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "openapi.json"]
+        },
+        "description": "Public; no token. Returned as the bare document, without the `data` envelope. Rate limit: 60 requests per 60 seconds per client IP."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns the OpenAPI document', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().openapi).to.match(/^3\\.1/);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/openapi.json",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "openapi.json"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"openapi\": \"3.1.0\",\n  \"info\": {\n    \"title\": \"Paiflow API v1\"\n  },\n  \"…\": \"…\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Prepare execute",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Prepare the deposit that executes a swapper flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the swapper executes as the next pipeline step. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only swapper flows can be executed.\n\nRate limit: 30 requests per 60 seconds per token."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns an unsigned envelope', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const { data } = pm.response.json();",
+              "  pm.expect(data.xdr).to.be.a('string');",
+              "  pm.collectionVariables.set('unsignedXdr', data.xdr);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"xdr\": \"AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAAAAAAAAAAAABmxy2kAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB…(truncated)\",\n    \"networkPassphrase\": \"Test SDF Network ; September 2015\",\n    \"network\": \"testnet\",\n    \"expiresAt\": \"2026-09-15T09:03:00.000Z\"\n  }\n}"
+        },
+        {
+          "name": "401 Unauthorized",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Unauthorized",
+          "code": 401,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"A valid API token for this deployment is required\"\n  }\n}"
+        },
+        {
+          "name": "422 Validation",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Unprocessable Entity",
+          "code": 422,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"error\": {\n    \"code\": \"VALIDATION\",\n    \"message\": \"Invalid input\",\n    \"fields\": {\n      \"amount\": [\n        \"Must be a whole number of stroops\"\n      ]\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Submit execute",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Submit a signed deposit that executes a swapper flow.\n\nThe envelope must be the one `execute` returned, signed by `from`: anything but a single `deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a fee-bump envelope.\n\nIdempotent on the envelope hash: submitting the same `signedXdr` again never sends a second transaction, it reports the one already on the network. That is also how to check a `PENDING` result. A transaction that reached the network and failed is a `200` with `status: FAILED` and an `error`, not an HTTP error.\n\nRate limit: 30 requests per 60 seconds per token."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('reports the outcome', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const { data } = pm.response.json();",
+              "  pm.expect(['SUCCESS', 'PENDING', 'FAILED']).to.include(data.status);",
+              "  pm.collectionVariables.set('txHash', data.txHash);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "200 SUCCESS",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"status\": \"SUCCESS\",\n    \"ledger\": 1842917\n  }\n}"
+        },
+        {
+          "name": "200 PENDING",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"status\": \"PENDING\"\n  }\n}"
+        },
+        {
+          "name": "200 FAILED",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"status\": \"FAILED\",\n    \"ledger\": 1842917,\n    \"error\": {\n      \"code\": \"txTooLate\",\n      \"message\": \"The transaction's 180-second window expired before it reached the network. Prepare it again.\"\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "List events",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/events?limit=50",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "events"],
+          "query": [
+            {
+              "key": "limit",
+              "value": "50"
+            },
+            {
+              "key": "cursor",
+              "value": "{{cursor}}",
+              "disabled": true,
+              "description": "Enable once `cursor` holds a nextCursor (the test script sets it)."
+            },
+            {
+              "key": "txHash",
+              "value": "{{txHash}}",
+              "disabled": true,
+              "description": "Only events from this transaction."
+            }
+          ]
+        },
+        "description": "Forward-paginated events the app decoded for this deployment's contracts, ascending by `(ledger, eventId)`. This is the app's record, not a raw chain feed: each event appears once (`eventId` is unique), and it can trail the chain by about a minute, because events arrive from a one-minute poller (a confirmed `execute/submit` ingests its own events straight away).\n\nA swap is `kind: PAYOUT` with `topic: \"swap\"` and `data` `{ assetIn, assetOut, amountIn, amountOut }`; amounts are stroops as strings.\n\nTo poll: store `nextCursor` and pass it back as `cursor`. While `hasMore` is true, ask again straight away; once it is false, wait and ask again with the same cursor. `nextCursor` is never null once the deployment has events: on an empty page it echoes the cursor you sent. It is null only when there are no events and no cursor was sent.\n\nRate limit: 120 requests per 60 seconds per token."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns a page of events', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const { data } = pm.response.json();",
+              "  pm.expect(data.items).to.be.an('array');",
+              "  if (data.nextCursor) pm.collectionVariables.set('cursor', data.nextCursor);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/events?limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "events"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "cursor",
+                  "value": "{{cursor}}",
+                  "disabled": true,
+                  "description": "Enable once `cursor` holds a nextCursor (the test script sets it)."
+                },
+                {
+                  "key": "txHash",
+                  "value": "{{txHash}}",
+                  "disabled": true,
+                  "description": "Only events from this transaction."
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"items\": [\n      {\n        \"id\": \"0c9d7a3e-5b1f-4e2a-8d6c-7f4b3a2e1d0c\",\n        \"eventId\": \"0007915171594088448-0000000001\",\n        \"kind\": \"RECEIVE\",\n        \"topic\": \"deposit\",\n        \"ledger\": 1842917,\n        \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n        \"occurredAt\": \"2026-09-15T09:00:12.000Z\",\n        \"data\": {\n          \"from\": \"GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY\",\n          \"amount\": \"1000000000\"\n        }\n      },\n      {\n        \"id\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n        \"eventId\": \"0007915171594088448-0000000004\",\n        \"kind\": \"PAYOUT\",\n        \"topic\": \"swap\",\n        \"ledger\": 1842917,\n        \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n        \"occurredAt\": \"2026-09-15T09:00:12.000Z\",\n        \"data\": {\n          \"assetIn\": \"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC\",\n          \"assetOut\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n          \"amountIn\": \"1000000000\",\n          \"amountOut\": \"105594796\"\n        }\n      }\n    ],\n    \"nextCursor\": \"MTg0MjkxN3wwMDA3OTE1MTcxNTk0MDg4NDQ4LTAwMDAwMDAwMDQ\",\n    \"hasMore\": false\n  }\n}"
+        }
+      ]
+    }
+  ]
+}

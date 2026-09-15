@@ -4,6 +4,7 @@ import { audit, wasTxConfirmedFor } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { log } from "@/lib/log";
 import { v1Route } from "@/lib/api/v1/handler";
+import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
 import {
   assertDepositEnvelope,
   explainFailedTx,
@@ -39,7 +40,7 @@ async function viaRpc<T>(fn: () => Promise<T>): Promise<T> {
  * so resubmitting the same body is also how a caller checks a PENDING result.
  */
 export const POST = v1Route(
-  { rateLimit: { limit: 30, windowSeconds: 60 } },
+  { rateLimit: V1_RATE_LIMITS.executeSubmit },
   async ({ req, params, token, deployment }) => {
     const input = ExecuteSubmitSchema.parse(
       await req.json().catch(() => {
