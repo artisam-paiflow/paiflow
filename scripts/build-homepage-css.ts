@@ -41,7 +41,7 @@ async function build() {
     tailwindImport,
     `@import "tailwindcss" source(none);\n@source "./*.html";\n${FONTS}`,
   );
-  const result = await postcss([tailwind({ optimize: true })]).process(input, {
+  const result = await postcss([tailwind({ optimize: { minify: false } })]).process(input, {
     from: OUT,
     to: OUT,
   });
