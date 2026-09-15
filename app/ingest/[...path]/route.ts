@@ -9,7 +9,10 @@ import { clientIp } from "@/lib/rate-limit";
 const INGEST_ORIGIN = "https://us.i.posthog.com";
 const ASSETS_ORIGIN = "https://us-assets.i.posthog.com";
 
-const FORWARDED_REQUEST_HEADERS = ["content-type", "user-agent", "accept"];
+// origin and referer carry no credentials, and PostHog needs them: it checks the
+// project's recording_domains against Origin, and without it serves session replay
+// as disabled.
+const FORWARDED_REQUEST_HEADERS = ["content-type", "user-agent", "accept", "origin", "referer"];
 // fetch has already decoded the body, so the upstream encoding and length are wrong.
 const DROPPED_RESPONSE_HEADERS = ["set-cookie", "content-encoding", "content-length"];
 
