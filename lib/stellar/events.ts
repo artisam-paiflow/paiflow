@@ -988,6 +988,8 @@ async function pollEventsWithStartLedger(
       resp = await server.getEvents({ cursor: resp.cursor, filters, limit: EVENTS_PAGE_LIMIT });
     } catch (err) {
       log.warn({ err, deploymentId, contractAddress, scannedThrough }, "getEvents page failed");
+      // The pages already read are complete; keeping that progress lets a far-behind
+      // deployment still catch up (before retention drops its ledgers) on a flaky RPC.
       return { written, scannedThrough, ok: true };
     }
   }

@@ -579,6 +579,27 @@ describe("pollEventsFor: RPC scan windows", () => {
 
     await pollEventsFor("dep-1");
     // C456's scan stops at the page cap, so the shared cursor can't pass it.
-    expect(cursorWritten()!.lastLedger).toBeLessThan(90_000);
+    expect(cursorWritten()!.lastLedger).toBe(10_000);
+  });
+
+  it("keeps a contract's completed pages when a later page fails", async () => {
+    deployment(100_000, [
+      { nodeId: "pay", contractAddress: "C456", templateKind: TemplateKind.PAYER },
+    ]);
+    server(async (req) => {
+      if (req.filters[0]!.contractIds[0] !== "C456") {
+        return { events: [], cursor: cursorAt(150_000), latestLedger: 150_000 };
+      }
+      if (req.cursor) throw new Error("rpc timeout");
+      return { events: [], cursor: cursorAt(110_000), latestLedger: 150_000 };
+    });
+
+    await pollEventsFor("dep-1");
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ contractAddress: "C456", scannedThrough: 110_000 }),
+      "getEvents page failed",
+    );
+    // Ledgers past C456's last complete page are re-read next poll, so nothing is skipped.
+    expect(cursorWritten()).toEqual({ lastLedger: 110_000 });
   });
 });
