@@ -120,6 +120,7 @@ model User {
   addressBookEntries  AddressBookEntry[]
   passwordResetTokens PasswordResetToken[]
   devApiTokens        DevApiToken[]
+  deploymentApiTokens DeploymentApiToken[]
 }
 
 /// A per-developer API token that maps a machine caller to a Paiflow user.
@@ -138,6 +139,28 @@ model DevApiToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// A partner API token bound to exactly one deployment; the only credential
+/// `/api/v1` accepts (`lib/api/v1/auth.ts`). Only the SHA-256 hash is stored;
+/// the plaintext is shown once at creation. Revoked rows are kept, never
+/// deleted, so the audit trail keeps its subject.
+model DeploymentApiToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  deploymentId String    @db.Uuid
+  createdById  String?   @db.Uuid
+  tokenHash    String    @unique
+  tokenPrefix  String
+  label        String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+
+  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  createdBy  User?      @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([deploymentId])
 }
 
 model PasswordResetToken {
@@ -271,6 +294,7 @@ model Deployment {
   offRampPayoutJobs OffRampPayoutJob[]
   offRampSenderProfile OffRampSenderProfile?
   cashOutJobFailures CashOutJobFailure[]
+  apiTokens DeploymentApiToken[]
 
   @@unique([ownerId, idempotencyKey])
   @@index([ownerId, createdAt(sort: Desc)])
@@ -482,6 +506,7 @@ model ContractEvent {
   cashOutJobFailure CashOutJobFailure?
 
   @@index([deploymentId, occurredAt(sort: Desc)])
+  @@index([deploymentId, ledger, eventId])
 }
 
 model EmailNotification {

@@ -28,8 +28,8 @@ The repo ships both desktop and mobile screenshots in [`screenshots/`](./screens
 - **Mobile gallery:** [`screenshots/*-mobile.png`](./screenshots/)
 
 Nine flows, desktop and mobile: login, register, dashboard, builder, account, deploy review, admin
-overview, and submission proof. (`01-landing` captures `/`, which redirects to the dashboard — there
-is no separate landing page.)
+overview, and submission proof. The marketing homepage is not part of the app; it lives in
+[`homepage/`](./homepage/).
 
 ---
 
@@ -349,6 +349,7 @@ tests/
   e2e/              Playwright specs
 screenshots/     Generated UI screenshots (committed)
 docs/            Architecture, runbooks, design records, archive/
+homepage/        Static marketing site (index, about, privacy, terms); its own Railway service
 ```
 
 ### Branching & CI
@@ -390,6 +391,12 @@ Configured for **Railway** (`railway.toml`, `nixpacks.toml`):
 - `pnpm build` produces the standalone Next.js bundle.
 - `pnpm start` runs `prisma migrate deploy` before booting `next start`.
 - File storage swaps from MinIO to a Railway Volume via `FILE_STORAGE_DRIVER`.
+- The homepage is a separate Railway service serving `homepage/` as static files at
+  `beta.app.paiflow.xyz`: root directory `/homepage`, config file path `/homepage/railway.json`
+  (absolute: Railway does not resolve it from the root directory), watch paths `homepage/**`, no
+  variables. The app redirects `/about`, `/privacy` and `/terms` there (`next.config.ts`). After
+  editing its HTML, run `pnpm homepage:css` to regenerate `homepage/styles.css` from the app's brand
+  tokens.
 - Stellar network pinned per environment via `STELLAR_NETWORK` (staging → `testnet`, production → `mainnet`). See [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md) for the cutover runbook.
 
 ### Further reading
@@ -403,6 +410,7 @@ Configured for **Railway** (`railway.toml`, `nixpacks.toml`):
 | [`docs/soroban-smart-contracts.md`](./docs/soroban-smart-contracts.md) | Contract surface, build/upload pipeline, how to add a contract                                     |
 | [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md)                 | Mainnet go-live runbook                                                                            |
 | [`docs/pdax-institution-api.md`](./docs/pdax-institution-api.md)       | Fiat off-ramp API + UAT constraints                                                                |
+| [`docs/api/`](./docs/api/README.md)                                    | Developer API (`/api/v1`): guide with curl examples, OpenAPI spec, Postman collection              |
 | [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md)   | Approved Instawards Phase 1 Statement of Work (verbatim) — deliverables, evidence, success metrics |
 | [`docs/design/`](./docs/design/)                                       | Design records — why a decision was made; see its README for the convention                        |
 | [`docs/archive/`](./docs/archive/)                                     | Superseded / out-of-scope documents — historical record only                                       |

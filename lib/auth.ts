@@ -1,5 +1,4 @@
 import "server-only";
-import crypto from "crypto";
 import type { NextRequest } from "next/server";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
@@ -10,6 +9,7 @@ import { env } from "./env";
 import { log } from "./log";
 import { audit } from "./audit";
 import { AppError } from "./errors";
+import { hashApiToken } from "./auth/api-token";
 import { Role } from "@prisma/client";
 import { authConfig as edgeConfig } from "@/auth.config";
 
@@ -203,7 +203,7 @@ export async function requireDevApiToken(req: NextRequest): Promise<SessionUser>
     null;
 
   if (raw) {
-    const tokenHash = crypto.createHash("sha256").update(raw).digest("hex");
+    const tokenHash = hashApiToken(raw);
     const token = await db.devApiToken.findUnique({
       where: { tokenHash },
       include: { user: true },

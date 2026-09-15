@@ -245,7 +245,9 @@ export async function prepareTokenTransferInvocation(opts: {
 }
 
 export async function prepareDepositInvocation(opts: {
-  hint?: SorobanErrorHint;
+  /** A function is called only once simulation has failed, so a hint that
+   * costs RPC calls to build is never paid on the success path (#436). */
+  hint?: SorobanErrorHint | (() => Promise<SorobanErrorHint>);
   contractAddress: string;
   amount: string;
   invokerAddress: string;
@@ -278,7 +280,8 @@ export async function prepareDepositInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
-    throw simulationFailure(sim.error, opts.hint);
+    const hint = typeof opts.hint === "function" ? await opts.hint() : opts.hint;
+    throw simulationFailure(sim.error, hint);
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 

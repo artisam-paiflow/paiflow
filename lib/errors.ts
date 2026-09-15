@@ -13,7 +13,8 @@ export type AppErrorCode =
   | "INSUFFICIENT_FUNDS"
   | "INTERNAL";
 
-const STATUS: Record<AppErrorCode, number> = {
+/** The one place a code maps to an HTTP status; the OpenAPI document reads it too. */
+export const APP_ERROR_STATUS: Record<AppErrorCode, number> = {
   UNAUTHENTICATED: 401,
   FORBIDDEN: 403,
   NOT_FOUND: 404,
@@ -42,7 +43,7 @@ export class AppError extends Error {
     super(message);
     this.code = code;
     this.fields = fields;
-    this.status = STATUS[code];
+    this.status = APP_ERROR_STATUS[code];
     this.details = details;
   }
 }

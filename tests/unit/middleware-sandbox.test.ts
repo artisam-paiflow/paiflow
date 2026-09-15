@@ -11,9 +11,6 @@ const FLOW = "33333333-3333-3333-3333-333333333333";
 
 const ALLOWED = [
   "/",
-  "/about",
-  "/privacy",
-  "/terms",
   "/dashboard",
   `/flows/${FLOW}`,
   `/flows/${FLOW}/deploy`,
@@ -85,6 +82,12 @@ const BLOCKED = [
   "/api/deployments/dev-payroll",
   "/api/cron/poll-events",
   "/api/webhooks/offramp",
+  // Minting and revoking partner API tokens, and the partner API itself.
+  `/api/deployments/${DEPLOYMENT}/api-tokens`,
+  `/api/deployments/${DEPLOYMENT}/api-tokens/${FLOW}`,
+  "/api/v1",
+  `/api/v1/deployments/${DEPLOYMENT}/execute`,
+  `/api/v1/deployments/${DEPLOYMENT}/events`,
   // File upload and storage.
   "/api/files",
   `/api/files/${DEPLOYMENT}`,
