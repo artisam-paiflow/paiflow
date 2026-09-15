@@ -76,6 +76,7 @@
     "next": "^15.5.25",
     "next-auth": "5.0.0-beta.32",
     "pino": "^9.5.0",
+    "posthog-js": "^1.433.4",
     "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",

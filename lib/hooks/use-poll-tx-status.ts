@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { track } from "@/lib/analytics/client";
 
 export type TxPollResult = { status: string; errorMessage?: string };
 
@@ -19,13 +20,27 @@ export function usePollTxStatus(): (
           reject(new Error("Polling aborted"));
           return;
         }
+        // Each rejection below leaves the transaction's fate unknown, not failed:
+        // it may still confirm. Analytics joins these on tx_hash against the
+        // server's trigger_confirmed to measure how often the UI cries wolf.
         if (Date.now() > deadline) {
+          track("trigger_status_poll_failed", {
+            deployment_id: deploymentId,
+            tx_hash: txHash,
+            reason: "timeout",
+          });
           reject(new Error("Timed out waiting for finality"));
           return;
         }
         try {
           const res = await fetch(`/api/deployments/${deploymentId}/tx-status?txHash=${txHash}`);
           if (!res.ok) {
+            track("trigger_status_poll_failed", {
+              deployment_id: deploymentId,
+              tx_hash: txHash,
+              reason: "http_error",
+              http_status: res.status,
+            });
             reject(new Error("Failed to check transaction status"));
             return;
           }
@@ -42,6 +57,11 @@ export function usePollTxStatus(): (
           }
           setTimeout(check, interval);
         } catch {
+          track("trigger_status_poll_failed", {
+            deployment_id: deploymentId,
+            tx_hash: txHash,
+            reason: "network",
+          });
           reject(new Error("Network error while polling status"));
         }
       };

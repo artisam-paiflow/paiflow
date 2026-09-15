@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
 import { apiError } from "@/lib/friendly-error";
+import { track } from "@/lib/analytics/client";
 
 type Passkey = {
   id: string;
@@ -37,6 +38,7 @@ export default function PasskeyManager() {
   }, []);
 
   async function addPasskey() {
+    track("off_script_feature_used", { feature: "passkey_add" });
     setBusy(true);
     try {
       const { startRegistration } = await import("@simplewebauthn/browser");

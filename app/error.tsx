@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { analyticsClient } from "@/lib/analytics/client";
 
 export default function GlobalError({
   error,
@@ -12,6 +13,8 @@ export default function GlobalError({
   useEffect(() => {
     // eslint-disable-next-line no-console
     console.error(error);
+    // Error boundaries swallow what PostHog's global handlers would see.
+    analyticsClient()?.captureException(error, { digest: error.digest });
   }, [error]);
   return (
     <main className="px-margin mx-auto flex min-h-screen max-w-md flex-col items-center justify-center text-center">

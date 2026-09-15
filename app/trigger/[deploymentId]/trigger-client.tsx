@@ -5,6 +5,7 @@ import Link from "next/link";
 import { TriggerButton } from "@/components/deploy/trigger-button";
 import { tokenAmountToStroops } from "@/lib/flows/schema";
 import type { FlowGraph } from "@/lib/flows/schema";
+import { track } from "@/lib/analytics/client";
 
 export default function TriggerClient({
   deploymentId,
@@ -25,6 +26,10 @@ export default function TriggerClient({
 }) {
   const [amount, setAmount] = useState("");
   const [amountSet, setAmountSet] = useState(false);
+
+  useEffect(() => {
+    track("trigger_page_viewed", { deployment_id: deploymentId });
+  }, [deploymentId]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
