@@ -287,7 +287,7 @@ as a Soroban simulation diagnostic.
 
 | `code`               | HTTP | When                                                                                                                              |
 | -------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `UNAUTHENTICATED`    | 401  | Token missing, unknown, revoked, expired, or for another deployment                                                               |
+| `UNAUTHENTICATED`    | 401  | Token missing, unknown, revoked, expired, or for another deployment (token management: no signed-in session)                      |
 | `INSUFFICIENT_FUNDS` | 402  | The `from` account doesn't exist on this network (prepare)                                                                        |
 | `FORBIDDEN`          | 403  | Not allowed for this caller (sandbox)                                                                                             |
 | `NOT_FOUND`          | 404  | A malformed deployment id, or (execute) a deployment that isn't confirmed                                                         |

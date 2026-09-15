@@ -133,6 +133,9 @@ export const examples = {
       message: "A valid API token for this deployment is required",
     },
   },
+  sessionError401: {
+    error: { code: "UNAUTHENTICATED", message: "Authentication required" },
+  },
   error422: {
     error: {
       code: "VALIDATION",
@@ -173,20 +176,37 @@ const ERROR_DESCRIPTIONS: Record<ErrorCode, string> = {
   UPSTREAM_RPC: "The Soroban RPC request failed or the network was busy; retry.",
 };
 
-const errors = (...codes: ErrorCode[]) =>
-  Object.fromEntries(
-    codes.map((code) => [
-      String(ERROR_STATUS[code]),
-      errorResponse(
-        `\`${code}\`: ${ERROR_DESCRIPTIONS[code]}`,
-        code === "UNAUTHENTICATED"
-          ? examples.error401
-          : code === "VALIDATION"
-            ? examples.error422
-            : undefined,
-      ),
-    ]),
-  );
+// The token-management routes are guarded by `requireTokenManager` (a signed-in session), not
+// `requireDeploymentToken`, so their errors mean different things than the token API's.
+const SESSION_ERROR_DESCRIPTIONS: Record<ErrorCode, string> = {
+  ...ERROR_DESCRIPTIONS,
+  UNAUTHENTICATED: "No valid signed-in session.",
+  FORBIDDEN: "A sandbox session.",
+  NOT_FOUND:
+    "Malformed id, or a deployment you do not own (its existence is not disclosed). On revoke, also a token that is not on this deployment.",
+  CONFLICT: "The deployment already has 10 active tokens.",
+  VALIDATION:
+    "The body failed validation (`fields` names each problem), or the deployment is not `CONFIRMED`.",
+};
+
+const errorsWith =
+  (descriptions: Record<ErrorCode, string>, codeExamples: Partial<Record<ErrorCode, unknown>>) =>
+  (...codes: ErrorCode[]) =>
+    Object.fromEntries(
+      codes.map((code) => [
+        String(ERROR_STATUS[code]),
+        errorResponse(`\`${code}\`: ${descriptions[code]}`, codeExamples[code]),
+      ]),
+    );
+
+const errors = errorsWith(ERROR_DESCRIPTIONS, {
+  UNAUTHENTICATED: examples.error401,
+  VALIDATION: examples.error422,
+});
+
+const sessionErrors = errorsWith(SESSION_ERROR_DESCRIPTIONS, {
+  UNAUTHENTICATED: examples.sessionError401,
+});
 
 const deploymentIdParam = {
   name: "id",
@@ -448,7 +468,7 @@ export const openApiDocument = {
               examples.tokenListResponse,
             ),
           },
-          ...errors("UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "RATE_LIMITED"),
+          ...sessionErrors("UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "RATE_LIMITED"),
         },
       },
       post: {
@@ -473,7 +493,7 @@ export const openApiDocument = {
               examples.createTokenResponse,
             ),
           },
-          ...errors(
+          ...sessionErrors(
             "UNAUTHENTICATED",
             "FORBIDDEN",
             "NOT_FOUND",
@@ -505,7 +525,7 @@ export const openApiDocument = {
             description: "The revoked token.",
             content: json(dataEnvelope("#/components/schemas/ApiToken")),
           },
-          ...errors("UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "RATE_LIMITED"),
+          ...sessionErrors("UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "RATE_LIMITED"),
         },
       },
     },

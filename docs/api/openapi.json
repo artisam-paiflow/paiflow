@@ -596,7 +596,7 @@
             }
           },
           "401": {
-            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "description": "`UNAUTHENTICATED`: No valid signed-in session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -605,14 +605,14 @@
                 "example": {
                   "error": {
                     "code": "UNAUTHENTICATED",
-                    "message": "A valid API token for this deployment is required"
+                    "message": "Authentication required"
                   }
                 }
               }
             }
           },
           "403": {
-            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "description": "`FORBIDDEN`: A sandbox session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -622,7 +622,7 @@
             }
           },
           "404": {
-            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "description": "`NOT_FOUND`: Malformed id, or a deployment you do not own (its existence is not disclosed). On revoke, also a token that is not on this deployment.",
             "content": {
               "application/json": {
                 "schema": {
@@ -710,7 +710,7 @@
             }
           },
           "401": {
-            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "description": "`UNAUTHENTICATED`: No valid signed-in session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -719,14 +719,14 @@
                 "example": {
                   "error": {
                     "code": "UNAUTHENTICATED",
-                    "message": "A valid API token for this deployment is required"
+                    "message": "Authentication required"
                   }
                 }
               }
             }
           },
           "403": {
-            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "description": "`FORBIDDEN`: A sandbox session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -736,7 +736,7 @@
             }
           },
           "404": {
-            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "description": "`NOT_FOUND`: Malformed id, or a deployment you do not own (its existence is not disclosed). On revoke, also a token that is not on this deployment.",
             "content": {
               "application/json": {
                 "schema": {
@@ -746,7 +746,7 @@
             }
           },
           "409": {
-            "description": "`CONFLICT`: The request conflicts with current state.",
+            "description": "`CONFLICT`: The deployment already has 10 active tokens.",
             "content": {
               "application/json": {
                 "schema": {
@@ -756,20 +756,11 @@
             }
           },
           "422": {
-            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "description": "`VALIDATION`: The body failed validation (`fields` names each problem), or the deployment is not `CONFIRMED`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                },
-                "example": {
-                  "error": {
-                    "code": "VALIDATION",
-                    "message": "Invalid input",
-                    "fields": {
-                      "amount": ["Must be a whole number of stroops"]
-                    }
-                  }
                 }
               }
             }
@@ -838,7 +829,7 @@
             }
           },
           "401": {
-            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "description": "`UNAUTHENTICATED`: No valid signed-in session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -847,14 +838,14 @@
                 "example": {
                   "error": {
                     "code": "UNAUTHENTICATED",
-                    "message": "A valid API token for this deployment is required"
+                    "message": "Authentication required"
                   }
                 }
               }
             }
           },
           "403": {
-            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "description": "`FORBIDDEN`: A sandbox session.",
             "content": {
               "application/json": {
                 "schema": {
@@ -864,7 +855,7 @@
             }
           },
           "404": {
-            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "description": "`NOT_FOUND`: Malformed id, or a deployment you do not own (its existence is not disclosed). On revoke, also a token that is not on this deployment.",
             "content": {
               "application/json": {
                 "schema": {

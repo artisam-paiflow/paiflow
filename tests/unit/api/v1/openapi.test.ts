@@ -79,6 +79,22 @@ describe("OpenAPI document", () => {
     expect({ ...ERROR_STATUS }).toEqual(APP_ERROR_STATUS);
   });
 
+  it("gives session routes a session 401 and token routes a token 401", () => {
+    const operations = Object.values(paths).flatMap((ops) => Object.values(ops)) as Array<{
+      security: Array<Record<string, unknown>>;
+      responses: Record<string, { content?: { "application/json": { example?: unknown } } }>;
+    }>;
+    const authed = operations.filter((op) => op.responses["401"]);
+    expect(authed.length).toBeGreaterThan(0);
+    for (const op of authed) {
+      const example = op.responses["401"]!.content?.["application/json"].example;
+      const scheme = Object.keys(op.security[0] ?? {})[0];
+      expect(example).toEqual(
+        scheme === "cookieAuth" ? examples.sessionError401 : examples.error401,
+      );
+    }
+  });
+
   it("resolves every $ref", () => {
     const refs = JSON.stringify(openApiDocument).match(/"#\/components\/schemas\/\w+"/g) ?? [];
     const schemas = openApiDocument.components.schemas as Record<string, unknown>;
