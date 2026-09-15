@@ -28,8 +28,8 @@ The repo ships both desktop and mobile screenshots in [`screenshots/`](./screens
 - **Mobile gallery:** [`screenshots/*-mobile.png`](./screenshots/)
 
 Nine flows, desktop and mobile: login, register, dashboard, builder, account, deploy review, admin
-overview, and submission proof. (`01-landing` captures `/`, which redirects to the dashboard — there
-is no separate landing page.)
+overview, and submission proof. The marketing homepage is not part of the app; it lives in
+[`homepage/`](./homepage/).
 
 ---
 
@@ -349,6 +349,7 @@ tests/
   e2e/              Playwright specs
 screenshots/     Generated UI screenshots (committed)
 docs/            Architecture, runbooks, design records, archive/
+homepage/        Static marketing site (index, about, privacy, terms); its own Railway service
 ```
 
 ### Branching & CI
@@ -390,6 +391,10 @@ Configured for **Railway** (`railway.toml`, `nixpacks.toml`):
 - `pnpm build` produces the standalone Next.js bundle.
 - `pnpm start` runs `prisma migrate deploy` before booting `next start`.
 - File storage swaps from MinIO to a Railway Volume via `FILE_STORAGE_DRIVER`.
+- The homepage is a separate Railway service serving `homepage/` as static files at
+  `beta.app.paiflow.xyz`: root directory `/homepage`, watch paths `homepage/**`, no variables. The
+  app redirects `/about`, `/privacy` and `/terms` there (`next.config.ts`). After editing its HTML,
+  run `pnpm homepage:css` to regenerate `homepage/styles.css` from the app's brand tokens.
 - Stellar network pinned per environment via `STELLAR_NETWORK` (staging → `testnet`, production → `mainnet`). See [`docs/mainnet-cutover.md`](./docs/mainnet-cutover.md) for the cutover runbook.
 
 ### Further reading
