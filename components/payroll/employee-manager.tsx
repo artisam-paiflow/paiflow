@@ -193,7 +193,12 @@ export default function EmployeeManager({
         onWalletSelected: async (wallet: { id: string; name: string }) => {
           kit.setWallet(wallet.id);
           const { address } = await kit.getAddress();
-          void trackWalletConnection({ address, network: "testnet", walletId: wallet.id });
+          void trackWalletConnection({
+            address,
+            network: "testnet",
+            walletId: wallet.id,
+            surface: "payroll",
+          });
           const { signedTxXdr } = await kit.signTransaction(data.unsignedXdr, {
             address,
             networkPassphrase: data.networkPassphrase,

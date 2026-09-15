@@ -121,5 +121,10 @@ export default auth(
 );
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)).*)"],
+  // `ingest` is the PostHog proxy (next.config.ts rewrites). It carries no app
+  // data and has to work for logged-out and sandbox visitors alike, so it skips
+  // the session and sandbox checks rather than being listed in both allowlists.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|ingest/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)).*)",
+  ],
 };

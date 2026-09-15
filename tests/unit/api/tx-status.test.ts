@@ -12,11 +12,15 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockRpc, mockDb, mockEnforceRateLimit } = vi.hoisted(() => ({
+const { mockRpc, mockDb, mockEnforceRateLimit, mockRedis, mockCapture } = vi.hoisted(() => ({
   mockRpc: { getTransaction: vi.fn() },
   mockDb: { deployment: { findUnique: vi.fn() } },
   mockEnforceRateLimit: vi.fn(async (_opts: { key: string }) => undefined),
+  mockRedis: { set: vi.fn() },
+  mockCapture: vi.fn(async () => undefined),
 }));
+vi.mock("@/lib/redis", () => ({ redis: () => mockRedis }));
+vi.mock("@/lib/analytics/server", () => ({ captureServer: mockCapture }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/stellar/client", () => ({ sorobanRpc: () => mockRpc }));
 vi.mock("@/lib/rate-limit", () => ({
@@ -56,6 +60,14 @@ describe("GET /api/deployments/[id]/tx-status", () => {
     mockDb.deployment.findUnique.mockResolvedValue({ graphSnapshot: null });
     vi.mocked(wasTxSubmittedFor).mockReset();
     vi.mocked(wasTxSubmittedFor).mockResolvedValue(true);
+    mockCapture.mockClear();
+    const claimed = new Set<string>();
+    mockRedis.set.mockReset();
+    mockRedis.set.mockImplementation(async (key: string) => {
+      if (claimed.has(key)) return null;
+      claimed.add(key);
+      return "OK";
+    });
   });
 
   it("ingests the deployment's events once the transaction succeeds", async () => {
@@ -199,5 +211,25 @@ describe("GET /api/deployments/[id]/tx-status", () => {
     expect(firstKey).not.toContain(DEPLOYMENT_ID);
     expect(firstKey).toBe("tx-status:ip:127.0.0.1");
     expect(mockEnforceRateLimit.mock.calls[1]![0].key).toContain(DEPLOYMENT_ID);
+  });
+
+  it.each([
+    ["SUCCESS", "trigger_confirmed"],
+    ["FAILED", "trigger_failed_onchain"],
+  ])("captures a %s outcome once across repeated polls", async (status, event) => {
+    mockRpc.getTransaction.mockResolvedValue({ status, ledger: 4598539 });
+    mockDb.deployment.findUnique.mockResolvedValue({
+      ownerId: "owner-1",
+      pipelineSnapshot: [],
+      graphSnapshot: null,
+    });
+    for (let i = 0; i < 3; i++) {
+      const res = await call();
+      expect((await res.json()).data.status).toBe(status);
+    }
+    await vi.waitFor(() => expect(mockRedis.set).toHaveBeenCalledTimes(3));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mockCapture).toHaveBeenCalledTimes(1);
+    expect(mockCapture).toHaveBeenCalledWith("owner-1", event, expect.anything());
   });
 });

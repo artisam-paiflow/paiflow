@@ -67,7 +67,12 @@ export default function ContractCallButton({
 
             const { address } = await kit.getAddress();
             toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
-            void trackWalletConnection({ address, network, walletId: wallet.id });
+            void trackWalletConnection({
+              address,
+              network,
+              walletId: wallet.id,
+              surface: "contract_call",
+            });
 
             toast.info("Preparing transaction...");
             const { xdr, networkPassphrase } = await prepare(address);

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { nativeToScVal, xdr } from "@stellar/stellar-sdk";
-import { pollEventsFor } from "@/lib/stellar/events";
+import { EVENTS_PAGE_LIMIT, MAX_EVENT_PAGES_PER_POLL, pollEventsFor } from "@/lib/stellar/events";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
@@ -410,5 +410,196 @@ describe("pollEventsFor", () => {
         },
       }),
     });
+  });
+});
+
+describe("pollEventsFor: RPC scan windows", () => {
+  type Req = { startLedger?: number; cursor?: string; filters: { contractIds: string[] }[] };
+
+  /** A getEvents cursor pointing into `ledger`, in the RPC's TOID-eventIndex shape. */
+  const cursorAt = (ledger: number, index = 4294967295) =>
+    `${(BigInt(ledger) << 32n).toString().padStart(19, "0")}-${String(index).padStart(10, "0")}`;
+
+  const payout = (ledger: number, n = 0) =>
+    makeMockEvent({
+      topic: ["payout"],
+      value: [{ address: ADDR_A, bps: 10000, amount: "100" }],
+      ledger,
+      txHash: `tx-${ledger}-${n}`,
+      ledgerClosedAt: "2026-09-15T00:00:00Z",
+    });
+
+  function deployment(lastLedger: number, pipeline: unknown[] = []) {
+    vi.mocked(db.deployment.findUnique).mockResolvedValue({
+      id: "dep-1",
+      contractAddress: "C123",
+      status: "CONFIRMED",
+      cursor: { lastLedger },
+      deployTxHash: "dtx1",
+      pipelineSnapshot: pipeline,
+      flow: { templateKind: TemplateKind.SPLITTER },
+    } as unknown as Prisma.PromiseReturnType<typeof db.deployment.findUnique>);
+  }
+
+  function server(
+    getEvents: (req: Req) => Promise<unknown>,
+    oldestLedger = 1,
+    latestLedger = 10_000_000,
+  ) {
+    const spy = vi.fn(getEvents);
+    vi.mocked(sorobanRpc).mockReturnValue({
+      getEvents: spy,
+      getHealth: async () => ({ oldestLedger, latestLedger }),
+    } as unknown as ReturnType<typeof sorobanRpc>);
+    return spy;
+  }
+
+  const cursorWritten = () => vi.mocked(db.eventCursor.upsert).mock.calls.at(-1)?.[0].update;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("follows the cursor across empty windows and ingests an event past the first one", async () => {
+    deployment(100_000);
+    const spy = server(async (req) => {
+      const from = req.startLedger ?? Number(BigInt(req.cursor!.split("-")[0]!) >> 32n) + 1;
+      const end = from + 9_999;
+      if (end < 125_000) return { events: [], cursor: cursorAt(end), latestLedger: 125_000 };
+      return { events: [payout(124_000)], cursor: cursorAt(125_000), latestLedger: 125_000 };
+    });
+
+    expect(await pollEventsFor("dep-1")).toBe(1);
+    expect(spy.mock.calls[0]![0]).toMatchObject({ startLedger: 100_001 });
+    expect(spy.mock.calls[1]![0]).toMatchObject({ cursor: cursorAt(110_000) });
+    expect(spy.mock.calls[1]![0].startLedger).toBeUndefined();
+    expect(cursorWritten()).toEqual({ lastLedger: 125_000 });
+  });
+
+  it("advances the cursor to the tip when the window holds no events", async () => {
+    deployment(100_000);
+    server(async () => ({ events: [], cursor: cursorAt(104_000), latestLedger: 104_000 }));
+
+    expect(await pollEventsFor("dep-1")).toBe(0);
+    expect(cursorWritten()).toEqual({ lastLedger: 104_000 });
+  });
+
+  it("stops at the page cap and persists how far it read, so the next poll resumes there", async () => {
+    deployment(0);
+    const spy = server(async (req) => {
+      const from = req.startLedger ?? Number(BigInt(req.cursor!.split("-")[0]!) >> 32n) + 1;
+      return { events: [], cursor: cursorAt(from + 9_999), latestLedger: 190_000 };
+    });
+
+    await pollEventsFor("dep-1");
+    expect(spy).toHaveBeenCalledTimes(MAX_EVENT_PAGES_PER_POLL);
+    expect(cursorWritten()).toEqual({ lastLedger: MAX_EVENT_PAGES_PER_POLL * 10_000 });
+  });
+
+  it("keeps reading after a full page, and never marks a partly-read ledger complete", async () => {
+    deployment(0);
+    const full = Array.from({ length: EVENTS_PAGE_LIMIT }, (_, i) => payout(700, i));
+    const spy = server(async (req) =>
+      req.cursor
+        ? { events: [payout(700, 999)], cursor: cursorAt(800), latestLedger: 800 }
+        : { events: full, cursor: cursorAt(700, 99), latestLedger: 800 },
+    );
+
+    expect(await pollEventsFor("dep-1")).toBe(EVENTS_PAGE_LIMIT + 1);
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(cursorWritten()).toEqual({ lastLedger: 800 });
+  });
+
+  it("persists the ledger before a full page cut off by the page cap", async () => {
+    deployment(0);
+    let n = 0;
+    server(async () => ({
+      events: Array.from({ length: EVENTS_PAGE_LIMIT }, () => payout(700, n++)),
+      cursor: cursorAt(700, n),
+      latestLedger: 800,
+    }));
+
+    await pollEventsFor("dep-1");
+    expect(cursorWritten()).toEqual({ lastLedger: 699 });
+  });
+
+  it("resumes from the oldest retained ledger when the cursor has fallen out of retention", async () => {
+    deployment(4_581_448);
+    const spy = server(async (req) => {
+      if (req.startLedger === 4_581_449)
+        throw new Error("startLedger must be between the oldest ledger");
+      return { events: [payout(4_687_411)], cursor: cursorAt(4_687_500), latestLedger: 4_687_500 };
+    }, 4_600_000);
+
+    expect(await pollEventsFor("dep-1")).toBe(1);
+    expect(spy.mock.calls[1]![0]).toMatchObject({ startLedger: 4_600_000 });
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ startLedger: 4_581_449, oldestLedger: 4_600_000 }),
+      expect.stringContaining("past RPC retention"),
+    );
+    expect(cursorWritten()).toEqual({ lastLedger: 4_687_500 });
+  });
+
+  it("treats a start ledger past the tip as caught up, without a warning", async () => {
+    deployment(4_688_737);
+    const spy = server(
+      async () => {
+        throw new Error("startLedger must be within the ledger range: 4567778 - 4688737");
+      },
+      4_567_778,
+      4_688_737,
+    );
+
+    expect(await pollEventsFor("dep-1")).toBe(0);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(log.warn).not.toHaveBeenCalled();
+    expect(db.eventCursor.upsert).not.toHaveBeenCalled();
+  });
+
+  it("does not advance the cursor when one of the pipeline's contracts fails to scan", async () => {
+    deployment(100_000, [
+      { nodeId: "pay", contractAddress: "C456", templateKind: TemplateKind.PAYER },
+    ]);
+    server(async (req) => {
+      if (req.filters[0]!.contractIds[0] === "C456") throw new Error("rpc down");
+      return { events: [payout(100_500)], cursor: cursorAt(101_000), latestLedger: 101_000 };
+    });
+
+    expect(await pollEventsFor("dep-1")).toBe(1);
+    expect(db.eventCursor.upsert).not.toHaveBeenCalled();
+  });
+
+  it("moves the cursor only as far as the least-advanced contract", async () => {
+    deployment(0, [{ nodeId: "pay", contractAddress: "C456", templateKind: TemplateKind.PAYER }]);
+    server(async (req) =>
+      req.filters[0]!.contractIds[0] === "C456"
+        ? { events: [], cursor: cursorAt(10_000), latestLedger: 90_000 }
+        : { events: [], cursor: cursorAt(90_000), latestLedger: 90_000 },
+    );
+
+    await pollEventsFor("dep-1");
+    // C456's scan stops at the page cap, so the shared cursor can't pass it.
+    expect(cursorWritten()!.lastLedger).toBe(10_000);
+  });
+
+  it("keeps a contract's completed pages when a later page fails", async () => {
+    deployment(100_000, [
+      { nodeId: "pay", contractAddress: "C456", templateKind: TemplateKind.PAYER },
+    ]);
+    server(async (req) => {
+      if (req.filters[0]!.contractIds[0] !== "C456") {
+        return { events: [], cursor: cursorAt(150_000), latestLedger: 150_000 };
+      }
+      if (req.cursor) throw new Error("rpc timeout");
+      return { events: [], cursor: cursorAt(110_000), latestLedger: 150_000 };
+    });
+
+    await pollEventsFor("dep-1");
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ contractAddress: "C456", scannedThrough: 110_000 }),
+      "getEvents page failed",
+    );
+    // Ledgers past C456's last complete page are re-read next poll, so nothing is skipped.
+    expect(cursorWritten()).toEqual({ lastLedger: 110_000 });
   });
 });

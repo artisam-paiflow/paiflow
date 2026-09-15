@@ -8,6 +8,8 @@ import { SignClient } from "@walletconnect/sign-client";
 import { usePollTxStatus } from "@/lib/hooks/use-poll-tx-status";
 import { apiError } from "@/lib/friendly-error";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
+import { track } from "@/lib/analytics/client";
+import { classifyError } from "@/lib/analytics/classify-error";
 import { WALLET_CONNECT_UNCONFIGURED, walletConnectProjectId } from "./wallet-connect-config";
 
 type TriggerButtonProps = {
@@ -41,6 +43,24 @@ export function TriggerButton({
   const [showOpenWallet, setShowOpenWallet] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const selectedWalletRef = useRef<string | null>(null);
+  // Where the current attempt got to, so a failure is reported with its stage.
+  const attemptRef = useRef<{
+    stage: "wallet" | "prepare" | "sign" | "submit" | "onchain" | "status_poll";
+    startedAt: number;
+    txHash?: string;
+  }>({ stage: "wallet", startedAt: 0 });
+
+  function trackTriggerFailure(err: unknown) {
+    const { stage, txHash } = attemptRef.current;
+    const c = classifyError(err);
+    track("trigger_failed", {
+      deployment_id: deploymentId,
+      stage,
+      error_class: c.errorClass,
+      error_code: c.errorCode,
+      ...(txHash ? { tx_hash: txHash } : {}),
+    });
+  }
   const pollTxStatus = usePollTxStatus();
   // Pre-warm WalletConnect init on page load so the user doesn't wait
   // when tapping a wallet in the mobile picker.
@@ -234,10 +254,11 @@ export function TriggerButton({
 
           const { address } = await kit.getAddress();
           toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
-          void trackWalletConnection({ address, network, walletId: wallet.id });
+          void trackWalletConnection({ address, network, walletId: wallet.id, surface: "trigger" });
 
           await submitTrigger(address, kit);
         } catch (err) {
+          trackTriggerFailure(err);
           toastError(err, "Connection failed");
         } finally {
           setBusy(false);
@@ -262,6 +283,7 @@ export function TriggerButton({
     },
     onAwaitingSignature?: () => void,
   ) {
+    attemptRef.current.stage = "prepare";
     toast.info("Preparing transaction...");
     const preparePath =
       mode === "allowance"
@@ -293,12 +315,14 @@ export function TriggerButton({
     }
 
     onAwaitingSignature?.();
+    attemptRef.current.stage = "sign";
     toast.info("Awaiting signature...");
     const signed = await kit.signTransaction(xdr, {
       address,
       networkPassphrase: data.data.networkPassphrase,
     });
 
+    attemptRef.current.stage = "submit";
     toast.info("Submitting transaction...");
     const submit = await fetch(submitPath, {
       method: "POST",
@@ -309,16 +333,24 @@ export function TriggerButton({
     if (!submit.ok) throw apiError(subData, "Submit failed");
 
     const txHash = subData.data.txHash as string;
+    attemptRef.current.txHash = txHash;
+    attemptRef.current.stage = "status_poll";
     toast.info("Transaction submitted. Waiting for confirmation...");
 
     const outcome = await pollTxStatus(deploymentId, txHash, abortRef.current!.signal);
     if (outcome.status === "SUCCESS") {
+      track("trigger_succeeded", {
+        deployment_id: deploymentId,
+        tx_hash: txHash,
+        elapsed_ms: Date.now() - attemptRef.current.startedAt,
+      });
       if (mode === "allowance") {
         toast.success("Allowance approved!");
       } else {
         toast.success(isDeposit ? "Deposited!" : "Distribution triggered!");
       }
     } else {
+      attemptRef.current.stage = "onchain";
       throw new Error(outcome.errorMessage ?? "Transaction failed on the network");
     }
   }
@@ -335,6 +367,7 @@ export function TriggerButton({
       if (data.network !== network) return;
       if (data.walletId) selectedWalletRef.current = data.walletId;
 
+      attemptRef.current = { stage: "wallet", startedAt: data.timestamp };
       setBusy(true);
       ensureWalletConnect()
         .then(async ({ kit, module: walletConnectModule }) => {
@@ -352,6 +385,7 @@ export function TriggerButton({
         })
         .catch((err) => {
           sessionStorage.removeItem("paiflow_pending_wc");
+          trackTriggerFailure(err);
           toastError(err, "Connection failed");
         })
         .finally(() => {
@@ -419,10 +453,12 @@ export function TriggerButton({
       void trackWalletConnection({
         address,
         network,
-        walletId: pendingWallet ?? "wallet_connect",
+        walletId,
+        surface: "trigger",
       });
       await submitTrigger(address, kit, () => setShowOpenWallet(true));
     } catch (err) {
+      trackTriggerFailure(err);
       toastError(err, "Connection failed");
       sessionStorage.removeItem("paiflow_pending_wc");
     } finally {
@@ -442,6 +478,8 @@ export function TriggerButton({
     abortRef.current?.abort();
     abortRef.current = new AbortController();
     setShowOpenWallet(false);
+    attemptRef.current = { stage: "wallet", startedAt: Date.now() };
+    track("trigger_started", { deployment_id: deploymentId, mode, amount_stroops: amount });
 
     if (isMobile()) {
       setShowPicker(true);
@@ -450,6 +488,7 @@ export function TriggerButton({
       try {
         await runDesktopFlow();
       } catch (err) {
+        trackTriggerFailure(err);
         toastError(err, isDeposit ? "Deposit failed" : "Trigger failed");
       } finally {
         setBusy(false);

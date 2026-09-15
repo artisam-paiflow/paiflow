@@ -22,6 +22,13 @@ const HOMEPAGE_URL = "https://beta.app.paiflow.xyz";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // PostHog's ingestion paths end in a slash; a redirect would drop the POST body.
+  skipTrailingSlashRedirect: true,
+  env: {
+    // Tags analytics events with the deployed commit, so a before/after split
+    // (e.g. the D3 swap-panel rebuild) is a PostHog breakdown, not a date guess.
+    NEXT_PUBLIC_APP_VERSION: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? "dev",
+  },
   serverExternalPackages: [
     "@stellar/stellar-sdk",
     "@stellar/stellar-base",

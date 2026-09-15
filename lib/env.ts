@@ -202,6 +202,18 @@ const EnvSchema = z.object({
   // x-dev-api-secret: <token> instead of a user session.
   DEV_API_SECRET: optionalString,
   SENTRY_DSN: optionalString,
+
+  // ---- Analytics (PostHog) ----
+  // The key is public (it ships in the browser bundle) and is set only on the
+  // beta service; unset means every capture is a no-op. APP_ENV tags events so
+  // environments never mix in one PostHog project.
+  NEXT_PUBLIC_POSTHOG_KEY: optionalString,
+  NEXT_PUBLIC_APP_ENV: z.enum(["local", "staging", "beta"]).default("local"),
+  POSTHOG_HOST: z
+    .string()
+    .url()
+    .refine((u) => new URL(u).protocol === "https:", "POSTHOG_HOST must use https")
+    .default("https://us.i.posthog.com"),
   HIBP_CHECK_ENABLED: boolish,
 
   AI_API_KEY: optionalString,

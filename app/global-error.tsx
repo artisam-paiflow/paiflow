@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
+import { analyticsClient } from "@/lib/analytics/client";
+
 /**
  * The HTML-level fallback when the root layout itself fails. Inlines all
  * styles because Tailwind/CSS may not have loaded — keep the look on-brand
@@ -12,6 +15,9 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    analyticsClient()?.captureException(error, { digest: error.digest });
+  }, [error]);
   return (
     <html lang="en">
       <body

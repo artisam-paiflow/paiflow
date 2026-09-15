@@ -8,6 +8,8 @@ import { db } from "@/lib/db";
 import { log } from "@/lib/log";
 import { pollEventsFor, recordAllowanceEvent } from "@/lib/stellar/events";
 import type { FlowGraph } from "@/lib/flows/schema";
+import { redis } from "@/lib/redis";
+import { captureServer } from "@/lib/analytics/server";
 
 const QuerySchema = z.object({
   // A Stellar transaction hash is a SHA-256, so 64 hex characters. Anything else
@@ -25,6 +27,54 @@ const QuerySchema = z.object({
 // budget. Ingestion is best-effort — the cron poller re-runs whatever the
 // deadline cut short — so the status answer never waits longer than this.
 const EVENT_INGEST_DEADLINE_MS = 5_000;
+
+// The status route is public, so the caller has no session to attribute a
+// trigger to; the deployment's owner is the tester whose flow ran. Best-effort
+// like the rest of the bookkeeping here: it never affects the status answer.
+//
+// A terminal status stays terminal, so a remount, a second tab or a reload polls
+// it again. The Redis claim makes each (deployment, tx, outcome) count once;
+// without Redis there is nothing to claim against and it captures as before.
+const OUTCOME_CLAIM_TTL_SECONDS = 7 * 24 * 60 * 60;
+async function captureTriggerOutcome(
+  deploymentId: string,
+  txHash: string,
+  outcome: "confirmed" | "failed",
+): Promise<void> {
+  try {
+    const client = redis();
+    if (client) {
+      const claimed = await client.set(
+        `analytics:trigger:${deploymentId}:${txHash}:${outcome}`,
+        "1",
+        "EX",
+        OUTCOME_CLAIM_TTL_SECONDS,
+        "NX",
+      );
+      if (claimed !== "OK") return;
+    }
+    const d = await db.deployment.findUnique({
+      where: { id: deploymentId },
+      select: { ownerId: true, pipelineSnapshot: true },
+    });
+    if (!d) return;
+    if (outcome === "failed") {
+      await captureServer(d.ownerId, "trigger_failed_onchain", {
+        deployment_id: deploymentId,
+        tx_hash: txHash,
+      });
+      return;
+    }
+    const pipeline = (d.pipelineSnapshot ?? []) as Array<{ templateKind?: string }>;
+    await captureServer(d.ownerId, "trigger_confirmed", {
+      deployment_id: deploymentId,
+      tx_hash: txHash,
+      has_swap: pipeline.some((n) => n.templateKind === "SWAPPER"),
+    });
+  } catch (err) {
+    log.warn({ err, deploymentId, txHash }, "tx-status: analytics capture failed");
+  }
+}
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
@@ -87,6 +137,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
           ip,
           metadata: { deploymentId: id, txHash },
         });
+        void captureTriggerOutcome(id, txHash, "confirmed");
 
         // Pull this transaction's contract events into the store now, so the
         // deployment page the user opens next renders them from the database
@@ -142,6 +193,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     }
 
     if (got.status === "FAILED") {
+      // Unlike the SUCCESS branch this reads nothing that a stranger's hash
+      // could pollute, but only a hash we submitted says something about Paiflow.
+      if (await wasTxSubmittedFor(id, txHash).catch(() => false)) {
+        void captureTriggerOutcome(id, txHash, "failed");
+      }
       return NextResponse.json({
         data: { status: "FAILED", txHash, errorMessage: "Transaction failed on the network" },
       });

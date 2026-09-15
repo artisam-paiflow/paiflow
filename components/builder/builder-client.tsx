@@ -39,6 +39,9 @@ import type { PatchOp } from "@/lib/ai/prompts";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
 import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import { apiError } from "@/lib/friendly-error";
+import { track } from "@/lib/analytics/client";
+import { IN_SCOPE_NODE_TYPES } from "@/lib/analytics/events";
+import { useValidationTracking } from "@/lib/analytics/validation-tracking";
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -49,6 +52,17 @@ const nodeTypes = {
 const edgeTypes = {
   straight: AnimatedStraightEdge,
 };
+
+const IN_SCOPE_TYPES: ReadonlySet<string> = new Set(IN_SCOPE_NODE_TYPES);
+
+function hasFiatPayoutConfig(node: FlowNode | undefined): boolean {
+  const config = (node as { config?: Record<string, unknown> } | undefined)?.config;
+  if (!config) return false;
+  const recipients = Array.isArray(config.recipients)
+    ? (config.recipients as Array<{ payoutMode?: unknown }>)
+    : [];
+  return config.payoutMode === "fiat" || recipients.some((r) => r.payoutMode === "fiat");
+}
 
 // Short, human-readable labels drawn on each node in the minimap.
 // Shared via NODE_TYPE_LABELS so they stay in sync with the palette and panel headers.
@@ -192,6 +206,17 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
   const [kycDialogOpen, setKycDialogOpen] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    track("builder_opened", {
+      flow_id: flowId,
+      node_count: initialGraph.nodes.length,
+      node_types: initialGraph.nodes.map((n) => n.type),
+      dev_mode: initialGraph.devMode ?? false,
+    });
+    // Once per builder mount; the initial graph is what the tester walked into.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flowId]);
+
   const refreshAddressBook = useCallback(async () => {
     setAddressBookLoading(true);
     setAddressBookError(null);
@@ -327,12 +352,20 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
     const doSave = async () => {
-      const res = await fetch(`/api/flows/${flowId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: currentName, graph: currentGraph }),
-      });
+      let res: Response;
+      try {
+        res = await fetch(`/api/flows/${flowId}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name: currentName, graph: currentGraph }),
+        });
+      } catch (err) {
+        track("flow_autosave_failed", { status: null });
+        toastError(err, "Save failed");
+        return;
+      }
       if (!res.ok) {
+        track("flow_autosave_failed", { status: res.status });
         const body = await res.json().catch(() => ({}));
         toastError(body, `Save failed (${res.status})`);
       }
@@ -366,6 +399,10 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
       .map((c) => c.id);
 
     if (removedIds.length > 0) {
+      for (const id of removedIds) {
+        const removed = nodeLookupRef.current.get(id);
+        if (removed) track("node_removed", { node_type: removed.type, via: "keyboard" });
+      }
       const removedSet = new Set(removedIds);
       setFlowNodes((arr) => arr.filter((n) => !removedSet.has(n.id)));
       setRfEdges((eds) =>
@@ -382,6 +419,10 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
     (c: Connection) => {
       const src = flowNodes.find((n) => n.id === c.source);
       const tgt = flowNodes.find((n) => n.id === c.target);
+      track("edge_connected", {
+        from_type: src?.type ?? "unknown",
+        to_type: tgt?.type ?? "unknown",
+      });
       setRfEdges((eds) =>
         addEdge(
           {
@@ -417,6 +458,10 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
   }, [flowNodes]);
 
   function addNode(node: FlowNode) {
+    track("node_added", { node_type: node.type });
+    if (!IN_SCOPE_TYPES.has(node.type)) {
+      track("off_script_feature_used", { feature: `node:${node.type}` });
+    }
     setFlowNodes((arr) => [...arr, node]);
     setRfNodes((arr) => {
       const rf = nodeToReactFlow(node, arr.length);
@@ -434,6 +479,12 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
   }
 
   function updateNode(updated: FlowNode) {
+    if (
+      hasFiatPayoutConfig(updated) &&
+      !hasFiatPayoutConfig(nodeLookupRef.current.get(updated.id))
+    ) {
+      track("off_script_feature_used", { feature: "fiat_payout" });
+    }
     setFlowNodes((arr) => arr.map((n) => (n.id === updated.id ? updated : n)));
     setRfNodes((arr) =>
       arr.map((n) =>
@@ -445,6 +496,8 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
   }
 
   function deleteNode(id: string) {
+    const removed = nodeLookupRef.current.get(id);
+    if (removed) track("node_removed", { node_type: removed.type, via: "panel" });
     setFlowNodes((arr) => arr.filter((n) => n.id !== id));
     setRfNodes((arr) => arr.filter((n) => n.id !== id));
     setRfEdges((arr) => arr.filter((e) => e.source !== id && e.target !== id));
@@ -452,6 +505,7 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
   }
 
   async function sendChat(text: string) {
+    track("off_script_feature_used", { feature: "ask_ai_chat" });
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setChatLoading(true);
     try {
@@ -586,7 +640,8 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
   const isValid = validation.ok;
   const templateKind = validation.ok ? validation.templateKind : null;
   const pipeline = validation.ok ? validation.pipeline : undefined;
-  const errors = validation.ok ? [] : validation.errors;
+  const errors = useMemo(() => (validation.ok ? [] : validation.errors), [validation]);
+  useValidationTracking(errors, flowNodes);
 
   // Close the validation-issues modal on Escape, or once all issues are fixed
   // while it's open.
@@ -659,7 +714,10 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
               type="button"
               role="switch"
               aria-checked={devMode}
-              onClick={() => setDevMode((v) => !v)}
+              onClick={() => {
+                if (!devMode) track("off_script_feature_used", { feature: "dev_mode_on" });
+                setDevMode((v) => !v);
+              }}
               title={
                 devMode
                   ? "Dev mode ON — pay / split / subscription nodes deploy as mutable variants you fill via the API"
@@ -721,7 +779,10 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
                   <button
                     type="button"
                     role="alert"
-                    onClick={() => setErrorsModalOpen(true)}
+                    onClick={() => {
+                      track("errors_modal_opened", { error_count: errors.length });
+                      setErrorsModalOpen(true);
+                    }}
                     aria-label={`View all ${errors.length} validation ${
                       errors.length === 1 ? "issue" : "issues"
                     }`}
@@ -763,7 +824,13 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
-              onNodeClick={(_, n) => setSelectedId(n.id)}
+              onNodeClick={(_, n) => {
+                if (n.id !== selectedId) {
+                  const clicked = nodeLookupRef.current.get(n.id);
+                  if (clicked) track("node_settings_opened", { node_type: clicked.type });
+                }
+                setSelectedId(n.id);
+              }}
               onPaneClick={() => {
                 setSelectedId(null);
                 if (!chatCollapsed) setChatCollapsed(true);

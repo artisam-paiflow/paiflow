@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { apiError } from "@/lib/friendly-error";
 import { toastError } from "@/lib/friendly-toast";
+import { track } from "@/lib/analytics/client";
 import { CreateApiTokenSchema, type ApiToken, type CreatedApiToken } from "@/lib/api/v1/schema";
 
 const INPUT =
@@ -118,6 +119,7 @@ export default function ApiAccessPanel({ deploymentId }: { deploymentId: string 
         else setFormError(apiError(json, "Failed to create token").message);
         return;
       }
+      track("off_script_feature_used", { feature: "api_token_created" });
       setRevealed(json.data as CreatedApiToken);
       setLabel("");
       setExpiry("");
