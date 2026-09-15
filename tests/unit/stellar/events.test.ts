@@ -441,11 +441,15 @@ describe("pollEventsFor: RPC scan windows", () => {
     } as unknown as Prisma.PromiseReturnType<typeof db.deployment.findUnique>);
   }
 
-  function server(getEvents: (req: Req) => Promise<unknown>, oldestLedger = 1) {
+  function server(
+    getEvents: (req: Req) => Promise<unknown>,
+    oldestLedger = 1,
+    latestLedger = 10_000_000,
+  ) {
     const spy = vi.fn(getEvents);
     vi.mocked(sorobanRpc).mockReturnValue({
       getEvents: spy,
-      getHealth: async () => ({ oldestLedger, latestLedger: 200_000 }),
+      getHealth: async () => ({ oldestLedger, latestLedger }),
     } as unknown as ReturnType<typeof sorobanRpc>);
     return spy;
   }
@@ -534,6 +538,22 @@ describe("pollEventsFor: RPC scan windows", () => {
       expect.stringContaining("past RPC retention"),
     );
     expect(cursorWritten()).toEqual({ lastLedger: 4_687_500 });
+  });
+
+  it("treats a start ledger past the tip as caught up, without a warning", async () => {
+    deployment(4_688_737);
+    const spy = server(
+      async () => {
+        throw new Error("startLedger must be within the ledger range: 4567778 - 4688737");
+      },
+      4_567_778,
+      4_688_737,
+    );
+
+    expect(await pollEventsFor("dep-1")).toBe(0);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(log.warn).not.toHaveBeenCalled();
+    expect(db.eventCursor.upsert).not.toHaveBeenCalled();
   });
 
   it("does not advance the cursor when one of the pipeline's contracts fails to scan", async () => {

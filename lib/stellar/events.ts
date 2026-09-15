@@ -925,12 +925,17 @@ async function pollEventsWithStartLedger(
   try {
     resp = await server.getEvents({ startLedger, filters, limit: EVENTS_PAGE_LIMIT });
   } catch (err) {
-    // A start ledger older than the RPC's retention window is refused outright.
-    // Those ledgers are gone for good; resume from the oldest one it still holds.
-    const oldestLedger = await server.getHealth().then(
-      (h) => h.oldestLedger,
+    // The RPC refuses a start ledger outside the range it holds, on either side.
+    const health = await server.getHealth().then(
+      (h) => h,
       () => null,
     );
+    // Ahead of the tip: a scan already caught up and no ledger has closed since.
+    if (health && startLedger > health.latestLedger) {
+      return { written: 0, scannedThrough: startLedger - 1, ok: true };
+    }
+    // Behind retention: those ledgers are gone for good; resume from the oldest one held.
+    const oldestLedger = health?.oldestLedger ?? null;
     if (oldestLedger === null || startLedger >= oldestLedger) {
       log.warn({ err, deploymentId, contractAddress, startLedger }, "getEvents failed");
       return failed;
