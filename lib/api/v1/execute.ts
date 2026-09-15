@@ -132,6 +132,8 @@ export async function waitForFinal(
   const interval = opts.intervalMs ?? CONFIRM_POLL_INTERVAL_MS;
   for (;;) {
     const got = await server.getTransaction(txHash);
+    // getTransaction has no PENDING status: a sent transaction not yet in a
+    // ledger reads NOT_FOUND, so anything else is SUCCESS or FAILED.
     if (got.status !== rpc.Api.GetTransactionStatus.NOT_FOUND) return got;
     if (Date.now() + interval >= deadline) return got;
     await new Promise((r) => setTimeout(r, interval));

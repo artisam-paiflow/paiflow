@@ -38,7 +38,7 @@ vi.mock("@/lib/audit", () => ({
 
 import { POST as prepare } from "@/app/api/v1/deployments/[id]/execute/route";
 import { POST as submit } from "@/app/api/v1/deployments/[id]/execute/submit/route";
-import { ONLY_SWAPPER_FLOWS, waitForFinal } from "@/lib/api/v1/execute";
+import { CONFIRM_POLL_INTERVAL_MS, ONLY_SWAPPER_FLOWS, waitForFinal } from "@/lib/api/v1/execute";
 import { simulationFailure } from "@/lib/stellar/sim-error";
 import { audit, wasTxConfirmedFor } from "@/lib/audit";
 import { pollEventsFor } from "@/lib/stellar/events";
@@ -396,6 +396,33 @@ describe("POST …/execute/submit", () => {
     });
   });
 
+  it("by default keeps polling while the sent transaction reads NOT_FOUND, until it is final", async () => {
+    // Soroban RPC's getTransaction has no PENDING status: a sent transaction
+    // that is not in a ledger yet reads NOT_FOUND.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const signed = signedEnvelope();
+      const txHash = hashOf(signed);
+      const notFound = { status: rpc.Api.GetTransactionStatus.NOT_FOUND };
+      mockRpc.getTransaction
+        .mockResolvedValueOnce(notFound)
+        .mockResolvedValueOnce(notFound)
+        .mockResolvedValueOnce(notFound)
+        .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.SUCCESS, ledger: 4243 });
+      mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: txHash });
+
+      const pending = callSubmit(signed);
+      await vi.advanceTimersByTimeAsync(2 * CONFIRM_POLL_INTERVAL_MS);
+      const res = await pending;
+
+      expect(await res.json()).toEqual({ data: { txHash, status: "SUCCESS", ledger: 4243 } });
+      expect(mockRpc.getTransaction).toHaveBeenCalledTimes(4);
+      expect(auditActions()).toEqual(["API_EXECUTE_SUBMITTED", "API_EXECUTE_CONFIRMED"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("wait=false returns PENDING right after sending, with only the submitted row", async () => {
     const signed = signedEnvelope();
     const txHash = hashOf(signed);
@@ -523,4 +550,18 @@ describe("waitForFinal", () => {
     expect(got.status).toBe(rpc.Api.GetTransactionStatus.NOT_FOUND);
     expect(mockRpc.getTransaction.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
+
+  it.each([rpc.Api.GetTransactionStatus.SUCCESS, rpc.Api.GetTransactionStatus.FAILED])(
+    "polls through NOT_FOUND and returns %s once the transaction is final",
+    async (status) => {
+      const notFound = { status: rpc.Api.GetTransactionStatus.NOT_FOUND };
+      mockRpc.getTransaction
+        .mockResolvedValueOnce(notFound)
+        .mockResolvedValueOnce(notFound)
+        .mockResolvedValueOnce({ status, ledger: 5 });
+      const got = await waitForFinal("h", { deadlineMs: 1_000, intervalMs: 5 });
+      expect(got.status).toBe(status);
+      expect(mockRpc.getTransaction).toHaveBeenCalledTimes(3);
+    },
+  );
 });
