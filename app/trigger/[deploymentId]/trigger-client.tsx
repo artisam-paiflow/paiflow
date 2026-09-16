@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { TriggerButton } from "@/components/deploy/trigger-button";
 import { tokenAmountToStroops } from "@/lib/flows/schema";
-import type { FlowGraph } from "@/lib/flows/schema";
+import type { InboundRequirement } from "@/lib/flows/inbound-amount";
+import { formatStroops } from "@/lib/utils";
 import { track } from "@/lib/analytics/client";
 
 export default function TriggerClient({
@@ -12,7 +13,7 @@ export default function TriggerClient({
   contractAddress,
   flowName,
   network,
-  graph,
+  requirement,
   isDeposit,
   assetLabel,
 }: {
@@ -20,25 +21,38 @@ export default function TriggerClient({
   contractAddress: string;
   flowName: string;
   network: "testnet" | "mainnet";
-  graph: FlowGraph | null;
+  requirement: InboundRequirement;
   isDeposit?: boolean;
   assetLabel?: string;
 }) {
-  const [amount, setAmount] = useState("");
-  const [amountSet, setAmountSet] = useState(false);
+  // An `exact` flow spends precisely what it is configured to spend, and a
+  // fixed payer keeps whatever arrives beyond that (see inbound-amount.ts), so
+  // the sender doesn't get to choose: the field is filled in and locked.
+  const locked = requirement.kind === "exact";
+  const lockedAmount = locked ? formatStroops(requirement.stroops) : "";
+  const [amount, setAmount] = useState(lockedAmount);
+  const [amountSet, setAmountSet] = useState(locked);
+
+  const minStroops = requirement.kind === "minimum" ? BigInt(requirement.stroops) : null;
+  const belowMinimum =
+    minStroops !== null &&
+    /^\d+(\.\d+)?$/.test(amount) &&
+    BigInt(tokenAmountToStroops(amount)) < minStroops;
 
   useEffect(() => {
     track("trigger_page_viewed", { deployment_id: deploymentId });
   }, [deploymentId]);
 
   useEffect(() => {
+    // The flow is authoritative over a link someone pasted.
+    if (locked) return;
     const params = new URLSearchParams(window.location.search);
     const urlAmount = params.get("amount");
     if (urlAmount && /^\d+(\.\d+)?$/.test(urlAmount) && urlAmount !== "0") {
       setAmount(urlAmount);
       setAmountSet(true);
     }
-  }, []);
+  }, [locked]);
 
   async function copy(text: string) {
     try {
@@ -99,9 +113,32 @@ export default function TriggerClient({
                 setAmount(e.target.value.replace(/[^0-9.]/g, ""));
                 setAmountSet(false);
               }}
-              disabled={amountSet}
+              readOnly={locked}
+              disabled={amountSet && !locked}
+              aria-describedby={locked || minStroops !== null ? "amount-note" : undefined}
+              data-testid="trigger-amount"
             />
-            {amountSet && (
+            {locked ? (
+              <p
+                id="amount-note"
+                className="text-label-sm text-on-surface-variant mt-1 font-mono"
+                data-testid="amount-locked-note"
+              >
+                Set by this flow — it pays out exactly {lockedAmount} {assetLabel ?? ""}.
+              </p>
+            ) : minStroops !== null ? (
+              <p
+                id="amount-note"
+                className={`text-label-sm mt-1 font-mono ${
+                  belowMinimum ? "text-error" : "text-on-surface-variant"
+                }`}
+              >
+                {belowMinimum
+                  ? `This flow pays out ${formatStroops(minStroops)} ${assetLabel ?? ""} — send at least that much.`
+                  : `Minimum ${formatStroops(minStroops)} ${assetLabel ?? ""}.`}
+              </p>
+            ) : null}
+            {amountSet && !locked && (
               <button
                 onClick={() => {
                   setAmount("");
@@ -114,19 +151,23 @@ export default function TriggerClient({
             )}
           </div>
 
-          {!amountSet && amount && /^\d+(\.\d+)?$/.test(amount) && amount !== "0" && (
-            <button
-              onClick={() => setAmountSet(true)}
-              className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 w-full rounded border px-3 py-1.5 font-mono text-xs transition-colors"
-            >
-              CONFIRM AMOUNT
-            </button>
-          )}
+          {!amountSet &&
+            !belowMinimum &&
+            amount &&
+            /^\d+(\.\d+)?$/.test(amount) &&
+            amount !== "0" && (
+              <button
+                onClick={() => setAmountSet(true)}
+                className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 w-full rounded border px-3 py-1.5 font-mono text-xs transition-colors"
+              >
+                CONFIRM AMOUNT
+              </button>
+            )}
 
           <TriggerButton
             deploymentId={deploymentId}
             network={network}
-            amount={amountSet ? tokenAmountToStroops(amount) : ""}
+            amount={locked ? requirement.stroops : amountSet ? tokenAmountToStroops(amount) : ""}
             isDeposit={isDeposit}
           />
         </div>

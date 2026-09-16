@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { FlowGraphSchema, isTrigger, assetLabel } from "@/lib/flows/schema";
+import { FlowGraphSchema, isTrigger, assetLabel, migrateFlowGraph } from "@/lib/flows/schema";
+import { inboundRequirement } from "@/lib/flows/inbound-amount";
 import TriggerClient from "./trigger-client";
 
 export const dynamic = "force-dynamic";
@@ -34,12 +35,20 @@ export default async function TriggerPage({
   )
     notFound();
 
-  const graphResult = FlowGraphSchema.safeParse(d.graphSnapshot);
+  // Migrate first, as validateFlow does: rows saved before the split-recipient
+  // `mode` field would otherwise fail to parse and silently skip the lock.
+  const graphResult = FlowGraphSchema.safeParse(migrateFlowGraph(d.graphSnapshot));
   const graph = graphResult.success ? graphResult.data : null;
   const triggerNode = graph?.nodes.find(isTrigger);
   const isWeb2Webhook = triggerNode?.type === "web2_webhook";
   const triggerAssetLabel =
     triggerNode && "asset" in triggerNode.config ? assetLabel(triggerNode.config.asset) : undefined;
+
+  // What the pipeline will actually consume. A webhook deposit and a streamer
+  // top-up are open-ended funding rather than a payout run, so they keep the
+  // free-form field — same carve-out as the API guard.
+  const requirement =
+    isWebhook || isStreamer || !graph ? { kind: "variable" as const } : inboundRequirement(graph);
 
   return (
     <TriggerClient
@@ -47,7 +56,7 @@ export default async function TriggerPage({
       contractAddress={d.contractAddress}
       flowName={d.flow.name}
       network={d.network as "testnet" | "mainnet"}
-      graph={graph}
+      requirement={requirement}
       isDeposit={isWeb2Webhook || isStreamer}
       assetLabel={triggerAssetLabel}
     />

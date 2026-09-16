@@ -711,7 +711,7 @@ export default function DeploymentView({
             isWeb2Webhook ? (
               <>
                 <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
-                  SCAN WITH FREIGHTER WALLET · SET AMOUNT IN TRIGGER PAGE.
+                  SCAN WITH FREIGHTER WALLET · CONFIRM AMOUNT IN TRIGGER PAGE.
                 </p>
                 <div className="mt-md gap-md grid grid-cols-[160px_1fr]">
                   <div className="flex min-h-[160px] items-center justify-center rounded-lg bg-white p-3">
@@ -810,7 +810,7 @@ export default function DeploymentView({
             ) : isSubscription || isPayroll ? null : (
               <>
                 <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
-                  SCAN WITH FREIGHTER WALLET · SET AMOUNT IN TRIGGER PAGE.
+                  SCAN WITH FREIGHTER WALLET · CONFIRM AMOUNT IN TRIGGER PAGE.
                 </p>
                 <div className="mt-md gap-md grid grid-cols-[160px_1fr]">
                   <div className="flex min-h-[160px] items-center justify-center rounded-lg bg-white p-3">
