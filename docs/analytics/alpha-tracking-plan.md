@@ -6,18 +6,36 @@ and properties, so this page describes intent and doesn't restate every field.
 
 ## Scope and rules
 
-- **Where:** beta.paiflow.xyz only. Analytics is on only when the build has
-  `NEXT_PUBLIC_POSTHOG_KEY`, and only the beta Railway service sets it. Local dev, tests and
-  paiflow.xyz load nothing.
+- **Where:** the beta is `beta.app.paiflow.xyz`. Analytics is on only when the build has
+  `NEXT_PUBLIC_POSTHOG_KEY`; local dev and tests load nothing.
+
+  > **Currently off.** Since 16 September the beta shares the **staging** Railway service with
+  > `paiflow.xyz` — one service, one build, one database. The PostHog variables were only ever set
+  > on the retired `prod` environment, so no build carries the key today and the round is
+  > untracked. `/ingest/*` returns 404 whenever the key is absent
+  > (`app/ingest/[...path]/route.ts`), which is the quickest way to check.
+  >
+  > Re-enabling means setting the variables on the staging service and **rebuilding** — they are
+  > inlined at build time, so a restart will not do. Note that one build now serves both hostnames,
+  > so turning analytics on turns it on for `paiflow.xyz` too, and `app_env` can no longer separate
+  > the two: filter dashboards on `$host` instead.
+
 - **Who:** testers are `app_env = beta` events from people whose `role` isn't `ADMIN`. Every
-  dashboard insight applies both filters.
+  dashboard insight applies both filters. Since the two hostnames share one build, `app_env` alone
+  no longer isolates the beta — add `$host = beta.app.paiflow.xyz` when analytics is switched back
+  on, or `paiflow.xyz` visitors are counted as testers.
 - **Identity:** `distinct_id` is `User.id`. Usernames, emails, recipient addresses, XDR and
   graph JSON are never sent. `lib/analytics/sanitize.ts` also redacts StrKeys, seeds and base64
   blobs from every property, including autocaptured element text.
 - **Not evidence:** PostHog counts are for product decisions. The Instawards metrics stay
   DB-derived (`pnpm instawards:metrics`); ad-blockers and sampling make analytics a lower bound.
-  The metrics counting rule also covers **paiflow.xyz only**, so alpha activity on beta doesn't
-  count toward the SOW figures as currently written.
+  The metrics counting rule used to cover **paiflow.xyz only**, which kept beta activity out of the
+  SOW figures. That host split no longer exists: since 16 September both hostnames are served by
+  one service reading one database, so `scripts/instawards-metrics.ts` cannot tell them apart — it
+  counts rows, and there is no host column. The committed snapshots in
+  `docs/instawards/evidence/` were taken against the **previous** staging database, which is
+  retained as an archive and is still the system those figures reproduce against. How the figures
+  are reported from here is undecided.
 
 ## Questions the events answer
 
@@ -48,6 +66,10 @@ Built in the dedicated PostHog project **Paiflow beta** (US cloud, id 610680). K
 there: don't reuse another product's project key. Every insight filters to `app_env = beta` and
 excludes people with `role = ADMIN`, so your own check runs don't count as testers. There's also a
 cohort, _Alpha testers_ (`role = USER`).
+
+Both filters were written when the beta had a build of its own. They need `$host` added before
+analytics is switched back on — see **Scope and rules** — otherwise every insight and the
+_Alpha testers_ cohort will pick up `paiflow.xyz` traffic as tester activity.
 
 | Dashboard                                                                                       | Insights |
 | ----------------------------------------------------------------------------------------------- | -------- |
@@ -96,6 +118,21 @@ Done on 15 September 2026:
   build, because they're inlined at build time. `POSTHOG_HOST` defaults to US cloud, and
   `NEXT_PUBLIC_APP_VERSION` comes from `RAILWAY_GIT_COMMIT_SHA`.
 - **Staging** (paiflow.xyz) has no PostHog variables and must stay that way.
+
+### Superseded on 16 September 2026
+
+The two bullets above describe the environment layout as it was, and are kept because they record
+where the PostHog project settings came from. What is true now:
+
+- The beta is **`beta.app.paiflow.xyz`**, served by the **staging** Railway service (`paiflow-app`)
+  alongside `paiflow.xyz`. `beta.paiflow.xyz` is the static marketing site and has no app on it.
+- The `prod` environment is **stopped**. Its `NEXT_PUBLIC_POSTHOG_KEY` and
+  `NEXT_PUBLIC_APP_ENV=beta` went with it, which is why the round is currently untracked.
+- "Staging has no PostHog variables and must stay that way" **no longer holds** — staging is now
+  where the beta runs, so that is exactly where the variables have to go.
+- **PostHog `recording_domains` still names `https://beta.paiflow.xyz`.** Add
+  `https://beta.app.paiflow.xyz` before re-enabling, or replay is served as disabled with no error
+  (see the Origin-forwarding comment in `app/ingest/[...path]/route.ts`).
 
 After the first beta build with this code, sign in with a test account, run T1, and check
 _Activity → Live events_ for `builder_opened`, `deploy_confirmed` and `trigger_confirmed`.
