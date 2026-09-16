@@ -12,7 +12,7 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 [`Demo Video`](https://drive.google.com/drive/folders/1R4h7UaMfgEfIqhbSBqD3lzIs6hq5IaxP?usp=sharing) — 3-minute video showcasing the project.
 
-[`Live App`](https://paiflow.xyz) — username: admin ; password: admin1234567
+[`Live App`](https://paiflow.xyz) — Stellar **testnet**; no account needed, use _Try the sandbox_ on the login page
 
 [`User Feedback Survey`](https://forms.gle/QTznHiqXCDEnJZq59) — help us improve Paiflow
 
