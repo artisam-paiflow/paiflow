@@ -144,7 +144,19 @@ export default function Topbar({ username }: { username: string }) {
                 )}
                 {!isAdmin && <div className="border-outline-variant/20 my-1 border-t" />}
                 <button
-                  onClick={() => signOut({ callbackUrl: "/" })}
+                  onClick={async () => {
+                    // `redirect: false` and navigate ourselves, the same way
+                    // every signIn() call site here does. Letting next-auth pick
+                    // the destination sent people to http://localhost:8080:
+                    // it resolves the callbackUrl server-side against an origin
+                    // Auth.js derives from the request, and Railway's gateway
+                    // replaces Host with the container's own address. A bare
+                    // path is resolved by the browser against the host the
+                    // visitor is actually on, which is the only thing that is
+                    // right for both hostnames this service answers on.
+                    await signOut({ redirect: false });
+                    window.location.href = "/";
+                  }}
                   className="text-label-sm text-error hover:bg-error-container/30 inline-flex w-full items-center gap-2 rounded-lg px-3 py-2 font-mono transition-colors"
                 >
                   <span aria-hidden="true" className="material-symbols-outlined text-[16px]">
