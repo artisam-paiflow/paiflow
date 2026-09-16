@@ -12,7 +12,7 @@ transaction yourself, in your own wallet, and Paiflow never holds your keys.
 > will never be asked for real funds, a card, or a seed phrase. If anything ever asks you for one,
 > stop and report it.
 
-> **We record how the app is used during this round.** beta.paiflow.xyz sends usage analytics
+> **We record how the app is used during this round.** beta.app.paiflow.xyz sends usage analytics
 > and screen recordings of your sessions to PostHog, so we can see where things are confusing
 > without asking you to write it all down. Recordings mask all on-screen text and everything you
 > type into fields. Events are tied to your test account's internal ID, not your name, and never
@@ -93,7 +93,7 @@ Leave Recipient B **without** a USDC trustline.
 
 We'll send you a **username** and **password** for your test account.
 
-1. Go to [beta.paiflow.xyz](https://beta.paiflow.xyz/login) and open the login page.
+1. Go to [beta.app.paiflow.xyz](https://beta.app.paiflow.xyz/login) and open the login page.
 2. Enter your **Username** and **Password**, then click **SIGN IN**.
 
 - [ ] You land on your dashboard ("Your flows.").

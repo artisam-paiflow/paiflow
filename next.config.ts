@@ -17,7 +17,7 @@ const SECURITY_HEADERS = [
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
 ];
 
-const HOMEPAGE_URL = "https://beta.app.paiflow.xyz";
+const HOMEPAGE_URL = "https://beta.paiflow.xyz";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,

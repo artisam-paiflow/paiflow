@@ -4,8 +4,13 @@
  * address from .env/.env.local and writes them into the database, overriding
  * any existing rows.
  *
+ * Reads STELLAR_NETWORK to pick the *_TESTNET / *_MAINNET suffix, and writes to
+ * whatever DATABASE_URL names. Both can be set in the shell to target a
+ * deployed environment:
+ *
  * Usage:
  *   pnpm contracts:update-hashes
+ *   DATABASE_URL="<deployed>" pnpm contracts:update-hashes
  */
 import { resolve } from "node:path";
 import { config } from "dotenv";
@@ -13,8 +18,12 @@ import { TemplateKind } from "@prisma/client";
 import { db } from "@/lib/prisma";
 import { setWasmHash, setFactoryAddress } from "@/lib/stellar/template-db";
 
+// Neither call overrides, so dotenv's first-write-wins gives shell > .env.local
+// > .env. The shell has to win: this script writes to whatever DATABASE_URL
+// names, and an operator syncing hashes into a deployed database must not have
+// a local .env.local silently redirect every write to their dev Postgres.
+config({ path: resolve(".env.local") });
 config({ path: resolve(".env") });
-config({ path: resolve(".env.local"), override: true });
 
 async function update() {
   const network = process.env.STELLAR_NETWORK ?? "testnet";
