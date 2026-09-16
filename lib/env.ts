@@ -104,6 +104,20 @@ const EnvSchema = z.object({
 
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 chars"),
   AUTH_URL: z.string().url().default("http://localhost:3000"),
+  // Browser origins a passkey may be used from, comma-separated. One app service answers
+  // on several hostnames and WebAuthn compares the origin exactly, so a single value
+  // cannot cover them all. An allowlist — never a wildcard, never a request header.
+  // Empty falls back to [AUTH_URL]; see lib/passkey/rp.ts.
+  AUTH_ORIGINS: z
+    .string()
+    .optional()
+    .transform((v) =>
+      (v ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0),
+    )
+    .pipe(z.array(z.string().url())),
   AUTH_RP_ID: z.string().default("localhost"),
   AUTH_RP_NAME: z.string().default("Paiflow"),
   ALLOW_PUBLIC_REGISTRATION: boolish,

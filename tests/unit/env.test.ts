@@ -188,3 +188,35 @@ describe("env — the sandbox is testnet-only", () => {
     expect(mod.env().SANDBOX_ENABLED).toBe(false);
   });
 });
+
+describe("env — passkey origins", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    delete process.env.AUTH_ORIGINS;
+    delete process.env.AUTH_URL;
+  });
+
+  afterEach(() => {
+    delete process.env.AUTH_ORIGINS;
+    delete process.env.AUTH_URL;
+  });
+
+  it("parses a comma-separated list, trimming whitespace", async () => {
+    process.env.AUTH_ORIGINS = "https://paiflow.xyz, https://beta.app.paiflow.xyz";
+    const mod = await loadEnv("testnet");
+    expect(mod.env().AUTH_ORIGINS).toEqual(["https://paiflow.xyz", "https://beta.app.paiflow.xyz"]);
+  });
+
+  it("is empty when unset, so rp() can fall back to AUTH_URL", async () => {
+    const mod = await loadEnv("testnet");
+    expect(mod.env().AUTH_ORIGINS).toEqual([]);
+  });
+
+  it("rejects an entry that is not a URL", async () => {
+    // WebAuthn compares this against the browser's origin verbatim, so a bare
+    // hostname would silently never match rather than failing loudly here.
+    process.env.AUTH_ORIGINS = "https://paiflow.xyz,beta.app.paiflow.xyz";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/AUTH_ORIGINS/);
+  });
+});
