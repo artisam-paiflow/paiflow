@@ -3,13 +3,25 @@
  * Snapshots the Instawards success metrics (SOW §6.3 and §3.8) from the
  * application's own database, read-only, with the same definitions every time.
  *
- * Point DATABASE_URL at the public app's database and redirect the JSON into
- * docs/instawards/evidence/metrics-<date>.json:
+ * WHICH DATABASE: on 16 September 2026 the beta moved onto the staging service,
+ * which was repointed at a new Postgres holding a copy of the beta's data. The
+ * database every committed snapshot was taken against is now the separate
+ * `postgres-staging-archive` service — NOT `Postgres`, which since that date is
+ * the live beta database and yields different figures. Name the service
+ * explicitly; the old command said `-s Postgres` and would now silently read the
+ * wrong system while --source still claimed otherwise.
  *
- *   railway run -p <project> -s Postgres -e staging -- \
+ * The archive has no public endpoint by design (it holds KYC data, bank details
+ * and password hashes). Create one for the run and delete it straight after:
+ *
+ *   railway tcp-proxy create --project <id> -e staging -s postgres-staging-archive --port 5432
+ *
+ *   railway run -p <project> -s postgres-staging-archive -e staging -- \
  *     bash -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" pnpm -s tsx scripts/instawards-metrics.ts \
- *       --source="Read-only SQL against the paiflow.xyz application database (Railway project paiflow, environment staging)."' \
+ *       --source="Read-only SQL against the archived paiflow.xyz application database (Railway project paiflow, environment staging, service postgres-staging-archive)."' \
  *     > docs/instawards/evidence/metrics-$(date +%F).json
+ *
+ *   railway tcp-proxy delete --project <id> -e staging -s postgres-staging-archive -y <proxy-id>
  *
  * Options:
  *   --since=2026-09-07   start of the counting window (default: sprint start)
@@ -19,7 +31,9 @@
  *   --source="…"         how the snapshot names the database it read. Defaults to
  *                        naming DATABASE_URL rather than asserting which system
  *                        that is; pass the descriptive label when running against
- *                        the public app, as the command above does.
+ *                        the archive, as the command above does. Since two
+ *                        databases now exist, a snapshot that does not say which
+ *                        one it read is not evidence of anything.
  */
 import { config as dotenvConfig } from "dotenv";
 import { resolve } from "node:path";
