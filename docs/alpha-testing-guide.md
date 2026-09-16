@@ -111,9 +111,10 @@ parts that are merely confusing rather than broken.
 
 1. Sign up at [loom.com](https://www.loom.com/) and install the **Loom Chrome extension**.
 2. Loom's free Starter plan cuts every recording off at **5 minutes**, which isn't enough for this
-   session. Start the **14-day free Business trial** so your recording runs uninterrupted. If you
-   are asked for payment details and would rather not give them, contact us before you start and
-   we'll sort something out.
+   session. Start the **14-day free Business + AI trial** so your recording runs uninterrupted.
+   **No card is needed.** If you don't add one, the workspace drops back to the free Starter plan
+   when the trial ends and there is nothing to cancel. Only add a payment method if you want to
+   keep Loom afterwards — doing so starts a paid subscription when the trial ends.
 3. Set the recorder to **Screen + camera + mic**. We want your face in the corner and your voice
    throughout — thinking out loud, especially when you're unsure what a screen means, is the most
    useful part of the whole recording. If being on camera is a problem for you, tell us before you
@@ -478,7 +479,7 @@ Already on our list — no need to report these.
 - **You see** no Freighter pop-up.
   **Try:** click the Freighter icon in your toolbar — the request may be waiting there.
 - **Loom stopped recording after 5 minutes.**
-  **Try:** your account is still on the free Starter plan — check the Business trial actually
+  **Try:** your account is still on the free Starter plan — check the Business + AI trial actually
   started ([step 1.5](#15-set-up-loom-and-prepare-to-record)). Keep the part you recorded and
   carry on in a new video; send us both links.
 

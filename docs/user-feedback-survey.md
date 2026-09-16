@@ -65,9 +65,9 @@ Two things to know before building it:
 
 ## What to do with a submission
 
-- Watch the Loom against that tester's PostHog session replay
-  (`docs/analytics/alpha-tracking-plan.md`) — the recording shows what they intended, the replay
-  shows what the app actually did.
+- The Loom is the only record of the session: **session replay is off**
+  (`docs/analytics/alpha-tracking-plan.md`). Pair it with that tester's PostHog event funnel — the
+  recording shows what they intended, the events show what the app actually did.
 - The answers file carries the quantitative bits that used to be form questions: four 1–5 ratings
   and a 0–10 recommend score. Pull those into a sheet by hand; the sample is small enough.
 - **NPS** from the 0–10: promoters 9–10, passives 7–8, detractors 0–6.
