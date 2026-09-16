@@ -219,4 +219,37 @@ describe("env — passkey origins", () => {
     const mod = await loadEnv("testnet");
     expect(() => mod.env()).toThrow(/AUTH_ORIGINS/);
   });
+
+  it("normalises a trailing slash, which is what copying an address bar gives you", async () => {
+    process.env.AUTH_ORIGINS = "https://paiflow.xyz/, https://beta.app.paiflow.xyz/";
+    const mod = await loadEnv("testnet");
+    expect(mod.env().AUTH_ORIGINS).toEqual(["https://paiflow.xyz", "https://beta.app.paiflow.xyz"]);
+  });
+
+  it("rejects an entry carrying a path", async () => {
+    // A browser's origin has no path, so this entry could never match one.
+    process.env.AUTH_ORIGINS = "https://paiflow.xyz/login";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/AUTH_ORIGINS/);
+  });
+
+  it("rejects an entry carrying credentials", async () => {
+    process.env.AUTH_ORIGINS = "https://user:pass@paiflow.xyz";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/AUTH_ORIGINS/);
+  });
+
+  it("rejects a non-blank value that lists no origins", async () => {
+    // Falling back to AUTH_URL here would quietly point passkeys at its host —
+    // http://localhost:3000 once AUTH_URL is removed from the service.
+    process.env.AUTH_ORIGINS = ", ,";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/AUTH_ORIGINS/);
+  });
+
+  it("treats a whitespace-only value as blank, keeping the fallback reachable", async () => {
+    process.env.AUTH_ORIGINS = "   ";
+    const mod = await loadEnv("testnet");
+    expect(mod.env().AUTH_ORIGINS).toEqual([]);
+  });
 });
