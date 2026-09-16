@@ -94,13 +94,6 @@ export default function DeploymentView({
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
     let disconnects = 0;
-    // A full-page navigation aborts the stream and fires onerror; that's the user
-    // leaving, not the feed dropping. pagehide fires before the abort.
-    let leaving = false;
-    const onPageHide = () => {
-      leaving = true;
-    };
-    window.addEventListener("pagehide", onPageHide);
 
     // The SSE route only relays rows written after it subscribes, so events the
     // cron stored between server render and this connect would never arrive.
@@ -148,13 +141,7 @@ export default function DeploymentView({
 
       es.onerror = () => {
         if (cancelled) return;
-        if (!leaving) {
-          disconnects += 1;
-          track("live_feed_disconnected", {
-            deployment_id: deploymentId,
-            disconnect_count: disconnects,
-          });
-        }
+        disconnects += 1;
         setConnectionStatus("disconnected");
         if (es) {
           es.close();
@@ -166,10 +153,22 @@ export default function DeploymentView({
         pollOnce();
 
         reconnectTimer = setTimeout(() => {
-          if (!cancelled) {
-            setConnectionStatus("reconnecting");
-            connectSSE();
-          }
+          if (cancelled) return;
+          // Reported from here rather than from onerror: leaving the page aborts
+          // the stream and fires onerror too, and `pagehide` lands *after* that
+          // — a run on 16 Sep 2026 sent live_feed_disconnected 4ms ahead of
+          // posthog's own $pageleave — so a guard on pagehide cannot tell the two
+          // apart and every navigation away counted as a dropped feed. A page
+          // that is really gone never reaches this timer, which leaves the drops
+          // a viewer actually sat through. The trade is that a drop followed
+          // within 5s by the viewer leaving goes unreported; that is the case we
+          // cannot distinguish anyway, and undercounting beats crying wolf.
+          track("live_feed_disconnected", {
+            deployment_id: deploymentId,
+            disconnect_count: disconnects,
+          });
+          setConnectionStatus("reconnecting");
+          connectSSE();
         }, 5000);
       };
     };
@@ -179,7 +178,6 @@ export default function DeploymentView({
 
     return () => {
       cancelled = true;
-      window.removeEventListener("pagehide", onPageHide);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (es) {
         es.close();

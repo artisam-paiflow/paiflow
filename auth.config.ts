@@ -25,6 +25,36 @@ export const authConfig: NextAuthConfig = {
   },
   providers: [],
   callbacks: {
+    // Auth.js resolves a relative callbackUrl against an origin it derives per
+    // request: AUTH_URL when set, otherwise `x-forwarded-host ?? host`
+    // (@auth/core/lib/utils/env.ts, createActionURL). AUTH_URL is deliberately
+    // unset — it pinned every redirect to one hostname while this service
+    // answers on two — and behind Railway's proxy the fallback resolves to the
+    // container's own address, so the default callback returned
+    // `http://localhost:8080/` and signing out left the site entirely, on both
+    // hostnames.
+    //
+    // There is no absolute origin that would be right for both, so return a path
+    // and let the browser resolve it against wherever the visitor already is.
+    // signOut() puts this value in a JSON body it assigns to window.location,
+    // and the no-JS path sets it as a bare Location header
+    // (@auth/core/lib/utils/web.ts uses headers.set, not Response.redirect,
+    // which would reject a relative URL) — both handle a path.
+    redirect({ url, baseUrl }) {
+      // Only a single leading slash is a path. "//host" and "/\host" are
+      // absolute to a browser, so returning one unchanged would be an open
+      // redirect.
+      if (/^\/(?![/\\])/.test(url)) return url;
+      try {
+        const target = new URL(url);
+        if (target.origin === baseUrl) {
+          return `${target.pathname}${target.search}${target.hash}`;
+        }
+      } catch {
+        // Not a URL at all; fall through to the safe default.
+      }
+      return "/";
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = (user as { id: string }).id;
