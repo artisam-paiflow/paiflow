@@ -14,8 +14,6 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 [`Live App`](https://paiflow.xyz) — Stellar **testnet**; no account needed, use _Try the sandbox_ on the login page
 
-[`User Feedback Survey`](https://forms.gle/QTznHiqXCDEnJZq59) — help us improve Paiflow
-
 [`Survey Responses`](https://docs.google.com/spreadsheets/d/1qpaEZPdl_vHMjrSe1Ld6OEMmiliarMKl-i4zdRtLIJQ/edit?usp=sharing) — view aggregated feedback
 
 ---

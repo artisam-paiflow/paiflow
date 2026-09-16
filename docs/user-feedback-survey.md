@@ -1,143 +1,75 @@
-# Paiflow User Feedback Survey
+# Paiflow alpha — submission form
 
-> Source of truth for the Google Form. Keep it under 3–4 minutes.
+> Source of truth for the Google Form that collects tester artifacts. It is a drop-box, not a
+> survey: it asks four things and nothing else.
 
----
+The questions this form used to ask — role, ratings, NPS, open feedback — now live in
+`alpha-testing-guide.md` as interview questions. Testers answer them out loud on their recording
+and in writing in an answers file, which they upload here. Don't re-add them to the form; two
+places to answer the same question is how the two drift apart.
 
-## About you
-
-**1. What best describes your role?**
-
-- Multiple choice
-- Fintech / DeFi founder or PM
-- Software engineer / technical founder
-- SMB operator / finance manager
-- Freelancer / creator
-- Crypto-native user
-- Other
-
-**2. How comfortable are you with blockchain / smart contracts?**
-
-- Scale 1–5 (1 = total beginner, 5 = deploy contracts regularly)
-
-**3. What brought you to Paiflow?**
-
-- Checkboxes
-- Need programmable payouts without Rust devs
-- Want non-custodial payment automation
-- Curious about no-code Soroban tools
-- Need fiat off-ramp / bank payouts
-- Automate splits / subscriptions / payroll
-- Other
+Testers are told to submit only after finishing T7 and the closing questions, so a submission is
+expected to be complete. All four fields are required — a missing artifact means the **₱500**
+incentive isn't released (`alpha-testing-guide.md` §10).
 
 ---
 
-## Builder experience
+## Fields
 
-**4. How easy was it to understand what Paiflow does at first glance?**
+**1. Your name**
 
-- Scale 1–5
+- Short answer, **required**
+- Help text: The name we sent your test account to, so we can match your submission to it.
 
-**5. How intuitive was the drag-and-drop canvas?**
+**2. Your Loom recording URL**
 
-- Scale 1–5
+- **Paragraph**, **required**
+- Help text: One link covering T1–T7. If you recorded in parts, paste every link, one per line.
+  Make sure the share setting allows anyone with the link to view.
+- Paragraph rather than short answer on purpose: the guide permits several links, and a short
+  answer is single-line. Don't add URL response-validation either — it rejects a multi-line value.
 
-**6. Could you build the flow you had in mind?**
+**3. Your screenshots**
 
-- Multiple choice
-- Yes, easily
-- Yes, with some effort
-- No, a block or option was missing
-- No, I got stuck
+- File upload, **required**
+- Max **1 file**, up to 100 MB — the named screenshots from the testing guide, zipped into a single
+  archive. Forms caps a question at 10 files, and a full run produces about 30.
+- Leave **"Allow only specific file types" off**. Google's presets are Document / Spreadsheet /
+  PDF / Image / Video / Presentation / Drawing / Audio — ZIP is not among them, so switching the
+  restriction on rejects exactly the file we're asking for.
 
-**7. What frustrated you most in the builder, if anything?**
+**4. Your interview answers**
 
-- Short answer
-
----
-
-## Deploy & wallet
-
-**8. Did you deploy a flow?**
-
-- Multiple choice
-- Yes, successfully
-- I tried but it failed or confused me
-- No, I only explored
-- I didn’t connect a wallet
-
-**9. How smooth was the wallet connection and deploy flow?**
-
-- Scale 1–5
-
-**10. Did anything about signing / deploying worry you?**
-
-- Checkboxes
-- I didn’t understand what I was signing
-- Fee / cost was unclear
-- Took too long
-- Failed with no clear reason
-- Unsure if testnet or mainnet
-- Nothing worried me
-- Other
-
----
-
-## Trust & value
-
-**11. How trustworthy does Paiflow feel for real money?**
-
-- Scale 1–5
-
-**12. What would most increase your trust? (Pick up to 2)**
-
-- Checkboxes (limit 2)
-- Public contract audits
-- Clear testnet/mainnet indicators
-- Better signing explanations
-- Licensed fiat off-ramp partner
-- Real user case studies
-- Bug bounty / insurance
-- Other
-
-**13. How likely are you to recommend Paiflow?**
-
-- Scale 0–10 (NPS)
-
----
-
-## Open feedback
-
-**14. What did you like most?**
-
-- Short answer
-
-**15. What should we improve first?**
-
-- Short answer
-
-**16. What one feature would make Paiflow significantly more useful?**
-
-- Short answer
-
-**17. May we follow up? If yes, leave your email.**
-
-- Short answer (email)
+- File upload, **required**
+- Max **1 file**, up to 10 MB. `.txt` or a doc — the template is the appendix of the testing guide.
 
 ---
 
 ## Form settings
 
-| Setting      | Value                                                                       |
-| ------------ | --------------------------------------------------------------------------- |
-| Title        | Paiflow User Feedback Survey                                                |
-| Description  | Help us make programmable payments on Stellar effortless. Takes ~3 minutes. |
-| Required     | Q1, Q4, Q5, Q8, Q11, Q13                                                    |
-| Confirmation | Thanks — your feedback shapes the next version of Paiflow.                  |
+| Setting      | Value                                                                    |
+| ------------ | ------------------------------------------------------------------------ |
+| Title        | Paiflow alpha — submission                                               |
+| Description  | Send in your recording, screenshots and answers. All three are required. |
+| Required     | All four fields                                                          |
+| Confirmation | Thanks — that's everything. We'll be in touch about your incentive.      |
 
-## Analysis notes
+Two things to know before building it:
 
-- **NPS** from Q13: Promoters 9–10, Passives 7–8, Detractors 0–6.
-- **Activation** from Q8: deployed successfully → strongest signal.
-- **Trust gaps** from Q10 + Q12.
-- **Top priority** from Q15 open responses.
+- **A file-upload question forces every respondent to sign in with a Google account.** Forms gives
+  no way to disable that, and uploads land in the form owner's Drive, so check quota before the
+  round starts.
+- **If this form is owned by a Google Workspace account**, file uploads can be restricted for
+  respondents outside the organisation. Submit a test response from a personal Gmail before sending
+  the guide out.
+
+## What to do with a submission
+
+- Watch the Loom against that tester's PostHog session replay
+  (`docs/analytics/alpha-tracking-plan.md`) — the recording shows what they intended, the replay
+  shows what the app actually did.
+- The answers file carries the quantitative bits that used to be form questions: four 1–5 ratings
+  and a 0–10 recommend score. Pull those into a sheet by hand; the sample is small enough.
+- **NPS** from the 0–10: promoters 9–10, passives 7–8, detractors 0–6.
+- **Trust gaps** from closing questions 2 and 5.
+- **Top priority** from closing question 5 across all testers.
