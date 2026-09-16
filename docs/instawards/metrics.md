@@ -33,11 +33,25 @@ repository with the same definitions every time and saved in the evidence index 
 and whether it is met. `--source` names the database the run read: the generator will not assert
 which system that was on its own, since `DATABASE_URL` decides it.
 
+Since 16 September 2026 there are **two** databases, so the service has to be named explicitly. The
+beta moved onto the staging service, which was repointed at a new Postgres holding a copy of the
+beta's data. Every snapshot in the evidence index was taken against what is now the separate
+**`postgres-staging-archive`** service. The service called `Postgres` is the live beta database and
+yields different figures — the command below used to say `-s Postgres`, which would now read the
+wrong system while `--source` still claimed otherwise.
+
+The archive has no public endpoint by design; it holds KYC data, bank details and password hashes.
+Create one for the run and remove it straight after:
+
 ```bash
-railway run -p <project> -s Postgres -e staging -- \
+railway tcp-proxy create --project <id> -e staging -s postgres-staging-archive --port 5432
+
+railway run -p <project> -s postgres-staging-archive -e staging -- \
   bash -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" pnpm -s tsx scripts/instawards-metrics.ts \
-    --source="Read-only SQL against the paiflow.xyz application database (Railway project paiflow, environment staging)."' \
+    --source="Read-only SQL against the archived paiflow.xyz application database (Railway project paiflow, environment staging, service postgres-staging-archive)."' \
   > docs/instawards/evidence/metrics-$(date +%F).json
+
+railway tcp-proxy delete --project <id> -e staging -s postgres-staging-archive -y <proxy-id>
 ```
 
 The definitions:
