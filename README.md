@@ -392,7 +392,7 @@ Configured for **Railway** (`railway.toml`, `nixpacks.toml`):
 - `pnpm start` runs `prisma migrate deploy` before booting `next start`.
 - File storage swaps from MinIO to a Railway Volume via `FILE_STORAGE_DRIVER`.
 - The homepage is a separate Railway service serving `homepage/` as static files at
-  `beta.app.paiflow.xyz`: root directory `/homepage`, config file path `/homepage/railway.json`
+  `beta.paiflow.xyz`: root directory `/homepage`, config file path `/homepage/railway.json`
   (absolute: Railway does not resolve it from the root directory), watch paths `homepage/**`, no
   variables. The app redirects `/about`, `/privacy` and `/terms` there (`next.config.ts`). After
   editing its HTML, run `pnpm homepage:css` to regenerate `homepage/styles.css` from the app's brand
