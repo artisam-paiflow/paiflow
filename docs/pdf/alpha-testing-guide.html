@@ -1,0 +1,894 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Paiflow Alpha Testing Guide</title>
+<style>
+@font-face { font-family: "Space Grotesk"; src: url("../../homepage/fonts/space-grotesk-latin.woff2") format("woff2"); font-weight: 300 700; }
+@font-face { font-family: "Geist"; src: url("../../homepage/fonts/geist-latin.woff2") format("woff2"); font-weight: 100 900; }
+@font-face { font-family: "JetBrains Mono"; src: url("../../homepage/fonts/jetbrains-mono-latin.woff2") format("woff2"); font-weight: 100 800; }
+
+:root {
+  --ink: #17151a;
+  --muted: #5d5660;
+  --line: #ece6e9;
+  --pink: #e0005f;
+  --pink-soft: #fff0f5;
+  --pink-tint: #ffb1c4;
+  --blue: #0079c2;
+  --blue-soft: #eef7ff;
+  --amber: #b77900;
+  --amber-soft: #fff7e3;
+  --dark: #131313;
+  --panel: #f7f5f6;
+}
+
+@page { size: A4; margin: 17mm 17mm 18mm; }
+@page cover { margin: 0; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Geist", system-ui, sans-serif;
+  font-size: 10.2pt;
+  line-height: 1.55;
+  color: var(--ink);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+h1, h2, h3, .display { font-family: "Space Grotesk", "Geist", sans-serif; letter-spacing: -0.01em; }
+p { margin: 0 0 8pt; }
+strong { font-weight: 650; }
+a { color: var(--blue); text-decoration: none; border-bottom: 1px solid rgba(0,121,194,.35); }
+code, .mono { font-family: "JetBrains Mono", monospace; }
+code {
+  font-size: 8.6pt;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.5pt 4pt;
+  word-break: break-all;
+}
+.ui {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 8.4pt;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid #d9d0d5;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0 4pt;
+  white-space: nowrap;
+}
+
+/* ---------- cover ---------- */
+.cover {
+  page: cover;
+  height: 297mm;
+  width: 210mm;
+  background-color: #0e0e0e;
+  background-image:
+    linear-gradient(rgba(255,177,196,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,177,196,.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  color: #e5e2e1;
+  padding: 26mm 22mm 22mm;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  break-after: page;
+}
+.cover::after {
+  content: "";
+  position: absolute;
+  right: -60mm; top: 60mm;
+  width: 170mm; height: 170mm;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,74,141,.28), rgba(255,74,141,0) 65%);
+}
+.brand { display: flex; align-items: center; gap: 10pt; position: relative; z-index: 1; }
+.brand svg { width: 34pt; height: 34pt; }
+.brand span { font-family: "Space Grotesk"; font-weight: 700; font-size: 17pt; color: #fff; letter-spacing: -.01em; }
+.cover-body { margin-top: auto; position: relative; z-index: 1; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6pt;
+  font-family: "JetBrains Mono"; font-size: 8pt; font-weight: 700; letter-spacing: .12em;
+  padding: 3pt 8pt; border-radius: 4px;
+}
+.chip-testnet { color: #ffb1c4; background: rgba(255,177,196,.1); border: 1px solid rgba(255,177,196,.3); }
+.chip-testnet::before { content: ""; width: 5pt; height: 5pt; border-radius: 50%; background: #ffb1c4; box-shadow: 0 0 6px #ffb1c4; }
+.cover h1 { font-size: 46pt; line-height: 1.02; margin: 14pt 0 10pt; color: #fff; font-weight: 700; }
+.cover h1 em { font-style: normal; color: #ffb1c4; }
+.cover .lede { font-size: 12.5pt; color: #cfc7c9; max-width: 125mm; margin-bottom: 18pt; }
+.facts { display: flex; gap: 22pt; margin: 0 0 26pt; }
+.facts div { border-left: 2px solid rgba(255,177,196,.45); padding-left: 9pt; }
+.facts b { display: block; font-family: "Space Grotesk"; font-size: 15pt; color: #fff; font-weight: 700; }
+.facts span { font-family: "JetBrains Mono"; font-size: 7.5pt; letter-spacing: .1em; color: #a99ea2; text-transform: uppercase; }
+.cover-links { display: flex; gap: 10pt; }
+.btn {
+  display: inline-block; border: none;
+  font-family: "JetBrains Mono"; font-size: 8.5pt; font-weight: 700; letter-spacing: .06em;
+  padding: 7pt 13pt; border-radius: 6px;
+}
+.btn-primary { background: #ffb1c4; color: #65002e; }
+.btn-ghost { color: #98cbff; border: 1px solid rgba(152,203,255,.5); }
+.cover-foot { position: relative; z-index: 1; margin-top: 22pt; font-family: "JetBrains Mono"; font-size: 7.5pt; color: #8a8084; letter-spacing: .08em; }
+
+/* ---------- layout ---------- */
+.page-break { break-before: page; }
+.kicker { font-family: "JetBrains Mono"; font-size: 7.6pt; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--pink); }
+.section-head { display: flex; align-items: baseline; gap: 12pt; margin: 0 0 12pt; padding-bottom: 9pt; border-bottom: 2px solid var(--ink); }
+.section-head .num { font-family: "Space Grotesk"; font-weight: 700; font-size: 30pt; line-height: 1; color: var(--pink); }
+.section-head h2 { font-size: 21pt; line-height: 1.1; margin: 0; font-weight: 700; }
+h3 { font-size: 12.5pt; margin: 18pt 0 7pt; font-weight: 700; display: flex; align-items: center; gap: 7pt; break-after: avoid; }
+h3 .tag { font-family: "JetBrains Mono"; font-size: 7.5pt; font-weight: 700; color: var(--pink); background: var(--pink-soft); border-radius: 4px; padding: 1pt 5pt; }
+
+/* intro page */
+.intro-grid { display: grid; grid-template-columns: 1fr; gap: 10pt; }
+.lead { font-size: 11.5pt; line-height: 1.55; }
+
+/* callouts */
+.callout { border-radius: 8px; padding: 10pt 12pt; margin: 10pt 0 12pt; break-inside: avoid; border-left: 4px solid; }
+.callout p:last-child { margin-bottom: 0; }
+.callout .label { font-family: "JetBrains Mono"; font-size: 7.4pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; display: block; margin-bottom: 3pt; }
+.callout.warn { background: var(--amber-soft); border-color: #ffba20; }
+.callout.warn .label { color: var(--amber); }
+.callout.tip { background: var(--blue-soft); border-color: #00a2fd; }
+.callout.tip .label { color: var(--blue); }
+.callout.note { background: var(--panel); border-color: #cfc5ca; }
+.callout.note .label { color: var(--muted); }
+
+/* contents */
+.toc { list-style: none; padding: 0; margin: 6pt 0 0; }
+.toc li { display: grid; grid-template-columns: 26pt 1fr; gap: 6pt; padding: 8pt 0; border-bottom: 1px solid var(--line); }
+.toc .n { font-family: "Space Grotesk"; font-weight: 700; font-size: 14pt; color: var(--pink); line-height: 1.2; }
+.toc a { color: var(--ink); border: none; font-family: "Space Grotesk"; font-weight: 600; font-size: 12pt; }
+.toc small { display: block; color: var(--muted); font-size: 9pt; }
+
+/* steps */
+ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 6pt 0 10pt; }
+ol.steps > li { counter-increment: step; position: relative; padding: 0 0 0 26pt; margin: 0 0 8pt; break-inside: avoid; }
+ol.steps > li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: 0.5pt;
+  width: 17pt; height: 17pt; border-radius: 50%;
+  background: var(--ink); color: #fff;
+  font-family: "Space Grotesk"; font-weight: 700; font-size: 8.8pt;
+  display: flex; align-items: center; justify-content: center;
+}
+ul.plain { margin: 4pt 0 4pt; padding-left: 14pt; }
+ul.plain li { margin: 1.5pt 0; }
+ul.plain li::marker { color: var(--pink); }
+
+/* checks */
+ul.checks { list-style: none; padding: 0; margin: 5pt 0 2pt; }
+ul.checks li { position: relative; padding: 2.5pt 0 2.5pt 19pt; color: #2b262d; }
+ul.checks li::before {
+  content: ""; position: absolute; left: 0; top: 4.2pt;
+  width: 10pt; height: 10pt; border: 1.5px solid var(--pink); border-radius: 3px; background: #fff;
+}
+.checks-block { background: var(--pink-soft); border-radius: 8px; padding: 6pt 10pt 6pt; margin: 8pt 0 12pt; break-inside: avoid; }
+.checks-block .label { font-family: "JetBrains Mono"; font-size: 7.2pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--pink); }
+
+/* glossary list (builder tour) */
+.tour { display: grid; grid-template-columns: 1fr 1fr; gap: 8pt; margin: 8pt 0 12pt; }
+.tour div { border: 1px solid var(--line); border-radius: 8px; padding: 8pt 10pt; break-inside: avoid; background: #fff; }
+.tour b { display: block; font-family: "Space Grotesk"; font-size: 10.5pt; margin-bottom: 1pt; }
+.tour em { font-style: normal; font-family: "JetBrains Mono"; font-size: 7pt; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-left: 3pt; }
+.tour p { margin: 0; font-size: 9.2pt; color: #3c3540; }
+
+/* test cards */
+.test { border: 1px solid var(--line); border-radius: 10px; margin: 0 0 14pt; overflow: hidden; }
+.test-head { background: var(--dark); color: #fff; padding: 10pt 14pt; display: flex; align-items: center; gap: 10pt; break-after: avoid; }
+.test-id { font-family: "JetBrains Mono"; font-weight: 700; font-size: 9pt; color: #65002e; background: #ffb1c4; border-radius: 5px; padding: 2pt 7pt; }
+.test-head h3 { margin: 0; color: #fff; font-size: 13pt; }
+.test-body { padding: 10pt 14pt 4pt; }
+.goal { font-size: 9.6pt; color: var(--muted); border-bottom: 1px dashed var(--line); padding-bottom: 7pt; margin-bottom: 8pt; }
+.goal b { color: var(--pink); font-family: "JetBrains Mono"; font-size: 7.6pt; letter-spacing: .12em; text-transform: uppercase; margin-right: 4pt; }
+.test-body ul.checks { margin-top: 3pt; }
+
+/* break-it grid */
+.breakit { margin: 6pt 0 10pt; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.breakit .row { display: grid; grid-template-columns: 16pt 1fr 1fr; gap: 10pt; padding: 7pt 10pt; border-top: 1px solid var(--line); break-inside: avoid; }
+.breakit .row:first-child { border-top: none; }
+.breakit .hdr { background: var(--panel); font-family: "JetBrains Mono"; font-size: 7.2pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding: 5pt 10pt; }
+.breakit .l { font-family: "Space Grotesk"; font-weight: 700; color: var(--pink); }
+.breakit .exp { color: #3c3540; }
+
+/* not in scope */
+.scope { list-style: none; padding: 0; margin: 8pt 0; }
+.scope li { display: grid; grid-template-columns: 1fr auto; gap: 12pt; align-items: start; padding: 8pt 0; border-bottom: 1px solid var(--line); break-inside: avoid; }
+.scope li p { margin: 0; }
+.scope .off { font-family: "JetBrains Mono"; font-size: 7pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border: 1px solid #d9d0d5; border-radius: 4px; padding: 1pt 5pt; white-space: nowrap; margin-top: 2pt; }
+
+/* known issues */
+.issues { list-style: none; padding: 0; margin: 8pt 0; display: grid; gap: 7pt; }
+.issues li { background: var(--panel); border-radius: 8px; padding: 8pt 11pt; break-inside: avoid; }
+.issues li p { margin: 0; }
+
+/* troubleshooting */
+.trouble { margin: 8pt 0; display: grid; gap: 7pt; }
+.trouble .item { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; break-inside: avoid; }
+.trouble .see, .trouble .try { padding: 8pt 11pt; }
+.trouble .see { background: var(--panel); }
+.trouble .k { display: block; font-family: "JetBrains Mono"; font-size: 7pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 2pt; }
+.trouble .see .k { color: var(--muted); }
+.trouble .try .k { color: var(--pink); }
+
+/* report */
+.report-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; margin: 10pt 0 14pt; }
+.report-card { border-radius: 10px; padding: 13pt 14pt; break-inside: avoid; }
+.report-card.bug { background: var(--dark); color: #e5e2e1; }
+.report-card.survey { background: var(--pink-soft); border: 1px solid #ffd3e0; }
+.report-card h3 { margin: 0 0 4pt; font-size: 13pt; }
+.report-card.bug h3 { color: #fff; }
+.report-card p { font-size: 9.4pt; margin-bottom: 8pt; }
+.report-card .url { font-family: "JetBrains Mono"; font-size: 8.5pt; font-weight: 700; border: none; }
+.report-card.bug .url { color: #ffb1c4; }
+.report-card.survey .url { color: var(--pink); }
+.thanks { font-family: "Space Grotesk"; font-weight: 700; font-size: 22pt; margin-top: 16pt; }
+.thanks span { color: var(--pink); }
+
+/* ---------- added: screenshots, interview, artifacts, template ---------- */
+ul.shots { list-style: none; padding: 0; margin: 4pt 0 2pt; }
+ul.shots li { position: relative; padding: 2.5pt 0 2.5pt 32pt; font-size: 9.3pt; color: #3c3540; }
+ul.shots li::before {
+  content: "SHOT"; position: absolute; left: 0; top: 3.6pt;
+  font-family: "JetBrains Mono"; font-size: 6.4pt; font-weight: 700; letter-spacing: .1em;
+  color: var(--pink); background: var(--pink-soft); border: 1px solid #ffd3e0;
+  border-radius: 3px; padding: 0.5pt 3.5pt;
+}
+ul.shots code { background: #fff; font-size: 8.2pt; }
+
+.callout.ask { background: #faf3ff; border-color: #9b5de5; }
+.callout.ask .label { color: #7a2fd0; }
+
+.payout { background: var(--dark); border-radius: 10px; padding: 13pt 16pt; margin: 6pt 0 12pt;
+  display: flex; align-items: baseline; gap: 13pt; break-inside: avoid; }
+.payout b { font-family: "Space Grotesk"; font-weight: 700; font-size: 29pt; color: #ffb1c4; line-height: 1; }
+.payout span { font-size: 10.2pt; color: #cfc7c9; }
+.artifacts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10pt; margin: 4pt 0 12pt; }
+.artifacts div { border: 1px solid var(--line); border-radius: 9px; padding: 10pt 12pt; background: #fff; break-inside: avoid; }
+.artifacts .box { display: block; width: 11pt; height: 11pt; border: 1.5px solid var(--pink); border-radius: 3px; margin-bottom: 6pt; }
+.artifacts b { display: block; font-family: "Space Grotesk"; font-size: 10.4pt; margin-bottom: 1pt; }
+.artifacts p { margin: 0; font-size: 8.9pt; color: var(--muted); }
+
+ol.qs { padding-left: 16pt; margin: 8pt 0; }
+ol.qs li { margin: 0 0 7pt; padding-left: 3pt; break-inside: avoid; }
+ol.qs li::marker { font-family: "Space Grotesk"; font-weight: 700; color: var(--pink); }
+
+pre.template {
+  font-family: "JetBrains Mono", monospace; font-size: 7.3pt; line-height: 1.52;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 10pt 12pt; white-space: pre-wrap; color: #2b262d; margin: 8pt 0;
+}
+.report-card.submit { background: var(--pink-soft); border: 1px solid #ffd3e0; }
+.report-card.submit h3 { color: var(--ink); }
+.report-card.submit .url { color: var(--pink); }
+</style>
+</head>
+<body>
+
+<!-- ================= COVER ================= -->
+<section class="cover">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#0e0e0e" stroke="rgba(255,177,196,.25)"/>
+      <g stroke="#ffb1c4" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <polyline points="6,7 10,11 6,15"/>
+        <polyline points="13,11 17,15 13,19" opacity="0.78"/>
+        <polyline points="20,15 24,19 20,23" opacity="0.55"/>
+      </g>
+    </svg>
+    <span>Paiflow</span>
+  </div>
+
+  <div class="cover-body">
+    <span class="chip chip-testnet">STELLAR TESTNET</span>
+    <h1>Alpha<br>Testing <em>Guide</em></h1>
+    <p class="lede">Thanks for helping test Paiflow. This guide takes you from an empty wallet to deploying and running real payment flows — no coding needed.</p>
+    <div class="facts">
+      <div><b>~90 min</b><span>End to end</span></div>
+      <div><b>15 min</b><span>Setup</span></div>
+      <div><b>7</b><span>Test cases</span></div>
+      <div><b>₱500</b><span>Incentive</span></div>
+    </div>
+    <div class="cover-links">
+      <a class="btn btn-primary" href="https://forms.gle/hdmpGNwUi6oh6stv6">SUBMIT ARTIFACTS ↗</a>
+      <a class="btn btn-ghost" href="https://forms.gle/c7AmbU61XbGpCPVXA">REPORT A BUG ↗</a>
+    </div>
+  </div>
+  <div class="cover-foot">BETA.PAIFLOW.XYZ · ALPHA ROUND</div>
+</section>
+
+<!-- ================= INTRO + CONTENTS ================= -->
+<section>
+  <div class="kicker">Welcome</div>
+  <h2 class="display" style="font-size:24pt;margin:4pt 0 10pt;line-height:1.1">What Paiflow is</h2>
+  <p class="lead">A visual builder for payments. You drag a trigger (“when money arrives”) and an action (“pay this person”, “split it”, “swap it”) onto a canvas, press <strong>Deploy</strong>, and Paiflow turns that into real smart contracts on the Stellar network.</p>
+  <p class="lead">It is non-custodial: you sign every transaction yourself, in your own wallet, and Paiflow never holds your keys.</p>
+  <p>This guide takes <strong>about 90 minutes</strong> end to end: 15 minutes of setup, about an hour of test cases, then the interview questions. You don't need to know how to code.</p>
+
+  <div class="callout ask">
+    <span class="label">You'll send us three things</span>
+    <p>They're what makes you eligible for the <strong>₱500</strong> incentive (<a href="#s10">section 10</a>):</p>
+    <ul class="plain">
+      <li>a <strong>Loom recording</strong> of your session, with your screen and camera (<a href="#s1">step 1.5</a>);</li>
+      <li>your <strong>screenshots</strong>, named as the test cases tell you (<a href="#s4">section 4</a>);</li>
+      <li>your <strong>answers file</strong> — the interview questions, answered as you go (<a href="#s1">step 1.6</a>).</li>
+    </ul>
+  </div>
+
+  <div class="callout warn">
+    <span class="label">Testnet only</span>
+    <p><strong>Everything in this round runs on Stellar testnet.</strong> Testnet money is free and worthless. You will never be asked for real funds, a card, or a seed phrase. If anything ever asks you for one, stop and report it.</p>
+  </div>
+
+  <div class="callout note">
+    <span class="label">We record how the app is used</span>
+    <p>beta.app.paiflow.xyz sends usage analytics to PostHog — which buttons and screens you reach, and where errors appear — so we can see where things are confusing without asking you to write it all down. <strong>Your screen and your session are not recorded.</strong> Events are tied to your test account's internal ID, not your name, and never include wallet addresses or keys.</p>
+    <p><strong>The only recording of your screen is the one you make yourself</strong>, with Loom, and send to us (step 1.5). It is not masked — it shows your screen as you see it, and your face and voice — so only start it once wallet setup is finished, as the steps below tell you. If you have concerns about any of this, contact us before you start.</p>
+  </div>
+
+  <div class="kicker" style="margin-top:20pt">Contents</div>
+  <ol class="toc">
+    <li><span class="n">1</span><div><a href="#s1">Before you start</a><small>Freighter, free testnet XLM, recipient accounts, Loom, your answers file.</small></div></li>
+    <li><span class="n">2</span><div><a href="#s2">Sign in to your test account</a><small>Use the username and password we sent you.</small></div></li>
+    <li><span class="n">3</span><div><a href="#s3">A quick tour of the builder</a><small>The parts of the screen you'll use in every test.</small></div></li>
+    <li><span class="n">4</span><div><a href="#s4">Test cases</a><small>T1–T7: swap, pay, split, and free exploration.</small></div></li>
+    <li><span class="n">5</span><div><a href="#s5">What not to test in this round</a><small>Features that aren't ready yet.</small></div></li>
+    <li><span class="n">6</span><div><a href="#s6">Known issues</a><small>Already on our list — no need to report.</small></div></li>
+    <li><span class="n">7</span><div><a href="#s7">Troubleshooting</a><small>Common messages and what to do.</small></div></li>
+    <li><span class="n">8</span><div><a href="#s8">Reporting bugs and sending in your artifacts</a><small>The bug form, and the hand-in that completes your run.</small></div></li>
+    <li><span class="n">9</span><div><a href="#s9">Closing interview questions</a><small>Nine questions, answered in your answers file.</small></div></li>
+    <li><span class="n">10</span><div><a href="#s10">Your incentive</a><small>₱500 once all three artifacts are in.</small></div></li>
+  </ol>
+</section>
+
+<!-- ================= 1 ================= -->
+<section class="page-break" id="s1">
+  <div class="section-head"><span class="num">01</span><h2>Before you start</h2></div>
+  <p><strong>You need:</strong> a desktop or laptop with <strong>Chrome</strong> or <strong>Brave</strong>. Phones are not part of this round.</p>
+
+  <h3><span class="tag">1.1</span> Install Freighter and switch it to testnet</h3>
+  <ol class="steps">
+    <li>Install the <a href="https://www.freighter.app/">Freighter wallet extension</a> and pin it to your toolbar.</li>
+    <li>Open Freighter → <strong>Create new wallet</strong>. Write down the recovery phrase somewhere safe — even for a test wallet, you'll want it if the extension gets reset.</li>
+    <li>In Freighter, open the network menu at the top and choose <strong>Testnet</strong>.</li>
+  </ol>
+  <div class="checks-block"><ul class="checks"><li>Freighter shows <strong>Testnet</strong> at the top.</li></ul></div>
+
+  <h3><span class="tag">1.2</span> Fund your wallet with free testnet XLM</h3>
+  <p>A brand-new Stellar account doesn't exist on the network until it holds some XLM. Friendbot is Stellar's free testnet faucet.</p>
+  <ol class="steps">
+    <li>In Freighter, copy your address (it starts with <code>G</code>).</li>
+    <li>Open this link in a new tab, replacing <code>YOUR_ADDRESS</code>:<br><code>https://friendbot.stellar.org/?addr=YOUR_ADDRESS</code><br>(Freighter may also show a <strong>Fund with Friendbot</strong> button — that does the same thing.)</li>
+  </ol>
+  <div class="checks-block"><ul class="checks"><li>Freighter shows a balance of <strong>10,000 XLM</strong>.</li></ul></div>
+  <p>This account is your <strong>Main</strong> account. You'll deploy and trigger flows with it.</p>
+
+  <h3><span class="tag">1.3</span> Create two recipient accounts</h3>
+  <p>Your flows need somebody to pay. You'll pay yourself, into two extra accounts.</p>
+  <ol class="steps">
+    <li>In Freighter, open the account menu → <strong>Add a new wallet</strong> (or <strong>Create account</strong>). Name it <strong>Recipient A</strong>.</li>
+    <li>Fund it with Friendbot exactly as in step 1.2.</li>
+    <li>Repeat for a third account named <strong>Recipient B</strong>.</li>
+    <li>Paste all three <code>G…</code> addresses into a note — you'll copy them into Paiflow later.</li>
+  </ol>
+  <div class="checks-block"><ul class="checks"><li>Main, Recipient A and Recipient B all show 10,000 XLM.</li></ul></div>
+
+  <h3><span class="tag">1.4</span> Let Recipient A hold USDC</h3>
+  <p>Some tests swap XLM into USDC (a testnet dollar token). A Stellar account has to opt in to a token before it can hold it — this is called adding a <strong>trustline</strong>.</p>
+  <ol class="steps">
+    <li>In Freighter, switch to <strong>Recipient A</strong>.</li>
+    <li>Open <strong>Manage assets</strong> → <strong>Add an asset</strong> (the wording varies slightly by Freighter version).</li>
+    <li>Search for <strong>USDC</strong>, and pick the one whose issuer is<br><code>GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5</code>. Confirm and sign.</li>
+    <li>Switch Freighter back to <strong>Main</strong>.</li>
+  </ol>
+  <div class="checks-block"><ul class="checks"><li>Recipient A lists <strong>USDC</strong> with a balance of 0.</li></ul></div>
+  <div class="callout note"><span class="label">Note</span><p>Leave Recipient B <strong>without</strong> a USDC trustline.</p></div>
+
+  <h3 style="break-before:page"><span class="tag">1.5</span> Set up Loom and prepare to record</h3>
+  <p><strong>Recording yourself is required this round.</strong> Watching someone actually use Paiflow — face, voice and screen together — tells us far more than a written bug report can, especially about the parts that are merely confusing rather than broken.</p>
+  <ol class="steps">
+    <li>Sign up at <a href="https://www.loom.com/">loom.com</a> and install the <strong>Loom Chrome extension</strong>.</li>
+    <li>Loom's free Starter plan cuts every recording off at <strong>5 minutes</strong>, which isn't enough for this session. Start the <strong>14-day free Business + AI trial</strong> so your recording runs uninterrupted. <strong>No card is needed.</strong> If you don't add one, the workspace drops back to the free Starter plan when the trial ends and there is nothing to cancel. Only add a payment method if you want to keep Loom afterwards — doing so starts a paid subscription when the trial ends.</li>
+    <li>Set the recorder to <strong>Screen + camera + mic</strong>. We want your face in the corner and your voice throughout — thinking out loud, especially when you're unsure what a screen means, is the most useful part of the whole recording. If being on camera is a problem for you, tell us before you start rather than skipping it.</li>
+  </ol>
+  <div class="callout warn">
+    <span class="label">Don't start recording yet</span>
+    <p>Your Freighter recovery phrase was on screen in step 1.1. Start recording at the beginning of <a href="#s4">section 4</a>, once wallet setup is done and there's nothing sensitive left to capture.</p>
+  </div>
+  <div class="checks-block"><ul class="checks"><li>Loom is installed, on a plan that records for longer than 5 minutes, and set to Screen + camera + mic.</li></ul></div>
+
+  <h3><span class="tag">1.6</span> Create your answers file</h3>
+  <p>The interview is built into this guide: each test case ends with a question, and there's a closing set in <a href="#s9">section 9</a>. You answer them <strong>out loud on the recording</strong> and <strong>in writing</strong>, so we have something searchable next to the video.</p>
+  <ol class="steps">
+    <li>Copy the <a href="#appendix">answers file template</a> at the end of this guide into a text file or a doc.</li>
+    <li>Save it as <code>answers-&lt;yourname&gt;.txt</code> (or <code>.doc</code> — either is fine).</li>
+    <li>Fill in the <strong>About you</strong> section at the top now, before you start testing.</li>
+    <li>Keep it open in another window while you work.</li>
+  </ol>
+  <div class="checks-block"><ul class="checks"><li>Your answers file exists, and the About you section is filled in.</li></ul></div>
+</section>
+
+<!-- ================= 2 + 3 ================= -->
+<section class="page-break" id="s2">
+  <div class="section-head"><span class="num">02</span><h2>Sign in to your test account</h2></div>
+  <p>We'll send you a <strong>username</strong> and <strong>password</strong> for your test account.</p>
+  <ol class="steps">
+    <li>Go to <a href="https://beta.paiflow.xyz">beta.paiflow.xyz</a> and open the login page.</li>
+    <li>Enter your <strong>Username</strong> and <strong>Password</strong>, then click <span class="ui">SIGN IN</span>.</li>
+  </ol>
+  <div class="checks-block"><ul class="checks">
+    <li>You land on your dashboard (“Your flows.”).</li>
+    <li>One flow is already there: <strong>Swap XLM to USDC</strong>.</li>
+  </ul></div>
+  <div class="callout tip"><span class="label">Tip</span><p>Bookmark each deployment page you create, so you can find it quickly for a bug report.</p></div>
+</section>
+
+<section id="s3" style="margin-top:22pt">
+  <div class="section-head"><span class="num">03</span><h2>A quick tour of the builder</h2></div>
+  <p>Open <strong>Swap XLM to USDC</strong>. Take a minute to find each of these — you'll use them in every test.</p>
+  <div class="tour">
+    <div><b>Blocks <em>left sidebar</em></b><p>The palette. Drag a block onto the canvas. Triggers, Actions and Logic are grouped.</p></div>
+    <div><b>Canvas <em>centre</em></b><p>Your flow. Drag from one block's handle to another to connect them. Select a block and press Delete to remove it.</p></div>
+    <div><b>Settings panel</b><p>Click any block on the canvas to open its settings.</p></div>
+    <div><b>English Preview <em>top</em></b><p>Your flow written out as a sentence. <strong>Always read it before deploying</strong> — it's the plain-language check on the money.</p></div>
+    <div><b>Errors button</b><p>Appears when something's wrong. Click it to list every problem. Fields with problems are also highlighted.</p></div>
+    <div><b>DEPLOY button</b><p>Greyed out until the flow has no errors.</p></div>
+    <div><b>Dev mode switch</b><p><strong>Leave this off</strong> for every test.</p></div>
+    <div><b>Flow title</b><p>Click it to rename the flow. Changes save automatically; there is no Save button.</p></div>
+  </div>
+  <div class="callout note"><span class="label">One trigger per flow</span><p>A flow always starts with exactly <strong>one trigger</strong>. Once you have one, the other triggers grey out.</p></div>
+</section>
+
+<!-- ================= 4 ================= -->
+<section class="page-break" id="s4">
+  <div class="section-head"><span class="num">04</span><h2>Test cases</h2></div>
+
+  <div class="callout warn">
+    <span class="label">Start your Loom recording now</span>
+    <p>Keep it running through T1 to T7. Narrate as you go: what you're about to do, and what you expected to happen when it doesn't. If you have to stop partway — a break, a crash, the trial cutting out — just start a new recording and send us every link.</p>
+  </div>
+
+  <p>Do them in order — later tests reuse accounts and flows from earlier ones. For each one, tick the boxes as you go. <strong>If a box doesn't match what you see, grab a screenshot and report it</strong> with the <a href="https://forms.gle/c7AmbU61XbGpCPVXA">bug report form</a>, unless it's listed under <a href="#s6">known issues</a>.</p>
+
+  <div class="callout note">
+    <span class="label">Screenshots</span>
+    <p>Each test marks the shots we need with a <strong>SHOT</strong> tag. Save each one with the exact name given (for example <code>T1-5-live-feed.png</code>) into a single folder — at the end you'll zip that folder and send it in. Your operating system's built-in tool is enough: <strong>Win + Shift + S</strong> on Windows, <strong>Cmd + Shift + 4</strong> on macOS.</p>
+  </div>
+
+  <div class="callout ask">
+    <span class="label">Interview prompts</span>
+    <p>Each test ends with an <strong>Interview</strong> box. Say your answer out loud on the recording, then write a line or two into your answers file under that test's heading. Don't overthink them — your first reaction is exactly what we're after, including “I have no idea”.</p>
+  </div>
+
+  <div class="callout tip">
+    <span class="label">Where to check that money really moved</span>
+    <ul class="plain">
+      <li>The <strong>live event feed</strong> on the deployment page.</li>
+      <li><strong>Freighter</strong>: switch to the recipient account and look at its balance.</li>
+      <li><strong>stellar.expert</strong>: every deployment page links its contract to <a href="https://stellar.expert/explorer/testnet">stellar.expert/explorer/testnet</a>, where you can see each transaction.</li>
+    </ul>
+  </div>
+
+  <!-- T1 -->
+  <div class="test" style="break-before: page">
+    <div class="test-head"><span class="test-id">T1</span><h3>Deploy and run the ready-made swap flow</h3></div>
+    <div class="test-body">
+      <div class="goal"><b>Goal</b>The core of this round. Receive XLM, swap it to USDC on a real exchange (Soroswap), and pay it out.</div>
+      <ol class="steps">
+        <li>Open <strong>Swap XLM to USDC</strong>. Don't change anything.</li>
+        <li>Read the <strong>English Preview</strong>.
+          <ul class="checks"><li>It describes receiving XLM, swapping to USDC, and paying it out.</li></ul>
+          <ul class="shots"><li><code>T1-1-english-preview</code> — the English Preview panel.</li></ul></li>
+        <li>Click the <strong>Swap</strong> block.
+          <ul class="checks">
+            <li>Router shows <strong>Soroswap (testnet)</strong> and can't be changed.</li>
+            <li>A live quote appears, like <em>“10 XLM → ~1.05 USDC via Soroswap (live)”</em>, with a minimum amount under it.</li>
+          </ul>
+          <ul class="shots"><li><code>T1-2-swap-quote</code> — the Swap settings, showing the router and the live quote.</li></ul></li>
+        <li>Click <span class="ui">DEPLOY</span>. You're taken to <strong>Review &amp; deploy</strong>.
+          <ul class="checks">
+            <li>A <strong>TESTNET</strong> chip is shown.</li>
+            <li>The page says how many contracts it will create, and shows the swap quote again.</li>
+          </ul>
+          <ul class="shots"><li><code>T1-3-review-deploy</code> — the review page, with the TESTNET chip in shot.</li></ul></li>
+        <li>Click <span class="ui">DEPLOY TO TESTNET</span>. Freighter pops up — check it says testnet, then <strong>sign</strong>.
+          <ul class="checks">
+            <li>A “Contract deployed” message appears and you're taken to the deployment page.</li>
+            <li>Within about a minute the status becomes <strong>ACTIVE</strong> and a QR code appears.</li>
+          </ul>
+          <ul class="shots"><li><code>T1-4-deployment-active</code> — the deployment page once it reads ACTIVE.</li></ul></li>
+        <li><strong>Bookmark this page.</strong> Click <span class="ui">OPEN TRIGGER PAGE</span>.</li>
+        <li>Enter <strong>10</strong> as the amount, click <span class="ui">CONFIRM AMOUNT</span>, then <span class="ui">CONNECT WALLET &amp; TRIGGER</span>. Sign in Freighter (with your <strong>Main</strong> account).
+          <ul class="checks"><li>You see progress messages ending in a success message.</li></ul></li>
+        <li>Go back to the deployment page and watch the live event feed.
+          <ul class="checks">
+            <li>A <strong>RECEIVE</strong> row for 10 XLM appears.</li>
+            <li>A <strong>PAYOUT</strong> row for the swap shows amount in (XLM) and amount out (USDC), and the USDC amount is close to the quote from step 3.</li>
+            <li>On stellar.expert, the trigger transaction shows a Soroswap <strong>swap</strong>.</li>
+          </ul>
+          <ul class="shots">
+            <li><code>T1-5-live-feed</code> — the feed showing the RECEIVE and PAYOUT rows together.</li>
+            <li><code>T1-6-stellar-expert</code> — the transaction on stellar.expert showing the swap.</li>
+          </ul></li>
+      </ol>
+      <div class="callout ask"><span class="label">Interview — T1</span><p>Before you clicked <strong>DEPLOY TO TESTNET</strong>, what did you think was about to happen? And when Freighter popped up, could you tell what you were being asked to sign?</p></div>
+      <div class="callout note"><p>This first flow pays a shared Paiflow demo account, so you won't see the USDC yourself — T2 fixes that.</p></div>
+    </div>
+  </div>
+
+  <!-- T2 -->
+  <div class="test">
+    <div class="test-head"><span class="test-id">T2</span><h3>Swap into your own account</h3></div>
+    <div class="test-body">
+      <div class="goal"><b>Goal</b>Confirm the swapped USDC lands where you told it to.</div>
+      <ol class="steps">
+        <li>Back on the dashboard, open <strong>Swap XLM to USDC</strong> again.</li>
+        <li>Click the <strong>Pay</strong> block and replace the recipient with <strong>Recipient A</strong>'s address.
+          <ul class="checks"><li>The English Preview now shows Recipient A's address (shortened).</li></ul>
+          <ul class="shots"><li><code>T2-1-english-preview</code> — the preview with Recipient A's address in it.</li></ul></li>
+        <li>Deploy it (steps 4–5 of T1), then trigger it with <strong>20 XLM</strong> (steps 6–7 of T1).
+          <ul class="checks"><li>The live feed shows RECEIVE and PAYOUT rows.</li></ul>
+          <ul class="shots"><li><code>T2-2-live-feed</code> — the feed after the trigger.</li></ul></li>
+        <li>In Freighter, switch to <strong>Recipient A</strong>.
+          <ul class="checks"><li>Recipient A now holds <strong>about 2 USDC</strong> (close to the quote).</li></ul>
+          <ul class="shots"><li><code>T2-3-recipient-a-usdc</code> — Freighter showing Recipient A's USDC balance.</li></ul></li>
+        <li>Switch Freighter back to <strong>Main</strong>.</li>
+      </ol>
+      <div class="callout ask"><span class="label">Interview — T2</span><p>Before you opened Freighter to check, did you already believe the USDC had arrived? What made you sure, or unsure?</p></div>
+    </div>
+  </div>
+
+  <!-- T3 -->
+  <div class="test" style="break-before: page">
+    <div class="test-head"><span class="test-id">T3</span><h3>The swap block refuses bad settings</h3></div>
+    <div class="test-body">
+      <div class="goal"><b>Goal</b>Check that mistakes are caught <em>before</em> anything is deployed. You won't deploy in this test.</div>
+      <p>Open <strong>Swap XLM to USDC</strong> and try each change below. After each one, check the boxes and take the screenshot, then <strong>undo the change</strong> before trying the next. Every screenshot here should have the <strong>greyed-out DEPLOY button in shot</strong> alongside the error — that pairing is the thing we're checking.</p>
+      <div class="breakit">
+        <div class="row hdr"><span></span><span>Try</span><span>Expected</span></div>
+        <div class="row"><span class="l">a</span><span>Set <strong>Asset Out</strong> to <strong>XLM</strong> (same as Asset In).</span><span class="exp">An error saying a swap has to exchange two different assets.</span></div>
+        <div class="row"><span class="l">b</span><span>Set <strong>Max slippage</strong> to <strong>0.1</strong>.</span><span class="exp">An error saying slippage must be at least 0.3% because of Soroswap's pool fee.</span></div>
+        <div class="row"><span class="l">c</span><span>Set <strong>Deadline</strong> to <strong>0</strong>, then to <strong>100000</strong>.</span><span class="exp">The field refuses the value (the allowed range is 1–86,400 seconds).</span></div>
+        <div class="row"><span class="l">d</span><span>Delete the connection between <strong>Swap</strong> and <strong>Pay</strong>.</span><span class="exp">An error saying a swap needs one next step.</span></div>
+        <div class="row"><span class="l">e</span><span>Drag in a second <strong>Pay</strong> block and connect <strong>Swap</strong> to it too.</span><span class="exp">An error saying a swap sends its output to only one next step.</span></div>
+      </div>
+      <ul class="shots">
+        <li><code>T3-a-same-asset</code> — row a, the same-asset error.</li>
+        <li><code>T3-b-slippage</code> — row b, the slippage minimum.</li>
+        <li><code>T3-c-deadline</code> — row c, the rejected deadline.</li>
+        <li><code>T3-d-swap-no-next-step</code> — row d, the missing next step.</li>
+        <li><code>T3-e-swap-two-outputs</code> — row e, the second output.</li>
+      </ul>
+      <div class="checks-block"><span class="label">For every row</span><ul class="checks">
+        <li>The error is easy to understand and says how to fix it.</li>
+        <li><strong>DEPLOY</strong> is greyed out while the error is there.</li>
+        <li>The error goes away once you undo the change.</li>
+      </ul></div>
+      <div class="callout ask"><span class="label">Interview — T3</span><p>Were those error messages enough to fix the problem on your own, without asking anyone? Which one was clearest, and which one left you guessing?</p></div>
+    </div>
+  </div>
+
+  <!-- T4 -->
+  <div class="test">
+    <div class="test-head"><span class="test-id">T4</span><h3>Receive XLM, pay a fixed amount</h3></div>
+    <div class="test-body">
+      <div class="goal"><b>Goal</b>The simplest flow — money in, money out to one person.</div>
+      <ol class="steps">
+        <li>On the dashboard, click <span class="ui">NEW FLOW</span>, name it <strong>T4 Pay</strong>, and click <span class="ui">CREATE FLOW</span>.</li>
+        <li>The new flow comes with an example (receive USDC, split to Alice / Bob / Charlie). Those are placeholder accounts that can't receive money, so <strong>delete both blocks</strong>.</li>
+        <li>Drag in <strong>On Receive</strong>. In its settings, set Asset to <strong>XLM (native)</strong>.</li>
+        <li>Drag in <strong>Pay</strong> and connect On Receive → Pay. In Pay's settings:
+          <ul class="plain">
+            <li>Asset: <strong>XLM</strong></li>
+            <li>Recipient: <strong>Recipient B</strong>'s address</li>
+            <li>Amount mode: <strong>Fixed</strong>, amount <strong>5</strong></li>
+          </ul>
+          <ul class="checks"><li>English Preview reads roughly: <em>when this contract receives XLM, pay 5 XLM to G…</em></li></ul>
+          <ul class="shots"><li><code>T4-1-english-preview</code> — the preview for the finished flow.</li></ul></li>
+        <li>Deploy it and trigger it with <strong>5 XLM</strong>.
+          <ul class="checks">
+            <li>Live feed shows RECEIVE then PAYOUT.</li>
+            <li>Recipient B's XLM balance in Freighter went up by 5.</li>
+          </ul>
+          <ul class="shots">
+            <li><code>T4-2-live-feed</code> — the feed showing both rows.</li>
+            <li><code>T4-3-recipient-b-plus-5</code> — Freighter showing Recipient B's new balance.</li>
+          </ul></li>
+        <li>Open the flow again, change Pay to <strong>Send full amount</strong>, deploy, and trigger with <strong>12 XLM</strong>.
+          <ul class="checks"><li>Recipient B's balance went up by 12.</li></ul>
+          <ul class="shots"><li><code>T4-4-recipient-b-plus-12</code> — Freighter showing the balance after this trigger.</li></ul></li>
+      </ol>
+      <div class="callout ask"><span class="label">Interview — T4</span><p>That's the first flow you built from scratch. Where did you hesitate, and what were you unsure about when you did?</p></div>
+    </div>
+  </div>
+
+  <!-- T5 -->
+  <div class="test" style="break-before: page">
+    <div class="test-head"><span class="test-id">T5</span><h3>Receive XLM, split it between two people</h3></div>
+    <div class="test-body">
+      <div class="goal"><b>Goal</b>Fan one payment out to several recipients.</div>
+      <ol class="steps">
+        <li><span class="ui">NEW FLOW</span> → name it <strong>T5 Split</strong>. Keep the example's two blocks this time.</li>
+        <li>Click <strong>On Receive</strong> and change Asset to <strong>XLM (native)</strong>. Click <strong>Split</strong> and change its Asset to <strong>XLM</strong>.</li>
+        <li>In Split, use <strong>Percentage</strong> mode with exactly two recipients:
+          <ul class="plain">
+            <li>Recipient A — <strong>70%</strong>, label <code>A</code></li>
+            <li>Recipient B — <strong>30%</strong>, label <code>B</code></li>
+          </ul>
+          <ul class="checks"><li>The allocation bar is full, and the English Preview shows 70% and 30%.</li></ul>
+          <ul class="shots"><li><code>T5-1-allocation-70-30</code> — the allocation bar and the English Preview together.</li></ul></li>
+        <li>Deploy and trigger with <strong>10 XLM</strong>.
+          <ul class="checks">
+            <li>Live feed shows RECEIVE and two PAYOUT rows.</li>
+            <li>Recipient A received 7 XLM and Recipient B received 3 XLM.</li>
+          </ul>
+          <ul class="shots">
+            <li><code>T5-2-live-feed</code> — the feed showing the RECEIVE and both PAYOUT rows.</li>
+            <li><code>T5-3-balances</code> — Freighter balances for Recipient A and Recipient B.</li>
+          </ul></li>
+      </ol>
+      <p><strong>Now try to break it</strong> (no need to deploy — just check the error, screenshot it, then undo):</p>
+      <div class="breakit">
+        <div class="row hdr"><span></span><span>Try</span><span>Expected</span></div>
+        <div class="row"><span class="l">a</span><span>Change 30% to <strong>20%</strong>.</span><span class="exp">An error saying the percentages don't add up to 100%.</span></div>
+        <div class="row"><span class="l">b</span><span>Set both recipients to <strong>Recipient A</strong>'s address.</span><span class="exp">An error about a duplicate address.</span></div>
+        <div class="row"><span class="l">c</span><span>Leave a recipient address empty, or type <code>hello</code>.</span><span class="exp">The field is highlighted as invalid.</span></div>
+      </div>
+      <ul class="shots">
+        <li><code>T5-a-percent-mismatch</code> — row a, percentages not adding to 100%.</li>
+        <li><code>T5-b-duplicate-address</code> — row b, the duplicate address.</li>
+        <li><code>T5-c-invalid-address</code> — row c, the invalid address field.</li>
+      </ul>
+      <div class="checks-block"><ul class="checks"><li>Each error is clear, and DEPLOY stays greyed out until you undo it.</li></ul></div>
+      <div class="callout ask"><span class="label">Interview — T5</span><p>Did you read the English Preview before deploying this one? Did it match the flow you thought you'd built?</p></div>
+    </div>
+  </div>
+
+  <!-- T6 -->
+  <div class="test">
+    <div class="test-head"><span class="test-id">T6</span><h3>Split USDC (uses the USDC from T2)</h3></div>
+    <div class="test-body">
+      <div class="goal"><b>Goal</b>The same split, with a token instead of XLM, and a recipient that can't accept it.</div>
+      <ol class="steps">
+        <li><span class="ui">NEW FLOW</span> → <strong>T6 USDC split</strong>. Keep the example's <strong>On Receive (USDC)</strong> → <strong>Split (USDC)</strong>.</li>
+        <li>Replace the three recipients with a single one: <strong>Recipient A</strong>, <strong>100%</strong>.</li>
+        <li>Deploy with <strong>Main</strong> as usual.</li>
+        <li>Open the trigger page. <strong>Switch Freighter to Recipient A</strong> (it holds the USDC from T2), enter <strong>1</strong>, and trigger.
+          <ul class="checks"><li>Live feed shows RECEIVE 1 USDC and a PAYOUT of 1 USDC.</li></ul>
+          <ul class="shots"><li><code>T6-1-live-feed</code> — the feed showing both rows.</li></ul></li>
+        <li>Now change the flow so the single recipient is <strong>Recipient B</strong> (no USDC trustline), deploy, and trigger with <strong>1 USDC</strong> from Recipient A again.
+          <ul class="checks">
+            <li>The trigger is refused <strong>before</strong> you're charged, with a message you can make sense of.</li>
+            <li>Recipient A still has its USDC.</li>
+          </ul>
+          <ul class="shots">
+            <li><code>T6-2-trustline-refusal</code> — the refusal message in full. This is the whole point of the test, so please make sure the wording is readable.</li>
+            <li><code>T6-3-recipient-a-balance</code> — Freighter showing Recipient A's USDC untouched.</li>
+          </ul></li>
+      </ol>
+      <div class="callout note"><p>Switch Freighter back to <strong>Main</strong> when you're done.</p></div>
+      <div class="callout ask"><span class="label">Interview — T6</span><p>The payment was refused. From the message alone, did you understand why, and did you know what you'd need to do to fix it?</p></div>
+    </div>
+  </div>
+
+  <!-- T7 -->
+  <div class="test">
+    <div class="test-head"><span class="test-id">T7</span><h3>Free exploration (10 minutes)</h3></div>
+    <div class="test-body">
+      <p>Build any flow you like using <strong>On Receive</strong>, <strong>Pay</strong>, <strong>Split</strong> and <strong>Swap</strong> — for example receive XLM → swap to USDC → split to two accounts that both have a USDC trustline. Deploy it, trigger it, and tell us what felt confusing, slow or surprising. There are no wrong answers here.</p>
+      <ul class="shots">
+        <li><code>T7-1-canvas</code> — the flow you built.</li>
+        <li><code>T7-2-english-preview</code> — its English Preview.</li>
+        <li><code>T7-3-live-feed</code> — the feed after you trigger it.</li>
+        <li>Anything that confused or surprised you, named however you like.</li>
+      </ul>
+      <p>This is the test we learn the most from, so keep narrating on the recording even if nothing breaks.</p>
+      <div class="callout ask"><span class="label">Interview — T7</span><p>What did you set out to build? Did you get it working — and if not, what stopped you? Was there a block or an option you went looking for and couldn't find?</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 5 ================= -->
+<section class="page-break" id="s5">
+  <div class="section-head"><span class="num">05</span><h2>What not to test in this round</h2></div>
+  <p>These features are in the app but aren't ready for alpha testing yet. You may see them in the palette or on a page — <strong>please don't use them this round, and don't report problems with them.</strong></p>
+  <ul class="scope">
+    <li><p><strong>On Schedule, HTTP Webhook, Subscription and Payroll triggers</strong> — build your flows with <strong>On Receive</strong> only.</p><span class="off">Not this round</span></li>
+    <li><p><strong>Condition block</strong></p><span class="off">Not this round</span></li>
+    <li><p><strong>Email Notify block</strong> — don't add it to a flow.</p><span class="off">Still being finished</span></li>
+    <li><p><strong>Fiat / bank payout</strong> in Pay and Split, and <strong>Sender KYC</strong> — keep payouts on <strong>Crypto (wallet)</strong>.</p><span class="off">Not this round</span></li>
+    <li><p><strong>Dev mode switch</strong> — leave it off.</p><span class="off">Not this round</span></li>
+    <li><p><strong>Ask AI</strong> (chat and voice)</p><span class="off">Not this round</span></li>
+    <li><p><strong>API access</strong> panel on deployment pages (developer API tokens)</p><span class="off">Not this round</span></li>
+    <li><p><strong>Passkeys</strong> on the Profile page — sign in with your username and password.</p><span class="off">Not this round</span></li>
+    <li><p><strong>Phones and mobile wallets</strong> (LOBSTR, xBull) — use desktop Freighter.</p><span class="off">Not this round</span></li>
+  </ul>
+</section>
+
+<!-- ================= 6 ================= -->
+<section id="s6" style="margin-top:22pt">
+  <div class="section-head"><span class="num">06</span><h2>Known issues</h2></div>
+  <p>Already on our list — no need to report these.</p>
+  <ul class="issues">
+    <li><p><strong>The trigger page can report a failure even though the payment went through.</strong> Before reporting a failed trigger, check the live event feed and stellar.expert. Only report it if the money really didn't move.</p></li>
+    <li><p><strong>The trigger page doesn't keep a record of a successful trigger</strong> after the message disappears. Use the deployment page's live feed instead.</p></li>
+    <li><p><strong>The review page lists several wallets</strong> (Freighter, Albedo, xBull, LOBSTR, Hana), but only <strong>Freighter</strong> works for deploying right now.</p></li>
+    <li><p><strong>The example flow created by NEW FLOW</strong> pays placeholder accounts (Alice, Bob, Charlie) that can't receive money. Always replace them with your own recipients.</p></li>
+    <li><p><strong>The live feed can lag</strong> a few seconds to a minute behind the chain. Give it a minute before reporting a missing row.</p></li>
+  </ul>
+</section>
+
+<!-- ================= 7 ================= -->
+<section class="page-break" id="s7">
+  <div class="section-head"><span class="num">07</span><h2>Troubleshooting</h2></div>
+  <div class="trouble">
+    <div class="item"><div class="see"><span class="k">You see</span><em>“Account … is not funded”</em> or <em>“Minimum 2 XLM required”</em></div><div class="try"><span class="k">Try</span>Fund the account in Freighter with Friendbot (step 1.2).</div></div>
+    <div class="item"><div class="see"><span class="k">You see</span>A Freighter network error, or the signature fails</div><div class="try"><span class="k">Try</span>Check Freighter is on <strong>Testnet</strong>, then try again.</div></div>
+    <div class="item"><div class="see"><span class="k">You see</span>An error mentioning a <strong>trustline</strong></div><div class="try"><span class="k">Try</span>The account receiving USDC hasn't added USDC yet (step 1.4).</div></div>
+    <div class="item"><div class="see"><span class="k">You see</span>DEPLOY greyed out</div><div class="try"><span class="k">Try</span>Click the <strong>Errors</strong> button above the canvas and fix each item.</div></div>
+    <div class="item"><div class="see"><span class="k">You see</span><em>“Invalid username or password”</em></div><div class="try"><span class="k">Try</span>Check both, including capital letters. After 5 wrong tries the account locks for 15 minutes — wait, then try again.</div></div>
+    <div class="item"><div class="see"><span class="k">You</span>Forgot your password</div><div class="try"><span class="k">Try</span>There's no reset link yet. Contact us — the same people who sent you your test account — and we'll reset it.</div></div>
+    <div class="item"><div class="see"><span class="k">You see</span>No Freighter pop-up</div><div class="try"><span class="k">Try</span>Click the Freighter icon in your toolbar — the request may be waiting there.</div></div>
+    <div class="item"><div class="see"><span class="k">Loom</span>Recording stopped after 5 minutes</div><div class="try"><span class="k">Try</span>Your account is still on the free Starter plan — check the Business + AI trial actually started (step 1.5). Keep the part you recorded and carry on in a new video; send us both links.</div></div>
+  </div>
+</section>
+
+<!-- ================= 8 ================= -->
+<section class="page-break" id="s8">
+  <div class="section-head"><span class="num">08</span><h2>Reporting bugs and sending in your artifacts</h2></div>
+  <div class="report-cards">
+    <div class="report-card bug">
+      <h3>Bug report form</h3>
+      <p>As you hit them. One form per bug, please.</p>
+      <a class="url" href="https://forms.gle/c7AmbU61XbGpCPVXA">forms.gle/c7AmbU61XbGpCPVXA ↗</a>
+    </div>
+    <div class="report-card submit">
+      <h3>Submission form</h3>
+      <p>Once at the end, with all three artifacts. This is what completes your run.</p>
+      <a class="url" href="https://forms.gle/hdmpGNwUi6oh6stv6">forms.gle/hdmpGNwUi6oh6stv6 ↗</a>
+    </div>
+  </div>
+
+  <h3><span class="tag">8.1</span> Reporting a bug</h3>
+  <p>It helps to have these ready before you open the bug report form:</p>
+  <ul class="checks">
+    <li>the test and step you were on (e.g. T5, step 4);</li>
+    <li>the exact error message, if there was one;</li>
+    <li>the deployment page URL, and the transaction link on stellar.expert if you have one;</li>
+    <li><strong>a screenshot</strong> — please always attach one.</li>
+  </ul>
+  <div class="callout note"><p>Bug reports are separate from your three artifacts. Filing them as you go doesn't replace the hand-in below, and filing none doesn't count against you.</p></div>
+
+  <h3><span class="tag">8.2</span> Sending in your three artifacts</h3>
+  <p>Once you've finished T7 and answered the <a href="#s9">closing questions</a>, send everything in one go through the submission form. Have these ready before you open it:</p>
+  <ul class="checks">
+    <li><strong>Your Loom link.</strong> One link covering T1 to T7, or every link if you recorded in parts. Check the share setting allows anyone with the link to view it — we can't watch a private video.</li>
+    <li><strong>Your screenshots, zipped.</strong> Put the whole folder into a single archive, something like <code>paiflow-alpha-yourname.zip</code>. The form takes one file here, so it needs to be a single zip rather than loose images.</li>
+    <li><strong>Your answers file.</strong> <code>answers-&lt;yourname&gt;.txt</code> or a doc — whichever you used.</li>
+    <li><strong>A Google account.</strong> The form has file uploads, and Google Forms requires every respondent to be signed in for those — there's no way for us to switch that off.</li>
+  </ul>
+</section>
+
+<!-- ================= 9 ================= -->
+<section class="page-break" id="s9">
+  <div class="section-head"><span class="num">09</span><h2>Closing interview questions</h2></div>
+  <p>Answer these in your answers file once you've finished T7 — and say them out loud on the recording too, while it's still running. Take your time; these are the ones we read most carefully.</p>
+  <ol class="qs">
+    <li><strong>In your own words, what does Paiflow do?</strong> Imagine explaining it to a colleague who's never seen it.</li>
+    <li><strong>Would you trust Paiflow with real money today?</strong> If not, what specifically would have to change first?</li>
+    <li><strong>On a scale of 0 to 10, how likely are you to recommend Paiflow to someone who needs programmable payouts?</strong> Give the number, then say why that number and not one higher.</li>
+    <li><strong>What did you like most?</strong></li>
+    <li><strong>What should we fix or improve first?</strong></li>
+    <li><strong>What one feature would make Paiflow significantly more useful to you?</strong></li>
+    <li><strong>How comfortable were you with blockchain and smart contracts before today, and did anything in this session change that?</strong></li>
+    <li><strong>Was there anything you expected to find and didn't?</strong></li>
+    <li><strong>May we follow up with you?</strong> If yes, leave an email address.</li>
+  </ol>
+</section>
+
+<!-- ================= 10 ================= -->
+<section id="s10" style="margin-top:22pt">
+  <div class="section-head"><span class="num">10</span><h2>Your incentive</h2></div>
+  <div class="payout"><b>₱500</b><span>once we've received all three artifacts</span></div>
+  <div class="artifacts">
+    <div><span class="box"></span><b>Loom recording</b><p>The link to your session.</p></div>
+    <div><span class="box"></span><b>Screenshots</b><p>The whole folder, zipped.</p></div>
+    <div><span class="box"></span><b>Answers file</b><p>Interview answers, written.</p></div>
+  </div>
+  <p>If something broke and you genuinely couldn't finish a test, still send all three — write down what happened in your answers file and it still counts. A run that fails honestly is useful to us. What doesn't count is a missing artifact.</p>
+  <p>We'll arrange the payment details with you directly once your artifacts are in.</p>
+  <div class="thanks">Thank you<span>!</span></div>
+  <p style="color:var(--muted)">Genuinely. An hour and a half of somebody's real attention is the most valuable thing we get at this stage.</p>
+</section>
+
+<!-- ================= APPENDIX ================= -->
+<section class="page-break" id="appendix">
+  <div class="section-head"><span class="num">A</span><h2>Answers file template</h2></div>
+  <p>Copy everything below into a text file, save it as <code>answers-&lt;yourname&gt;.txt</code>, and fill it in as you work through the guide.</p>
+  <pre class="template">PAIFLOW ALPHA — ANSWERS
+Name:
+Date:
+
+== ABOUT YOU (fill in before you start) ==
+1. What best describes your role?
+   (fintech/DeFi founder or PM · software engineer · SMB operator or finance manager ·
+    freelancer/creator · crypto-native user · other)
+   &gt;
+
+2. What made you interested in trying Paiflow?
+   &gt;
+
+== QUICK RATINGS (fill in at the end, 1 = poor, 5 = excellent) ==
+How easy was it to understand what Paiflow does at first glance?   [ ]
+How intuitive was the drag-and-drop canvas?                        [ ]
+How smooth was connecting your wallet and deploying?               [ ]
+How trustworthy does Paiflow feel for real money?                  [ ]
+
+== DURING THE TESTS ==
+T1 — Before you clicked DEPLOY TO TESTNET, what did you think was about to happen?
+     Could you tell what Freighter was asking you to sign?
+   &gt;
+
+T2 — Before checking Freighter, did you already believe the USDC had arrived?
+     What made you sure or unsure?
+   &gt;
+
+T3 — Were the error messages enough to fix things on your own?
+     Clearest one? Most confusing one?
+   &gt;
+
+T4 — First flow you built from scratch. Where did you hesitate?
+   &gt;
+
+T5 — Did you read the English Preview before deploying? Did it match what you&#x27;d built?
+   &gt;
+
+T6 — The payment was refused. Did you understand why, and what to do next?
+   &gt;
+
+T7 — What did you set out to build? Did it work? What was missing?
+   &gt;
+
+== CLOSING QUESTIONS ==
+1. In your own words, what does Paiflow do?
+   &gt;
+
+2. Would you trust Paiflow with real money today? What would have to change?
+   &gt;
+
+3. 0-10, how likely are you to recommend Paiflow?   [ ]
+   Why that number, and not one higher?
+   &gt;
+
+4. What did you like most?
+   &gt;
+
+5. What should we fix or improve first?
+   &gt;
+
+6. What one feature would make Paiflow significantly more useful?
+   &gt;
+
+7. How comfortable were you with blockchain before today? Did that change?
+   &gt;
+
+8. Anything you expected to find and didn&#x27;t?
+   &gt;
+
+9. May we follow up? If yes, your email:
+   &gt;
+
+== ANYTHING ELSE ==
+Anything that annoyed, confused or delighted you that we didn&#x27;t ask about:
+   &gt;</pre>
+</section>
+
+</body>
+</html>
