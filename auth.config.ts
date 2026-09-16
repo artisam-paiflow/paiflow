@@ -25,35 +25,30 @@ export const authConfig: NextAuthConfig = {
   },
   providers: [],
   callbacks: {
-    // Auth.js resolves a relative callbackUrl against an origin it derives per
-    // request: AUTH_URL when set, otherwise `x-forwarded-host ?? host`
-    // (@auth/core/lib/utils/env.ts, createActionURL). AUTH_URL is deliberately
-    // unset — it pinned every redirect to one hostname while this service
-    // answers on two — and behind Railway's proxy the fallback resolves to the
-    // container's own address, so the default callback returned
-    // `http://localhost:8080/` and signing out left the site entirely, on both
-    // hostnames.
+    // Guards the one value a caller supplies that decides where the browser
+    // goes. It must stay an absolute URL: signIn() is always called with
+    // `redirect: false` here, and next-auth then does `new URL(data.url)` to
+    // read the error param — a path throws TypeError there and takes the login
+    // form down with it.
     //
-    // There is no absolute origin that would be right for both, so return a path
-    // and let the browser resolve it against wherever the visitor already is.
-    // signOut() puts this value in a JSON body it assigns to window.location,
-    // and the no-JS path sets it as a bare Location header
-    // (@auth/core/lib/utils/web.ts uses headers.set, not Response.redirect,
-    // which would reject a relative URL) — both handle a path.
+    // The origin it builds is whatever Auth.js derived from the request, which
+    // behind Railway's proxy is the container's own address rather than the host
+    // the visitor used (their gateway rewrites Host and passes no usable
+    // x-forwarded-host). Nothing navigates to it: components/app/topbar.tsx signs
+    // out with `redirect: false` and sets the location itself, for exactly that
+    // reason. Don't "fix" the origin by returning a path — that is the throw
+    // above.
     redirect({ url, baseUrl }) {
       // Only a single leading slash is a path. "//host" and "/\host" are
-      // absolute to a browser, so returning one unchanged would be an open
-      // redirect.
-      if (/^\/(?![/\\])/.test(url)) return url;
+      // absolute to a browser, so resolving one against baseUrl would let a
+      // caller pick the destination host.
+      if (/^\/(?![/\\])/.test(url)) return new URL(url, baseUrl).toString();
       try {
-        const target = new URL(url);
-        if (target.origin === baseUrl) {
-          return `${target.pathname}${target.search}${target.hash}`;
-        }
+        if (new URL(url).origin === baseUrl) return url;
       } catch {
         // Not a URL at all; fall through to the safe default.
       }
-      return "/";
+      return baseUrl;
     },
     async jwt({ token, user }) {
       if (user) {
