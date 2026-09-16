@@ -57,8 +57,8 @@ lag is only meaningful for `source = sse`. `live_feed_disconnected` ignores the 
 because the page is being left.
 
 Server-side events carry `source = server` and are attributed to the deployment owner.
-Autocapture (clicks, including stellar.expert links), rage and dead clicks, `$pageview`,
-`$exception` and session replay come from posthog-js itself.
+Autocapture (clicks, including stellar.expert links), rage and dead clicks, `$pageview` and
+`$exception` come from posthog-js itself. **Session replay is off** — see Setup.
 
 ## Dashboards
 
@@ -102,8 +102,9 @@ What each one shows:
 6. **Scope drift:** `off_script_feature_used` by `feature`. If a hidden feature keeps pulling
    testers in, hide it rather than asking testers not to use it.
 
-Use session replay on T7 (free exploration) sessions and on any session with a rage click or a
-`trigger_failed`.
+There is no session replay to fall back on, so T7 (free exploration) and any session with a rage
+click or a `trigger_failed` have to be read from the event stream — `$autocapture`, `$dead_click`
+and `error_shown` in _Activity → Live events_, filtered to that person.
 
 ## Setup
 
@@ -113,6 +114,7 @@ Done on 15 September 2026:
   IPs are anonymized, inputs and text are masked, and exception and dead-click capture are on.
   Console-log capture, web vitals, surveys and heatmaps are off. The app
   itself also masks every text node in replays (`SESSION_RECORDING` in `lib/analytics/client.ts`).
+  **Superseded 16 September: session replay is off entirely — see below.**
 - **Railway `prod` environment** (beta.paiflow.xyz), service `pinkraft`:
   `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_APP_ENV=beta` are set. They take effect on the next
   build, because they're inlined at build time. `POSTHOG_HOST` defaults to US cloud, and
@@ -130,9 +132,15 @@ where the PostHog project settings came from. What is true now:
   `NEXT_PUBLIC_APP_ENV=beta` went with it, which is why the round is currently untracked.
 - "Staging has no PostHog variables and must stay that way" **no longer holds** — staging is now
   where the beta runs, so that is exactly where the variables have to go.
-- **PostHog `recording_domains` still names `https://beta.paiflow.xyz`.** Add
-  `https://beta.app.paiflow.xyz` before re-enabling, or replay is served as disabled with no error
-  (see the Origin-forwarding comment in `app/ingest/[...path]/route.ts`).
+- **Session replay is off by decision (16 September 2026)** and is not coming back without a
+  deliberate change. It never actually captured anything — zero `$snapshot` events were ever
+  recorded — so nothing was lost. Three independent guards now hold it off: the project's
+  `session_recording_opt_in` is `false`, `lib/analytics/client.ts` passes
+  `disable_session_recording: true`, and the replay recorder is no longer bundled.
+  `recording_domains` is deliberately left at `https://beta.app.paiflow.xyz` rather than emptied,
+  because an empty list in PostHog means _every_ domain is allowed.
+  `homepage/privacy.html` and `docs/alpha-testing-guide.md` both now state that we do not record;
+  re-enabling replay means changing those first.
 
 After the first beta build with this code, sign in with a test account, run T1, and check
 _Activity → Live events_ for `builder_opened`, `deploy_confirmed` and `trigger_confirmed`.
