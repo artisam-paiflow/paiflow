@@ -27,6 +27,7 @@
     "db:studio": "prisma studio",
     "dev-token:create": "tsx scripts/create-dev-api-token.ts",
     "api:openapi": "tsx scripts/print-openapi.ts > docs/api/openapi.json && prettier --write docs/api/openapi.json",
+    "docs:pdf": "tsx scripts/render-guide-pdf.ts",
     "contracts:build": "cd contracts && cargo build --release --target wasm32v1-none",
     "contracts:upload": "tsx scripts/upload-wasm.ts",
     "contracts:upload:testnet": "tsx scripts/upload-wasm.ts --network=testnet",
