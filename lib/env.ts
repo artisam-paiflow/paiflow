@@ -37,6 +37,65 @@ const optionalStellarAddress = z
     message: "PDAX deposit address must be a valid Stellar ed25519 public key (G...)",
   });
 
+// Browser origins a passkey may be used from, comma-separated. WebAuthn compares the
+// origin the browser actually sent — scheme, host, port, nothing else — against each
+// entry verbatim, so an entry carrying a path, a query, a fragment or credentials can
+// never match: it would fail every verification silently rather than at startup. Those
+// are refused, because the operator meant something this setting cannot express. A
+// trailing slash is the exception — it is what copying an address bar produces and it
+// denotes the same origin — so entries are stored as `new URL(v).origin`.
+//
+// Blank (or unset) yields [], which lib/passkey/rp.ts reads as "fall back to AUTH_URL".
+// A value that is non-blank but lists nothing (", ,") is a typo, and falling back there
+// would quietly point passkeys at AUTH_URL's host — the failure this whole setting exists
+// to prevent. Refused too.
+const originList = z
+  .string()
+  .optional()
+  .transform((v, ctx) => {
+    const raw = (v ?? "").trim();
+    if (raw.length === 0) return [];
+
+    const entries = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (entries.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "lists no origins" });
+      return z.NEVER;
+    }
+
+    const origins: string[] = [];
+    for (const entry of entries) {
+      let url: URL;
+      try {
+        url = new URL(entry);
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"${entry}" is not a URL; each entry must be an origin like https://app.example.com`,
+        });
+        return z.NEVER;
+      }
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"${entry}" must use http or https`,
+        });
+        return z.NEVER;
+      }
+      if (url.pathname !== "/" || url.search || url.hash || url.username || url.password) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"${entry}" must be a bare origin (scheme, host, optional port) — a browser never sends a path, query or credentials as its origin`,
+        });
+        return z.NEVER;
+      }
+      origins.push(url.origin);
+    }
+    return origins;
+  });
+
 const boolish = z
   .union([z.boolean(), z.string()])
   .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
@@ -104,6 +163,9 @@ const EnvSchema = z.object({
 
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 chars"),
   AUTH_URL: z.string().url().default("http://localhost:3000"),
+  // One app service answers on several hostnames, so a single value cannot cover them
+  // all. An allowlist — never a wildcard, never a request header. See `originList` above.
+  AUTH_ORIGINS: originList,
   AUTH_RP_ID: z.string().default("localhost"),
   AUTH_RP_NAME: z.string().default("Paiflow"),
   ALLOW_PUBLIC_REGISTRATION: boolish,

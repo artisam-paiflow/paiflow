@@ -62,6 +62,13 @@ export default defineRailway(() => {
     env: {
       ADMIN_SEED_PASSWORD: preserve(),
       ALLOW_PUBLIC_REGISTRATION: preserve(),
+      // Passkey origins. Needed because this service answers on both
+      // beta.app.paiflow.xyz and paiflow.xyz (see domains above) and WebAuthn
+      // compares the origin exactly. Set this before removing AUTH_URL from the
+      // service: next-auth rewrites every redirect to AUTH_URL's origin, which
+      // is why the beta host bounces visitors to paiflow.xyz, but AUTH_URL is
+      // also the passkey origin until AUTH_ORIGINS is in place.
+      AUTH_ORIGINS: preserve(),
       AUTH_RP_ID: preserve(),
       AUTH_RP_NAME: preserve(),
       AUTH_SECRET: preserve(),
