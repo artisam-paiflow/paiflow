@@ -9,16 +9,25 @@ and properties, so this page describes intent and doesn't restate every field.
 - **Where:** the beta is `beta.app.paiflow.xyz`. Analytics is on only when the build has
   `NEXT_PUBLIC_POSTHOG_KEY`; local dev and tests load nothing.
 
-  > **Currently off.** Since 16 September the beta shares the **staging** Railway service with
-  > `paiflow.xyz` — one service, one build, one database. The PostHog variables were only ever set
-  > on the retired `prod` environment, so no build carries the key today and the round is
-  > untracked. `/ingest/*` returns 404 whenever the key is absent
-  > (`app/ingest/[...path]/route.ts`), which is the quickest way to check.
+  > **On again since 16 September**, verified against a real run that afternoon. The beta shares
+  > the **staging** Railway service with `paiflow.xyz` — one service, one build, one database — so
+  > the variables now live on `staging`, where they had previously been forbidden. They are inlined
+  > at build time, which makes "is it on?" a question about the **running build**, not about the
+  > service's variables:
   >
-  > Re-enabling means setting the variables on the staging service and **rebuilding** — they are
-  > inlined at build time, so a restart will not do. Note that one build now serves both hostnames,
-  > so turning analytics on turns it on for `paiflow.xyz` too, and `app_env` can no longer separate
-  > the two: filter dashboards on `$host` instead.
+  > ```bash
+  > curl -sS -o /dev/null -w '%{http_code}\n' "https://beta.app.paiflow.xyz/ingest/array/$KEY/config"
+  > curl -s https://beta.app.paiflow.xyz/_next/static/chunks/app/layout-*.js | grep -o 'phc_[A-Za-z0-9]*'
+  > ```
+  >
+  > The first is the runtime proxy — `/ingest/*` 404s when the key is absent
+  > (`app/ingest/[...path]/route.ts`). The second is the one that actually settles it: a key set on
+  > the service but not present in that chunk means the browser sends nothing, because
+  > `lib/analytics/client.ts` reads an inlined `process.env` value. Setting the variables without a
+  > **rebuild** leaves the first check passing and the second failing.
+  >
+  > One build now serves both hostnames, so this turned analytics on for `paiflow.xyz` too, and
+  > `app_env` can no longer separate the two: filter on `$host` instead.
 
 - **Who:** testers are `app_env = beta` events from people whose `role` isn't `ADMIN`. Every
   dashboard insight applies both filters. Since the two hostnames share one build, `app_env` alone
@@ -53,8 +62,17 @@ and properties, so this page describes intent and doesn't restate every field.
 
 `live_event_rendered` fires once per feed row, whether it arrived over SSE (`source = sse`) or
 from the fallback poll (`source = poll`); rows already in the server render aren't counted. Feed
-lag is only meaningful for `source = sse`. `live_feed_disconnected` ignores the stream closing
-because the page is being left.
+lag is only meaningful for `source = sse`. Both come from the deployment page, so a tester who
+triggers from `/trigger/:id` and never returns produces none of them — absence there is not a
+broken feed.
+
+`live_feed_disconnected` is sent from the **reconnect attempt**, five seconds after the drop, not
+from the error itself (`components/deploy/deployment-view.tsx`). Leaving the page aborts the stream
+and raises the same error, and `pagehide` arrives _after_ it, so the guard that used to sit there
+could not tell a real drop from a navigation: the 16 September run sent one 4ms ahead of posthog's
+own `$pageleave`. Reading the series: a drop the viewer left within five seconds of is not counted,
+which undercounts rather than inflates. **Counts from before 16 September 2026 include one false
+positive per navigation away from a deployment page** and are not comparable with later ones.
 
 Server-side events carry `source = server` and are attributed to the deployment owner.
 Autocapture (clicks, including stellar.expert links), rage and dead clicks, `$pageview` and
@@ -67,9 +85,10 @@ there: don't reuse another product's project key. Every insight filters to `app_
 excludes people with `role = ADMIN`, so your own check runs don't count as testers. There's also a
 cohort, _Alpha testers_ (`role = USER`).
 
-Both filters were written when the beta had a build of its own. They need `$host` added before
-analytics is switched back on — see **Scope and rules** — otherwise every insight and the
-_Alpha testers_ cohort will pick up `paiflow.xyz` traffic as tester activity.
+Both filters were written when the beta had a build of its own, and analytics is on again without
+them having been updated — see **Scope and rules**. Until `$host = beta.app.paiflow.xyz` is added,
+every insight and the _Alpha testers_ cohort counts `paiflow.xyz` traffic as tester activity; the
+16 September check found 19 `$pageview` from that host inside a single two-hour window.
 
 | Dashboard                                                                                       | Insights |
 | ----------------------------------------------------------------------------------------------- | -------- |
@@ -129,9 +148,10 @@ where the PostHog project settings came from. What is true now:
 - The beta is **`beta.app.paiflow.xyz`**, served by the **staging** Railway service (`paiflow-app`)
   alongside `paiflow.xyz`. `beta.paiflow.xyz` is the static marketing site and has no app on it.
 - The `prod` environment is **stopped**. Its `NEXT_PUBLIC_POSTHOG_KEY` and
-  `NEXT_PUBLIC_APP_ENV=beta` went with it, which is why the round is currently untracked.
-- "Staging has no PostHog variables and must stay that way" **no longer holds** — staging is now
-  where the beta runs, so that is exactly where the variables have to go.
+  `NEXT_PUBLIC_APP_ENV=beta` went with it, which left the round untracked for part of 16 September.
+- "Staging has no PostHog variables and must stay that way" **no longer holds** — staging is where
+  the beta runs, so that is exactly where the variables have to go, and where they now are
+  (`paiflow-app`, both baked into the build that serves both hostnames).
 - **Session replay is off by decision (16 September 2026)** and is not coming back without a
   deliberate change. It never actually captured anything — zero `$snapshot` events were ever
   recorded — so nothing was lost. Three independent guards now hold it off: the project's
@@ -142,5 +162,10 @@ where the PostHog project settings came from. What is true now:
   `homepage/privacy.html` and `docs/alpha-testing-guide.md` both now state that we do not record;
   re-enabling replay means changing those first.
 
-After the first beta build with this code, sign in with a test account, run T1, and check
-_Activity → Live events_ for `builder_opened`, `deploy_confirmed` and `trigger_confirmed`.
+Verified this way on 16 September 2026: a trigger run on `beta.app.paiflow.xyz` produced
+`builder_opened`, `deployment_page_viewed`, `trigger_page_viewed`, `trigger_started`,
+`wallet_connect_succeeded`, the server's `trigger_confirmed` and the client's `trigger_succeeded`,
+sharing one `tx_hash` and one `deployment_id`. `distinct_id` was the `User.id` on both client and
+server events, the person carried `role`, `amount_stroops` was a string, and a scan of all 45
+events — `$autocapture` element text included — found no StrKey, seed or XDR blob, with `$ip` null
+throughout. Repeat that check after any change to `lib/analytics/`.
