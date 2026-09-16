@@ -9,10 +9,8 @@ import { log } from "@/lib/log";
 import { assetContractId } from "@/lib/stellar/assets";
 import { assetLabel, type FlowGraph } from "@/lib/flows/schema";
 import { stellarPassphrase } from "@/lib/env";
-import {
-  sendEmailNotificationsForEvent,
-  type PipelineNodeSnapshot,
-} from "@/lib/flows/notifications";
+import { sendEmailNotificationsForEvent } from "@/lib/flows/notifications";
+import { inboundAssetForContract, type PipelineNodeSnapshot } from "@/lib/flows/event-assets";
 import { createCashOutJob } from "@/lib/offramp/jobs";
 import { bankDetailsFromGraph, eventCreatesOffRampJob } from "@/lib/offramp/cash-out-bank";
 
@@ -880,6 +878,30 @@ function resolveAssetSymbols(
   return next;
 }
 
+/**
+ * Most inbound events carry no asset topic — deposit_trigger, webhook,
+ * subscription, payroll, streamer deposit and yield all keep the asset in
+ * instance storage and publish only the sender and the amount. Stamp the
+ * emitting node's inbound asset so the row is self-describing: the live feed and
+ * the partner API both read `decodedData` with no access to the graph.
+ */
+function stampInboundAsset(params: {
+  kind: EventKind;
+  decodedData: DecodedData;
+  graph: FlowGraph | null;
+  pipeline: PipelineNodeSnapshot[] | null;
+  contractAddress: string;
+}): DecodedData {
+  const { kind, decodedData } = params;
+  if (kind !== EventKind.RECEIVE || !decodedData) return decodedData;
+  if (decodedData.amount === undefined || decodedData.amount === null) return decodedData;
+  // Never override an asset a decoder read from a real topic.
+  if (decodedData.asset || decodedData.assetIn || decodedData.assetOut) return decodedData;
+
+  const asset = inboundAssetForContract(params);
+  return asset ? { ...decodedData, asset: assetLabel(asset) } : decodedData;
+}
+
 export const EVENTS_PAGE_LIMIT = 100;
 /** Bounds one poll's RPC calls per contract; a deployment far behind catches up over several polls. */
 export const MAX_EVENT_PAGES_PER_POLL = 5;
@@ -1022,7 +1044,15 @@ async function ingestEventPage(
       }
     })();
     const { kind, decodedData } = decodeEventByKind(topics, value, templateKind);
-    const resolvedData = resolveAssetSymbols(decodedData, symbolMap);
+    // One value feeds both the DB write and the Redis publish below, so a live
+    // row and the same row after a reload can never disagree on the asset.
+    const resolvedData = stampInboundAsset({
+      kind,
+      decodedData: resolveAssetSymbols(decodedData, symbolMap),
+      graph,
+      pipeline,
+      contractAddress,
+    });
     const safePayload = convertBigInts({ topics, value }) as object;
     const safeDecodedData = convertBigInts(resolvedData) as Prisma.InputJsonValue | null;
 
@@ -1238,14 +1268,23 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
   const contracts: PipelineNode[] = [];
   const seen = new Set<string>();
 
+  const pipeline = deployment.pipelineSnapshot as PipelineNode[] | null;
+  const rootNode = Array.isArray(pipeline)
+    ? pipeline.find((n) => n?.contractAddress === deployment.contractAddress)
+    : undefined;
+
+  // The snapshot holds the root contract's own kind. `flowTemplateKind` names
+  // the pipeline as a whole (a swap flow is SWAPPER), and that registry has no
+  // `deposit` topic, so decoding the trigger with it drops the event through to
+  // genericDecode — losing `from` and the asset. Fall back to the flow kind only
+  // for deployments that have no snapshot to read.
   contracts.push({
-    nodeId: "trigger",
+    nodeId: rootNode?.nodeId ?? "trigger",
     contractAddress: deployment.contractAddress,
-    templateKind: flowTemplateKind,
+    templateKind: rootNode?.templateKind ?? flowTemplateKind,
   });
   seen.add(deployment.contractAddress);
 
-  const pipeline = deployment.pipelineSnapshot as PipelineNode[] | null;
   if (Array.isArray(pipeline)) {
     for (const node of pipeline) {
       if (node?.contractAddress && node?.templateKind && !seen.has(node.contractAddress)) {

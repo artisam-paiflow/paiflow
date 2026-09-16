@@ -413,6 +413,251 @@ describe("pollEventsFor", () => {
   });
 });
 
+/**
+ * A tester on a swap flow saw "Received 10 USDC" under "Swapped 10 XLM ->
+ * 1.0578 USDC". Two faults stacked: the root contract was decoded with the
+ * flow's template kind (SWAPPER), whose registry has no `deposit` topic, so the
+ * trigger's deposit fell through to genericDecode and lost both `from` and any
+ * asset; and nothing then supplied the asset, so the feed guessed it from the
+ * graph and landed on the swap's output. These cases pin both.
+ */
+describe("pollEventsFor: the inbound asset of a RECEIVE", () => {
+  const XLM_SAC = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+  const TRIGGER_ADDR = "C123";
+  const XLM = { kind: "native" };
+  const USDC = { kind: "known", symbol: "USDC" };
+
+  // trigger(XLM) -> swap(XLM->USDC): the flow from the report.
+  const swapGraph = {
+    nodes: [
+      { id: "t", type: "on_receive", config: { asset: XLM } },
+      {
+        id: "s",
+        type: "swap",
+        config: { assetIn: XLM, assetOut: USDC, slippageBps: 100, deadlineSecs: 300 },
+      },
+    ],
+    edges: [{ source: "t", target: "s" }],
+  };
+
+  function mockDeployment(over: Record<string, unknown>) {
+    vi.mocked(db.deployment.findUnique).mockResolvedValue({
+      id: "dep-1",
+      contractAddress: TRIGGER_ADDR,
+      status: "CONFIRMED",
+      cursor: { lastLedger: 500 },
+      deployTxHash: "dtx1",
+      graphSnapshot: null,
+      pipelineSnapshot: null,
+      ...over,
+    } as unknown as Prisma.PromiseReturnType<typeof db.deployment.findUnique>);
+  }
+
+  function depositEvent() {
+    return makeMockEvent({
+      topic: ["deposit", ADDR_A],
+      value: "100000000",
+      ledger: 600,
+      txHash: "tx-deposit",
+      ledgerClosedAt: "2026-09-16T00:00:00Z",
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("decodes the root contract with its own template kind, not the flow's", async () => {
+    mockDeployment({
+      flow: { templateKind: TemplateKind.SWAPPER },
+      pipelineSnapshot: [
+        { nodeId: "t", contractAddress: TRIGGER_ADDR, templateKind: TemplateKind.DEPOSIT_TRIGGER },
+      ],
+    });
+    mockServer({ getEvents: async () => ({ events: [depositEvent()], latestLedger: 600 }) });
+
+    await pollEventsFor("dep-1");
+
+    // SWAPPER_REGISTRY has no `deposit`, so this used to land as
+    // `{ address, amount }` via genericDecode -- and `address` is read as the
+    // recipient elsewhere, not the sender.
+    expect(db.contractEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          kind: EventKind.RECEIVE,
+          decodedData: expect.objectContaining({ from: ADDR_A }),
+        }),
+      }),
+    );
+  });
+
+  it("stamps the trigger's asset on a deposit that carries no asset topic", async () => {
+    mockDeployment({
+      flow: { templateKind: TemplateKind.SWAPPER },
+      graphSnapshot: swapGraph,
+      pipelineSnapshot: [
+        { nodeId: "t", contractAddress: TRIGGER_ADDR, templateKind: TemplateKind.DEPOSIT_TRIGGER },
+      ],
+    });
+    mockServer({ getEvents: async () => ({ events: [depositEvent()], latestLedger: 600 }) });
+
+    await pollEventsFor("dep-1");
+
+    // The reported bug: this row used to carry no asset at all, so the feed fell
+    // back to the swap's assetOut and rendered "Received 10 USDC".
+    expect(db.contractEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          kind: EventKind.RECEIVE,
+          decodedData: { from: ADDR_A, amount: "100000000", asset: "XLM" },
+        }),
+      }),
+    );
+  });
+
+  it("stamps the emitting node's asset, not the flow's inbound asset", async () => {
+    // trigger(XLM) -> yield(USDC), polled at the yield contract: the asset
+    // entering that node is USDC even though XLM entered the flow.
+    mockDeployment({
+      flow: { templateKind: TemplateKind.YIELD },
+      graphSnapshot: {
+        nodes: [
+          { id: "t", type: "on_receive", config: { asset: XLM } },
+          { id: "y", type: "yield", config: { asset: USDC, vault: ADDR_B } },
+        ],
+        edges: [{ source: "t", target: "y" }],
+      },
+      pipelineSnapshot: [
+        { nodeId: "y", contractAddress: TRIGGER_ADDR, templateKind: TemplateKind.YIELD },
+      ],
+    });
+    mockServer({
+      getEvents: async () => ({
+        events: [
+          makeMockEvent({
+            topic: ["deposit", ADDR_B],
+            value: "100000000",
+            ledger: 600,
+            txHash: "tx-vault",
+            ledgerClosedAt: "2026-09-16T00:00:00Z",
+          }),
+        ],
+        latestLedger: 600,
+      }),
+    });
+
+    await pollEventsFor("dep-1");
+
+    expect(db.contractEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          decodedData: { vault: ADDR_B, amount: "100000000", asset: "USDC" },
+        }),
+      }),
+    );
+  });
+
+  it("keeps an asset the decoder read from a topic", async () => {
+    // An asset the graph does not name, so buildAssetSymbolMap cannot rewrite it
+    // and the stamp is the only thing that could change what lands.
+    const OTHER_SAC = "CDEEJZG6DYN65DTZLS6WU7YJ3I4RJ4TSOHF5VXEFO7PTTHWRNREPDOOU";
+    mockDeployment({
+      flow: { templateKind: TemplateKind.STREAMER },
+      graphSnapshot: swapGraph,
+      pipelineSnapshot: [
+        { nodeId: "t", contractAddress: TRIGGER_ADDR, templateKind: TemplateKind.STREAMER },
+      ],
+    });
+    mockServer({
+      getEvents: async () => ({
+        events: [
+          makeMockEvent({
+            topic: ["receive", OTHER_SAC],
+            value: "100000000",
+            ledger: 600,
+            txHash: "tx-receive",
+            ledgerClosedAt: "2026-09-16T00:00:00Z",
+          }),
+        ],
+        latestLedger: 600,
+      }),
+    });
+
+    await pollEventsFor("dep-1");
+
+    expect(db.contractEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          decodedData: { asset: OTHER_SAC, amount: "100000000" },
+        }),
+      }),
+    );
+  });
+
+  it("leaves a PAYOUT alone even with a graph and pipeline to read", async () => {
+    mockDeployment({
+      flow: { templateKind: TemplateKind.SWAPPER },
+      graphSnapshot: swapGraph,
+      pipelineSnapshot: [
+        { nodeId: "s", contractAddress: TRIGGER_ADDR, templateKind: TemplateKind.SWAPPER },
+      ],
+    });
+    mockServer({
+      getEvents: async () => ({
+        events: [
+          makeMockEvent({
+            topic: ["swap", XLM_SAC, "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA"],
+            value: ["100000000", "10562889"],
+            ledger: 600,
+            txHash: "tx-swap",
+            ledgerClosedAt: "2026-09-16T00:00:00Z",
+          }),
+        ],
+        latestLedger: 600,
+      }),
+    });
+
+    await pollEventsFor("dep-1");
+
+    // The outbound asset is a different rule; stamping is RECEIVE-only.
+    expect(db.contractEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          kind: EventKind.PAYOUT,
+          // Both legs symbolized by resolveAssetSymbols, and no `asset` key
+          // added on top: stamping is RECEIVE-only.
+          decodedData: {
+            assetIn: "XLM",
+            assetOut: "USDC",
+            amountIn: "100000000",
+            amountOut: "10562889",
+          },
+        }),
+      }),
+    );
+  });
+
+  it("leaves decodedData untouched when the deployment has no graph snapshot", async () => {
+    mockDeployment({
+      flow: { templateKind: TemplateKind.DEPOSIT_TRIGGER },
+      pipelineSnapshot: [
+        { nodeId: "t", contractAddress: TRIGGER_ADDR, templateKind: TemplateKind.DEPOSIT_TRIGGER },
+      ],
+    });
+    mockServer({ getEvents: async () => ({ events: [depositEvent()], latestLedger: 600 }) });
+
+    await pollEventsFor("dep-1");
+
+    expect(db.contractEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          decodedData: { from: ADDR_A, amount: "100000000" },
+        }),
+      }),
+    );
+  });
+});
+
 describe("pollEventsFor: RPC scan windows", () => {
   type Req = { startLedger?: number; cursor?: string; filters: { contractIds: string[] }[] };
 

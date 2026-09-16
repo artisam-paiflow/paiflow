@@ -1,6 +1,7 @@
 import "server-only";
 import type { FlowGraph, FlowNode, SplitRecipient } from "./schema";
-import { assetLabel, isTrigger } from "./schema";
+import { assetLabel } from "./schema";
+import { inboundAsset, resolveEmittingNode, type PipelineNodeSnapshot } from "./event-assets";
 import { sendEmail } from "@/lib/mail";
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
@@ -23,12 +24,6 @@ function extractAssetKey(raw: unknown): string | undefined {
   return undefined;
 }
 
-function getParentAsset(parentNode: FlowNode | undefined): unknown {
-  if (!parentNode || !("config" in parentNode)) return undefined;
-  const cfg = parentNode.config as Record<string, unknown>;
-  return cfg.asset ?? cfg.assetIn;
-}
-
 function resolveAssetLabel(params: {
   rawAsset: unknown;
   parentNode: FlowNode | undefined;
@@ -39,7 +34,7 @@ function resolveAssetLabel(params: {
   const eventKey = extractAssetKey(rawAsset);
   if (eventKey) keys.add(eventKey);
 
-  const parentAsset = getParentAsset(parentNode);
+  const parentAsset = inboundAsset(parentNode);
   if (parentAsset && typeof parentAsset === "object") {
     const pa = parentAsset as { kind?: string; symbol?: string; code?: string };
     if (pa.kind === "native") return "XLM";
@@ -288,11 +283,7 @@ export function resolvePerRecipientAmount(params: {
   return undefined;
 }
 
-export type PipelineNodeSnapshot = {
-  nodeId: string;
-  contractAddress: string;
-  templateKind: string;
-};
+export type { PipelineNodeSnapshot } from "./event-assets";
 
 /**
  * For a newly persisted contract event, find any `email_notify` decorator nodes
@@ -317,16 +308,7 @@ export async function sendEmailNotificationsForEvent(params: {
   const { deploymentId, contractEventId, event, graph, pipeline, contractAddress } = params;
   if (!graph) return;
 
-  const pipelineNode = pipeline?.find((n) => n.contractAddress === contractAddress);
-  const parentNode = (() => {
-    if (!pipelineNode) return undefined;
-    // The primary deployment contract is tracked with a synthetic nodeId of
-    // "trigger"; map it back to the actual trigger node in the graph.
-    if (pipelineNode.nodeId === "trigger") {
-      return graph.nodes.find(isTrigger);
-    }
-    return graph.nodes.find((n) => n.id === pipelineNode.nodeId);
-  })();
+  const parentNode = resolveEmittingNode({ graph, pipeline, contractAddress });
 
   const emailNodes = graph.nodes.filter((n): n is Extract<FlowNode, { type: "email_notify" }> => {
     if (n.type !== "email_notify") return false;
