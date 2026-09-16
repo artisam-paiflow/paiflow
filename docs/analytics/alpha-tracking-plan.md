@@ -16,23 +16,38 @@ and properties, so this page describes intent and doesn't restate every field.
   > service's variables:
   >
   > ```bash
-  > curl -sS -o /dev/null -w '%{http_code}\n' "https://beta.app.paiflow.xyz/ingest/array/$KEY/config"
-  > curl -s https://beta.app.paiflow.xyz/_next/static/chunks/app/layout-*.js | grep -o 'phc_[A-Za-z0-9]*'
+  > # 1. the key the running build actually sends from
+  > KEY=$(curl -fsS https://beta.app.paiflow.xyz/login \
+  >   | grep -o '/_next/static/chunks/app/layout-[^"]*\.js' | head -1 \
+  >   | xargs -I{} curl -fsS "https://beta.app.paiflow.xyz{}" \
+  >   | grep -o 'phc_[A-Za-z0-9]*')
+  > echo "${KEY:-no key found - check stderr before concluding the build has none}"
+  >
+  > # 2. the runtime proxy, once you have a key to ask about
+  > [ -n "$KEY" ] && curl -sS -o /dev/null -w '%{http_code}\n' \
+  >   "https://beta.app.paiflow.xyz/ingest/array/$KEY/config"
   > ```
   >
-  > The first is the runtime proxy — `/ingest/*` 404s when the key is absent
-  > (`app/ingest/[...path]/route.ts`). The second is the one that actually settles it: a key set on
-  > the service but not present in that chunk means the browser sends nothing, because
-  > `lib/analytics/client.ts` reads an inlined `process.env` value. Setting the variables without a
-  > **rebuild** leaves the first check passing and the second failing.
+  > The first is the one that actually settles it: it reads the key out of the chunk the browser
+  > loads, which is where `lib/analytics/client.ts` gets it — an inlined `process.env` value. Resolve
+  > that chunk through the served HTML; asking for `layout-*.js` directly does not work, because the
+  > `*` is a shell glob over local files and travels to the server as a literal path that 404s
+  > whatever the build contains. Use `/login` rather than `/`, which redirects and carries no chunk
+  > reference. Keep `-fS` on both fetches: a silently failed request reads as an empty result,
+  > which is the same false negative in a different disguise.
+  >
+  > The second confirms the server half: `app/ingest/[...path]/route.ts` 404s when the service has
+  > no `NEXT_PUBLIC_POSTHOG_KEY`, so a `200` means both halves agree. A 404 on its own is ambiguous
+  > — PostHog upstream also 404s a key it doesn't recognise. Setting the variables without a
+  > **rebuild** leaves this check passing and the first one empty.
   >
   > One build now serves both hostnames, so this turned analytics on for `paiflow.xyz` too, and
   > `app_env` can no longer separate the two: filter on `$host` instead.
 
 - **Who:** testers are `app_env = beta` events from people whose `role` isn't `ADMIN`. Every
   dashboard insight applies both filters. Since the two hostnames share one build, `app_env` alone
-  no longer isolates the beta — add `$host = beta.app.paiflow.xyz` when analytics is switched back
-  on, or `paiflow.xyz` visitors are counted as testers.
+  no longer isolates the beta. Until `$host = beta.app.paiflow.xyz` is added, `paiflow.xyz`
+  visitors are counted as testers — and analytics is on, so that is happening now.
 - **Identity:** `distinct_id` is `User.id`. Usernames, emails, recipient addresses, XDR and
   graph JSON are never sent. `lib/analytics/sanitize.ts` also redacts StrKeys, seeds and base64
   blobs from every property, including autocaptured element text.
