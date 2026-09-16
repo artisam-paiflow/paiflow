@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { classifyError } from "@/lib/analytics/classify-error";
 import { apiError } from "@/lib/friendly-error";
@@ -59,9 +61,22 @@ describe("classifyError", () => {
   });
 });
 
-describe("SESSION_RECORDING", () => {
-  it("masks all replay text, not just inputs", async () => {
-    const { SESSION_RECORDING } = await import("@/lib/analytics/client");
-    expect(SESSION_RECORDING).toMatchObject({ maskAllInputs: true, maskTextSelector: "*" });
+describe("session replay", () => {
+  // Off by decision (16 Sep 2026). homepage/privacy.html and the alpha testing
+  // guide both promise that we do not record the screen, so this is a guard on
+  // a published commitment rather than a preference.
+  //
+  // vitest runs with environment "node", so posthog.init cannot be exercised
+  // here — loadAnalytics() bails without a window. The config is a literal in
+  // the source, so that is what gets asserted.
+  it("is disabled in the client config, and the recorder is not bundled", async () => {
+    const src = await readFile(resolve(process.cwd(), "lib/analytics/client.ts"), "utf8");
+    expect(src).toContain("disable_session_recording: true");
+    expect(src).not.toContain("posthog-js/dist/recorder");
+  });
+
+  it("no longer exports a replay masking config", async () => {
+    const mod = await import("@/lib/analytics/client");
+    expect("SESSION_RECORDING" in mod).toBe(false);
   });
 });

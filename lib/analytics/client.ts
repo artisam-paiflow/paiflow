@@ -20,11 +20,6 @@ let client: PostHog | null = null;
 let loading: Promise<PostHog | null> | null = null;
 const queue: Array<[string, Record<string, unknown>]> = [];
 
-// Replays mask every text node, not just inputs: the one-time API token, the
-// curl command and Stellar addresses render as plain text, and a snapshot is
-// not something before_send can redact.
-export const SESSION_RECORDING = { maskAllInputs: true, maskTextSelector: "*" } as const;
-
 export function analyticsEnabled(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_POSTHOG_KEY);
 }
@@ -48,7 +43,7 @@ export function loadAnalytics(): Promise<PostHog | null> {
       import("posthog-js"),
       // Bundled rather than fetched from PostHog's CDN at runtime: with
       // `disable_external_dependency_loading` nothing but /ingest is contacted.
-      import("posthog-js/dist/recorder"),
+      // The replay recorder is deliberately absent — see disable_session_recording.
       import("posthog-js/dist/exception-autocapture"),
       import("posthog-js/dist/dead-clicks-autocapture"),
     ]);
@@ -63,10 +58,17 @@ export function loadAnalytics(): Promise<PostHog | null> {
       capture_exceptions: true,
       capture_dead_clicks: true,
       disable_external_dependency_loading: true,
-      session_recording: SESSION_RECORDING,
+      // Session replay is off by decision (16 Sep 2026), belt and braces: the
+      // recorder is not bundled, this flag stops posthog-js starting one, and
+      // the project has session_recording_opt_in disabled. Any one of the three
+      // is sufficient; all three mean a single change cannot silently restart
+      // screen recording. homepage/privacy.html and the alpha testing guide
+      // both state that we do not record, so this must stay off.
+      disable_session_recording: true,
       // Autocapture records element text, which on this app includes recipient
-      // and contract addresses. Replay snapshots are left alone: they are
-      // large, and SESSION_RECORDING already masks their text.
+      // and contract addresses. The $snapshot carve-out is kept as dead-code
+      // defence: nothing emits snapshots now, and if replay were ever switched
+      // back on, before_send could not usefully redact one anyway.
       before_send: (event) => {
         if (!event || event.event === "$snapshot") return event;
         return { ...event, properties: redactDeep(event.properties) as typeof event.properties };
