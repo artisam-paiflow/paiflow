@@ -31,8 +31,15 @@ import { writeEnvLocal } from "./env-file";
 const WASM_DIR = "contracts/target/wasm32v1-none/release";
 const FACTORY_WASM = "paiflow_factory.wasm";
 
+// Neither call overrides, so dotenv's first-write-wins gives shell > .env.local
+// > .env. The shell has to win: this script writes the factory address and its
+// WASM hash to whatever DATABASE_URL names, and deploying a factory for a
+// deployed environment must not have a local .env.local silently redirect
+// setFactoryAddress into the operator's dev Postgres. It also reads the DB
+// first via getFactoryAddressFromDb, so a wrong target misreports whether a
+// factory already exists.
+dotenvConfig({ path: resolve(".env.local") });
 dotenvConfig({ path: resolve(".env") });
-dotenvConfig({ path: resolve(".env.local"), override: true });
 
 type NetworkName = "testnet" | "mainnet";
 
