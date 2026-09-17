@@ -135,9 +135,11 @@ smaller and stricter number — on-chain the twenty swap transactions alone emit
 and the recording exist, and every SOW §6.1 item for the deliverable is public.
 
 - **Where the evidence comes from.** [paiflow.xyz](https://paiflow.xyz) is the project's
-  staging service, pinned to Stellar testnet, and it is the public app — there is no separate
-  private environment. Everything deployed or triggered there counts under the counting rule;
-  local runs and the 6 September verification copy do not.
+  staging service, pinned to Stellar testnet, and it is the public app. Everything deployed or
+  triggered there counts under the counting rule; local runs and the 6 September verification copy
+  do not. (From 16 September the same service also serves the beta at `beta.app.paiflow.xyz`; that
+  came after this week, and the [metrics page](../instawards/metrics.md#counting-rules) carries the
+  current rule.)
 - **Two narrowings of the SOW's wording: the router is not user-selectable, and a swap block
   forwards to one next step.** Recorded as scope notes on the
   [D1 page](deliverables/d1.md#scope-notes) rather than by editing the approved SOW. The asset
