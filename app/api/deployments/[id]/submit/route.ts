@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { TransactionBuilder } from "@stellar/stellar-sdk";
 import crypto from "crypto";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
@@ -8,6 +7,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { redis, eventChannel } from "@/lib/redis";
 import { submitDeployTx } from "@/lib/stellar/deploy";
+import { signerFromSignedXdr } from "@/lib/stellar/signer";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode, EmployeePayoutMode } from "@prisma/client";
 import { scheduleNextStreamerClaimJob } from "@/lib/streamer-jobs";
@@ -17,11 +17,6 @@ import type { StreamerParams } from "@/lib/flows/to-params";
 import { isPendingAddress, SenderKycSchema } from "@/lib/flows/schema";
 
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
-
-function txHashFromXdr(signedXdr: string): string {
-  const tx = TransactionBuilder.fromXDR(signedXdr, stellarPassphrase());
-  return tx.hash().toString("hex");
-}
 
 function confirmedDeploymentResponse(deployment: {
   status: string;
@@ -50,12 +45,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params;
     const body = SubmitSchema.parse(await req.json());
 
-    let txHash: string;
-    try {
-      txHash = txHashFromXdr(body.signedXdr);
-    } catch {
-      throw new AppError("VALIDATION", "Invalid signed transaction XDR");
-    }
+    const signer = signerFromSignedXdr(body.signedXdr, stellarPassphrase());
+    if (!signer.ok) throw new AppError("VALIDATION", "Invalid signed transaction XDR");
+    const txHash = signer.txHash;
 
     const deployment = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
@@ -81,16 +73,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!deployment.unsignedXdr) {
       throw new AppError("CONFLICT", "Deployment has no prepared transaction to match against");
     }
-    let expectedTxHash: string;
-    try {
-      expectedTxHash = txHashFromXdr(deployment.unsignedXdr);
-    } catch {
+    const prepared = signerFromSignedXdr(deployment.unsignedXdr, stellarPassphrase());
+    if (!prepared.ok) {
       throw new AppError(
         "INTERNAL",
         "Prepared transaction is unreadable; re-prepare the deployment",
       );
     }
-    if (expectedTxHash !== txHash) {
+    if (prepared.txHash !== txHash) {
       throw new AppError(
         "VALIDATION",
         "Signed transaction does not match the prepared deployment transaction",
