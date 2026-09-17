@@ -1,7 +1,7 @@
 "use client";
 
 import type { WalletSurface } from "@/lib/analytics/events";
-import { track } from "@/lib/analytics/client";
+import { setPersonProps, track } from "@/lib/analytics/client";
 
 export async function trackWalletConnection({
   surface,
@@ -12,8 +12,17 @@ export async function trackWalletConnection({
   walletId: string;
   surface: WalletSurface;
 }) {
-  // The address goes to our own audit log only, never to analytics.
-  track("wallet_connect_succeeded", { surface, wallet_id: opts.walletId });
+  // The public address is sent to analytics deliberately, so a transaction
+  // can be traced to the wallet and account that signed it — see
+  // docs/analytics/alpha-tracking-plan.md, "Wallet traceability". It travels
+  // only on the allowlisted keys below; every other property still redacts it.
+  track("wallet_connect_succeeded", {
+    surface,
+    wallet_id: opts.walletId,
+    wallet_address: opts.address,
+  });
+  // Latest wallet, and the first one ever seen; a no-op when nobody is signed in.
+  setPersonProps({ wallet_address: opts.address }, { wallet_address_first: opts.address });
   try {
     await fetch("/api/audit/wallet-connection", {
       method: "POST",

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { toastError } from "@/lib/friendly-toast";
 import { apiError } from "@/lib/friendly-error";
+import { safeReturnPath } from "@/lib/safe-return-path";
 
 export default function PasskeyLogin({ from }: { from?: string }) {
   const [busy, setBusy] = useState(false);
@@ -32,7 +33,7 @@ export default function PasskeyLogin({ from }: { from?: string }) {
         redirect: false,
       });
       if (res?.error) throw new Error("Login failed");
-      window.location.href = from && from.startsWith("/") ? from : "/dashboard";
+      window.location.href = safeReturnPath(from, window.location.origin);
     } catch (err) {
       toastError(err, "Passkey sign-in failed");
     } finally {

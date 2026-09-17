@@ -24,7 +24,10 @@ transaction yourself, in your own wallet, and Paiflow never holds your keys.
 > to PostHog — which buttons and screens you reach, and where errors appear — so we can see where
 > things are confusing without asking you to write it all down. **Your screen and your session are
 > not recorded.** Events are tied to your test account's internal ID, not your name, and never
-> include wallet addresses or keys. If you have concerns about this, contact us before you start.
+> include secret keys, transaction payloads, or the addresses you pay to. **The public address of
+> the wallet you sign with is recorded**, together with the transaction hash, and linked to your
+> test account, so we can trace a testnet transaction back to the tester who made it. If you have
+> concerns about this, contact us before you start.
 >
 > **The only recording of your screen is the one you make yourself**, with Loom, and send to us
 > (step 1.5). It is not masked — it shows your screen as you see it, and your face and voice — so

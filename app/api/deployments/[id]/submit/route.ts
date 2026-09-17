@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { TransactionBuilder } from "@stellar/stellar-sdk";
 import crypto from "crypto";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
@@ -8,6 +7,13 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { redis, eventChannel } from "@/lib/redis";
 import { submitDeployTx } from "@/lib/stellar/deploy";
+import { signerFromSignedXdr } from "@/lib/stellar/signer";
+import {
+  captureTransactionSigned,
+  insertSignedTransaction,
+  signedTransactionRow,
+} from "@/lib/signed-tx";
+import { clientIp } from "@/lib/rate-limit";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode, EmployeePayoutMode } from "@prisma/client";
 import { scheduleNextStreamerClaimJob } from "@/lib/streamer-jobs";
@@ -17,11 +23,6 @@ import type { StreamerParams } from "@/lib/flows/to-params";
 import { isPendingAddress, SenderKycSchema } from "@/lib/flows/schema";
 
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
-
-function txHashFromXdr(signedXdr: string): string {
-  const tx = TransactionBuilder.fromXDR(signedXdr, stellarPassphrase());
-  return tx.hash().toString("hex");
-}
 
 function confirmedDeploymentResponse(deployment: {
   status: string;
@@ -50,12 +51,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params;
     const body = SubmitSchema.parse(await req.json());
 
-    let txHash: string;
-    try {
-      txHash = txHashFromXdr(body.signedXdr);
-    } catch {
-      throw new AppError("VALIDATION", "Invalid signed transaction XDR");
-    }
+    const signer = signerFromSignedXdr(body.signedXdr, stellarPassphrase());
+    if (!signer.ok) throw new AppError("VALIDATION", "Invalid signed transaction XDR");
+    const txHash = signer.txHash;
 
     const deployment = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
@@ -81,27 +79,53 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!deployment.unsignedXdr) {
       throw new AppError("CONFLICT", "Deployment has no prepared transaction to match against");
     }
-    let expectedTxHash: string;
-    try {
-      expectedTxHash = txHashFromXdr(deployment.unsignedXdr);
-    } catch {
+    const prepared = signerFromSignedXdr(deployment.unsignedXdr, stellarPassphrase());
+    if (!prepared.ok) {
       throw new AppError(
         "INTERNAL",
         "Prepared transaction is unreadable; re-prepare the deployment",
       );
     }
-    if (expectedTxHash !== txHash) {
+    if (prepared.txHash !== txHash) {
       throw new AppError(
         "VALIDATION",
         "Signed transaction does not match the prepared deployment transaction",
       );
     }
 
-    await db.deployment.update({
-      where: { id },
-      data: { status: "SUBMITTED" },
+    // The signer row joins the status flip: a database failure aborts here,
+    // before the chain call, so the row cannot be lost after a success.
+    const signerRow = signedTransactionRow({
+      signer,
+      kind: "DEPLOY",
+      network: deployment.network,
+      userId: user.id,
+      deploymentId: id,
+      ip: clientIp(req),
     });
-    await audit({ action: "DEPLOY_SUBMIT", userId: user.id, metadata: { deploymentId: id } });
+    // The status predicate claims the deployment: two requests that both read
+    // PENDING_SIGNATURE above cannot both reach the chain call, and the loser
+    // fails here with P2025 before anything is written or submitted.
+    const signerRowCreated = await db.$transaction(async (tx) => {
+      try {
+        await tx.deployment.update({
+          where: { id, status: "PENDING_SIGNATURE" },
+          data: { status: "SUBMITTED" },
+        });
+      } catch (err) {
+        if ((err as { code?: string }).code === "P2025") {
+          throw new AppError("CONFLICT", "Deployment state changed during submission");
+        }
+        throw err;
+      }
+      return signerRow ? insertSignedTransaction(signerRow, tx) : false;
+    });
+    if (signerRow && signerRowCreated) captureTransactionSigned(signerRow);
+    await audit({
+      action: "DEPLOY_SUBMIT",
+      userId: user.id,
+      metadata: { deploymentId: id, signerAddress: signer.signerAddress },
+    });
 
     const result = await submitDeployTx(body.signedXdr);
     if (result.status === "SUCCESS") {
@@ -266,7 +290,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         userId: user.id,
         metadata: { deploymentId: id, txHash: result.txHash },
       });
-      captureDeployConfirmed(user.id, deployment, pipeline);
+      captureDeployConfirmed(user.id, deployment, pipeline, result.txHash, signer.signerAddress);
 
       // Immutable non-dev payrolls bake recipients into the SPLITTER at deploy
       // time, so we must create Employee rows now so later charges can generate
@@ -283,14 +307,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
       return confirmedDeploymentResponse(updatedDeployment);
     }
-    await db.deployment.update({
-      where: { id },
-      data: {
-        status: "FAILED",
-        deployTxHash: result.txHash,
-        errorMessage: result.errorMessage,
-      },
-    });
+    // Only the row this request claimed may be failed: a deployment another
+    // request has since confirmed keeps its CONFIRMED status.
+    try {
+      await db.deployment.update({
+        where: { id, status: "SUBMITTED" },
+        data: {
+          status: "FAILED",
+          deployTxHash: result.txHash,
+          errorMessage: result.errorMessage,
+        },
+      });
+    } catch (err) {
+      if ((err as { code?: string }).code !== "P2025") throw err;
+      log.warn({ deploymentId: id }, "submit: failed result for a deployment no longer SUBMITTED");
+    }
     await audit({
       action: "DEPLOY_FAIL",
       userId: user.id,
@@ -321,6 +352,8 @@ function captureDeployConfirmed(
   userId: string,
   deployment: { id: string; flowId: string; createdAt: Date },
   pipeline: Array<{ templateKind: string }> | null,
+  txHash: string,
+  signerAddress: string,
 ) {
   try {
     const templateKinds = (pipeline ?? []).map((n) => n.templateKind);
@@ -329,6 +362,8 @@ function captureDeployConfirmed(
     void captureServer(userId, "deploy_confirmed", {
       deployment_id: deployment.id,
       flow_id: deployment.flowId,
+      tx_hash: txHash,
+      signer_address: signerAddress,
       template_kinds: templateKinds,
       has_swap: templateKinds.includes("SWAPPER"),
       contract_count: contractCount,

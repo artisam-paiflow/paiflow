@@ -342,6 +342,7 @@ export function TriggerButton({
       track("trigger_succeeded", {
         deployment_id: deploymentId,
         tx_hash: txHash,
+        signer_address: address,
         elapsed_ms: Date.now() - attemptRef.current.startedAt,
       });
       if (mode === "allowance") {

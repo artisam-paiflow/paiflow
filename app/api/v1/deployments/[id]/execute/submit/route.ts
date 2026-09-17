@@ -18,7 +18,9 @@ import {
   type ExecuteSubmitted,
 } from "@/lib/api/v1/schema";
 import { clientIp } from "@/lib/rate-limit";
+import { recordSignedTransaction } from "@/lib/signed-tx";
 import { sorobanRpc } from "@/lib/stellar/client";
+import { signerFromTransaction } from "@/lib/stellar/signer";
 
 const rpcFailed = () => new AppError("UPSTREAM_RPC", "The Soroban RPC request failed; try again");
 
@@ -53,9 +55,26 @@ export const POST = v1Route(
     const { nodes, triggerAddress } = resolveSwapperPipeline(deployment);
     const tx = assertDepositEnvelope(input.signedXdr, triggerAddress);
     const txHash = tx.hash().toString("hex");
+    const signer = signerFromTransaction(tx);
 
     const ip = clientIp(req);
-    const record = { deploymentId: params.id, tokenId: token.id, txHash };
+    const record = {
+      deploymentId: params.id,
+      tokenId: token.id,
+      txHash,
+      signerAddress: signer.ok ? signer.signerAddress : null,
+    };
+    // The partner signs with its own key and has no session; the token's
+    // owner is not the signer, so no user is attached. Upsert on the hash, so
+    // the resubmit-to-poll pattern this route documents adds no second row.
+    await recordSignedTransaction({
+      signer,
+      kind: "API_EXECUTE",
+      network: deployment.network,
+      userId: null,
+      deploymentId: params.id,
+      ip,
+    });
     const respond = (data: ExecuteSubmitted) => NextResponse.json({ data });
 
     const server = sorobanRpc();

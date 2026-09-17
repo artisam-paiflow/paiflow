@@ -35,12 +35,14 @@ vi.mock("@/lib/audit", () => ({
   wasTxConfirmedFor: vi.fn(async () => false),
   wasTxSubmittedFor: vi.fn(async () => true),
 }));
+vi.mock("@/lib/signed-tx", () => ({ recordSignedTransaction: vi.fn(async () => undefined) }));
 
 import { POST as prepare } from "@/app/api/v1/deployments/[id]/execute/route";
 import { POST as submit } from "@/app/api/v1/deployments/[id]/execute/submit/route";
 import { CONFIRM_POLL_INTERVAL_MS, ONLY_SWAPPER_FLOWS, waitForFinal } from "@/lib/api/v1/execute";
 import { simulationFailure } from "@/lib/stellar/sim-error";
 import { audit, wasTxConfirmedFor } from "@/lib/audit";
+import { recordSignedTransaction } from "@/lib/signed-tx";
 import { pollEventsFor } from "@/lib/stellar/events";
 import {
   DEPLOYMENT_ID,
@@ -369,7 +371,8 @@ describe("POST …/execute/submit", () => {
   });
 
   it("sends, confirms, ingests and writes both audit rows", async () => {
-    const signed = signedEnvelope();
+    const signer = Keypair.random();
+    const signed = signedEnvelope({ signer });
     const txHash = hashOf(signed);
     mockRpc.getTransaction
       .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.NOT_FOUND })
@@ -387,13 +390,24 @@ describe("POST …/execute/submit", () => {
       deploymentId: DEPLOYMENT_ID,
       tokenId: token.id,
       txHash,
+      signerAddress: signer.publicKey(),
     });
     expect(vi.mocked(audit).mock.calls[1]![0].metadata).toEqual({
       deploymentId: DEPLOYMENT_ID,
       tokenId: token.id,
       txHash,
+      signerAddress: signer.publicKey(),
       ledger: 4242,
     });
+    // The signer is the partner's key, recorded with no app user attached.
+    expect(vi.mocked(recordSignedTransaction)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "API_EXECUTE",
+        userId: null,
+        deploymentId: DEPLOYMENT_ID,
+        signer: expect.objectContaining({ ok: true, signerAddress: signer.publicKey(), txHash }),
+      }),
+    );
   });
 
   it("by default keeps polling while the sent transaction reads NOT_FOUND, until it is final", async () => {

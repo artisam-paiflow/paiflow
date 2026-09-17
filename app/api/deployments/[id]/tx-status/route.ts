@@ -29,8 +29,12 @@ const QuerySchema = z.object({
 const EVENT_INGEST_DEADLINE_MS = 5_000;
 
 // The status route is public, so the caller has no session to attribute a
-// trigger to; the deployment's owner is the tester whose flow ran. Best-effort
-// like the rest of the bookkeeping here: it never affects the status answer.
+// trigger to. The `SignedTransaction` row written at submit says who signed:
+// its user when the signer was signed in, else the wallet itself with no
+// person profile. Only a transaction from before signers were recorded falls
+// back to the deployment's owner, who is not necessarily the signer.
+// Best-effort like the rest of the bookkeeping here: it never affects the
+// status answer.
 //
 // A terminal status stays terminal, so a remount, a second tab or a reload polls
 // it again. The Redis claim makes each (deployment, tx, outcome) count once;
@@ -53,24 +57,41 @@ async function captureTriggerOutcome(
       );
       if (claimed !== "OK") return;
     }
-    const d = await db.deployment.findUnique({
-      where: { id: deploymentId },
-      select: { ownerId: true, pipelineSnapshot: true },
-    });
+    const [d, signed] = await Promise.all([
+      db.deployment.findUnique({
+        where: { id: deploymentId },
+        select: { ownerId: true, pipelineSnapshot: true },
+      }),
+      db.signedTransaction.findUnique({
+        where: { txHash },
+        select: { userId: true, signerAddress: true },
+      }),
+    ]);
     if (!d) return;
+    const distinctId = signed?.userId ?? (signed ? `wallet:${signed.signerAddress}` : d.ownerId);
+    const opts = signed && !signed.userId ? ({ personProfile: false } as const) : undefined;
+    const signerAddress = signed?.signerAddress ?? null;
     if (outcome === "failed") {
-      await captureServer(d.ownerId, "trigger_failed_onchain", {
-        deployment_id: deploymentId,
-        tx_hash: txHash,
-      });
+      await captureServer(
+        distinctId,
+        "trigger_failed_onchain",
+        { deployment_id: deploymentId, tx_hash: txHash, signer_address: signerAddress },
+        opts,
+      );
       return;
     }
     const pipeline = (d.pipelineSnapshot ?? []) as Array<{ templateKind?: string }>;
-    await captureServer(d.ownerId, "trigger_confirmed", {
-      deployment_id: deploymentId,
-      tx_hash: txHash,
-      has_swap: pipeline.some((n) => n.templateKind === "SWAPPER"),
-    });
+    await captureServer(
+      distinctId,
+      "trigger_confirmed",
+      {
+        deployment_id: deploymentId,
+        tx_hash: txHash,
+        signer_address: signerAddress,
+        has_swap: pipeline.some((n) => n.templateKind === "SWAPPER"),
+      },
+      opts,
+    );
   } catch (err) {
     log.warn({ err, deploymentId, txHash }, "tx-status: analytics capture failed");
   }

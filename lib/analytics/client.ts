@@ -1,6 +1,6 @@
 import type { PostHog } from "posthog-js";
 import type { EventMap, EventName } from "./events";
-import { redactString, sanitizeProps } from "./sanitize";
+import { isAddressAllowedKey, redactString, sanitizeEntry, sanitizeProps } from "./sanitize";
 
 /**
  * Browser-side analytics. Everything here is a no-op unless the build carries
@@ -19,17 +19,34 @@ const UI_HOST = "https://us.posthog.com";
 let client: PostHog | null = null;
 let loading: Promise<PostHog | null> | null = null;
 const queue: Array<[string, Record<string, unknown>]> = [];
+// The User.id this page has told posthog-js about, or null. It gates person
+// properties only: with `person_profiles: "identified_only"`,
+// setPersonProperties on an anonymous visitor would create a profile, one per
+// visitor to the public trigger page. It is not the identity state — that
+// lives in posthog-js's own persistence and survives a reload, which this
+// module-level variable does not (see `resetIdentity`).
+let identifiedUserId: string | null = null;
 
 export function analyticsEnabled(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_POSTHOG_KEY);
 }
 
-function redactDeep(value: unknown, depth = 0): unknown {
+/**
+ * The `before_send` redaction, applied to every event posthog-js emits,
+ * including autocaptured ones. It walks nested objects because person
+ * properties travel inside `properties.$set` / `$set_once`; the key is
+ * threaded down so an allowlisted name is honoured at any depth, and no
+ * other name is — `$el_text` is not allowlisted at depth 0 or depth 3.
+ */
+export function redactDeep(value: unknown, key: string | null = null, depth = 0): unknown {
+  if (key !== null && isAddressAllowedKey(key)) return sanitizeEntry(key, value);
   if (typeof value === "string") return redactString(value);
   if (depth > 6 || value === null || typeof value !== "object") return value;
-  if (Array.isArray(value)) return value.map((v) => redactDeep(v, depth + 1));
+  if (Array.isArray(value)) return value.map((v) => redactDeep(v, key, depth + 1));
   return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, redactDeep(v, depth + 1)]),
+    Object.entries(value as Record<string, unknown>)
+      .map(([k, v]) => [k, redactDeep(v, k, depth + 1)] as const)
+      .filter(([, v]) => v !== undefined),
   );
 }
 
@@ -98,6 +115,46 @@ export function track<E extends EventName>(name: E, props: EventMap[E]): void {
   // Bounded: if posthog-js fails to load, the queue must not grow for the tab's life.
   if (queue.length < 100) queue.push([name, clean]);
   void loadAnalytics();
+}
+
+/** Tie this browser to a signed-in user. Idempotent per user id. */
+export function identifyUser(userId: string, props: Record<string, unknown>): void {
+  if (!analyticsEnabled() || identifiedUserId === userId) return;
+  identifiedUserId = userId;
+  void loadAnalytics().then((ph) => ph?.identify(userId, props));
+}
+
+/**
+ * Nobody is signed in: the next person on this browser must not inherit an
+ * id. Decided against posthog-js's persisted state, not `identifiedUserId`:
+ * after a reload that variable is null while the cookie still carries the
+ * previous user's distinct id, and an early return here would let every
+ * later pageview and wallet event stay attributed to them. An anonymous
+ * visitor is left alone, so their anonymous id is not churned per mount.
+ */
+export function resetIdentity(): void {
+  if (!analyticsEnabled()) return;
+  identifiedUserId = null;
+  void loadAnalytics().then((ph) => {
+    if (ph?._isIdentified()) ph.reset();
+  });
+}
+
+/**
+ * Person properties for the identified user; a no-op for an anonymous visitor
+ * (see `identifiedUserId`). Goes through `loadAnalytics()` rather than
+ * `analyticsClient()` because, unlike `track`, there is no queue to fall
+ * back on before posthog-js has loaded. Values pass `sanitizeProps`, so an
+ * address survives only on an allowlisted key.
+ */
+export function setPersonProps(
+  props: Record<string, unknown>,
+  once?: Record<string, unknown>,
+): void {
+  if (!analyticsEnabled() || !identifiedUserId) return;
+  const cleanProps = sanitizeProps(props);
+  const cleanOnce = once ? sanitizeProps(once) : undefined;
+  void loadAnalytics().then((ph) => ph?.setPersonProperties(cleanProps, cleanOnce));
 }
 
 export function analyticsClient(): PostHog | null {
