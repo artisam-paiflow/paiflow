@@ -94,7 +94,10 @@ own `$pageleave`. Reading the series: a drop the viewer left within five seconds
 which undercounts rather than inflates. **Counts from before 16 September 2026 include one false
 positive per navigation away from a deployment page** and are not comparable with later ones.
 
-Server-side events carry `source = server` and are attributed to the deployment owner.
+Server-side events carry `source = server`. `deploy_confirmed` is attributed to the deployer;
+`trigger_confirmed`, `trigger_failed_onchain` and `transaction_signed` to the **signer** recorded at
+submit (their user, or `wallet:G…` with no person profile), falling back to the deployment owner
+only for transactions from before signers were recorded.
 Autocapture (clicks, including stellar.expert links), rage and dead clicks, `$pageview` and
 `$exception` come from posthog-js itself. **Session replay is off** — see Setup.
 
@@ -120,7 +123,7 @@ answers, in order: the user behind a wallet, a user's wallets, and both for one 
 | `signer_address`       | `deploy_confirmed` (with the new `tx_hash`), `trigger_succeeded`, `trigger_confirmed`, `trigger_failed_onchain`, and `transaction_signed` |
 
 `transaction_signed` is captured **server-side** from the same code path that writes the database
-row, so it covers the payroll and contract-call panels (which emit no browser events), anonymous
+row, once per hash (a resubmitted envelope adds neither a row nor an event), so it covers the payroll and contract-call panels (which emit no browser events), anonymous
 signers, and browsers with an ad blocker. Its `distinct_id` is the signer's `User.id` when known,
 otherwise `wallet:G…` with `$process_person_profile: false`, so anonymous signers never become
 PostHog persons.

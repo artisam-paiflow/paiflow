@@ -7,6 +7,12 @@
  * Privacy rules the shapes encode: no usernames, emails, recipient addresses,
  * XDR, or graph JSON. Money is `amount_stroops: string`, never a number
  * (CLAUDE.md §3.3). `sanitizeProps` is the runtime backstop for the same rules.
+ *
+ * The one deliberate exception (17 September 2026): the signing wallet's OWN
+ * public address, on `wallet_address` / `signer_address` only, so a testnet
+ * transaction can be traced back to the wallet and account that signed it.
+ * The sanitizer lets those keys through only when the whole value is a `G…`
+ * address. See docs/analytics/alpha-tracking-plan.md, "Wallet traceability".
  */
 
 export type ErrorClass =
@@ -44,7 +50,7 @@ export type EventMap = {
   // 1. Setup & access
   login_succeeded: { method: "password" | "ticket" };
   login_failed: { reason: "bad_password" | "locked" };
-  wallet_connect_succeeded: { surface: WalletSurface; wallet_id: string };
+  wallet_connect_succeeded: { surface: WalletSurface; wallet_id: string; wallet_address: string };
   error_shown: { error_class: ErrorClass; error_code: string | null; message_key: string };
 
   // 2. Build
@@ -79,6 +85,8 @@ export type EventMap = {
   deploy_confirmed: {
     deployment_id: string;
     flow_id: string;
+    tx_hash: string;
+    signer_address: string;
     template_kinds: string[];
     has_swap: boolean;
     contract_count: number;
@@ -101,9 +109,35 @@ export type EventMap = {
     reason: "timeout" | "http_error" | "network";
     http_status?: number;
   };
-  trigger_succeeded: { deployment_id: string; tx_hash: string; elapsed_ms: number };
-  trigger_confirmed: { deployment_id: string; tx_hash: string; has_swap: boolean };
-  trigger_failed_onchain: { deployment_id: string; tx_hash: string };
+  trigger_succeeded: {
+    deployment_id: string;
+    tx_hash: string;
+    signer_address: string;
+    elapsed_ms: number;
+  };
+  trigger_confirmed: {
+    deployment_id: string;
+    tx_hash: string;
+    /** Null for a transaction submitted before signers were recorded. */
+    signer_address: string | null;
+    has_swap: boolean;
+  };
+  trigger_failed_onchain: { deployment_id: string; tx_hash: string; signer_address: string | null };
+  /**
+   * One per envelope the app submitted, captured server-side from the same
+   * code path that writes the `SignedTransaction` row, so it covers the
+   * payroll and contract-call panels (which emit no browser events), anonymous
+   * signers, and browsers with an ad blocker. `distinct_id` is the signer's
+   * `User.id`, or `wallet:G…` with no person profile.
+   */
+  transaction_signed: {
+    deployment_id: string | null;
+    tx_hash: string;
+    signer_address: string;
+    kind: "deploy" | "trigger" | "invoke" | "api_execute";
+    /** Whether a signature hint on the envelope matched the source account. */
+    signed_by_source: boolean;
+  };
 
   // 5. Verify
   deployment_page_viewed: { deployment_id: string; status: string };

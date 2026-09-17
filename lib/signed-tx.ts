@@ -1,5 +1,6 @@
 import "server-only";
 import type { Prisma, PrismaClient, SignedTxKind } from "@prisma/client";
+import { captureServer } from "./analytics/server";
 import { db } from "./db";
 import { log } from "./log";
 import type { SignerInfo } from "./stellar/signer";
@@ -60,19 +61,55 @@ export function signedTransactionRow(
 }
 
 /**
- * Upsert the row. Pass a transaction client to make the write part of the
- * caller's own transaction, where a failure aborts the caller before the chain
- * call — the deploy route does this alongside its status flip.
+ * Insert the row, or do nothing when the hash is already recorded. Returns
+ * whether this call created it, so the analytics copy fires once per hash
+ * and not once per resubmission (`ON CONFLICT DO NOTHING` reports that
+ * atomically; an upsert cannot). Pass a transaction client to make the write
+ * part of the caller's own transaction, where a failure aborts the caller
+ * before the chain call — the deploy route does this alongside its status
+ * flip.
  */
-export async function upsertSignedTransaction(
+export async function insertSignedTransaction(
   row: Prisma.SignedTransactionUncheckedCreateInput,
   client: Prisma.TransactionClient | PrismaClient = db,
-): Promise<void> {
-  await client.signedTransaction.upsert({
-    where: { txHash: row.txHash },
-    create: row,
-    update: {},
+): Promise<boolean> {
+  const { count } = await client.signedTransaction.createMany({
+    data: [row],
+    skipDuplicates: true,
   });
+  return count === 1;
+}
+
+const EVENT_KIND: Record<SignedTxKind, "deploy" | "trigger" | "invoke" | "api_execute"> = {
+  DEPLOY: "deploy",
+  TRIGGER: "trigger",
+  INVOKE: "invoke",
+  API_EXECUTE: "api_execute",
+};
+
+/**
+ * The PostHog copy of the row, so the same three facts can be read next to the
+ * funnel. Attributed to the signer's user when there is one; otherwise keyed
+ * on the wallet with no person profile, so an anonymous signer never becomes
+ * a PostHog person. Fire-and-forget like every server capture; call it after
+ * the row is committed, never inside the transaction that writes it, and only
+ * when `insertSignedTransaction` created the row — one event per hash.
+ */
+export function captureTransactionSigned(row: Prisma.SignedTransactionUncheckedCreateInput): void {
+  const props = {
+    deployment_id: row.deploymentId ?? null,
+    tx_hash: row.txHash,
+    signer_address: row.signerAddress,
+    kind: EVENT_KIND[row.kind],
+    signed_by_source: row.signedBySource ?? true,
+  };
+  if (row.userId) {
+    void captureServer(row.userId, "transaction_signed", props);
+  } else {
+    void captureServer(`wallet:${row.signerAddress}`, "transaction_signed", props, {
+      personProfile: false,
+    });
+  }
 }
 
 /**
@@ -84,12 +121,15 @@ export async function upsertSignedTransaction(
 export async function recordSignedTransaction(input: SignedTransactionInput): Promise<void> {
   const row = signedTransactionRow(input);
   if (!row) return;
+  let created: boolean;
   try {
-    await upsertSignedTransaction(row);
+    created = await insertSignedTransaction(row);
   } catch (err) {
     log.error(
       { err, txHash: row.txHash, kind: row.kind, deploymentId: row.deploymentId ?? null },
       "signed-tx: record failed",
     );
+    return;
   }
+  if (created) captureTransactionSigned(row);
 }

@@ -3,6 +3,13 @@
  * a call site passes, no Stellar secret seed, account/contract address or XDR
  * blob leaves the app in an analytics payload. Pure, so the browser and the
  * server share it.
+ *
+ * One deliberate exception, added 17 September 2026 for wallet ↔ user ↔ tx
+ * traceability (docs/analytics/alpha-tracking-plan.md, "Wallet traceability"):
+ * the property names in `ADDRESS_ALLOWED_KEYS` may carry the signing wallet's
+ * own public address. The value must BE a `G…` account address — anchored, so
+ * a seed, an XDR blob, a contract address or a sentence with an address in it
+ * is dropped rather than sent. Recipient addresses stay redacted everywhere.
  */
 
 // StrKey bodies are base32 (A-Z, 2-7). S = secret seed; G = account; M = muxed
@@ -16,6 +23,16 @@ const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g
 
 const MAX_STRING = 200;
 const MAX_MESSAGE_KEY = 120;
+
+const ADDRESS_ALLOWED_KEYS = new Set(["wallet_address", "wallet_address_first", "signer_address"]);
+// Anchored on purpose: the whole value is one account address, or it is dropped.
+// No `StrKey` import here — this module reaches the root layout's bundle, and
+// the checksum is not what keeps a seed out; the leading letter and the anchors are.
+const ED25519_PUBLIC_KEY = /^G[A-Z2-7]{55}$/;
+
+export function isAddressAllowedKey(key: string): boolean {
+  return ADDRESS_ALLOWED_KEYS.has(key);
+}
 
 export function redactString(value: string): string {
   return value
@@ -34,10 +51,21 @@ function sanitizeValue(value: unknown): unknown {
   return undefined;
 }
 
+/**
+ * The single decision point for one property, shared by `sanitizeProps` and
+ * the browser's `before_send`. Returns `undefined` to drop the key.
+ */
+export function sanitizeEntry(key: string, value: unknown): unknown {
+  if (isAddressAllowedKey(key)) {
+    return typeof value === "string" && ED25519_PUBLIC_KEY.test(value) ? value : undefined;
+  }
+  return sanitizeValue(value);
+}
+
 export function sanitizeProps(props: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(props)) {
-    const clean = sanitizeValue(value);
+    const clean = sanitizeEntry(key, value);
     if (clean !== undefined) out[key] = clean;
   }
   return out;

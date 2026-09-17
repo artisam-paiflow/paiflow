@@ -19,7 +19,7 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeT
         upsert: vi.fn(),
       },
       signedTransaction: {
-        upsert: vi.fn(),
+        createMany: vi.fn(async () => ({ count: 1 })),
       },
     };
 
@@ -199,7 +199,7 @@ describe("deployments/[id]/submit", () => {
       where: { id: "dep-1", status: "PENDING_SIGNATURE" },
     });
     expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
-    expect(mockDb.signedTransaction.upsert).not.toHaveBeenCalled();
+    expect(mockDb.signedTransaction.createMany).not.toHaveBeenCalled();
   });
 
   it("marks FAILED only while still SUBMITTED, so a confirmed deployment is never overwritten", async () => {

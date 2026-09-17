@@ -8,7 +8,11 @@ import { audit } from "@/lib/audit";
 import { redis, eventChannel } from "@/lib/redis";
 import { submitDeployTx } from "@/lib/stellar/deploy";
 import { signerFromSignedXdr } from "@/lib/stellar/signer";
-import { signedTransactionRow, upsertSignedTransaction } from "@/lib/signed-tx";
+import {
+  captureTransactionSigned,
+  insertSignedTransaction,
+  signedTransactionRow,
+} from "@/lib/signed-tx";
 import { clientIp } from "@/lib/rate-limit";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode, EmployeePayoutMode } from "@prisma/client";
@@ -102,7 +106,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     // The status predicate claims the deployment: two requests that both read
     // PENDING_SIGNATURE above cannot both reach the chain call, and the loser
     // fails here with P2025 before anything is written or submitted.
-    await db.$transaction(async (tx) => {
+    const signerRowCreated = await db.$transaction(async (tx) => {
       try {
         await tx.deployment.update({
           where: { id, status: "PENDING_SIGNATURE" },
@@ -114,8 +118,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         }
         throw err;
       }
-      if (signerRow) await upsertSignedTransaction(signerRow, tx);
+      return signerRow ? insertSignedTransaction(signerRow, tx) : false;
     });
+    if (signerRow && signerRowCreated) captureTransactionSigned(signerRow);
     await audit({
       action: "DEPLOY_SUBMIT",
       userId: user.id,
@@ -285,7 +290,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         userId: user.id,
         metadata: { deploymentId: id, txHash: result.txHash },
       });
-      captureDeployConfirmed(user.id, deployment, pipeline);
+      captureDeployConfirmed(user.id, deployment, pipeline, result.txHash, signer.signerAddress);
 
       // Immutable non-dev payrolls bake recipients into the SPLITTER at deploy
       // time, so we must create Employee rows now so later charges can generate
@@ -347,6 +352,8 @@ function captureDeployConfirmed(
   userId: string,
   deployment: { id: string; flowId: string; createdAt: Date },
   pipeline: Array<{ templateKind: string }> | null,
+  txHash: string,
+  signerAddress: string,
 ) {
   try {
     const templateKinds = (pipeline ?? []).map((n) => n.templateKind);
@@ -355,6 +362,8 @@ function captureDeployConfirmed(
     void captureServer(userId, "deploy_confirmed", {
       deployment_id: deployment.id,
       flow_id: deployment.flowId,
+      tx_hash: txHash,
+      signer_address: signerAddress,
       template_kinds: templateKinds,
       has_swap: templateKinds.includes("SWAPPER"),
       contract_count: contractCount,

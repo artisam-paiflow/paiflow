@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockRpc, mockDb, mockEnforceRateLimit, mockRedis, mockCapture } = vi.hoisted(() => ({
   mockRpc: { getTransaction: vi.fn() },
-  mockDb: { deployment: { findUnique: vi.fn() } },
+  mockDb: { deployment: { findUnique: vi.fn() }, signedTransaction: { findUnique: vi.fn() } },
   mockEnforceRateLimit: vi.fn(async (_opts: { key: string }) => undefined),
   mockRedis: { set: vi.fn() },
   mockCapture: vi.fn(async () => undefined),
@@ -39,6 +39,7 @@ import { pollEventsFor, recordAllowanceEvent } from "@/lib/stellar/events";
 import { audit, wasTxSubmittedFor } from "@/lib/audit";
 
 const DEPLOYMENT_ID = "44c3ed53-9b6d-4be0-bade-e5fcc6c7a0eb";
+const SIGNER = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const TX_HASH = "8d8707228a6b1d30b01dd2f5c6d956961f090cd9cd690c73d994f7a8a4ec8f3f";
 
 function call(hash: string = TX_HASH) {
@@ -58,6 +59,7 @@ describe("GET /api/deployments/[id]/tx-status", () => {
     mockRpc.getTransaction.mockReset();
     mockEnforceRateLimit.mockClear();
     mockDb.deployment.findUnique.mockResolvedValue({ graphSnapshot: null });
+    mockDb.signedTransaction.findUnique.mockReset();
     vi.mocked(wasTxSubmittedFor).mockReset();
     vi.mocked(wasTxSubmittedFor).mockResolvedValue(true);
     mockCapture.mockClear();
@@ -230,6 +232,47 @@ describe("GET /api/deployments/[id]/tx-status", () => {
     await vi.waitFor(() => expect(mockRedis.set).toHaveBeenCalledTimes(3));
     await new Promise((r) => setTimeout(r, 0));
     expect(mockCapture).toHaveBeenCalledTimes(1);
-    expect(mockCapture).toHaveBeenCalledWith("owner-1", event, expect.anything());
+    expect(mockCapture).toHaveBeenCalledWith("owner-1", event, expect.anything(), undefined);
+  });
+
+  // The owner is only the fallback for transactions from before signers were
+  // recorded; a SignedTransaction row names who actually signed.
+  it("attributes the outcome to the signer's user when the signer was signed in", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
+    mockDb.deployment.findUnique.mockResolvedValue({
+      ownerId: "owner-1",
+      pipelineSnapshot: [],
+      graphSnapshot: null,
+    });
+    mockDb.signedTransaction.findUnique.mockResolvedValue({
+      userId: "signer-user-9",
+      signerAddress: SIGNER,
+    });
+    await call();
+    await vi.waitFor(() => expect(mockCapture).toHaveBeenCalledTimes(1));
+    expect(mockCapture).toHaveBeenCalledWith(
+      "signer-user-9",
+      "trigger_confirmed",
+      expect.objectContaining({ signer_address: SIGNER }),
+      undefined,
+    );
+  });
+
+  it("keys an anonymous signer on the wallet with no person profile", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "FAILED", ledger: 4598539 });
+    mockDb.deployment.findUnique.mockResolvedValue({
+      ownerId: "owner-1",
+      pipelineSnapshot: [],
+      graphSnapshot: null,
+    });
+    mockDb.signedTransaction.findUnique.mockResolvedValue({ userId: null, signerAddress: SIGNER });
+    await call();
+    await vi.waitFor(() => expect(mockCapture).toHaveBeenCalledTimes(1));
+    expect(mockCapture).toHaveBeenCalledWith(
+      `wallet:${SIGNER}`,
+      "trigger_failed_onchain",
+      expect.objectContaining({ signer_address: SIGNER }),
+      { personProfile: false },
+    );
   });
 });
