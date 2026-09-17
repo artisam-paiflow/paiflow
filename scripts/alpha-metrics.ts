@@ -38,8 +38,12 @@ dotenvConfig({ path: resolve(".env.local") });
 dotenvConfig({ path: resolve(".env") });
 
 const COHORT_FILE = "docs/instawards/evidence/alpha-testers.json";
-const DEFAULT_SOURCE =
-  "PostHog HogQL over the five alpha-tester distinct_ids in docs/instawards/evidence/alpha-testers.json.";
+/** Provenance for the snapshot, which is committed as evidence. It has to name
+ *  how many ids were actually queried: a fixed "five" would have the file claim
+ *  a population it did not read the moment the cohort is part-issued. */
+function defaultSource(issued: number, path: string): string {
+  return `PostHog HogQL over the ${issued} issued alpha-tester distinct_id(s) in ${path}.`;
+}
 
 function arg(name: string, fallback: string): string {
   const hit = process.argv.slice(2).find((a) => a.startsWith(`--${name}=`));
@@ -166,7 +170,7 @@ async function main() {
   const cohortPath = arg("cohort", COHORT_FILE);
   const cohort = loadCohort(cohortPath);
   const since = arg("since", cohort.windowStart);
-  const source = arg("source", DEFAULT_SOURCE);
+  const source = arg("source", defaultSource(cohort.testers.length, cohortPath));
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(since)) throw new Error(`Invalid --since=${since}`);
 

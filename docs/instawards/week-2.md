@@ -165,5 +165,6 @@ to sign a transaction that cannot land — remains open.
 D3, the reusable builder input components, plus the evidence capture D2 still owes: an API-triggered
 swap with its transaction hash, curl samples against a live token, and the audit row that proves the
 execution was recorded. The alpha round runs alongside: two issued accounts have yet to run a
-session and two more testers have yet to be onboarded, and each one that completes is added to the
-cohort file and picked up by the next snapshot.
+session, and two more accounts have yet to be issued. A tester joins the cohort file when their
+account is issued, not when their session finishes, so the next snapshot picks up each newly active
+tester without the file having to change.

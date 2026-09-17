@@ -29,21 +29,23 @@ Neither basis is a correction of the other. The first measures reach, the second
 
 ## Results
 
-| Metric                                   | Target | All public activity | Alpha testers (1 of 5 onboarded) |
-| ---------------------------------------- | ------ | ------------------- | -------------------------------- |
-| Unique flows deployed                    | ≥ 5    | 26 ✓                | 11 ✓                             |
-| Contract executions / events published   | ≥ 60   | 61 ✓                | — (needs a database run)         |
-| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 2                                |
-| Distinct wallets deploying               | ≥ 6    | 7 ✓                 | 3                                |
-| Contract WASM uploaded                   | ≥ 1    | 1 ✓                 | 1 ✓ (the same binary)            |
-| Public testnet URL live and accessible   | Yes    | Yes ✓               | Yes ✓                            |
-| Demo video published                     | Yes    | No                  | Week 4                           |
+| Metric                                   | Target | All public activity | Alpha testers (1 active / 3 issued / 5 planned) |
+| ---------------------------------------- | ------ | ------------------- | ----------------------------------------------- |
+| Unique flows deployed                    | ≥ 5    | 26 ✓                | 11 ✓                                            |
+| Contract executions / events published   | ≥ 60   | 61 ✓                | — (needs a database run)                        |
+| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 2                                               |
+| Distinct wallets deploying               | ≥ 6    | 7 ✓                 | 3                                               |
+| Contract WASM uploaded                   | ≥ 1    | 1 ✓                 | 1 ✓ (the same binary)                           |
+| Public testnet URL live and accessible   | Yes    | Yes ✓               | Yes ✓                                           |
+| Demo video published                     | Yes    | No                  | Week 4                                          |
 
 Every metric except the week-4 demo video is met on the all-activity basis. Executions cleared the
 target on 12 September; the 11 September snapshot had them at 43.
 
-**The alpha-tester column is one tester's work so far**, and should be read that way: three accounts
-have been issued and one has been through a session. That single tester deployed 11 flows, signed 19
+**The alpha-tester column is one tester's work so far**, and should be read that way. The three
+counts in its heading are different things: the round **plans** five testers, three have been
+**issued** an account, and one has so far been **active** — run a session. Only that one contributes
+figures. That single tester deployed 11 flows, signed 19
 transactions and used 3 distinct wallets — testers sign with more than one wallet each, which is why
 the ≥ 6 wallets target stays reachable for a five-person round rather than being capped by headcount.
 The two targets not yet met on this basis are not failures of the round; they are the round being one
