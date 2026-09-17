@@ -1,0 +1,18 @@
+{
+  "cohort": "instawards-alpha-round-1",
+  "windowStart": "2026-09-16",
+  "provenance": [
+    "Accounts were issued out of band (docs/alpha-testing-guide.md §2); the person-to-account mapping lives in the feedback survey's 'Your name' answer (docs/user-feedback-survey.md:19-22).",
+    "userId is the User.id UUID, which is also the PostHog distinct_id (docs/analytics/alpha-tracking-plan.md:51).",
+    "wallets are the G-addresses each tester signed with, read from SignedTransaction.signerAddress or the transaction_signed event. A tester signs with more than one, so this is a list.",
+    "No real name, username or email belongs in this file. The labels are pseudonyms and the published pages use them."
+  ],
+  "note": "Every alpha-tester figure is filtered on these UUIDs explicitly. The PostHog cohort named 'Alpha testers' is role = USER, which since the 16 September cutover also matches paiflow.xyz visitors (docs/analytics/alpha-tracking-plan.md:47-50); it is deliberately not used here.",
+  "testers": [
+    { "label": "tester-1", "userId": null, "wallets": [] },
+    { "label": "tester-2", "userId": null, "wallets": [] },
+    { "label": "tester-3", "userId": null, "wallets": [] },
+    { "label": "tester-4", "userId": null, "wallets": [] },
+    { "label": "tester-5", "userId": null, "wallets": [] }
+  ]
+}
