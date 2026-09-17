@@ -1,11 +1,11 @@
 import "server-only";
-import type { FlowGraph, FlowNode, SplitRecipient } from "./schema";
-import { assetLabel } from "./schema";
-import { inboundAsset, resolveEmittingNode, type PipelineNodeSnapshot } from "./event-assets";
 import { sendEmail } from "@/lib/mail";
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
 import { formatStroops } from "@/lib/utils";
+import type { FlowGraph, FlowNode, SplitRecipient } from "./schema";
+import { assetLabel } from "./schema";
+import { inboundAsset, resolveEmittingNode, type PipelineNodeSnapshot } from "./event-assets";
 
 export type EmailContext = Record<string, string>;
 
