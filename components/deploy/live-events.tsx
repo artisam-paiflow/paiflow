@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { cn, formatAmount, shortAddr, shortAddrExtraShort } from "@/lib/utils";
 import { stellarExpertTxUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import { assetLabel, type Asset, type FlowGraph, type SplitRecipient } from "@/lib/flows/schema";
+import { flowInboundAsset } from "@/lib/flows/event-assets";
 
 export type Evt = {
   id: string;
@@ -408,7 +409,10 @@ function EventDetails({
       const from = d?.from ?? d?.subscriber ?? d?.address;
       const amount = d?.amount;
       const asset = d?.asset;
-      const displayAsset = asset ?? getActionAsset(graph);
+      // Rows ingested before the server stamped the asset carry none, so fall
+      // back to what flows INTO the pipeline. getActionAsset answers the
+      // outbound question and would label an XLM deposit with a swap's USDC.
+      const displayAsset = asset ?? flowInboundAsset(graph);
       const vault = d?.vault;
       const price = d?.price;
 
