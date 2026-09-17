@@ -9,10 +9,13 @@ import type { SignerInfo } from "./stellar/signer";
  * which app account". One row per envelope this app submitted, keyed on the
  * transaction hash so a resubmission is a no-op rather than a second row.
  *
- * `userId` is the signer's own session user, or null when the signer had no
- * session (the public trigger page, the partner API). It is never the
- * deployment's owner: an anonymous visitor can fund someone else's flow, and
- * saying the owner signed it would be a lie the audit trail cannot take back.
+ * `userId` is the session user who submitted the envelope, or null when there
+ * was no session (the public trigger page, the partner API). The app holds no
+ * wallet↔user binding, so this records who used the wallet through the app,
+ * not key custody — `signedBySource` is the cryptographic part. It is never
+ * the deployment's owner: an anonymous visitor can fund someone else's flow,
+ * and saying the owner signed it would be a lie the audit trail cannot take
+ * back.
  *
  * Written before `sendTransaction`, not after confirmation: the signer and the
  * hash are known from the envelope alone, and a row for a transaction the RPC
