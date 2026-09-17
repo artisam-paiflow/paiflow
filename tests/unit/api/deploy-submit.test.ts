@@ -1,51 +1,61 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR } = vi.hoisted(() => {
-  const mockDb = {
-    $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockDb)),
-    deployment: {
-      findFirst: vi.fn(),
-      findUnique: vi.fn(),
-      update: vi.fn(),
-    },
-    employee: {
-      create: vi.fn(),
-    },
-    employeeBankDetail: {
-      create: vi.fn(),
-    },
-    offRampSenderProfile: {
-      upsert: vi.fn(),
-    },
-  };
+const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeTx } = vi.hoisted(
+  () => {
+    const mockDb = {
+      $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockDb)),
+      deployment: {
+        findFirst: vi.fn(),
+        findUnique: vi.fn(),
+        update: vi.fn(),
+      },
+      employee: {
+        create: vi.fn(),
+      },
+      employeeBankDetail: {
+        create: vi.fn(),
+      },
+      offRampSenderProfile: {
+        upsert: vi.fn(),
+      },
+      signedTransaction: {
+        upsert: vi.fn(),
+      },
+    };
 
-  const mockDeploy = {
-    submitDeployTx: vi.fn(),
-  };
+    const mockDeploy = {
+      submitDeployTx: vi.fn(),
+    };
 
-  const mockEnv = {
-    STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
-    STELLAR_RELAYER_ADDRESS: null as string | null,
-    LOG_LEVEL: "silent",
-  };
+    const mockEnv = {
+      STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
+      STELLAR_RELAYER_ADDRESS: null as string | null,
+      LOG_LEVEL: "silent",
+    };
 
-  const mockRedis = {
-    client: {
-      publish: vi.fn().mockResolvedValue(undefined),
-    },
-    eventChannel: vi.fn((id: string) => `events:${id}`),
-  };
+    const mockRedis = {
+      client: {
+        publish: vi.fn().mockResolvedValue(undefined),
+      },
+      eventChannel: vi.fn((id: string) => `events:${id}`),
+    };
 
-  const mockStreamer = {
-    scheduleNextStreamerClaimJob: vi.fn(),
-  };
+    const mockStreamer = {
+      scheduleNextStreamerClaimJob: vi.fn(),
+    };
 
-  const mockFromXDR = vi.fn(() => ({
-    hash: vi.fn(() => Buffer.from("aabbccdd", "hex")),
-  }));
+    // The shape `lib/stellar/signer.ts` reads off a parsed envelope: a source
+    // account and a signature list, plus the hash the route compares.
+    const fakeTx = (hashHex: string) => ({
+      source: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+      signatures: [],
+      hash: vi.fn(() => Buffer.from(hashHex, "hex")),
+    });
+    const mockFromXDR = vi.fn(() => fakeTx("aabbccdd"));
 
-  return { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR };
-});
+    return { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeTx };
+  },
+);
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/stellar/deploy", () => mockDeploy);
@@ -77,6 +87,7 @@ import { POST } from "@/app/api/deployments/[id]/submit/route";
 function makeRequest({ deploymentId, signedXdr }: { deploymentId: string; signedXdr: string }) {
   return {
     json: async () => ({ signedXdr }),
+    headers: new Headers({ "x-forwarded-for": "203.0.113.9" }),
   } as unknown as import("next/server").NextRequest;
 }
 
@@ -110,9 +121,7 @@ function makePrismaError(code: string, message: string) {
 describe("deployments/[id]/submit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFromXDR.mockImplementation(() => ({
-      hash: vi.fn(() => Buffer.from("aabbccdd", "hex")),
-    }));
+    mockFromXDR.mockImplementation(() => fakeTx("aabbccdd"));
   });
 
   it("returns idempotently when a concurrent request already confirmed (P2025 race-loser)", async () => {
@@ -174,10 +183,52 @@ describe("deployments/[id]/submit", () => {
     expect(json.error.code).toBe("CONFLICT");
   });
 
+  it("refuses a concurrent duplicate: the PENDING_SIGNATURE claim fails before the chain call", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+    mockDb.deployment.update.mockRejectedValueOnce(
+      makePrismaError("P2025", "An operation failed because it depends on one or more records"),
+    );
+
+    const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
+    const res = await POST(req, makeContext("dep-1"));
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.error.code).toBe("CONFLICT");
+    expect(mockDb.deployment.update.mock.calls[0]?.[0]).toMatchObject({
+      where: { id: "dep-1", status: "PENDING_SIGNATURE" },
+    });
+    expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
+    expect(mockDb.signedTransaction.upsert).not.toHaveBeenCalled();
+  });
+
+  it("marks FAILED only while still SUBMITTED, so a confirmed deployment is never overwritten", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+    mockDeploy.submitDeployTx.mockResolvedValue({
+      status: "FAILED",
+      txHash: TX_HASH,
+      errorMessage: "tx failed",
+    });
+    mockDb.deployment.update
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(
+        makePrismaError("P2025", "An operation failed because it depends on one or more records"),
+      );
+
+    const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
+    const res = await POST(req, makeContext("dep-1"));
+
+    expect(res.status).toBe(502);
+    expect(mockDb.deployment.update.mock.calls.at(-1)?.[0]).toMatchObject({
+      where: { id: "dep-1", status: "SUBMITTED" },
+      data: { status: "FAILED" },
+    });
+  });
+
   it("rejects a signed XDR that does not match the prepared transaction", async () => {
-    mockFromXDR.mockImplementation((...args: unknown[]) => ({
-      hash: vi.fn(() => Buffer.from(args[0] === "unsigned-xdr" ? "aabbccdd" : "11223344", "hex")),
-    }));
+    mockFromXDR.mockImplementation((...args: unknown[]) =>
+      fakeTx(args[0] === "unsigned-xdr" ? "aabbccdd" : "11223344"),
+    );
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
 
     const req = makeRequest({ deploymentId: "dep-1", signedXdr: "tampered-signed-xdr" });
