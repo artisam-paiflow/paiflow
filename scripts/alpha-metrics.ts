@@ -99,6 +99,18 @@ function loadCohort(path: string): Cohort {
     throw new Error(`Two testers in ${path} share a userId.`);
   }
 
+  // Issued vs planned. Mid-round these differ legitimately, so this is not an
+  // error — but a dropped or duplicated entry would otherwise silently snapshot
+  // the wrong population. stderr keeps it loud for a human while leaving the
+  // snapshot on stdout clean for redirection.
+  const planned = parsed.plannedCohortSize;
+  if (planned !== undefined && planned !== parsed.testers.length) {
+    console.error(
+      `Note: ${path} lists ${parsed.testers.length} issued account(s) against a planned ` +
+        `cohort of ${planned}. The snapshot covers the ${parsed.testers.length} listed.`,
+    );
+  }
+
   return parsed;
 }
 
@@ -132,10 +144,17 @@ async function hogql(query: string): Promise<unknown[][]> {
 }
 
 /** Every query is scoped to the cohort and the window, in one place, so no
- *  metric can quietly widen its population. */
+ *  metric can quietly widen its population.
+ *
+ *  The timezone is pinned. HogQL parses a bare datetime literal in the PostHog
+ *  *project's* timezone, which is a dashboard setting outside this repo —
+ *  changing it there would shift every snapshot's window with no diff to show
+ *  for it. The sibling generator already means UTC by `--since`
+ *  (`new Date(\`${"${since}"}T00:00:00Z\`)` in scripts/instawards-metrics.ts), and both
+ *  have to mean the same thing. */
 function scope(ids: string[], since: string): string {
   const list = ids.map((id) => `'${id}'`).join(", ");
-  return `distinct_id in (${list}) and timestamp >= toDateTime('${since} 00:00:00')`;
+  return `distinct_id in (${list}) and timestamp >= toDateTime('${since} 00:00:00', 'UTC')`;
 }
 
 async function scalar(query: string): Promise<number> {

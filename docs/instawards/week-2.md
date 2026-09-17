@@ -52,6 +52,12 @@ pnpm instawards:changelog --since 2026-09-14 --until 2026-09-20 \
 | 2026-09-15 | feat(api): cursor-based event polling at GET /api/v1/deployments/{id}/events      | #469   | [`7f1f6fb`](https://github.com/artisam-paiflow/paiflow/commit/7f1f6fb947a1de595af384263b481fb20365a726) |
 | 2026-09-14 | feat(api): let a deployment owner mint, list and revoke API tokens                | #467   | [`c3cc445`](https://github.com/artisam-paiflow/paiflow/commit/c3cc4454bc18d16c9e0713fc77c51f5516bd92be) |
 
+Two of the 15 September rows name `beta.paiflow.xyz`. That was the hostname assumed for the alpha
+round before the 16 September cutover; the app is at `beta.app.paiflow.xyz` and `beta.paiflow.xyz`
+serves the static marketing site. The rows are reproduced as the pull requests were titled, so the
+record of what was merged stays intact — see the [metrics page](metrics.md#counting-rules) for the
+layout as it is now.
+
 ## Statement of Work progress
 
 Rows that moved this week. The full tables live on the deliverable pages.
