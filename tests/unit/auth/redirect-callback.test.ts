@@ -12,7 +12,14 @@
  * `expectUrlParseable` over the whole table below.
  *
  * It is also the one place a supplied URL decides where the browser goes, so
- * the open-redirect cases carry their own weight.
+ * the open-redirect cases carry their own weight. @auth/core hands this the raw
+ * `callbackUrl` param *and* the stored callback-url cookie
+ * (lib/utils/callback-url.js), and persists what comes back as that cookie.
+ *
+ * #515 broke it: the guard was a regex on the character after the leading
+ * slash, and the URL parser strips TAB/LF/CR before parsing, so a tab smuggled
+ * "//evil.com" past it. The callback now resolves and compares origins, with no
+ * pre-parse inspection at all.
  */
 import { describe, it, expect } from "vitest";
 import { authConfig } from "@/auth.config";
@@ -49,6 +56,28 @@ describe("auth redirect callback", () => {
     expect(redirect("/\\evil.example")).toBe(BASE);
   });
 
+  it("is not fooled by a control character before the second slash", () => {
+    // #515. The guard this replaced tested the character after the leading
+    // slash, which looks sufficient until you know the URL parser strips
+    // TAB/LF/CR *before* it parses: to that regex "/\t/evil.com" was a path,
+    // and it then resolved to https://evil.com/. Nothing here inspects
+    // characters any more — the parser normalises, and only the origin of what
+    // comes out is compared — so these are the regression record, not a
+    // blocklist. Don't reintroduce a pre-parse shape check.
+    expect(redirect("/\t/evil.com")).toBe(BASE);
+    expect(redirect("/\n/evil.com")).toBe(BASE);
+    expect(redirect("/\r/evil.com")).toBe(BASE);
+    expect(redirect("/\t//evil.com")).toBe(BASE);
+    expect(redirect("/\t\\evil.com")).toBe(BASE);
+  });
+
+  it("refuses credentials smuggled into a same-origin URL", () => {
+    // .origin ignores userinfo, so this one clears the origin comparison. It
+    // is the right host, but the value is persisted as the callback-url
+    // cookie and there is no reason for credentials to ride along.
+    expect(redirect("https://user:pw@paiflow.xyz/dashboard")).toBe(BASE);
+  });
+
   it("refuses another origin", () => {
     expect(redirect("https://evil.example/dashboard")).toBe(BASE);
     // Right host, wrong scheme — still a different origin.
@@ -59,9 +88,19 @@ describe("auth redirect callback", () => {
     expect(redirect("https://beta.app.paiflow.xyz/dashboard")).toBe(BASE);
   });
 
-  it("refuses anything that is not a URL or a path", () => {
-    expect(redirect("")).toBe(BASE);
+  it("refuses a URL whose origin is not an origin at all", () => {
+    // Resolving this against baseUrl succeeds; its origin is the string
+    // "null", which is not baseUrl, so the comparison refuses it.
     expect(redirect("javascript:alert(1)")).toBe(BASE);
-    expect(redirect("dashboard")).toBe(BASE);
+  });
+
+  it("resolves a bare relative reference rather than refusing it", () => {
+    // These two used to fall to baseUrl because the old regex demanded a
+    // leading slash and `new URL(url)` then threw. Resolving against baseUrl
+    // instead can only ever produce a same-origin URL, so allowing them costs
+    // nothing; recorded here so the change reads as intended and not as a
+    // loosened guard.
+    expect(redirect("")).toBe(`${BASE}/`);
+    expect(redirect("dashboard")).toBe(`${BASE}/dashboard`);
   });
 });

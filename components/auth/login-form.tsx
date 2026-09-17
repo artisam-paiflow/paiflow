@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { safeReturnPath } from "@/lib/safe-return-path";
 
 export default function LoginForm({ from, error }: { from?: string; error?: string }) {
   const [submitting, setSubmitting] = useState(false);
@@ -23,7 +24,7 @@ export default function LoginForm({ from, error }: { from?: string; error?: stri
       toast.error("Invalid username or password");
       return;
     }
-    window.location.href = from && from.startsWith("/") ? from : "/dashboard";
+    window.location.href = safeReturnPath(from, window.location.origin);
   }
 
   return (
