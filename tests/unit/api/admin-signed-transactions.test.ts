@@ -88,13 +88,18 @@ describe("GET /api/admin/signed-transactions", () => {
       "?txHash=abc",
       "?userId=42",
       "?limit=0",
-      "?limit=201",
+      "?limit=101",
     ]) {
       const res = await GET(req(query));
       expect(res.status, query).toBe(422);
       expect((await res.json()).error.code, query).toBe("VALIDATION");
     }
     expect(mockDb.signedTransaction.findMany).not.toHaveBeenCalled();
+  });
+
+  it("defaults to a page of 20 (CLAUDE.md §11)", async () => {
+    await GET(req());
+    expect(lastWhere().take).toBe(21);
   });
 
   it("pages with the last returned row as the cursor, never dropping one", async () => {

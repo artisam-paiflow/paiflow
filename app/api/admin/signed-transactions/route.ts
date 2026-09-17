@@ -8,7 +8,7 @@ import { withErrorHandler } from "@/lib/errors";
 
 const Query = z.object({
   cursor: z.string().uuid().optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
   address: z
     .string()
     .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address")
@@ -28,9 +28,12 @@ const Query = z.object({
  * questions the table exists for: `userId` lists a user's wallets, `address`
  * finds the user behind a wallet, `txHash` gives both for one transaction.
  *
- * A row's `userId` is the signer's own session user; null means the signer
- * had no session. The joined deployment's `ownerId` is the owner and is not
- * the signer — the public trigger page lets anyone fund anyone's flow.
+ * A row's `userId` is the session user who submitted the envelope; null
+ * means the signer had no session. The app holds no wallet↔user binding, so
+ * this is who used the wallet through the app, not proof of key custody
+ * (`signedBySource` is the cryptographic part). The joined deployment's
+ * `ownerId` is the owner and is not the signer — the public trigger page lets
+ * anyone fund anyone's flow.
  *
  * Cursor pagination: `nextCursor` is the id of the last row on this page,
  * and the next request skips it. Newest first, ties broken on id so the
