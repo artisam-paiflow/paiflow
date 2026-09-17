@@ -39,16 +39,25 @@ export const authConfig: NextAuthConfig = {
     // reason. Don't "fix" the origin by returning a path — that is the throw
     // above.
     redirect({ url, baseUrl }) {
-      // Only a single leading slash is a path. "//host" and "/\host" are
-      // absolute to a browser, so resolving one against baseUrl would let a
-      // caller pick the destination host.
-      if (/^\/(?![/\\])/.test(url)) return new URL(url, baseUrl).toString();
+      // Resolve first, judge second. The guard this replaced tested the
+      // character after the leading slash to rule out "//host" and "/\host",
+      // but the URL parser strips TAB/LF/CR *before* it parses: to that regex
+      // "/\t/evil.com" was a path, and it then resolved to https://evil.com/
+      // (#515). Only the origin of the parsed result says anything, so let the
+      // parser normalise and compare that — it subsumes every shape the regex
+      // enumerated, with no pre-parse inspection to get wrong.
+      let resolved: URL;
       try {
-        if (new URL(url).origin === baseUrl) return url;
+        resolved = new URL(url, baseUrl);
       } catch {
-        // Not a URL at all; fall through to the safe default.
+        return baseUrl;
       }
-      return baseUrl;
+      if (resolved.origin !== baseUrl) return baseUrl;
+      // .origin ignores userinfo, so a same-host URL can still smuggle
+      // credentials into the callback-url cookie. lib/env.ts's originList
+      // refuses them for the same reason.
+      if (resolved.username || resolved.password) return baseUrl;
+      return resolved.toString();
     },
     async jwt({ token, user }) {
       if (user) {
