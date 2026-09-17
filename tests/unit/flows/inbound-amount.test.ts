@@ -206,6 +206,35 @@ describe("inboundRequirement", () => {
     expect(inboundRequirement(g)).toEqual({ kind: "variable" });
   });
 
+  it("keeps a fixed pay ahead of a condition as a floor, not a total", () => {
+    // The payer takes its 5 before the gate ever runs, so less than 5 under-pays
+    // it no matter what the gate decides; past the gate nothing is guaranteed.
+    const condition = {
+      id: "c",
+      type: "condition",
+      config: { kind: "amount_gt", amountStroops: THREE },
+    };
+    expect(
+      inboundRequirement(chain([trigger(), payFixed("p", FIVE), condition, payFixed("q", THREE)])),
+    ).toEqual({
+      kind: "minimum",
+      stroops: FIVE,
+      asset: XLM,
+    });
+  });
+
+  it("keeps a fixed pay ahead of a branch as a floor, not a total", () => {
+    const g = graph(
+      [trigger(), payFixed("p1", FIVE), payFixed("p2", THREE), payFixed("p3", THREE)],
+      [
+        ["t", "p1"],
+        ["p1", "p2"],
+        ["p1", "p3"],
+      ],
+    );
+    expect(inboundRequirement(g)).toEqual({ kind: "minimum", stroops: FIVE, asset: XLM });
+  });
+
   it.each(["subscription", "payroll", "on_schedule", "oracle", "webhook"])(
     "is variable for a %s trigger, which the relayer drives rather than a sender",
     (type) => {

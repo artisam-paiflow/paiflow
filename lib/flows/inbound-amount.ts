@@ -26,7 +26,11 @@ import { assetsEqual, computeAssetFlow } from "./validate";
 export type InboundRequirement =
   /** The pipeline consumes exactly this much; anything more would strand. */
   | { kind: "exact"; stroops: string; asset: Asset }
-  /** At least this much; whatever is above it is consumed proportionally. */
+  /**
+   * At least this much: what the fixed payouts ahead of the first proportional
+   * node, gate, or branch consume. Below it the fixed payer under-pays; what
+   * happens above it depends on that node, so it is a floor, not a total.
+   */
   | { kind: "minimum"; stroops: string; asset: Asset }
   /** Nothing determinate to say — any positive amount is valid. */
   | { kind: "variable" };
