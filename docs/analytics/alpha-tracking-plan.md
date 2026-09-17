@@ -49,8 +49,13 @@ and properties, so this page describes intent and doesn't restate every field.
   no longer isolates the beta. Until `$host = beta.app.paiflow.xyz` is added, `paiflow.xyz`
   visitors are counted as testers — and analytics is on, so that is happening now.
 - **Identity:** `distinct_id` is `User.id`. Usernames, emails, recipient addresses, XDR and
-  graph JSON are never sent. `lib/analytics/sanitize.ts` also redacts StrKeys, seeds and base64
-  blobs from every property, including autocaptured element text.
+  graph JSON are never sent. `lib/analytics/sanitize.ts` redacts StrKeys, seeds and base64 blobs
+  from every property, including autocaptured element text, with one deliberate exception: the
+  **signing wallet's own public address**, on the named properties under
+  [Wallet traceability](#wallet-traceability). Asked for on 17 September 2026 so a testnet
+  transaction can be traced back to a tester inside PostHog as well as in the database. The
+  tester guide, its PDF and `homepage/privacy.html` were changed to say so before any event
+  carried an address.
 - **Not evidence:** PostHog counts are for product decisions. The Instawards metrics stay
   DB-derived (`pnpm instawards:metrics`); ad-blockers and sampling make analytics a lower bound.
   The metrics counting rule used to cover **paiflow.xyz only**, which kept beta activity out of the
@@ -92,6 +97,51 @@ positive per navigation away from a deployment page** and are not comparable wit
 Server-side events carry `source = server` and are attributed to the deployment owner.
 Autocapture (clicks, including stellar.expert links), rage and dead clicks, `$pageview` and
 `$exception` come from posthog-js itself. **Session replay is off** — see Setup.
+
+## Wallet traceability
+
+Which wallet signed which transaction, under which app account. The database is the system of
+record and PostHog carries the same three facts so they can be read in one place with the funnel.
+
+**Database.** `SignedTransaction` (see `lib/signed-tx.ts`) holds one row per envelope the app
+submitted: `txHash`, `signerAddress` (always the `G…` form, read from the signed envelope's source
+account, not from what the client claimed), `userId`, `deploymentId`, `kind` (`DEPLOY`, `TRIGGER`,
+`INVOKE`, `API_EXECUTE`) and `network`. `userId` is the **signer's** session user; it is null for
+an anonymous signer on the public trigger page and for the partner API, and the deployment's owner
+is never substituted. `GET /api/admin/signed-transactions?address=|userId=|deploymentId=|txHash=`
+answers, in order: the user behind a wallet, a user's wallets, and both for one transaction.
+
+**PostHog.** The address travels on named properties only:
+
+| Property               | Where                                                                                                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `wallet_address`       | `wallet_connect_succeeded` (browser, every surface); person property = most recent wallet                                                                    |
+| `wallet_address_first` | person property, set once                                                                                                                                    |
+| `signer_address`       | `deploy_confirmed` (with the new `tx_hash`), `trigger_started`, `trigger_succeeded`, `trigger_confirmed`, `trigger_failed_onchain`, and `transaction_signed` |
+
+`transaction_signed` is captured **server-side** from the same code path that writes the database
+row, so it covers the payroll and contract-call panels (which emit no browser events), anonymous
+signers, and browsers with an ad blocker. Its `distinct_id` is the signer's `User.id` when known,
+otherwise `wallet:G…` with `$process_person_profile: false`, so anonymous signers never become
+PostHog persons.
+
+The three questions inside PostHog:
+
+- **user → wallets:** `transaction_signed`, break down by `signer_address`, filter
+  `distinct_id = <User.id>`.
+- **wallet → user:** the same event filtered `signer_address = G…`, broken down by person.
+- **tx hash → both:** Activity, filter `tx_hash = …`.
+
+Caveats. A person property holds one value, so `wallet_address` is the **latest** wallet, not the
+only one — the event breakdown is the complete list. An anonymous trigger-page signer has no
+person profile, so for them the answer lives on event properties only. And `signer_address` is
+strong evidence, not proof: it is the envelope's source account, which a multisig account could
+make differ from the key that signed.
+
+The mechanism is an allowlist in `lib/analytics/sanitize.ts`: exactly those property names may
+carry a value that **is** a `G…` address (anchored; a seed, an XDR blob, a contract address or a
+sentence containing an address is dropped, not sent). Every other property keeps the full
+redaction, including autocaptured element text.
 
 ## Dashboards
 
