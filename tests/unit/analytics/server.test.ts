@@ -57,6 +57,43 @@ describe("captureServer", () => {
     });
   });
 
+  it("lets the signing wallet's address through on its allowlisted key only", async () => {
+    fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
+    const { captureServer } = await loadServer({ NEXT_PUBLIC_POSTHOG_KEY: "phc_test" });
+    await captureServer("user-1", "deploy_confirmed", {
+      deployment_id: "dep-1",
+      flow_id: "flow-1",
+      tx_hash: "a".repeat(64),
+      signer_address: ACCOUNT,
+      template_kinds: ["SPLITTER", ACCOUNT],
+      has_swap: false,
+      contract_count: 1,
+      created_to_confirmed_ms: 1200,
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.properties.signer_address).toBe(ACCOUNT);
+    expect(body.properties.template_kinds).toEqual(["SPLITTER", "<address>"]);
+    expect(body.properties).not.toHaveProperty("$process_person_profile");
+  });
+
+  it("marks an event anonymous with personProfile: false", async () => {
+    fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
+    const { captureServer } = await loadServer({ NEXT_PUBLIC_POSTHOG_KEY: "phc_test" });
+    await captureServer(
+      `wallet:${ACCOUNT}`,
+      "login_failed",
+      { reason: "locked" },
+      { personProfile: false },
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.distinct_id).toBe(`wallet:${ACCOUNT}`);
+    expect(body.properties.$process_person_profile).toBe(false);
+  });
+
   it("never throws when the request fails", async () => {
     fetchMock.mockRejectedValue(new Error("connect ECONNREFUSED"));
     const { captureServer } = await loadServer({ NEXT_PUBLIC_POSTHOG_KEY: "phc_test" });

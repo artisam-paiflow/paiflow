@@ -285,7 +285,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         userId: user.id,
         metadata: { deploymentId: id, txHash: result.txHash },
       });
-      captureDeployConfirmed(user.id, deployment, pipeline);
+      captureDeployConfirmed(user.id, deployment, pipeline, result.txHash, signer.signerAddress);
 
       // Immutable non-dev payrolls bake recipients into the SPLITTER at deploy
       // time, so we must create Employee rows now so later charges can generate
@@ -347,6 +347,8 @@ function captureDeployConfirmed(
   userId: string,
   deployment: { id: string; flowId: string; createdAt: Date },
   pipeline: Array<{ templateKind: string }> | null,
+  txHash: string,
+  signerAddress: string,
 ) {
   try {
     const templateKinds = (pipeline ?? []).map((n) => n.templateKind);
@@ -355,6 +357,8 @@ function captureDeployConfirmed(
     void captureServer(userId, "deploy_confirmed", {
       deployment_id: deployment.id,
       flow_id: deployment.flowId,
+      tx_hash: txHash,
+      signer_address: signerAddress,
       template_kinds: templateKinds,
       has_swap: templateKinds.includes("SWAPPER"),
       contract_count: contractCount,

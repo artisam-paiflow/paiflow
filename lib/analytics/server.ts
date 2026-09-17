@@ -14,11 +14,17 @@ const CAPTURE_TIMEOUT_MS = 2_000;
  *
  * Fire-and-forget: it resolves once the request settles, never throws, and a
  * caller should `void` it rather than make a response wait on analytics.
+ *
+ * `personProfile: false` marks the event anonymous. The browser's
+ * `person_profiles: "identified_only"` does not apply to this endpoint, which
+ * would otherwise create a PostHog person for any `distinct_id` — one per
+ * wallet, for a signer who never signed in.
  */
 export async function captureServer<E extends EventName>(
   distinctId: string,
   name: E,
   props: EventMap[E],
+  opts?: { personProfile?: false },
 ): Promise<void> {
   try {
     const e = env();
@@ -37,6 +43,8 @@ export async function captureServer<E extends EventName>(
           app_version: process.env.NEXT_PUBLIC_APP_VERSION ?? "dev",
           stellar_network: e.STELLAR_NETWORK,
           source: "server",
+          // A control flag, not data, so it is added after sanitizing.
+          ...(opts?.personProfile === false ? { $process_person_profile: false } : {}),
         },
       }),
       signal: AbortSignal.timeout(CAPTURE_TIMEOUT_MS),

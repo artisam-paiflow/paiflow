@@ -61,3 +61,46 @@ describe("messageKey", () => {
     expect(messageKey(`tx ${TX_HASH} for ${UUID}`)).toBe("tx <hash> for <id>");
   });
 });
+
+describe("address allowlist", () => {
+  const ALLOWED = ["wallet_address", "wallet_address_first", "signer_address"] as const;
+
+  it("passes the signing wallet's own account address intact on an allowed key", () => {
+    for (const key of ALLOWED) {
+      expect(sanitizeProps({ [key]: ACCOUNT })).toEqual({ [key]: ACCOUNT });
+    }
+  });
+
+  it("drops anything that is not exactly an account address, rather than sending it redacted", () => {
+    for (const value of [
+      SEED,
+      XDR,
+      CONTRACT,
+      MUXED,
+      `pay ${ACCOUNT} now`,
+      ` ${ACCOUNT}`,
+      ACCOUNT.toLowerCase(),
+      ACCOUNT.slice(0, 55),
+      42,
+      null,
+      true,
+      [ACCOUNT],
+      { address: ACCOUNT },
+    ]) {
+      const out = sanitizeProps({ signer_address: value, tx_hash: TX_HASH });
+      expect(out, String(value)).toEqual({ tx_hash: TX_HASH });
+      expect(out, String(value)).not.toHaveProperty("signer_address");
+    }
+  });
+
+  it("leaves every other key on today's redaction", () => {
+    expect(sanitizeProps({ recipient_address: ACCOUNT })).toEqual({
+      recipient_address: "<address>",
+    });
+    expect(sanitizeProps({ $el_text: ACCOUNT })).toEqual({ $el_text: "<address>" });
+    expect(sanitizeProps({ wallet_addresses: ACCOUNT })).toEqual({
+      wallet_addresses: "<address>",
+    });
+    expect(sanitizeProps({ WALLET_ADDRESS: ACCOUNT })).toEqual({ WALLET_ADDRESS: "<address>" });
+  });
+});
