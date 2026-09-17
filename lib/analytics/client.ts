@@ -19,10 +19,12 @@ const UI_HOST = "https://us.posthog.com";
 let client: PostHog | null = null;
 let loading: Promise<PostHog | null> | null = null;
 const queue: Array<[string, Record<string, unknown>]> = [];
-// The User.id posthog-js has been told about, or null between sessions. Person
-// properties are only set while this is non-null: with
-// `person_profiles: "identified_only"`, setPersonProperties on an anonymous
-// visitor would create a profile, one per visitor to the public trigger page.
+// The User.id this page has told posthog-js about, or null. It gates person
+// properties only: with `person_profiles: "identified_only"`,
+// setPersonProperties on an anonymous visitor would create a profile, one per
+// visitor to the public trigger page. It is not the identity state — that
+// lives in posthog-js's own persistence and survives a reload, which this
+// module-level variable does not (see `resetIdentity`).
 let identifiedUserId: string | null = null;
 
 export function analyticsEnabled(): boolean {
@@ -122,11 +124,20 @@ export function identifyUser(userId: string, props: Record<string, unknown>): vo
   void loadAnalytics().then((ph) => ph?.identify(userId, props));
 }
 
-/** Signed out: the next person on this browser must not inherit the id. */
+/**
+ * Nobody is signed in: the next person on this browser must not inherit an
+ * id. Decided against posthog-js's persisted state, not `identifiedUserId`:
+ * after a reload that variable is null while the cookie still carries the
+ * previous user's distinct id, and an early return here would let every
+ * later pageview and wallet event stay attributed to them. An anonymous
+ * visitor is left alone, so their anonymous id is not churned per mount.
+ */
 export function resetIdentity(): void {
-  if (!identifiedUserId) return;
+  if (!analyticsEnabled()) return;
   identifiedUserId = null;
-  void loadAnalytics().then((ph) => ph?.reset());
+  void loadAnalytics().then((ph) => {
+    if (ph?._isIdentified()) ph.reset();
+  });
 }
 
 /**
