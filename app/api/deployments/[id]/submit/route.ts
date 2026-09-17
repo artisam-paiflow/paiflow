@@ -8,7 +8,11 @@ import { audit } from "@/lib/audit";
 import { redis, eventChannel } from "@/lib/redis";
 import { submitDeployTx } from "@/lib/stellar/deploy";
 import { signerFromSignedXdr } from "@/lib/stellar/signer";
-import { signedTransactionRow, upsertSignedTransaction } from "@/lib/signed-tx";
+import {
+  captureTransactionSigned,
+  signedTransactionRow,
+  upsertSignedTransaction,
+} from "@/lib/signed-tx";
 import { clientIp } from "@/lib/rate-limit";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode, EmployeePayoutMode } from "@prisma/client";
@@ -116,6 +120,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
       if (signerRow) await upsertSignedTransaction(signerRow, tx);
     });
+    if (signerRow) captureTransactionSigned(signerRow);
     await audit({
       action: "DEPLOY_SUBMIT",
       userId: user.id,

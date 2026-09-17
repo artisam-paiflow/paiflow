@@ -4,7 +4,10 @@
  * user deletion are asserted against the real Postgres the suite already uses
  * (see `tests/unit/setup.ts`, which preserves DATABASE_URL), not a mock.
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockCapture } = vi.hoisted(() => ({ mockCapture: vi.fn(async () => undefined) }));
+vi.mock("@/lib/analytics/server", () => ({ captureServer: mockCapture }));
 import {
   Account,
   BASE_FEE,
@@ -39,6 +42,59 @@ describe("recordSignedTransaction", () => {
   afterEach(async () => {
     await db.signedTransaction.deleteMany({ where: { txHash: { in: hashes.splice(0) } } });
     await db.user.deleteMany({ where: { id: { in: userIds.splice(0) } } });
+  });
+
+  beforeEach(() => {
+    mockCapture.mockClear();
+  });
+
+  it("captures transaction_signed for the signer's user, or for the wallet with no profile", async () => {
+    const anon = signedEnvelope();
+    hashes.push(anon.signer.txHash);
+    await recordSignedTransaction({ signer: anon.signer, kind: "TRIGGER", network: "testnet" });
+    expect(mockCapture).toHaveBeenLastCalledWith(
+      `wallet:${anon.kp.publicKey()}`,
+      "transaction_signed",
+      {
+        deployment_id: null,
+        tx_hash: anon.signer.txHash,
+        signer_address: anon.kp.publicKey(),
+        kind: "trigger",
+        signed_by_source: true,
+      },
+      { personProfile: false },
+    );
+
+    const user = await db.user.create({
+      data: { username: `signer-${Date.now()}-b`, passwordHash: "not-a-real-hash" },
+      select: { id: true },
+    });
+    userIds.push(user.id);
+    const known = signedEnvelope();
+    hashes.push(known.signer.txHash);
+    await recordSignedTransaction({
+      signer: known.signer,
+      kind: "DEPLOY",
+      network: "testnet",
+      userId: user.id,
+    });
+    expect(mockCapture).toHaveBeenLastCalledWith(
+      user.id,
+      "transaction_signed",
+      expect.objectContaining({ kind: "deploy", signer_address: known.kp.publicKey() }),
+    );
+  });
+
+  it("does not capture when the row was not written", async () => {
+    const { signer } = signedEnvelope();
+    hashes.push(signer.txHash);
+    await recordSignedTransaction({
+      signer,
+      kind: "DEPLOY",
+      network: "testnet",
+      userId: "00000000-0000-0000-0000-000000000001",
+    });
+    expect(mockCapture).not.toHaveBeenCalled();
   });
 
   it("writes one row keyed on the hash; a resubmission is a no-op", async () => {

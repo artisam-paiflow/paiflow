@@ -1,5 +1,6 @@
 import "server-only";
 import type { Prisma, PrismaClient, SignedTxKind } from "@prisma/client";
+import { captureServer } from "./analytics/server";
 import { db } from "./db";
 import { log } from "./log";
 import type { SignerInfo } from "./stellar/signer";
@@ -75,6 +76,37 @@ export async function upsertSignedTransaction(
   });
 }
 
+const EVENT_KIND: Record<SignedTxKind, "deploy" | "trigger" | "invoke" | "api_execute"> = {
+  DEPLOY: "deploy",
+  TRIGGER: "trigger",
+  INVOKE: "invoke",
+  API_EXECUTE: "api_execute",
+};
+
+/**
+ * The PostHog copy of the row, so the same three facts can be read next to the
+ * funnel. Attributed to the signer's user when there is one; otherwise keyed
+ * on the wallet with no person profile, so an anonymous signer never becomes
+ * a PostHog person. Fire-and-forget like every server capture; call it after
+ * the row is committed, never inside the transaction that writes it.
+ */
+export function captureTransactionSigned(row: Prisma.SignedTransactionUncheckedCreateInput): void {
+  const props = {
+    deployment_id: row.deploymentId ?? null,
+    tx_hash: row.txHash,
+    signer_address: row.signerAddress,
+    kind: EVENT_KIND[row.kind],
+    signed_by_source: row.signedBySource ?? true,
+  };
+  if (row.userId) {
+    void captureServer(row.userId, "transaction_signed", props);
+  } else {
+    void captureServer(`wallet:${row.signerAddress}`, "transaction_signed", props, {
+      personProfile: false,
+    });
+  }
+}
+
 /**
  * Best-effort variant for the public submit routes, which have no transaction
  * to join. It never throws into the response, but it logs at `error` rather
@@ -91,5 +123,7 @@ export async function recordSignedTransaction(input: SignedTransactionInput): Pr
       { err, txHash: row.txHash, kind: row.kind, deploymentId: row.deploymentId ?? null },
       "signed-tx: record failed",
     );
+    return;
   }
+  captureTransactionSigned(row);
 }

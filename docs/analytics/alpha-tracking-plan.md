@@ -94,7 +94,10 @@ own `$pageleave`. Reading the series: a drop the viewer left within five seconds
 which undercounts rather than inflates. **Counts from before 16 September 2026 include one false
 positive per navigation away from a deployment page** and are not comparable with later ones.
 
-Server-side events carry `source = server` and are attributed to the deployment owner.
+Server-side events carry `source = server`. `deploy_confirmed` is attributed to the deployer;
+`trigger_confirmed`, `trigger_failed_onchain` and `transaction_signed` to the **signer** recorded at
+submit (their user, or `wallet:G…` with no person profile), falling back to the deployment owner
+only for transactions from before signers were recorded.
 Autocapture (clicks, including stellar.expert links), rage and dead clicks, `$pageview` and
 `$exception` come from posthog-js itself. **Session replay is off** — see Setup.
 

@@ -115,8 +115,29 @@ export type EventMap = {
     signer_address: string;
     elapsed_ms: number;
   };
-  trigger_confirmed: { deployment_id: string; tx_hash: string; has_swap: boolean };
-  trigger_failed_onchain: { deployment_id: string; tx_hash: string };
+  trigger_confirmed: {
+    deployment_id: string;
+    tx_hash: string;
+    /** Null for a transaction submitted before signers were recorded. */
+    signer_address: string | null;
+    has_swap: boolean;
+  };
+  trigger_failed_onchain: { deployment_id: string; tx_hash: string; signer_address: string | null };
+  /**
+   * One per envelope the app submitted, captured server-side from the same
+   * code path that writes the `SignedTransaction` row, so it covers the
+   * payroll and contract-call panels (which emit no browser events), anonymous
+   * signers, and browsers with an ad blocker. `distinct_id` is the signer's
+   * `User.id`, or `wallet:G…` with no person profile.
+   */
+  transaction_signed: {
+    deployment_id: string | null;
+    tx_hash: string;
+    signer_address: string;
+    kind: "deploy" | "trigger" | "invoke" | "api_execute";
+    /** Whether a signature hint on the envelope matched the source account. */
+    signed_by_source: boolean;
+  };
 
   // 5. Verify
   deployment_page_viewed: { deployment_id: string; status: string };
