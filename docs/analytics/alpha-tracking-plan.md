@@ -123,7 +123,7 @@ answers, in order: the user behind a wallet, a user's wallets, and both for one 
 | `signer_address`       | `deploy_confirmed` (with the new `tx_hash`), `trigger_succeeded`, `trigger_confirmed`, `trigger_failed_onchain`, and `transaction_signed` |
 
 `transaction_signed` is captured **server-side** from the same code path that writes the database
-row, so it covers the payroll and contract-call panels (which emit no browser events), anonymous
+row, once per hash (a resubmitted envelope adds neither a row nor an event), so it covers the payroll and contract-call panels (which emit no browser events), anonymous
 signers, and browsers with an ad blocker. Its `distinct_id` is the signer's `User.id` when known,
 otherwise `wallet:G…` with `$process_person_profile: false`, so anonymous signers never become
 PostHog persons.

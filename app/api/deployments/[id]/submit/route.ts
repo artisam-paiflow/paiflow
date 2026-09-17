@@ -10,8 +10,8 @@ import { submitDeployTx } from "@/lib/stellar/deploy";
 import { signerFromSignedXdr } from "@/lib/stellar/signer";
 import {
   captureTransactionSigned,
+  insertSignedTransaction,
   signedTransactionRow,
-  upsertSignedTransaction,
 } from "@/lib/signed-tx";
 import { clientIp } from "@/lib/rate-limit";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     // The status predicate claims the deployment: two requests that both read
     // PENDING_SIGNATURE above cannot both reach the chain call, and the loser
     // fails here with P2025 before anything is written or submitted.
-    await db.$transaction(async (tx) => {
+    const signerRowCreated = await db.$transaction(async (tx) => {
       try {
         await tx.deployment.update({
           where: { id, status: "PENDING_SIGNATURE" },
@@ -118,9 +118,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         }
         throw err;
       }
-      if (signerRow) await upsertSignedTransaction(signerRow, tx);
+      return signerRow ? insertSignedTransaction(signerRow, tx) : false;
     });
-    if (signerRow) captureTransactionSigned(signerRow);
+    if (signerRow && signerRowCreated) captureTransactionSigned(signerRow);
     await audit({
       action: "DEPLOY_SUBMIT",
       userId: user.id,

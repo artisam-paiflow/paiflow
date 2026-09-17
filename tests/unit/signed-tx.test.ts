@@ -97,7 +97,7 @@ describe("recordSignedTransaction", () => {
     expect(mockCapture).not.toHaveBeenCalled();
   });
 
-  it("writes one row keyed on the hash; a resubmission is a no-op", async () => {
+  it("writes one row and captures one event per hash; a resubmission is a no-op", async () => {
     const { kp, signer } = signedEnvelope();
     hashes.push(signer.txHash);
     const input = {
@@ -114,6 +114,8 @@ describe("recordSignedTransaction", () => {
 
     const rows = await db.signedTransaction.findMany({ where: { txHash: signer.txHash } });
     expect(rows).toHaveLength(1);
+    // One analytics event per hash, not per resubmission.
+    expect(mockCapture).toHaveBeenCalledTimes(1);
     expect(rows[0]).toMatchObject({
       signerAddress: kp.publicKey(),
       feeSourceAddress: null,
