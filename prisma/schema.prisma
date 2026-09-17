@@ -121,6 +121,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   devApiTokens        DevApiToken[]
   deploymentApiTokens DeploymentApiToken[]
+  signedTransactions  SignedTransaction[]
 }
 
 /// A per-developer API token that maps a machine caller to a Paiflow user.
@@ -295,6 +296,7 @@ model Deployment {
   offRampSenderProfile OffRampSenderProfile?
   cashOutJobFailures CashOutJobFailure[]
   apiTokens DeploymentApiToken[]
+  signedTransactions SignedTransaction[]
 
   @@unique([ownerId, idempotencyKey])
   @@index([ownerId, createdAt(sort: Desc)])
@@ -322,6 +324,13 @@ model StreamerClaimJob {
   @@index([status, runAt])
   @@index([deploymentId, nodeId, status])
   @@index([contractAddress, status])
+}
+
+enum SignedTxKind {
+  DEPLOY
+  TRIGGER
+  INVOKE
+  API_EXECUTE
 }
 
 enum EmployeePayoutMode {
@@ -545,6 +554,41 @@ model AuditLog {
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([action, createdAt(sort: Desc)])
+}
+
+/// Who signed a transaction this app submitted, and under which app account.
+/// `userId` is the *signer's* session user when there was one. The public
+/// trigger page has none, and the deployment's owner is deliberately NOT
+/// substituted: an anonymous visitor can fund someone else's deployment.
+/// `AuditLog.metadata` carries a display copy of `signerAddress`; this table
+/// is the system of record, because it is indexed and its write is not
+/// best-effort. See lib/signed-tx.ts.
+model SignedTransaction {
+  id               String       @id @default(uuid()) @db.Uuid
+  /// Lowercase hex, the hash the network knows the envelope by.
+  txHash           String       @unique
+  /// Always the G… form, so it joins to every other address column.
+  signerAddress    String
+  /// Set only for a fee bump, where it differs from the signer.
+  feeSourceAddress String?
+  /// The M… address when the source was muxed.
+  muxedSource      String?
+  isFeeBump        Boolean      @default(false)
+  /// A signature hint on the envelope matches the source key.
+  signedBySource   Boolean      @default(true)
+  userId           String?      @db.Uuid
+  deploymentId     String?      @db.Uuid
+  kind             SignedTxKind
+  network          String
+  ip               String?
+  createdAt        DateTime     @default(now())
+
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  deployment Deployment? @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
+
+  @@index([signerAddress, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([deploymentId, createdAt(sort: Desc)])
 }
 
 model CashOutJobFailure {

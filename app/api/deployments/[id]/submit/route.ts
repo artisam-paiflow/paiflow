@@ -8,6 +8,8 @@ import { audit } from "@/lib/audit";
 import { redis, eventChannel } from "@/lib/redis";
 import { submitDeployTx } from "@/lib/stellar/deploy";
 import { signerFromSignedXdr } from "@/lib/stellar/signer";
+import { signedTransactionRow, upsertSignedTransaction } from "@/lib/signed-tx";
+import { clientIp } from "@/lib/rate-limit";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode, EmployeePayoutMode } from "@prisma/client";
 import { scheduleNextStreamerClaimJob } from "@/lib/streamer-jobs";
@@ -87,11 +89,28 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       );
     }
 
-    await db.deployment.update({
-      where: { id },
-      data: { status: "SUBMITTED" },
+    // The signer row joins the status flip: a database failure aborts here,
+    // before the chain call, so the row cannot be lost after a success.
+    const signerRow = signedTransactionRow({
+      signer,
+      kind: "DEPLOY",
+      network: deployment.network,
+      userId: user.id,
+      deploymentId: id,
+      ip: clientIp(req),
     });
-    await audit({ action: "DEPLOY_SUBMIT", userId: user.id, metadata: { deploymentId: id } });
+    await db.$transaction(async (tx) => {
+      await tx.deployment.update({
+        where: { id },
+        data: { status: "SUBMITTED" },
+      });
+      if (signerRow) await upsertSignedTransaction(signerRow, tx);
+    });
+    await audit({
+      action: "DEPLOY_SUBMIT",
+      userId: user.id,
+      metadata: { deploymentId: id, signerAddress: signer.signerAddress },
+    });
 
     const result = await submitDeployTx(body.signedXdr);
     if (result.status === "SUCCESS") {

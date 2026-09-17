@@ -18,6 +18,9 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeT
       offRampSenderProfile: {
         upsert: vi.fn(),
       },
+      signedTransaction: {
+        upsert: vi.fn(),
+      },
     };
 
     const mockDeploy = {
@@ -84,6 +87,7 @@ import { POST } from "@/app/api/deployments/[id]/submit/route";
 function makeRequest({ deploymentId, signedXdr }: { deploymentId: string; signedXdr: string }) {
   return {
     json: async () => ({ signedXdr }),
+    headers: new Headers({ "x-forwarded-for": "203.0.113.9" }),
   } as unknown as import("next/server").NextRequest;
 }
 
