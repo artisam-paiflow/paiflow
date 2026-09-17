@@ -17,17 +17,19 @@
  * `new URL()` can parse: `window.location.href` resolves a path against the
  * origin the visitor is actually on, and this value never reaches next-auth.
  *
+ * The fallback is fixed rather than a parameter: a caller-supplied one would
+ * come back unchecked on the rejection path, which is the one path where this
+ * helper's guarantee matters.
+ *
  * No `server-only` — the two callers are client components.
  */
-export function safeReturnPath(
-  from: string | undefined,
-  origin: string,
-  fallback = "/dashboard",
-): string {
+const FALLBACK = "/dashboard";
+
+export function safeReturnPath(from: string | undefined, origin: string): string {
   try {
-    const target = new URL(from || fallback, origin);
-    return target.origin === origin ? target.pathname + target.search + target.hash : fallback;
+    const target = new URL(from || FALLBACK, origin);
+    return target.origin === origin ? target.pathname + target.search + target.hash : FALLBACK;
   } catch {
-    return fallback;
+    return FALLBACK;
   }
 }

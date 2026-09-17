@@ -87,8 +87,14 @@ describe("safeReturnPath() — the post-login destination", () => {
     expect(target("data:text/html,<script>alert(1)</script>")).toBe("/dashboard");
   });
 
-  it("honours a caller-supplied fallback", () => {
-    expect(safeReturnPath("//evil.example", ORIGIN, "/login")).toBe("/login");
+  it("falls back to /dashboard and nothing a caller could choose", () => {
+    // The fallback is deliberately not a parameter: on the rejection path it
+    // would be returned unchecked, so a third argument of "//other.example"
+    // would have turned this helper into the bypass it exists to close. The
+    // signature is the guard; these pin what the rejection path yields.
+    expect(target("//evil.example")).toBe("/dashboard");
+    expect(target("/\\evil.example")).toBe("/dashboard");
+    expect(target(undefined)).toBe("/dashboard");
   });
 
   it("falls back rather than throwing when the origin is unusable", () => {
