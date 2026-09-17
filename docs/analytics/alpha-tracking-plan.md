@@ -113,11 +113,11 @@ answers, in order: the user behind a wallet, a user's wallets, and both for one 
 
 **PostHog.** The address travels on named properties only:
 
-| Property               | Where                                                                                                                                                        |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `wallet_address`       | `wallet_connect_succeeded` (browser, every surface); person property = most recent wallet                                                                    |
-| `wallet_address_first` | person property, set once                                                                                                                                    |
-| `signer_address`       | `deploy_confirmed` (with the new `tx_hash`), `trigger_started`, `trigger_succeeded`, `trigger_confirmed`, `trigger_failed_onchain`, and `transaction_signed` |
+| Property               | Where                                                                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `wallet_address`       | `wallet_connect_succeeded` (browser, every surface); person property = most recent wallet                                                 |
+| `wallet_address_first` | person property, set once                                                                                                                 |
+| `signer_address`       | `deploy_confirmed` (with the new `tx_hash`), `trigger_succeeded`, `trigger_confirmed`, `trigger_failed_onchain`, and `transaction_signed` |
 
 `transaction_signed` is captured **server-side** from the same code path that writes the database
 row, so it covers the payroll and contract-call panels (which emit no browser events), anonymous
