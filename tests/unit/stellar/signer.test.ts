@@ -7,6 +7,7 @@ import {
   Networks,
   Operation,
   TransactionBuilder,
+  xdr,
 } from "@stellar/stellar-sdk";
 import { signerFromSignedXdr, signerFromTransaction } from "@/lib/stellar/signer";
 
@@ -48,6 +49,22 @@ describe("signerFromSignedXdr", () => {
 
     const info = ok(signerFromSignedXdr(tx.toXDR(), PASSPHRASE));
     expect(info.signerAddress).toBe(source.publicKey());
+    expect(info.signatureCount).toBe(1);
+    expect(info.signedBySource).toBe(false);
+  });
+
+  it("does not trust a forged hint: the signature itself must verify", () => {
+    const source = Keypair.random();
+    const other = Keypair.random();
+    const tx = buildTx(new Account(source.publicKey(), "0"));
+    tx.addDecoratedSignature(
+      new xdr.DecoratedSignature({
+        hint: source.signatureHint(),
+        signature: other.sign(tx.hash()),
+      }),
+    );
+
+    const info = ok(signerFromSignedXdr(tx.toXDR(), PASSPHRASE));
     expect(info.signatureCount).toBe(1);
     expect(info.signedBySource).toBe(false);
   });

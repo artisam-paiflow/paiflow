@@ -15,8 +15,10 @@ import { isAccountId, type StellarAccountId } from "./strkey";
  * so the source account is the wallet that signed. That is strong evidence,
  * not proof: the source is the fee and sequence account, and a multisig
  * account or a non-master signer breaks the identity. `signedBySource` says
- * whether a signature hint on the envelope matches the source key, which is
- * what a single-signature wallet always produces.
+ * whether a signature on the envelope verifies against the source key over
+ * the transaction hash, which is what a single-signature wallet always
+ * produces. It is a real ed25519 check, not the four-byte hint: a hint is
+ * copied trivially, a signature is not.
  *
  * Pure: the passphrase is a parameter, never read from `env()`, so this runs
  * under vitest without the env scrub in `tests/unit/setup.ts` getting in the
@@ -60,7 +62,10 @@ export function signerFromTransaction(tx: Transaction | FeeBumpTransaction): Sig
     if (!signerAddress || !feeSourceAddress) {
       return { ok: false, reason: "unsupported_source" };
     }
-    const hint = Keypair.fromPublicKey(signerAddress).signatureHint();
+    // The inner transaction is what the source signs, for a plain envelope
+    // and a fee bump alike; the fee account signs the outer hash instead.
+    const sourceKey = Keypair.fromPublicKey(signerAddress);
+    const innerHash = inner.hash();
     const signatures = inner.signatures;
     return {
       ok: true,
@@ -69,7 +74,7 @@ export function signerFromTransaction(tx: Transaction | FeeBumpTransaction): Sig
       isFeeBump,
       muxedSource: rawSource === signerAddress ? null : rawSource,
       signatureCount: signatures.length,
-      signedBySource: signatures.some((s) => s.hint().equals(hint)),
+      signedBySource: signatures.some((s) => sourceKey.verify(innerHash, s.signature())),
       txHash: tx.hash().toString("hex"),
     };
   } catch {
