@@ -183,6 +183,48 @@ describe("deployments/[id]/submit", () => {
     expect(json.error.code).toBe("CONFLICT");
   });
 
+  it("refuses a concurrent duplicate: the PENDING_SIGNATURE claim fails before the chain call", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+    mockDb.deployment.update.mockRejectedValueOnce(
+      makePrismaError("P2025", "An operation failed because it depends on one or more records"),
+    );
+
+    const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
+    const res = await POST(req, makeContext("dep-1"));
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.error.code).toBe("CONFLICT");
+    expect(mockDb.deployment.update.mock.calls[0]?.[0]).toMatchObject({
+      where: { id: "dep-1", status: "PENDING_SIGNATURE" },
+    });
+    expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
+    expect(mockDb.signedTransaction.upsert).not.toHaveBeenCalled();
+  });
+
+  it("marks FAILED only while still SUBMITTED, so a confirmed deployment is never overwritten", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+    mockDeploy.submitDeployTx.mockResolvedValue({
+      status: "FAILED",
+      txHash: TX_HASH,
+      errorMessage: "tx failed",
+    });
+    mockDb.deployment.update
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(
+        makePrismaError("P2025", "An operation failed because it depends on one or more records"),
+      );
+
+    const req = makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" });
+    const res = await POST(req, makeContext("dep-1"));
+
+    expect(res.status).toBe(502);
+    expect(mockDb.deployment.update.mock.calls.at(-1)?.[0]).toMatchObject({
+      where: { id: "dep-1", status: "SUBMITTED" },
+      data: { status: "FAILED" },
+    });
+  });
+
   it("rejects a signed XDR that does not match the prepared transaction", async () => {
     mockFromXDR.mockImplementation((...args: unknown[]) =>
       fakeTx(args[0] === "unsigned-xdr" ? "aabbccdd" : "11223344"),

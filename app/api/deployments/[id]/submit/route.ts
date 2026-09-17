@@ -99,11 +99,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       deploymentId: id,
       ip: clientIp(req),
     });
+    // The status predicate claims the deployment: two requests that both read
+    // PENDING_SIGNATURE above cannot both reach the chain call, and the loser
+    // fails here with P2025 before anything is written or submitted.
     await db.$transaction(async (tx) => {
-      await tx.deployment.update({
-        where: { id },
-        data: { status: "SUBMITTED" },
-      });
+      try {
+        await tx.deployment.update({
+          where: { id, status: "PENDING_SIGNATURE" },
+          data: { status: "SUBMITTED" },
+        });
+      } catch (err) {
+        if ((err as { code?: string }).code === "P2025") {
+          throw new AppError("CONFLICT", "Deployment state changed during submission");
+        }
+        throw err;
+      }
       if (signerRow) await upsertSignedTransaction(signerRow, tx);
     });
     await audit({
@@ -292,14 +302,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
       return confirmedDeploymentResponse(updatedDeployment);
     }
-    await db.deployment.update({
-      where: { id },
-      data: {
-        status: "FAILED",
-        deployTxHash: result.txHash,
-        errorMessage: result.errorMessage,
-      },
-    });
+    // Only the row this request claimed may be failed: a deployment another
+    // request has since confirmed keeps its CONFIRMED status.
+    try {
+      await db.deployment.update({
+        where: { id, status: "SUBMITTED" },
+        data: {
+          status: "FAILED",
+          deployTxHash: result.txHash,
+          errorMessage: result.errorMessage,
+        },
+      });
+    } catch (err) {
+      if ((err as { code?: string }).code !== "P2025") throw err;
+      log.warn({ deploymentId: id }, "submit: failed result for a deployment no longer SUBMITTED");
+    }
     await audit({
       action: "DEPLOY_FAIL",
       userId: user.id,
