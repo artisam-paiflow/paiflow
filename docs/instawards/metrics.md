@@ -19,30 +19,36 @@ Figures are reported on **two bases**, because they answer different questions:
 - **All public activity** — every confirmed deployment the application recorded, whoever produced
   it. This is the basis the SOW targets were written against, and the one the earlier snapshots
   used.
-- **Alpha testers** — the five people in the official alpha round, from **16 September 2026**,
-  counted individually. A narrower number, and a more meaningful one: five identified humans who
-  each worked through a structured session.
+- **Alpha testers** — the people in the official alpha round, from **16 September 2026**, counted
+  individually. A narrower number, and a more meaningful one: identified humans working through a
+  structured session, rather than anonymous visitors trying the sandbox once. The round targets
+  **five** testers; **three** accounts have been issued and **one** has run a session so far, so
+  every figure in that column is one tester's work and will grow as the round proceeds.
 
 Neither basis is a correction of the other. The first measures reach, the second measures depth.
 
 ## Results
 
-| Metric                                   | Target | All public activity | Alpha testers (from 16 Sep) |
-| ---------------------------------------- | ------ | ------------------- | --------------------------- |
-| Unique flows deployed                    | ≥ 5    | 26 ✓                | not yet counted             |
-| Contract executions / events published   | ≥ 60   | 61 ✓                | not yet counted             |
-| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | not yet counted             |
-| Distinct wallets deploying               | ≥ 6    | 7 ✓                 | not yet counted             |
-| Contract WASM uploaded                   | ≥ 1    | 1 ✓                 | 1 ✓ (the same binary)       |
-| Public testnet URL live and accessible   | Yes    | Yes ✓               | Yes ✓                       |
-| Demo video published                     | Yes    | No                  | Week 4                      |
+| Metric                                   | Target | All public activity | Alpha testers (1 of 5 onboarded) |
+| ---------------------------------------- | ------ | ------------------- | -------------------------------- |
+| Unique flows deployed                    | ≥ 5    | 26 ✓                | 11 ✓                             |
+| Contract executions / events published   | ≥ 60   | 61 ✓                | — (needs a database run)         |
+| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 2                                |
+| Distinct wallets deploying               | ≥ 6    | 7 ✓                 | 3                                |
+| Contract WASM uploaded                   | ≥ 1    | 1 ✓                 | 1 ✓ (the same binary)            |
+| Public testnet URL live and accessible   | Yes    | Yes ✓               | Yes ✓                            |
+| Demo video published                     | Yes    | No                  | Week 4                           |
 
 Every metric except the week-4 demo video is met on the all-activity basis. Executions cleared the
 target on 12 September; the 11 September snapshot had them at 43.
 
-The alpha-tester column opens with the round and is filled from the cohort snapshot described below.
-Testers sign with more than one wallet each, so the ≥ 6 wallets target is live for a five-person
-cohort rather than capped by headcount.
+**The alpha-tester column is one tester's work so far**, and should be read that way: three accounts
+have been issued and one has been through a session. That single tester deployed 11 flows, signed 19
+transactions and used 3 distinct wallets — testers sign with more than one wallet each, which is why
+the ≥ 6 wallets target stays reachable for a five-person round rather than being capped by headcount.
+The two targets not yet met on this basis are not failures of the round; they are the round being one
+session old. Figures come from
+[`evidence/alpha-metrics-2026-09-17.json`](evidence/alpha-metrics-2026-09-17.json).
 
 ### What the all-activity column contains
 
@@ -59,7 +65,8 @@ basis is being reported alongside rather than instead.
 
 _Last updated: 17 September. All-activity figures are the 12 September snapshot
 ([`evidence/metrics-2026-09-12.json`](evidence/metrics-2026-09-12.json)); earlier snapshot:
-[11 September](evidence/metrics-2026-09-11.json). The alpha-tester column has no snapshot yet._
+[11 September](evidence/metrics-2026-09-11.json). Alpha-tester figures are the 17 September cohort
+snapshot ([`evidence/alpha-metrics-2026-09-17.json`](evidence/alpha-metrics-2026-09-17.json))._
 
 ## How the numbers are produced
 
@@ -102,13 +109,19 @@ exactly.
 
 `pnpm instawards:alpha-metrics` is the generator. It reads
 [`evidence/alpha-testers.json`](evidence/alpha-testers.json) — the committed, pseudonymous list of
-the five testers' `User.id` values and the wallets each signs with — and filters every query to
-those ids. It refuses to emit a snapshot until the list is populated, so a file of zeroes cannot be
-mistaken for a measured result.
+each tester's `User.id` and the wallets they sign with — and filters every query to those ids. An
+entry appears when an account is issued, not when its session runs, so the file records three issued
+accounts against a planned five, and `testersActive` reports how many have actually been used. The
+generator refuses to emit a snapshot while any id is missing, so a file of zeroes cannot be mistaken
+for a measured result.
 
-The list is deliberate. PostHog's own cohort named "Alpha testers" is defined as `role = USER`,
-which since the 16 September cutover also matches ordinary `paiflow.xyz` visitors, and is not used
-here. No real name, username or email appears in the file or on these pages.
+The list is deliberate, and a role filter would not do. PostHog's own cohort named "Alpha testers"
+is `role = USER`, which since the 16 September cutover matches ordinary `paiflow.xyz` visitors as
+well. Nor would excluding sandbox sessions be enough on the beta alone: of the five accounts that
+signed a transaction there since 16 September, two were `SANDBOX` — sandbox pipelines are signed by
+the visitor's own wallet end to end, so they deploy and sign exactly like a tester does. Only an
+explicit list of ids separates the round from everything else. No real name, username or email
+appears in the file or on these pages.
 
 ```bash
 POSTHOG_PERSONAL_API_KEY=phx_… pnpm instawards:alpha-metrics --per-tester \

@@ -71,12 +71,13 @@ link).
 
 ## Evidence added
 
-| Item                  | Type       | Link                                                          |
-| --------------------- | ---------- | ------------------------------------------------------------- |
-| API access panel      | Screenshot | [`d2/api-access-panel.png`](evidence/d2/api-access-panel.png) |
-| OpenAPI specification | Artefact   | [`openapi.json`](../api/openapi.json)                         |
-| Postman collection    | Artefact   | [collection](../api/paiflow-api-v1.postman_collection.json)   |
-| Alpha-tester cohort   | Definition | [`alpha-testers.json`](evidence/alpha-testers.json)           |
+| Item                                | Type       | Link                                                                      |
+| ----------------------------------- | ---------- | ------------------------------------------------------------------------- |
+| API access panel                    | Screenshot | [`d2/api-access-panel.png`](evidence/d2/api-access-panel.png)             |
+| OpenAPI specification               | Artefact   | [`openapi.json`](../api/openapi.json)                                     |
+| Postman collection                  | Artefact   | [collection](../api/paiflow-api-v1.postman_collection.json)               |
+| Alpha-tester cohort                 | Definition | [`alpha-testers.json`](evidence/alpha-testers.json)                       |
+| First alpha-tester metrics snapshot | Metrics    | [`alpha-metrics-2026-09-17.json`](evidence/alpha-metrics-2026-09-17.json) |
 
 D2's §6.1 evidence is not complete: an API-triggered transaction hash, live curl samples and the
 matching audit row are still outstanding, and they come from a run on the public app rather than
@@ -95,9 +96,14 @@ See [metrics](metrics.md) for the running totals and how each number is measured
 | Contract WASM uploaded        | ≥ 1    | 1                | —      |
 
 Every figure is unchanged from 12 September, and that is expected rather than a stall: these count
-the database the public app used until 16 September, which has been a frozen read-only archive
-since the switch. New activity lands in the live beta database and is reported on the alpha-tester
-basis, which opens with the round.
+the database the public app used until 16 September, which has been a frozen read-only archive since
+the switch. New activity lands in the live beta database and is reported on the alpha-tester basis
+instead.
+
+That basis produced its first numbers on 17 September. Three tester accounts have been issued against
+a planned five, and one tester has been through a session: 11 flows deployed, 19 transactions signed
+across 3 distinct wallets, and 2 swapper flows executed. It is one session's worth of work, and the
+[metrics page](metrics.md) labels it as such rather than presenting it as the round's total.
 
 ## Decisions
 
@@ -152,5 +158,6 @@ to sign a transaction that cannot land — remains open.
 
 D3, the reusable builder input components, plus the evidence capture D2 still owes: an API-triggered
 swap with its transaction hash, curl samples against a live token, and the audit row that proves the
-execution was recorded. The alpha round runs alongside, and its first cohort snapshot fills the
-tester column on the metrics page.
+execution was recorded. The alpha round runs alongside: two issued accounts have yet to run a
+session and two more testers have yet to be onboarded, and each one that completes is added to the
+cohort file and picked up by the next snapshot.
