@@ -1,21 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { env } from "@/lib/env";
 import { log } from "@/lib/log";
-import { AppError, withErrorHandler } from "@/lib/errors";
+import { withErrorHandler } from "@/lib/errors";
 import { pollEventsFor } from "@/lib/stellar/events";
+import { requireCronSecret } from "@/lib/auth/cron-secret";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
+    requireCronSecret(req);
     log.info("poll-events cron started");
-    const secret = env().CRON_SECRET;
-    if (secret && req.headers.get("x-cron-secret") !== secret) {
-      log.warn("poll-events cron forbidden: bad secret");
-      throw new AppError("FORBIDDEN", "Bad cron secret");
-    }
 
     const deployments = await db.deployment.findMany({
       where: { status: "CONFIRMED" },

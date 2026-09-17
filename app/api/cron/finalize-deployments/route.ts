@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { env } from "@/lib/env";
-import { AppError, withErrorHandler } from "@/lib/errors";
+import { withErrorHandler } from "@/lib/errors";
 import { captureServer } from "@/lib/analytics/server";
+import { requireCronSecret } from "@/lib/auth/cron-secret";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
-    const secret = env().CRON_SECRET;
-    if (secret && req.headers.get("x-cron-secret") !== secret) {
-      throw new AppError("FORBIDDEN", "Bad cron secret");
-    }
+    requireCronSecret(req);
     // Mark stuck SUBMITTED deployments as FAILED after 5 minutes (submit() handles the common case).
     const cutoff = new Date(Date.now() - 5 * 60_000);
     // Read the rows first so each timeout can be attributed to its owner. Each

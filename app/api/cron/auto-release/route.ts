@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { env } from "@/lib/env";
 import { log } from "@/lib/log";
-import { AppError, withErrorHandler } from "@/lib/errors";
+import { withErrorHandler } from "@/lib/errors";
 import { prepareReleaseByRelayerTx, submitReleaseByRelayerTx } from "@/lib/stellar/relayer";
 import { withRelayerLock } from "@/lib/stellar/client";
+import { requireCronSecret } from "@/lib/auth/cron-secret";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
-    const secret = env().CRON_SECRET;
-    if (secret && req.headers.get("x-cron-secret") !== secret) {
-      throw new AppError("FORBIDDEN", "Bad cron secret");
-    }
+    requireCronSecret(req);
 
     const deployments = await db.deployment.findMany({
       where: { status: "CONFIRMED" },

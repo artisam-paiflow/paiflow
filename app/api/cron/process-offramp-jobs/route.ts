@@ -3,7 +3,7 @@ import { OffRampJobSource, OffRampPayoutJobStatus, type Prisma } from "@prisma/c
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
-import { AppError, withErrorHandler } from "@/lib/errors";
+import { withErrorHandler } from "@/lib/errors";
 import { createLimiter } from "@/lib/concurrency";
 import {
   getDueOffRampJobs,
@@ -23,6 +23,7 @@ import { assetContractId } from "@/lib/stellar/assets";
 import type { FlowGraph } from "@/lib/flows/schema";
 import type { Asset } from "@/lib/flows/schema";
 import { checkHardLimits } from "@/lib/flows/limits";
+import { requireCronSecret } from "@/lib/auth/cron-secret";
 
 export const dynamic = "force-dynamic";
 
@@ -95,10 +96,7 @@ function resolveJobAsset(job: {
 
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
-    const secret = env().CRON_SECRET;
-    if (secret && req.headers.get("x-cron-secret") !== secret) {
-      throw new AppError("FORBIDDEN", "Bad cron secret");
-    }
+    requireCronSecret(req);
 
     const jobs = await getDueOffRampJobs(db, Math.min(100, Math.max(1, env().OFFRAMP_BATCH_SIZE)));
     const results: Array<{

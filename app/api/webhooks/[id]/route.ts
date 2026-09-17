@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
-import { timingSafeEqual as cryptoTimingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { submitWebhookExecuteTx } from "@/lib/stellar/trigger";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
+import { timingSafeEqualString } from "@/lib/auth/timing-safe";
 
 const PostSchema = z
   .object({
@@ -34,15 +34,6 @@ const PostSchema = z
     { message: "Amount is required for non-escrow triggers", path: ["amount"] },
   );
 
-function timingSafeEqual(a: string, b: string): boolean {
-  const MAX = 128;
-  const bufA = Buffer.alloc(MAX, 0);
-  const bufB = Buffer.alloc(MAX, 0);
-  bufA.write(a, 0, "utf8");
-  bufB.write(b, 0, "utf8");
-  return cryptoTimingSafeEqual(bufA, bufB) && a.length === b.length;
-}
-
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
@@ -62,7 +53,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       throw new AppError("VALIDATION", "Webhook not enabled for this deployment");
     }
 
-    if (!timingSafeEqual(secretHeader, deployment.webhookSecret)) {
+    if (!timingSafeEqualString(secretHeader, deployment.webhookSecret)) {
       throw new AppError("FORBIDDEN", "Invalid webhook secret");
     }
 
