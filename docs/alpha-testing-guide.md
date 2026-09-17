@@ -112,23 +112,42 @@ Leave Recipient B **without** a USDC trustline.
 voice and screen together — tells us far more than a written bug report can, especially about the
 parts that are merely confusing rather than broken.
 
-1. Sign up at [loom.com](https://www.loom.com/) and install the **Loom Chrome extension**.
+1. Sign up at [loom.com](https://www.loom.com/) and install the **Loom desktop app** from
+   [loom.com/download](https://www.loom.com/download) — **Mac or Windows** — then sign in to it.
+   **Don't record with the Chrome extension this round.** Its camera bubble only lives on the tab
+   you started recording on, so the moment you switch tabs or open the Freighter pop-up your face
+   drops out of the video — and your face is half of what we're asking for.
+
+   > **No Mac or Windows machine?** Loom's desktop app doesn't run on Linux or ChromeOS. Contact us
+   > before you start — the same people who sent you your test account — and we'll sort something
+   > out.
+
 2. Loom's free Starter plan cuts every recording off at **5 minutes**, which isn't enough for this
    session. Start the **14-day free Business + AI trial** so your recording runs uninterrupted.
    **No card is needed.** If you don't add one, the workspace drops back to the free Starter plan
    when the trial ends and there is nothing to cancel. Only add a payment method if you want to
    keep Loom afterwards — doing so starts a paid subscription when the trial ends.
-3. Set the recorder to **Screen + camera + mic**. We want your face in the corner and your voice
-   throughout — thinking out loud, especially when you're unsure what a screen means, is the most
-   useful part of the whole recording. If being on camera is a problem for you, tell us before you
-   start rather than skipping it.
+3. Set the recorder to **Screen + camera + mic**, and pick **Full screen** rather than a single
+   window or tab — Freighter's pop-up, your answers file and the block explorer all need to be in
+   the video. We want your face in the corner and your voice throughout — thinking out loud,
+   especially when you're unsure what a screen means, is the most useful part of the whole
+   recording. If being on camera is a problem for you, tell us before you start rather than
+   skipping it.
+4. **On a Mac**, the first launch asks for permissions. Grant Loom **Screen Recording**, **Camera**
+   and **Microphone** under System Settings → Privacy & Security. If Loom isn't in one of those
+   lists, restart your Mac and open Loom again.
+5. Make a **10-second test recording** before you go any further: close Freighter so nothing
+   sensitive is on screen, start it, switch to another tab, stop, and play it back. Your face
+   should still be in the corner after the switch. Delete the clip afterwards — we don't need it.
 
-> **Don't start recording yet.** Your Freighter recovery phrase was on screen in step 1.1. Start
-> recording at the beginning of [section 4](#4-test-cases), once wallet setup is done and there's
-> nothing sensitive left to capture.
+> **Don't start the real recording yet.** Your Freighter recovery phrase was on screen in step 1.1.
+> Apart from the short test clip above, start recording at the beginning of
+> [section 4](#4-test-cases), once wallet setup is done and there's nothing sensitive left to
+> capture.
 
-- [ ] Loom is installed, on a plan that records for longer than 5 minutes, and set to Screen +
-      camera + mic.
+- [ ] The Loom **desktop app** is installed and signed in, on a plan that records for longer than
+      5 minutes, and set to Screen + camera + mic on your full screen.
+- [ ] Your test recording still shows your face in the corner after you switch tabs.
 
 ### 1.6 Create your answers file
 
@@ -463,6 +482,8 @@ Already on our list — no need to report these.
 
 ## 7. Troubleshooting
 
+**Wallet, sign-in and deploy**
+
 - **You see** _"Account … is not funded"_ or _"Minimum 2 XLM required"_.
   **Try:** fund the account in Freighter with Friendbot
   ([step 1.2](#12-fund-your-wallet-with-free-testnet-xlm)).
@@ -481,10 +502,22 @@ Already on our list — no need to report these.
   and we'll reset it.
 - **You see** no Freighter pop-up.
   **Try:** click the Freighter icon in your toolbar — the request may be waiting there.
+
+**Recording**
+
 - **Loom stopped recording after 5 minutes.**
   **Try:** your account is still on the free Starter plan — check the Business + AI trial actually
   started ([step 1.5](#15-set-up-loom-and-prepare-to-record)). Keep the part you recorded and
   carry on in a new video; send us both links.
+- **Your face disappears from the recording whenever you switch tabs.**
+  **Try:** you're recording with the Loom Chrome extension rather than the desktop app — the camera
+  bubble only shows on the tab the recording started on
+  ([step 1.5](#15-set-up-loom-and-prepare-to-record)). Switch to the app and record the rest in a
+  new video; send us both links.
+- **Loom records a black screen, or your camera is missing (macOS).**
+  **Try:** macOS hasn't granted the permissions yet. Open System Settings → Privacy & Security and
+  tick Loom under **Screen Recording**, **Camera** and **Microphone**, then quit Loom and open it
+  again.
 
 ---
 
