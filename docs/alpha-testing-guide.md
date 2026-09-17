@@ -1,7 +1,7 @@
 # Paiflow alpha testing guide
 
-Thanks for helping test Paiflow. This guide takes **about 90 minutes** end to end: 15 minutes of
-setup, about an hour of test cases, then the interview questions. You don't need to know how to
+Thanks for helping test Paiflow. This guide takes **about 90 minutes** end to end: around 20 minutes
+of setup, about an hour of test cases, then the interview questions. You don't need to know how to
 code.
 
 **You'll send us three things at the end.** They're what makes you eligible for the **₱500**
@@ -24,14 +24,17 @@ transaction yourself, in your own wallet, and Paiflow never holds your keys.
 > to PostHog — which buttons and screens you reach, and where errors appear — so we can see where
 > things are confusing without asking you to write it all down. **Your screen and your session are
 > not recorded.** Events are tied to your test account's internal ID, not your name, and never
-> include secret keys, transaction payloads, or the addresses you pay to. **The public address of
-> the wallet you sign with is recorded**, together with the transaction hash, and linked to your
-> test account, so we can trace a testnet transaction back to the tester who made it. If you have
-> concerns about this, contact us before you start.
+> include secret keys or transaction payloads, and no address is recorded as a payment recipient.
+> **The public address of every wallet you connect and sign with is recorded**, together with the
+> transaction hash, and linked to your test account, so we can trace a testnet transaction back to
+> the tester who made it. Some tests ask you to sign with an account you also pay into (T6), and
+> that address is recorded the same way. We also keep a server-side log of each wallet connection,
+> with your IP address. If you have concerns about any of this, contact us before you start.
 >
 > **The only recording of your screen is the one you make yourself**, with Loom, and send to us
 > (step 1.5). It is not masked — it shows your screen as you see it, and your face and voice — so
-> only start it once wallet setup is finished, as the steps below tell you.
+> apart from the short test clip in step 1.5, only start it once wallet setup is finished, as the
+> steps below tell you.
 
 ---
 
@@ -86,7 +89,7 @@ Your flows need somebody to pay. You'll pay yourself, into two extra accounts.
 1. In Freighter, open the account menu → **Add a new wallet** (or **Create account**). Name it
    **Recipient A**.
 2. Fund it with Friendbot exactly as in step 1.2.
-3. Repeat for a third account named **Recipient B**.
+3. Repeat to create a second recipient, named **Recipient B**.
 4. Paste all three `G…` addresses into a note — you'll copy them into Paiflow later.
 
 - [ ] Main, Recipient A and Recipient B all show 10,000 XLM.
@@ -128,11 +131,11 @@ parts that are merely confusing rather than broken.
    when the trial ends and there is nothing to cancel. Only add a payment method if you want to
    keep Loom afterwards — doing so starts a paid subscription when the trial ends.
 3. Set the recorder to **Screen + camera + mic**, and pick **Full screen** rather than a single
-   window or tab — Freighter's pop-up, your answers file and the block explorer all need to be in
-   the video. We want your face in the corner and your voice throughout — thinking out loud,
-   especially when you're unsure what a screen means, is the most useful part of the whole
-   recording. If being on camera is a problem for you, tell us before you start rather than
-   skipping it.
+   window or tab — Freighter's pop-up, the block explorer and the answers file you create in
+   step 1.6 all need to be in the video. We want your face in the corner and your voice throughout
+   — thinking out loud, especially when you're unsure what a screen means, is the most useful part
+   of the whole recording. If being on camera is a problem for you, tell us before you start rather
+   than skipping it.
 4. **On a Mac**, the first launch asks for permissions. Grant Loom **Screen Recording**, **Camera**
    and **Microphone** under System Settings → Privacy & Security. If Loom isn't in one of those
    lists, restart your Mac and open Loom again.
@@ -203,7 +206,8 @@ A flow always starts with exactly **one trigger**. Once you have one, the other 
 
 ## 4. Test cases
 
-> **Start your Loom recording now**, and keep it running through T1 to T7. Narrate as you go: what
+> **Start your Loom recording now**, and keep it running through T1 to T7 and on into the closing
+> questions in [section 9](#9-closing-interview-questions). Narrate as you go: what
 > you're about to do, and what you expected to happen when it doesn't. If you have to stop partway
 > — a break, a crash, the trial cutting out — just start a new recording and send us every link.
 
@@ -300,15 +304,18 @@ that.
 test.
 
 Open **Swap XLM to USDC** and try each change below. After each one, check the boxes and take the
-screenshot, then **undo the change** before trying the next. Every screenshot here should have the
-**greyed-out DEPLOY button in shot** alongside the error — that pairing is the thing we're
-checking.
+screenshot, then **undo the change** before trying the next. Rows **a**, **d** and **e** should
+raise an error on the canvas — for those, get the **greyed-out DEPLOY button in shot** alongside
+the error, because that pairing is the thing we're checking. Rows **b** and **c** are different:
+the field itself refuses the value as you type, so there is no canvas error and DEPLOY stays
+available.
 
 - **a. Try:** set **Asset Out** to **XLM** (same as Asset In).
   - **Expected:** an error saying a swap has to exchange two different assets.
   - **Screenshot** `T3-a-same-asset`
 - **b. Try:** set **Max slippage** to **0.1**.
-  - **Expected:** an error saying slippage must be at least 0.3% because of Soroswap's pool fee.
+  - **Expected:** the field refuses the value and snaps back to **0.3** — the minimum, because of
+    Soroswap's pool fee. The note under the field explains why.
   - **Screenshot** `T3-b-slippage`
 - **c. Try:** set **Deadline** to **0**, then to **100000**.
   - **Expected:** the field refuses the value (the allowed range is 1–86,400 seconds).
@@ -320,11 +327,15 @@ checking.
   - **Expected:** an error saying a swap sends its output to only one next step.
   - **Screenshot** `T3-e-swap-two-outputs`
 
-For every row:
+For rows **a**, **d** and **e**:
 
 - [ ] The error is easy to understand and says how to fix it.
 - [ ] **DEPLOY** is greyed out while the error is there.
 - [ ] The error goes away once you undo the change.
+
+For rows **b** and **c**:
+
+- [ ] It's clear the value was refused, and clear what the allowed range is.
 
 > **Interview — T3.** Were those error messages enough to fix the problem on your own, without
 > asking anyone? Which one was clearest, and which one left you guessing?
@@ -425,8 +436,11 @@ Switch Freighter back to **Main** when you're done.
 ### T7 — Free exploration (10 minutes)
 
 Build any flow you like using **On Receive**, **Pay**, **Split** and **Swap** — for example
-receive XLM → swap to USDC → split to two accounts that both have a USDC trustline. Deploy it,
-trigger it, and tell us what felt confusing, slow or surprising. There are no wrong answers here.
+receive XLM → swap to USDC → pay **Recipient A**, the one account you gave a USDC trustline in
+step 1.4. (If you want to split the USDC between two accounts instead, add a USDC trustline to
+Recipient B first, the same way — otherwise the payout to B is refused, exactly as in T6.) Deploy
+it, trigger it, and tell us what felt confusing, slow or surprising. There are no wrong answers
+here.
 
 - **Screenshot** `T7-1-canvas` — the flow you built.
 - **Screenshot** `T7-2-english-preview` — its English Preview.
@@ -545,8 +559,9 @@ everything in one go through the **[submission form](https://forms.gle/hdmpGNwUi
 
 Have these ready before you open it:
 
-- **Your Loom link.** One link covering T1 to T7, or every link if you recorded in parts. Check the
-  share setting allows anyone with the link to view it — we can't watch a private video.
+- **Your Loom link.** One link covering T1 to T7 and the closing questions, or every link if you
+  recorded in parts. Check the share setting allows anyone with the link to view it — we can't
+  watch a private video.
 - **Your screenshots, zipped.** Put the whole folder into a single archive, something like
   `paiflow-alpha-yourname.zip`. The form takes one file here, so it needs to be a single zip
   rather than loose images.
@@ -560,6 +575,9 @@ Have these ready before you open it:
 
 Answer these in your answers file once you've finished T7 — and say them out loud on the recording
 too, while it's still running. Take your time; these are the ones we read most carefully.
+
+While you're in the answers file, fill in the **QUICK RATINGS** block near the top of the template
+as well — the four 1–5 scores. It's easy to miss, and it's the only place we ask for them.
 
 1. **In your own words, what does Paiflow do?** Imagine explaining it to a colleague who's never
    seen it.
@@ -598,7 +616,7 @@ we get at this stage.
 
 ## Appendix: answers file template
 
-Copy everything between the lines into a text file, save it as `answers-<yourname>.txt`, and fill
+Copy everything below into a text file, save it as `answers-<yourname>.txt`, and fill
 it in as you work through the guide.
 
 ```text
