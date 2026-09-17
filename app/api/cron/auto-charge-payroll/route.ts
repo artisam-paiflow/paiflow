@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
-import { AppError, withErrorHandler } from "@/lib/errors";
+import { withErrorHandler } from "@/lib/errors";
 import { createContractReadCache, type ContractReadCache } from "@/lib/contract-read-cache";
 import {
   preparePayrollChargeByRelayerTx,
@@ -31,6 +31,7 @@ import { readTokenAllowance } from "@/lib/stellar/relayer";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode, EmployeePayoutMode, PayrollRunStatus } from "@prisma/client";
 import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
+import { requireCronSecret } from "@/lib/auth/cron-secret";
 
 export const dynamic = "force-dynamic";
 
@@ -304,10 +305,7 @@ async function chargeSubscriptionPayrollDeployment(
 
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
-    const secret = env().CRON_SECRET;
-    if (secret && req.headers.get("x-cron-secret") !== secret) {
-      throw new AppError("FORBIDDEN", "Bad cron secret");
-    }
+    requireCronSecret(req);
 
     if (!stellarRelayerAddress()) {
       return NextResponse.json({

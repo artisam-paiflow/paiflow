@@ -290,6 +290,13 @@ keep-alive`, plus an `AbortSignal` cleanup that unsubscribes Redis listeners. He
   accepts it like any role, so a route is closed to it only by the allowlist in
   `lib/sandbox-paths.ts`; add new routes there deliberately, and never add a relayer-signed
   template kind to `SANDBOX_TEMPLATE_KINDS` ([§2](#2-architecture), "Sandbox sessions").
+- `/api/cron/*` guards with `requireCronSecret(req)` (`lib/auth/cron-secret.ts`, re-exported from
+  `lib/auth.ts`), never `requireSession()`. It fails **closed**: under `NODE_ENV=production` an
+  unset or shorter-than-32-char `CRON_SECRET` refuses every request and logs once, rather than
+  refusing to boot — these routes are public in `middleware.ts` and several sign with the relayer
+  key. Off production an unset secret still leaves them open, which is what local dev wants.
+- Compare a secret presented in a request with `timingSafeEqualString()`
+  (`lib/auth/timing-safe.ts`), never `===`. It is the one copy; don't hand-roll another.
 - Passkey registration currently requires only an authenticated session (`requireSession()` in
   `app/api/auth/passkey/register/options/route.ts`). It does **not** re-verify the password, so
   adding a second credential is as easy as holding a live session — see [§19](#19-known-gaps--rules-not-enforced-yet).
