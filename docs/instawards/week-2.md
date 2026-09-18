@@ -5,7 +5,7 @@
 **Deliverable:** [D2 — Developer API](deliverables/d2.md) · **Evidence:** [transactions](evidence/README.md#transactions)
 
 {% hint style="info" %}
-Written on 17 September and updated on the 18th. The changelog below covers 14–17 September, which
+Written on 17 September and updated on the 18th. The changelog below covers 14–18 September, which
 is what the public mirror holds; it is regenerated again when the week closes.
 {% endhint %}
 
