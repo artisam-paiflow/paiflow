@@ -1,5 +1,5 @@
 {
-  "snapshotAt": "2026-09-18T05:32:43.479Z",
+  "snapshotAt": "2026-09-18T06:37:52.549Z",
   "cohort": "instawards-alpha-round-1",
   "cohortSize": 3,
   "plannedCohortSize": 5,
@@ -54,18 +54,28 @@
       "label": "tester-1",
       "deployments": 11,
       "walletsSigning": 3,
+      "walletAddresses": [
+        "GCEASAPW5DRX5JAPMUFNLUOI6JUXD4C4E72WLR7OAK6BYH4R5GBIBD5T",
+        "GCUPU53VS77YLKT2VL3ORCGF5UNJQOWXF6FVV3GSX4PR547GX5RR7VFS",
+        "GDZ2BQPZQLLXTBFVKJX6UVZQAIZCIC4HDGT4XDLH5JOWO7WWP2KLIN37"
+      ],
       "transactionsSigned": 19
     },
     {
       "label": "tester-2",
       "deployments": 11,
       "walletsSigning": 2,
+      "walletAddresses": [
+        "GAG2RKFEKMLJCBJAZSKIKHTBH6TTWTDL44UX7IIP32NL75TWSQDVGQUX",
+        "GCU6O3RBR7F7KF662DMEXRJBDUVLOE4IYLTRVKEFIET2RJM5DIBD5ZIA"
+      ],
       "transactionsSigned": 19
     },
     {
       "label": "tester-3",
       "deployments": 0,
       "walletsSigning": 0,
+      "walletAddresses": [],
       "transactionsSigned": 0
     }
   ]

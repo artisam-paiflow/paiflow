@@ -166,6 +166,15 @@ async function scalar(query: string): Promise<number> {
   return Number(rows[0]?.[0] ?? 0);
 }
 
+/** The first column of every row, for the queries that want the values rather
+ *  than a count of them. `alpha-testers.json` records each tester's wallets by
+ *  hand, so the snapshot has to be able to show what those addresses actually
+ *  were, not just how many there were. */
+async function column(query: string): Promise<string[]> {
+  const rows = await hogql(query);
+  return rows.map((r) => String(r[0] ?? "")).filter(Boolean);
+}
+
 async function main() {
   const cohortPath = arg("cohort", COHORT_FILE);
   const cohort = loadCohort(cohortPath);
@@ -292,6 +301,12 @@ async function main() {
                 walletsSigning: await scalar(
                   `select count(distinct properties.signer_address) from events
                     where ${one} and event = 'transaction_signed'`,
+                ),
+                walletAddresses: await column(
+                  `select distinct properties.signer_address from events
+                    where ${one} and event = 'transaction_signed'
+                      and notEmpty(properties.signer_address)
+                    order by 1`,
                 ),
                 transactionsSigned: await scalar(
                   `select count(distinct properties.tx_hash) from events
