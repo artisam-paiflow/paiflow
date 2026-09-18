@@ -5,7 +5,7 @@
 **Deliverable:** [D2 — Developer API](deliverables/d2.md) · **Evidence:** [transactions](evidence/README.md#transactions)
 
 {% hint style="info" %}
-Written on 17 September and updated on the 18th. The changelog below covers 14–17 September, which
+Written on 17 September and updated on the 18th. The changelog below covers 14–18 September, which
 is what the public mirror holds; it is regenerated again when the week closes.
 {% endhint %}
 
@@ -24,8 +24,8 @@ which wallet signed it, so a deployment, a user and an on-chain hash can be tied
 fact.
 
 The plan changed in one respect, described under [Decisions](#decisions): the success metrics are
-now reported on two bases, because the existing figures turned out to measure sandbox visitors
-rather than identified users.
+now reported on three bases, because the existing figures turned out to measure sandbox visitors
+rather than identified users, and because the public app changed databases mid-week.
 
 ## Changelog
 
@@ -86,7 +86,7 @@ Rows that moved this week. The full tables live on the deliverable pages.
 
 | SOW clause                                                | Deliverable              | Status    | Evidence                                                                                                                   |
 | --------------------------------------------------------- | ------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Extract reusable auth, rate limiting and audit primitives | [D2](deliverables/d2.md) | Done      | `lib/api/v1/handler.ts`, nine test suites                                                                                  |
+| Extract reusable auth, rate limiting and audit primitives | [D2](deliverables/d2.md) | Done      | `lib/api/v1/handler.ts`, eight test suites                                                                                 |
 | Deployment-scoped API tokens                              | [D2](deliverables/d2.md) | Done      | [access panel](evidence/d2/api-access-panel.png)                                                                           |
 | `POST /api/v1/deployments/{id}/execute`                   | [D2](deliverables/d2.md) | Evidenced | [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7) |
 | `GET /api/v1/deployments/{id}/events`                     | [D2](deliverables/d2.md) | Evidenced | [events response](evidence/d2/05-events-response.json)                                                                     |
@@ -113,6 +113,13 @@ link).
 | Raw `getTransaction` for the swap                     | RPC record       | [`04-getTransaction.json`](evidence/d2/04-getTransaction.json)                                                             |
 | Audit rows: prepared, submitted, confirmed (redacted) | Audit log        | [`06-audit-rows.json`](evidence/d2/06-audit-rows.json)                                                                     |
 | The OpenAPI document as served by paiflow.xyz         | API sample       | [`08-openapi.json`](evidence/d2/08-openapi.json)                                                                           |
+| Events response: three events, then the cursor walk   | API sample       | [`05-events-response.json`](evidence/d2/05-events-response.json)                                                           |
+| stellar.expert capture of the router sub-invocation   | Screenshot       | [`07-stellar-expert-swap.png`](evidence/d2/07-stellar-expert-swap.png)                                                     |
+| Postman collection run against paiflow.xyz            | Screenshot       | [`09-postman-run.png`](evidence/d2/09-postman-run.png)                                                                     |
+| Postman-driven swap, 1 XLM → 0.1055731 USDC           | Transaction hash | [`27f68188…`](https://stellar.expert/explorer/testnet/tx/27f681889bfebdab92a4d9e6d70770ea5df72bd597c627bc5c0014d0d86bfbfb) |
+| Second alpha-tester metrics snapshot                  | Metrics          | [`alpha-metrics-2026-09-18.json`](evidence/alpha-metrics-2026-09-18.json)                                                  |
+| First read of the live database                       | Metrics          | [`metrics-live-2026-09-18.json`](evidence/metrics-live-2026-09-18.json)                                                    |
+| Swapper flows on the live database                    | Metrics          | [`swapper-flows-live-2026-09-18.json`](evidence/swapper-flows-live-2026-09-18.json)                                        |
 
 All five of D2's §6.1 evidence items are present, from two runs on 18 September. The documented
 curl sequence executed a swap ([`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7), 10 XLM → 1.0584167 USDC) with its
@@ -128,23 +135,29 @@ app used until 16 September, kept as an archive the app no longer writes to.
 
 See [metrics](metrics.md) for the running totals and how each number is measured.
 
-| Metric                        | Target | At end of week 2 | Change |
-| ----------------------------- | ------ | ---------------- | ------ |
-| Unique flows deployed         | ≥ 5    | 26               | —      |
-| Contract executions / events  | ≥ 60   | 61               | —      |
-| Unique swapper flows executed | ≥ 5    | 16               | —      |
-| Distinct deploying wallets    | ≥ 6    | 7                | —      |
-| Contract WASM uploaded        | ≥ 1    | 1                | —      |
+| Metric                        | Target | Archive (to 16 Sep) | Live (since 15 Sep) | Alpha testers (2 active / 3 issued / 5 planned) |
+| ----------------------------- | ------ | ------------------- | ------------------- | ----------------------------------------------- |
+| Unique flows deployed         | ≥ 5    | 26                  | 36                  | 22                                              |
+| Contract executions / events  | ≥ 60   | 61                  | 79                  | — (not cohort-filterable)                       |
+| Unique swapper flows executed | ≥ 5    | 16                  | 11                  | 5                                               |
+| Distinct deploying wallets    | ≥ 6    | 7                   | 7                   | 5                                               |
+| Contract WASM uploaded        | ≥ 1    | 1                   | 1                   | 1 (the same binary)                             |
 
-Every figure is unchanged from 12 September, and that is expected rather than a stall: these count
-the database the public app used until 16 September, an archive the app no longer writes to, so its
-figures cannot change. New activity lands in the live beta database and is reported on the
-alpha-tester basis instead.
+The archive column is unchanged from 12 September, and that is expected rather than a stall: it
+counts the database the public app used until 16 September, an archive the app no longer writes to,
+so its figures cannot change. New activity lands in the live beta database, which was read for the
+first time on 18 September
+([`evidence/metrics-live-2026-09-18.json`](evidence/metrics-live-2026-09-18.json)); every target
+was already clear on it, and its swapper flows include both of D2's API-executed swaps. The two
+all-activity columns are not added together, for the reason the [metrics page](metrics.md) gives.
 
-That basis produced its first numbers on 17 September. Three tester accounts have been issued against
-a planned five, and one tester has been through a session: 11 flows deployed, 19 transactions signed
-across 3 distinct wallets, and 2 swapper flows executed. It is one session's worth of work, and the
-[metrics page](metrics.md) labels it as such rather than presenting it as the round's total.
+The alpha-tester basis produced its first numbers on 17 September and was re-taken on the 18th after
+a second tester finished
+([`evidence/alpha-metrics-2026-09-18.json`](evidence/alpha-metrics-2026-09-18.json)). Three tester
+accounts have been issued against a planned five, and two testers have been through a session: 22
+flows deployed, 38 transactions signed across 5 distinct wallets, and 5 swapper flows executed. It
+is two sessions' worth of work, and the [metrics page](metrics.md) labels it as such rather than
+presenting it as the round's total.
 
 ## Decisions
 
@@ -167,13 +180,14 @@ present. D2 is closed.
   | A token is used to submit an arbitrary signed transaction under a deployment's audit trail | `execute/submit` parses the envelope and refuses anything but a single `deposit` on that deployment's trigger contract                                                                                                      |
   | Rate limits are evaded by spoofing the client IP                                           | Every `/api/v1` limit is keyed on the token id, not the forwarded IP                                                                                                                                                        |
 
-- **The success metrics are now reported on two bases.** Checking what the published numbers
+- **The success metrics are now reported on three bases.** Checking what the published numbers
   actually counted showed they were almost entirely disposable sandbox sessions and the project's
   own accounts — 19 users in the 12 September snapshot, 17 of them `SANDBOX` rows, leaving `admin`
   and `judge`; and of the 16 executed swapper flows, 13 were sandbox visitors. Rather than restate
-  them, the [metrics page](metrics.md) now carries an all-activity column and an alpha-tester
-  column. The first measures reach, the second measures depth, and neither is a correction of the
-  other.
+  them, the [metrics page](metrics.md) now carries two all-activity columns — the archive the
+  public app used until 16 September and the live database it has used since — and an alpha-tester
+  column. The first two measure reach, the third measures depth, and none is a correction of
+  another.
 - **Alpha-tester figures are counted from PostHog, not the database.** The database cannot separate
   one user from another without a cohort marker it does not have, and the live beta database has no
   public endpoint. PostHog identifies per person. The five testers are listed by `User.id` in
@@ -213,7 +227,7 @@ to sign a transaction that cannot land — remains open.
 
 ## Next week
 
-D3, the reusable builder input components. D2 is closed. The alpha round runs alongside: two issued accounts have yet to run a
-session, and two more accounts have yet to be issued. A tester joins the cohort file when their
+D3, the reusable builder input components. D2 is closed. The alpha round runs alongside: one issued
+account has yet to run a session, and two more accounts have yet to be issued. A tester joins the cohort file when their
 account is issued, not when their session finishes, so the next snapshot picks up each newly active
 tester without the file having to change.

@@ -21,4 +21,5 @@
 - [Developer API](api/README.md)
 - [Metrics](instawards/metrics.md)
 - [Evidence index](instawards/evidence/README.md)
+  - [D2 evidence pack](instawards/evidence/d2/README.md)
 - [Full changelog](instawards/changelog.md)

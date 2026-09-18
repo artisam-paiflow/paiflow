@@ -11,7 +11,7 @@ D2: a developer API for the swapper — deployment-scoped tokens, an execute end
 event polling. The beta also moved onto the staging service and the alpha round opened. Reported in
 full in [week 2](week-2.md).
 
-Covers 14–16 September, the extent of the public mirror when this was generated on 17 September; it
+Covers 14–18 September, the extent of the public mirror when this was generated on 18 September; it
 is regenerated when the week closes.
 
 | Date       | Change                                                                                               | Issues | Commit                                                                                                  |
