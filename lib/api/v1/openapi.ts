@@ -111,7 +111,7 @@ export const examples = {
       lastUsedAt: null,
       expiresAt: "2026-12-14T08:55:00.000Z",
       revokedAt: null,
-      token: "pfk_3f9a1c7e0b2d4f6a8c0e2a4c6e8a0c2e4a6c8e0a2c4e6a8c0e2a4c6e8a0c2e4a",
+      token: "pfk_3f9a1c7e…(truncated)",
     },
   },
   tokenListResponse: {
@@ -141,6 +141,20 @@ export const examples = {
       code: "VALIDATION",
       message: "Invalid input",
       fields: { amount: ["Must be a whole number of stroops"] },
+    },
+  },
+  // What `assertDepositEnvelope` throws: a message and no `fields`.
+  submitError422: {
+    error: {
+      code: "VALIDATION",
+      message: "The envelope does not invoke this flow's trigger contract",
+    },
+  },
+  eventsError422: {
+    error: {
+      code: "VALIDATION",
+      message: "Invalid cursor",
+      fields: { cursor: ["Invalid cursor"] },
     },
   },
 } as const;
@@ -199,10 +213,13 @@ const errorsWith =
       ]),
     );
 
-const errors = errorsWith(ERROR_DESCRIPTIONS, {
-  UNAUTHENTICATED: examples.error401,
-  VALIDATION: examples.error422,
-});
+const errorsFor = (overrides: Partial<Record<ErrorCode, unknown>> = {}) =>
+  errorsWith(ERROR_DESCRIPTIONS, {
+    UNAUTHENTICATED: examples.error401,
+    VALIDATION: examples.error422,
+    ...overrides,
+  });
+const errors = errorsFor();
 
 const sessionErrors = errorsWith(SESSION_ERROR_DESCRIPTIONS, {
   UNAUTHENTICATED: examples.sessionError401,
@@ -365,7 +382,13 @@ export const openApiDocument = {
               },
             },
           },
-          ...errors("UNAUTHENTICATED", "NOT_FOUND", "VALIDATION", "RATE_LIMITED", "UPSTREAM_RPC"),
+          ...errorsFor({ VALIDATION: examples.submitError422 })(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "VALIDATION",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+          ),
         },
       },
     },
@@ -426,7 +449,12 @@ export const openApiDocument = {
               examples.eventsResponse,
             ),
           },
-          ...errors("UNAUTHENTICATED", "NOT_FOUND", "VALIDATION", "RATE_LIMITED"),
+          ...errorsFor({ VALIDATION: examples.eventsError422 })(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "VALIDATION",
+            "RATE_LIMITED",
+          ),
         },
       },
     },

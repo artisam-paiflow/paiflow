@@ -53,8 +53,8 @@ session old. Figures come from
 [`evidence/alpha-metrics-2026-09-17.json`](evidence/alpha-metrics-2026-09-17.json).
 
 **That one active tester is a member of the project.** Of the three accounts issued, one belongs to
-someone working on Paiflow, who ran the first session as a pilot of the protocol before spending an
-external tester on it; the other two are external and have not yet run a session. So every figure in
+someone working on Paiflow, who ran the first session as a pilot of the protocol before asking an
+external tester to use it; the other two are external and have not yet run a session. So every figure in
 the alpha-tester column so far is the project's own work, and the column does not yet show
 independent outside use — the thing it exists to measure. It will once the external testers run.
 The same person also tests internally under a separate account, and one wallet appears under both,

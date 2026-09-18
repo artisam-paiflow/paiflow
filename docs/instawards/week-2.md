@@ -14,10 +14,12 @@ is what the public mirror holds; it is regenerated again when the week closes.
 The developer API shipped: a partner's backend can now mint a token scoped to a single deployed
 flow, ask the API to prepare an execution of it, sign that transaction with its own key, submit it
 and poll the resulting on-chain events — no Soroban knowledge and no access to anything else in
-the account. The API never signs, which is what keeps the app non-custodial. A swap ran through
-that path on testnet on 15 September. The alpha round opened on a beta hostname that runs
+the account. The API never signs, which is what keeps the app non-custodial. Two swaps ran through
+that path on testnet on 18 September: one from the documented curl sequence, one from the Postman
+collection. The alpha round opened on a beta hostname that runs
 the same build as the public app, which meant moving the beta onto the staging service and keeping
-the previous database as a read-only archive. And every transaction the app submits now records
+the previous database as an archive the app no longer writes to. And every transaction the app
+submits now records
 which wallet signed it, so a deployment, a user and an on-chain hash can be tied together after the
 fact.
 
@@ -120,7 +122,7 @@ transaction rather than only a screenshot. **D2 is complete and closed.**
 
 The 15 September swap is kept in the [evidence index](evidence/README.md#transactions) but could
 not supply the events response: its deployment, token and event rows are in the database the public
-app used until 16 September, a read-only archive since the cutover.
+app used until 16 September, kept as an archive the app no longer writes to.
 
 ## Metrics
 
@@ -135,9 +137,9 @@ See [metrics](metrics.md) for the running totals and how each number is measured
 | Contract WASM uploaded        | ≥ 1    | 1                | —      |
 
 Every figure is unchanged from 12 September, and that is expected rather than a stall: these count
-the database the public app used until 16 September, which has been a frozen read-only archive since
-the switch. New activity lands in the live beta database and is reported on the alpha-tester basis
-instead.
+the database the public app used until 16 September, an archive the app no longer writes to, so its
+figures cannot change. New activity lands in the live beta database and is reported on the
+alpha-tester basis instead.
 
 That basis produced its first numbers on 17 September. Three tester accounts have been issued against
 a planned five, and one tester has been through a session: 11 flows deployed, 19 transactions signed
@@ -146,8 +148,9 @@ across 3 distinct wallets, and 2 swapper flows executed. It is one session's wor
 
 ## Decisions
 
-**No blockers to the deliverable.** D2's code is merged and running on the public app, and a
-swap has been executed through the API on testnet; three evidence captures remain.
+**No blockers to the deliverable.** D2's code is merged and running on the public app, two swaps
+have been executed through the API on testnet, and every evidence item the SOW asks for is
+present. D2 is closed.
 
 - **Eight deliberate differences from the SOW's wording.** Execute is two calls and the partner
   signs; new deployment-scoped tokens instead of the payroll credentials; a route-handler wrapper

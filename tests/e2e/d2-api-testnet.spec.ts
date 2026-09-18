@@ -68,15 +68,19 @@ async function rpcGetTransaction(hash: string) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getTransaction", params: { hash } }),
   });
-  return (await res.json()).result as {
-    status: string;
-    ledger?: number;
-    events?: { contractEventsXdr?: string[][] | string[] };
-  };
+  return (await res.json()).result as
+    | {
+        status: string;
+        ledger?: number;
+        events?: { contractEventsXdr?: string[][] | string[] };
+      }
+    | undefined;
 }
 
 /** Contract ids that emitted events in a transaction, from its result meta. */
-function contractsEmittingEvents(tx: Awaited<ReturnType<typeof rpcGetTransaction>>): string[] {
+function contractsEmittingEvents(
+  tx: NonNullable<Awaited<ReturnType<typeof rpcGetTransaction>>>,
+): string[] {
   const raw = tx.events?.contractEventsXdr ?? [];
   const flat = (raw as unknown[]).flat() as string[];
   const ids = new Set<string>();
@@ -157,7 +161,11 @@ test("happy path: prepare, sign locally, submit, swap on Soroswap, read the swap
   }
   expect(submitted.status).toBe("SUCCESS");
 
-  const chainTx = await rpcGetTransaction(submitted.txHash);
+  // The public RPC can lag the app's, so a transient NOT_FOUND (or a JSON-RPC error) is retried.
+  const chainTx = await poll(async () => {
+    const r = await rpcGetTransaction(submitted.txHash);
+    return r?.status === "SUCCESS" || r?.status === "FAILED" ? r : null;
+  }, 60_000);
   expect(chainTx.status).toBe("SUCCESS");
   const emitters = contractsEmittingEvents(chainTx);
   expect(emitters, "the Soroswap router emitted an event in the execute tx").toContain(ROUTER);

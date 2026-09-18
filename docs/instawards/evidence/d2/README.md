@@ -28,9 +28,10 @@ argument is `amount_out_min`, derived from the flow's slippage setting, and the 
 it. Its `Valid before 2026-09-18 02:34:52` is the same expiry the prepare response carries, which
 ties the explorer's record to the committed one.
 
-`08-openapi.json` was checked against the live endpoint on 18 September and is byte-identical to
-the committed [`docs/api/openapi.json`](../../../api/openapi.json), which the drift test holds to
-the handlers.
+`08-openapi.json` is a copy of the committed [`docs/api/openapi.json`](../../../api/openapi.json),
+which the drift test holds to the handlers. It was byte-identical to the live endpoint on
+18 September and is refreshed whenever the committed copy changes, so the live endpoint serves the
+same bytes once the change is promoted.
 
 ## The Postman run produced its own swap
 
@@ -47,5 +48,5 @@ editor's assistant panel and the desktop taskbar; nothing in the request or resp
 An earlier swap, [`5b1e738f…`](https://stellar.expert/explorer/testnet/tx/5b1e738fab8b00279e19792d61e8a80eead9b53a4fab021a41ad2088265cb4be),
 was executed through the same API on 15 September and is recorded in the
 [evidence index](../README.md#transactions). Its deployment, token and event rows lived in the
-database the public app used until 16 September — a read-only archive since the beta cutover — so
+database the public app used until 16 September, kept as an archive the app no longer writes to, so
 it could not supply the events response, and this pack documents the 18 September run instead.

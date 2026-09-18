@@ -307,10 +307,7 @@
                 "example": {
                   "error": {
                     "code": "VALIDATION",
-                    "message": "Invalid input",
-                    "fields": {
-                      "amount": ["Must be a whole number of stroops"]
-                    }
+                    "message": "The envelope does not invoke this flow's trigger contract"
                   }
                 }
               }
@@ -485,9 +482,9 @@
                 "example": {
                   "error": {
                     "code": "VALIDATION",
-                    "message": "Invalid input",
+                    "message": "Invalid cursor",
                     "fields": {
-                      "amount": ["Must be a whole number of stroops"]
+                      "cursor": ["Invalid cursor"]
                     }
                   }
                 }
@@ -703,7 +700,7 @@
                     "lastUsedAt": null,
                     "expiresAt": "2026-12-14T08:55:00.000Z",
                     "revokedAt": null,
-                    "token": "pfk_3f9a1c7e0b2d4f6a8c0e2a4c6e8a0c2e4a6c8e0a2c4e6a8c0e2a4c6e8a0c2e4a"
+                    "token": "pfk_3f9a1c7e…(truncated)"
                   }
                 }
               }
