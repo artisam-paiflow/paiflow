@@ -92,6 +92,9 @@ prepared, submitted, confirmed — are in [`06-audit-rows.json`](06-audit-rows.j
 
 ## 4. Poll events
 
-TODO(#471): `GET …/events?txHash=5b1e738fab8b00279e19792d61e8a80eead9b53a4fab021a41ad2088265cb4be` and a cursor page, once #483's fix is on staging. On the
-day of the run this returned no items: the event poller was stuck on a stale cursor (#483), so the
-swap was on chain but not yet in the app's record.
+TODO(#471): not captured. On the day of the run `GET …/events` returned no items — the event
+poller was stuck on a stale cursor (#483), so the swap was on chain but not yet in the app's
+record. That defect is fixed (#484) and live, but this run can no longer supply the capture:
+its deployment, token and event rows are in the database the public app used until
+16 September, a read-only archive since the beta cutover. The events response comes from a
+fresh run on the live database instead.
