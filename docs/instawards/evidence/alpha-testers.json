@@ -8,7 +8,7 @@
     "wallets are the G-addresses each tester signed with, read from SignedTransaction.signerAddress or the transaction_signed event. A tester signs with more than one, so this is a list.",
     "No real name, username or email belongs in this file. The labels are pseudonyms and the published pages use them."
   ],
-  "note": "An entry appears when an account is issued, not when its session runs: a tester with no wallets and no events has been onboarded but has not yet worked through the guide. plannedCohortSize is what the round targets; testers.length is what has been issued. Every alpha-tester figure is filtered on these UUIDs explicitly -- the PostHog cohort named 'Alpha testers' is role = USER, which since the 16 September cutover matches both ordinary paiflow.xyz visitors and sandbox sessions signing on the beta, and is deliberately not used.",
+  "note": "An entry appears when an account is issued, not when its session runs: a tester with no wallets and no events has been onboarded but has not yet worked through the guide. plannedCohortSize is what the round targets; testers.length is what has been issued. Every alpha-tester figure is filtered on these UUIDs explicitly -- the PostHog cohort named 'Alpha testers' is role = USER, which since the 16 September cutover matches both ordinary paiflow.xyz visitors and sandbox sessions signing on the beta, and is deliberately not used. One of the issued accounts (tester-1) belongs to a member of the project, who ran the first session as a pilot of the protocol; the other two are external and have not yet run a session. Every alpha-tester figure published so far is therefore the project's own work, which docs/instawards/metrics.md states alongside the numbers. That person also tests internally under a separate account and one of the wallets listed here was used by both, so their three wallets are three addresses belonging to one human, not three people.",
   "testers": [
     {
       "label": "tester-1",
@@ -19,7 +19,15 @@
         "GCUPU53VS77YLKT2VL3ORCGF5UNJQOWXF6FVV3GSX4PR547GX5RR7VFS"
       ]
     },
-    { "label": "tester-2", "userId": "515ee32a-b2b2-4bce-8e4a-8d1f452d4f94", "wallets": [] },
-    { "label": "tester-3", "userId": "ec1c3f68-c116-4d81-a565-08205fae1aca", "wallets": [] }
+    {
+      "label": "tester-2",
+      "userId": "515ee32a-b2b2-4bce-8e4a-8d1f452d4f94",
+      "wallets": []
+    },
+    {
+      "label": "tester-3",
+      "userId": "ec1c3f68-c116-4d81-a565-08205fae1aca",
+      "wallets": []
+    }
   ]
 }

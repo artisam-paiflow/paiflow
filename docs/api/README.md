@@ -103,10 +103,10 @@ curl -sS -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute" \
 ```json
 {
   "data": {
-    "xdr": "AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAA…",
+    "xdr": "AAAAAgAAAACYBFftt4XVT7U0jiCPtYE5cDNPGXNUCOOo7L0FRPhTjAAK/F4AR4Yw…",
     "networkPassphrase": "Test SDF Network ; September 2015",
     "network": "testnet",
-    "expiresAt": "2026-09-15T09:03:00.000Z"
+    "expiresAt": "2026-09-18T02:34:52.000Z"
   }
 }
 ```
@@ -115,6 +115,12 @@ The simulation runs before anything comes back. If the deposit would fail (an un
 missing trustline, no liquidity), you get a `422` explaining why, and nothing is signed or spent.
 Sign and submit before `expiresAt`, which is about three minutes after preparing; after that the
 network refuses the envelope and you prepare again.
+
+{% hint style="warning" %}
+`expiresAt` is about three minutes out, so stage the signing step before you call prepare: have the
+`stellar tx sign` command ready to paste into, or hold the key in an SDK script. If the envelope
+expires, call prepare again — nothing is spent and the old envelope simply stops being accepted.
+{% endhint %}
 
 ### 2. Sign
 
@@ -167,9 +173,9 @@ curl -sS -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute/submit" \
 ```json
 {
   "data": {
-    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+    "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
     "status": "SUCCESS",
-    "ledger": 1842917
+    "ledger": 4735030
   }
 }
 ```
@@ -205,32 +211,50 @@ curl -sS "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/events?limit=50" \
   "data": {
     "items": [
       {
-        "id": "0c9d7a3e-5b1f-4e2a-8d6c-7f4b3a2e1d0c",
-        "eventId": "0007915171594088448-0000000001",
+        "id": "167054b2-8cb6-4055-b8fd-4a7ca190c002",
+        "eventId": "0020336798995623936-0000000001",
         "kind": "RECEIVE",
         "topic": "deposit",
-        "ledger": 1842917,
-        "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
-        "occurredAt": "2026-09-15T09:00:12.000Z",
-        "data": { "from": "GDMFZ5QQ…SIHY", "amount": "1000000000" }
+        "ledger": 4735030,
+        "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
+        "occurredAt": "2026-09-18T02:32:17.000Z",
+        "data": {
+          "from": "GCMAIV7NW6C5KT5VGSHCBD5VQE4XAM2PDFZVICHDVDWL2BKE7BJYZVUM",
+          "asset": "XLM",
+          "amount": "100000000"
+        }
       },
       {
-        "id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
-        "eventId": "0007915171594088448-0000000004",
+        "id": "c579376d-7cdc-4d22-a3b1-be49c3b2972b",
+        "eventId": "0020336798995623936-0000000010",
+        "kind": "PAYOUT",
+        "topic": "pay",
+        "ledger": 4735030,
+        "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
+        "occurredAt": "2026-09-18T02:32:17.000Z",
+        "data": {
+          "asset": "USDC",
+          "payment": "10584167",
+          "recipient": "GCVJW2CEXCJ6WPRYAMYFIDA6LLIYX5NJIJ6T76NW2BXQXFNPV2V62J7H"
+        }
+      },
+      {
+        "id": "94cf0bbf-54a6-43c7-9e55-d48a6b688ac7",
+        "eventId": "0020336798995623936-0000000011",
         "kind": "PAYOUT",
         "topic": "swap",
-        "ledger": 1842917,
-        "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
-        "occurredAt": "2026-09-15T09:00:12.000Z",
+        "ledger": 4735030,
+        "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
+        "occurredAt": "2026-09-18T02:32:17.000Z",
         "data": {
-          "assetIn": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-          "assetOut": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
-          "amountIn": "1000000000",
-          "amountOut": "105594796"
+          "assetIn": "XLM",
+          "amountIn": "100000000",
+          "assetOut": "USDC",
+          "amountOut": "10584167"
         }
       }
     ],
-    "nextCursor": "MTg0MjkxN3wwMDA3OTE1MTcxNTk0MDg4NDQ4LTAwMDAwMDAwMDQ",
+    "nextCursor": "NDczNTAzMHwwMDIwMzM2Nzk4OTk1NjIzOTM2LTAwMDAwMDAwMTE",
     "hasMore": false
   }
 }
@@ -245,8 +269,9 @@ contracts, as recorded in its own database. It is not a raw feed of the chain:
   `SUCCESS` from `execute/submit` also records that transaction's events immediately, so
   `?txHash=<txHash>` right after a submit usually already has them.
 - **Swaps.** A swap has `kind: "PAYOUT"` and `topic: "swap"`. Its `data` is
-  `{ assetIn, assetOut, amountIn, amountOut }`: asset contract addresses, with amounts in stroops as
-  strings.
+  `{ assetIn, assetOut, amountIn, amountOut }`, with amounts in stroops as strings. `assetIn` and
+  `assetOut` are the asset's **symbol** where the flow names one (`"XLM"`, `"USDC"`) and the raw
+  asset contract address otherwise, so parse for either.
 
 **Polling with the cursor.** Keep the `nextCursor` from each response and send it back as `cursor`.
 While `hasMore` is `true`, ask again straight away. Once it's `false` you're caught up: wait a while
@@ -333,7 +358,7 @@ Each request has saved example responses.
 The `xdr`, `txHash` and event values above are illustrative and shortened. The complete record of a
 real run, with the unsigned and signed envelopes, the responses and the transaction on
 stellar.expert, is in the D2 evidence pack at
-[`docs/instawards/evidence/d2/`](../instawards/evidence/d2/).
+[`docs/instawards/evidence/d2/`](../instawards/evidence/d2/README.md).
 {% endhint %}
 
 ## Trying the API
@@ -345,7 +370,7 @@ login page can't mint one. So a reviewer without an owner account can **read** t
 than drive it:
 
 - the curl transcript, audit log rows and transaction link in
-  [`docs/instawards/evidence/d2/`](../instawards/evidence/d2/);
+  [`docs/instawards/evidence/d2/`](../instawards/evidence/d2/README.md);
 - the [Postman collection](paiflow-api-v1.postman_collection.json) and its saved responses;
 - this guide and the [OpenAPI document](openapi.json).
 
