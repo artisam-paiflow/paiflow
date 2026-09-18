@@ -29,12 +29,12 @@ Neither basis is a correction of the other. The first measures reach, the second
 
 ## Results
 
-| Metric                                   | Target | All public activity | Alpha testers (1 active / 3 issued / 5 planned) |
+| Metric                                   | Target | All public activity | Alpha testers (2 active / 3 issued / 5 planned) |
 | ---------------------------------------- | ------ | ------------------- | ----------------------------------------------- |
-| Unique flows deployed                    | ≥ 5    | 26 ✓                | 11 ✓                                            |
+| Unique flows deployed                    | ≥ 5    | 26 ✓                | 22 ✓                                            |
 | Contract executions / events published   | ≥ 60   | 61 ✓                | — (needs a database run)                        |
-| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 2                                               |
-| Distinct wallets deploying               | ≥ 6    | 7 ✓                 | 3                                               |
+| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 5 ✓                                             |
+| Distinct wallets deploying               | ≥ 6    | 7 ✓                 | 5                                               |
 | Contract WASM uploaded                   | ≥ 1    | 1 ✓                 | 1 ✓ (the same binary)                           |
 | Public testnet URL live and accessible   | Yes    | Yes ✓               | Yes ✓                                           |
 | Demo video published                     | Yes    | No                  | Week 4                                          |
@@ -42,25 +42,27 @@ Neither basis is a correction of the other. The first measures reach, the second
 Every metric except the week-4 demo video is met on the all-activity basis. Executions cleared the
 target on 12 September; the 11 September snapshot had them at 43.
 
-**The alpha-tester column is one tester's work so far**, and should be read that way. The three
-counts in its heading are different things: the round **plans** five testers, three have been
-**issued** an account, and one has so far been **active** — run a session. Only that one contributes
-figures. That single tester deployed 11 flows, signed 19
-transactions and used 3 distinct wallets — testers sign with more than one wallet each, which is why
-the ≥ 6 wallets target stays reachable for a five-person round rather than being capped by headcount.
-The two targets not yet met on this basis are not failures of the round; they are the round being one
-session old. Figures come from
-[`evidence/alpha-metrics-2026-09-17.json`](evidence/alpha-metrics-2026-09-17.json).
+**The alpha-tester column is two testers' work**, and should be read that way. The three counts in
+its heading are different things: the round **plans** five testers, three have been **issued** an
+account, and two have so far been **active** — run a session. Only those two contribute figures, and
+they contribute almost equally: 11 deployments each, 19 transactions each, three signing wallets for
+one and two for the other. Testers sign with more than one wallet, which is why the ≥ 6 wallets
+target stays reachable for a five-person round rather than being capped by headcount. Swapper flows
+cleared their target on this basis with the second session. Distinct deploying wallets is the one
+measured target still short, at five against six, with two issued accounts yet to run and two yet to
+be issued; contract executions is not short but unmeasurable here, since PostHog has no counterpart
+to a `ContractEvent` row and that figure only comes from a database run. Figures come from
+[`evidence/alpha-metrics-2026-09-18.json`](evidence/alpha-metrics-2026-09-18.json).
 
-**That one active tester is a member of the project.** Of the three accounts issued, one belongs to
-someone working on Paiflow, who ran the first session as a pilot of the protocol before asking an
-external tester to use it; the other two are external and have not yet run a session. So every figure in
-the alpha-tester column so far is the project's own work, and the column does not yet show
-independent outside use — the thing it exists to measure. It will once the external testers run.
-The same person also tests internally under a separate account, and one wallet appears under both,
-so their wallet count is three addresses belonging to one human rather than three people. This is
-recorded for the same reason the all-activity column names `admin` and `judge` below: a figure
-produced by the project should say so.
+**One of the two active testers is a member of the project.** Of the three accounts issued, one
+belongs to someone working on Paiflow, who ran the first session on 17 September as a pilot of the
+protocol before asking an external tester to use it; the other two are external. One of those
+external testers ran their session on 18 September, and that is what the second half of every figure
+above is. So the column now does show independent outside use — but only about half of it, and the
+split is recorded here rather than left to be assumed. The project member also tests internally under
+a separate account, and one wallet appears under both, so their three signing addresses belong to one
+human rather than three people. This is recorded for the same reason the all-activity column names
+`admin` and `judge` below: a figure produced by the project should say so.
 
 ### What the all-activity column contains
 
@@ -75,10 +77,11 @@ flow without an account, and 17 people did. It is not a demonstration that ident
 back and used it. The alpha-tester column is there to answer the second question, which is why the
 basis is being reported alongside rather than instead.
 
-_Last updated: 17 September. All-activity figures are the 12 September snapshot
+_Last updated: 18 September. All-activity figures are the 12 September snapshot
 ([`evidence/metrics-2026-09-12.json`](evidence/metrics-2026-09-12.json)); earlier snapshot:
-[11 September](evidence/metrics-2026-09-11.json). Alpha-tester figures are the 17 September cohort
-snapshot ([`evidence/alpha-metrics-2026-09-17.json`](evidence/alpha-metrics-2026-09-17.json))._
+[11 September](evidence/metrics-2026-09-11.json). Alpha-tester figures are the 18 September cohort snapshot
+([`evidence/alpha-metrics-2026-09-18.json`](evidence/alpha-metrics-2026-09-18.json)); earlier
+snapshot: [17 September](evidence/alpha-metrics-2026-09-17.json)._
 
 ## How the numbers are produced
 
