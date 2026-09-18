@@ -68,8 +68,8 @@ Rows that moved this week. The full tables live on the deliverable pages.
 | --------------------------------------------------------- | ------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Extract reusable auth, rate limiting and audit primitives | [D2](deliverables/d2.md) | Done      | `lib/api/v1/handler.ts`, nine test suites                                                                                  |
 | Deployment-scoped API tokens                              | [D2](deliverables/d2.md) | Done      | [access panel](evidence/d2/api-access-panel.png)                                                                           |
-| `POST /api/v1/deployments/{id}/execute`                   | [D2](deliverables/d2.md) | Evidenced | [`5b1e738f…`](https://stellar.expert/explorer/testnet/tx/5b1e738fab8b00279e19792d61e8a80eead9b53a4fab021a41ad2088265cb4be) |
-| `GET /api/v1/deployments/{id}/events`                     | [D2](deliverables/d2.md) | Done      | Live on the public app; capture outstanding                                                                                |
+| `POST /api/v1/deployments/{id}/execute`                   | [D2](deliverables/d2.md) | Evidenced | [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7) |
+| `GET /api/v1/deployments/{id}/events`                     | [D2](deliverables/d2.md) | Evidenced | [events response](evidence/d2/05-events-response.json)                                                                     |
 | Unit and integration tests                                | [D2](deliverables/d2.md) | Done      | Green in CI                                                                                                                |
 | OpenAPI specification and Postman collection              | [D2](deliverables/d2.md) | Done      | [`openapi.json`](../api/openapi.json)                                                                                      |
 | API documentation with curl examples                      | [D2](deliverables/d2.md) | Done      | [Developer guide](../api/README.md)                                                                                        |
@@ -87,17 +87,21 @@ link).
 | Postman collection                                    | Artefact         | [collection](../api/paiflow-api-v1.postman_collection.json)                                                                |
 | Alpha-tester cohort                                   | Definition       | [`alpha-testers.json`](evidence/alpha-testers.json)                                                                        |
 | First alpha-tester metrics snapshot                   | Metrics          | [`alpha-metrics-2026-09-17.json`](evidence/alpha-metrics-2026-09-17.json)                                                  |
-| API-executed swap, 10 XLM → 1.0547687 USDC            | Transaction hash | [`5b1e738f…`](https://stellar.expert/explorer/testnet/tx/5b1e738fab8b00279e19792d61e8a80eead9b53a4fab021a41ad2088265cb4be) |
+| API-executed swap, 10 XLM → 1.0584167 USDC            | Transaction hash | [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7) |
 | curl transcript: prepare → local sign → submit        | API sample       | [`01-curl-transcript.md`](evidence/d2/01-curl-transcript.md)                                                               |
 | Prepare and submit responses                          | API sample       | [`02`](evidence/d2/02-prepare-response.json), [`03`](evidence/d2/03-submit-response.json)                                  |
 | Raw `getTransaction` for the swap                     | RPC record       | [`04-getTransaction.json`](evidence/d2/04-getTransaction.json)                                                             |
 | Audit rows: prepared, submitted, confirmed (redacted) | Audit log        | [`06-audit-rows.json`](evidence/d2/06-audit-rows.json)                                                                     |
 | The OpenAPI document as served by paiflow.xyz         | API sample       | [`08-openapi.json`](evidence/d2/08-openapi.json)                                                                           |
 
-Four of D2's five §6.1 evidence items are now present. Three captures are still outstanding — the
-events response with its cursor, a stellar.expert view of the swap, and a Postman run — and they
-need a fresh run: the 15 September run's deployment, token and event rows are in the database the
-public app used until 16 September, which has been a read-only archive since the cutover.
+All five of D2's §6.1 evidence items are now present, from a run on 18 September: an API-executed
+swap ([`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7), 10 XLM → 1.0584167 USDC), the full curl transcript including the
+events step, and the audit rows. Two screenshots remain — a stellar.expert view of the swap and a
+Postman run — both of material the committed files already prove.
+
+The 15 September swap is kept in the [evidence index](evidence/README.md#transactions) but could
+not supply the events response: its deployment, token and event rows are in the database the public
+app used until 16 September, a read-only archive since the cutover.
 
 ## Metrics
 
@@ -187,10 +191,8 @@ to sign a transaction that cannot land — remains open.
 
 ## Next week
 
-D3, the reusable builder input components, plus the three captures D2 still owes: the events
-response with its cursor, a stellar.expert view of the swap, and a Postman run against the public
-app. They need a fresh run on the live database, since the 15 September run's records are in the
-archive. The alpha round runs alongside: two issued accounts have yet to run a
+D3, the reusable builder input components. D2 needs only two screenshots to close: a
+stellar.expert view of the swap and a Postman run against the public app. The alpha round runs alongside: two issued accounts have yet to run a
 session, and two more accounts have yet to be issued. A tester joins the cohort file when their
 account is issued, not when their session finishes, so the next snapshot picks up each newly active
 tester without the file having to change.

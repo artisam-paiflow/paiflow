@@ -21,6 +21,9 @@ link stops resolving.
 | Payer (recorded 11 Sep flow)           | [`CC2XTEP2…4ILJ`](https://stellar.expert/explorer/testnet/contract/CC2XTEP2Z2CQS2WCCLLQJSDYZKZX72PWFE7ZOJO37UKHYXIQ3OKE4ILJ)                                               | D1          |
 | Soroswap router (testnet)              | [`CCJUD55A…7BRD`](https://stellar.expert/explorer/testnet/contract/CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD)                                               | D1          |
 | Soroswap XLM/USDC pair                 | [`CCBX3NZT…7RQS`](https://stellar.expert/explorer/testnet/contract/CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS) — `token_0` is USDC                           | D1          |
+| Deposit trigger (18 Sep D2 flow)       | [`CCO4SUZW…7HT5`](https://stellar.expert/explorer/testnet/contract/CCO4SUZWNBHIPCADMBCLWO4YOSLWFUDDUUMBYCQF6HRHIX3FBHDI7HT5) — receives the deposit the API prepares       | D2          |
+| Swapper (18 Sep D2 flow)               | [`CD767KMX…YK46`](https://stellar.expert/explorer/testnet/contract/CD767KMX45WW43PTNBHP2D2MHR4633XVBY53UKIVX5LPZYRTED6RYK46) — same WASM hash as the D1 flows              | D2          |
+| Payer (18 Sep D2 flow)                 | [`CDGWKFVY…WRIX`](https://stellar.expert/explorer/testnet/contract/CDGWKFVYWL5Z6QB7KIOBHJLAEK4DGDV7WG4IRMPXWYKCCG76466UWRIX) — forwards the swap proceeds to the recipient | D2          |
 
 The swapper WASM hash is the content hash of the uploaded binary, so it has no explorer page of
 its own; the link above downloads the exact bytes from testnet, and the hash also appears on every
@@ -43,14 +46,16 @@ extends it again.
 
 ## Transactions
 
-| Date   | What it proves                                                                                                                           | Deliverable | Transaction                                                                                                                |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------- |
-| 9 Sep  | A swapper flow deployed from paiflow.xyz, through the app's own factory in one `deploy_pipeline` call                                    | D1          | [`775af303…`](https://stellar.expert/explorer/testnet/tx/775af303e24ebd7f59923544df3963cc17fa05e1db66174f38f4c3ae10670943) |
-| 9 Sep  | 50 XLM swapped to 5.2820859 USDC through the Soroswap router and paid on to the recipient                                                | D1          | [`3bded301…`](https://stellar.expert/explorer/testnet/tx/3bded301fff23b2f34d9ffcfefcb6528de7d594928cdc39a5d261c9dfbf8e927) |
-| 9 Sep  | 10 XLM swapped to 1.0564010 USDC through the Soroswap router and paid on to the recipient                                                | D1          | [`2ceacb95…`](https://stellar.expert/explorer/testnet/tx/2ceacb95695c5def25ee8c4b84ac44e596d3b936099e3239ef0a9af47164db1b) |
-| 11 Sep | The recorded run: a sandbox session's swap flow deployed from the builder with a browser wallet                                          | D1          | [`c0460040…`](https://stellar.expert/explorer/testnet/tx/c04600408d910f55639a09b54725f65b38881820bbd468358be6546ce3416f18) |
-| 11 Sep | The recorded run: 100 XLM swapped to 10.5594796 USDC through the Soroswap router and paid on to the recipient                            | D1          | [`94be52e8…`](https://stellar.expert/explorer/testnet/tx/94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d) |
-| 15 Sep | Executed through the developer API (`/api/v1`, partner-signed): 10 XLM swapped to 1.0547687 USDC through the Soroswap router and paid on | D2          | [`5b1e738f…`](https://stellar.expert/explorer/testnet/tx/5b1e738fab8b00279e19792d61e8a80eead9b53a4fab021a41ad2088265cb4be) |
+| Date   | What it proves                                                                                                                           | Deliverable | Transaction                                                                                                                                                                                                                                              |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 9 Sep  | A swapper flow deployed from paiflow.xyz, through the app's own factory in one `deploy_pipeline` call                                    | D1          | [`775af303…`](https://stellar.expert/explorer/testnet/tx/775af303e24ebd7f59923544df3963cc17fa05e1db66174f38f4c3ae10670943)                                                                                                                               |
+| 9 Sep  | 50 XLM swapped to 5.2820859 USDC through the Soroswap router and paid on to the recipient                                                | D1          | [`3bded301…`](https://stellar.expert/explorer/testnet/tx/3bded301fff23b2f34d9ffcfefcb6528de7d594928cdc39a5d261c9dfbf8e927)                                                                                                                               |
+| 9 Sep  | 10 XLM swapped to 1.0564010 USDC through the Soroswap router and paid on to the recipient                                                | D1          | [`2ceacb95…`](https://stellar.expert/explorer/testnet/tx/2ceacb95695c5def25ee8c4b84ac44e596d3b936099e3239ef0a9af47164db1b)                                                                                                                               |
+| 11 Sep | The recorded run: a sandbox session's swap flow deployed from the builder with a browser wallet                                          | D1          | [`c0460040…`](https://stellar.expert/explorer/testnet/tx/c04600408d910f55639a09b54725f65b38881820bbd468358be6546ce3416f18)                                                                                                                               |
+| 11 Sep | The recorded run: 100 XLM swapped to 10.5594796 USDC through the Soroswap router and paid on to the recipient                            | D1          | [`94be52e8…`](https://stellar.expert/explorer/testnet/tx/94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d)                                                                                                                               |
+| 15 Sep | Executed through the developer API (`/api/v1`, partner-signed): 10 XLM swapped to 1.0547687 USDC through the Soroswap router and paid on | D2          | [`5b1e738f…`](https://stellar.expert/explorer/testnet/tx/5b1e738fab8b00279e19792d61e8a80eead9b53a4fab021a41ad2088265cb4be)                                                                                                                               |
+| 17 Sep | Internal testing of the developer API: two more swapper flows executed through `/api/v1`                                                 | D2          | [`8d8e1d6b…`](https://stellar.expert/explorer/testnet/tx/8d8e1d6b96c615b4ed6f6e8ce40218e07b8b0a38b5694b0fbf31675c7995e2f6)<br>[`cbe539ff…`](https://stellar.expert/explorer/testnet/tx/cbe539ffdfa204ec6b1463bfd1741f9cb2be1caa10e196096e52726faf97a577) |
+| 18 Sep | The D2 evidence run, executed through the developer API (`/api/v1`, partner-signed): 10 XLM swapped to 1.0584167 USDC and paid on        | D2          | [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7)                                                                                                                               |
 
 The two 9 September swaps are the same deployed flow triggered twice. [`d1/11-happy-path.json`](d1/11-happy-path.json)
 records the deployment, the three contracts the factory produced and the amounts in and out;
@@ -58,7 +63,11 @@ records the deployment, the three contracts the factory produced and the amounts
 survives a testnet reset. [`d1/13-recording-run.json`](d1/13-recording-run.json) and
 [`d1/13-recording-run.getTransaction.json`](d1/13-recording-run.getTransaction.json) are the same pair for the recorded 11 September run.
 The 15 September API swap reuses the first 9 September flow, so it adds a swap transaction but not a new
-flow; its prepare, submit and `getTransaction` records and the curl transcript are in [`d2/`](d2/README.md).
+flow. The 18 September run is D2's evidence swap, on a flow deployed for it; its prepare, submit,
+`getTransaction`, events and audit records and the curl transcript are in [`d2/`](d2/README.md).
+The 17 September pair are internal testing rather than evidence — the same API path, on two other
+deployments — and are listed here so the record of what ran on the public app is complete. They are
+not alpha-round activity and are counted on neither reporting basis.
 
 ## Swapper flows executed on testnet
 
