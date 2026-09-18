@@ -17,10 +17,16 @@ transaction [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306c
 | `04-getTransaction.json`                                                           | Raw RPC `getTransaction` for the swap, the durable copy if testnet resets                                                  | Present    |
 | `05-events-response.json`                                                          | The events endpoint: the run's three events by transaction hash, then the feed paged forward with the opaque cursor        | Present    |
 | `06-audit-rows.json`                                                               | `API_EXECUTE_PREPARED` / `API_EXECUTE_SUBMITTED` / `API_EXECUTE_CONFIRMED` for the run, from the admin audit log, redacted | Present    |
-| `07-stellar-expert-swap.png`                                                       | stellar.expert showing the `swap_exact_tokens_for_tokens` sub-invocation on the Soroswap router                            | TODO(#471) |
+| `07-stellar-expert-swap.png`                                                       | stellar.expert's invocation tree for the swap: `deposit` → `execute_step` → `swap_exact_tokens_for_tokens` on the router   | Present    |
 | `08-openapi.json`                                                                  | `https://paiflow.xyz/api/v1/openapi.json` as served                                                                        | Present    |
 | `09-postman-run.png`                                                               | The Postman collection run against paiflow.xyz                                                                             | TODO(#471) |
 | `10-e2e-api-run.json`, `10-e2e-api-run.getTransaction.json`, `10-e2e-openapi.json` | Written by `tests/e2e/d2-api-testnet.spec.ts`: the same sequence, repeatable                                               | Optional   |
+
+The explorer capture is worth reading in full. It shows the router call as
+`swap_exact_tokens_for_tokens(100000000, 10509881, […], …) → [100000000, 10584167]`: the second
+argument is `amount_out_min`, derived from the flow's slippage setting, and the actual output beat
+it. Its `Valid before 2026-09-18 02:34:52` is the same expiry the prepare response carries, which
+ties the explorer's record to the committed one.
 
 `08-openapi.json` was checked against the live endpoint on 18 September and is byte-identical to
 the committed [`docs/api/openapi.json`](../../../api/openapi.json), which the drift test holds to
