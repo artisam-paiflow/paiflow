@@ -12,8 +12,10 @@ public mirror holds; it is regenerated when the week closes.
 ## Summary
 
 The developer API shipped: a partner's backend can now mint a token scoped to a single deployed
-flow, execute that flow with one HTTP request, and poll its on-chain events — no wallet integration
-and no access to anything else in the account. The alpha round opened on a beta hostname that runs
+flow, ask the API to prepare an execution of it, sign that transaction with its own key, submit it
+and poll the resulting on-chain events — no Soroban knowledge and no access to anything else in
+the account. The API never signs, which is what keeps the app non-custodial. A swap ran through
+that path on testnet on 15 September. The alpha round opened on a beta hostname that runs
 the same build as the public app, which meant moving the beta onto the staging service and keeping
 the previous database as a read-only archive. And every transaction the app submits now records
 which wallet signed it, so a deployment, a user and an on-chain hash can be tied together after the
@@ -62,32 +64,40 @@ layout as it is now.
 
 Rows that moved this week. The full tables live on the deliverable pages.
 
-| SOW clause                                                | Deliverable              | Status      | Evidence                                         |
-| --------------------------------------------------------- | ------------------------ | ----------- | ------------------------------------------------ |
-| Extract reusable auth, rate limiting and audit primitives | [D2](deliverables/d2.md) | Done        | `lib/api/v1/handler.ts`, nine test suites        |
-| Deployment-scoped API tokens                              | [D2](deliverables/d2.md) | Done        | [access panel](evidence/d2/api-access-panel.png) |
-| `POST /api/v1/deployments/{id}/execute`                   | [D2](deliverables/d2.md) | Done        | Live on the public app                           |
-| `GET /api/v1/deployments/{id}/events`                     | [D2](deliverables/d2.md) | Done        | Live on the public app                           |
-| Unit and integration tests                                | [D2](deliverables/d2.md) | Done        | Green in CI                                      |
-| OpenAPI specification and Postman collection              | [D2](deliverables/d2.md) | Done        | [`openapi.json`](../api/openapi.json)            |
-| API documentation with curl examples                      | [D2](deliverables/d2.md) | In progress | Guide written; samples not yet captured live     |
+| SOW clause                                                | Deliverable              | Status    | Evidence                                                                                                                   |
+| --------------------------------------------------------- | ------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Extract reusable auth, rate limiting and audit primitives | [D2](deliverables/d2.md) | Done      | `lib/api/v1/handler.ts`, nine test suites                                                                                  |
+| Deployment-scoped API tokens                              | [D2](deliverables/d2.md) | Done      | [access panel](evidence/d2/api-access-panel.png)                                                                           |
+| `POST /api/v1/deployments/{id}/execute`                   | [D2](deliverables/d2.md) | Evidenced | [`5b1e738f…`](https://stellar.expert/explorer/testnet/tx/5b1e738fab8b00279e19792d61e8a80eead9b53a4fab021a41ad2088265cb4be) |
+| `GET /api/v1/deployments/{id}/events`                     | [D2](deliverables/d2.md) | Done      | Live on the public app; capture outstanding                                                                                |
+| Unit and integration tests                                | [D2](deliverables/d2.md) | Done      | Green in CI                                                                                                                |
+| OpenAPI specification and Postman collection              | [D2](deliverables/d2.md) | Done      | [`openapi.json`](../api/openapi.json)                                                                                      |
+| API documentation with curl examples                      | [D2](deliverables/d2.md) | Done      | [Developer guide](../api/README.md)                                                                                        |
+| Authenticated curl requests execute a swapper flow        | [D2](deliverables/d2.md) | Evidenced | [transcript](evidence/d2/01-curl-transcript.md)                                                                            |
 
 Status values: Not started · In progress · Done · **Evidenced** (done _and_ proven by a public
 link).
 
 ## Evidence added
 
-| Item                                | Type       | Link                                                                      |
-| ----------------------------------- | ---------- | ------------------------------------------------------------------------- |
-| API access panel                    | Screenshot | [`d2/api-access-panel.png`](evidence/d2/api-access-panel.png)             |
-| OpenAPI specification               | Artefact   | [`openapi.json`](../api/openapi.json)                                     |
-| Postman collection                  | Artefact   | [collection](../api/paiflow-api-v1.postman_collection.json)               |
-| Alpha-tester cohort                 | Definition | [`alpha-testers.json`](evidence/alpha-testers.json)                       |
-| First alpha-tester metrics snapshot | Metrics    | [`alpha-metrics-2026-09-17.json`](evidence/alpha-metrics-2026-09-17.json) |
+| Item                                                  | Type             | Link                                                                                                                       |
+| ----------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| API access panel                                      | Screenshot       | [`d2/api-access-panel.png`](evidence/d2/api-access-panel.png)                                                              |
+| OpenAPI specification                                 | Artefact         | [`openapi.json`](../api/openapi.json)                                                                                      |
+| Postman collection                                    | Artefact         | [collection](../api/paiflow-api-v1.postman_collection.json)                                                                |
+| Alpha-tester cohort                                   | Definition       | [`alpha-testers.json`](evidence/alpha-testers.json)                                                                        |
+| First alpha-tester metrics snapshot                   | Metrics          | [`alpha-metrics-2026-09-17.json`](evidence/alpha-metrics-2026-09-17.json)                                                  |
+| API-executed swap, 10 XLM → 1.0547687 USDC            | Transaction hash | [`5b1e738f…`](https://stellar.expert/explorer/testnet/tx/5b1e738fab8b00279e19792d61e8a80eead9b53a4fab021a41ad2088265cb4be) |
+| curl transcript: prepare → local sign → submit        | API sample       | [`01-curl-transcript.md`](evidence/d2/01-curl-transcript.md)                                                               |
+| Prepare and submit responses                          | API sample       | [`02`](evidence/d2/02-prepare-response.json), [`03`](evidence/d2/03-submit-response.json)                                  |
+| Raw `getTransaction` for the swap                     | RPC record       | [`04-getTransaction.json`](evidence/d2/04-getTransaction.json)                                                             |
+| Audit rows: prepared, submitted, confirmed (redacted) | Audit log        | [`06-audit-rows.json`](evidence/d2/06-audit-rows.json)                                                                     |
+| The OpenAPI document as served by paiflow.xyz         | API sample       | [`08-openapi.json`](evidence/d2/08-openapi.json)                                                                           |
 
-D2's §6.1 evidence is not complete: an API-triggered transaction hash, live curl samples and the
-matching audit row are still outstanding, and they come from a run on the public app rather than
-from more code.
+Four of D2's five §6.1 evidence items are now present. Three captures are still outstanding — the
+events response with its cursor, a stellar.expert view of the swap, and a Postman run — and they
+need a fresh run: the 15 September run's deployment, token and event rows are in the database the
+public app used until 16 September, which has been a read-only archive since the cutover.
 
 ## Metrics
 
@@ -113,8 +123,23 @@ across 3 distinct wallets, and 2 swapper flows executed. It is one session's wor
 
 ## Decisions
 
-**No blockers to the deliverable.** D2's code is merged and running on the public app; only its
-evidence capture is outstanding.
+**No blockers to the deliverable.** D2's code is merged and running on the public app, and a
+swap has been executed through the API on testnet; three evidence captures remain.
+
+- **Eight deliberate differences from the SOW's wording.** Execute is two calls and the partner
+  signs; new deployment-scoped tokens instead of the payroll credentials; a route-handler wrapper
+  instead of edge middleware; execute runs the flow's deposit trigger; rate limits keyed on the
+  token; events read from the app's own record; a hand-authored OpenAPI document; reviewers read
+  the API path rather than drive it anonymously. Each is recorded with its reason and how to
+  verify it in the [D2 scope notes](deliverables/d2.md#scope-notes), without editing the SOW.
+- **A risk the SOW's table does not list: the developer API itself.** Section 3.9 has no row for
+  it, so it is added here.
+
+  | Risk                                                                                       | Mitigation                                                                                                                                                                                                                  |
+  | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | A leaked API token is used to act on a flow                                                | Tokens are bound to one deployment, stored only as a hash, shown once, revocable from the deployment page with effect on the next request, and optionally expiring. The API never signs, so a token alone cannot move funds |
+  | A token is used to submit an arbitrary signed transaction under a deployment's audit trail | `execute/submit` parses the envelope and refuses anything but a single `deposit` on that deployment's trigger contract                                                                                                      |
+  | Rate limits are evaded by spoofing the client IP                                           | Every `/api/v1` limit is keyed on the token id, not the forwarded IP                                                                                                                                                        |
 
 - **The success metrics are now reported on two bases.** Checking what the published numbers
   actually counted showed they were almost entirely disposable sandbox sessions and the project's
@@ -162,9 +187,10 @@ to sign a transaction that cannot land — remains open.
 
 ## Next week
 
-D3, the reusable builder input components, plus the evidence capture D2 still owes: an API-triggered
-swap with its transaction hash, curl samples against a live token, and the audit row that proves the
-execution was recorded. The alpha round runs alongside: two issued accounts have yet to run a
+D3, the reusable builder input components, plus the three captures D2 still owes: the events
+response with its cursor, a stellar.expert view of the swap, and a Postman run against the public
+app. They need a fresh run on the live database, since the 15 September run's records are in the
+archive. The alpha round runs alongside: two issued accounts have yet to run a
 session, and two more accounts have yet to be issued. A tester joins the cohort file when their
 account is issued, not when their session finishes, so the next snapshot picks up each newly active
 tester without the file having to change.

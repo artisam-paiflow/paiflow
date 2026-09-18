@@ -103,10 +103,10 @@ curl -sS -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute" \
 ```json
 {
   "data": {
-    "xdr": "AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAA…",
+    "xdr": "AAAAAgAAAACYBFftt4XVT7U0jiCPtYE5cDNPGXNUCOOo7L0FRPhTjAAOid8AR4YwAAAAAQAA…",
     "networkPassphrase": "Test SDF Network ; September 2015",
     "network": "testnet",
-    "expiresAt": "2026-09-15T09:03:00.000Z"
+    "expiresAt": "2026-09-15T08:26:59.000Z"
   }
 }
 ```
@@ -167,9 +167,9 @@ curl -sS -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute/submit" \
 ```json
 {
   "data": {
-    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+    "txHash": "5b1e738fab8b00279e19792d61e8a80eead9b53a4fab021a41ad2088265cb4be",
     "status": "SUCCESS",
-    "ledger": 1842917
+    "ledger": 4687411
   }
 }
 ```

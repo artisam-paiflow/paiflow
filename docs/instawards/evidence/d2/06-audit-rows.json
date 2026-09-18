@@ -1,0 +1,39 @@
+{
+  "source": "GET https://paiflow.xyz/api/admin/audit-log?action=<action>&limit=20, admin session, exported 15 September 2026",
+  "redacted": ["ip", "userAgent", "userId", "user.username"],
+  "note": "Every row for these three actions on paiflow.xyz at export time: one per step of the API swap 5b1e738f…. The rows are written to the deployment owner's audit log; tokenId identifies the deployment API token (an id, not the token).",
+  "items": [
+    {
+      "id": "00a03b4e-a7be-4b7b-b51f-9ca0497e66a4",
+      "action": "API_EXECUTE_PREPARED",
+      "createdAt": "2026-09-15T08:23:59.956Z",
+      "metadata": {
+        "from": "GCMAIV7NW6C5KT5VGSHCBD5VQE4XAM2PDFZVICHDVDWL2BKE7BJYZVUM",
+        "amount": "100000000",
+        "tokenId": "bad78dfc-0017-4ef5-88f6-7b79e7a49d31",
+        "deploymentId": "0786fca6-ed7c-405b-a819-6aaae424c215"
+      }
+    },
+    {
+      "id": "117e4eef-3312-4c02-bc89-8276c1c5c6ef",
+      "action": "API_EXECUTE_SUBMITTED",
+      "createdAt": "2026-09-15T08:24:00.663Z",
+      "metadata": {
+        "txHash": "5b1e738fab8b00279e19792d61e8a80eead9b53a4fab021a41ad2088265cb4be",
+        "tokenId": "bad78dfc-0017-4ef5-88f6-7b79e7a49d31",
+        "deploymentId": "0786fca6-ed7c-405b-a819-6aaae424c215"
+      }
+    },
+    {
+      "id": "e67f51bf-710b-4014-aa77-e6e653fea725",
+      "action": "API_EXECUTE_CONFIRMED",
+      "createdAt": "2026-09-15T08:24:03.959Z",
+      "metadata": {
+        "ledger": 4687411,
+        "txHash": "5b1e738fab8b00279e19792d61e8a80eead9b53a4fab021a41ad2088265cb4be",
+        "tokenId": "bad78dfc-0017-4ef5-88f6-7b79e7a49d31",
+        "deploymentId": "0786fca6-ed7c-405b-a819-6aaae424c215"
+      }
+    }
+  ]
+}
