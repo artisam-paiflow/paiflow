@@ -14,33 +14,52 @@ same build reading the same database, with the alpha round running on the latter
 (`beta.paiflow.xyz` is the static marketing site and has no app on it.) The layout is recorded once,
 in the [alpha tracking plan](../analytics/alpha-tracking-plan.md), and not restated here.
 
-Figures are reported on **two bases**, because they answer different questions:
+Figures are reported on **three bases**, because they answer different questions and because the
+16 September cutover left the record in two databases:
 
-- **All public activity** — every confirmed deployment the application recorded, whoever produced
-  it. This is the basis the SOW targets were written against, and the one the earlier snapshots
-  used.
+- **All public activity, archive** — everything paiflow.xyz recorded up to the cutover, in the
+  Postgres now kept as `postgres-staging-archive`. This is the basis the SOW targets were written
+  against and the one every snapshot before 18 September used. It is frozen; it will not grow.
+- **All public activity, live** — everything the application has recorded in the database it uses
+  now, which the beta opened on 15 September and both hostnames have shared since the 16th. This is
+  where activity continues to land.
 - **Alpha testers** — the people in the official alpha round, from **16 September 2026**, counted
-  individually. A narrower number, and a more meaningful one: identified humans working through a
-  structured session, rather than anonymous visitors trying the sandbox once. The round targets
-  **five** testers; **three** accounts have been issued and **one** has run a session so far, so
-  every figure in that column is one tester's work and will grow as the round proceeds.
+  individually from PostHog. A narrower number, and a more meaningful one: identified humans
+  working through a structured session, rather than anonymous visitors trying the sandbox once.
 
-Neither basis is a correction of the other. The first measures reach, the second measures depth.
+**The two all-activity columns are not added together.** They hold different rows from different
+databases, and while no row appears in both, a single wallet address can, so summing them would
+overstate the wallet counts and invite doubt about the rest. Each clears every target on its own,
+which is the honest thing to show. Neither is a correction of the other: the first two measure
+reach, the third measures depth.
 
 ## Results
 
-| Metric                                   | Target | All public activity | Alpha testers (2 active / 3 issued / 5 planned) |
-| ---------------------------------------- | ------ | ------------------- | ----------------------------------------------- |
-| Unique flows deployed                    | ≥ 5    | 26 ✓                | 22 ✓                                            |
-| Contract executions / events published   | ≥ 60   | 61 ✓                | — (needs a database run)                        |
-| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 5 ✓                                             |
-| Distinct wallets deploying               | ≥ 6    | 7 ✓                 | 5                                               |
-| Contract WASM uploaded                   | ≥ 1    | 1 ✓                 | 1 ✓ (the same binary)                           |
-| Public testnet URL live and accessible   | Yes    | Yes ✓               | Yes ✓                                           |
-| Demo video published                     | Yes    | No                  | Week 4                                          |
+| Metric                                   | Target | Archive (to 16 Sep) | Live (since 15 Sep) | Alpha testers (2 active / 3 issued / 5 planned) |
+| ---------------------------------------- | ------ | ------------------- | ------------------- | ----------------------------------------------- |
+| Unique flows deployed                    | ≥ 5    | 26 ✓                | 36 ✓                | 22 ✓                                            |
+| Contract executions / events published   | ≥ 60   | 61 ✓                | 79 ✓                | — (not cohort-filterable)                       |
+| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 11 ✓                | 5 ✓                                             |
+| Distinct wallets deploying               | ≥ 6    | 7 ✓                 | 7 ✓                 | 5                                               |
+| Contract WASM uploaded                   | ≥ 1    | 1 ✓                 | 1 ✓                 | 1 ✓ (the same binary)                           |
+| Public testnet URL live and accessible   | Yes    | Yes ✓               | Yes ✓               | Yes ✓                                           |
+| Demo video published                     | Yes    | No                  | No                  | Week 4                                          |
 
-Every metric except the week-4 demo video is met on the all-activity basis. Executions cleared the
-target on 12 September; the 11 September snapshot had them at 43.
+Every metric except the week-4 demo video is met on **both** all-activity bases, independently.
+On the archive, executions cleared the target on 12 September; the 11 September snapshot had them
+at 43. On the live database every target was already clear when it was first read on 18 September
+([`evidence/metrics-live-2026-09-18.json`](evidence/metrics-live-2026-09-18.json)).
+
+The live column's swapper flows read lower than the archive's — 11 against 16 — and that is not a
+regression. The archive's 16 include 13 run by anonymous sandbox visitors; all 11 on the live
+database belong to registered accounts, across 17 swap transactions and 5 distinct signers,
+including both of D2's API-executed swaps
+([`evidence/swapper-flows-live-2026-09-18.json`](evidence/swapper-flows-live-2026-09-18.json)).
+
+**Contract executions cannot be given per cohort.** PostHog has no counterpart to a `ContractEvent`
+row, and `scripts/instawards-metrics.ts` counts rows without filtering by user, so the 79 above is
+every execution on the live database — 22 users and 14 sandbox sessions — not the testers' share of
+it. The alpha cell stays blank rather than borrowing a number that means something else.
 
 **The alpha-tester column is two testers' work**, and should be read that way. The three counts in
 its heading are different things: the round **plans** five testers, three have been **issued** an
@@ -64,7 +83,7 @@ a separate account, and one wallet appears under both, so their three signing ad
 human rather than three people. This is recorded for the same reason the all-activity column names
 `admin` and `judge` below: a figure produced by the project should say so.
 
-### What the all-activity column contains
+### What the two all-activity columns contain
 
 It is almost entirely disposable sandbox sessions and the project's own two accounts. The
 12 September snapshot reports 19 users of whom 17 are `SANDBOX` rows, leaving `admin` and `judge`
@@ -74,12 +93,19 @@ same shape: of its 16 executed flows, 13 were run by sandbox visitors, 2 by `jud
 
 That is a real demonstration of a public, working application — anyone could open it and deploy a
 flow without an account, and 17 people did. It is not a demonstration that identified users came
-back and used it. The alpha-tester column is there to answer the second question, which is why the
-basis is being reported alongside rather than instead.
+back and used it.
 
-_Last updated: 18 September. All-activity figures are the 12 September snapshot
+**The live column has the opposite shape**, which is the more interesting result. It reports 22
+users against 14 sandbox sessions, so eight registered accounts rather than two, and every one of
+its 11 executed swapper flows belongs to a registered account rather than an anonymous visitor.
+Those accounts are the alpha testers and the project's own; the round is young enough that the
+distinction between "identified users" and "people we know" has not yet opened up, and the
+alpha-tester column is where that is tracked honestly.
+
+_Last updated: 18 September. Archive figures are the 12 September snapshot
 ([`evidence/metrics-2026-09-12.json`](evidence/metrics-2026-09-12.json)); earlier snapshot:
-[11 September](evidence/metrics-2026-09-11.json). Alpha-tester figures are the 18 September cohort snapshot
+[11 September](evidence/metrics-2026-09-11.json). Live figures are the 18 September snapshot
+([`evidence/metrics-live-2026-09-18.json`](evidence/metrics-live-2026-09-18.json)). Alpha-tester figures are the 18 September cohort snapshot
 ([`evidence/alpha-metrics-2026-09-18.json`](evidence/alpha-metrics-2026-09-18.json)); earlier
 snapshot: [17 September](evidence/alpha-metrics-2026-09-17.json)._
 
