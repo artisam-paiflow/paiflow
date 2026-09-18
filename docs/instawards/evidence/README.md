@@ -56,6 +56,7 @@ extends it again.
 | 15 Sep | Executed through the developer API (`/api/v1`, partner-signed): 10 XLM swapped to 1.0547687 USDC through the Soroswap router and paid on | D2          | [`5b1e738f…`](https://stellar.expert/explorer/testnet/tx/5b1e738fab8b00279e19792d61e8a80eead9b53a4fab021a41ad2088265cb4be)                                                                                                                               |
 | 17 Sep | Internal testing of the developer API: two more swapper flows executed through `/api/v1`                                                 | D2          | [`8d8e1d6b…`](https://stellar.expert/explorer/testnet/tx/8d8e1d6b96c615b4ed6f6e8ce40218e07b8b0a38b5694b0fbf31675c7995e2f6)<br>[`cbe539ff…`](https://stellar.expert/explorer/testnet/tx/cbe539ffdfa204ec6b1463bfd1741f9cb2be1caa10e196096e52726faf97a577) |
 | 18 Sep | The D2 evidence run, executed through the developer API (`/api/v1`, partner-signed): 10 XLM swapped to 1.0584167 USDC and paid on        | D2          | [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7)                                                                                                                               |
+| 18 Sep | The same API driven from the Postman collection rather than curl: 1 XLM swapped to 0.1055731 USDC and paid on                            | D2          | [`27f68188…`](https://stellar.expert/explorer/testnet/tx/27f681889bfebdab92a4d9e6d70770ea5df72bd597c627bc5c0014d0d86bfbfb)                                                                                                                               |
 
 The two 9 September swaps are the same deployed flow triggered twice. [`d1/11-happy-path.json`](d1/11-happy-path.json)
 records the deployment, the three contracts the factory produced and the amounts in and out;
@@ -65,6 +66,11 @@ survives a testnet reset. [`d1/13-recording-run.json`](d1/13-recording-run.json)
 The 15 September API swap reuses the first 9 September flow, so it adds a swap transaction but not a new
 flow. The 18 September run is D2's evidence swap, on a flow deployed for it; its prepare, submit,
 `getTransaction`, events and audit records and the curl transcript are in [`d2/`](d2/README.md).
+The second 18 September row is the Postman collection being exercised against the public app: it
+runs the same four calls, so importing the collection and driving it produced a real swap rather
+than only a passing request. Both 18 September swaps are on the same deployed flow, so they add
+swap transactions but not new flows.
+
 The 17 September pair are internal testing rather than evidence — the same API path, on two other
 deployments — and are listed here so the record of what ran on the public app is complete. They are
 not alpha-round activity and are counted on neither reporting basis.

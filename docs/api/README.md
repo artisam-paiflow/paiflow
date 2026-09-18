@@ -116,6 +116,12 @@ missing trustline, no liquidity), you get a `422` explaining why, and nothing is
 Sign and submit before `expiresAt`, which is about three minutes after preparing; after that the
 network refuses the envelope and you prepare again.
 
+{% hint style="warning" %}
+`expiresAt` is about three minutes out, so stage the signing step before you call prepare: have the
+`stellar tx sign` command ready to paste into, or hold the key in an SDK script. If the envelope
+expires, call prepare again — nothing is spent and the old envelope simply stops being accepted.
+{% endhint %}
+
 ### 2. Sign
 
 With the [Stellar CLI](https://developers.stellar.org/docs/tools/cli):
