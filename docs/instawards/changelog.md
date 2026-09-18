@@ -5,6 +5,35 @@ reproduced in that week's report. Commit links open on the public repository.
 
 Generated with `pnpm instawards:changelog` — see [week 1](week-1.md) for the exact invocation.
 
+## Week 2 — 14–20 September 2026
+
+D2: a developer API for the swapper — deployment-scoped tokens, an execute endpoint and cursor-based
+event polling. The beta also moved onto the staging service and the alpha round opened. Reported in
+full in [week 2](week-2.md).
+
+Covers 14–16 September, the extent of the public mirror when this was generated on 17 September; it
+is regenerated when the week closes.
+
+| Date       | Change                                                                            | Issues | Commit                                                                                                  |
+| ---------- | --------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| 2026-09-16 | feat(analytics): stop recording sessions, and say so                              | #502   | [`90658e5`](https://github.com/artisam-paiflow/paiflow/commit/90658e58056ab5adcda80eefb99cf91e78354bc6) |
+| 2026-09-16 | docs(instawards): point the metrics command at the archive, not the live database | #500   | [`e604942`](https://github.com/artisam-paiflow/paiflow/commit/e604942786fbb9067f7bb97cb6a534ae341fe5c3) |
+| 2026-09-16 | docs: stop publishing admin credentials in the README                             | #499   | [`c9456bf`](https://github.com/artisam-paiflow/paiflow/commit/c9456bffcb5449d169f0723dafd59a2ad1e41ab6) |
+| 2026-09-16 | fix(scripts): finish the shell DATABASE_URL fix for upload and deploy-factory     | #497   | [`cf8aeae`](https://github.com/artisam-paiflow/paiflow/commit/cf8aeae9a21ea05c31363f2da377210814c8df71) |
+| 2026-09-16 | docs(analytics): describe the beta as it is after moving to staging               | #496   | [`4e01b6f`](https://github.com/artisam-paiflow/paiflow/commit/4e01b6fae328258210393576c7ff7bdaee09bcc6) |
+| 2026-09-16 | fix(homepage): point the marketing-page redirects at the host that serves them    | #495   | [`2ca9fe9`](https://github.com/artisam-paiflow/paiflow/commit/2ca9fe917a32f6776f0643f2e68b9ca7925c6bee) |
+| 2026-09-16 | fix(scripts): let a shell DATABASE_URL reach the hash-sync scripts                | #494   | [`b4af5c1`](https://github.com/artisam-paiflow/paiflow/commit/b4af5c1d4a19a7a94d2e4c821da82b0457552fbd) |
+| 2026-09-16 | fix(railway): move service config to .railway/railway.ts; drop root railway.toml  | —      | [`3a44e9c`](https://github.com/artisam-paiflow/paiflow/commit/3a44e9c503bd719c0037c47b958c8f2b5eb17514) |
+| 2026-09-15 | fix(analytics): forward Origin through /ingest, count poll-delivered feed rows    | #489   | [`6bb793b`](https://github.com/artisam-paiflow/paiflow/commit/6bb793bf18852f3110354120971c7a85a705268b) |
+| 2026-09-15 | feat(analytics): PostHog tracking for the alpha round on beta.paiflow.xyz         | #488   | [`8434358`](https://github.com/artisam-paiflow/paiflow/commit/84343589514033a046d6e8699c573a79445b1040) |
+| 2026-09-15 | fix(events): follow the RPC cursor so a quiet deployment's poller reaches the tip | #483   | [`6f4bf80`](https://github.com/artisam-paiflow/paiflow/commit/6f4bf806ac747eb916c5a51f0923efff8cf98690) |
+| 2026-09-15 | docs: add the alpha testing guide, pointed at beta.paiflow.xyz                    | #485   | [`d8f6c0a`](https://github.com/artisam-paiflow/paiflow/commit/d8f6c0ad5bc5a0155cabe5f45494235a0eb2086b) |
+| 2026-09-15 | docs(api): OpenAPI spec, Postman collection and developer guide for /api/v1       | #470   | [`01368ba`](https://github.com/artisam-paiflow/paiflow/commit/01368ba0f055a399a1dc691d3f480e6da5b6d3fd) |
+| 2026-09-15 | feat(api): execute a swapper flow through /api/v1 (prepare + submit)              | #468   | [`27b6ed9`](https://github.com/artisam-paiflow/paiflow/commit/27b6ed9cccb741ca3780217f51f4a1a0037306df) |
+| 2026-09-15 | feat(homepage): move the marketing pages into a static homepage/ site             | #479   | [`2d317ce`](https://github.com/artisam-paiflow/paiflow/commit/2d317ce3b57bbcb26e2fa096484b9730d0908ff1) |
+| 2026-09-15 | feat(api): cursor-based event polling at GET /api/v1/deployments/{id}/events      | #469   | [`7f1f6fb`](https://github.com/artisam-paiflow/paiflow/commit/7f1f6fb947a1de595af384263b481fb20365a726) |
+| 2026-09-14 | feat(api): let a deployment owner mint, list and revoke API tokens                | #467   | [`c3cc445`](https://github.com/artisam-paiflow/paiflow/commit/c3cc4454bc18d16c9e0713fc77c51f5516bd92be) |
+
 ## Week 1 — 7–13 September 2026
 
 D1: the swapper executes a real swap through the Soroswap testnet router. Reported in full in
