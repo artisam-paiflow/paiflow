@@ -153,6 +153,10 @@ In the production service's **Variables**:
   fallback: `soroswapRouterAddress()` reads the environment alone, so deploying
   a swap flow without it fails with a plain-English error.
 - Leave `STELLAR_FRIENDBOT_URL` **unset** (Friendbot does not run on mainnet).
+- `SANDBOX_ENABLED=false` and `DEMO_API_ENABLED=false`. Both are public,
+  no-account surfaces and `env()` refuses to boot with either true under
+  `STELLAR_NETWORK=mainnet` — set them explicitly here rather than meeting that
+  guard as a failed deploy.
 
 The `STELLAR_WASM_HASH_*_MAINNET` and `STELLAR_FACTORY_ADDRESS_MAINNET`
 variables are **not** required here — step 4 put them in the database, which is

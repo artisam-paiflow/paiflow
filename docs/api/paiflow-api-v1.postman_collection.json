@@ -54,6 +54,66 @@
   ],
   "item": [
     {
+      "name": "Get demo token",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/demo-token",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "demo-token"]
+        },
+        "description": "Public; no token and no account. Returns a bearer token for one shared swapper deployment on testnet, so you can run the calls above before registering. Takes no body. Available only where the public demo is enabled (the testnet instance); 403 otherwise.\n\n**This deployment is shared.** Anyone else holding a demo token can read the events your deposit produces, including the account you deposited from. The swap proceeds are paid to a Paiflow-owned testnet account, not back to you, so the testnet XLM you deposit is spent. Fund a throwaway account with friendbot and never point this at an account you care about.\n\nFor an isolated deployment and a token that does not expire in an hour, register, deploy your own flow and mint a token in the **API access** panel.\n\nRate limit: 3 requests per 3600 seconds per client IP. Rate limit: 60 requests per 3600 seconds instance-wide."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('issues a demo token', () => {",
+              "  pm.response.to.have.status(201);",
+              "  const data = pm.response.json().data;",
+              "  pm.expect(data.token).to.match(/^pfk_[0-9a-f]{64}$/);",
+              "  pm.collectionVariables.set('apiToken', data.token);",
+              "  pm.collectionVariables.set('deploymentId', data.deploymentId);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "201 Created",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/demo-token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "demo-token"]
+            }
+          },
+          "status": "Created",
+          "code": 201,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"token\": \"pfk_4f1c9d2a7b8e3056c14fa9d7be205183cc47e6f90a2b5d38e71c406fa9b8d2e5\",\n    \"expiresAt\": \"2026-09-18T15:04:05.000Z\"\n  }\n}"
+        }
+      ]
+    },
+    {
       "name": "OpenAPI document",
       "request": {
         "method": "GET",

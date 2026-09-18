@@ -138,3 +138,20 @@ export const ListEventsResponseSchema = z.object({
   hasMore: z.boolean(),
 });
 export type ListEventsResponse = z.infer<typeof ListEventsResponseSchema>;
+
+/** The public demo response: like `CreatedApiTokenSchema`, the one time a plaintext token
+ * leaves the server — but issued to an anonymous caller, so it names its own deployment. */
+export const DemoTokenSchema = z
+  .object({
+    deploymentId: z
+      .string()
+      .uuid()
+      .describe("The shared demo deployment this token reaches, and the only one it reaches."),
+    token: z
+      .string()
+      .regex(/^pfk_[0-9a-f]{64}$/)
+      .describe("Bearer token for the routes above. Shown once and never retrievable again."),
+    expiresAt: z.string().describe("ISO time the token stops working. Ask again for a new one."),
+  })
+  .describe("A short-lived token for the shared demo deployment on testnet.");
+export type DemoToken = z.infer<typeof DemoTokenSchema>;

@@ -11,6 +11,34 @@ import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
 
 export const MAX_ACTIVE_API_TOKENS = 10;
 
+/** The label every token minted by `POST /api/v1/demo-token` carries. */
+export const DEMO_TOKEN_LABEL = "public demo";
+
+/**
+ * Cap on live demo tokens for the demo deployment, deliberately separate from
+ * `MAX_ACTIVE_API_TOKENS`, which bounds an *owner's* own credentials on their
+ * own deployment. Ten would lock out the eleventh reviewer, so the demo route
+ * evicts oldest-first instead of refusing. Derived from the instance-wide
+ * hourly limit so the two cannot drift: with a 60-minute life, that limiter
+ * already bounds live demo tokens at this number, and the cap is the belt.
+ */
+export const DEMO_MAX_ACTIVE_TOKENS = V1_RATE_LIMITS.demoTokenGlobal.limit;
+
+/**
+ * What counts as a live demo token, and so what the demo route may evict.
+ * Both discriminators are required: a token an operator minted by hand on the
+ * demo deployment always has a non-null `createdById`, and must never be
+ * revocable by a stranger's request.
+ */
+export function demoTokenFilter(now: Date) {
+  return {
+    label: DEMO_TOKEN_LABEL,
+    createdById: null,
+    revokedAt: null,
+    expiresAt: { gt: now },
+  };
+}
+
 /** Every field of a `DeploymentApiToken` a route may return: all but the hash. */
 export const API_TOKEN_SELECT = {
   id: true,
