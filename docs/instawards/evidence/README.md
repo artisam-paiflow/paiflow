@@ -104,6 +104,14 @@ router, from the application's own event records (snapshot of 12 September, deta
 Every one of these transactions carries the `SoroswapRouter / swap` event from
 `CCJUD55A…7BRD`; the checks in the next section apply to each.
 
+This table is the archive database, which stopped changing at the 16 September cutover. Flows
+executed since then are on the live database and are listed in
+[`swapper-flows-live-2026-09-18.json`](swapper-flows-live-2026-09-18.json): 11 flows and 17 swap
+transactions, among them D2's evidence deployment `ad0843d9` (swapper `CD767KMX…YK46`) with both
+18 September API swaps, [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7)
+and [`27f68188…`](https://stellar.expert/explorer/testnet/tx/27f681889bfebdab92a4d9e6d70770ea5df72bd597c627bc5c0014d0d86bfbfb).
+The two lists are never added together; [metrics](../metrics.md#counting-rules) explains why.
+
 ## How to verify the router
 
 The Statement of Work asks for a swap executed through **the Soroswap router**. Two things have to
@@ -160,6 +168,9 @@ All captured from [paiflow.xyz](https://paiflow.xyz) itself, not a development e
 | Swapper config panel as it was **before** D1 (9 Sep)   | D3          | [`d3/02-swap-panel-before.png`](d3/02-swap-panel-before.png)                                                        |
 | Builder with the pre-D1 swap node selected (9 Sep)     | D3          | [`d3/01-builder-before.png`](d3/01-builder-before.png)                                                              |
 | Palette before the Swap block was unhidden (9 Sep)     | D3          | [`d3/00-palette-before.png`](d3/00-palette-before.png)                                                              |
+| API access panel, the minted token by its prefix only  | D2          | [`d2/api-access-panel.png`](d2/api-access-panel.png)                                                                |
+| stellar.expert invocation tree for the API swap        | D2          | [`d2/07-stellar-expert-swap.png`](d2/07-stellar-expert-swap.png)                                                    |
+| Postman collection run against paiflow.xyz             | D2          | [`d2/09-postman-run.png`](d2/09-postman-run.png)                                                                    |
 
 The recording is the journey the SOW asks for, made on paiflow.xyz through the no-account
 sandbox: build `Receive XLM → Swap → Pay USDC` in the builder, deploy it with a browser wallet,
@@ -232,6 +243,13 @@ Request and response pairs recorded against the public app.
 | `slippageBps` outside 0–10000 rejected at the API boundary | D1          | [`d1/05-error-slippage-range.json`](d1/05-error-slippage-range.json) |
 | `deadlineSecs` below 1 rejected at the API boundary        | D1          | [`d1/06-error-deadline.json`](d1/06-error-deadline.json)             |
 | Live Soroswap quote endpoint response                      | D1          | [`d1/10-quote-endpoint.json`](d1/10-quote-endpoint.json)             |
+| curl transcript: prepare → local sign → submit → events    | D2          | [`d2/01-curl-transcript.md`](d2/01-curl-transcript.md)               |
+| Prepare response: the unsigned envelope                    | D2          | [`d2/02-prepare-response.json`](d2/02-prepare-response.json)         |
+| Submit response: `SUCCESS` and the swap hash               | D2          | [`d2/03-submit-response.json`](d2/03-submit-response.json)           |
+| Raw RPC `getTransaction` for the API swap                  | D2          | [`d2/04-getTransaction.json`](d2/04-getTransaction.json)             |
+| Events response, then the feed paged with the cursor       | D2          | [`d2/05-events-response.json`](d2/05-events-response.json)           |
+| Audit rows: prepared, submitted, confirmed (redacted)      | D2          | [`d2/06-audit-rows.json`](d2/06-audit-rows.json)                     |
+| The OpenAPI document, a copy of the committed one          | D2          | [`d2/08-openapi.json`](d2/08-openapi.json)                           |
 
 The quote sample is a real answer from the public app: 10 XLM quotes at `10564278` stroops of
 USDC with a `10490132` minimum at 1 % slippage, through pair `CCBX3NZT…7RQS` on router

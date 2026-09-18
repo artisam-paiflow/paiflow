@@ -355,9 +355,9 @@ Each request has saved example responses.
 ## Sample payloads
 
 {% hint style="info" %}
-The `xdr`, `txHash` and event values above are illustrative and shortened. The complete record of a
-real run, with the unsigned and signed envelopes, the responses and the transaction on
-stellar.expert, is in the D2 evidence pack at
+The `xdr`, `txHash` and event values above are from the 18 September evidence run, with the `xdr`
+shortened. The complete record of that run, with the unsigned and signed envelopes, the responses
+and the transaction on stellar.expert, is in the D2 evidence pack at
 [`docs/instawards/evidence/d2/`](../instawards/evidence/d2/README.md).
 {% endhint %}
 

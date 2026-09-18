@@ -1,7 +1,7 @@
 {
   "source": "GET https://paiflow.xyz/api/admin/audit-log?action=<action>&limit=20, admin session, exported 18 September 2026",
   "redacted": ["ip", "userAgent", "userId", "user.username"],
-  "note": "The three rows the evidence run wrote, one per step of the API swap b14e8306…. The rows are written to the deployment owner's audit log; tokenId identifies the deployment API token (an id, not the token). Since #537 the submitted and confirmed rows also carry signerAddress, the wallet that signed the envelope — the 15 September run predates that field. Rows for other deployments returned by the same queries are internal testing and are not part of this run; the two swaps they record are listed in the evidence index.",
+  "note": "The three rows the evidence run wrote, one per step of the API swap b14e8306…. The rows are written to the deployment owner's audit log; tokenId identifies the deployment API token (an id, not the token). The submitted and confirmed rows carry signerAddress, the wallet that signed the envelope; the field was added in #537, after the earlier 15 September API swap, whose rows do not have it. Rows for other deployments returned by the same queries are internal testing and are not part of this run; the two swaps they record are listed in the evidence index.",
   "items": [
     {
       "id": "bbe3b3c5-d0be-4b8e-89f7-5c5e54134377",
