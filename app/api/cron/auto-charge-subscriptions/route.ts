@@ -16,7 +16,7 @@ import {
   readTokenAllowance,
 } from "@/lib/stellar/relayer";
 import { prepareSubscriptionChargeByRelayerUnsigned } from "@/lib/stellar/invoke";
-import { withRelayerLock } from "@/lib/stellar/client";
+import { TENANT_RELAYER_TIMEOUT_MS, withRelayerLock } from "@/lib/stellar/client";
 import { stellarPassphrase, stellarRelayerAddress } from "@/lib/env";
 import { ChargeRelayerMode } from "@prisma/client";
 import { requireCronSecret } from "@/lib/auth/cron-secret";
@@ -264,6 +264,9 @@ export async function POST(req: NextRequest) {
                 networkPassphrase: stellarPassphrase(),
                 unsignedXdr,
               }),
+              // Tenant-supplied endpoint: one that black-holes the connection
+              // must not stall the charge loop for every other customer.
+              signal: AbortSignal.timeout(TENANT_RELAYER_TIMEOUT_MS),
             });
 
             if (!response.ok) {
