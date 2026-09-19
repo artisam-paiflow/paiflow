@@ -19,8 +19,11 @@ export const DEMO_TOKEN_LABEL = "public demo";
  * `MAX_ACTIVE_API_TOKENS`, which bounds an *owner's* own credentials on their
  * own deployment. Ten would lock out the eleventh reviewer, so the demo route
  * evicts oldest-first instead of refusing. Derived from the instance-wide
- * hourly limit so the two cannot drift: with a 60-minute life, that limiter
- * already bounds live demo tokens at this number, and the cap is the belt.
+ * hourly limit so the two cannot drift. The limiter does not make this cap
+ * redundant: `rateLimit()` counts fixed windows, so up to twice the limit can be
+ * minted inside one 60-minute token life across a window boundary. This cap is
+ * what bounds live tokens, and it can evict one that has not expired — cheap to
+ * force while `clientIp()` is spoofable (#433).
  */
 export const DEMO_MAX_ACTIVE_TOKENS = V1_RATE_LIMITS.demoTokenGlobal.limit;
 
