@@ -38,6 +38,9 @@ export default function ContractCallButton({
 }: ContractCallButtonProps) {
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  // Same guard as trigger-button.tsx: wallet-kit 1.9.5 can fire onClosed after
+  // a wallet was picked (a backdrop click inside its 280ms close animation).
+  const signingStartedRef = useRef(false);
   const pollTxStatus = usePollTxStatus();
 
   const variantClass =
@@ -53,7 +56,9 @@ export default function ContractCallButton({
   const handleClick = useCallback(async () => {
     if (busy || disabled) return;
     abortRef.current?.abort();
-    abortRef.current = new AbortController();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    signingStartedRef.current = false;
     setBusy(true);
 
     try {
@@ -61,6 +66,7 @@ export default function ContractCallButton({
 
       await kit.openModal({
         onWalletSelected: async (wallet: { id: string; name: string }) => {
+          signingStartedRef.current = true;
           try {
             toast.info(`Selected wallet: ${wallet.name}`);
             kit.setWallet(wallet.id);
@@ -87,7 +93,7 @@ export default function ContractCallButton({
             const { txHash } = await submit(signed.signedTxXdr);
 
             toast.info("Transaction submitted. Waiting for confirmation...");
-            const outcome = await pollTxStatus(deploymentId, txHash, abortRef.current!.signal);
+            const outcome = await pollTxStatus(deploymentId, txHash, controller.signal);
             if (outcome.status === "SUCCESS") {
               toast.success("Transaction confirmed!");
               onSuccess?.();
@@ -101,6 +107,7 @@ export default function ContractCallButton({
           }
         },
         onClosed: () => {
+          if (signingStartedRef.current) return;
           toast.warning("Connection cancelled");
           abortRef.current?.abort();
           setBusy(false);
