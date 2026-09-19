@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { track } from "@/lib/analytics/client";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Ship,
@@ -288,6 +289,7 @@ export default function RaftLog({
   }
 
   async function startRecording() {
+    track("off_script_feature_used", { feature: "ask_ai_voice" });
     try {
       setLiveTranscript("");
       setAudioLevel(0);

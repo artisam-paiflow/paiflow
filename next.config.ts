@@ -17,9 +17,18 @@ const SECURITY_HEADERS = [
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
 ];
 
+const HOMEPAGE_URL = "https://beta.paiflow.xyz";
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // PostHog's ingestion paths end in a slash; a redirect would drop the POST body.
+  skipTrailingSlashRedirect: true,
+  env: {
+    // Tags analytics events with the deployed commit, so a before/after split
+    // (e.g. the D3 swap-panel rebuild) is a PostHog breakdown, not a date guess.
+    NEXT_PUBLIC_APP_VERSION: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? "dev",
+  },
   serverExternalPackages: [
     "@stellar/stellar-sdk",
     "@stellar/stellar-base",
@@ -30,6 +39,15 @@ const nextConfig: NextConfig = {
   ],
   experimental: {
     serverActions: { bodySizeLimit: "1mb" },
+  },
+  // The marketing pages live in homepage/ as a separate static service, so the
+  // app only contains the app. Old links keep working.
+  async redirects() {
+    return [
+      { source: "/about", destination: `${HOMEPAGE_URL}/about.html`, permanent: true },
+      { source: "/privacy", destination: `${HOMEPAGE_URL}/privacy.html`, permanent: true },
+      { source: "/terms", destination: `${HOMEPAGE_URL}/terms.html`, permanent: true },
+    ];
   },
   async headers() {
     return [

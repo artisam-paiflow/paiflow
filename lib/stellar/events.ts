@@ -9,10 +9,8 @@ import { log } from "@/lib/log";
 import { assetContractId } from "@/lib/stellar/assets";
 import { assetLabel, type FlowGraph } from "@/lib/flows/schema";
 import { stellarPassphrase } from "@/lib/env";
-import {
-  sendEmailNotificationsForEvent,
-  type PipelineNodeSnapshot,
-} from "@/lib/flows/notifications";
+import { sendEmailNotificationsForEvent } from "@/lib/flows/notifications";
+import { inboundAssetForContract, type PipelineNodeSnapshot } from "@/lib/flows/event-assets";
 import { createCashOutJob } from "@/lib/offramp/jobs";
 import { bankDetailsFromGraph, eventCreatesOffRampJob } from "@/lib/offramp/cash-out-bank";
 
@@ -880,6 +878,57 @@ function resolveAssetSymbols(
   return next;
 }
 
+/**
+ * Most inbound events carry no asset topic — deposit_trigger, webhook,
+ * subscription, payroll, streamer deposit and yield all keep the asset in
+ * instance storage and publish only the sender and the amount. Stamp the
+ * emitting node's inbound asset so the row is self-describing: the live feed and
+ * the partner API both read `decodedData` with no access to the graph.
+ */
+function stampInboundAsset(params: {
+  kind: EventKind;
+  decodedData: DecodedData;
+  graph: FlowGraph | null;
+  pipeline: PipelineNodeSnapshot[] | null;
+  contractAddress: string;
+}): DecodedData {
+  const { kind, decodedData } = params;
+  if (kind !== EventKind.RECEIVE || !decodedData) return decodedData;
+  if (decodedData.amount === undefined || decodedData.amount === null) return decodedData;
+  // Never override an asset a decoder read from a real topic.
+  if (decodedData.asset || decodedData.assetIn || decodedData.assetOut) return decodedData;
+
+  const asset = inboundAssetForContract(params);
+  return asset ? { ...decodedData, asset: assetLabel(asset) } : decodedData;
+}
+
+export const EVENTS_PAGE_LIMIT = 100;
+/** Bounds one poll's RPC calls per contract; a deployment far behind catches up over several polls. */
+export const MAX_EVENT_PAGES_PER_POLL = 5;
+
+/**
+ * The ledger a `getEvents` cursor points into. Its first part is a TOID, whose
+ * high 32 bits are the ledger sequence.
+ */
+function cursorLedger(cursor: string | undefined): number | null {
+  const toid = cursor?.split("-")[0];
+  if (!toid || !/^\d+$/.test(toid)) return null;
+  return Number(BigInt(toid) >> 32n);
+}
+
+type ScanResult = {
+  written: number;
+  /** Every event for the contract up to and including this ledger has been read. */
+  scannedThrough: number;
+  ok: boolean;
+};
+
+/**
+ * Pages forward through a contract's events from `startLedger`. An RPC scans a
+ * bounded ledger window per call (10,000 on SDF testnet) and answers a window
+ * with no events with an empty page and a cursor, so a single call from a stale
+ * start ledger never reaches the tip: the cursor has to be followed.
+ */
 async function pollEventsWithStartLedger(
   deploymentId: string,
   contractAddress: string,
@@ -889,27 +938,97 @@ async function pollEventsWithStartLedger(
   graph: FlowGraph | null,
   pipeline: PipelineNodeSnapshot[] | null,
   flowTemplateKind: TemplateKind,
-): Promise<{ written: number; maxLedger: number }> {
+): Promise<ScanResult> {
   const server = sorobanRpc();
+  const filters = [{ type: "contract" as const, contractIds: [contractAddress] }];
+  const failed: ScanResult = { written: 0, scannedThrough: startLedger - 1, ok: false };
+
   let resp: rpc.Api.GetEventsResponse;
   try {
-    resp = await server.getEvents({
-      startLedger,
-      filters: [{ type: "contract" as const, contractIds: [contractAddress] }],
-      limit: 100,
-    });
+    resp = await server.getEvents({ startLedger, filters, limit: EVENTS_PAGE_LIMIT });
   } catch (err) {
-    log.warn({ err, deploymentId, startLedger }, "getEvents failed");
-    return { written: 0, maxLedger: 0 };
+    // The RPC refuses a start ledger outside the range it holds, on either side.
+    const health = await server.getHealth().then(
+      (h) => h,
+      () => null,
+    );
+    // Ahead of the tip: a scan already caught up and no ledger has closed since.
+    if (health && startLedger > health.latestLedger) {
+      return { written: 0, scannedThrough: startLedger - 1, ok: true };
+    }
+    // Behind retention: those ledgers are gone for good; resume from the oldest one held.
+    const oldestLedger = health?.oldestLedger ?? null;
+    if (oldestLedger === null || startLedger >= oldestLedger) {
+      log.warn({ err, deploymentId, contractAddress, startLedger }, "getEvents failed");
+      return failed;
+    }
+    log.warn(
+      { err, deploymentId, contractAddress, startLedger, oldestLedger },
+      "getEvents start ledger is past RPC retention; events before oldestLedger are unrecoverable",
+    );
+    try {
+      resp = await server.getEvents({
+        startLedger: oldestLedger,
+        filters,
+        limit: EVENTS_PAGE_LIMIT,
+      });
+    } catch (retryErr) {
+      log.warn(
+        { err: retryErr, deploymentId, contractAddress, oldestLedger },
+        "getEvents failed from the oldest retained ledger",
+      );
+      return failed;
+    }
   }
 
   let written = 0;
-  // startLedger - 1 is the correct empty-set sentinel: if no events are found,
-  // maxLedger stays below startLedger and the caller's > (startLedger - 1) guard
-  // prevents writing a stale cursor. This is load-bearing but safe because
-  // Soroban ledgers start well above 0 and the caller validates maxLedger > 0.
-  let maxLedger = startLedger - 1;
-  for (const ev of resp.events ?? []) {
+  for (let page = 1; ; page++) {
+    const events = resp.events ?? [];
+    written += await ingestEventPage(
+      deploymentId,
+      contractAddress,
+      templateKind,
+      events,
+      symbolMap,
+      graph,
+      pipeline,
+      flowTemplateKind,
+    );
+
+    const full = events.length >= EVENTS_PAGE_LIMIT;
+    const at = cursorLedger(resp.cursor);
+    if (!full && (at === null || at >= resp.latestLedger)) {
+      return { written, scannedThrough: resp.latestLedger, ok: true };
+    }
+    // A full page may stop mid-ledger, so only the ledger before it is complete.
+    // Re-reading that ledger next poll is harmless: eventId is unique.
+    const scannedThrough = full ? (at ?? events[events.length - 1]!.ledger) - 1 : at!;
+    if (page >= MAX_EVENT_PAGES_PER_POLL || !resp.cursor) {
+      return { written, scannedThrough, ok: true };
+    }
+    try {
+      resp = await server.getEvents({ cursor: resp.cursor, filters, limit: EVENTS_PAGE_LIMIT });
+    } catch (err) {
+      log.warn({ err, deploymentId, contractAddress, scannedThrough }, "getEvents page failed");
+      // The pages already read are complete; keeping that progress lets a far-behind
+      // deployment still catch up (before retention drops its ledgers) on a flaky RPC.
+      return { written, scannedThrough, ok: true };
+    }
+  }
+}
+
+async function ingestEventPage(
+  deploymentId: string,
+  contractAddress: string,
+  templateKind: TemplateKind,
+  events: rpc.Api.EventResponse[],
+  symbolMap: Map<string, string>,
+  graph: FlowGraph | null,
+  pipeline: PipelineNodeSnapshot[] | null,
+  flowTemplateKind: TemplateKind,
+): Promise<number> {
+  let written = 0;
+  for (const ev of events) {
     const topics: EventTopics = (ev.topic ?? []).map((t) => {
       try {
         return scValToNative(t);
@@ -925,7 +1044,15 @@ async function pollEventsWithStartLedger(
       }
     })();
     const { kind, decodedData } = decodeEventByKind(topics, value, templateKind);
-    const resolvedData = resolveAssetSymbols(decodedData, symbolMap);
+    // One value feeds both the DB write and the Redis publish below, so a live
+    // row and the same row after a reload can never disagree on the asset.
+    const resolvedData = stampInboundAsset({
+      kind,
+      decodedData: resolveAssetSymbols(decodedData, symbolMap),
+      graph,
+      pipeline,
+      contractAddress,
+    });
     const safePayload = convertBigInts({ topics, value }) as object;
     const safeDecodedData = convertBigInts(resolvedData) as Prisma.InputJsonValue | null;
 
@@ -1067,9 +1194,8 @@ async function pollEventsWithStartLedger(
       const code = (err as { code?: string })?.code;
       if (code !== "P2002") log.warn({ err, deploymentId }, "event upsert failed");
     }
-    if (ev.ledger > maxLedger) maxLedger = ev.ledger;
   }
-  return { written, maxLedger };
+  return written;
 }
 
 type PipelineNode = {
@@ -1142,14 +1268,23 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
   const contracts: PipelineNode[] = [];
   const seen = new Set<string>();
 
+  const pipeline = deployment.pipelineSnapshot as PipelineNode[] | null;
+  const rootNode = Array.isArray(pipeline)
+    ? pipeline.find((n) => n?.contractAddress === deployment.contractAddress)
+    : undefined;
+
+  // The snapshot holds the root contract's own kind. `flowTemplateKind` names
+  // the pipeline as a whole (a swap flow is SWAPPER), and that registry has no
+  // `deposit` topic, so decoding the trigger with it drops the event through to
+  // genericDecode — losing `from` and the asset. Fall back to the flow kind only
+  // for deployments that have no snapshot to read.
   contracts.push({
-    nodeId: "trigger",
+    nodeId: rootNode?.nodeId ?? "trigger",
     contractAddress: deployment.contractAddress,
-    templateKind: flowTemplateKind,
+    templateKind: rootNode?.templateKind ?? flowTemplateKind,
   });
   seen.add(deployment.contractAddress);
 
-  const pipeline = deployment.pipelineSnapshot as PipelineNode[] | null;
   if (Array.isArray(pipeline)) {
     for (const node of pipeline) {
       if (node?.contractAddress && node?.templateKind && !seen.has(node.contractAddress)) {
@@ -1185,7 +1320,9 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
   }
 
   let totalWritten = 0;
-  let maxLedger = emptySetSentinel;
+  // The cursor is shared by every contract, so it may only move as far as the
+  // least-advanced one; a failed scan holds it where it is.
+  let scannedThrough = Number.POSITIVE_INFINITY;
 
   for (const node of contracts) {
     const result = await pollEventsWithStartLedger(
@@ -1199,14 +1336,14 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
       flowTemplateKind,
     );
     totalWritten += result.written;
-    if (result.maxLedger > maxLedger) maxLedger = result.maxLedger;
+    scannedThrough = Math.min(scannedThrough, result.ok ? result.scannedThrough : emptySetSentinel);
   }
 
-  if (maxLedger > emptySetSentinel) {
+  if (scannedThrough > emptySetSentinel) {
     await db.eventCursor.upsert({
       where: { deploymentId },
-      update: { lastLedger: maxLedger },
-      create: { deploymentId, lastLedger: maxLedger },
+      update: { lastLedger: scannedThrough },
+      create: { deploymentId, lastLedger: scannedThrough },
     });
   }
 

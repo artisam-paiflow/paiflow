@@ -9,7 +9,7 @@
  * environment once per test file, not per case: cleanliness between the
  * describes below comes from their own `beforeEach` deletes.
  */
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const requiredEnv = {
   AUTH_SECRET: "test_auth_secret_at_least_32_chars_long",
@@ -85,6 +85,37 @@ describe("env — PDAX deposit address validation", () => {
   });
 });
 
+describe("env — analytics", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    delete process.env.OFFRAMP_PDAX_DEPOSIT_ADDRESS_TESTNET;
+    delete process.env.NEXT_PUBLIC_APP_ENV;
+    delete process.env.POSTHOG_HOST;
+  });
+
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_APP_ENV;
+    delete process.env.POSTHOG_HOST;
+  });
+
+  it("defaults an absent NEXT_PUBLIC_APP_ENV to local", async () => {
+    const mod = await loadEnv("testnet");
+    expect(mod.env().NEXT_PUBLIC_APP_ENV).toBe("local");
+  });
+
+  it("throws on a misspelled NEXT_PUBLIC_APP_ENV instead of tagging events local", async () => {
+    process.env.NEXT_PUBLIC_APP_ENV = "betaa";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow();
+  });
+
+  it("throws on a plaintext POSTHOG_HOST", async () => {
+    process.env.POSTHOG_HOST = "http://us.i.posthog.com";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/POSTHOG_HOST must use https/);
+  });
+});
+
 describe("env — splitter hard limits", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -155,5 +186,127 @@ describe("env — the sandbox is testnet-only", () => {
   it("leaves mainnet alone when the sandbox is off", async () => {
     const mod = await loadEnv("mainnet");
     expect(mod.env().SANDBOX_ENABLED).toBe(false);
+  });
+});
+
+describe("env — the public demo API is testnet-only and must be configured", () => {
+  const DEMO_ID = "0786fca6-ed7c-405b-a819-6aaae424c215";
+
+  beforeEach(() => {
+    vi.resetModules();
+    delete process.env.DEMO_API_ENABLED;
+    delete process.env.DEMO_API_DEPLOYMENT_ID;
+  });
+
+  it("refuses to boot with DEMO_API_ENABLED on mainnet", async () => {
+    // The demo endpoint issues a live API credential to an anonymous caller.
+    // On mainnet that token would reach a real-money deployment, so the
+    // combination fails closed exactly as the sandbox flag does.
+    process.env.DEMO_API_ENABLED = "true";
+    process.env.DEMO_API_DEPLOYMENT_ID = DEMO_ID;
+    const mod = await loadEnv("mainnet");
+    expect(() => mod.env()).toThrow(/DEMO_API_ENABLED/);
+    expect(() => mod.env()).toThrow(/mainnet/);
+  });
+
+  it("refuses to boot when enabled without a deployment id", async () => {
+    // Otherwise the misconfiguration only shows up as a 500 on the first
+    // caller's request, which reads as an outage rather than a missing setting.
+    process.env.DEMO_API_ENABLED = "true";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/DEMO_API_DEPLOYMENT_ID/);
+  });
+
+  it("refuses a deployment id that is not a uuid", async () => {
+    process.env.DEMO_API_ENABLED = "true";
+    process.env.DEMO_API_DEPLOYMENT_ID = "not-a-uuid";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/DEMO_API_DEPLOYMENT_ID/);
+  });
+
+  it("returns the id on testnet when enabled", async () => {
+    process.env.DEMO_API_ENABLED = "true";
+    process.env.DEMO_API_DEPLOYMENT_ID = DEMO_ID;
+    const mod = await loadEnv("testnet");
+    expect(mod.demoApiDeploymentId()).toBe(DEMO_ID);
+  });
+
+  it("returns null when the flag is off even though an id is set", async () => {
+    // The flag is the switch; a stale id left in the environment must not be
+    // enough to reopen the endpoint.
+    process.env.DEMO_API_DEPLOYMENT_ID = DEMO_ID;
+    const mod = await loadEnv("testnet");
+    expect(mod.demoApiDeploymentId()).toBeNull();
+  });
+
+  it("leaves mainnet alone when the demo is off", async () => {
+    const mod = await loadEnv("mainnet");
+    expect(mod.env().DEMO_API_ENABLED).toBe(false);
+    expect(mod.demoApiDeploymentId()).toBeNull();
+  });
+});
+
+describe("env — passkey origins", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    delete process.env.AUTH_ORIGINS;
+    delete process.env.AUTH_URL;
+  });
+
+  afterEach(() => {
+    delete process.env.AUTH_ORIGINS;
+    delete process.env.AUTH_URL;
+  });
+
+  it("parses a comma-separated list, trimming whitespace", async () => {
+    process.env.AUTH_ORIGINS = "https://paiflow.xyz, https://beta.app.paiflow.xyz";
+    const mod = await loadEnv("testnet");
+    expect(mod.env().AUTH_ORIGINS).toEqual(["https://paiflow.xyz", "https://beta.app.paiflow.xyz"]);
+  });
+
+  it("is empty when unset, so rp() can fall back to AUTH_URL", async () => {
+    const mod = await loadEnv("testnet");
+    expect(mod.env().AUTH_ORIGINS).toEqual([]);
+  });
+
+  it("rejects an entry that is not a URL", async () => {
+    // WebAuthn compares this against the browser's origin verbatim, so a bare
+    // hostname would silently never match rather than failing loudly here.
+    process.env.AUTH_ORIGINS = "https://paiflow.xyz,beta.app.paiflow.xyz";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/AUTH_ORIGINS/);
+  });
+
+  it("normalises a trailing slash, which is what copying an address bar gives you", async () => {
+    process.env.AUTH_ORIGINS = "https://paiflow.xyz/, https://beta.app.paiflow.xyz/";
+    const mod = await loadEnv("testnet");
+    expect(mod.env().AUTH_ORIGINS).toEqual(["https://paiflow.xyz", "https://beta.app.paiflow.xyz"]);
+  });
+
+  it("rejects an entry carrying a path", async () => {
+    // A browser's origin has no path, so this entry could never match one.
+    process.env.AUTH_ORIGINS = "https://paiflow.xyz/login";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/AUTH_ORIGINS/);
+  });
+
+  it("rejects an entry carrying credentials", async () => {
+    process.env.AUTH_ORIGINS = "https://user:pass@paiflow.xyz";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/AUTH_ORIGINS/);
+  });
+
+  it("rejects a non-blank value that lists no origins", async () => {
+    // Falling back to AUTH_URL here would quietly point passkeys at its host —
+    // http://localhost:3000 once AUTH_URL is removed from the service.
+    process.env.AUTH_ORIGINS = ", ,";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/AUTH_ORIGINS/);
+  });
+
+  it("treats a whitespace-only value as blank, keeping the fallback reachable", async () => {
+    process.env.AUTH_ORIGINS = "   ";
+    const mod = await loadEnv("testnet");
+    expect(mod.env().AUTH_ORIGINS).toEqual([]);
   });
 });

@@ -29,12 +29,6 @@ async function shot(page: Page, name: string, opts: { fullPage?: boolean } = {})
 test.describe("public", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("landing", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
-    await shot(page, "01-landing");
-  });
-
   test("login", async ({ page }) => {
     await page.goto("/login");
     await page.waitForLoadState("networkidle");

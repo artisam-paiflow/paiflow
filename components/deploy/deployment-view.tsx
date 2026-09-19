@@ -15,6 +15,11 @@ import { assetLabel, isTrigger } from "@/lib/flows/schema";
 import { formatStroops } from "@/lib/utils";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import { apiError } from "@/lib/friendly-error";
+import { track } from "@/lib/analytics/client";
+
+function evtKey(ev: Evt): string {
+  return ev.eventId ?? `${ev.txHash}:${ev.kind}:${ev.ledger}`;
+}
 
 export default function DeploymentView({
   deploymentId,
@@ -52,6 +57,31 @@ export default function DeploymentView({
     "live" | "reconnecting" | "disconnected"
   >("live");
   const esRef = useRef<EventSource | null>(null);
+  // Feed rows already on screen or already reported, so a row that arrives over SSE
+  // and again from the fallback poll is counted once. Server-rendered rows are
+  // history, not live delivery: they only seed the set.
+  const reportedEvents = useRef<Set<string> | null>(null);
+  if (reportedEvents.current === null) reportedEvents.current = new Set(initialEvents.map(evtKey));
+
+  function trackRendered(ev: Evt, source: "sse" | "poll") {
+    const seen = reportedEvents.current!;
+    const key = evtKey(ev);
+    if (seen.has(key)) return;
+    seen.add(key);
+    // Lag from ledger close to on-screen: the "live feed can lag" known issue.
+    const occurred = Date.parse(ev.occurredAt);
+    track("live_event_rendered", {
+      deployment_id: deploymentId,
+      event_kind: ev.kind,
+      is_swap: (ev.payload as { topics?: unknown[] } | null)?.topics?.[0] === "swap",
+      lag_ms: Number.isNaN(occurred) ? null : Date.now() - occurred,
+      source,
+    });
+  }
+
+  useEffect(() => {
+    track("deployment_page_viewed", { deployment_id: deploymentId, status });
+  }, [deploymentId, status]);
 
   const scheduleClearIsNew = (eventId: string | undefined, txHash: string, kind: string) => {
     setTimeout(() => dispatchEvents({ type: "clearIsNew", eventId, txHash, kind }), 250);
@@ -63,6 +93,7 @@ export default function DeploymentView({
     let es: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
+    let disconnects = 0;
 
     // The SSE route only relays rows written after it subscribes, so events the
     // cron stored between server render and this connect would never arrive.
@@ -75,6 +106,7 @@ export default function DeploymentView({
         .then((body: { events?: Evt[] } | null) => {
           if (cancelled || !Array.isArray(body?.events)) return;
           const polledEvents = body.events;
+          polledEvents.forEach((ev) => trackRendered(ev, "poll"));
           dispatchEvents({ type: "merge", incoming: polledEvents });
           polledEvents.forEach((ev) => scheduleClearIsNew(ev.eventId, ev.txHash, ev.kind));
         })
@@ -99,6 +131,7 @@ export default function DeploymentView({
             return;
           }
           const contractEvent = event as Evt;
+          trackRendered(contractEvent, "sse");
           dispatchEvents({ type: "merge", incoming: [contractEvent] });
           scheduleClearIsNew(contractEvent.eventId, contractEvent.txHash, contractEvent.kind);
         } catch {
@@ -108,6 +141,7 @@ export default function DeploymentView({
 
       es.onerror = () => {
         if (cancelled) return;
+        disconnects += 1;
         setConnectionStatus("disconnected");
         if (es) {
           es.close();
@@ -119,10 +153,22 @@ export default function DeploymentView({
         pollOnce();
 
         reconnectTimer = setTimeout(() => {
-          if (!cancelled) {
-            setConnectionStatus("reconnecting");
-            connectSSE();
-          }
+          if (cancelled) return;
+          // Reported from here rather than from onerror: leaving the page aborts
+          // the stream and fires onerror too, and `pagehide` lands *after* that
+          // — a run on 16 Sep 2026 sent live_feed_disconnected 4ms ahead of
+          // posthog's own $pageleave — so a guard on pagehide cannot tell the two
+          // apart and every navigation away counted as a dropped feed. A page
+          // that is really gone never reaches this timer, which leaves the drops
+          // a viewer actually sat through. The trade is that a drop followed
+          // within 5s by the viewer leaving goes unreported; that is the case we
+          // cannot distinguish anyway, and undercounting beats crying wolf.
+          track("live_feed_disconnected", {
+            deployment_id: deploymentId,
+            disconnect_count: disconnects,
+          });
+          setConnectionStatus("reconnecting");
+          connectSSE();
         }, 5000);
       };
     };
@@ -663,7 +709,7 @@ export default function DeploymentView({
             isWeb2Webhook ? (
               <>
                 <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
-                  SCAN WITH FREIGHTER WALLET · SET AMOUNT IN TRIGGER PAGE.
+                  SCAN WITH FREIGHTER WALLET · CONFIRM AMOUNT IN TRIGGER PAGE.
                 </p>
                 <div className="mt-md gap-md grid grid-cols-[160px_1fr]">
                   <div className="flex min-h-[160px] items-center justify-center rounded-lg bg-white p-3">
@@ -762,7 +808,7 @@ export default function DeploymentView({
             ) : isSubscription || isPayroll ? null : (
               <>
                 <p className="text-label-sm text-on-surface-variant mt-1 font-mono">
-                  SCAN WITH FREIGHTER WALLET · SET AMOUNT IN TRIGGER PAGE.
+                  SCAN WITH FREIGHTER WALLET · CONFIRM AMOUNT IN TRIGGER PAGE.
                 </p>
                 <div className="mt-md gap-md grid grid-cols-[160px_1fr]">
                   <div className="flex min-h-[160px] items-center justify-center rounded-lg bg-white p-3">

@@ -12,9 +12,6 @@ const PUBLIC_PATHS = [
   /^\/register$/,
   /^\/forgot-password$/,
   /^\/auth\/new-password$/,
-  /^\/about$/,
-  /^\/privacy$/,
-  /^\/terms$/,
   /^\/api\/auth(\/.*)?$/,
   /^\/api\/health$/,
   /^\/api\/cron\/.*/,
@@ -36,6 +33,13 @@ const PUBLIC_PATHS = [
   /^\/api\/deployments\/[^/]+\/payroll-runs(\/[^/]+)?$/,
   /^\/api\/deployments\/[^/]+\/offramp-.*$/,
   /^\/api\/deployments\/[^/]+\/employees\/bank$/,
+  // Unlike the entries above (#248), this line cannot open a deployment on its
+  // own: every /api/v1/deployments/:id handler is wrapped in v1Route
+  // (lib/api/v1/handler.ts), which authenticates a deployment token itself. The
+  // two siblings that are not — openapi.json and demo-token — are deliberately
+  // public and carry their own guards; demo-token is off unless DEMO_API_ENABLED
+  // and can never be on under STELLAR_NETWORK=mainnet (lib/env.ts).
+  /^\/api\/v1(\/.*)?$/,
 ];
 
 function isPublic(pathname: string): boolean {
@@ -120,5 +124,10 @@ export default auth(
 );
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)).*)"],
+  // `ingest` is the PostHog proxy (next.config.ts rewrites). It carries no app
+  // data and has to work for logged-out and sandbox visitors alike, so it skips
+  // the session and sandbox checks rather than being listed in both allowlists.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|ingest/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)).*)",
+  ],
 };

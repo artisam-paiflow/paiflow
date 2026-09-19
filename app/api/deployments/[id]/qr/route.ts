@@ -5,7 +5,9 @@ import { getSessionUser } from "@/lib/auth";
 import { sep7PaymentUri } from "@/lib/stellar/sep7";
 import { prepareDistributeTx, prepareDepositInvocation } from "@/lib/stellar/invoke";
 import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
-import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
+import { FlowGraphSchema, isTrigger, migrateFlowGraph } from "@/lib/flows/schema";
+import { inboundRequirement } from "@/lib/flows/inbound-amount";
+import { formatStroops } from "@/lib/utils";
 import { z } from "zod";
 
 const Query = z.object({
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   }> | null;
   const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
 
-  const graph = FlowGraphSchema.safeParse(d.graphSnapshot);
+  const graph = FlowGraphSchema.safeParse(migrateFlowGraph(d.graphSnapshot));
   const trigger = graph.success ? graph.data.nodes.find(isTrigger) : null;
   const isWebhookLike = trigger?.type === "webhook" || trigger?.type === "web2_webhook";
 
@@ -62,10 +64,18 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     if (d.flow.templateKind === "SUBSCRIPTION") {
       uri = `${appUrl}/allowance/${d.id}`;
-    } else if (d.distributeAmountStroops) {
-      uri = `${appUrl}/trigger/${d.id}?amount=${"0"}`;
     } else {
-      uri = `${appUrl}/trigger/${d.id}`;
+      // What the flow itself requires beats `distributeAmountStroops`, which an
+      // owner sets by hand and nothing reconciles against the graph. The
+      // trigger page reads `?amount=` as a display amount, not stroops.
+      const requirement = graph.success ? inboundRequirement(graph.data) : null;
+      const prefill =
+        requirement && requirement.kind !== "variable"
+          ? requirement.stroops
+          : (d.distributeAmountStroops ?? null);
+      uri = prefill
+        ? `${appUrl}/trigger/${d.id}?amount=${formatStroops(prefill)}`
+        : `${appUrl}/trigger/${d.id}`;
     }
   } else if (q.action === "allowance") {
     if (d.flow.templateKind !== "SUBSCRIPTION" && d.flow.templateKind !== "PAYROLL") {

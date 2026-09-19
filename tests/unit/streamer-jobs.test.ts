@@ -65,15 +65,20 @@ describe("computeNextMilestone", () => {
   });
 });
 
+// Scoped to the deployments this file creates (their owners are all named
+// "test-…"). Test files run in parallel against the same database, so an
+// unscoped wipe here would delete another file's rows mid-test.
+const OWN_ROWS = { owner: { username: { startsWith: "test-" } } };
+
 describe("scheduleNextStreamerClaimJob", () => {
   beforeEach(async () => {
-    await db.streamerClaimJob.deleteMany();
-    await db.deployment.deleteMany();
+    await db.streamerClaimJob.deleteMany({ where: { deployment: OWN_ROWS } });
+    await db.deployment.deleteMany({ where: OWN_ROWS });
   });
 
   afterEach(async () => {
-    await db.streamerClaimJob.deleteMany();
-    await db.deployment.deleteMany();
+    await db.streamerClaimJob.deleteMany({ where: { deployment: OWN_ROWS } });
+    await db.deployment.deleteMany({ where: OWN_ROWS });
   });
 
   async function makeDeployment() {
@@ -178,13 +183,13 @@ describe("scheduleNextStreamerClaimJob", () => {
 
 describe("getDueStreamerJobs", () => {
   beforeEach(async () => {
-    await db.streamerClaimJob.deleteMany();
-    await db.deployment.deleteMany();
+    await db.streamerClaimJob.deleteMany({ where: { deployment: OWN_ROWS } });
+    await db.deployment.deleteMany({ where: OWN_ROWS });
   });
 
   afterEach(async () => {
-    await db.streamerClaimJob.deleteMany();
-    await db.deployment.deleteMany();
+    await db.streamerClaimJob.deleteMany({ where: { deployment: OWN_ROWS } });
+    await db.deployment.deleteMany({ where: OWN_ROWS });
   });
 
   async function makeDeployment() {
@@ -257,13 +262,13 @@ describe("getDueStreamerJobs", () => {
 
 describe("cancelPendingStreamerJobs", () => {
   beforeEach(async () => {
-    await db.streamerClaimJob.deleteMany();
-    await db.deployment.deleteMany();
+    await db.streamerClaimJob.deleteMany({ where: { deployment: OWN_ROWS } });
+    await db.deployment.deleteMany({ where: OWN_ROWS });
   });
 
   afterEach(async () => {
-    await db.streamerClaimJob.deleteMany();
-    await db.deployment.deleteMany();
+    await db.streamerClaimJob.deleteMany({ where: { deployment: OWN_ROWS } });
+    await db.deployment.deleteMany({ where: OWN_ROWS });
   });
 
   async function makeDeployment() {

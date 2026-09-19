@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SwapQuotePreview from "@/components/builder/swap-quote-preview";
 import type { Asset } from "@/lib/flows/schema";
 import { toast } from "sonner";
@@ -9,6 +9,8 @@ import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
 import type { TemplateKind } from "@prisma/client";
 import { apiError } from "@/lib/friendly-error";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
+import { track } from "@/lib/analytics/client";
+import { classifyError } from "@/lib/analytics/classify-error";
 
 type WalletKit = {
   getAddress: () => Promise<{ address: string }>;
@@ -59,13 +61,27 @@ export default function DeployReview({
     Array<{ nodeId: string; contractAddress: string; templateKind: TemplateKind }>
   >([]);
   const isMainnet = network === "mainnet";
+  const swapCount = swapPreviews?.length ?? 0;
+
+  useEffect(() => {
+    track("deploy_review_viewed", { flow_id: flowId, swap_count: swapCount });
+  }, [flowId, swapCount]);
 
   async function onDeploy() {
     setBusy(true);
+    track("deploy_started", { flow_id: flowId });
+    let stage: "wallet" | "prepare" | "sign" | "submit" = "wallet";
+    let deploymentId: string | undefined;
     try {
       const kit = await connectWallet(network);
       const { address } = await kit.getAddress();
-      void trackWalletConnection({ address, network, walletId: "freighter" });
+      void trackWalletConnection({
+        address,
+        network,
+        walletId: "freighter",
+        surface: "deploy_review",
+      });
+      stage = "prepare";
       const prep = await fetch("/api/deployments/prepare", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -74,12 +90,15 @@ export default function DeployReview({
       const prepData = await prep.json();
       if (!prep.ok) throw apiError(prepData, "Prepare failed");
       setPipeline(prepData.data.pipeline ?? []);
+      deploymentId = prepData.data.deploymentId;
 
+      stage = "sign";
       const signed = await kit.signTransaction(prepData.data.xdr, {
         address,
         networkPassphrase: PASSPHRASE_BY_NETWORK[network],
       });
 
+      stage = "submit";
       const submit = await fetch(`/api/deployments/${prepData.data.deploymentId}/submit`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -90,6 +109,16 @@ export default function DeployReview({
       toast.success("Contract deployed.");
       window.location.href = `/deployments/${prepData.data.deploymentId}`;
     } catch (err) {
+      // deploy_confirmed and the chain-side failure are captured server-side;
+      // this is the part only the browser sees: wallet, signing, refusals.
+      const c = classifyError(err);
+      track("deploy_failed", {
+        stage,
+        error_class: c.errorClass,
+        error_code: c.errorCode,
+        flow_id: flowId,
+        ...(deploymentId ? { deployment_id: deploymentId } : {}),
+      });
       toastError(err, "Deploy failed");
     } finally {
       setBusy(false);

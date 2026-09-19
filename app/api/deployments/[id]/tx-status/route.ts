@@ -8,6 +8,8 @@ import { db } from "@/lib/db";
 import { log } from "@/lib/log";
 import { pollEventsFor, recordAllowanceEvent } from "@/lib/stellar/events";
 import type { FlowGraph } from "@/lib/flows/schema";
+import { redis } from "@/lib/redis";
+import { captureServer } from "@/lib/analytics/server";
 
 const QuerySchema = z.object({
   // A Stellar transaction hash is a SHA-256, so 64 hex characters. Anything else
@@ -25,6 +27,75 @@ const QuerySchema = z.object({
 // budget. Ingestion is best-effort — the cron poller re-runs whatever the
 // deadline cut short — so the status answer never waits longer than this.
 const EVENT_INGEST_DEADLINE_MS = 5_000;
+
+// The status route is public, so the caller has no session to attribute a
+// trigger to. The `SignedTransaction` row written at submit says who signed:
+// its user when the signer was signed in, else the wallet itself with no
+// person profile. Only a transaction from before signers were recorded falls
+// back to the deployment's owner, who is not necessarily the signer.
+// Best-effort like the rest of the bookkeeping here: it never affects the
+// status answer.
+//
+// A terminal status stays terminal, so a remount, a second tab or a reload polls
+// it again. The Redis claim makes each (deployment, tx, outcome) count once;
+// without Redis there is nothing to claim against and it captures as before.
+const OUTCOME_CLAIM_TTL_SECONDS = 7 * 24 * 60 * 60;
+async function captureTriggerOutcome(
+  deploymentId: string,
+  txHash: string,
+  outcome: "confirmed" | "failed",
+): Promise<void> {
+  try {
+    const client = redis();
+    if (client) {
+      const claimed = await client.set(
+        `analytics:trigger:${deploymentId}:${txHash}:${outcome}`,
+        "1",
+        "EX",
+        OUTCOME_CLAIM_TTL_SECONDS,
+        "NX",
+      );
+      if (claimed !== "OK") return;
+    }
+    const [d, signed] = await Promise.all([
+      db.deployment.findUnique({
+        where: { id: deploymentId },
+        select: { ownerId: true, pipelineSnapshot: true },
+      }),
+      db.signedTransaction.findUnique({
+        where: { txHash },
+        select: { userId: true, signerAddress: true },
+      }),
+    ]);
+    if (!d) return;
+    const distinctId = signed?.userId ?? (signed ? `wallet:${signed.signerAddress}` : d.ownerId);
+    const opts = signed && !signed.userId ? ({ personProfile: false } as const) : undefined;
+    const signerAddress = signed?.signerAddress ?? null;
+    if (outcome === "failed") {
+      await captureServer(
+        distinctId,
+        "trigger_failed_onchain",
+        { deployment_id: deploymentId, tx_hash: txHash, signer_address: signerAddress },
+        opts,
+      );
+      return;
+    }
+    const pipeline = (d.pipelineSnapshot ?? []) as Array<{ templateKind?: string }>;
+    await captureServer(
+      distinctId,
+      "trigger_confirmed",
+      {
+        deployment_id: deploymentId,
+        tx_hash: txHash,
+        signer_address: signerAddress,
+        has_swap: pipeline.some((n) => n.templateKind === "SWAPPER"),
+      },
+      opts,
+    );
+  } catch (err) {
+    log.warn({ err, deploymentId, txHash }, "tx-status: analytics capture failed");
+  }
+}
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
@@ -87,6 +158,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
           ip,
           metadata: { deploymentId: id, txHash },
         });
+        void captureTriggerOutcome(id, txHash, "confirmed");
 
         // Pull this transaction's contract events into the store now, so the
         // deployment page the user opens next renders them from the database
@@ -142,6 +214,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     }
 
     if (got.status === "FAILED") {
+      // Unlike the SUCCESS branch this reads nothing that a stranger's hash
+      // could pollute, but only a hash we submitted says something about Paiflow.
+      if (await wasTxSubmittedFor(id, txHash).catch(() => false)) {
+        void captureTriggerOutcome(id, txHash, "failed");
+      }
       return NextResponse.json({
         data: { status: "FAILED", txHash, errorMessage: "Transaction failed on the network" },
       });

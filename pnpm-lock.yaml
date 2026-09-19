@@ -95,6 +95,9 @@ importers:
       pino:
         specifier: ^9.5.0
         version: 9.14.0
+      posthog-js:
+        specifier: ^1.433.4
+        version: 1.433.4(@types/react@19.2.14)(preact-render-to-string@6.5.11(preact@10.24.3))(react@19.2.6)
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -174,6 +177,9 @@ importers:
       prisma:
         specifier: ^6.1.0
         version: 6.19.3(typescript@5.9.3)
+      railway:
+        specifier: ^3.11.0
+        version: 3.11.0
       tailwindcss:
         specifier: ^4.0.0-beta.8
         version: 4.3.0
@@ -599,6 +605,14 @@ packages:
       {
         integrity: sha512-h25Pn1ZA7oqQBQDodGAgIsQt66T2wDge9onBKNqE66WNWL0KJiKJbpij8YOLo5AAlEIg5IS7EB1QjBgDOIg6DQ==,
       }
+
+  "@graphql-typed-document-node/core@3.2.0":
+    resolution:
+      {
+        integrity: sha512-mB9oAsNCm9aM3/SOv4YtBMqZbYj10R7dkq8byBqxGY/ncFwhf2oQzMV+LCRlWoDSEBJ3COiR1yeDvMtsoOsuFQ==,
+      }
+    peerDependencies:
+      graphql: ^0.8.0 || ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
 
   "@hexagon/base64@1.1.28":
     resolution:
@@ -1459,6 +1473,24 @@ packages:
       }
     engines: { node: ">=18" }
     hasBin: true
+
+  "@posthog/browser-common@0.8.3":
+    resolution:
+      {
+        integrity: sha512-4Hlbwyn+Hioc2+pjqSGWMTDrA5XsDshssPnGfv34khPKoJaeBe2YvPvsEPoH78jezOS6Wo3LJvCPhqyolg3S8w==,
+      }
+
+  "@posthog/core@1.54.1":
+    resolution:
+      {
+        integrity: sha512-UvpnMylZ25ncVGi1jJjZlrN09VOdwYy34t1fh61T6aNZhtRA5aIwLIvaD6nOftOhi8d/DBCZi43wTjzhVlMotw==,
+      }
+
+  "@posthog/types@1.412.0":
+    resolution:
+      {
+        integrity: sha512-EP+lSTnEmftW/slhGXsuGcYAygO4oho3hjWqObP+GeceZ+6qcwK9qZwVRqJjsiZAl0xLPy5s0U0SZqGKayFyeQ==,
+      }
 
   "@prisma/client@6.19.3":
     resolution:
@@ -3741,6 +3773,12 @@ packages:
         integrity: sha512-lXVyvUvrNXblMqzIRrxHb57UUVmqsSWlxqt3XIjCkUP0wDAf6uicO6KMbEgYrMNtEvWgWHwe42CKxPu9MYAnWw==,
       }
 
+  core-js@3.50.0:
+    resolution:
+      {
+        integrity: sha512-BRWgOLKkFeCgRudR6zrs8p9XJZcE14grzKMMssoYrk6krtuEZ7MTKPIY5RzOnqsEKIR9kst7wNzphttraT+Yqw==,
+      }
+
   core-util-is@1.0.3:
     resolution:
       {
@@ -3979,6 +4017,12 @@ packages:
         integrity: sha512-qiSlmBq9+BCdCA/L46dw8Uy93mloxsPSbwnm5yrKn2vMPiy8KyAskTF6zuV/j5BMsmOGZDPs7KjU+mjb670kfA==,
       }
 
+  dompurify@3.4.15:
+    resolution:
+      {
+        integrity: sha512-EUBjM+B+lkDE41iE82DDSCfkoPGfXx8IxFxPMjNzm/Uk4xDet77rTN9wqlxlVg71kK7XGuUMv6wUxJUwwv+Xyw==,
+      }
+
   dotenv@16.6.1:
     resolution:
       {
@@ -4163,6 +4207,7 @@ packages:
         integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==,
       }
     engines: { node: ^18.18.0 || ^20.9.0 || >=21.1.0 }
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: "*"
@@ -4361,6 +4406,12 @@ packages:
     resolution:
       {
         integrity: sha512-eghR0A21fvbkcQBgZuMfQhrXxJzC0GNUGC9fXhBge33D+mFDTwl0aJ35zoQQn575BhyjQitRc5N4f+L4cP708g==,
+      }
+
+  fflate@0.4.9:
+    resolution:
+      {
+        integrity: sha512-zdxgIEddhfsyCaWpJ2SdXEP8ZMrKJ6+5jl4OupODcywU0IhRk6gdXuVGcPICyfx2H97hVK7xmJtRLPjkxAX8Vw==,
       }
 
   file-entry-cache@8.0.0:
@@ -4574,6 +4625,13 @@ packages:
       {
         integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==,
       }
+
+  graphql@16.14.2:
+    resolution:
+      {
+        integrity: sha512-Chq1s4CY7jmh8gO2qvLIJyfCDIN+EHLFW/9iShnp1z8FjBQMoodWP1kDC36VAMXXIvAjj4ARa7ntfAV2BrjsbA==,
+      }
+    engines: { node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0 }
 
   h3@1.15.11:
     resolution:
@@ -5826,6 +5884,20 @@ packages:
       }
     engines: { node: ^10 || ^12 || >=14 }
 
+  posthog-js@1.433.4:
+    resolution:
+      {
+        integrity: sha512-6OiSinv4tX2dZ3oc7fjzBOPLq3ouMbXk1y/DhyEh2vh+zh0m1WEIIyf5VtwcFFLOw2zEoGn1xXPXqt62eEV5uA==,
+      }
+    peerDependencies:
+      "@types/react": ">=16.8.0"
+      react: ">=16.8.0"
+    peerDependenciesMeta:
+      "@types/react":
+        optional: true
+      react:
+        optional: true
+
   preact-render-to-string@6.5.11:
     resolution:
       {
@@ -5839,6 +5911,17 @@ packages:
       {
         integrity: sha512-Z2dPnBnMUfyQfSQ+GBdsGa16hz35YmLmtTLhM169uW944hYL6xzTYkJjC07j+Wosz733pMWx0fgON3JNw1jJQA==,
       }
+
+  preact@10.29.8:
+    resolution:
+      {
+        integrity: sha512-ej2aVZ+vZ8WO7tvlQWRM9N63A0KzF9q4mWJfDUHgYaIofWY9hu74QdnQrjoPMmZi2/nZ5gN0bJCQF49xQqx09Q==,
+      }
+    peerDependencies:
+      preact-render-to-string: ">=5"
+    peerDependenciesMeta:
+      preact-render-to-string:
+        optional: true
 
   prelude-ls@1.2.1:
     resolution:
@@ -6032,6 +6115,12 @@ packages:
     engines: { node: ">=10.13.0" }
     hasBin: true
 
+  query-selector-shadow-dom@1.0.1:
+    resolution:
+      {
+        integrity: sha512-lT5yCqEBgfoMYpf3F2xQRK7zEr1rhIIZuceDK6+xRkJQ4NMbHTwXqk4NkwDwQMNqXgG9r9fyHnzwNVs6zV5KRw==,
+      }
+
   query-string@7.1.3:
     resolution:
       {
@@ -6050,6 +6139,14 @@ packages:
       {
         integrity: sha512-b484I/7b8rDEdSDKckSSBA8knMpcdsXudlE/LNL639wFoHKwLbEkQFZHWEYwDC0wa0FKUcCY+GAF73Z7wxNVFA==,
       }
+
+  railway@3.11.0:
+    resolution:
+      {
+        integrity: sha512-ehLFHCxV+gITWeBlIVaXulXaVRg4LCxqm0bq64iXSwYL1DESd0pUeLYMP/BMBhnZWeFFBYyJCREaq+Nka7Wgmw==,
+      }
+    engines: { node: ">=22" }
+    hasBin: true
 
   randombytes@2.1.0:
     resolution:
@@ -7166,6 +7263,18 @@ packages:
       jsdom:
         optional: true
 
+  web-vitals@6.2.1:
+    resolution:
+      {
+        integrity: sha512-rLcLXA2sx6+9dE88NHFubwTtGxpK4yYBLj6qHPdFoCaLr0cXGb4efOqtKLlm4loGA4OEKHIQKMKzZkKyOh5ctw==,
+      }
+
+  web-vitals@6.2.2:
+    resolution:
+      {
+        integrity: sha512-oto5x6dLEgrRqfcWed+pZEUb2q6ikbFmqF54CRDhI/QGbn+qxC49b4C4OkbH+kb9C3a8shpFD3SgR9kRcs80ZQ==,
+      }
+
   webidl-conversions@3.0.1:
     resolution:
       {
@@ -7624,6 +7733,10 @@ snapshots:
     dependencies:
       "@emurgo/cardano-serialization-lib-browser": 13.2.1
       "@emurgo/cardano-serialization-lib-nodejs": 13.2.0
+
+  "@graphql-typed-document-node/core@3.2.0(graphql@16.14.2)":
+    dependencies:
+      graphql: 16.14.2
 
   "@hexagon/base64@1.1.28": {}
 
@@ -8214,6 +8327,17 @@ snapshots:
   "@playwright/test@1.59.1":
     dependencies:
       playwright: 1.59.1
+
+  "@posthog/browser-common@0.8.3":
+    dependencies:
+      "@posthog/core": 1.54.1
+      "@posthog/types": 1.412.0
+
+  "@posthog/core@1.54.1":
+    dependencies:
+      "@posthog/types": 1.412.0
+
+  "@posthog/types@1.412.0": {}
 
   "@prisma/client@6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)":
     optionalDependencies:
@@ -10040,6 +10164,8 @@ snapshots:
 
   cookie-es@1.2.3: {}
 
+  core-js@3.50.0: {}
+
   core-util-is@1.0.3: {}
 
   create-hash@1.2.0:
@@ -10156,6 +10282,10 @@ snapshots:
   detect-libc@2.1.2: {}
 
   dijkstrajs@1.0.3: {}
+
+  dompurify@3.4.15:
+    optionalDependencies:
+      "@types/trusted-types": 2.0.7
 
   dotenv@16.6.1: {}
 
@@ -10410,6 +10540,8 @@ snapshots:
     dependencies:
       is-retry-allowed: 3.0.0
 
+  fflate@0.4.9: {}
+
   file-entry-cache@8.0.0:
     dependencies:
       flat-cache: 4.0.1
@@ -10526,6 +10658,8 @@ snapshots:
   gopd@1.2.0: {}
 
   graceful-fs@4.2.11: {}
+
+  graphql@16.14.2: {}
 
   h3@1.15.11:
     dependencies:
@@ -11254,11 +11388,33 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
+  posthog-js@1.433.4(@types/react@19.2.14)(preact-render-to-string@6.5.11(preact@10.24.3))(react@19.2.6):
+    dependencies:
+      "@posthog/browser-common": 0.8.3
+      "@posthog/core": 1.54.1
+      "@posthog/types": 1.412.0
+      core-js: 3.50.0
+      dompurify: 3.4.15
+      fflate: 0.4.9
+      preact: 10.29.8(preact-render-to-string@6.5.11(preact@10.24.3))
+      query-selector-shadow-dom: 1.0.1
+      web-vitals: 6.2.2
+      web-vitals-soft-navs: web-vitals@6.2.1
+    optionalDependencies:
+      "@types/react": 19.2.14
+      react: 19.2.6
+    transitivePeerDependencies:
+      - preact-render-to-string
+
   preact-render-to-string@6.5.11(preact@10.24.3):
     dependencies:
       preact: 10.24.3
 
   preact@10.24.3: {}
+
+  preact@10.29.8(preact-render-to-string@6.5.11(preact@10.24.3)):
+    optionalDependencies:
+      preact-render-to-string: 6.5.11(preact@10.24.3)
 
   prelude-ls@1.2.1: {}
 
@@ -11337,6 +11493,8 @@ snapshots:
       pngjs: 5.0.0
       yargs: 15.4.1
 
+  query-selector-shadow-dom@1.0.1: {}
+
   query-string@7.1.3:
     dependencies:
       decode-uri-component: 0.5.0
@@ -11347,6 +11505,12 @@ snapshots:
   quick-format-unescaped@4.0.4: {}
 
   radix3@1.1.2: {}
+
+  railway@3.11.0:
+    dependencies:
+      "@graphql-typed-document-node/core": 3.2.0(graphql@16.14.2)
+      graphql: 16.14.2
+      tsx: 4.21.0
 
   randombytes@2.1.0:
     dependencies:
@@ -11975,6 +12139,10 @@ snapshots:
       "@types/node": 22.19.18
     transitivePeerDependencies:
       - msw
+
+  web-vitals@6.2.1: {}
+
+  web-vitals@6.2.2: {}
 
   webidl-conversions@3.0.1: {}
 

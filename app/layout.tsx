@@ -4,6 +4,7 @@ import { Space_Grotesk, Geist, JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { SessionProvider } from "@/components/app/session-provider";
+import { AnalyticsProvider } from "@/components/app/analytics-provider";
 
 /**
  * Fonts are self-hosted at build time via `next/font/google` (per PR #51
@@ -63,6 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="bg-surface-container-lowest text-on-surface min-h-screen antialiased">
         <SessionProvider>
+          <AnalyticsProvider />
           {children}
           <Toaster
             theme="dark"

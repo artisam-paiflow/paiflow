@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { getSessionUser } from "@/lib/auth";
+import { stellarPassphrase } from "@/lib/env";
 import { submitTriggerTx } from "@/lib/stellar/trigger";
+import { signerFromSignedXdr } from "@/lib/stellar/signer";
+import { recordSignedTransaction } from "@/lib/signed-tx";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
 
@@ -38,12 +42,30 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       );
     }
 
+    // Recorded before the chain call, under the signer's own session if any.
+    // This route is public, so the signer is often not the owner and often
+    // has no session at all; `d.ownerId` is never substituted for them.
+    const signer = signerFromSignedXdr(body.signedXdr, stellarPassphrase());
+    const sessionUser = await getSessionUser();
+    await recordSignedTransaction({
+      signer,
+      kind: "TRIGGER",
+      network: d.network,
+      userId: sessionUser?.id ?? null,
+      deploymentId: id,
+      ip,
+    });
+
     const result = await submitTriggerTx(body.signedXdr);
     if (result.status === "PENDING") {
       await audit({
         action: "DEPLOY_TRIGGER",
         userId: d.ownerId,
-        metadata: { deploymentId: id, txHash: result.txHash },
+        metadata: {
+          deploymentId: id,
+          txHash: result.txHash,
+          signerAddress: signer.ok ? signer.signerAddress : null,
+        },
       });
       return NextResponse.json({ data: { txHash: result.txHash, status: "PENDING" } });
     }

@@ -1,0 +1,242 @@
+[
+  {
+    "n": 1,
+    "deploymentId": "fb2eec6d-bb5c-46b5-b73d-f1e68203bf41",
+    "confirmedAt": "2026-09-15T14:43:33.739Z",
+    "owner": "user",
+    "signer": "GDZ2BQPZQLLXTBFVKJX6UVZQAIZCIC4HDGT4XDLH5JOWO7WWP2KLIN37",
+    "deployTxHash": "105457e98609f1863a49aa57048be37ab5addca642d23484c56f286c75b618c0",
+    "swapper": "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT",
+    "swaps": [
+      {
+        "txHash": "e23c69c8cf3f2b9845ac9903b6510d3d71dbb02c7730ffdb59bb5c0061396678",
+        "ledger": 4691989,
+        "occurredAt": "2026-09-15T14:45:32Z",
+        "amountInStroops": "100000000",
+        "amountOutStroops": "10578987"
+      }
+    ]
+  },
+  {
+    "n": 2,
+    "deploymentId": "34b6765d-6c1b-49c4-8d30-43eb4e3624c6",
+    "confirmedAt": "2026-09-15T14:57:53.482Z",
+    "owner": "user",
+    "signer": "GA3H23J5NNSYOKHLJXGVVYFMW4PRE6DQ7SBKWRC5Y6MK7I7DPSKLI6CV",
+    "deployTxHash": "74e6aa79b1f9fb67e91ad5e3208811f6c0e8a2f5e5b9f4092c19739c69e3c7ed",
+    "swapper": "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP",
+    "swaps": [
+      {
+        "txHash": "359733b2c67d59b674adda8e83ca63ce17cfcbaf0972e0e823f99a83807e9595",
+        "ledger": 4692142,
+        "occurredAt": "2026-09-15T14:58:17Z",
+        "amountInStroops": "500000000",
+        "amountOutStroops": "52893865"
+      },
+      {
+        "txHash": "e13f4d215b1adf44238bc53504fa8b1646ef1782a33753a0789e594a76ee589b",
+        "ledger": 4692627,
+        "occurredAt": "2026-09-15T15:38:42Z",
+        "amountInStroops": "1000000000",
+        "amountOutStroops": "105775587"
+      }
+    ]
+  },
+  {
+    "n": 3,
+    "deploymentId": "e27ca499-0589-4a98-a576-df82e93bbbed",
+    "confirmedAt": "2026-09-15T15:09:02.532Z",
+    "owner": "user",
+    "signer": "GDZ2BQPZQLLXTBFVKJX6UVZQAIZCIC4HDGT4XDLH5JOWO7WWP2KLIN37",
+    "deployTxHash": "bc26ad689325662e4606d32053286586c3d65f7acae0c3cc5ada6aa71123cd09",
+    "swapper": "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2",
+    "swaps": [
+      {
+        "txHash": "f2457e545dfd68016f23679f27f77933d4535afb85a8b3626cd354c8b8e6ee85",
+        "ledger": 4692279,
+        "occurredAt": "2026-09-15T15:09:42Z",
+        "amountInStroops": "1000000000",
+        "amountOutStroops": "105782523"
+      },
+      {
+        "txHash": "cbe539ffdfa204ec6b1463bfd1741f9cb2be1caa10e196096e52726faf97a577",
+        "ledger": 4729019,
+        "occurredAt": "2026-09-17T18:11:22Z",
+        "amountInStroops": "1000000",
+        "amountOutStroops": "105843"
+      },
+      {
+        "txHash": "8d8e1d6b96c615b4ed6f6e8ce40218e07b8b0a38b5694b0fbf31675c7995e2f6",
+        "ledger": 4729021,
+        "occurredAt": "2026-09-17T18:11:32Z",
+        "amountInStroops": "1000000",
+        "amountOutStroops": "105843"
+      }
+    ]
+  },
+  {
+    "n": 4,
+    "deploymentId": "e40a9662-e1b9-4e18-aaf8-603bb0fd59b8",
+    "confirmedAt": "2026-09-16T09:30:59.329Z",
+    "owner": "user",
+    "signer": "GB6ANMNYUAGNC4V3KLIKMDVLE63XXIIODWIYD7CN6QSCW4AO4TXH2K73",
+    "deployTxHash": "d92edf2a9bab7a860c6b0b0519de2ca271b2921a311f3f57d6e3bf45f52a76d3",
+    "swapper": "CDBEBLJY6UX5PKRTJLH4OXHKUS5MKUOJ67HII2FGKSXATTGP2XVZGCEK",
+    "swaps": [
+      {
+        "txHash": "6ec74a35492fdf9e17cf16c53f2b77f066b60b683df48cb8943e2ec2636c6db7",
+        "ledger": 4705495,
+        "occurredAt": "2026-09-16T09:31:02Z",
+        "amountInStroops": "200000000",
+        "amountOutStroops": "21154278"
+      },
+      {
+        "txHash": "641ba134dd749adf8728a620ac81650f3d3718e7a1e582126e9bd4d4d04b8165",
+        "ledger": 4706941,
+        "occurredAt": "2026-09-16T11:31:32Z",
+        "amountInStroops": "5500000000",
+        "amountOutStroops": "581658616"
+      }
+    ]
+  },
+  {
+    "n": 5,
+    "deploymentId": "4270e6bf-a2c7-4af7-b6e9-44ba65e19b23",
+    "confirmedAt": "2026-09-17T06:35:27.537Z",
+    "owner": "user",
+    "signer": "GA3H23J5NNSYOKHLJXGVVYFMW4PRE6DQ7SBKWRC5Y6MK7I7DPSKLI6CV",
+    "deployTxHash": "15b9bc0fdf6359313783eaa70fc43e980d16adcb4b7757e93672262239ff88aa",
+    "swapper": "CCICDFMPHY6H44RHD26GERHBHYEKED7FQOYVJOVBIDPFY6MDFL5QFBOX",
+    "swaps": [
+      {
+        "txHash": "404b311f46cbd40e87d0bf7a26145ee6a35d8d0eda18748dbeacf33ed7b1ee53",
+        "ledger": 4720673,
+        "occurredAt": "2026-09-17T06:35:52Z",
+        "amountInStroops": "10000000000",
+        "amountOutStroops": "1059187458"
+      }
+    ]
+  },
+  {
+    "n": 6,
+    "deploymentId": "e20788e1-7345-433a-b8f9-5c853483b556",
+    "confirmedAt": "2026-09-17T09:02:52.978Z",
+    "owner": "user",
+    "signer": "GDZ2BQPZQLLXTBFVKJX6UVZQAIZCIC4HDGT4XDLH5JOWO7WWP2KLIN37",
+    "deployTxHash": "404c9cdad42dc05d56580f6092894f345ddfcb99ad8825618857c2e0c2a988df",
+    "swapper": "CBM2OUSJFEQD66P3DG3TXZ3A7LFBN5WUOFI7RCPVKFGWYUEHFBGKUPWW",
+    "swaps": [
+      {
+        "txHash": "f6af07b906b4e74080e1d25fea1a51e98d51c31f528a80a17c2c6b87f8a5422f",
+        "ledger": 4722454,
+        "occurredAt": "2026-09-17T09:04:17Z",
+        "amountInStroops": "100000000",
+        "amountOutStroops": "10589179"
+      }
+    ]
+  },
+  {
+    "n": 7,
+    "deploymentId": "2a616d2a-582b-48d1-ac55-8ad4a65a532a",
+    "confirmedAt": "2026-09-17T09:12:17.981Z",
+    "owner": "user",
+    "signer": "GCEASAPW5DRX5JAPMUFNLUOI6JUXD4C4E72WLR7OAK6BYH4R5GBIBD5T",
+    "deployTxHash": "57d8b6ef5a3174551dc387ee2285324a954fe6c7aeceef2e1ae422ba7a8fa5e1",
+    "swapper": "CDFZK2H6BHK5BWVUGLVUQTJMPCNYZEDLJFGPXDHBLFSAO7YE7LJ3I4W2",
+    "swaps": [
+      {
+        "txHash": "2dcf3d22e03287edad475399ae10f09c2fac7fb8716d32f7433f7e3bf2d9f73c",
+        "ledger": 4722562,
+        "occurredAt": "2026-09-17T09:13:17Z",
+        "amountInStroops": "200000000",
+        "amountOutStroops": "21178197"
+      },
+      {
+        "txHash": "0403bfb47a16b80404c6b2532c78816326f42c8e3e0d080a8f5f82e618d30f2c",
+        "ledger": 4722586,
+        "occurredAt": "2026-09-17T09:15:17Z",
+        "amountInStroops": "200000000",
+        "amountOutStroops": "21177982"
+      }
+    ]
+  },
+  {
+    "n": 8,
+    "deploymentId": "10ab5b6f-7eaf-417c-8199-c69d2be8ced0",
+    "confirmedAt": "2026-09-18T00:57:47.484Z",
+    "owner": "user",
+    "signer": "GAG2RKFEKMLJCBJAZSKIKHTBH6TTWTDL44UX7IIP32NL75TWSQDVGQUX",
+    "deployTxHash": "44906d10609c3944096ff511ed4058c808021ee75c4336ce649b5cf075b93020",
+    "swapper": "CACEQ4AKLOLO2IEAICHD4NFOT3BXQHK2TPUBWKMQAJNM2WGQS5S2DDH2",
+    "swaps": [
+      {
+        "txHash": "82c7d2777af75c08f08b2c849dfb05b1173170db0b9724e8b881e87bdf7a4dc0",
+        "ledger": 4733916,
+        "occurredAt": "2026-09-18T00:59:27Z",
+        "amountInStroops": "100000000",
+        "amountOutStroops": "10584328"
+      }
+    ]
+  },
+  {
+    "n": 9,
+    "deploymentId": "8bb677d3-5310-4345-abd0-e8be533dcb5f",
+    "confirmedAt": "2026-09-18T01:39:33.113Z",
+    "owner": "user",
+    "signer": "GAG2RKFEKMLJCBJAZSKIKHTBH6TTWTDL44UX7IIP32NL75TWSQDVGQUX",
+    "deployTxHash": "db5fdffcc59cbf9ccaab8c5e0a71b3e6a4f0bc9bb62b9f0a60872d2d61776354",
+    "swapper": "CCAHBFZZIFTTW665MAVLFOLHMKUV2D2W63TLRMCACVUQZDEPTNUWDI3B",
+    "swaps": [
+      {
+        "txHash": "dc1d335c881ff8d018288a0cc914852c271dda36870231125cf50b751b66db0e",
+        "ledger": 4734517,
+        "occurredAt": "2026-09-18T01:49:32Z",
+        "amountInStroops": "200000000",
+        "amountOutStroops": "21168496"
+      }
+    ]
+  },
+  {
+    "n": 10,
+    "deploymentId": "ad0843d9-f6de-422f-b216-717caa92aa8a",
+    "confirmedAt": "2026-09-18T02:30:18.657Z",
+    "owner": "user",
+    "signer": "GA3H23J5NNSYOKHLJXGVVYFMW4PRE6DQ7SBKWRC5Y6MK7I7DPSKLI6CV",
+    "deployTxHash": "7cefacef720085cd0ef336417081d3f323fda769932852d7df4a71a9617f6762",
+    "swapper": "CD767KMX45WW43PTNBHP2D2MHR4633XVBY53UKIVX5LPZYRTED6RYK46",
+    "swaps": [
+      {
+        "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
+        "ledger": 4735030,
+        "occurredAt": "2026-09-18T02:32:17Z",
+        "amountInStroops": "100000000",
+        "amountOutStroops": "10584167"
+      },
+      {
+        "txHash": "27f681889bfebdab92a4d9e6d70770ea5df72bd597c627bc5c0014d0d86bfbfb",
+        "ledger": 4736183,
+        "occurredAt": "2026-09-18T04:08:22Z",
+        "amountInStroops": "10000000",
+        "amountOutStroops": "1055731"
+      }
+    ]
+  },
+  {
+    "n": 11,
+    "deploymentId": "0716aaea-606b-4d50-964b-e88a691f4adf",
+    "confirmedAt": "2026-09-18T03:19:33.212Z",
+    "owner": "user",
+    "signer": "GAG2RKFEKMLJCBJAZSKIKHTBH6TTWTDL44UX7IIP32NL75TWSQDVGQUX",
+    "deployTxHash": "0392b31f3595d27e82712381c9e7dbf1dde3a1a3da199cf8b9fc083d3cd1a9e7",
+    "swapper": "CDXDLWQIELD4N7JCY2BAS7TMAGIXFC4BMBNKLUFQNKHENDPLTGXQZUAV",
+    "swaps": [
+      {
+        "txHash": "ae6d80595f0e3b8e96b0fb7c65eea25651bff35bd906eebcfa6bb4d89870e262",
+        "ledger": 4735610,
+        "occurredAt": "2026-09-18T03:20:37Z",
+        "amountInStroops": "50000000000",
+        "amountOutStroops": "5285370398"
+      }
+    ]
+  }
+]

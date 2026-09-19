@@ -1,0 +1,1156 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Paiflow API v1",
+    "version": "1.0.0",
+    "description": "Execute a deployed swapper flow and poll its on-chain events from your own backend.\n\nEvery `/api/v1/deployments/{id}/…` call authenticates with a deployment API token (`Authorization: Bearer pfk_…`) that the deployment's owner mints in the **API access** panel on the deployment page. A token reaches exactly one deployment.\n\n**The API never signs.** `execute` returns an unsigned envelope; you sign it with the `from` key, which stays on your side, and post it to `execute/submit`. A leaked token can only prepare and relay what you signed.\n\nSuccessful responses are `{ \"data\": … }`. Errors are `{ \"error\": { code, message, fields?, details? } }`:\n\n| Code | HTTP status |\n| --- | --- |\n| `UNAUTHENTICATED` | 401 |\n| `INSUFFICIENT_FUNDS` | 402 |\n| `FORBIDDEN` | 403 |\n| `NOT_FOUND` | 404 |\n| `CONFLICT` | 409 |\n| `VALIDATION` | 422 |\n| `RATE_LIMITED` | 429 |\n| `INTERNAL` | 500 |\n| `UPSTREAM_RPC` | 502 |\n\nThe public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`."
+  },
+  "servers": [
+    {
+      "url": "https://paiflow.xyz",
+      "description": "Public instance (Stellar testnet)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Execute",
+      "description": "Run a swapper flow: prepare, sign on your side, submit."
+    },
+    {
+      "name": "Events",
+      "description": "Cursor-based polling of a deployment's decoded events."
+    },
+    {
+      "name": "Spec",
+      "description": "This document."
+    },
+    {
+      "name": "Token management (owner session)",
+      "description": "How deployment tokens are minted and revoked. These are the owner's signed-in session routes behind the API access panel, not part of the token-authenticated API: they take the session cookie, never a deployment token, and a sandbox session is refused."
+    }
+  ],
+  "paths": {
+    "/api/v1/deployments/{id}/execute": {
+      "post": {
+        "tags": ["Execute"],
+        "operationId": "prepareExecute",
+        "summary": "Prepare the unsigned deposit that executes a swapper flow",
+        "description": "Prepare the deposit that executes a swapper flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the swapper executes as the next pipeline step. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only swapper flows can be executed.\n\nRate limit: 30 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecutePrepareRequest"
+              },
+              "example": {
+                "amount": "1000000000",
+                "from": "GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The unsigned envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ExecutePrepared"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "xdr": "AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAAAAAAAAAAAABmxy2kAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB…(truncated)",
+                    "networkPassphrase": "Test SDF Network ; September 2015",
+                    "network": "testnet",
+                    "expiresAt": "2026-09-15T09:03:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/execute/submit": {
+      "post": {
+        "tags": ["Execute"],
+        "operationId": "submitExecute",
+        "summary": "Submit the signed deposit and wait for the result",
+        "description": "Submit a signed deposit that executes a swapper flow.\n\nThe envelope must be the one `execute` returned, signed by `from`: anything but a single `deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a fee-bump envelope.\n\nIdempotent on the envelope hash: submitting the same `signedXdr` again never sends a second transaction, it reports the one already on the network. That is also how to check a `PENDING` result. A transaction that reached the network and failed is a `200` with `status: FAILED` and an `error`, not an HTTP error.\n\nRate limit: 30 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "description": "`false` returns PENDING as soon as the network accepts the transaction. Default `true`: wait up to about 25 seconds for a final status, then return `PENDING` if there is none yet.",
+            "schema": {
+              "type": "string",
+              "enum": ["true", "false"],
+              "default": "true"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteSubmitRequest"
+              },
+              "example": {
+                "signedXdr": "AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAAAAAAAAAAAABmxy2kAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB…(truncated)"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The outcome: `SUCCESS`, `PENDING` or `FAILED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ExecuteSubmitted"
+                    }
+                  }
+                },
+                "examples": {
+                  "success": {
+                    "summary": "Confirmed",
+                    "value": {
+                      "data": {
+                        "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                        "status": "SUCCESS",
+                        "ledger": 1842917
+                      }
+                    }
+                  },
+                  "pending": {
+                    "summary": "Accepted, not final yet",
+                    "value": {
+                      "data": {
+                        "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                        "status": "PENDING"
+                      }
+                    }
+                  },
+                  "failed": {
+                    "summary": "Reached the network and failed",
+                    "value": {
+                      "data": {
+                        "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                        "status": "FAILED",
+                        "ledger": 1842917,
+                        "error": {
+                          "code": "txTooLate",
+                          "message": "The transaction's 180-second window expired before it reached the network. Prepare it again."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "The envelope does not invoke this flow's trigger contract"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/events": {
+      "get": {
+        "tags": ["Events"],
+        "operationId": "listEvents",
+        "summary": "Poll the deployment's events, oldest first",
+        "description": "Forward-paginated events the app decoded for this deployment's contracts, ascending by `(ledger, eventId)`. This is the app's record, not a raw chain feed: each event appears once (`eventId` is unique), and it can trail the chain by about a minute, because events arrive from a one-minute poller (a confirmed `execute/submit` ingests its own events straight away).\n\nA swap is `kind: PAYOUT` with `topic: \"swap\"` and `data` `{ assetIn, assetOut, amountIn, amountOut }`; amounts are stroops as strings.\n\nTo poll: store `nextCursor` and pass it back as `cursor`. While `hasMore` is true, ask again straight away; once it is false, wait and ask again with the same cursor. `nextCursor` is never null once the deployment has events: on an empty page it echoes the cursor you sent. It is null only when there are no events and no cursor was sent.\n\nRate limit: 120 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from a previous response's `nextCursor`. Omit to start from the first event. An empty or altered value is a 422.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "txHash",
+            "in": "query",
+            "required": false,
+            "description": "Only events from this transaction, e.g. the `txHash` `execute/submit` returned.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of events.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ListEventsResponse"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "items": [
+                      {
+                        "id": "0c9d7a3e-5b1f-4e2a-8d6c-7f4b3a2e1d0c",
+                        "eventId": "0007915171594088448-0000000001",
+                        "kind": "RECEIVE",
+                        "topic": "deposit",
+                        "ledger": 1842917,
+                        "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                        "occurredAt": "2026-09-15T09:00:12.000Z",
+                        "data": {
+                          "from": "GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY",
+                          "amount": "1000000000"
+                        }
+                      },
+                      {
+                        "id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+                        "eventId": "0007915171594088448-0000000004",
+                        "kind": "PAYOUT",
+                        "topic": "swap",
+                        "ledger": 1842917,
+                        "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                        "occurredAt": "2026-09-15T09:00:12.000Z",
+                        "data": {
+                          "assetIn": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+                          "assetOut": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+                          "amountIn": "1000000000",
+                          "amountOut": "105594796"
+                        }
+                      }
+                    ],
+                    "nextCursor": "MTg0MjkxN3wwMDA3OTE1MTcxNTk0MDg4NDQ4LTAwMDAwMDAwMDQ",
+                    "hasMore": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid cursor",
+                    "fields": {
+                      "cursor": ["Invalid cursor"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/openapi.json": {
+      "get": {
+        "tags": ["Spec"],
+        "operationId": "getOpenApi",
+        "summary": "This OpenAPI document",
+        "description": "Public; no token. Returned as the bare document, without the `data` envelope. Rate limit: 60 requests per 60 seconds per client IP.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The OpenAPI 3.1 document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/deployments/{id}/api-tokens": {
+      "get": {
+        "tags": ["Token management (owner session)"],
+        "operationId": "listApiTokens",
+        "summary": "List the deployment's API tokens",
+        "description": "Owner session only. Active tokens first, then revoked and expired ones, each newest first; at most 100. Never returns a token's plaintext or hash. Rate limit: 20 requests per 60 seconds per signed-in user, shared across the token routes.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ApiToken"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b",
+                      "tokenPrefix": "pfk_3f9a1c7e",
+                      "label": "partner backend",
+                      "createdAt": "2026-09-15T08:55:00.000Z",
+                      "lastUsedAt": "2026-09-15T09:00:10.000Z",
+                      "expiresAt": "2026-12-14T08:55:00.000Z",
+                      "revokedAt": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: No valid signed-in session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "Authentication required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: A sandbox session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed id, or a deployment you do not own (its existence is not disclosed). On revoke, also a token that is not on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Token management (owner session)"],
+        "operationId": "createApiToken",
+        "summary": "Mint a deployment API token",
+        "description": "Owner session only, on a `CONFIRMED` deployment, at most 10 active tokens. The plaintext `token` is in this response and nowhere else: store it now. Rate limit: 20 requests per 60 seconds per signed-in user, shared across the token routes.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiTokenRequest"
+              },
+              "example": {
+                "label": "partner backend",
+                "expiresInDays": 90
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new token, with its plaintext.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/CreatedApiToken"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "9e8d7c6b-5a4f-4e3d-8c2b-1a0f9e8d7c6b",
+                    "tokenPrefix": "pfk_3f9a1c7e",
+                    "label": "partner backend",
+                    "createdAt": "2026-09-15T08:55:00.000Z",
+                    "lastUsedAt": null,
+                    "expiresAt": "2026-12-14T08:55:00.000Z",
+                    "revokedAt": null,
+                    "token": "pfk_3f9a1c7e…(truncated)"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: No valid signed-in session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "Authentication required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: A sandbox session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed id, or a deployment you do not own (its existence is not disclosed). On revoke, also a token that is not on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The deployment already has 10 active tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body failed validation (`fields` names each problem), or the deployment is not `CONFIRMED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/deployments/{id}/api-tokens/{tokenId}": {
+      "delete": {
+        "tags": ["Token management (owner session)"],
+        "operationId": "revokeApiToken",
+        "summary": "Revoke a deployment API token",
+        "description": "Owner session only. Takes effect on the next request. The row is kept for the audit trail; revoking an already-revoked token returns it unchanged. Rate limit: 20 requests per 60 seconds per signed-in user, shared across the token routes.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          },
+          {
+            "name": "tokenId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The revoked token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ApiToken"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: No valid signed-in session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "Authentication required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: A sandbox session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed id, or a deployment you do not own (its existence is not disclosed). On revoke, also a token that is not on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "pfk_<64 hex>",
+        "description": "A deployment API token, minted by the deployment's owner in the API access panel and shown once."
+      },
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-paiflow.session",
+        "description": "The owner's signed-in browser session. Not available to machine callers."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "UNAUTHENTICATED",
+                  "INSUFFICIENT_FUNDS",
+                  "FORBIDDEN",
+                  "NOT_FOUND",
+                  "CONFLICT",
+                  "VALIDATION",
+                  "RATE_LIMITED",
+                  "INTERNAL",
+                  "UPSTREAM_RPC"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "description": "Per-field validation messages, keyed by field path."
+              },
+              "details": {
+                "type": "string",
+                "description": "Raw technical detail, e.g. a Soroban simulation diagnostic."
+              }
+            }
+          }
+        }
+      },
+      "ExecutePrepareRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["amount", "from"],
+        "description": "`from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "pattern": "^\\d{1,39}$",
+            "description": "Amount to deposit into the swapper flow, in stroops of its input asset. Greater than zero."
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^G[A-Z2-7]{55}$",
+            "description": "G-address that deposits, pays the fee and signs the returned envelope."
+          }
+        }
+      },
+      "ExecutePrepared": {
+        "type": "object",
+        "required": ["xdr", "networkPassphrase", "network", "expiresAt"],
+        "description": "An unsigned deposit that executes a swapper flow.",
+        "properties": {
+          "xdr": {
+            "type": "string",
+            "description": "Unsigned transaction envelope, base64 XDR. Sign it and submit it."
+          },
+          "networkPassphrase": {
+            "type": "string",
+            "description": "Network passphrase to sign with."
+          },
+          "network": {
+            "type": "string",
+            "enum": ["testnet", "mainnet"]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO time after which the network refuses the envelope; prepare again."
+          }
+        }
+      },
+      "ExecuteSubmitRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["signedXdr"],
+        "properties": {
+          "signedXdr": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 200000,
+            "description": "The envelope returned by prepare, signed by `from`. Anything but a single `deposit` call on this flow's trigger contract is refused."
+          }
+        }
+      },
+      "ExecuteSubmitted": {
+        "type": "object",
+        "required": ["txHash", "status"],
+        "description": "The outcome of executing a swapper flow.",
+        "properties": {
+          "txHash": {
+            "type": "string",
+            "description": "Hash of the submitted transaction, hex."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["SUCCESS", "PENDING", "FAILED"],
+            "description": "PENDING: accepted, not yet final; resubmit the same envelope to check again."
+          },
+          "ledger": {
+            "type": "integer",
+            "description": "Ledger the transaction was final in."
+          },
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "description": "Present when `status` is `FAILED`.",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "ContractEvent": {
+        "type": "object",
+        "required": ["id", "eventId", "kind", "topic", "ledger", "txHash", "occurredAt", "data"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventId": {
+            "type": "string",
+            "description": "The network's event id; unique."
+          },
+          "kind": {
+            "type": "string",
+            "description": "The app's event kind, e.g. `RECEIVE`, `PAYOUT`, `STATUS_CHANGE`."
+          },
+          "topic": {
+            "type": ["string", "null"],
+            "description": "The event's first topic: `swap` for a swap, whose `kind` is `PAYOUT`."
+          },
+          "ledger": {
+            "type": "integer"
+          },
+          "txHash": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {
+            "description": "The decoded event body; `null` when the app does not decode it."
+          }
+        }
+      },
+      "ListEventsResponse": {
+        "type": "object",
+        "required": ["items", "nextCursor", "hasMore"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContractEvent"
+            }
+          },
+          "nextCursor": {
+            "type": ["string", "null"],
+            "description": "Pass back as `cursor`. Null only when the deployment has no events and no cursor was sent."
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when another page is ready now."
+          }
+        }
+      },
+      "CreateApiTokenRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "expiresInDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          }
+        }
+      },
+      "ApiToken": {
+        "type": "object",
+        "required": [
+          "id",
+          "tokenPrefix",
+          "label",
+          "createdAt",
+          "lastUsedAt",
+          "expiresAt",
+          "revokedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tokenPrefix": {
+            "type": "string",
+            "description": "First 12 characters, for recognition."
+          },
+          "label": {
+            "type": ["string", "null"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          }
+        }
+      },
+      "CreatedApiToken": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiToken"
+          },
+          {
+            "type": "object",
+            "required": ["token"],
+            "properties": {
+              "token": {
+                "type": "string",
+                "description": "The plaintext token. Shown once."
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

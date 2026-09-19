@@ -29,8 +29,14 @@ import { writeEnvLocal } from "./env-file";
 
 const WASM_DIR = "contracts/target/wasm32v1-none/release";
 
+// Neither call overrides, so dotenv's first-write-wins gives shell > .env.local
+// > .env. The shell has to win: this script records each uploaded hash against
+// whatever DATABASE_URL names, and an operator uploading to a deployed
+// environment must not have a local .env.local silently redirect every
+// setWasmHash into their dev Postgres. Same reason UPLOADER_SECRET must be
+// overridable from the shell to choose a signer.
+dotenvConfig({ path: resolve(".env.local") });
 dotenvConfig({ path: resolve(".env") });
-dotenvConfig({ path: resolve(".env.local"), override: true });
 
 type NetworkName = "testnet" | "mainnet";
 

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { timingSafeEqual } from "crypto";
 import { OffRampPayoutJobStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
@@ -8,6 +7,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { getOffRampProvider } from "@/lib/offramp/provider";
 import { rescheduleOffRampJob } from "@/lib/offramp/jobs";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
+import { timingSafeEqualString } from "@/lib/auth/timing-safe";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     if (expectedToken && expectedToken !== "skip") {
       const provided = req.nextUrl.searchParams.get("token") ?? "";
-      if (!constantTimeEquals(provided, expectedToken)) {
+      if (!timingSafeEqualString(provided, expectedToken)) {
         log.warn({ ip }, "Off-ramp webhook rejected: invalid token");
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
@@ -89,18 +89,3 @@ const TERMINAL_OFFRAMP_STATUSES: OffRampPayoutJobStatus[] = [
   OffRampPayoutJobStatus.FAILED,
   OffRampPayoutJobStatus.CANCELLED,
 ];
-
-// Constant-time string comparison on fixed-length padded buffers.
-function constantTimeEquals(a: string, b: string): boolean {
-  const aBuf = Buffer.from(a);
-  const bBuf = Buffer.from(b);
-  const len = Math.max(aBuf.length, bBuf.length);
-  if (len === 0) {
-    return aBuf.length === bBuf.length;
-  }
-  const aPadded = Buffer.alloc(len, 0);
-  const bPadded = Buffer.alloc(len, 0);
-  aBuf.copy(aPadded);
-  bBuf.copy(bPadded);
-  return timingSafeEqual(aPadded, bPadded);
-}

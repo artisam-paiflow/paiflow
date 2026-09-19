@@ -1,5 +1,4 @@
 import "server-only";
-import crypto from "crypto";
 import type { NextRequest } from "next/server";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
@@ -10,6 +9,9 @@ import { env } from "./env";
 import { log } from "./log";
 import { audit } from "./audit";
 import { AppError } from "./errors";
+import { hashApiToken } from "./auth/api-token";
+import { timingSafeEqualString } from "./auth/timing-safe";
+import { captureServer } from "./analytics/server";
 import { Role } from "@prisma/client";
 import { authConfig as edgeConfig } from "@/auth.config";
 
@@ -75,6 +77,7 @@ async function authorizeUser(input: unknown): Promise<{
       where: { id: u.id },
       data: { lastLoginAt: new Date(), failedLogins: 0, lockedUntil: null },
     });
+    void captureServer(u.id, "login_succeeded", { method: "ticket" });
     return { id: u.id, username: u.username, role: u.role };
   }
 
@@ -94,6 +97,7 @@ async function authorizeUser(input: unknown): Promise<{
   }
   if (user.lockedUntil && user.lockedUntil > new Date()) {
     log.warn({ username }, "login: account locked");
+    void captureServer(user.id, "login_failed", { reason: "locked" });
     return null;
   }
 
@@ -107,6 +111,7 @@ async function authorizeUser(input: unknown): Promise<{
       data: { failedLogins: failed, lockedUntil: lock },
     });
     await audit({ action: "USER_LOGIN_FAILED", userId: user.id, metadata: { username } });
+    void captureServer(user.id, "login_failed", { reason: "bad_password" });
     return null;
   }
 
@@ -115,6 +120,7 @@ async function authorizeUser(input: unknown): Promise<{
     data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() },
   });
   await audit({ action: "USER_LOGIN", userId: user.id });
+  void captureServer(user.id, "login_succeeded", { method: "password" });
 
   return { id: user.id, username: user.username, role: user.role };
 }
@@ -137,6 +143,11 @@ export const fullAuthConfig = {
 
 export const { handlers, auth, signIn, signOut } = NextAuth(fullAuthConfig);
 
+// Implemented in its own module so /api/cron/* can import it without
+// pulling next-auth into every cron route; re-exported here so it sits
+// beside the other require* guards.
+export { requireCronSecret } from "./auth/cron-secret";
+
 export type SessionUser = {
   id: string;
   username: string;
@@ -155,7 +166,8 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
 export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionUser | null }> {
   const secret = env().DEV_API_SECRET;
-  if (secret && req.headers.get("x-dev-api-secret") === secret) {
+  const presented = req.headers.get("x-dev-api-secret");
+  if (secret && presented && timingSafeEqualString(presented, secret)) {
     return { user: null };
   }
 
@@ -203,7 +215,7 @@ export async function requireDevApiToken(req: NextRequest): Promise<SessionUser>
     null;
 
   if (raw) {
-    const tokenHash = crypto.createHash("sha256").update(raw).digest("hex");
+    const tokenHash = hashApiToken(raw);
     const token = await db.devApiToken.findUnique({
       where: { tokenHash },
       include: { user: true },

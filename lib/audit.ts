@@ -35,12 +35,19 @@ export type AuditAction =
   | "DEV_UPDATE_BANK"
   | "ADMIN_USER_CREATE"
   | "ADMIN_USER_UPDATE"
-  | "ADMIN_USER_DEACTIVATE";
+  | "ADMIN_USER_DEACTIVATE"
+  | "API_TOKEN_CREATED"
+  | "API_TOKEN_REVOKED"
+  | "API_EXECUTE_PREPARED"
+  | "API_EXECUTE_SUBMITTED"
+  | "API_EXECUTE_CONFIRMED"
+  | "API_DEMO_TOKEN_ISSUED";
 
 /**
  * The actions whose metadata carries `{ deploymentId, txHash }` for a transaction
  * this app submitted on a deployment's behalf: `submit-trigger` (DEPLOY_TRIGGER),
- * `submit-invoke` (DEPLOY_INVOKE) and `submit` (DEPLOY_CONFIRM).
+ * `submit-invoke` (DEPLOY_INVOKE), `submit` (DEPLOY_CONFIRM) and the partner API's
+ * `/api/v1/deployments/:id/execute/submit` (API_EXECUTE_SUBMITTED).
  *
  * `satisfies` rather than a plain array so renaming a member of the union above
  * is a type error here, instead of a list that silently stops matching.
@@ -49,6 +56,7 @@ const SUBMITTED_TX_ACTIONS = [
   "DEPLOY_TRIGGER",
   "DEPLOY_INVOKE",
   "DEPLOY_CONFIRM",
+  "API_EXECUTE_SUBMITTED",
 ] satisfies AuditAction[];
 
 /**
@@ -63,9 +71,26 @@ const SUBMITTED_TX_ACTIONS = [
  * between a caller and a correct answer.
  */
 export async function wasTxSubmittedFor(deploymentId: string, txHash: string): Promise<boolean> {
+  return hasTxAuditRow(SUBMITTED_TX_ACTIONS, deploymentId, txHash);
+}
+
+/**
+ * Has the partner API already recorded `txHash` as confirmed for `deploymentId`?
+ * A resubmission of a confirmed envelope answers from the chain, and this keeps
+ * it from writing a second `API_EXECUTE_CONFIRMED` row each time.
+ */
+export async function wasTxConfirmedFor(deploymentId: string, txHash: string): Promise<boolean> {
+  return hasTxAuditRow(["API_EXECUTE_CONFIRMED"], deploymentId, txHash);
+}
+
+async function hasTxAuditRow(
+  actions: AuditAction[],
+  deploymentId: string,
+  txHash: string,
+): Promise<boolean> {
   const row = await db.auditLog.findFirst({
     where: {
-      action: { in: SUBMITTED_TX_ACTIONS },
+      action: { in: actions },
       AND: [
         { metadata: { path: ["deploymentId"], equals: deploymentId } },
         { metadata: { path: ["txHash"], equals: txHash } },

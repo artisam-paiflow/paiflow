@@ -2,6 +2,7 @@ import "server-only";
 import { type SorobanErrorHint } from "./soroban-errors";
 import { Keypair, TransactionBuilder } from "@stellar/stellar-sdk";
 import { sorobanRpc, withRelayerLock } from "./client";
+import { signerFromTransaction, type SignerInfo } from "./signer";
 import { stellarPassphrase, stellarRelayerSecretKey, stellarRelayerAddress } from "@/lib/env";
 import {
   prepareDistributeInvocation,
@@ -16,7 +17,7 @@ export async function prepareTriggerTx(opts: {
   amount: string;
   fromAddress: string;
   isPipeline?: boolean;
-  hint?: SorobanErrorHint;
+  hint?: SorobanErrorHint | (() => Promise<SorobanErrorHint>);
 }): Promise<{ xdr: string }> {
   const result = opts.isPipeline
     ? await prepareDepositInvocation({
@@ -52,11 +53,14 @@ export type SubmitTriggerResult = {
   status: "SUCCESS" | "FAILED" | "PENDING";
   txHash: string;
   errorMessage?: string;
+  /** Set for user-signed envelopes; the relayer paths sign their own. */
+  signer?: SignerInfo;
 };
 
 export async function submitTriggerTx(signedXdr: string): Promise<SubmitTriggerResult> {
   const server = sorobanRpc();
   const tx = TransactionBuilder.fromXDR(signedXdr, stellarPassphrase());
+  const signer = signerFromTransaction(tx);
   const send = await server.sendTransaction(tx);
 
   if (send.status === "ERROR") {
@@ -64,10 +68,11 @@ export async function submitTriggerTx(signedXdr: string): Promise<SubmitTriggerR
       status: "FAILED",
       txHash: send.hash,
       errorMessage: `sendTransaction error: ${JSON.stringify(send.errorResult?.result?.()) ?? send.status}`,
+      signer,
     };
   }
 
-  return { status: "PENDING", txHash: send.hash };
+  return { status: "PENDING", txHash: send.hash, signer };
 }
 
 export async function submitWebhookExecuteTx(opts: {

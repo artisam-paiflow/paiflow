@@ -15,6 +15,16 @@ const optionalWasmHash = z
     message: "WASM hash must be a 64-character hex string",
   });
 
+// A row id handed to Prisma. Validated at config load so a typo'd id fails at
+// startup rather than surfacing as a Prisma error on the first request.
+const optionalUuid = z
+  .string()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined))
+  .refine((v) => v === undefined || z.string().uuid().safeParse(v).success, {
+    message: "must be a UUID",
+  });
+
 // Stellar memo IDs are numeric (uint64). Kept as a string to avoid precision
 // loss; validated at config load so a swapped/misconfigured PDAX memo fails at
 // startup rather than mid-way through a live off-ramp job.
@@ -35,6 +45,65 @@ const optionalStellarAddress = z
   .transform((v) => (v && v.length > 0 ? v : undefined))
   .refine((v) => v === undefined || StrKey.isValidEd25519PublicKey(v), {
     message: "PDAX deposit address must be a valid Stellar ed25519 public key (G...)",
+  });
+
+// Browser origins a passkey may be used from, comma-separated. WebAuthn compares the
+// origin the browser actually sent — scheme, host, port, nothing else — against each
+// entry verbatim, so an entry carrying a path, a query, a fragment or credentials can
+// never match: it would fail every verification silently rather than at startup. Those
+// are refused, because the operator meant something this setting cannot express. A
+// trailing slash is the exception — it is what copying an address bar produces and it
+// denotes the same origin — so entries are stored as `new URL(v).origin`.
+//
+// Blank (or unset) yields [], which lib/passkey/rp.ts reads as "fall back to AUTH_URL".
+// A value that is non-blank but lists nothing (", ,") is a typo, and falling back there
+// would quietly point passkeys at AUTH_URL's host — the failure this whole setting exists
+// to prevent. Refused too.
+const originList = z
+  .string()
+  .optional()
+  .transform((v, ctx) => {
+    const raw = (v ?? "").trim();
+    if (raw.length === 0) return [];
+
+    const entries = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (entries.length === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "lists no origins" });
+      return z.NEVER;
+    }
+
+    const origins: string[] = [];
+    for (const entry of entries) {
+      let url: URL;
+      try {
+        url = new URL(entry);
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"${entry}" is not a URL; each entry must be an origin like https://app.example.com`,
+        });
+        return z.NEVER;
+      }
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"${entry}" must use http or https`,
+        });
+        return z.NEVER;
+      }
+      if (url.pathname !== "/" || url.search || url.hash || url.username || url.password) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `"${entry}" must be a bare origin (scheme, host, optional port) — a browser never sends a path, query or credentials as its origin`,
+        });
+        return z.NEVER;
+      }
+      origins.push(url.origin);
+    }
+    return origins;
   });
 
 const boolish = z
@@ -104,11 +173,20 @@ const EnvSchema = z.object({
 
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 chars"),
   AUTH_URL: z.string().url().default("http://localhost:3000"),
+  // One app service answers on several hostnames, so a single value cannot cover them
+  // all. An allowlist — never a wildcard, never a request header. See `originList` above.
+  AUTH_ORIGINS: originList,
   AUTH_RP_ID: z.string().default("localhost"),
   AUTH_RP_NAME: z.string().default("Paiflow"),
   ALLOW_PUBLIC_REGISTRATION: boolish,
   // Offers a no-account, limited sandbox session from the login page.
   SANDBOX_ENABLED: boolish,
+
+  // Hands any unauthenticated caller a short-lived token for one shared,
+  // operator-provisioned swapper deployment, so the partner API can be tried
+  // without an account. Both are refused on mainnet; see the guard in `env()`.
+  DEMO_API_ENABLED: boolish,
+  DEMO_API_DEPLOYMENT_ID: optionalUuid,
 
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url().optional(),
@@ -202,6 +280,18 @@ const EnvSchema = z.object({
   // x-dev-api-secret: <token> instead of a user session.
   DEV_API_SECRET: optionalString,
   SENTRY_DSN: optionalString,
+
+  // ---- Analytics (PostHog) ----
+  // The key is public (it ships in the browser bundle) and is set only on the
+  // beta service; unset means every capture is a no-op. APP_ENV tags events so
+  // environments never mix in one PostHog project.
+  NEXT_PUBLIC_POSTHOG_KEY: optionalString,
+  NEXT_PUBLIC_APP_ENV: z.enum(["local", "staging", "beta"]).default("local"),
+  POSTHOG_HOST: z
+    .string()
+    .url()
+    .refine((u) => new URL(u).protocol === "https:", "POSTHOG_HOST must use https")
+    .default("https://us.i.posthog.com"),
   HIBP_CHECK_ENABLED: boolish,
 
   AI_API_KEY: optionalString,
@@ -284,8 +374,38 @@ export function env(): EnvShape {
     );
   }
 
+  // Same reasoning as the sandbox guard above: the demo endpoint hands a live
+  // API credential to anyone who asks. On mainnet that is an anonymous party
+  // holding a token against a real-money deployment, so it is refused outright.
+  if (parsed.data.DEMO_API_ENABLED && parsed.data.STELLAR_NETWORK === "mainnet") {
+    throw new Error(
+      "Invalid environment variables:\n" +
+        "  - DEMO_API_ENABLED: cannot be true when STELLAR_NETWORK=mainnet. " +
+        "The public demo API is testnet-only.",
+    );
+  }
+  // Enabled-but-unconfigured would only surface as a 500 on the first caller's
+  // request, which reads as an outage rather than a missing setting.
+  if (parsed.data.DEMO_API_ENABLED && !parsed.data.DEMO_API_DEPLOYMENT_ID) {
+    throw new Error(
+      "Invalid environment variables:\n" +
+        "  - DEMO_API_DEPLOYMENT_ID: required when DEMO_API_ENABLED=true.",
+    );
+  }
+
   cached = parsed.data;
   return cached;
+}
+
+/**
+ * The deployment the public demo API hands tokens out for, or null when the
+ * demo is off. The AND of flag and id lives here so no route can read the id
+ * without the flag, and so a caller's reachable surface is one env lookup.
+ */
+export function demoApiDeploymentId(): string | null {
+  const e = env();
+  if (!e.DEMO_API_ENABLED) return null;
+  return e.DEMO_API_DEPLOYMENT_ID ?? null;
 }
 
 export type StellarNetworkName = "testnet" | "mainnet";
