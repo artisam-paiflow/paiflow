@@ -17,6 +17,7 @@ import { APP_ERROR_STATUS } from "@/lib/errors";
 import { ERROR_STATUS, examples, openApiDocument } from "@/lib/api/v1/openapi";
 import {
   ApiTokenSchema,
+  DemoTokenSchema,
   CreateApiTokenSchema,
   CreatedApiTokenSchema,
   ExecutePrepareSchema,
@@ -114,6 +115,7 @@ describe("OpenAPI document", () => {
     ["token create request", CreateApiTokenSchema, examples.createTokenRequest],
     ["token create response", CreatedApiTokenSchema, examples.createTokenResponse.data],
     ["token list item", ApiTokenSchema, examples.tokenListResponse.data[0]],
+    ["demo token", DemoTokenSchema, examples.demoTokenResponse.data],
   ];
   it.each(parses)("example %s parses with its Zod schema", (_name, schema, value) => {
     expect(schema.safeParse(value).success).toBe(true);
@@ -155,6 +157,7 @@ describe("Postman collection", () => {
         collection.item.find((i) => i.name === item)!.response.find((r) => r.name === response)!
           .body,
       ) as unknown;
+    expect(body("Get demo token", "201 Created")).toEqual(examples.demoTokenResponse);
     expect(body("Prepare execute", "200 OK")).toEqual(examples.executeResponse);
     expect(body("Submit execute", "200 SUCCESS")).toEqual(examples.submitSuccess);
     expect(body("Submit execute", "200 FAILED")).toEqual(examples.submitFailed);

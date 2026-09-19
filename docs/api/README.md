@@ -54,6 +54,50 @@ USDC` in the builder; its status must be `CONFIRMED`. Its id is in the deploymen
 - **A trustline on the payout recipient** for the asset the flow pays out (for example USDC). A
   missing trustline makes the whole pipeline revert.
 
+## Public demo access (testnet)
+
+No account? One call gets you a working token for a shared demo flow, so every request in this
+guide can be tried straight away:
+
+```bash
+curl -X POST https://paiflow.xyz/api/v1/demo-token
+```
+
+```json
+{
+  "data": {
+    "deploymentId": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+    "token": "pfk_4f1c9d2a7b8e3056c14fa9d7be205183cc47e6f90a2b5d38e71c406fa9b8d2e5",
+    "expiresAt": "2026-09-18T15:04:05.000Z"
+  }
+}
+```
+
+Use those two values as `DEPLOYMENT_ID` and `PAIFLOW_TOKEN` in the quick start below. The token
+lasts **60 minutes**; ask again for another. The demo flow is `Receive XLM → Swap to USDC → Pay`,
+the same one the sandbox deploys.
+
+{% hint style="warning" %}
+**The demo deployment is shared, and your testnet XLM is spent.**
+
+- Anyone else holding a demo token can read the events your deposit produces, including the account
+  you deposited from. Fund a throwaway account with friendbot and never point this at one you care
+  about.
+- The swap proceeds are paid to a Paiflow-owned testnet account, not back to you. Nothing refunds
+  the XLM you deposit.
+- This is testnet only. The endpoint is off wherever `STELLAR_NETWORK=mainnet`, and the app refuses
+  to boot in that combination.
+
+{% endhint %}
+
+The demo is for evaluating the API. For an isolated deployment, a recipient you control and a token
+that does not expire in an hour, register, deploy your own flow and mint a token in the **API
+access** panel — the rest of this guide is the same either way.
+
+Send the demo token exactly as any other: `Authorization: Bearer pfk_…`. Note that a browser tab
+signed in as the **Try the sandbox** identity is refused on `/api/v1`, so use curl, Postman or a
+private window.
+
 ## Deployment API tokens
 
 A token is bound to **one deployment**. It can prepare and submit that deployment's execution and
@@ -72,6 +116,9 @@ read its events, and nothing else: no other deployment, no account data, no admi
   deployment, all get the same `401`, so a caller can't tell which it was.
 - **Sandbox.** The **Try the sandbox** identity on the login page can't mint tokens or call
   `/api/v1`.
+- **The demo token is the exception.** `POST /api/v1/demo-token` issues one without an account, for
+  the shared demo deployment only, expiring after 60 minutes. See
+  [Public demo access](#public-demo-access-testnet) above.
 
 The owner-session routes behind the panel (`GET`/`POST /api/deployments/{id}/api-tokens`,
 `DELETE /api/deployments/{id}/api-tokens/{tokenId}`) are in the OpenAPI document for completeness.
@@ -326,8 +373,9 @@ Every response carries an `x-request-id` header. Include it when you report a pr
 
 ## Rate limits
 
-Limits are counted **per token**, per endpoint, in fixed 60-second windows. Going over returns
-`429 RATE_LIMITED`.
+Token-authenticated endpoints are counted **per token**, per endpoint, in fixed 60-second windows.
+The two public endpoints carry no token, so they are counted per client IP instead, and the demo
+token also has an instance-wide hourly cap. Going over returns `429 RATE_LIMITED`.
 
 | Endpoint                                      | Limit                                                     |
 | --------------------------------------------- | --------------------------------------------------------- |
@@ -335,6 +383,7 @@ Limits are counted **per token**, per endpoint, in fixed 60-second windows. Goin
 | `POST …/execute/submit`                       | 30 per minute                                             |
 | `GET …/events`                                | 120 per minute                                            |
 | `GET /api/v1/openapi.json`                    | 60 per minute per client IP (no token)                    |
+| `POST /api/v1/demo-token`                     | 3 per hour per client IP, 60 per hour instance-wide       |
 | Token management (owner session, not the API) | 20 per minute per signed-in user, across all three routes |
 
 ## Postman
@@ -363,18 +412,46 @@ and the transaction on stellar.expert, is in the D2 evidence pack at
 
 ## Trying the API
 
-`GET https://paiflow.xyz/api/v1/openapi.json` is public, so anyone can fetch the specification
-without an account. Every other `/api/v1` endpoint needs a deployment token. A token can only be
-minted by a signed-in owner of a confirmed deployment, and the anonymous sandbox identity on the
-login page can't mint one. So a reviewer without an owner account can **read** the API path rather
-than drive it:
+Anyone can drive the full sequence on testnet, with no account. Three commands from a cold start:
+
+```bash
+# 1. A throwaway account, funded by friendbot
+stellar keys generate reviewer --network testnet --fund
+export FROM=$(stellar keys address reviewer)
+
+# 2. A demo token and the deployment it reaches
+eval $(curl -sX POST https://paiflow.xyz/api/v1/demo-token |
+  jq -r '.data | "export DEPLOYMENT_ID=\(.deploymentId) PAIFLOW_TOKEN=\(.token)"')
+
+# 3. Run the quick start above: prepare → sign → submit → poll events
+```
+
+Read [Public demo access](#public-demo-access-testnet) first: the demo deployment is shared, and
+the XLM you deposit is paid out to a Paiflow-owned testnet account rather than back to you.
+
+Three ways to check the path without running it:
 
 - the curl transcript, audit log rows and transaction link in
   [`docs/instawards/evidence/d2/`](../instawards/evidence/d2/README.md);
-- the [Postman collection](paiflow-api-v1.postman_collection.json) and its saved responses;
+- the [Postman collection](paiflow-api-v1.postman_collection.json), whose first request mints a demo
+  token and fills in the rest of the variables for you;
 - this guide and the [OpenAPI document](openapi.json).
 
-An owner account on paiflow.xyz can be provisioned on request, to run the full sequence.
+## Running the demo deployment yourself
+
+The demo needs one `CONFIRMED` swapper deployment, owned by an ordinary account, that the operator
+points the endpoint at:
+
+1. Sign in as a dedicated non-sandbox account.
+2. Build `Receive XLM → Swap to USDC → Pay`, paying the full amount to an address that holds a USDC
+   trustline (`SANDBOX_DEMO_RECIPIENT` in `lib/flows/starter.ts` is the one the sandbox uses, and is
+   already funded on testnet). `execute` simulates the whole pipeline down to the final transfer, so
+   a recipient without a trustline makes every demo call fail.
+3. Deploy it from that account's own wallet and wait for `CONFIRMED`.
+4. Set `DEMO_API_ENABLED=true` and `DEMO_API_DEPLOYMENT_ID=<id>` on the testnet service, and
+   redeploy.
+5. Run `pnpm demo:check`. The endpoint answers with one generic refusal for every misconfiguration,
+   deliberately, so this script is how you find out which one it is.
 
 ## Keeping the spec in sync
 

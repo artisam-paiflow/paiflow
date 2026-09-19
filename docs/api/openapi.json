@@ -3,7 +3,7 @@
   "info": {
     "title": "Paiflow API v1",
     "version": "1.0.0",
-    "description": "Execute a deployed swapper flow and poll its on-chain events from your own backend.\n\nEvery `/api/v1/deployments/{id}/…` call authenticates with a deployment API token (`Authorization: Bearer pfk_…`) that the deployment's owner mints in the **API access** panel on the deployment page. A token reaches exactly one deployment.\n\n**The API never signs.** `execute` returns an unsigned envelope; you sign it with the `from` key, which stays on your side, and post it to `execute/submit`. A leaked token can only prepare and relay what you signed.\n\nSuccessful responses are `{ \"data\": … }`. Errors are `{ \"error\": { code, message, fields?, details? } }`:\n\n| Code | HTTP status |\n| --- | --- |\n| `UNAUTHENTICATED` | 401 |\n| `INSUFFICIENT_FUNDS` | 402 |\n| `FORBIDDEN` | 403 |\n| `NOT_FOUND` | 404 |\n| `CONFLICT` | 409 |\n| `VALIDATION` | 422 |\n| `RATE_LIMITED` | 429 |\n| `INTERNAL` | 500 |\n| `UPSTREAM_RPC` | 502 |\n\nThe public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`."
+    "description": "Execute a deployed swapper flow and poll its on-chain events from your own backend.\n\nEvery `/api/v1/deployments/{id}/…` call authenticates with a deployment API token (`Authorization: Bearer pfk_…`) that the deployment's owner mints in the **API access** panel on the deployment page. A token reaches exactly one deployment.\n\n**The API never signs.** `execute` returns an unsigned envelope; you sign it with the `from` key, which stays on your side, and post it to `execute/submit`. A leaked token can only prepare and relay what you signed.\n\nSuccessful responses are `{ \"data\": … }`. Errors are `{ \"error\": { code, message, fields?, details? } }`:\n\n| Code | HTTP status |\n| --- | --- |\n| `UNAUTHENTICATED` | 401 |\n| `INSUFFICIENT_FUNDS` | 402 |\n| `FORBIDDEN` | 403 |\n| `NOT_FOUND` | 404 |\n| `CONFLICT` | 409 |\n| `VALIDATION` | 422 |\n| `RATE_LIMITED` | 429 |\n| `INTERNAL` | 500 |\n| `UPSTREAM_RPC` | 502 |\n\nNo account? `POST /api/v1/demo-token` hands you a short-lived token for a shared demo flow, so every call above can be tried straight away.\n\nThe public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`."
   },
   "servers": [
     {
@@ -23,6 +23,10 @@
     {
       "name": "Spec",
       "description": "This document."
+    },
+    {
+      "name": "Demo",
+      "description": "Get a token for the shared testnet demo flow with no account, so the API above can be tried before you register."
     },
     {
       "name": "Token management (owner session)",
@@ -524,6 +528,70 @@
           },
           "429": {
             "description": "`RATE_LIMITED`: Too many requests in the window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo-token": {
+      "post": {
+        "tags": ["Demo"],
+        "operationId": "createDemoToken",
+        "summary": "Get a short-lived token for the public demo deployment",
+        "description": "Public; no token and no account. Returns a bearer token for one shared swapper deployment on testnet, so you can run the calls above before registering. Takes no body. Available only where the public demo is enabled (the testnet instance); 403 otherwise.\n\n**This deployment is shared.** Anyone else holding a demo token can read the events your deposit produces, including the account you deposited from. The swap proceeds are paid to a Paiflow-owned testnet account, not back to you, so the testnet XLM you deposit is spent. Fund a throwaway account with friendbot and never point this at an account you care about.\n\nFor an isolated deployment and a token that does not expire in an hour, register, deploy your own flow and mint a token in the **API access** panel.\n\nRate limit: 3 requests per 3600 seconds per client IP. Rate limit: 60 requests per 3600 seconds instance-wide.",
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "A demo token. Shown once; it expires in 60 minutes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DemoToken"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "deploymentId": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+                    "token": "pfk_4f1c9d2a7b8e3056c14fa9d7be205183cc47e6f90a2b5d38e71c406fa9b8d2e5",
+                    "expiresAt": "2026-09-18T15:04:05.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: The public demo is not enabled on this instance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many demo tokens from this address, or the instance is at its hourly cap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: The demo deployment is not configured, confirmed or swapper-shaped. One message for every case; the operator is alerted.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1131,6 +1199,27 @@
           "revokedAt": {
             "type": ["string", "null"],
             "format": "date-time"
+          }
+        }
+      },
+      "DemoToken": {
+        "type": "object",
+        "required": ["deploymentId", "token", "expiresAt"],
+        "description": "A short-lived token for the shared demo deployment on testnet.",
+        "properties": {
+          "deploymentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The shared demo deployment this token reaches, and the only one it reaches."
+          },
+          "token": {
+            "type": "string",
+            "description": "Bearer token for the routes above. Shown once and never retrievable again."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO time the token stops working. Ask again for a new one."
           }
         }
       },

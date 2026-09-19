@@ -40,7 +40,8 @@ export type AuditAction =
   | "API_TOKEN_REVOKED"
   | "API_EXECUTE_PREPARED"
   | "API_EXECUTE_SUBMITTED"
-  | "API_EXECUTE_CONFIRMED";
+  | "API_EXECUTE_CONFIRMED"
+  | "API_DEMO_TOKEN_ISSUED";
 
 /**
  * The actions whose metadata carries `{ deploymentId, txHash }` for a transaction
