@@ -54,6 +54,50 @@ USDC` in the builder; its status must be `CONFIRMED`. Its id is in the deploymen
 - **A trustline on the payout recipient** for the asset the flow pays out (for example USDC). A
   missing trustline makes the whole pipeline revert.
 
+## Public demo access (testnet)
+
+No account? One call gets you a working token for a shared demo flow, so every request in this
+guide can be tried straight away:
+
+```bash
+curl -X POST https://paiflow.xyz/api/v1/demo-token
+```
+
+```json
+{
+  "data": {
+    "deploymentId": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+    "token": "pfk_4f1c9d2a7b8e3056c14fa9d7be205183cc47e6f90a2b5d38e71c406fa9b8d2e5",
+    "expiresAt": "2026-09-18T15:04:05.000Z"
+  }
+}
+```
+
+Use those two values as `DEPLOYMENT_ID` and `PAIFLOW_TOKEN` in the quick start below. The token
+lasts **60 minutes**; ask again for another. The demo flow is `Receive XLM → Swap to USDC → Pay`,
+the same one the sandbox deploys.
+
+{% hint style="warning" %}
+**The demo deployment is shared, and your testnet XLM is spent.**
+
+- Anyone else holding a demo token can read the events your deposit produces, including the account
+  you deposited from. Fund a throwaway account with friendbot and never point this at one you care
+  about.
+- The swap proceeds are paid to a Paiflow-owned testnet account, not back to you. Nothing refunds
+  the XLM you deposit.
+- This is testnet only. The endpoint is off wherever `STELLAR_NETWORK=mainnet`, and the app refuses
+  to boot in that combination.
+
+{% endhint %}
+
+The demo is for evaluating the API. For an isolated deployment, a recipient you control and a token
+that does not expire in an hour, register, deploy your own flow and mint a token in the **API
+access** panel — the rest of this guide is the same either way.
+
+Send the demo token exactly as any other: `Authorization: Bearer pfk_…`. Note that a browser tab
+signed in as the **Try the sandbox** identity is refused on `/api/v1`, so use curl, Postman or a
+private window.
+
 ## Deployment API tokens
 
 A token is bound to **one deployment**. It can prepare and submit that deployment's execution and
@@ -72,6 +116,9 @@ read its events, and nothing else: no other deployment, no account data, no admi
   deployment, all get the same `401`, so a caller can't tell which it was.
 - **Sandbox.** The **Try the sandbox** identity on the login page can't mint tokens or call
   `/api/v1`.
+- **The demo token is the exception.** `POST /api/v1/demo-token` issues one without an account, for
+  the shared demo deployment only, expiring after 60 minutes. See
+  [Public demo access](#public-demo-access-testnet) above.
 
 The owner-session routes behind the panel (`GET`/`POST /api/deployments/{id}/api-tokens`,
 `DELETE /api/deployments/{id}/api-tokens/{tokenId}`) are in the OpenAPI document for completeness.
@@ -103,10 +150,10 @@ curl -sS -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute" \
 ```json
 {
   "data": {
-    "xdr": "AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAA…",
+    "xdr": "AAAAAgAAAACYBFftt4XVT7U0jiCPtYE5cDNPGXNUCOOo7L0FRPhTjAAK/F4AR4Yw…",
     "networkPassphrase": "Test SDF Network ; September 2015",
     "network": "testnet",
-    "expiresAt": "2026-09-15T09:03:00.000Z"
+    "expiresAt": "2026-09-18T02:34:52.000Z"
   }
 }
 ```
@@ -115,6 +162,12 @@ The simulation runs before anything comes back. If the deposit would fail (an un
 missing trustline, no liquidity), you get a `422` explaining why, and nothing is signed or spent.
 Sign and submit before `expiresAt`, which is about three minutes after preparing; after that the
 network refuses the envelope and you prepare again.
+
+{% hint style="warning" %}
+`expiresAt` is about three minutes out, so stage the signing step before you call prepare: have the
+`stellar tx sign` command ready to paste into, or hold the key in an SDK script. If the envelope
+expires, call prepare again — nothing is spent and the old envelope simply stops being accepted.
+{% endhint %}
 
 ### 2. Sign
 
@@ -167,9 +220,9 @@ curl -sS -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute/submit" \
 ```json
 {
   "data": {
-    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+    "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
     "status": "SUCCESS",
-    "ledger": 1842917
+    "ledger": 4735030
   }
 }
 ```
@@ -205,32 +258,50 @@ curl -sS "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/events?limit=50" \
   "data": {
     "items": [
       {
-        "id": "0c9d7a3e-5b1f-4e2a-8d6c-7f4b3a2e1d0c",
-        "eventId": "0007915171594088448-0000000001",
+        "id": "167054b2-8cb6-4055-b8fd-4a7ca190c002",
+        "eventId": "0020336798995623936-0000000001",
         "kind": "RECEIVE",
         "topic": "deposit",
-        "ledger": 1842917,
-        "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
-        "occurredAt": "2026-09-15T09:00:12.000Z",
-        "data": { "from": "GDMFZ5QQ…SIHY", "amount": "1000000000" }
+        "ledger": 4735030,
+        "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
+        "occurredAt": "2026-09-18T02:32:17.000Z",
+        "data": {
+          "from": "GCMAIV7NW6C5KT5VGSHCBD5VQE4XAM2PDFZVICHDVDWL2BKE7BJYZVUM",
+          "asset": "XLM",
+          "amount": "100000000"
+        }
       },
       {
-        "id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
-        "eventId": "0007915171594088448-0000000004",
+        "id": "c579376d-7cdc-4d22-a3b1-be49c3b2972b",
+        "eventId": "0020336798995623936-0000000010",
+        "kind": "PAYOUT",
+        "topic": "pay",
+        "ledger": 4735030,
+        "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
+        "occurredAt": "2026-09-18T02:32:17.000Z",
+        "data": {
+          "asset": "USDC",
+          "payment": "10584167",
+          "recipient": "GCVJW2CEXCJ6WPRYAMYFIDA6LLIYX5NJIJ6T76NW2BXQXFNPV2V62J7H"
+        }
+      },
+      {
+        "id": "94cf0bbf-54a6-43c7-9e55-d48a6b688ac7",
+        "eventId": "0020336798995623936-0000000011",
         "kind": "PAYOUT",
         "topic": "swap",
-        "ledger": 1842917,
-        "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
-        "occurredAt": "2026-09-15T09:00:12.000Z",
+        "ledger": 4735030,
+        "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
+        "occurredAt": "2026-09-18T02:32:17.000Z",
         "data": {
-          "assetIn": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-          "assetOut": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
-          "amountIn": "1000000000",
-          "amountOut": "105594796"
+          "assetIn": "XLM",
+          "amountIn": "100000000",
+          "assetOut": "USDC",
+          "amountOut": "10584167"
         }
       }
     ],
-    "nextCursor": "MTg0MjkxN3wwMDA3OTE1MTcxNTk0MDg4NDQ4LTAwMDAwMDAwMDQ",
+    "nextCursor": "NDczNTAzMHwwMDIwMzM2Nzk4OTk1NjIzOTM2LTAwMDAwMDAwMTE",
     "hasMore": false
   }
 }
@@ -245,8 +316,9 @@ contracts, as recorded in its own database. It is not a raw feed of the chain:
   `SUCCESS` from `execute/submit` also records that transaction's events immediately, so
   `?txHash=<txHash>` right after a submit usually already has them.
 - **Swaps.** A swap has `kind: "PAYOUT"` and `topic: "swap"`. Its `data` is
-  `{ assetIn, assetOut, amountIn, amountOut }`: asset contract addresses, with amounts in stroops as
-  strings.
+  `{ assetIn, assetOut, amountIn, amountOut }`, with amounts in stroops as strings. `assetIn` and
+  `assetOut` are the asset's **symbol** where the flow names one (`"XLM"`, `"USDC"`) and the raw
+  asset contract address otherwise, so parse for either.
 
 **Polling with the cursor.** Keep the `nextCursor` from each response and send it back as `cursor`.
 While `hasMore` is `true`, ask again straight away. Once it's `false` you're caught up: wait a while
@@ -301,8 +373,9 @@ Every response carries an `x-request-id` header. Include it when you report a pr
 
 ## Rate limits
 
-Limits are counted **per token**, per endpoint, in fixed 60-second windows. Going over returns
-`429 RATE_LIMITED`.
+Token-authenticated endpoints are counted **per token**, per endpoint, in fixed 60-second windows.
+The two public endpoints carry no token, so they are counted per client IP instead, and the demo
+token also has an instance-wide hourly cap. Going over returns `429 RATE_LIMITED`.
 
 | Endpoint                                      | Limit                                                     |
 | --------------------------------------------- | --------------------------------------------------------- |
@@ -310,6 +383,7 @@ Limits are counted **per token**, per endpoint, in fixed 60-second windows. Goin
 | `POST …/execute/submit`                       | 30 per minute                                             |
 | `GET …/events`                                | 120 per minute                                            |
 | `GET /api/v1/openapi.json`                    | 60 per minute per client IP (no token)                    |
+| `POST /api/v1/demo-token`                     | 3 per hour per client IP, 60 per hour instance-wide       |
 | Token management (owner session, not the API) | 20 per minute per signed-in user, across all three routes |
 
 ## Postman
@@ -330,26 +404,54 @@ Each request has saved example responses.
 ## Sample payloads
 
 {% hint style="info" %}
-The `xdr`, `txHash` and event values above are illustrative and shortened. The complete record of a
-real run, with the unsigned and signed envelopes, the responses and the transaction on
-stellar.expert, is in the D2 evidence pack at
-[`docs/instawards/evidence/d2/`](../instawards/evidence/d2/).
+The `xdr`, `txHash` and event values above are from the 18 September evidence run, with the `xdr`
+shortened. The complete record of that run, with the unsigned and signed envelopes, the responses
+and the transaction on stellar.expert, is in the D2 evidence pack at
+[`docs/instawards/evidence/d2/`](../instawards/evidence/d2/README.md).
 {% endhint %}
 
 ## Trying the API
 
-`GET https://paiflow.xyz/api/v1/openapi.json` is public, so anyone can fetch the specification
-without an account. Every other `/api/v1` endpoint needs a deployment token. A token can only be
-minted by a signed-in owner of a confirmed deployment, and the anonymous sandbox identity on the
-login page can't mint one. So a reviewer without an owner account can **read** the API path rather
-than drive it:
+Anyone can drive the full sequence on testnet, with no account. Three commands from a cold start:
+
+```bash
+# 1. A throwaway account, funded by friendbot
+stellar keys generate reviewer --network testnet --fund
+export FROM=$(stellar keys address reviewer)
+
+# 2. A demo token and the deployment it reaches
+eval $(curl -sX POST https://paiflow.xyz/api/v1/demo-token |
+  jq -r '.data | "export DEPLOYMENT_ID=\(.deploymentId) PAIFLOW_TOKEN=\(.token)"')
+
+# 3. Run the quick start above: prepare → sign → submit → poll events
+```
+
+Read [Public demo access](#public-demo-access-testnet) first: the demo deployment is shared, and
+the XLM you deposit is paid out to a Paiflow-owned testnet account rather than back to you.
+
+Three ways to check the path without running it:
 
 - the curl transcript, audit log rows and transaction link in
-  [`docs/instawards/evidence/d2/`](../instawards/evidence/d2/);
-- the [Postman collection](paiflow-api-v1.postman_collection.json) and its saved responses;
+  [`docs/instawards/evidence/d2/`](../instawards/evidence/d2/README.md);
+- the [Postman collection](paiflow-api-v1.postman_collection.json), whose first request mints a demo
+  token and fills in the rest of the variables for you;
 - this guide and the [OpenAPI document](openapi.json).
 
-An owner account on paiflow.xyz can be provisioned on request, to run the full sequence.
+## Running the demo deployment yourself
+
+The demo needs one `CONFIRMED` swapper deployment, owned by an ordinary account, that the operator
+points the endpoint at:
+
+1. Sign in as a dedicated non-sandbox account.
+2. Build `Receive XLM → Swap to USDC → Pay`, paying the full amount to an address that holds a USDC
+   trustline (`SANDBOX_DEMO_RECIPIENT` in `lib/flows/starter.ts` is the one the sandbox uses, and is
+   already funded on testnet). `execute` simulates the whole pipeline down to the final transfer, so
+   a recipient without a trustline makes every demo call fail.
+3. Deploy it from that account's own wallet and wait for `CONFIRMED`.
+4. Set `DEMO_API_ENABLED=true` and `DEMO_API_DEPLOYMENT_ID=<id>` on the testnet service, and
+   redeploy.
+5. Run `pnpm demo:check`. The endpoint answers with one generic refusal for every misconfiguration,
+   deliberately, so this script is how you find out which one it is.
 
 ## Keeping the spec in sync
 

@@ -35,7 +35,10 @@ const PUBLIC_PATHS = [
   /^\/api\/deployments\/[^/]+\/employees\/bank$/,
   // Unlike the entries above (#248), this line cannot open a deployment on its
   // own: every /api/v1/deployments/:id handler is wrapped in v1Route
-  // (lib/api/v1/handler.ts), which authenticates a deployment token itself.
+  // (lib/api/v1/handler.ts), which authenticates a deployment token itself. The
+  // two siblings that are not — openapi.json and demo-token — are deliberately
+  // public and carry their own guards; demo-token is off unless DEMO_API_ENABLED
+  // and can never be on under STELLAR_NETWORK=mainnet (lib/env.ts).
   /^\/api\/v1(\/.*)?$/,
 ];
 

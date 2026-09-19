@@ -4,15 +4,15 @@ Weekly milestone reports for the Stellar Development Foundation Instawards progr
 (Philippines chapter). Each week records what shipped, links every Statement of Work item to
 the commits and on-chain transactions that prove it, and updates the success metrics.
 
-|          |                                                                                                                       |
-| -------- | --------------------------------------------------------------------------------------------------------------------- |
-| Project  | Paiflow — a visual, non-custodial payment-flow builder on Stellar / Soroban                                           |
-| Builder  | Mychal Andres B. Pejana                                                                                               |
-| Chapter  | Philippines — Chapter Lead Nelson Lumbres                                                                             |
-| Sprint   | 7 September – 4 October 2026                                                                                          |
-| Live app | [paiflow.xyz](https://paiflow.xyz) (Stellar **testnet**) — no account needed: use _Try the sandbox_ on the login page |
-| Source   | [github.com/artisam-paiflow/paiflow](https://github.com/artisam-paiflow/paiflow)                                      |
-| Network  | Testnet only. Mainnet is out of scope for this Instaward.                                                             |
+|          |                                                                                                                                                                                           |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Project  | Paiflow — a visual, non-custodial payment-flow builder on Stellar / Soroban                                                                                                               |
+| Builder  | Mychal Andres B. Pejana                                                                                                                                                                   |
+| Chapter  | Philippines — Chapter Lead Nelson Lumbres                                                                                                                                                 |
+| Sprint   | 7 September – 4 October 2026                                                                                                                                                              |
+| Live app | [paiflow.xyz](https://paiflow.xyz), plus [beta.app.paiflow.xyz](https://beta.app.paiflow.xyz) for the alpha round — same build, Stellar **testnet**. No account needed: _Try the sandbox_ |
+| Source   | [github.com/artisam-paiflow/paiflow](https://github.com/artisam-paiflow/paiflow)                                                                                                          |
+| Network  | Testnet only. Mainnet is out of scope for this Instaward.                                                                                                                                 |
 
 ## How to read this book
 
@@ -34,7 +34,7 @@ address, WASM hash and transaction hash produced during the sprint.
 |                          | Deliverable                                                                | Week | Status      |
 | ------------------------ | -------------------------------------------------------------------------- | ---- | ----------- |
 | [D1](deliverables/d1.md) | The swapper block executes a real swap through the Soroswap testnet router | 1    | Complete    |
-| [D2](deliverables/d2.md) | A developer API with deployment-scoped tokens and execute/events endpoints | 2    | Not started |
+| [D2](deliverables/d2.md) | A developer API with deployment-scoped tokens and execute/events endpoints | 2    | Complete    |
 | [D3](deliverables/d3.md) | Reusable builder input components, adopted in the Swapper panel            | 3    | Not started |
 
 Week 4 is integration, the demo video, and the evidence handoff.

@@ -310,7 +310,7 @@ pre.template {
   <h2 class="display" style="font-size:24pt;margin:4pt 0 10pt;line-height:1.1">What Paiflow is</h2>
   <p class="lead">A visual builder for payments. You drag a trigger (“when money arrives”) and an action (“pay this person”, “split it”, “swap it”) onto a canvas, press <strong>Deploy</strong>, and Paiflow turns that into real smart contracts on the Stellar network.</p>
   <p class="lead">It is non-custodial: you sign every transaction yourself, in your own wallet, and Paiflow never holds your keys.</p>
-  <p>This guide takes <strong>about 90 minutes</strong> end to end: 15 minutes of setup, about an hour of test cases, then the interview questions. You don't need to know how to code.</p>
+  <p>This guide takes <strong>about 90 minutes</strong> end to end: around 20 minutes of setup, about an hour of test cases, then the interview questions. You don't need to know how to code.</p>
 
   <div class="callout ask">
     <span class="label">You'll send us three things</span>
@@ -329,8 +329,8 @@ pre.template {
 
   <div class="callout note">
     <span class="label">We record how the app is used</span>
-    <p>beta.app.paiflow.xyz sends usage analytics to PostHog — which buttons and screens you reach, and where errors appear — so we can see where things are confusing without asking you to write it all down. <strong>Your screen and your session are not recorded.</strong> Events are tied to your test account's internal ID, not your name, and never include secret keys, transaction payloads, or the addresses you pay to. <strong>The public address of the wallet you sign with is recorded</strong>, together with the transaction hash, and linked to your test account, so we can trace a testnet transaction back to the tester who made it. If you have concerns about this, contact us before you start.</p>
-    <p><strong>The only recording of your screen is the one you make yourself</strong>, with Loom, and send to us (step 1.5). It is not masked — it shows your screen as you see it, and your face and voice — so only start it once wallet setup is finished, as the steps below tell you. If you have concerns about any of this, contact us before you start.</p>
+    <p>beta.app.paiflow.xyz sends usage analytics to PostHog — which buttons and screens you reach, and where errors appear — so we can see where things are confusing without asking you to write it all down. <strong>Your screen and your session are not recorded.</strong> Events are tied to your test account's internal ID, not your name, and never include secret keys or transaction payloads, and no address is recorded as a payment recipient. <strong>The public address of every wallet you connect and sign with is recorded</strong>, together with the transaction hash, and linked to your test account, so we can trace a testnet transaction back to the tester who made it. Some tests ask you to sign with an account you also pay into (T6), and that address is recorded the same way. We also keep a server-side log of each wallet connection, with your IP address. If you have concerns about any of this, contact us before you start.</p>
+    <p><strong>The only recording of your screen is the one you make yourself</strong>, with Loom, and send to us (step 1.5). It is not masked — it shows your screen as you see it, and your face and voice — so apart from the short test clip in step 1.5, only start it once wallet setup is finished, as the steps below tell you.</p>
   </div>
 
   <div class="kicker" style="margin-top:20pt">Contents</div>
@@ -345,6 +345,7 @@ pre.template {
     <li><span class="n">8</span><div><a href="#s8">Reporting bugs and sending in your artifacts</a><small>The bug form, and the hand-in that completes your run.</small></div></li>
     <li><span class="n">9</span><div><a href="#s9">Closing interview questions</a><small>Nine questions, answered in your answers file.</small></div></li>
     <li><span class="n">10</span><div><a href="#s10">Your incentive</a><small>₱500 once all three artifacts are in.</small></div></li>
+    <li><span class="n">A</span><div><a href="#appendix">Answers file template</a><small>Copy it into a text file before you start.</small></div></li>
   </ol>
 </section>
 
@@ -375,7 +376,7 @@ pre.template {
   <ol class="steps">
     <li>In Freighter, open the account menu → <strong>Add a new wallet</strong> (or <strong>Create account</strong>). Name it <strong>Recipient A</strong>.</li>
     <li>Fund it with Friendbot exactly as in step 1.2.</li>
-    <li>Repeat for a third account named <strong>Recipient B</strong>.</li>
+    <li>Repeat to create a second recipient, named <strong>Recipient B</strong>.</li>
     <li>Paste all three <code>G…</code> addresses into a note — you'll copy them into Paiflow later.</li>
   </ol>
   <div class="checks-block"><ul class="checks"><li>Main, Recipient A and Recipient B all show 10,000 XLM.</li></ul></div>
@@ -394,15 +395,22 @@ pre.template {
   <h3 style="break-before:page"><span class="tag">1.5</span> Set up Loom and prepare to record</h3>
   <p><strong>Recording yourself is required this round.</strong> Watching someone actually use Paiflow — face, voice and screen together — tells us far more than a written bug report can, especially about the parts that are merely confusing rather than broken.</p>
   <ol class="steps">
-    <li>Sign up at <a href="https://www.loom.com/">loom.com</a> and install the <strong>Loom Chrome extension</strong>.</li>
+    <li>Sign up at <a href="https://www.loom.com/">loom.com</a> and install the <strong>Loom desktop app</strong> from <a href="https://www.loom.com/download">loom.com/download</a> — <strong>Mac or Windows</strong> — then sign in to it. <strong>Don't record with the Chrome extension this round.</strong> Its camera bubble only lives on the tab you started recording on, so the moment you switch tabs or open the Freighter pop-up your face drops out of the video — and your face is half of what we're asking for.
+      <div class="callout note" style="margin-top:8px">
+        <span class="label">No Mac or Windows machine?</span>
+        <p>Loom's desktop app doesn't run on Linux or ChromeOS. Contact us before you start — the same people who sent you your test account — and we'll sort something out.</p>
+      </div>
+    </li>
     <li>Loom's free Starter plan cuts every recording off at <strong>5 minutes</strong>, which isn't enough for this session. Start the <strong>14-day free Business + AI trial</strong> so your recording runs uninterrupted. <strong>No card is needed.</strong> If you don't add one, the workspace drops back to the free Starter plan when the trial ends and there is nothing to cancel. Only add a payment method if you want to keep Loom afterwards — doing so starts a paid subscription when the trial ends.</li>
-    <li>Set the recorder to <strong>Screen + camera + mic</strong>. We want your face in the corner and your voice throughout — thinking out loud, especially when you're unsure what a screen means, is the most useful part of the whole recording. If being on camera is a problem for you, tell us before you start rather than skipping it.</li>
+    <li>Set the recorder to <strong>Screen + camera + mic</strong>, and pick <strong>Full screen</strong> rather than a single window or tab — Freighter's pop-up, the block explorer and the answers file you create in step 1.6 all need to be in the video. We want your face in the corner and your voice throughout — thinking out loud, especially when you're unsure what a screen means, is the most useful part of the whole recording. If being on camera is a problem for you, tell us before you start rather than skipping it.</li>
+    <li><strong>On a Mac</strong>, the first launch asks for permissions. Grant Loom <strong>Screen Recording</strong>, <strong>Camera</strong> and <strong>Microphone</strong> under System Settings → Privacy &amp; Security. If Loom isn't in one of those lists, restart your Mac and open Loom again.</li>
+    <li>Make a <strong>10-second test recording</strong> before you go any further: close Freighter so nothing sensitive is on screen, start it, switch to another tab, stop, and play it back. Your face should still be in the corner after the switch. Delete the clip afterwards — we don't need it.</li>
   </ol>
   <div class="callout warn">
-    <span class="label">Don't start recording yet</span>
-    <p>Your Freighter recovery phrase was on screen in step 1.1. Start recording at the beginning of <a href="#s4">section 4</a>, once wallet setup is done and there's nothing sensitive left to capture.</p>
+    <span class="label">Don't start the real recording yet</span>
+    <p>Your Freighter recovery phrase was on screen in step 1.1. Apart from the short test clip above, start recording at the beginning of <a href="#s4">section 4</a>, once wallet setup is done and there's nothing sensitive left to capture.</p>
   </div>
-  <div class="checks-block"><ul class="checks"><li>Loom is installed, on a plan that records for longer than 5 minutes, and set to Screen + camera + mic.</li></ul></div>
+  <div class="checks-block"><ul class="checks"><li>The Loom <strong>desktop app</strong> is installed and signed in, on a plan that records for longer than 5 minutes, and set to Screen + camera + mic on your full screen.</li><li>Your test recording still shows your face in the corner after you switch tabs.</li></ul></div>
 
   <h3><span class="tag">1.6</span> Create your answers file</h3>
   <p>The interview is built into this guide: each test case ends with a question, and there's a closing set in <a href="#s9">section 9</a>. You answer them <strong>out loud on the recording</strong> and <strong>in writing</strong>, so we have something searchable next to the video.</p>
@@ -452,7 +460,7 @@ pre.template {
 
   <div class="callout warn">
     <span class="label">Start your Loom recording now</span>
-    <p>Keep it running through T1 to T7. Narrate as you go: what you're about to do, and what you expected to happen when it doesn't. If you have to stop partway — a break, a crash, the trial cutting out — just start a new recording and send us every link.</p>
+    <p>Keep it running through T1 to T7 and on into the closing questions in section 9. Narrate as you go: what you're about to do, and what you expected to happen when it doesn't. If you have to stop partway — a break, a crash, the trial cutting out — just start a new recording and send us every link.</p>
   </div>
 
   <p>Do them in order — later tests reuse accounts and flows from earlier ones. For each one, tick the boxes as you go. <strong>If a box doesn't match what you see, grab a screenshot and report it</strong> with the <a href="https://forms.gle/c7AmbU61XbGpCPVXA">bug report form</a>, unless it's listed under <a href="#s6">known issues</a>.</p>
@@ -550,11 +558,11 @@ pre.template {
     <div class="test-head"><span class="test-id">T3</span><h3>The swap block refuses bad settings</h3></div>
     <div class="test-body">
       <div class="goal"><b>Goal</b>Check that mistakes are caught <em>before</em> anything is deployed. You won't deploy in this test.</div>
-      <p>Open <strong>Swap XLM to USDC</strong> and try each change below. After each one, check the boxes and take the screenshot, then <strong>undo the change</strong> before trying the next. Every screenshot here should have the <strong>greyed-out DEPLOY button in shot</strong> alongside the error — that pairing is the thing we're checking.</p>
+      <p>Open <strong>Swap XLM to USDC</strong> and try each change below. After each one, check the boxes and take the screenshot, then <strong>undo the change</strong> before trying the next. Rows <strong>a</strong>, <strong>d</strong> and <strong>e</strong> should raise an error on the canvas — for those, get the <strong>greyed-out DEPLOY button in shot</strong> alongside the error, because that pairing is the thing we're checking. Rows <strong>b</strong> and <strong>c</strong> are different: the field itself refuses the value as you type, so there is no canvas error and DEPLOY stays available.</p>
       <div class="breakit">
         <div class="row hdr"><span></span><span>Try</span><span>Expected</span></div>
         <div class="row"><span class="l">a</span><span>Set <strong>Asset Out</strong> to <strong>XLM</strong> (same as Asset In).</span><span class="exp">An error saying a swap has to exchange two different assets.</span></div>
-        <div class="row"><span class="l">b</span><span>Set <strong>Max slippage</strong> to <strong>0.1</strong>.</span><span class="exp">An error saying slippage must be at least 0.3% because of Soroswap's pool fee.</span></div>
+        <div class="row"><span class="l">b</span><span>Set <strong>Max slippage</strong> to <strong>0.1</strong>.</span><span class="exp">The field refuses the value and snaps back to <strong>0.3</strong> — the minimum, because of Soroswap's pool fee. The note under the field explains why.</span></div>
         <div class="row"><span class="l">c</span><span>Set <strong>Deadline</strong> to <strong>0</strong>, then to <strong>100000</strong>.</span><span class="exp">The field refuses the value (the allowed range is 1–86,400 seconds).</span></div>
         <div class="row"><span class="l">d</span><span>Delete the connection between <strong>Swap</strong> and <strong>Pay</strong>.</span><span class="exp">An error saying a swap needs one next step.</span></div>
         <div class="row"><span class="l">e</span><span>Drag in a second <strong>Pay</strong> block and connect <strong>Swap</strong> to it too.</span><span class="exp">An error saying a swap sends its output to only one next step.</span></div>
@@ -566,10 +574,13 @@ pre.template {
         <li><code>T3-d-swap-no-next-step</code> — row d, the missing next step.</li>
         <li><code>T3-e-swap-two-outputs</code> — row e, the second output.</li>
       </ul>
-      <div class="checks-block"><span class="label">For every row</span><ul class="checks">
+      <div class="checks-block"><span class="label">For rows a, d and e</span><ul class="checks">
         <li>The error is easy to understand and says how to fix it.</li>
         <li><strong>DEPLOY</strong> is greyed out while the error is there.</li>
         <li>The error goes away once you undo the change.</li>
+      </ul></div>
+      <div class="checks-block"><span class="label">For rows b and c</span><ul class="checks">
+        <li>It's clear the value was refused, and clear what the allowed range is.</li>
       </ul></div>
       <div class="callout ask"><span class="label">Interview — T3</span><p>Were those error messages enough to fix the problem on your own, without asking anyone? Which one was clearest, and which one left you guessing?</p></div>
     </div>
@@ -682,7 +693,7 @@ pre.template {
   <div class="test">
     <div class="test-head"><span class="test-id">T7</span><h3>Free exploration (10 minutes)</h3></div>
     <div class="test-body">
-      <p>Build any flow you like using <strong>On Receive</strong>, <strong>Pay</strong>, <strong>Split</strong> and <strong>Swap</strong> — for example receive XLM → swap to USDC → split to two accounts that both have a USDC trustline. Deploy it, trigger it, and tell us what felt confusing, slow or surprising. There are no wrong answers here.</p>
+      <p>Build any flow you like using <strong>On Receive</strong>, <strong>Pay</strong>, <strong>Split</strong> and <strong>Swap</strong> — for example receive XLM → swap to USDC → pay <strong>Recipient A</strong>, the one account you gave a USDC trustline in step 1.4. (If you want to split the USDC between two accounts instead, add a USDC trustline to Recipient B first, the same way — otherwise the payout to B is refused, exactly as in T6.) Deploy it, trigger it, and tell us what felt confusing, slow or surprising. There are no wrong answers here.</p>
       <ul class="shots">
         <li><code>T7-1-canvas</code> — the flow you built.</li>
         <li><code>T7-2-english-preview</code> — its English Preview.</li>
@@ -728,15 +739,25 @@ pre.template {
 <!-- ================= 7 ================= -->
 <section class="page-break" id="s7">
   <div class="section-head"><span class="num">07</span><h2>Troubleshooting</h2></div>
+
+  <h3>Wallet, sign-in and deploy</h3>
   <div class="trouble">
     <div class="item"><div class="see"><span class="k">You see</span><em>“Account … is not funded”</em> or <em>“Minimum 2 XLM required”</em></div><div class="try"><span class="k">Try</span>Fund the account in Freighter with Friendbot (step 1.2).</div></div>
     <div class="item"><div class="see"><span class="k">You see</span>A Freighter network error, or the signature fails</div><div class="try"><span class="k">Try</span>Check Freighter is on <strong>Testnet</strong>, then try again.</div></div>
     <div class="item"><div class="see"><span class="k">You see</span>An error mentioning a <strong>trustline</strong></div><div class="try"><span class="k">Try</span>The account receiving USDC hasn't added USDC yet (step 1.4).</div></div>
     <div class="item"><div class="see"><span class="k">You see</span>DEPLOY greyed out</div><div class="try"><span class="k">Try</span>Click the <strong>Errors</strong> button above the canvas and fix each item.</div></div>
     <div class="item"><div class="see"><span class="k">You see</span><em>“Invalid username or password”</em></div><div class="try"><span class="k">Try</span>Check both, including capital letters. After 5 wrong tries the account locks for 15 minutes — wait, then try again.</div></div>
-    <div class="item"><div class="see"><span class="k">You</span>Forgot your password</div><div class="try"><span class="k">Try</span>There's no reset link yet. Contact us — the same people who sent you your test account — and we'll reset it.</div></div>
+    <div class="item"><div class="see"><span class="k">You see</span>Forgot your password</div><div class="try"><span class="k">Try</span>There's no reset link yet. Contact us — the same people who sent you your test account — and we'll reset it.</div></div>
     <div class="item"><div class="see"><span class="k">You see</span>No Freighter pop-up</div><div class="try"><span class="k">Try</span>Click the Freighter icon in your toolbar — the request may be waiting there.</div></div>
+  </div>
+
+  <div style="break-inside: avoid">
+  <h3>Recording</h3>
+  <div class="trouble">
     <div class="item"><div class="see"><span class="k">Loom</span>Recording stopped after 5 minutes</div><div class="try"><span class="k">Try</span>Your account is still on the free Starter plan — check the Business + AI trial actually started (step 1.5). Keep the part you recorded and carry on in a new video; send us both links.</div></div>
+    <div class="item"><div class="see"><span class="k">Loom</span>Your face disappears whenever you switch tabs</div><div class="try"><span class="k">Try</span>You're recording with the Loom Chrome extension rather than the desktop app — the camera bubble only shows on the tab the recording started on (step 1.5). Switch to the app and record the rest in a new video; send us both links.</div></div>
+    <div class="item"><div class="see"><span class="k">Loom</span>Black screen, or no camera (macOS)</div><div class="try"><span class="k">Try</span>macOS hasn't granted the permissions yet. Open System Settings → Privacy &amp; Security and tick Loom under <strong>Screen Recording</strong>, <strong>Camera</strong> and <strong>Microphone</strong>, then quit Loom and open it again.</div></div>
+  </div>
   </div>
 </section>
 
@@ -769,7 +790,7 @@ pre.template {
   <h3><span class="tag">8.2</span> Sending in your three artifacts</h3>
   <p>Once you've finished T7 and answered the <a href="#s9">closing questions</a>, send everything in one go through the submission form. Have these ready before you open it:</p>
   <ul class="checks">
-    <li><strong>Your Loom link.</strong> One link covering T1 to T7, or every link if you recorded in parts. Check the share setting allows anyone with the link to view it — we can't watch a private video.</li>
+    <li><strong>Your Loom link.</strong> One link covering T1 to T7 and the closing questions, or every link if you recorded in parts. Check the share setting allows anyone with the link to view it — we can't watch a private video.</li>
     <li><strong>Your screenshots, zipped.</strong> Put the whole folder into a single archive, something like <code>paiflow-alpha-yourname.zip</code>. The form takes one file here, so it needs to be a single zip rather than loose images.</li>
     <li><strong>Your answers file.</strong> <code>answers-&lt;yourname&gt;.txt</code> or a doc — whichever you used.</li>
     <li><strong>A Google account.</strong> The form has file uploads, and Google Forms requires every respondent to be signed in for those — there's no way for us to switch that off.</li>
@@ -780,6 +801,7 @@ pre.template {
 <section class="page-break" id="s9">
   <div class="section-head"><span class="num">09</span><h2>Closing interview questions</h2></div>
   <p>Answer these in your answers file once you've finished T7 — and say them out loud on the recording too, while it's still running. Take your time; these are the ones we read most carefully.</p>
+  <p>While you're in the answers file, fill in the <strong>QUICK RATINGS</strong> block near the top of the template as well — the four 1–5 scores. It's easy to miss, and it's the only place we ask for them.</p>
   <ol class="qs">
     <li><strong>In your own words, what does Paiflow do?</strong> Imagine explaining it to a colleague who's never seen it.</li>
     <li><strong>Would you trust Paiflow with real money today?</strong> If not, what specifically would have to change first?</li>

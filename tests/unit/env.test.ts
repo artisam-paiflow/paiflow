@@ -189,6 +189,63 @@ describe("env — the sandbox is testnet-only", () => {
   });
 });
 
+describe("env — the public demo API is testnet-only and must be configured", () => {
+  const DEMO_ID = "0786fca6-ed7c-405b-a819-6aaae424c215";
+
+  beforeEach(() => {
+    vi.resetModules();
+    delete process.env.DEMO_API_ENABLED;
+    delete process.env.DEMO_API_DEPLOYMENT_ID;
+  });
+
+  it("refuses to boot with DEMO_API_ENABLED on mainnet", async () => {
+    // The demo endpoint issues a live API credential to an anonymous caller.
+    // On mainnet that token would reach a real-money deployment, so the
+    // combination fails closed exactly as the sandbox flag does.
+    process.env.DEMO_API_ENABLED = "true";
+    process.env.DEMO_API_DEPLOYMENT_ID = DEMO_ID;
+    const mod = await loadEnv("mainnet");
+    expect(() => mod.env()).toThrow(/DEMO_API_ENABLED/);
+    expect(() => mod.env()).toThrow(/mainnet/);
+  });
+
+  it("refuses to boot when enabled without a deployment id", async () => {
+    // Otherwise the misconfiguration only shows up as a 500 on the first
+    // caller's request, which reads as an outage rather than a missing setting.
+    process.env.DEMO_API_ENABLED = "true";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/DEMO_API_DEPLOYMENT_ID/);
+  });
+
+  it("refuses a deployment id that is not a uuid", async () => {
+    process.env.DEMO_API_ENABLED = "true";
+    process.env.DEMO_API_DEPLOYMENT_ID = "not-a-uuid";
+    const mod = await loadEnv("testnet");
+    expect(() => mod.env()).toThrow(/DEMO_API_DEPLOYMENT_ID/);
+  });
+
+  it("returns the id on testnet when enabled", async () => {
+    process.env.DEMO_API_ENABLED = "true";
+    process.env.DEMO_API_DEPLOYMENT_ID = DEMO_ID;
+    const mod = await loadEnv("testnet");
+    expect(mod.demoApiDeploymentId()).toBe(DEMO_ID);
+  });
+
+  it("returns null when the flag is off even though an id is set", async () => {
+    // The flag is the switch; a stale id left in the environment must not be
+    // enough to reopen the endpoint.
+    process.env.DEMO_API_DEPLOYMENT_ID = DEMO_ID;
+    const mod = await loadEnv("testnet");
+    expect(mod.demoApiDeploymentId()).toBeNull();
+  });
+
+  it("leaves mainnet alone when the demo is off", async () => {
+    const mod = await loadEnv("mainnet");
+    expect(mod.env().DEMO_API_ENABLED).toBe(false);
+    expect(mod.demoApiDeploymentId()).toBeNull();
+  });
+});
+
 describe("env — passkey origins", () => {
   beforeEach(() => {
     vi.resetModules();

@@ -15,6 +15,16 @@ const optionalWasmHash = z
     message: "WASM hash must be a 64-character hex string",
   });
 
+// A row id handed to Prisma. Validated at config load so a typo'd id fails at
+// startup rather than surfacing as a Prisma error on the first request.
+const optionalUuid = z
+  .string()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined))
+  .refine((v) => v === undefined || z.string().uuid().safeParse(v).success, {
+    message: "must be a UUID",
+  });
+
 // Stellar memo IDs are numeric (uint64). Kept as a string to avoid precision
 // loss; validated at config load so a swapped/misconfigured PDAX memo fails at
 // startup rather than mid-way through a live off-ramp job.
@@ -171,6 +181,12 @@ const EnvSchema = z.object({
   ALLOW_PUBLIC_REGISTRATION: boolish,
   // Offers a no-account, limited sandbox session from the login page.
   SANDBOX_ENABLED: boolish,
+
+  // Hands any unauthenticated caller a short-lived token for one shared,
+  // operator-provisioned swapper deployment, so the partner API can be tried
+  // without an account. Both are refused on mainnet; see the guard in `env()`.
+  DEMO_API_ENABLED: boolish,
+  DEMO_API_DEPLOYMENT_ID: optionalUuid,
 
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url().optional(),
@@ -358,8 +374,38 @@ export function env(): EnvShape {
     );
   }
 
+  // Same reasoning as the sandbox guard above: the demo endpoint hands a live
+  // API credential to anyone who asks. On mainnet that is an anonymous party
+  // holding a token against a real-money deployment, so it is refused outright.
+  if (parsed.data.DEMO_API_ENABLED && parsed.data.STELLAR_NETWORK === "mainnet") {
+    throw new Error(
+      "Invalid environment variables:\n" +
+        "  - DEMO_API_ENABLED: cannot be true when STELLAR_NETWORK=mainnet. " +
+        "The public demo API is testnet-only.",
+    );
+  }
+  // Enabled-but-unconfigured would only surface as a 500 on the first caller's
+  // request, which reads as an outage rather than a missing setting.
+  if (parsed.data.DEMO_API_ENABLED && !parsed.data.DEMO_API_DEPLOYMENT_ID) {
+    throw new Error(
+      "Invalid environment variables:\n" +
+        "  - DEMO_API_DEPLOYMENT_ID: required when DEMO_API_ENABLED=true.",
+    );
+  }
+
   cached = parsed.data;
   return cached;
+}
+
+/**
+ * The deployment the public demo API hands tokens out for, or null when the
+ * demo is off. The AND of flag and id lives here so no route can read the id
+ * without the flag, and so a caller's reachable surface is one env lookup.
+ */
+export function demoApiDeploymentId(): string | null {
+  const e = env();
+  if (!e.DEMO_API_ENABLED) return null;
+  return e.DEMO_API_DEPLOYMENT_ID ?? null;
 }
 
 export type StellarNetworkName = "testnet" | "mainnet";

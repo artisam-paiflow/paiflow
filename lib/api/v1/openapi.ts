@@ -1,4 +1,5 @@
 import {
+  DemoTokenSchema,
   EXECUTE_PREREQUISITES,
   ExecutePrepareSchema,
   ExecutePreparedSchema,
@@ -53,6 +54,13 @@ export const examples = {
   submitRequest: {
     signedXdr:
       "AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAAAAAAAAAAAABmxy2kAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB…(truncated)",
+  },
+  demoTokenResponse: {
+    data: {
+      deploymentId: EXAMPLE_DEPLOYMENT_ID,
+      token: "pfk_4f1c9d2a7b8e3056c14fa9d7be205183cc47e6f90a2b5d38e71c406fa9b8d2e5",
+      expiresAt: "2026-09-18T15:04:05.000Z",
+    },
   },
   submitSuccess: { data: { txHash: EXAMPLE_TX_HASH, status: "SUCCESS", ledger: 1842917 } },
   submitPending: { data: { txHash: EXAMPLE_TX_HASH, status: "PENDING" } },
@@ -111,7 +119,7 @@ export const examples = {
       lastUsedAt: null,
       expiresAt: "2026-12-14T08:55:00.000Z",
       revokedAt: null,
-      token: "pfk_3f9a1c7e0b2d4f6a8c0e2a4c6e8a0c2e4a6c8e0a2c4e6a8c0e2a4c6e8a0c2e4a",
+      token: "pfk_3f9a1c7e…(truncated)",
     },
   },
   tokenListResponse: {
@@ -141,6 +149,20 @@ export const examples = {
       code: "VALIDATION",
       message: "Invalid input",
       fields: { amount: ["Must be a whole number of stroops"] },
+    },
+  },
+  // What `assertDepositEnvelope` throws: a message and no `fields`.
+  submitError422: {
+    error: {
+      code: "VALIDATION",
+      message: "The envelope does not invoke this flow's trigger contract",
+    },
+  },
+  eventsError422: {
+    error: {
+      code: "VALIDATION",
+      message: "Invalid cursor",
+      fields: { cursor: ["Invalid cursor"] },
     },
   },
 } as const;
@@ -189,6 +211,16 @@ const SESSION_ERROR_DESCRIPTIONS: Record<ErrorCode, string> = {
     "The body failed validation (`fields` names each problem), or the deployment is not `CONFIRMED`.",
 };
 
+// The demo route is public: its refusals are about the instance's configuration, not the caller's
+// credentials, so the shared descriptions would mislead.
+const DEMO_ERROR_DESCRIPTIONS: Record<ErrorCode, string> = {
+  ...ERROR_DESCRIPTIONS,
+  FORBIDDEN: "The public demo is not enabled on this instance.",
+  RATE_LIMITED: "Too many demo tokens from this address, or the instance is at its hourly cap.",
+  INTERNAL:
+    "The demo deployment is not configured, confirmed or swapper-shaped. One message for every case; the operator is alerted.",
+};
+
 const errorsWith =
   (descriptions: Record<ErrorCode, string>, codeExamples: Partial<Record<ErrorCode, unknown>>) =>
   (...codes: ErrorCode[]) =>
@@ -199,14 +231,19 @@ const errorsWith =
       ]),
     );
 
-const errors = errorsWith(ERROR_DESCRIPTIONS, {
-  UNAUTHENTICATED: examples.error401,
-  VALIDATION: examples.error422,
-});
+const errorsFor = (overrides: Partial<Record<ErrorCode, unknown>> = {}) =>
+  errorsWith(ERROR_DESCRIPTIONS, {
+    UNAUTHENTICATED: examples.error401,
+    VALIDATION: examples.error422,
+    ...overrides,
+  });
+const errors = errorsFor();
 
 const sessionErrors = errorsWith(SESSION_ERROR_DESCRIPTIONS, {
   UNAUTHENTICATED: examples.sessionError401,
 });
+
+const demoErrors = errorsWith(DEMO_ERROR_DESCRIPTIONS, {});
 
 const deploymentIdParam = {
   name: "id",
@@ -229,6 +266,7 @@ const TOKEN_ROUTES_RATE = rate(
 const executeShape = ExecutePrepareSchema.shape;
 const preparedShape = ExecutePreparedSchema.shape;
 const submittedShape = ExecuteSubmittedSchema.shape;
+const demoShape = DemoTokenSchema.shape;
 
 export const openApiDocument = {
   openapi: "3.1.0",
@@ -252,6 +290,9 @@ export const openApiDocument = {
       "| --- | --- |",
       errorTable,
       "",
+      "No account? `POST /api/v1/demo-token` hands you a short-lived token for a shared demo " +
+        "flow, so every call above can be tried straight away.",
+      "",
       "The public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`.",
     ].join("\n"),
   },
@@ -260,6 +301,12 @@ export const openApiDocument = {
     { name: "Execute", description: "Run a swapper flow: prepare, sign on your side, submit." },
     { name: "Events", description: "Cursor-based polling of a deployment's decoded events." },
     { name: "Spec", description: "This document." },
+    {
+      name: "Demo",
+      description:
+        "Get a token for the shared testnet demo flow with no account, so the API above can be " +
+        "tried before you register.",
+    },
     {
       name: "Token management (owner session)",
       description:
@@ -365,7 +412,13 @@ export const openApiDocument = {
               },
             },
           },
-          ...errors("UNAUTHENTICATED", "NOT_FOUND", "VALIDATION", "RATE_LIMITED", "UPSTREAM_RPC"),
+          ...errorsFor({ VALIDATION: examples.submitError422 })(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "VALIDATION",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+          ),
         },
       },
     },
@@ -426,7 +479,12 @@ export const openApiDocument = {
               examples.eventsResponse,
             ),
           },
-          ...errors("UNAUTHENTICATED", "NOT_FOUND", "VALIDATION", "RATE_LIMITED"),
+          ...errorsFor({ VALIDATION: examples.eventsError422 })(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "VALIDATION",
+            "RATE_LIMITED",
+          ),
         },
       },
     },
@@ -443,6 +501,41 @@ export const openApiDocument = {
             content: { "application/json": { schema: { type: "object" } } },
           },
           ...errors("RATE_LIMITED"),
+        },
+      },
+    },
+    "/api/v1/demo-token": {
+      post: {
+        tags: ["Demo"],
+        operationId: "createDemoToken",
+        summary: "Get a short-lived token for the public demo deployment",
+        description: [
+          "Public; no token and no account. Returns a bearer token for one shared swapper " +
+            "deployment on testnet, so you can run the calls above before registering. Takes no " +
+            "body. Available only where the public demo is enabled (the testnet instance); 403 " +
+            "otherwise.",
+          "",
+          "**This deployment is shared.** Anyone else holding a demo token can read the events " +
+            "your deposit produces, including the account you deposited from. The swap proceeds " +
+            "are paid to a Paiflow-owned testnet account, not back to you, so the testnet XLM you " +
+            "deposit is spent. Fund a throwaway account with friendbot and never point this at an " +
+            "account you care about.",
+          "",
+          "For an isolated deployment and a token that does not expire in an hour, register, " +
+            "deploy your own flow and mint a token in the **API access** panel.",
+          "",
+          `${rate(V1_RATE_LIMITS.demoToken, "per client IP")} ${rate(V1_RATE_LIMITS.demoTokenGlobal, "instance-wide")}`,
+        ].join("\n"),
+        security: [],
+        responses: {
+          "201": {
+            description: "A demo token. Shown once; it expires in 60 minutes.",
+            content: json(
+              dataEnvelope("#/components/schemas/DemoToken"),
+              examples.demoTokenResponse,
+            ),
+          },
+          ...demoErrors("FORBIDDEN", "RATE_LIMITED", "INTERNAL"),
         },
       },
     },
@@ -699,6 +792,24 @@ export const openApiDocument = {
           lastUsedAt: { type: ["string", "null"], format: "date-time" },
           expiresAt: { type: ["string", "null"], format: "date-time" },
           revokedAt: { type: ["string", "null"], format: "date-time" },
+        },
+      },
+      DemoToken: {
+        type: "object",
+        required: ["deploymentId", "token", "expiresAt"],
+        description: DemoTokenSchema.description,
+        properties: {
+          deploymentId: {
+            type: "string",
+            format: "uuid",
+            description: demoShape.deploymentId.description,
+          },
+          token: { type: "string", description: demoShape.token.description },
+          expiresAt: {
+            type: "string",
+            format: "date-time",
+            description: demoShape.expiresAt.description,
+          },
         },
       },
       CreatedApiToken: {

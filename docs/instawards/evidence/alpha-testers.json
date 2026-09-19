@@ -1,0 +1,36 @@
+{
+  "cohort": "instawards-alpha-round-1",
+  "windowStart": "2026-09-16",
+  "plannedCohortSize": 5,
+  "provenance": [
+    "Accounts were issued out of band (docs/alpha-testing-guide.md §2); the person-to-account mapping lives in the feedback survey's 'Your name' answer (docs/user-feedback-survey.md:19-22).",
+    "userId is the User.id UUID, which is also the PostHog distinct_id (docs/analytics/alpha-tracking-plan.md:51).",
+    "wallets are the G-addresses each tester signed with, read from SignedTransaction.signerAddress or the transaction_signed event. A tester signs with more than one, so this is a list. The per-tester walletAddresses field in the alpha-metrics snapshots carries the same addresses, so this list can be checked against a committed artefact rather than taken on trust.",
+    "No real name, username or email belongs in this file. The labels are pseudonyms and the published pages use them."
+  ],
+  "note": "An entry appears when an account is issued, not when its session runs: a tester with no wallets and no events has been onboarded but has not yet worked through the guide, which is tester-3's state here. A tester who has run a session carries the wallets they signed with; those are backfilled from the snapshot, so an empty list beside a non-zero figure means this file is behind, not that the tester used none. plannedCohortSize is what the round targets; testers.length is what has been issued. Every alpha-tester figure is filtered on these UUIDs explicitly -- the PostHog cohort named 'Alpha testers' is role = USER, which since the 16 September cutover matches both ordinary paiflow.xyz visitors and sandbox sessions signing on the beta, and is deliberately not used. One of the issued accounts (tester-1) belongs to a member of the project, who ran the first session as a pilot of the protocol; the other two are external and have not yet run a session. Every alpha-tester figure published so far is therefore the project's own work, which docs/instawards/metrics.md states alongside the numbers. That person also tests internally under a separate account and one of the wallets listed here was used by both, so their three wallets are three addresses belonging to one human, not three people.",
+  "testers": [
+    {
+      "label": "tester-1",
+      "userId": "f2071aa2-8831-4e87-ab7d-0b31841244f6",
+      "wallets": [
+        "GDZ2BQPZQLLXTBFVKJX6UVZQAIZCIC4HDGT4XDLH5JOWO7WWP2KLIN37",
+        "GCEASAPW5DRX5JAPMUFNLUOI6JUXD4C4E72WLR7OAK6BYH4R5GBIBD5T",
+        "GCUPU53VS77YLKT2VL3ORCGF5UNJQOWXF6FVV3GSX4PR547GX5RR7VFS"
+      ]
+    },
+    {
+      "label": "tester-2",
+      "userId": "515ee32a-b2b2-4bce-8e4a-8d1f452d4f94",
+      "wallets": [
+        "GAG2RKFEKMLJCBJAZSKIKHTBH6TTWTDL44UX7IIP32NL75TWSQDVGQUX",
+        "GCU6O3RBR7F7KF662DMEXRJBDUVLOE4IYLTRVKEFIET2RJM5DIBD5ZIA"
+      ]
+    },
+    {
+      "label": "tester-3",
+      "userId": "ec1c3f68-c116-4d81-a565-08205fae1aca",
+      "wallets": []
+    }
+  ]
+}

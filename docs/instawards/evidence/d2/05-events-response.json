@@ -1,0 +1,132 @@
+{
+  "source": "GET https://paiflow.xyz/api/v1/deployments/<id>/events, deployment API token, 18 September 2026",
+  "note": "Four calls against the same deployment. The first filters by the run's transaction hash and returns the three events the pipeline emitted. The next three page the whole feed forward with the opaque cursor, two items at a time. The last passes the cursor the feed ended on: it returns no items and echoes that cursor back, which is how a caller tails the feed without missing or repeating an event.",
+  "byTxHash": {
+    "data": {
+      "items": [
+        {
+          "id": "167054b2-8cb6-4055-b8fd-4a7ca190c002",
+          "eventId": "0020336798995623936-0000000001",
+          "kind": "RECEIVE",
+          "topic": "deposit",
+          "ledger": 4735030,
+          "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
+          "occurredAt": "2026-09-18T02:32:17.000Z",
+          "data": {
+            "from": "GCMAIV7NW6C5KT5VGSHCBD5VQE4XAM2PDFZVICHDVDWL2BKE7BJYZVUM",
+            "asset": "XLM",
+            "amount": "100000000"
+          }
+        },
+        {
+          "id": "c579376d-7cdc-4d22-a3b1-be49c3b2972b",
+          "eventId": "0020336798995623936-0000000010",
+          "kind": "PAYOUT",
+          "topic": "pay",
+          "ledger": 4735030,
+          "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
+          "occurredAt": "2026-09-18T02:32:17.000Z",
+          "data": {
+            "asset": "USDC",
+            "payment": "10584167",
+            "recipient": "GCVJW2CEXCJ6WPRYAMYFIDA6LLIYX5NJIJ6T76NW2BXQXFNPV2V62J7H"
+          }
+        },
+        {
+          "id": "94cf0bbf-54a6-43c7-9e55-d48a6b688ac7",
+          "eventId": "0020336798995623936-0000000011",
+          "kind": "PAYOUT",
+          "topic": "swap",
+          "ledger": 4735030,
+          "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
+          "occurredAt": "2026-09-18T02:32:17.000Z",
+          "data": {
+            "assetIn": "XLM",
+            "amountIn": "100000000",
+            "assetOut": "USDC",
+            "amountOut": "10584167"
+          }
+        }
+      ],
+      "nextCursor": "NDczNTAzMHwwMDIwMzM2Nzk4OTk1NjIzOTM2LTAwMDAwMDAwMTE",
+      "hasMore": false
+    }
+  },
+  "cursorWalk": [
+    {
+      "request": "?limit=2",
+      "response": {
+        "data": {
+          "items": [
+            {
+              "id": "167054b2-8cb6-4055-b8fd-4a7ca190c002",
+              "eventId": "0020336798995623936-0000000001",
+              "kind": "RECEIVE",
+              "topic": "deposit",
+              "ledger": 4735030,
+              "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
+              "occurredAt": "2026-09-18T02:32:17.000Z",
+              "data": {
+                "from": "GCMAIV7NW6C5KT5VGSHCBD5VQE4XAM2PDFZVICHDVDWL2BKE7BJYZVUM",
+                "asset": "XLM",
+                "amount": "100000000"
+              }
+            },
+            {
+              "id": "c579376d-7cdc-4d22-a3b1-be49c3b2972b",
+              "eventId": "0020336798995623936-0000000010",
+              "kind": "PAYOUT",
+              "topic": "pay",
+              "ledger": 4735030,
+              "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
+              "occurredAt": "2026-09-18T02:32:17.000Z",
+              "data": {
+                "asset": "USDC",
+                "payment": "10584167",
+                "recipient": "GCVJW2CEXCJ6WPRYAMYFIDA6LLIYX5NJIJ6T76NW2BXQXFNPV2V62J7H"
+              }
+            }
+          ],
+          "nextCursor": "NDczNTAzMHwwMDIwMzM2Nzk4OTk1NjIzOTM2LTAwMDAwMDAwMTA",
+          "hasMore": true
+        }
+      }
+    },
+    {
+      "request": "?limit=2&cursor=<nextCursor from page 1>",
+      "response": {
+        "data": {
+          "items": [
+            {
+              "id": "94cf0bbf-54a6-43c7-9e55-d48a6b688ac7",
+              "eventId": "0020336798995623936-0000000011",
+              "kind": "PAYOUT",
+              "topic": "swap",
+              "ledger": 4735030,
+              "txHash": "b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7",
+              "occurredAt": "2026-09-18T02:32:17.000Z",
+              "data": {
+                "assetIn": "XLM",
+                "amountIn": "100000000",
+                "assetOut": "USDC",
+                "amountOut": "10584167"
+              }
+            }
+          ],
+          "nextCursor": "NDczNTAzMHwwMDIwMzM2Nzk4OTk1NjIzOTM2LTAwMDAwMDAwMTE",
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "request": "?limit=2&cursor=<nextCursor from page 2>",
+      "response": {
+        "data": {
+          "items": [],
+          "nextCursor": "NDczNTAzMHwwMDIwMzM2Nzk4OTk1NjIzOTM2LTAwMDAwMDAwMTE",
+          "hasMore": false
+        }
+      }
+    }
+  ]
+}
