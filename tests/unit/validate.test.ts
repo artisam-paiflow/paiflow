@@ -1540,6 +1540,176 @@ describe("validateFlow", () => {
       ],
     });
     expect(r.ok).toBe(false);
+    // Without the path this passed on the zod parse alone, so it never proved
+    // the semantic rule ran.
+    if (!r.ok) {
+      expect(r.errors.map((e) => e.path)).toEqual(["nodes.e.config.recipients"]);
+      expect(r.errors[0]?.message).toBe("Email notify node requires at least one recipient");
+    }
+  });
+
+  // #450: the palette drops Email Notify blank and the builder PATCHes the whole
+  // graph, so the shape has to parse for any save to land. Deploy is refused by
+  // validateFlow instead.
+  describe("email_notify drafts", () => {
+    const emailUnderPay = (config: Record<string, unknown>) => ({
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "a",
+          type: "pay",
+          config: {
+            recipient: ADDR_A,
+            mode: "fixed",
+            amountStroops: "10",
+            asset: { kind: "native" },
+          },
+        },
+        { id: "e", type: "email_notify", config },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "a" },
+        { id: "e2", source: "a", target: "e" },
+      ],
+    });
+    const recipientIssues = (graph: unknown) => {
+      const r = validateFlow(graph);
+      return r.ok ? [] : r.errors.filter((e) => e.path === "nodes.e.config.recipients");
+    };
+
+    it("parses the blank palette default", () => {
+      const parsed = FlowGraphSchema.safeParse(
+        emailUnderPay({ recipients: [], subject: "", body: "" }),
+      );
+      expect(parsed.success).toBe(true);
+    });
+
+    it("refuses the blank palette default on recipients and subject", () => {
+      const r = validateFlow(emailUnderPay({ recipients: [], subject: "", body: "" }));
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.errors.map((e) => e.path).sort()).toEqual([
+          "nodes.e.config.recipients",
+          "nodes.e.config.subject",
+        ]);
+        expect(r.errors.map((e) => e.message)).toContain(
+          "Email notify node requires at least one recipient",
+        );
+        expect(r.errors.map((e) => e.message)).toContain("Email notify node requires a subject");
+      }
+    });
+
+    it("parses a half-typed email and refuses it at validation", () => {
+      const graph = emailUnderPay({
+        recipients: [{ address: ADDR_A, email: "ali" }],
+        subject: "Hi",
+        body: "",
+      });
+      expect(FlowGraphSchema.safeParse(graph).success).toBe(true);
+      const issues = recipientIssues(graph);
+      expect(issues.map((e) => e.message)).toEqual(["Invalid email address: ali"]);
+      expect(issues[0]?.friendlyMessage).toContain('"ali"');
+    });
+
+    it("accepts a complete email address", () => {
+      const r = validateFlow(
+        emailUnderPay({
+          recipients: [{ address: ADDR_A, email: "alice@example.com" }],
+          subject: "Hi",
+          body: "",
+        }),
+      );
+      expect(r.ok).toBe(true);
+    });
+
+    it("reports a lone blank row once, as a missing recipient", () => {
+      const issues = recipientIssues(
+        emailUnderPay({ recipients: [{ address: ADDR_A, email: "" }], subject: "Hi", body: "" }),
+      );
+      expect(issues.map((e) => e.message)).toEqual([
+        "Email notify node requires at least one recipient",
+      ]);
+    });
+
+    it("refuses a blank row beside a filled one", () => {
+      const issues = recipientIssues(
+        emailUnderPay({
+          recipients: [
+            { address: ADDR_A, email: "alice@example.com" },
+            { address: ADDR_A, email: " " },
+          ],
+          subject: "Hi",
+          body: "",
+        }),
+      );
+      expect(issues.map((e) => e.message)).toEqual([
+        "Email notify node has a recipient with no email address",
+      ]);
+    });
+
+    const emailUnderSplit = (
+      recipients: { address: string; email: string }[],
+      opts: { filledViaApi?: boolean } = {},
+    ) => ({
+      ...(opts.filledViaApi ? { devMode: true } : {}),
+      nodes: [
+        { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+        {
+          id: "s",
+          type: "split",
+          config: {
+            asset: { kind: "native" },
+            recipients: opts.filledViaApi
+              ? []
+              : [
+                  { address: ADDR_A, mode: "percentage", bps: 5000 },
+                  { address: ADDR_B, mode: "percentage", bps: 5000 },
+                ],
+          },
+        },
+        { id: "e", type: "email_notify", config: { recipients, subject: "Hi", body: "" } },
+      ],
+      edges: [
+        { id: "e1", source: "t", target: "s" },
+        { id: "e2", source: "s", target: "e" },
+      ],
+    });
+
+    it("reports a blank row under a split once, naming the split recipient", () => {
+      const graph = emailUnderSplit([
+        { address: ADDR_A, email: "a@example.com" },
+        { address: ADDR_B, email: "" },
+      ]);
+      expect(FlowGraphSchema.safeParse(graph).success).toBe(true);
+      expect(recipientIssues(graph).map((e) => e.message)).toEqual([
+        `Missing email for split recipient ${ADDR_B}`,
+      ]);
+    });
+
+    it("refuses a malformed email under a split", () => {
+      const issues = recipientIssues(
+        emailUnderSplit([
+          { address: ADDR_A, email: "a@example.com" },
+          { address: ADDR_B, email: "b@" },
+        ]),
+      );
+      expect(issues.map((e) => e.message)).toEqual(["Invalid email address: b@"]);
+    });
+
+    it("still checks addresses when a dev-mode split is filled via the API", () => {
+      const viaApi = { filledViaApi: true };
+      expect(validateFlow(emailUnderSplit([], viaApi)).ok).toBe(true);
+      expect(
+        recipientIssues(emailUnderSplit([{ address: ADDR_A, email: "nope" }], viaApi)).map(
+          (e) => e.message,
+        ),
+      ).toEqual(["Invalid email address: nope"]);
+      expect(
+        recipientIssues(emailUnderSplit([{ address: ADDR_A, email: "" }], viaApi)).map(
+          (e) => e.message,
+        ),
+      ).toEqual(["Email notify node has a recipient with no email address"]);
+    });
   });
 
   it("rejects email_notify without a contract action", () => {
