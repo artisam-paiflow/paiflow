@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requireSession } from "@/lib/auth";
+import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
 import { FlowGraphSchema, type Asset, type FlowGraph, assetLabel } from "@/lib/flows/schema";
@@ -23,7 +23,7 @@ export default async function DeployReviewPage({
 }: {
   params: Promise<{ flowId: string }>;
 }) {
-  const user = await requireSession();
+  const user = await requirePageSession();
   const { flowId } = await params;
   const flow = await db.flow.findFirst({ where: { id: flowId, ownerId: user.id } });
   if (!flow) notFound();

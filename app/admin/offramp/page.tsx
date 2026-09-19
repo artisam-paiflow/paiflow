@@ -1,12 +1,12 @@
 import { Role } from "@prisma/client";
-import { requireSession } from "@/lib/auth";
+import { requirePageSession } from "@/lib/auth";
 import Topbar from "@/components/app/topbar";
 import OffRampCredentialForm from "@/components/admin/offramp-credential-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminOffRampPage() {
-  const user = await requireSession({ role: Role.ADMIN });
+  const user = await requirePageSession({ role: Role.ADMIN });
 
   return (
     <>

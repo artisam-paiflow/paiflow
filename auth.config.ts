@@ -64,6 +64,10 @@ export const authConfig: NextAuthConfig = {
         token.id = (user as { id: string }).id;
         token.role = (user as { role: Role }).role;
         token.username = (user as { username: string }).username;
+        // Frozen at sign-in on purpose. The rolling refresh calls this with no
+        // `user` and keeps the value; that is what lets getSessionUser() tell a
+        // token issued before a bump from one issued after it.
+        token.sessionVersion = (user as { sessionVersion: number }).sessionVersion;
       }
       return token;
     },
@@ -72,6 +76,9 @@ export const authConfig: NextAuthConfig = {
         session.user.id = (token.id as string) ?? "";
         (session.user as { role?: Role }).role = (token.role as Role) ?? "USER";
         (session.user as { username?: string }).username = (token.username as string) ?? "";
+        // Passed through as is, absent included: lib/auth/session-version.ts
+        // owns what a missing version means.
+        (session.user as { sessionVersion?: unknown }).sessionVersion = token.sessionVersion;
       }
       return session;
     },

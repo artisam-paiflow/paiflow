@@ -40,9 +40,13 @@ export async function POST(req: NextRequest) {
     if (!ok) throw new AppError("FORBIDDEN", "Current password is incorrect");
 
     const newHash = await hashPassword(body.newPassword);
-    await db.user.update({ where: { id: user.id }, data: { passwordHash: newHash } });
-    // Rotate sessions on privilege/credential change.
-    await db.session.deleteMany({ where: { userId: user.id } });
+    // The bump ends every session this account has, the caller's included: a
+    // changed password is the owner's answer to "someone else may be signed in".
+    // components/account/change-password.tsx signs out and sends them to /login.
+    await db.user.update({
+      where: { id: user.id },
+      data: { passwordHash: newHash, sessionVersion: { increment: 1 } },
+    });
     await audit({
       action: "USER_PASSWORD_CHANGE",
       userId: user.id,

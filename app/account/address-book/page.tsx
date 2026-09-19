@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth";
+import { requirePageSession } from "@/lib/auth";
 import Topbar from "@/components/app/topbar";
 import AddressBookManager from "@/components/account/address-book";
 
@@ -9,7 +9,7 @@ export const metadata = {
 };
 
 export default async function AddressBookPage() {
-  const user = await requireSession();
+  const user = await requirePageSession();
   return (
     <>
       <Topbar username={user.username} />

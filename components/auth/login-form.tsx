@@ -6,7 +6,23 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { safeReturnPath } from "@/lib/safe-return-path";
 
-export default function LoginForm({ from, error }: { from?: string; error?: string }) {
+// Keyed by the `reason` query param. A lookup rather than the param itself, so
+// a crafted link cannot put its own words on the sign-in page.
+const NOTICES: Record<string, string> = {
+  "session-ended": "Your session has ended. Sign in again to continue.",
+  "password-changed": "Password changed. Sign in with your new password.",
+};
+
+export default function LoginForm({
+  from,
+  error,
+  reason,
+}: {
+  from?: string;
+  error?: string;
+  reason?: string;
+}) {
+  const notice = reason && Object.hasOwn(NOTICES, reason) ? NOTICES[reason] : undefined;
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -29,6 +45,17 @@ export default function LoginForm({ from, error }: { from?: string; error?: stri
 
   return (
     <form action={onSubmit} className="glass-panel mt-md gap-md p-md grid rounded-xl">
+      {notice ? (
+        <p
+          role="status"
+          className="border-secondary/40 bg-secondary/10 text-label-sm text-secondary flex items-center gap-2 rounded border px-3 py-2 font-mono"
+        >
+          <span aria-hidden="true" className="material-symbols-outlined text-[14px]">
+            info
+          </span>
+          {notice}
+        </p>
+      ) : null}
       {error ? (
         <p className="border-error/40 bg-error-container/30 text-label-sm text-error flex items-center gap-2 rounded border px-3 py-2 font-mono">
           <span className="material-symbols-outlined text-[14px]">error</span>

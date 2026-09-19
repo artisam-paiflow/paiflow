@@ -21,6 +21,8 @@ const ALLOWED = [
   "/api/auth/session",
   "/api/auth/csrf",
   "/api/auth/signout",
+  // Where a deactivated sandbox account's cookie gets cleared.
+  "/api/auth/stale-session",
   "/api/auth/callback/credentials",
   "/api/health",
   "/api/flows",

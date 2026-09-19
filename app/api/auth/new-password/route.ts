@@ -49,8 +49,8 @@ export async function POST(req: NextRequest) {
 
     // Single transaction: rotate password, mark this token used, invalidate
     // all other outstanding reset tokens for the same user, clear lockout,
-    // and revoke all existing sessions so any device with a stale session
-    // has to sign in again with the new password.
+    // and bump sessionVersion so any device with a session from before the
+    // reset has to sign in again with the new password.
     await db.$transaction([
       db.user.update({
         where: { id: record.userId },
@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
           passwordHash: newHash,
           failedLogins: 0,
           lockedUntil: null,
+          sessionVersion: { increment: 1 },
         },
       }),
       db.passwordResetToken.update({
@@ -68,7 +69,6 @@ export async function POST(req: NextRequest) {
         where: { userId: record.userId, usedAt: null, id: { not: record.id } },
         data: { usedAt: new Date() },
       }),
-      db.session.deleteMany({ where: { userId: record.userId } }),
     ]);
 
     await audit({
