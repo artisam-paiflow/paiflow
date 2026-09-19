@@ -68,7 +68,8 @@ Here is the situation. There are no steps — do it however makes sense to you.
 > You run a small shop with a business partner. Customers pay you in **XLM**. Whenever a payment
 > arrives, **60% should go to you and 40% to your partner**. Nobody else gets a share.
 
-Change the **Shop** flow so it does exactly that. Use these two addresses:
+Change the **Shop** flow so it does exactly that, **by hand**: the **Ask AI** panel and its suggestion
+buttons aren't part of this round. Keep every payout on **Crypto (wallet)**. Use these two addresses:
 
 | Who          | Address                                                    |
 | ------------ | ---------------------------------------------------------- |
@@ -87,11 +88,11 @@ stuck — that is a useful result, and it doesn't affect your incentive.
 <details>
 <summary><strong>Stuck for more than three minutes? Open this hint.</strong> The survey asks whether you did.</summary>
 
-- Click a block on the canvas to open its settings on the right.
+- Click a block on the canvas to open its settings.
 - Both blocks have an **Asset** setting. The example uses USDC; the shop is paid in XLM.
 - The **Split** block lists its recipients. Each one has an address, a share and a label, and the
   shares must add up to 100%.
-- The **Errors** button at the top lists whatever is still wrong.
+- While something is wrong, a button at the top shows the number of errors. Click it to see them.
 
 </details>
 
@@ -119,8 +120,8 @@ One submitted survey is what makes you eligible for the **₱125** incentive. An
 finish B3" counts exactly the same as a perfect run. We'll contact you on the name you enter in
 the survey.
 
-Please leave everything else in the app alone: other block types, **Ask AI**, **Dev mode**, and
-the Profile page aren't part of this round.
+Please leave everything else in the app alone: other block types, **Dev mode**, and the Profile page
+aren't part of this round.
 
 **Thank you.** Twenty minutes of somebody's real attention is the most useful thing we get.
 
