@@ -3,12 +3,14 @@
 Thanks for helping test Paiflow. This takes **about 20 minutes**. You don't need to know how to
 code, you don't need a crypto wallet, and you don't record anything.
 
-**What you do:** four short tasks, answering a survey as you go. A completed survey makes you
-eligible for the **₱125** incentive. An [optional bonus](#optional-bonus-75) at the end adds
+**What you do:** four short tasks, three screenshots, and a survey you answer as you go. The
+completed survey and the screenshots make you eligible for the **₱125** incentive. An [optional bonus](#optional-bonus-75) at the end adds
 **₱75**.
 
-**What you need:** a laptop or desktop with **Chrome** or **Brave**, your phone, and the username
-and password we sent you.
+**What you need:** a laptop or desktop with **Chrome** or **Brave**, your phone, the username
+and password we sent you, and a **Google Drive folder** for your three screenshots. Make it now: New
+folder → Share → General access: **Anyone with the link** → Viewer → Copy link. Any other shared
+folder that opens without signing in is fine too.
 
 **Open the survey now, in its own tab, and keep it open:** <https://forms.gle/s5D1R8xVnN6X4N338>. Each
 task tells you when to switch to it. Don't close that tab until you've pressed Submit — an
@@ -27,7 +29,8 @@ unfinished survey isn't saved.
 > - **Usage analytics, sent to PostHog:** which buttons and screens you reach, and where errors
 >   appear. Events are tied to your test account's internal ID, not your name.
 > - **Your screen is not recorded**, and neither are your face or voice.
-> - **Your survey answers** are stored in Google Forms and read by the Paiflow team.
+> - **Your survey answers** are stored in Google Forms and read by the Paiflow team. So are your
+>   screenshots, which show whatever is on your screen — close anything private before taking one.
 > - **Only if you do the optional bonus:** the public address of the wallet you connect, the
 >   transaction hash, and your IP address at the moment you connect are recorded and linked to your
 >   test account. We never see or store a secret key.
@@ -38,7 +41,8 @@ unfinished survey isn't saved.
 
 1. On your laptop, open [beta.paiflow.xyz](https://beta.paiflow.xyz).
 2. Look at the page for **ten seconds. Don't scroll, don't click.**
-3. Switch to the survey and answer **section B1** now, before you look at anything else.
+3. **Screenshot** `B1-homepage` — the page exactly as you saw it, before scrolling.
+4. Switch to the survey and answer **section B1** now, before you look at anything else.
 
 ---
 
@@ -80,6 +84,8 @@ buttons aren't part of this round. Keep every payout on **Crypto (wallet)**. Use
 
 1. Click **DEPLOY**. A review page opens.
 2. Read the review page. **Stop there — do not press DEPLOY TO TESTNET.**
+   - **Screenshot** `B3-review` — the review page, with the English Preview sentence and the
+     TESTNET chip in shot. If you never got this far, screenshot the builder where you stopped.
 3. Answer survey **section B3**.
 
 Give yourself eight minutes. If you aren't there by then, stop anyway and tell us where you got
@@ -108,16 +114,20 @@ A flow like yours gives you a page to send to the people who pay you. Here is on
 3. Still on your phone, open: <https://beta.app.paiflow.xyz/deployments/7ed55a66-6fa3-4f31-be3c-b2e562b38cc7/embed>
    Scroll down to **Live events**. Ignore the red "Authentication required" box and the missing QR
    image on this page — both are already on our list.
+   - **Screenshot** `B4-phone` — on your phone, with the Live events rows in shot. Upload it from
+     your phone's Drive app, or send it to yourself first.
 4. Answer survey **section B4**.
 
 ---
 
 ## Finish the survey (5 minutes)
 
-Answer the last section, **About you and overall**, and press **Submit**.
+Put `B1-homepage`, `B3-review` and `B4-phone` in your Drive folder. Answer the last section, **About
+you and overall**, paste the folder link into its final question, and press **Submit**.
 
-One submitted survey is what makes you eligible for the **₱125** incentive. An honest "I couldn't
-finish B3" counts exactly the same as a perfect run. We'll contact you on the name you enter in
+The submitted survey and the three screenshots are what make you eligible for the **₱125**
+incentive. An honest "I couldn't finish B3", with a screenshot of where you stopped, counts exactly
+the same as a perfect run. We'll contact you on the name you enter in
 the survey.
 
 Please leave everything else in the app alone: other block types, **Dev mode**, and the Profile page
@@ -129,9 +139,8 @@ aren't part of this round.
 
 ## Optional bonus (+₱75)
 
-About 25 more minutes. You install a test wallet, put your Shop flow on the Stellar test network,
-and send it one payment. Do this **after** submitting the survey — you'll send us one link at the
-end.
+About 25 more minutes: install a test wallet, deploy your Shop flow, and pay it once. Do this
+**after** submitting the survey.
 
 ### 1. Install Freighter and get free testnet XLM
 
@@ -152,22 +161,17 @@ end.
 - [ ] A "Contract deployed" message appears and you're taken to the deployment page.
 - [ ] Within about a minute the status becomes **ACTIVE** and a QR code appears.
 
-### 3. Pay it once
+### 3. Pay it once, and send us the link
 
 1. On the deployment page, click **OPEN TRIGGER PAGE**.
 2. Enter **10** as the amount, click **CONFIRM AMOUNT**, then **CONNECT WALLET & TRIGGER**, and
    sign in Freighter.
 3. Go back to the deployment page and watch the live feed.
+   - [ ] The live feed shows one RECEIVE row and two PAYOUT rows: 6 XLM and 4 XLM.
+   - **Screenshot** `bonus-live-feed` — the feed showing all three rows. Add it to the same folder.
+4. Reply to the message this guide came in with the address of your **deployment page**. That link,
+   plus `bonus-live-feed` in your folder, makes you eligible for the extra **₱75**.
 
-- [ ] The live feed shows one RECEIVE row and two PAYOUT rows: 6 XLM and 4 XLM.
-
-### 4. Send us the link
-
-Copy the address of your **deployment page** from the browser's address bar and send it to us by
-replying to the message this guide came in. That link is what makes you eligible for the extra
-**₱75**.
-
-**Already on our list, so no need to report:** the trigger page can report a failure even though
-the payment went through (check the live feed first); the review page lists several wallets, but
-only Freighter works for deploying right now; and the live feed can lag a few seconds to a minute
-behind the chain.
+**Already on our list:** the trigger page can report a failure even though the payment went through —
+check the live feed first. Only Freighter works for deploying, and the live feed can lag up to a
+minute.

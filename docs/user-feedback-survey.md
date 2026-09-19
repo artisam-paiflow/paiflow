@@ -88,7 +88,10 @@ just one place. The ratings, the recommend score and the closing questions use *
 verbatim** (the answers-file template in `alpha-testing-guide.md`), so the two groups can be read
 side by side. Don't reword one without the other.
 
-There are no file uploads, so respondents don't need a Google account.
+There are no file-upload questions, so the form never forces a Google sign-in. The three
+screenshots the guide asks for go in a folder the tester shares, and the form takes its link
+(question 30). A Drive folder does need a Google account; any shared folder that opens without
+signing in is acceptable instead.
 
 The form was generated from this spec with a one-off Apps Script (`FormApp`), so if a question
 changes here, change it in the form by hand as well. It has **six sections**, in this order. The guide sends testers to each section by name, and
@@ -181,6 +184,9 @@ minutes in the product taught them.)
 
 **29. May we follow up with you? If yes, your email.** — short answer, optional.
 
+**30. Link to your screenshots folder** — short answer. Help text: A Google Drive folder shared as
+"Anyone with the link can view", containing B1-homepage, B3-review and B4-phone.
+
 ## Form settings
 
 | Setting      | Value                                                                  |
@@ -193,6 +199,12 @@ minutes in the product taught them.)
 
 ## What to do with a response
 
+- **Open the screenshots folder before releasing the incentive.** A folder left private is the
+  likely failure: ask the tester to fix the sharing, don't withhold over it. Copy the images out,
+  since a tester can delete their folder at any time. `B3-review` shows the English Preview
+  sentence, so check it against question 11; `B4-phone` is real-device evidence for D3's mobile
+  viewport pass. A `B3-review` that shows the builder instead of the review page means they stopped
+  short, which the guide allows.
 - **There is no recording, so PostHog is the session record.** Match the response to the account
   by name, then read that account's events (`docs/analytics/alpha-tracking-plan.md`, "Group B").
   Question 9 is self-reported; the gap between `builder_opened` and `deploy_review_viewed` is the
@@ -204,5 +216,5 @@ minutes in the product taught them.)
 - **Pool with group A**: questions 21–24 and 26–28 are the same questions. Group B is fewer than
   ten people, so read the numbers as indications, and keep the two groups labelled when quoting.
 - **The bonus** is not part of the form. A tester sends their deployment page link by message; check
-  it is ACTIVE and its live feed shows a RECEIVE and two PAYOUT rows before releasing the extra
-  ₱75. The base incentive is **₱125** for a submitted survey (`alpha-testing-guide-lite.md`).
+  it is ACTIVE and its live feed shows a RECEIVE and two PAYOUT rows, and that `bonus-live-feed` is in
+  their folder, before releasing the extra ₱75. The base incentive is **₱125** for a submitted survey and the three screenshots (`alpha-testing-guide-lite.md`).
