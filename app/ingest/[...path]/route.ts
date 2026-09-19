@@ -9,10 +9,11 @@ import { clientIp } from "@/lib/rate-limit";
 const INGEST_ORIGIN = "https://us.i.posthog.com";
 const ASSETS_ORIGIN = "https://us-assets.i.posthog.com";
 
-// origin and referer carry no credentials, and PostHog needs them: it checks the
-// project's recording_domains against Origin, and without it serves session replay
-// as disabled.
-const FORWARDED_REQUEST_HEADERS = ["content-type", "user-agent", "accept", "origin", "referer"];
+// Not origin or referer. PostHog read Origin only for the session-replay
+// recording_domains check, replay is off (lib/analytics/client.ts), and Referer
+// would hand over `/flows/<id>` and `/deployments/<id>` on every capture,
+// outside the before_send redaction.
+const FORWARDED_REQUEST_HEADERS = ["content-type", "user-agent", "accept"];
 // fetch has already decoded the body, so the upstream encoding and length are wrong.
 const DROPPED_RESPONSE_HEADERS = ["set-cookie", "content-encoding", "content-length"];
 

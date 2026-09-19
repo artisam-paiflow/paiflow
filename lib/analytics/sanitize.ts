@@ -1,7 +1,8 @@
 /**
  * Runtime backstop for the privacy rules in `lib/analytics/events.ts`: whatever
- * a call site passes, no Stellar secret seed, account/contract address or XDR
- * blob leaves the app in an analytics payload. Pure, so the browser and the
+ * a call site passes, no Stellar secret seed, account/contract address, XDR
+ * blob, app-minted credential or email address leaves the app in an analytics
+ * payload. Transaction hashes and UUIDs pass on purpose: the funnel joins on them. Pure, so the browser and the
  * server share it.
  *
  * One deliberate exception, added 17 September 2026 for wallet ↔ user ↔ tx
@@ -18,6 +19,21 @@ const SECRET_SEED = /\bS[A-Z2-7]{55}\b/g;
 const STRKEY_ADDRESS = /\b[GCM][A-Z2-7]{55}(?:[A-Z2-7]{13})?\b/g;
 // Base64 runs this long are XDR envelopes or results, never a human message.
 const BASE64_BLOB = /[A-Za-z0-9+/]{80,}={0,2}/g;
+// A separate class rather than widening the one above: `/` and `-` together
+// would swallow `/deployments/<uuid>/payroll-runs/<uuid>` in $pathname, which
+// stays readable by decision (#517, 17 Sep 2026).
+const BASE64URL_BLOB = /[A-Za-z0-9_-]{80,}/g;
+// Credentials this app mints and shows once: `pfk_` partner tokens
+// (lib/api/v1/tokens.ts) and `whsec_` webhook secrets. Both are 68 chars, under
+// every length-based rule here.
+const PREFIXED_SECRET = /\b(?:pfk|whsec)_[0-9a-f]{32,}\b/gi;
+const JWT = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
+// Sandbox and passkey sign-in tickets: `<User.id>.<epoch ms>.<32 hex>`.
+const LOGIN_TICKET = /\b[0-9a-f-]{36}\.\d{13}\.[0-9a-f]{32}\b/gi;
+// `/auth/new-password?token=…` carries a live reset token (43 chars of
+// base64url) into $current_url and $referrer.
+const SECRET_QUERY_PARAM = /([?&](?:token|ticket|code|secret|key)=)[^&#\s]+/gi;
+const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
 const HEX_HASH = /\b[0-9a-f]{64}\b/gi;
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 
@@ -37,8 +53,14 @@ export function isAddressAllowedKey(key: string): boolean {
 export function redactString(value: string): string {
   return value
     .replace(SECRET_SEED, "<secret>")
+    .replace(PREFIXED_SECRET, "<token>")
+    .replace(JWT, "<token>")
+    .replace(LOGIN_TICKET, "<ticket>")
+    .replace(SECRET_QUERY_PARAM, "$1<redacted>")
+    .replace(EMAIL, "<email>")
     .replace(STRKEY_ADDRESS, "<address>")
     .replace(BASE64_BLOB, "<blob>")
+    .replace(BASE64URL_BLOB, "<blob>")
     .slice(0, MAX_STRING);
 }
 

@@ -212,8 +212,10 @@ export default function ApiAccessPanel({ deploymentId }: { deploymentId: string 
       </form>
 
       {revealed ? (
+        // ph-no-capture: posthog-js skips the element and its children entirely.
+        // The plaintext token and the curl line below are live credentials.
         <div
-          className="border-primary/40 bg-primary/5 mt-md rounded-lg border p-3"
+          className="ph-no-capture border-primary/40 bg-primary/5 mt-md rounded-lg border p-3"
           data-testid="api-token-reveal"
         >
           <div className="flex items-center justify-between gap-2">
