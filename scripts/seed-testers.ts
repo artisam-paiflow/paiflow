@@ -9,6 +9,10 @@
  * list: username, generated password, and md5 of the stored hash to compare with the `hash_md5`
  * column the statement returns. Nothing is written to disk; save the passwords yourself.
  *
+ * A password printed here is only a candidate until the statement returns that username with a
+ * matching `hash_md5`. A username that already existed is skipped by `on conflict do nothing`,
+ * is absent from the result, and keeps its old password — the one printed for it never applies.
+ *
  * Usage:
  *   pnpm testers:seed-sql --from 6 --to 10            # tester6 … tester10
  *   pnpm testers:seed-sql --from 6 --to 10 > seed.sql # SQL to a file, credentials to the terminal
@@ -72,7 +76,10 @@ function generatePassword(username: string): string {
     const md5 = createHash("md5").update(a.passwordHash).digest("hex");
     console.error(`${a.username.padEnd(12)}${a.password.padEnd(28)}${md5}`);
   }
-  console.error("\nShown once. Existing usernames are skipped by the SQL and keep their password.");
+  console.error(
+    "\nShown once. Hand out a password only for a username the SQL returns with this hash_md5:\n" +
+      "a username missing from the result already existed, was skipped, and keeps its old password.",
+  );
 })().catch((err) => {
   console.error(err instanceof Error ? err.message : err);
   process.exit(1);
