@@ -4,7 +4,7 @@ Thanks for helping test Paiflow. This guide takes **about 70 minutes** end to en
 of setup, about 45 minutes of test cases, then the closing questions. You don't need to know how to
 code.
 
-**You'll send us three things at the end.** They're what makes you eligible for the **₱500**
+**You'll send us three things at the end.** They're what makes you eligible for the **₱650**
 incentive ([section 8.2](#82-sending-in-your-three-artifacts)):
 
 1. a **Loom recording** of your session, with your screen and camera ([step 1.5](#15-set-up-loom-and-prepare-to-record));
@@ -455,7 +455,7 @@ and filing none doesn't count against you.
 
 Once you've finished T7 and answered the [closing questions](#9-closing-interview-questions), send
 everything in one go through the **[submission form](https://forms.gle/hdmpGNwUi6oh6stv6)**. You're
-eligible for the **₱500** incentive once we've received all three:
+eligible for the **₱650** incentive once we've received all three:
 
 - [ ] **Your Loom link** — one link covering T1 to T7 and the closing questions, or every link if
       you recorded in parts. Check the share setting lets anyone with the link view it.
