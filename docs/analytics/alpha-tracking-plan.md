@@ -201,6 +201,41 @@ There is no session replay to fall back on, so T7 (free exploration) and any ses
 click or a `trigger_failed` have to be read from the event stream — `$autocapture`, `$dead_click`
 and `error_shown` in _Activity → Live events_, filtered to that person.
 
+## Group B (quick test)
+
+A second, lighter group follows `docs/alpha-testing-guide-lite.md`: no Loom, no wallet in the core
+session, answers in a Google Form (`docs/user-feedback-survey.md`, "Group B"). With no recording,
+the event stream is the only record of what a group B tester did, so it matters more here than for
+group A.
+
+What to read, per tester, filtered to that account's `distinct_id`:
+
+- **Did they get there, and how fast:** `builder_opened` → `deploy_review_viewed` on the flow named
+  _Shop_. `deploy_review_viewed` fires when the review page loads and needs no wallet, so it is the
+  finish line of task B3. The time between the two is the measured version of the survey's
+  self-reported minutes.
+- **What got in the way:** `validation_error_appeared` by `error_key` between those two events,
+  with `validation_error_resolved.time_to_resolve_ms`; `node_added` / `node_removed` show whether
+  they edited the example or deleted it and started again.
+- **Guided against unguided:** B3 is group A's T4 (a two-way XLM split) without the steps. The same
+  `error_key`s, compared across the two groups, show what the written steps were papering over.
+
+Three things that will look wrong on the dashboards and aren't:
+
+- Group B accounts are `role = USER`, so they appear on Alpha 1–6 next to group A. **On _Alpha 1 —
+  Tester funnel_ they drop out at `deploy_confirmed` by design**; only a tester who does the
+  optional bonus deploys. Read group B by an explicit `distinct_id` list, the way
+  `scripts/alpha-metrics.ts` reads group A.
+- They never appear on _Alpha 2 — Test-case coverage_ as anything but a row of zeros, unless they
+  do the bonus, which shows as one `split_deploys`.
+- Task B4 is done on a phone with no session, so its `trigger_page_viewed` and
+  `deployment_page_viewed` arrive under an anonymous `distinct_id` and cannot be tied to a tester.
+  Those answers exist only in the survey.
+
+Group B is not in `docs/instawards/evidence/alpha-testers.json`. When the accounts are issued, list
+them in a cohort file of their own and pass it with `--cohort=`; a bonus deployer's wallet then
+counts toward "distinct wallets deploying" only on that basis, stated as such.
+
 ## Setup
 
 Done on 15 September 2026:
