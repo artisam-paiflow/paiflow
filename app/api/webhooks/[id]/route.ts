@@ -76,17 +76,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
 
     if (result.status === "PENDING") {
-      await audit({
-        action: "DEPLOY_TRIGGER",
-        userId: deployment.flow.ownerId,
-        metadata: {
-          deploymentId: id,
-          txHash: result.txHash,
-          from: body.from,
-          amount: body.amount,
-          escrow: body.escrow,
-        },
-      });
+      // A duplicate send means whoever queued this hash first wrote its row.
+      if (!result.duplicate) {
+        await audit({
+          action: "DEPLOY_TRIGGER",
+          userId: deployment.flow.ownerId,
+          metadata: {
+            deploymentId: id,
+            txHash: result.txHash,
+            from: body.from,
+            amount: body.amount,
+            escrow: body.escrow,
+          },
+        });
+      }
       return NextResponse.json({
         data: { txHash: result.txHash, status: "PENDING" },
       });
