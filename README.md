@@ -287,7 +287,9 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 | `pnpm db:studio`         | Open Prisma Studio                   |
 
 `pnpm dev-token:create` mints a `DevApiToken` for the dev-mode API; `pnpm db:seed:events` and
-`db:seed:all-events` populate a deployment's event feed for demos.
+`db:seed:all-events` populate a deployment's event feed for demos. `pnpm testers:seed-sql --from 6
+--to 10` prints a create-only SQL statement for a batch of alpha-tester accounts, plus their one-time
+passwords; it never connects to a database, so the statement is run by hand where the database is.
 
 #### Contracts (Soroban)
 
