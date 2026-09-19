@@ -36,27 +36,63 @@ const EVENT_INGEST_DEADLINE_MS = 5_000;
 // Best-effort like the rest of the bookkeeping here: it never affects the
 // status answer.
 //
-// A terminal status stays terminal, so a remount, a second tab or a reload polls
-// it again. The Redis claim makes each (deployment, tx, outcome) count once;
-// without Redis there is nothing to claim against and it captures as before.
+// A terminal status stays terminal, so a remount, a second tab, a reload or a
+// script replaying the hash polls it again. The route is public, so everything
+// a terminal status sets off — the audit row, the event ingest, the synthetic
+// allowance event and the analytics capture — hangs off one Redis claim per
+// (deployment, tx, outcome) and happens once. The key keeps its `analytics:`
+// name from when it guarded the capture alone, so claims already taken on a
+// running service still hold.
+//
+// Without Redis, or when the claim itself errors, there is nothing to claim
+// against and every poll does the work, as before: the rate limiter has fallen
+// back to per-process memory by then too, and skipping the ingest would cost a
+// real user their events for a minute.
 const OUTCOME_CLAIM_TTL_SECONDS = 7 * 24 * 60 * 60;
+type Outcome = "confirmed" | "failed";
+
+function outcomeClaimKey(deploymentId: string, txHash: string, outcome: Outcome): string {
+  return `analytics:trigger:${deploymentId}:${txHash}:${outcome}`;
+}
+
+async function claimOutcome(
+  deploymentId: string,
+  txHash: string,
+  outcome: Outcome,
+): Promise<boolean> {
+  const client = redis();
+  if (!client) return true;
+  try {
+    const claimed = await client.set(
+      outcomeClaimKey(deploymentId, txHash, outcome),
+      "1",
+      "EX",
+      OUTCOME_CLAIM_TTL_SECONDS,
+      "NX",
+    );
+    return claimed === "OK";
+  } catch (err) {
+    log.warn(
+      { err, deploymentId, txHash },
+      "tx-status: outcome claim failed, proceeding unclaimed",
+    );
+    return true;
+  }
+}
+
+// Only for a claim whose work never started, so the next poll can retry it.
+async function releaseOutcome(deploymentId: string, txHash: string, outcome: Outcome) {
+  await redis()
+    ?.del(outcomeClaimKey(deploymentId, txHash, outcome))
+    .catch(() => null);
+}
+
 async function captureTriggerOutcome(
   deploymentId: string,
   txHash: string,
-  outcome: "confirmed" | "failed",
+  outcome: Outcome,
 ): Promise<void> {
   try {
-    const client = redis();
-    if (client) {
-      const claimed = await client.set(
-        `analytics:trigger:${deploymentId}:${txHash}:${outcome}`,
-        "1",
-        "EX",
-        OUTCOME_CLAIM_TTL_SECONDS,
-        "NX",
-      );
-      if (claimed !== "OK") return;
-    }
     const [d, signed] = await Promise.all([
       db.deployment.findUnique({
         where: { id: deploymentId },
@@ -144,11 +180,20 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       // non-OK response as "Failed to check transaction status" for a
       // transaction that confirmed. Every other database touch below is
       // swallowed; this one has to be too.
-      const submittedHere = await wasTxSubmittedFor(id, txHash).catch((err) => {
+      //
+      // Claimed before the lookup, not after: `wasTxSubmittedFor` is a JSON-path
+      // read of AuditLog (#435), and a repeat poll should not pay for it either.
+      // The key carries the deployment id, so a poll against the wrong
+      // deployment claims nothing the right one needs.
+      if (!(await claimOutcome(id, txHash, "confirmed"))) {
+        return NextResponse.json({ data: { status: "SUCCESS", txHash } });
+      }
+      const submittedHere = await wasTxSubmittedFor(id, txHash).catch(async (err) => {
         log.warn(
           { err, deploymentId: id, txHash },
           "tx-status: submit lookup failed, leaving ingest to the cron poller",
         );
+        await releaseOutcome(id, txHash, "confirmed");
         return false;
       });
 
@@ -216,7 +261,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (got.status === "FAILED") {
       // Unlike the SUCCESS branch this reads nothing that a stranger's hash
       // could pollute, but only a hash we submitted says something about Paiflow.
-      if (await wasTxSubmittedFor(id, txHash).catch(() => false)) {
+      if (
+        (await claimOutcome(id, txHash, "failed")) &&
+        (await wasTxSubmittedFor(id, txHash).catch(async () => {
+          await releaseOutcome(id, txHash, "failed");
+          return false;
+        }))
+      ) {
         void captureTriggerOutcome(id, txHash, "failed");
       }
       return NextResponse.json({

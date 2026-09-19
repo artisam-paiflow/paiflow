@@ -16,7 +16,7 @@ const { mockRpc, mockDb, mockEnforceRateLimit, mockRedis, mockCapture } = vi.hoi
   mockRpc: { getTransaction: vi.fn() },
   mockDb: { deployment: { findUnique: vi.fn() }, signedTransaction: { findUnique: vi.fn() } },
   mockEnforceRateLimit: vi.fn(async (_opts: { key: string }) => undefined),
-  mockRedis: { set: vi.fn() },
+  mockRedis: { set: vi.fn(), del: vi.fn() },
   mockCapture: vi.fn(async () => undefined),
 }));
 vi.mock("@/lib/redis", () => ({ redis: () => mockRedis }));
@@ -70,6 +70,8 @@ describe("GET /api/deployments/[id]/tx-status", () => {
       claimed.add(key);
       return "OK";
     });
+    mockRedis.del.mockReset();
+    mockRedis.del.mockImplementation(async (key: string) => (claimed.delete(key) ? 1 : 0));
   });
 
   it("ingests the deployment's events once the transaction succeeds", async () => {
@@ -206,6 +208,42 @@ describe("GET /api/deployments/[id]/tx-status", () => {
 
   // The route is public, so a limit keyed on the caller-controlled deployment id
   // would hand out a fresh bucket per request.
+  // #561: the route is public, so a replayed hash must not buy an audit row and
+  // an RPC ingest pass per request.
+  it("does the confirmation bookkeeping once across repeated SUCCESS polls", async () => {
+    mockRpc.getTransaction.mockResolvedValue({
+      status: "SUCCESS",
+      ledger: 4598539,
+      createdAt: 1757600000,
+      envelopeXdr: "AAAA",
+    });
+    for (let i = 0; i < 3; i++) {
+      const res = await call();
+      expect(await res.json()).toEqual({ data: { status: "SUCCESS", txHash: TX_HASH } });
+    }
+    expect(audit).toHaveBeenCalledTimes(1);
+    expect(pollEventsFor).toHaveBeenCalledTimes(1);
+    expect(recordAllowanceEvent).toHaveBeenCalledTimes(1);
+    expect(wasTxSubmittedFor).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives the claim back when the submit lookup fails, so the next poll retries", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
+    vi.mocked(wasTxSubmittedFor).mockRejectedValueOnce(new Error("db blip"));
+    await call();
+    expect(pollEventsFor).not.toHaveBeenCalled();
+    await call();
+    expect(pollEventsFor).toHaveBeenCalledTimes(1);
+    expect(audit).toHaveBeenCalledTimes(1);
+  });
+
+  it("still does the bookkeeping when the claim itself errors", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
+    mockRedis.set.mockRejectedValue(new Error("redis down"));
+    await call();
+    expect(pollEventsFor).toHaveBeenCalledTimes(1);
+  });
+
   it("rate-limits on the ip alone before the per-deployment bucket", async () => {
     mockRpc.getTransaction.mockResolvedValue({ status: "NOT_FOUND" });
     await call();
