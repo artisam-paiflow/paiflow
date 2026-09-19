@@ -87,7 +87,8 @@ the same one the sandbox deploys.
   the XLM you deposit.
 - This is testnet only. The endpoint is off wherever `STELLAR_NETWORK=mainnet`, and the app refuses
   to boot in that combination.
-  {% endhint %}
+
+{% endhint %}
 
 The demo is for evaluating the API. For an isolated deployment, a recipient you control and a token
 that does not expire in an hour, register, deploy your own flow and mint a token in the **API
@@ -372,8 +373,9 @@ Every response carries an `x-request-id` header. Include it when you report a pr
 
 ## Rate limits
 
-Limits are counted **per token**, per endpoint, in fixed 60-second windows. Going over returns
-`429 RATE_LIMITED`.
+Token-authenticated endpoints are counted **per token**, per endpoint, in fixed 60-second windows.
+The two public endpoints carry no token, so they are counted per client IP instead, and the demo
+token also has an instance-wide hourly cap. Going over returns `429 RATE_LIMITED`.
 
 | Endpoint                                      | Limit                                                     |
 | --------------------------------------------- | --------------------------------------------------------- |

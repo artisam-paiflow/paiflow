@@ -151,7 +151,10 @@ export const DemoTokenSchema = z
       .string()
       .regex(/^pfk_[0-9a-f]{64}$/)
       .describe("Bearer token for the routes above. Shown once and never retrievable again."),
-    expiresAt: z.string().describe("ISO time the token stops working. Ask again for a new one."),
+    expiresAt: z
+      .string()
+      .datetime()
+      .describe("ISO time the token stops working. Ask again for a new one."),
   })
   .describe("A short-lived token for the shared demo deployment on testnet.");
 export type DemoToken = z.infer<typeof DemoTokenSchema>;
