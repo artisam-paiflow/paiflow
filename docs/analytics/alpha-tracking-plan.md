@@ -172,7 +172,11 @@ What each one shows:
 1. **Alpha funnel, per tester:** `login_succeeded` → `builder_opened` → `deploy_confirmed` →
    `trigger_confirmed` → `live_event_rendered`. Break down by person to see who stalled where.
 2. **Test-case coverage:** `deploy_confirmed` broken down by `template_kinds` and `has_swap`.
-   Swap flows map to T1/T2, a lone `PAYER` to T4, `SPLITTER` to T5/T6.
+   _Coverage by tester_ has one column per kind of test rather than per test number, because the
+   guide was renumbered on 19 September: `swap_deploys` (T1; T1/T2 for testers 1–2), `pay_deploys`
+   (T3; was T4 — a `PAYER` deploy with no swap in it), `split_deploys` (T4/T5; was T5/T6) and
+   `api_tokens_created` (T6, new). T6 deploys nothing, so it is read from
+   `off_script_feature_used` with `feature = api_token_created`, from 19 September onwards.
 3. **Friction:** top `validation_error_appeared.error_key` with median `time_to_resolve_ms`;
    `error_shown` by `error_class` and `message_key`; `deploy_failed` and `trigger_failed` by
    `stage`.
@@ -187,7 +191,11 @@ What each one shows:
    recorded before the D3 rebuild lands in week 3, and the rebuild's commit shows up as a new
    `app_version`.
 6. **Scope drift:** `off_script_feature_used` by `feature`. If a hidden feature keeps pulling
-   testers in, hide it rather than asking testers not to use it.
+   testers in, hide it rather than asking testers not to use it. Both insights leave out
+   `feature = api_token_created` from 19 September, when the guide's T6 started asking testers to
+   create a token; it is counted on _Test-case coverage_ instead. Token creations before that date
+   were off-script and still show here. The app still sends the event under this name — renaming
+   it mid-round would split the series.
 
 There is no session replay to fall back on, so T7 (free exploration) and any session with a rage
 click or a `trigger_failed` have to be read from the event stream — `$autocapture`, `$dead_click`

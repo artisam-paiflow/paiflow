@@ -10,7 +10,7 @@ places to answer the same question is how the two drift apart.
 
 Testers are told to submit only after finishing T7 and the closing questions, so a submission is
 expected to be complete. All four fields are required — a missing artifact means the **₱500**
-incentive isn't released (`alpha-testing-guide.md` §10).
+incentive isn't released (`alpha-testing-guide.md` §8.2).
 
 ---
 
