@@ -178,6 +178,12 @@ and signs it in through the same single-use ticket handshake the passkey login u
 pipeline in `/api/deployments/prepare`: a sandbox session may only deploy pipelines the visitor's
 own wallet signs end to end, never one the relayer later acts on.
 
+Nothing deletes a sandbox user or what it deployed, and the account cannot be re-entered once its
+cookie is gone, so the crons bound the work instead: `cron/poll-events` polls a sandbox-owned
+deployment only for `SANDBOX_POLL_WINDOW_MS` after creation (`cronPollableDeploymentWhere()` in
+`lib/sandbox.ts`), and `cron/auto-release` never loads one. The rows and the event cursor stay, and
+the deployment page, its SSE stream and `tx-status` still ingest on demand.
+
 ### Partner API: `/api/v1`
 
 `/api/v1` is the partner-facing surface: machine callers authenticated by a

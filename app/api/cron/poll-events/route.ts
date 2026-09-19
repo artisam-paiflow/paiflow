@@ -4,6 +4,7 @@ import { log } from "@/lib/log";
 import { withErrorHandler } from "@/lib/errors";
 import { pollEventsFor } from "@/lib/stellar/events";
 import { requireCronSecret } from "@/lib/auth/cron-secret";
+import { cronPollableDeploymentWhere } from "@/lib/sandbox";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     log.info("poll-events cron started");
 
     const deployments = await db.deployment.findMany({
-      where: { status: "CONFIRMED" },
+      where: cronPollableDeploymentWhere(new Date()),
       select: { id: true },
     });
     log.info({ deploymentCount: deployments.length }, "poll-events cron found deployments");
