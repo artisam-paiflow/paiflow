@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit } from "@/lib/rate-limit";
 import { findPipelineNode } from "@/lib/flows/pipeline-snapshot";
 import { updatePaymentByRelayer } from "@/lib/stellar/dev-mutate";
 
@@ -38,12 +38,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
-    const rlKey = user ? `dev-mutate:${user.id}` : `dev-mutate:machine:${clientIp(req)}`;
+    const rlKey = `dev-mutate:${user.id}`;
     const rl = await rateLimit(rlKey, 30, 60);
     if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many dev mutations");
     const body = BodySchema.parse(await req.json());
 
-    const d = await db.deployment.findFirst({ where: user ? { id, ownerId: user.id } : { id } });
+    const d = await db.deployment.findFirst({ where: { id, ownerId: user.id } });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
 
     const node = findPipelineNode(d.pipelineSnapshot, "PAYER_DEV", body.nodeId);
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     await audit({
       action: "DEV_UPDATE_PAYMENT",
-      userId: user?.id ?? null,
+      userId: user.id,
       metadata: { deploymentId: d.id, nodeId: node.nodeId, txHash: result.txHash },
     });
 

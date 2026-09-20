@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const { id } = await ctx.params;
 
     const deployment = await db.deployment.findFirst({
-      where: user ? { id, ownerId: user.id } : { id },
+      where: { id, ownerId: user.id },
       select: { id: true },
     });
     if (!deployment) throw new AppError("NOT_FOUND", "Deployment not found");

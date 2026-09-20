@@ -60,9 +60,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const body = PostSchema.parse(await req.json());
 
     const d = await db.deployment.findFirst({
-      // Machine callers authenticated via x-dev-api-secret are trusted to access
-      // any deployment; this matches the trust model of payroll-runs and events.
-      where: user ? { id, ownerId: user.id } : { id },
+      where: { id, ownerId: user.id },
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");

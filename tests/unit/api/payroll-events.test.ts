@@ -10,7 +10,9 @@ const { mockDb } = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
-vi.mock("@/lib/auth", () => ({ requireDevAuth: vi.fn(async () => ({ user: null })) }));
+vi.mock("@/lib/auth", () => ({
+  requireDevAuth: vi.fn(async () => ({ user: { id: "owner-1", username: "owner", role: "USER" } })),
+}));
 
 import { GET as deploymentFeed } from "@/app/api/deployments/[id]/payroll-events/route";
 import { GET as runFeed } from "@/app/api/deployments/[id]/payroll-runs/[runId]/events/route";

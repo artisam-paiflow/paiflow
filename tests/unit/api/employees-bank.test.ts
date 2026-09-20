@@ -17,7 +17,9 @@ const { mockDb, mockAuth, mockRelayer } = vi.hoisted(() => {
   };
 
   const mockAuth = {
-    requireDevAuth: vi.fn(async () => ({ user: null })),
+    requireDevAuth: vi.fn(async () => ({
+      user: { id: "owner-1", username: "owner", role: "USER" },
+    })),
   };
 
   const mockRelayer = {
@@ -29,7 +31,7 @@ const { mockDb, mockAuth, mockRelayer } = vi.hoisted(() => {
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/env", () => ({
-  env: () => ({ DEV_API_SECRET: "dev-secret", LOG_LEVEL: "silent" }),
+  env: () => ({ LOG_LEVEL: "silent" }),
 }));
 vi.mock("@/lib/auth", () => mockAuth);
 vi.mock("@/lib/rate-limit", () => ({

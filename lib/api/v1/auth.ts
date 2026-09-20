@@ -6,8 +6,8 @@ import { hashApiToken } from "@/lib/auth/api-token";
 import { AppError } from "@/lib/errors";
 
 /** `pfk_` + 32 random bytes as hex. Anything else is refused before the DB is
- * asked, which also keeps a `DevApiToken` (`pkdev_…`) or the shared
- * `DEV_API_SECRET` from ever being looked up here. */
+ * asked, which also keeps a `DevApiToken` (`pkdev_…`) from ever being looked up
+ * here. */
 export const DEPLOYMENT_API_TOKEN_PATTERN = /^pfk_[0-9a-f]{64}$/;
 
 export type DeploymentTokenAuth = {
@@ -25,8 +25,8 @@ const refused = () =>
  * Authenticate an `/api/v1` request against one deployment.
  *
  * `Authorization: Bearer <token>` only: no `x-dev-api-secret`, no user-scoped
- * `DevApiToken`, no session fallback. Unlike `requireDevAuth`, there is no
- * branch that returns without an owner — a token reaches exactly the deployment
+ * `DevApiToken`, no session fallback. Where `requireDevAuth` resolves a user who
+ * then owns whatever they touch, a token here reaches exactly the one deployment
  * it was minted for.
  */
 export async function requireDeploymentToken(

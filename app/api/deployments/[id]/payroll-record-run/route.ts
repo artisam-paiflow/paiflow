@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit } from "@/lib/rate-limit";
 import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
 import {
   readPayrollRecipients,
@@ -35,11 +35,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params;
     const body = PostSchema.parse(await req.json());
 
-    const rlKey = user ? `payroll-record:${user.id}` : `payroll-record:machine:${clientIp(req)}`;
-    const rl = await rateLimit(rlKey, 30, 60);
+    const rl = await rateLimit(`payroll-record:${user.id}`, 30, 60);
     if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many payroll run recordings");
 
-    const where = user ? { id, ownerId: user.id } : { id };
+    const where = { id, ownerId: user.id };
     const d = await db.deployment.findFirst({
       where,
       include: { flow: { select: { templateKind: true } } },
@@ -202,7 +201,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     await audit({
       action: "DEPLOY_INVOKE",
-      userId: user?.id ?? null,
+      userId: user.id,
       metadata: { deploymentId: d.id, payrollRunId: run.id, payoutCount: recipientRows.length },
     });
 
