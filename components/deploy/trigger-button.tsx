@@ -10,7 +10,14 @@ import { apiError } from "@/lib/friendly-error";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
 import { track } from "@/lib/analytics/client";
 import { classifyError } from "@/lib/analytics/classify-error";
-import { WALLET_CONNECT_UNCONFIGURED, walletConnectProjectId } from "./wallet-connect-config";
+import {
+  isExpiredSession,
+  isLiveSession,
+  isPairingFresh,
+  pairingExpiresAt,
+  WALLET_CONNECT_UNCONFIGURED,
+  walletConnectProjectId,
+} from "./wallet-connect-config";
 
 type TriggerButtonProps = {
   deploymentId: string;
@@ -29,6 +36,41 @@ function isMobile() {
   );
 }
 
+const WALLET_DEEP_LINKS: Record<string, (uri: string) => string> = {
+  freighter: (uri) => `freighterwallet://wc?uri=${encodeURIComponent(uri)}`,
+  lobstr: (uri) => `lobstr://wc?uri=${encodeURIComponent(uri)}`,
+  xbull: (uri) => `xbull://wc?uri=${encodeURIComponent(uri)}`,
+};
+
+/**
+ * Topics of stored sessions the relay should still honour, freshest first.
+ *
+ * Provably expired rows are dropped from the local store as a side effect: the
+ * kit picks a session by scanning that store, so leaving one there lets it
+ * shadow a fresh pairing. `session.delete` is local only and never touches the
+ * relay — a `disconnect` would publish, and publishing to a session the relay
+ * has forgotten is exactly the 60-second stall this exists to avoid (#594).
+ *
+ * The two predicates are asymmetric on purpose: a session that is not usable
+ * is not necessarily safe to destroy. Anything in between is skipped and kept.
+ */
+function liveSessionTopics(client: InstanceType<typeof SignClient> | null): string[] {
+  if (!client) return [];
+  const live = [];
+  for (const session of client.session.values) {
+    if (isLiveSession(session)) {
+      live.push(session);
+      continue;
+    }
+    if (isExpiredSession(session)) {
+      void client.session
+        .delete(session.topic, { code: 6000, message: "Session expired" })
+        .catch(() => {});
+    }
+  }
+  return live.sort((a, b) => b.expiry - a.expiry).map((session) => session.topic);
+}
+
 export function TriggerButton({
   deploymentId,
   network,
@@ -41,6 +83,25 @@ export function TriggerButton({
   const [showPicker, setShowPicker] = useState(false);
   const [pendingWallet, setPendingWallet] = useState<string | null>(null);
   const [showOpenWallet, setShowOpenWallet] = useState(false);
+  // Pairing happens on page load, not on the wallet tap. Android Chrome
+  // launches a custom-scheme app only while the tap's user activation is still
+  // live — measured dead by 11s, and awaiting connect() on the tap took ~11s
+  // against the live relay — so nothing may be awaited between tap and
+  // navigation (#594). A pairing is good for five minutes, so its freshness is
+  // rechecked when the picker opens.
+  const readyRef = useRef<
+    | {
+        kind: "pairing";
+        uri: string;
+        approval: () => Promise<{ topic: string }>;
+        expiresAt: number;
+      }
+    | { kind: "session" }
+    | null
+  >(null);
+  const [pairingState, setPairingState] = useState<"idle" | "preparing" | "ready" | "failed">(
+    "idle",
+  );
   const abortRef = useRef<AbortController | null>(null);
   // Wallet-kit 1.9.5 can still fire onClosed after a wallet was picked: the
   // modal waits 280ms before dispatching wallet-selected, its backdrop stays
@@ -71,7 +132,7 @@ export function TriggerButton({
   // when tapping a wallet in the mobile picker.
   useEffect(() => {
     if (isMobile()) {
-      ensureWalletConnect().catch(() => {});
+      void beginPairing({ silent: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -228,20 +289,23 @@ export function TriggerButton({
     return initLockRef.current;
   }
 
-  async function prepareWalletConnectSession(walletConnectModule: any) {
-    const sessions = await walletConnectModule.getSessions();
-    if (sessions.length === 0) {
+  async function prepareWalletConnectSession(
+    walletConnectModule: any,
+    client: InstanceType<typeof SignClient> | null,
+  ) {
+    const [liveTopic] = liveSessionTopics(client);
+    if (!liveTopic) {
       toast.info("Initiating WalletConnect session...");
       await walletConnectModule.connectWalletConnect();
       toast.info("Session established, getting address...");
-    } else {
-      walletConnectModule.setSession(sessions[0].id);
-      toast.info("Reusing existing session...");
+      return;
     }
+    walletConnectModule.setSession(liveTopic);
+    toast.info("Reusing existing session...");
   }
 
   async function runDesktopFlow() {
-    const { kit, module: walletConnectModule } = await ensureWalletConnect();
+    const { kit, module: walletConnectModule, client } = await ensureWalletConnect();
 
     signingStartedRef.current = false;
     await kit.openModal({
@@ -254,7 +318,7 @@ export function TriggerButton({
           const isWalletConnect = wallet.id === "wallet_connect";
 
           if (isWalletConnect) {
-            await prepareWalletConnectSession(walletConnectModule);
+            await prepareWalletConnectSession(walletConnectModule, client);
           } else {
             toast.info("Connecting to Freighter extension...");
           }
@@ -385,14 +449,14 @@ export function TriggerButton({
       attemptRef.current = { stage: "wallet", startedAt: data.timestamp };
       setBusy(true);
       ensureWalletConnect()
-        .then(async ({ kit, module: walletConnectModule }) => {
+        .then(async ({ kit, module: walletConnectModule, client }) => {
           if (!walletConnectModule) throw new Error(WALLET_CONNECT_UNCONFIGURED);
           kit.setWallet("wallet_connect");
-          const sessions = await walletConnectModule.getSessions();
-          if (sessions.length === 0) {
+          const [topic] = liveSessionTopics(client);
+          if (!topic) {
             throw new Error("No session found after returning from wallet");
           }
-          walletConnectModule.setSession(sessions[0].id);
+          walletConnectModule.setSession(topic);
           sessionStorage.removeItem("paiflow_pending_wc");
           const { address } = await kit.getAddress();
           toast.success(`Connected: ${address.slice(0, 6)}...${address.slice(-4)}`);
@@ -413,53 +477,102 @@ export function TriggerButton({
     }
   }, [network]);
 
-  async function openMobileWallet(walletId: string) {
+  /** Whether a wallet tap can navigate right now with no await in the way. */
+  function isReadyToTap(): boolean {
+    const ready = readyRef.current;
+    if (!ready) return false;
+    return ready.kind === "session" || isPairingFresh(ready.expiresAt);
+  }
+
+  async function beginPairing({ silent = false }: { silent?: boolean } = {}) {
+    readyRef.current = null;
+    setPairingState("preparing");
+    try {
+      const { client, module: walletConnectModule, method } = await ensureWalletConnect();
+      if (!client || !walletConnectModule) throw new Error(WALLET_CONNECT_UNCONFIGURED);
+
+      // A session the relay still honours needs no pairing and no deep link.
+      if (liveSessionTopics(client).length > 0) {
+        readyRef.current = { kind: "session" };
+        setPairingState("ready");
+        return;
+      }
+
+      const { uri, approval } = await client.connect({
+        requiredNamespaces: {
+          stellar: {
+            methods: [method],
+            chains: [network === "mainnet" ? "stellar:pubnet" : "stellar:testnet"],
+            events: [],
+          },
+        },
+      });
+      if (!uri) throw new Error("WalletConnect returned no pairing URI");
+      readyRef.current = { kind: "pairing", uri, approval, expiresAt: pairingExpiresAt(uri) };
+      setPairingState("ready");
+    } catch (err) {
+      setPairingState("failed");
+      // On page load nobody has asked for a wallet yet, so a toast and a
+      // trigger_failed event would both be noise. The retry when the picker
+      // opens is the one that reports.
+      if (!silent) {
+        trackTriggerFailure(err);
+        toastError(err, "Connection failed");
+      }
+    }
+  }
+
+  // Synchronous by design: the scheme navigation has to happen inside the tap's
+  // user activation, so nothing may be awaited before window.open. Everything
+  // that awaits lives in completeMobileConnect.
+  function openMobileWallet(walletId: string) {
+    const ready = readyRef.current;
     selectedWalletRef.current = walletId;
     setPendingWallet(walletId);
     setBusy(true);
+
+    const pairing = ready?.kind === "pairing" ? ready : null;
+    if (pairing) {
+      const deepLink = WALLET_DEEP_LINKS[walletId];
+      if (!deepLink) {
+        setBusy(false);
+        setPendingWallet(null);
+        toast.error("Unknown wallet");
+        return;
+      }
+      sessionStorage.setItem(
+        "paiflow_pending_wc",
+        JSON.stringify({ network, timestamp: Date.now(), walletId }),
+      );
+      window.open(deepLink(pairing.uri), "_self", "noreferrer noopener");
+    }
+
+    void completeMobileConnect(pairing);
+  }
+
+  async function completeMobileConnect(
+    pairing: { approval: () => Promise<{ topic: string }> } | null,
+  ) {
     try {
-      const { kit, module: walletConnectModule, client, method } = await ensureWalletConnect();
+      const { kit, module: walletConnectModule, client } = await ensureWalletConnect();
       if (!client || !walletConnectModule) throw new Error(WALLET_CONNECT_UNCONFIGURED);
       kit.setWallet("wallet_connect");
 
-      const sessions = await walletConnectModule.getSessions();
-      if (sessions.length > 0) {
-        walletConnectModule.setSession(sessions[0].id);
-      } else {
-        toast.info("Preparing connection...");
-        const { uri, approval } = await client.connect({
-          requiredNamespaces: {
-            stellar: {
-              methods: [method],
-              chains: [network === "mainnet" ? "stellar:pubnet" : "stellar:testnet"],
-              events: [],
-            },
-          },
-        });
-
-        const links: Record<string, string> = {
-          freighter: `freighterwallet://wc?uri=${encodeURIComponent(uri)}`,
-          lobstr: `lobstr://wc?uri=${encodeURIComponent(uri)}`,
-          xbull: `xbull://wc?uri=${encodeURIComponent(uri)}`,
-        };
-
-        sessionStorage.setItem(
-          "paiflow_pending_wc",
-          JSON.stringify({ network, timestamp: Date.now(), walletId }),
-        );
-
-        const link = links[walletId];
-        if (!link) throw new Error("Unknown wallet");
-        window.open(link, "_self", "noreferrer noopener");
-
+      if (pairing) {
         const session = await Promise.race([
-          approval(),
-          new Promise((_, reject) =>
+          pairing.approval(),
+          new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error("Wallet connection timed out")), 60_000),
           ),
         ]);
+        readyRef.current = null;
+        setPairingState("idle");
         walletConnectModule.setSession(session.topic);
         sessionStorage.removeItem("paiflow_pending_wc");
+      } else {
+        const [topic] = liveSessionTopics(client);
+        if (!topic) throw new Error("WalletConnect session expired");
+        walletConnectModule.setSession(topic);
       }
 
       setShowPicker(false);
@@ -468,7 +581,7 @@ export function TriggerButton({
       void trackWalletConnection({
         address,
         network,
-        walletId,
+        walletId: selectedWalletRef.current ?? "wallet_connect",
         surface: "trigger",
       });
       await submitTrigger(address, kit, () => setShowOpenWallet(true));
@@ -497,6 +610,13 @@ export function TriggerButton({
 
     if (isMobile()) {
       setShowPicker(true);
+      // Pairing normally happened on load; re-pair only if it has gone stale,
+      // expired, or never succeeded.
+      if (isReadyToTap()) {
+        setPairingState("ready");
+      } else {
+        void beginPairing();
+      }
     } else {
       setBusy(true);
       try {
@@ -521,7 +641,7 @@ export function TriggerButton({
                   progress_activity
                 </span>
                 <p className="text-label-sm text-on-background mt-2 font-medium">
-                  {pendingWallet ? `Opening ${pendingWallet}…` : "Connecting…"}
+                  {pendingWallet ? `Waiting for ${pendingWallet}…` : "Connecting…"}
                 </p>
               </div>
             )}
@@ -534,7 +654,7 @@ export function TriggerButton({
             <div className="space-y-3">
               <button
                 onClick={() => openMobileWallet("freighter")}
-                disabled={busy}
+                disabled={busy || pairingState !== "ready"}
                 className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
               >
                 <img
@@ -546,7 +666,7 @@ export function TriggerButton({
               </button>
               <button
                 onClick={() => openMobileWallet("lobstr")}
-                disabled={busy}
+                disabled={busy || pairingState !== "ready"}
                 className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
               >
                 <img
@@ -558,7 +678,7 @@ export function TriggerButton({
               </button>
               <button
                 onClick={() => openMobileWallet("xbull")}
-                disabled={busy}
+                disabled={busy || pairingState !== "ready"}
                 className="bg-background-2 hover:bg-background-3 disabled:hover:bg-background-2 flex w-full items-center gap-3 rounded-xl p-3 transition-colors disabled:opacity-50"
               >
                 <img
@@ -569,10 +689,21 @@ export function TriggerButton({
                 <span className="text-label-sm text-on-background font-medium">xBull</span>
               </button>
             </div>
+            {pairingState !== "ready" && !busy && (
+              <p className="text-body-sm text-on-background/60 mt-4 text-center">
+                {pairingState === "failed"
+                  ? "Could not reach the wallet network. Close this and try again."
+                  : "Preparing connection…"}
+              </p>
+            )}
             <button
               onClick={() => {
                 if (busy) return;
                 setShowPicker(false);
+                // The pairing is deliberately kept: it was created on load, is
+                // good for five minutes, and a cancel here is usually a change
+                // of mind rather than a failure. An in-flight connect() cannot
+                // be cancelled either way.
                 abortRef.current?.abort();
               }}
               disabled={busy}
