@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Role } from "@prisma/client";
-import { requireSession } from "@/lib/auth";
+import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
 import DeploymentView from "@/components/deploy/deployment-view";
@@ -54,7 +54,7 @@ export default async function DeploymentPage({
 }: {
   params: Promise<{ deploymentId: string }>;
 }) {
-  const user = await requireSession();
+  const user = await requirePageSession();
   const { deploymentId } = await params;
   const d = await db.deployment.findFirst({
     where: { id: deploymentId, ownerId: user.id },

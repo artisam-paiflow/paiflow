@@ -7,11 +7,13 @@ import { audit } from "@/lib/audit";
 export async function POST() {
   return withErrorHandler(async () => {
     const user = await requireSession();
-    await db.session.deleteMany({ where: { userId: user.id } });
+    await db.user.update({
+      where: { id: user.id },
+      data: { sessionVersion: { increment: 1 } },
+    });
     await audit({ action: "USER_SESSIONS_REVOKED", userId: user.id });
-    // Best-effort: clear current cookie too. The JWT itself is opaque to the
-    // server outside Auth.js, so the next request will re-validate against
-    // the (now-empty) session table.
+    // The bump already ended this session along with the others; clearing the
+    // cookie just saves this browser a trip through /api/auth/stale-session.
     await signOut({ redirect: false });
     return NextResponse.json({ data: { ok: true } });
   });

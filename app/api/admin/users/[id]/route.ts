@@ -37,6 +37,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       passwordHash?: string;
       failedLogins?: number;
       lockedUntil?: Date | null;
+      sessionVersion?: { increment: number };
     } = {};
     if (body.role) data.role = body.role;
     if (typeof body.isActive === "boolean") data.isActive = body.isActive;
@@ -45,15 +46,19 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       data.failedLogins = 0;
       data.lockedUntil = null;
     }
+    // Sessions are JWTs, so none of the three takes effect on a signed-in user
+    // until their token stops matching (lib/auth/session-version.ts). Unlock is
+    // left out on purpose: it grants nothing a live session didn't already have.
+    const roleChanged = body.role !== undefined && body.role !== target.role;
+    if (body.isActive === false || roleChanged || body.resetPassword) {
+      data.sessionVersion = { increment: 1 };
+    }
 
     const updated = await db.user.update({
       where: { id },
       data,
       select: { id: true, username: true, role: true, isActive: true },
     });
-    if (body.resetPassword) {
-      await db.session.deleteMany({ where: { userId: id } });
-    }
     await audit({
       action: body.isActive === false ? "ADMIN_USER_DEACTIVATE" : "ADMIN_USER_UPDATE",
       userId: admin.id,

@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 const { mockDb, mockAuth } = vi.hoisted(() => ({
   mockDb: {
     devApiToken: { findUnique: vi.fn(), update: vi.fn(() => ({ catch: () => {} })) },
+    user: { findUnique: vi.fn() },
   },
   mockAuth: vi.fn(),
 }));
@@ -40,8 +41,11 @@ function tokenRow(
   };
 }
 
-function session(role: string) {
-  return { user: { id: OWNER_ID, username: "owner", role } };
+// getSessionUser() takes the role from the User row and refuses a token whose
+// sessionVersion has moved on, so a session fixture is a token plus its row.
+function signedIn(role: string) {
+  mockAuth.mockResolvedValue({ user: { id: OWNER_ID, username: "owner", sessionVersion: 0 } });
+  mockDb.user.findUnique.mockResolvedValue({ isActive: true, role, sessionVersion: 0 });
 }
 
 async function expectCode(p: Promise<unknown>, code: string) {
@@ -53,6 +57,7 @@ beforeEach(() => {
   mockDb.devApiToken.findUnique.mockResolvedValue(null);
   mockDb.devApiToken.update.mockReturnValue({ catch: () => {} });
   mockAuth.mockResolvedValue(null);
+  mockDb.user.findUnique.mockResolvedValue(null);
 });
 
 describe("requireDevAuth", () => {
@@ -81,7 +86,7 @@ describe("requireDevAuth", () => {
   });
 
   it("falls back to the session when no header is present", async () => {
-    mockAuth.mockResolvedValue(session("ADMIN"));
+    signedIn("ADMIN");
     const { user } = await requireDevAuth(req());
     expect(user).toEqual({ id: OWNER_ID, username: "owner", role: "ADMIN" });
   });
@@ -108,7 +113,16 @@ describe("requireDevAuth", () => {
   });
 
   it("refuses a SANDBOX session on the fallback rung with FORBIDDEN", async () => {
-    mockAuth.mockResolvedValue(session("SANDBOX"));
+    signedIn("SANDBOX");
     await expectCode(requireDevAuth(req()), "FORBIDDEN");
+  });
+
+  // #519 made sessions endable by bumping User.sessionVersion. The dev
+  // endpoints reach the session through the same getSessionUser(), so a
+  // revoked session must not keep mutating deployed contracts.
+  it("refuses a session whose sessionVersion has been bumped", async () => {
+    mockAuth.mockResolvedValue({ user: { id: OWNER_ID, username: "owner", sessionVersion: 0 } });
+    mockDb.user.findUnique.mockResolvedValue({ isActive: true, role: "USER", sessionVersion: 1 });
+    await expectCode(requireDevAuth(req()), "UNAUTHENTICATED");
   });
 });
