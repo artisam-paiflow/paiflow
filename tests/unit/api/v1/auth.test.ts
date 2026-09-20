@@ -175,17 +175,12 @@ describe("requireDeploymentToken", () => {
       expect(mockDb.devApiToken.findUnique).not.toHaveBeenCalled();
     });
 
-    it("when given the shared DEV_API_SECRET, as a bearer or in x-dev-api-secret", async () => {
+    it("when given an opaque shared secret, as a bearer or in x-dev-api-secret", async () => {
       const secret = "shared-dev-secret-value";
-      process.env.DEV_API_SECRET = secret;
-      try {
-        await expectUnauthenticated(requireDeploymentToken(bearer(secret), DEPLOYMENT_A));
-        await expectUnauthenticated(
-          requireDeploymentToken(req({ "x-dev-api-secret": secret }), DEPLOYMENT_A),
-        );
-      } finally {
-        delete process.env.DEV_API_SECRET;
-      }
+      await expectUnauthenticated(requireDeploymentToken(bearer(secret), DEPLOYMENT_A));
+      await expectUnauthenticated(
+        requireDeploymentToken(req({ "x-dev-api-secret": secret }), DEPLOYMENT_A),
+      );
       expect(mockDb.deploymentApiToken.findUnique).not.toHaveBeenCalled();
     });
 

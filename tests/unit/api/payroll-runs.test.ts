@@ -14,7 +14,9 @@ const { mockDb } = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
-vi.mock("@/lib/auth", () => ({ requireDevAuth: vi.fn(async () => ({ user: null })) }));
+vi.mock("@/lib/auth", () => ({
+  requireDevAuth: vi.fn(async () => ({ user: { id: "owner-1", username: "owner", role: "USER" } })),
+}));
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: vi.fn(async () => ({ ok: true })),
   clientIp: vi.fn(() => "127.0.0.1"),
@@ -177,6 +179,21 @@ describe("GET payroll-runs (list)", () => {
     });
     expect(res.status).toBe(404);
     expect(mockDb.deployment.findFirst).not.toHaveBeenCalled();
+  });
+
+  // #247: a machine caller used to reach any deployment because the shared
+  // DEV_API_SECRET resolved to no user at all. Every caller now carries an
+  // owner, so the lookup is always narrowed to the rows they own — a request
+  // for someone else's deployment finds nothing and 404s.
+  it("scopes the lookup to the caller's own deployments", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(null);
+    const res = await listGET(makeRequest(`https://x/api/deployments/${DEP_ID}/payroll-runs`), {
+      params: Promise.resolve({ id: DEP_ID }),
+    });
+    expect(res.status).toBe(404);
+    expect(mockDb.deployment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: DEP_ID, ownerId: "owner-1" } }),
+    );
   });
 });
 

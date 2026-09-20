@@ -12,7 +12,6 @@ import { audit } from "./audit";
 import { AppError } from "./errors";
 import { hashApiToken } from "./auth/api-token";
 import { isSessionCurrent } from "./auth/session-version";
-import { timingSafeEqualString } from "./auth/timing-safe";
 import { captureServer } from "./analytics/server";
 import { Role } from "@prisma/client";
 import { authConfig as edgeConfig } from "@/auth.config";
@@ -183,16 +182,11 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   };
 }
 
-export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionUser | null }> {
-  const secret = env().DEV_API_SECRET;
-  const presented = req.headers.get("x-dev-api-secret");
-  if (secret && presented && timingSafeEqualString(presented, secret)) {
-    return { user: null };
-  }
-
-  // Per-developer machine tokens also grant access to dev endpoints; they carry
-  // an owner, unlike the shared secret above. requireDevApiToken() rejects a
-  // SANDBOX owner itself, so both user-bearing paths here are covered.
+export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionUser }> {
+  // Per-developer machine tokens are the machine path into the dev endpoints;
+  // they carry an owner, so every caller that gets through here can be
+  // ownership-filtered. requireDevApiToken() rejects a SANDBOX owner itself,
+  // so both paths below are covered.
   try {
     return { user: await requireDevApiToken(req) };
   } catch (err) {
@@ -212,12 +206,13 @@ export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionU
 }
 
 /**
- * Resolve a per-developer API token to the Paiflow user that owns it. Machine
- * endpoints that CREATE owned rows (e.g. the dev-payroll deploy) cannot use the
- * shared `x-dev-api-secret` because it carries no owner. The caller presents the
- * token in the `x-dev-api-secret` header (or `Authorization: Bearer <token>`);
- * we match its SHA-256 hash against an active `DevApiToken` row and return the
- * mapped user.
+ * Resolve a per-developer API token to the Paiflow user that owns it. Every
+ * machine caller must carry an owner, so that endpoints which CREATE owned rows
+ * (e.g. the dev-payroll deploy) have someone to attribute them to, and every
+ * other dev endpoint can filter on `ownerId`. The caller presents the token in
+ * the `x-dev-api-secret` header (or `Authorization: Bearer <token>`); we match
+ * its SHA-256 hash against an active `DevApiToken` row and return the mapped
+ * user.
  *
  * This is token-only auth: there is no interactive-session fallback. The route
  * it guards signs and submits a relayer-funded on-chain deploy, so it must not

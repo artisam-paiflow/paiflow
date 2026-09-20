@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit } from "@/lib/rate-limit";
 import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
 import {
   readPayrollRecipients,
@@ -35,11 +35,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params;
     const body = PostSchema.parse(await req.json());
 
-    const rlKey = user ? `payroll-record:${user.id}` : `payroll-record:machine:${clientIp(req)}`;
-    const rl = await rateLimit(rlKey, 30, 60);
+    const rl = await rateLimit(`payroll-record:${user.id}`, 30, 60);
     if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many payroll run recordings");
 
-    const where = user ? { id, ownerId: user.id } : { id };
+    const where = { id, ownerId: user.id };
     const d = await db.deployment.findFirst({
       where,
       include: { flow: { select: { templateKind: true } } },
@@ -57,6 +56,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         offRampJobs: { select: { id: true } },
       },
     });
+    // txHash is unique across every deployment, not per deployment, so the
+    // lookup above can land on someone else's run for any hash the caller
+    // observed on-chain. Refuse before it is read from, and before the
+    // recipient reads below spend RPC calls on it. CONFLICT, not NOT_FOUND:
+    // the hash really is taken, and it is what the unique constraint would
+    // have raised at create time anyway.
+    if (existingRun && existingRun.deploymentId !== d.id) {
+      throw new AppError("CONFLICT", "That transaction is already recorded");
+    }
     if (existingRun) {
       const existingJobIds = existingRun.offRampJobs.map((j) => j.id);
       return NextResponse.json({
@@ -202,7 +210,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     await audit({
       action: "DEPLOY_INVOKE",
-      userId: user?.id ?? null,
+      userId: user.id,
       metadata: { deploymentId: d.id, payrollRunId: run.id, payoutCount: recipientRows.length },
     });
 

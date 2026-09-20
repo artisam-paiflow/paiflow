@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const { user } = await requireDevAuth(_req);
     const { id } = await ctx.params;
 
-    const d = await db.deployment.findFirst({ where: user ? { id, ownerId: user.id } : { id } });
+    const d = await db.deployment.findFirst({ where: { id, ownerId: user.id } });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
 
     const snapshot = (d.pipelineSnapshot as PipelineSnapshotNode[] | null) ?? [];

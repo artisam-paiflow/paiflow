@@ -130,9 +130,9 @@ model User {
 }
 
 /// A per-developer API token that maps a machine caller to a Paiflow user.
-/// Used by dev-auth endpoints that CREATE owned rows (e.g. dev-payroll deploy)
-/// where the shared `x-dev-api-secret` cannot supply an owner. Only the SHA-256
-/// hash of the token is stored; the plaintext is shown once at creation time.
+/// The only machine credential the dev-auth endpoints accept: every one of them
+/// filters on the owner it resolves to. Only the SHA-256 hash of the token is
+/// stored; the plaintext is shown once at creation time.
 model DevApiToken {
   id         String    @id @default(uuid()) @db.Uuid
   userId     String    @db.Uuid

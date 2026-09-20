@@ -275,10 +275,6 @@ const EnvSchema = z.object({
   OFFRAMP_PDAX_DEPOSIT_MEMO_MAINNET: optionalNumericMemo,
 
   CRON_SECRET: optionalString,
-  // Secret token for machine-to-machine calls to the /api/deployments/:id/dev-*
-  // endpoints. When present, callers can authenticate by sending the header
-  // x-dev-api-secret: <token> instead of a user session.
-  DEV_API_SECRET: optionalString,
   SENTRY_DSN: optionalString,
 
   // ---- Analytics (PostHog) ----

@@ -48,7 +48,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const { id } = await ctx.params;
 
     const d = await db.deployment.findFirst({
-      where: user ? { id, ownerId: user.id } : { id },
+      where: { id, ownerId: user.id },
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params;
 
     const d = await db.deployment.findFirst({
-      where: user ? { id, ownerId: user.id } : { id },
+      where: { id, ownerId: user.id },
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
