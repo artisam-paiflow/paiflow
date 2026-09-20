@@ -11,11 +11,13 @@ D2: a developer API for the swapper — deployment-scoped tokens, an execute end
 event polling. The beta also moved onto the staging service and the alpha round opened. Reported in
 full in [week 2](week-2.md).
 
-Covers 14–18 September, the extent of the public mirror when this was generated on 18 September; it
-is regenerated when the week closes.
+Covers 14–19 September, the extent of the public mirror when this was last generated on
+20 September; the 20 September merges are added when the mirror next syncs.
 
 | Date       | Change                                                                                               | Issues | Commit                                                                                                  |
 | ---------- | ---------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| 2026-09-19 | perf(cron): stop polling sandbox deployments after a day, and never auto-release them                | #556   | [`a5eb4d8`](https://github.com/artisam-paiflow/paiflow/commit/a5eb4d8f5a9eb76fe5b49a6ec1ee3971dacf6915) |
+| 2026-09-19 | feat(api): let anyone try /api/v1 with a demo token                                                  | #554   | [`92dfa15`](https://github.com/artisam-paiflow/paiflow/commit/92dfa15ece75727906f12494e3d0a5fb427f6afb) |
 | 2026-09-18 | docs(instawards): report metrics on two bases, and count the alpha-tester cohort from PostHog        | #544   | [`00ce55b`](https://github.com/artisam-paiflow/paiflow/commit/00ce55b0dc8d45992edba77cb89f2055d842fd56) |
 | 2026-09-17 | docs(alpha): record with the Loom desktop app, and correct what the guide promises testers           | #543   | [`f1184ba`](https://github.com/artisam-paiflow/paiflow/commit/f1184ba1532579095a7404911c2263855b6cec20) |
 | 2026-09-17 | feat(analytics): wallet traceability in PostHog (promote #538)                                       | #540   | [`ceb1152`](https://github.com/artisam-paiflow/paiflow/commit/ceb1152602033dca728f47c04d7f0923f1d40d82) |
