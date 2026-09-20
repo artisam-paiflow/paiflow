@@ -26,6 +26,39 @@ describe("redactString", () => {
   it("caps length", () => {
     expect(redactString("word ".repeat(100))).toHaveLength(200);
   });
+
+  it("removes the credentials this app mints", () => {
+    const hex64 = "0123456789abcdef".repeat(4);
+    expect(redactString(`Authorization: Bearer pfk_${hex64}"`)).toBe(
+      'Authorization: Bearer <token>"',
+    );
+    expect(redactString(`whsec_${hex64}`)).toBe("<token>");
+    const jwt = `eyJhbGciOiJIUzI1NiJ9.${"eyJzdWIiOiIxIn0"}.${"s".repeat(43)}`;
+    expect(redactString(`cookie ${jwt}`)).toBe("cookie <token>");
+    expect(redactString(`${UUID}.1758240000000.${"ab".repeat(16)}`)).toBe("<ticket>");
+    expect(redactString("x".repeat(40) + "-_".repeat(30))).toBe("<blob>");
+  });
+
+  it("removes a secret carried in a query string, keeping the rest of the URL", () => {
+    const resetToken = "Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6";
+    expect(redactString(`https://beta.app.paiflow.xyz/auth/new-password?token=${resetToken}`)).toBe(
+      "https://beta.app.paiflow.xyz/auth/new-password?token=<redacted>",
+    );
+    expect(redactString(`/login?next=%2Fflows&ticket=abc.123#top`)).toBe(
+      "/login?next=%2Fflows&ticket=<redacted>#top",
+    );
+  });
+
+  it("removes email addresses", () => {
+    expect(redactString("Signed in as juan.dela-cruz+alpha@example.com.ph today")).toBe(
+      "Signed in as <email> today",
+    );
+  });
+
+  it("leaves a long deployment path readable", () => {
+    const path = `/api/deployments/${UUID}/payroll-runs/${UUID}/events`;
+    expect(redactString(path)).toBe(path);
+  });
 });
 
 describe("sanitizeProps", () => {

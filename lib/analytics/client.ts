@@ -82,10 +82,16 @@ export function loadAnalytics(): Promise<PostHog | null> {
       // screen recording. homepage/privacy.html and the alpha testing guide
       // both state that we do not record, so this must stay off.
       disable_session_recording: true,
-      // Autocapture records element text, which on this app includes recipient
-      // and contract addresses. The $snapshot carve-out is kept as dead-code
-      // defence: nothing emits snapshots now, and if replay were ever switched
-      // back on, before_send could not usefully redact one anyway.
+      // On by decision (#517, 19 Sep 2026): with replay off, $autocapture is how
+      // a tester's free exploration is read back (docs/analytics/alpha-tracking-plan.md).
+      // It records element text, which on this app includes addresses, usernames
+      // and one-time credentials, so it depends on two things staying true:
+      // before_send below redacts every string, and anything that renders a
+      // credential carries the `ph-no-capture` class (api-access-panel.tsx).
+      autocapture: true,
+      // The $snapshot carve-out is kept as dead-code defence: nothing emits
+      // snapshots now, and if replay were ever switched back on, before_send
+      // could not usefully redact one anyway.
       before_send: (event) => {
         if (!event || event.event === "$snapshot") return event;
         return { ...event, properties: redactDeep(event.properties) as typeof event.properties };
