@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth";
+import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
 import PasskeyManager from "@/components/account/passkeys";
@@ -7,7 +7,7 @@ import ChangePassword from "@/components/account/change-password";
 export const dynamic = "force-dynamic";
 
 export default async function Account() {
-  const user = await requireSession();
+  const user = await requirePageSession();
   const me = await db.user.findUnique({
     where: { id: user.id },
     select: {

@@ -99,17 +99,22 @@ enum EventKind {
 }
 
 model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  username     String    @unique
-  email        String?   @unique
-  passwordHash String
-  role         Role      @default(USER)
-  isActive     Boolean   @default(true)
-  failedLogins Int       @default(0)
-  lockedUntil  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  lastLoginAt  DateTime?
+  id             String    @id @default(uuid()) @db.Uuid
+  username       String    @unique
+  email          String?   @unique
+  passwordHash   String
+  role           Role      @default(USER)
+  isActive       Boolean   @default(true)
+  failedLogins   Int       @default(0)
+  lockedUntil    DateTime?
+  /// Sessions are stateless JWTs, so nothing server-side can be deleted to end
+  /// one. Each token carries the value this had at login and getSessionUser()
+  /// refuses a token whose value differs; incrementing it signs the user out
+  /// everywhere.
+  sessionVersion Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  lastLoginAt    DateTime?
 
   flows               Flow[]
   deployments         Deployment[]

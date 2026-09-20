@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireSession } from "@/lib/auth";
+import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
 import { Role } from "@prisma/client";
@@ -9,7 +9,7 @@ import { getWalletConnectionStats } from "@/lib/admin-stats";
 export const dynamic = "force-dynamic";
 
 export default async function AdminHome() {
-  const user = await requireSession({ role: Role.ADMIN });
+  const user = await requirePageSession({ role: Role.ADMIN });
   const [users, deployments, recentAudit, walletStats] = await Promise.all([
     db.user.count(),
     db.deployment.count(),

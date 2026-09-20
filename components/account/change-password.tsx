@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { signOut } from "next-auth/react";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
 
@@ -22,8 +23,13 @@ export default function ChangePassword() {
       toastError(b, "Failed");
       return;
     }
-    toast.success("Password changed. You will be signed out.");
-    setTimeout(() => (window.location.href = "/login"), 800);
+    // The server has already ended this session along with every other one.
+    // The cookie still has to go before /login: middleware reads it as signed
+    // in and would bounce the visit to /dashboard. `redirect: false` and a path
+    // set by hand for the reason given in components/app/topbar.tsx. If the
+    // sign-out request fails, /api/auth/stale-session clears it on the way.
+    await signOut({ redirect: false }).catch(() => {});
+    window.location.href = "/login?reason=password-changed";
   }
 
   return (

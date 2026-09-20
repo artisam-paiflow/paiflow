@@ -289,6 +289,15 @@ keep-alive`, plus an `AbortSignal` cleanup that unsubscribes Redis listeners. He
 - One canonical helper: `requireSession(opts?: { role?: Role })` in `lib/auth.ts`. Use it at the top
   of every owner- or admin-scoped Route Handler.
 - `getSessionUser()` is the nullable variant for pages that render differently for guests.
+- Sessions are stateless JWTs, so a session is ended by incrementing `User.sessionVersion`, never
+  by deleting `Session` rows (that table is always empty). `getSessionUser()` reads the row on
+  every request and returns `null` when it is missing, inactive, or its version differs from the
+  token's (`lib/auth/session-version.ts`); the role it returns is the row's, not the token's.
+  Anything that should sign a user out — deactivate, password change or reset, role change,
+  revoke-all — bumps the column in the same `update`.
+- `page.tsx` uses `requirePageSession()`, not `requireSession()`. Middleware verifies only the
+  JWT, so an ended session still reaches the page; the page guard redirects it to
+  `GET /api/auth/stale-session`, which clears the cookie and lands on `/login`.
 - Passwords hashed with argon2id; never logged; redacted in Pino serializers.
 - After successful login: rotate session ID, set `lastLoginAt`, write `AuditLog{ action: "USER_LOGIN" }`.
 - After 5 failed attempts: `User.lockedUntil = now + 15min`. Return a generic error.

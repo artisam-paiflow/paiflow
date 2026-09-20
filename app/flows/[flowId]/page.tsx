@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import Topbar from "@/components/app/topbar";
@@ -9,7 +9,7 @@ import { FlowGraphSchema } from "@/lib/flows/schema";
 export const dynamic = "force-dynamic";
 
 export default async function FlowBuilderPage({ params }: { params: Promise<{ flowId: string }> }) {
-  const user = await requireSession();
+  const user = await requirePageSession();
   const { flowId } = await params;
   const flow = await db.flow.findFirst({ where: { id: flowId, ownerId: user.id } });
   if (!flow) notFound();
