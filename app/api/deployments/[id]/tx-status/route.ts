@@ -22,9 +22,9 @@ const QuerySchema = z.object({
     .transform((h) => h.toLowerCase()),
 });
 
-// `sorobanRpc()` sets no HTTP timeout and the SDK default is "never", so a
-// stalled getEvents would hold this response open past the client's finality
-// budget. Ingestion is best-effort — the cron poller re-runs whatever the
+// `sorobanRpc()` times each HTTP call out at 10s, but an ingest is one getEvents
+// per pipeline contract, so a slow RPC could still hold this response open past
+// the client's finality budget. Ingestion is best-effort — the cron poller re-runs whatever the
 // deadline cut short — so the status answer never waits longer than this.
 const EVENT_INGEST_DEADLINE_MS = 5_000;
 
