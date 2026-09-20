@@ -207,9 +207,12 @@ export function flowToEnglish(graph: FlowGraph): string {
             ? action.config.asset
             : action.config.asset;
   const tail = condition ? `, ${describeCondition(condition, conditionAsset)}` : "";
+  // A freshly dropped email node has no recipients, and the panel keeps rows
+  // whose email is still blank; neither may leave a dangling "to ." behind.
+  const emails = emailNodes
+    .flatMap((n) => n.config.recipients.map((r) => r.email.trim()))
+    .filter((email) => email !== "");
   const emailTail =
-    emailNodes.length > 0
-      ? `, and send email notifications to ${emailNodes.flatMap((n) => n.config.recipients.map((r) => r.email)).join(", ")}`
-      : "";
+    emails.length > 0 ? `, and send email notifications to ${emails.join(", ")}` : "";
   return `${triggerText}, ${actionText}${tail}${emailTail}.`;
 }

@@ -389,16 +389,30 @@ export const YieldAction = z.object({
 
 export const EmailRecipient = z.object({
   address: z.string().min(1),
-  email: z.string().email(),
+  // Not `.email()`: the config panel autosaves every keystroke, so a half-typed
+  // address has to parse. validateFlow refuses anything that is not an address.
+  email: z.string(),
 });
 export type EmailRecipient = z.infer<typeof EmailRecipient>;
+
+const EmailAddress = z.string().email();
+
+/** The check `EmailRecipient.email` used to make at parse time, for validateFlow. */
+export function isValidEmailAddress(s: string): boolean {
+  return EmailAddress.safeParse(s).success;
+}
 
 export const EmailNotifyAction = z.object({
   id: z.string().min(1),
   type: z.literal("email_notify"),
   config: z.object({
-    recipients: z.array(EmailRecipient).min(1),
-    subject: z.string().min(1),
+    // The palette drops this node with no recipients and no subject, and the
+    // builder PATCHes the whole graph at once: requiring either here made every
+    // save of the flow fail until the node was configured, losing unrelated
+    // edits with it. `lib/flows/validate.ts` requires both, so deploy is still
+    // refused.
+    recipients: z.array(EmailRecipient).min(0),
+    subject: z.string().default(""),
     body: z.string().default(""),
   }),
 });

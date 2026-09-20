@@ -49,8 +49,10 @@ and properties, so this page describes intent and doesn't restate every field.
   no longer isolates the beta. Until `$host = beta.app.paiflow.xyz` is added, `paiflow.xyz`
   visitors are counted as testers — and analytics is on, so that is happening now.
 - **Identity:** `distinct_id` is `User.id`. Usernames, emails, recipient addresses, XDR and
-  graph JSON are never sent. `lib/analytics/sanitize.ts` redacts StrKeys, seeds and base64 blobs
-  from every property, including autocaptured element text, with one deliberate exception: the
+  graph JSON are never sent. `lib/analytics/sanitize.ts` redacts StrKeys, seeds, base64 blobs,
+  app-minted credentials (`pfk_`, `whsec_`, JWTs, sign-in tickets, `?token=` values) and email
+  addresses from every property, including autocaptured element text; the one-time API token
+  panel is `ph-no-capture`, so it is not captured at all. One deliberate exception: the
   **signing wallet's own public address**, on the named properties under
   [Wallet traceability](#wallet-traceability). Asked for on 17 September 2026 so a testnet
   transaction can be traced back to a tester inside PostHog as well as in the database. The

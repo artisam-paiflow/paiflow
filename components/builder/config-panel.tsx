@@ -1490,7 +1490,12 @@ export default function ConfigPanel({
 
       {node.type === "email_notify" && (
         <>
-          <EmailRecipientsField node={node} graph={graph} onChange={onChange} />
+          <EmailRecipientsField
+            node={node}
+            graph={graph}
+            onChange={onChange}
+            error={fieldError("recipients")}
+          />
           <Field label="Subject" error={fieldError("subject")}>
             <input
               className="input"
@@ -2585,15 +2590,20 @@ function EmailRecipientsField({
   node,
   graph,
   onChange,
+  error,
 }: {
   node: Extract<FlowNode, { type: "email_notify" }>;
   graph: FlowGraph;
   onChange: (n: FlowNode) => void;
+  error?: string | null;
 }) {
   const parentEdge = graph.edges.find((e) => e.target === node.id);
   const parent = parentEdge ? graph.nodes.find((n) => n.id === parentEdge.source) : undefined;
   const isSplit = parent?.type === "split";
-  const placeholderAddress = parent?.type === "pay" ? parent.config.recipient : "_";
+  // A pay parent's recipient is "" while its address field is cleared, and a row
+  // written then would fail `EmailRecipient.address` on every later save, long
+  // after the pay node itself was fixed.
+  const placeholderAddress = (parent?.type === "pay" && parent.config.recipient) || "_";
 
   let rows: { address: string; email: string }[];
   if (isSplit) {
@@ -2630,7 +2640,7 @@ function EmailRecipientsField({
   };
 
   return (
-    <Field label="Recipients">
+    <Field label="Recipients" error={error}>
       <div className="space-y-2">
         {rows.map((r, idx) => (
           <div key={idx} className="flex items-center gap-2">

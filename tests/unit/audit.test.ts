@@ -7,7 +7,7 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { audit, wasTxSubmittedFor } from "@/lib/audit";
+import { audit, needsSubmitRow, wasTxSubmittedFor } from "@/lib/audit";
 
 const DEPLOYMENT_ID = "44c3ed53-9b6d-4be0-bade-e5fcc6c7a0eb";
 const OTHER_DEPLOYMENT_ID = "00000000-0000-0000-0000-000000000000";
@@ -77,5 +77,24 @@ describe("wasTxSubmittedFor", () => {
 
   it("returns false when no row exists at all", async () => {
     expect(await wasTxSubmittedFor(DEPLOYMENT_ID, TX_HASH)).toBe(false);
+  });
+
+  describe("needsSubmitRow", () => {
+    it("always writes for a first send, without looking", async () => {
+      expect(await needsSubmitRow(DEPLOYMENT_ID, TX_HASH, false)).toBe(true);
+      expect(await needsSubmitRow(DEPLOYMENT_ID, TX_HASH, undefined)).toBe(true);
+    });
+
+    it("skips a duplicate send whose row exists", async () => {
+      await audit({
+        action: "DEPLOY_TRIGGER",
+        metadata: { deploymentId: DEPLOYMENT_ID, txHash: TX_HASH },
+      });
+      expect(await needsSubmitRow(DEPLOYMENT_ID, TX_HASH, true)).toBe(false);
+    });
+
+    it("writes for a duplicate send whose first attempt left no row", async () => {
+      expect(await needsSubmitRow(DEPLOYMENT_ID, TX_HASH, true)).toBe(true);
+    });
   });
 });

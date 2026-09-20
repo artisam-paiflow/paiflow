@@ -26,7 +26,7 @@ import {
   readPayerRecipients,
 } from "@/lib/stellar/relayer";
 import { preparePayrollChargeByRelayerUnsigned } from "@/lib/stellar/invoke";
-import { withRelayerLock } from "@/lib/stellar/client";
+import { TENANT_RELAYER_TIMEOUT_MS, withRelayerLock } from "@/lib/stellar/client";
 import { readTokenAllowance } from "@/lib/stellar/relayer";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode, EmployeePayoutMode, PayrollRunStatus } from "@prisma/client";
@@ -626,6 +626,9 @@ export async function POST(req: NextRequest) {
                   : {}),
               },
               body: JSON.stringify(body),
+              // Tenant-supplied endpoint: one that black-holes the connection
+              // must not stall the charge loop for every other customer.
+              signal: AbortSignal.timeout(TENANT_RELAYER_TIMEOUT_MS),
             });
 
             if (!res.ok) {

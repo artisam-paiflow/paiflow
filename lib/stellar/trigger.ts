@@ -3,7 +3,9 @@ import { type SorobanErrorHint } from "./soroban-errors";
 import { Keypair, TransactionBuilder } from "@stellar/stellar-sdk";
 import { sorobanRpc, withRelayerLock } from "./client";
 import { signerFromTransaction, type SignerInfo } from "./signer";
+import { classifySend, SEND_NOT_ACCEPTED_MESSAGE } from "./send-status";
 import { stellarPassphrase, stellarRelayerSecretKey, stellarRelayerAddress } from "@/lib/env";
+import { AppError } from "@/lib/errors";
 import {
   prepareDistributeInvocation,
   prepareDepositInvocation,
@@ -55,6 +57,11 @@ export type SubmitTriggerResult = {
   errorMessage?: string;
   /** Set for user-signed envelopes; the relayer paths sign their own. */
   signer?: SignerInfo;
+  /**
+   * PENDING only: the RPC already had this envelope queued, so an earlier
+   * submit sent it and wrote its audit row. Callers must not write a second.
+   */
+  duplicate?: boolean;
 };
 
 export async function submitTriggerTx(signedXdr: string): Promise<SubmitTriggerResult> {
@@ -62,8 +69,14 @@ export async function submitTriggerTx(signedXdr: string): Promise<SubmitTriggerR
   const tx = TransactionBuilder.fromXDR(signedXdr, stellarPassphrase());
   const signer = signerFromTransaction(tx);
   const send = await server.sendTransaction(tx);
+  const sent = classifySend(send);
 
-  if (send.status === "ERROR") {
+  // Thrown, not returned as FAILED: nothing was sent, so there is no hash for
+  // the caller to poll or record, only a request to make again.
+  if (sent.outcome === "NOT_ACCEPTED") {
+    throw new AppError("UPSTREAM_RPC", SEND_NOT_ACCEPTED_MESSAGE);
+  }
+  if (sent.outcome === "REJECTED") {
     return {
       status: "FAILED",
       txHash: send.hash,
@@ -72,7 +85,7 @@ export async function submitTriggerTx(signedXdr: string): Promise<SubmitTriggerR
     };
   }
 
-  return { status: "PENDING", txHash: send.hash, signer };
+  return { status: "PENDING", txHash: send.hash, signer, duplicate: sent.duplicate };
 }
 
 export async function submitWebhookExecuteTx(opts: {
@@ -121,9 +134,20 @@ export async function submitWebhookExecuteTx(opts: {
 
       const server = sorobanRpc();
       const send = await server.sendTransaction(tx);
+      const sent = classifySend(send);
 
-      if (send.status !== "ERROR") {
-        return { status: "PENDING", txHash: send.hash };
+      // The webhook caller holds no envelope, only its own request, and the
+      // next attempt rebuilds the transaction. Not retried in here: the network
+      // says this while another relayer transaction is still pending, and
+      // waiting that out would hold the relayer lock against every other signer.
+      if (sent.outcome === "NOT_ACCEPTED") {
+        throw new AppError(
+          "UPSTREAM_RPC",
+          "The network is busy and did not accept the transaction; send the request again",
+        );
+      }
+      if (sent.outcome === "QUEUED") {
+        return { status: "PENDING", txHash: send.hash, duplicate: sent.duplicate };
       }
 
       const errorResult = send.errorResult?.result?.();

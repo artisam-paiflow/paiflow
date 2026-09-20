@@ -75,6 +75,23 @@ export async function wasTxSubmittedFor(deploymentId: string, txHash: string): P
 }
 
 /**
+ * Should a submit route write its audit row for `txHash`? A first send always
+ * does. A duplicate send usually means an earlier request wrote it, but that
+ * write is best-effort and the envelope may have been queued by something other
+ * than this app, so look rather than assume: `tx-status` does no bookkeeping for
+ * a hash with no row. A failed look writes, since a second row costs less than
+ * none.
+ */
+export async function needsSubmitRow(
+  deploymentId: string,
+  txHash: string,
+  duplicate: boolean | undefined,
+): Promise<boolean> {
+  if (!duplicate) return true;
+  return !(await wasTxSubmittedFor(deploymentId, txHash).catch(() => false));
+}
+
+/**
  * Has the partner API already recorded `txHash` as confirmed for `deploymentId`?
  * A resubmission of a confirmed envelope answers from the chain, and this keeps
  * it from writing a second `API_EXECUTE_CONFIRMED` row each time.

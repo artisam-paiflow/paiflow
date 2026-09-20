@@ -30,7 +30,7 @@ type Template = {
   make: () => FlowNode;
 };
 
-const TEMPLATES: Template[] = [
+export const TEMPLATES: Template[] = [
   {
     group: "Triggers",
     label: "On Receive",
