@@ -8,7 +8,7 @@ import { submitTriggerTx } from "@/lib/stellar/trigger";
 import { signerFromSignedXdr } from "@/lib/stellar/signer";
 import { recordSignedTransaction } from "@/lib/signed-tx";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
-import { audit } from "@/lib/audit";
+import { audit, needsSubmitRow } from "@/lib/audit";
 
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
 
@@ -42,8 +42,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const result = await submitTriggerTx(body.signedXdr);
     if (result.status === "PENDING") {
       // `tx-status` runs its confirmation bookkeeping off this row, one per
-      // hash: a duplicate send means an earlier request already wrote it.
-      if (!result.duplicate) {
+      // hash: a duplicate send writes it only if the earlier one left none.
+      if (await needsSubmitRow(id, result.txHash, result.duplicate)) {
         await audit({
           action: "DEPLOY_INVOKE",
           userId: d.ownerId,

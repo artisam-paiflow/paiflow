@@ -18,7 +18,10 @@ vi.mock("@/lib/rate-limit", () => ({
   enforceRateLimit: vi.fn(async () => undefined),
   clientIp: vi.fn(() => "203.0.113.9"),
 }));
-vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
+vi.mock("@/lib/audit", () => ({
+  audit: vi.fn(async () => undefined),
+  needsSubmitRow: vi.fn(async (_d: string, _h: string, duplicate?: boolean) => !duplicate),
+}));
 
 import { POST } from "@/app/api/webhooks/[id]/route";
 import { audit } from "@/lib/audit";

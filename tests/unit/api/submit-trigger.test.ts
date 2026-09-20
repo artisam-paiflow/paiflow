@@ -28,12 +28,15 @@ vi.mock("@/lib/rate-limit", () => ({
   enforceRateLimit: vi.fn(async () => undefined),
   clientIp: vi.fn(() => "203.0.113.9"),
 }));
-vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
+vi.mock("@/lib/audit", () => ({
+  audit: vi.fn(async () => undefined),
+  needsSubmitRow: vi.fn(async (_d: string, _h: string, duplicate?: boolean) => !duplicate),
+}));
 vi.mock("@/lib/signed-tx", () => ({ recordSignedTransaction: vi.fn(async () => undefined) }));
 
 import { POST as submitTrigger } from "@/app/api/deployments/[id]/submit-trigger/route";
 import { POST as submitInvoke } from "@/app/api/deployments/[id]/submit-invoke/route";
-import { audit } from "@/lib/audit";
+import { audit, needsSubmitRow } from "@/lib/audit";
 import { recordSignedTransaction } from "@/lib/signed-tx";
 import { SEND_NOT_ACCEPTED_MESSAGE } from "@/lib/stellar/send-status";
 import {
@@ -99,6 +102,17 @@ for (const [name, POST, action] of routes) {
       expect(res.status).toBe(200);
       expect((await res.json()).data).toEqual({ txHash: hashOf(signed), status: "PENDING" });
       expect(audit).not.toHaveBeenCalled();
+    });
+
+    it("a DUPLICATE send whose first attempt left no row writes it", async () => {
+      const signed = signedEnvelope();
+      mockRpc.sendTransaction.mockResolvedValue({ status: "DUPLICATE", hash: hashOf(signed) });
+      vi.mocked(needsSubmitRow).mockResolvedValueOnce(true);
+
+      await call(signed);
+
+      expect(needsSubmitRow).toHaveBeenCalledWith(DEPLOYMENT_ID, hashOf(signed), true);
+      expect(vi.mocked(audit).mock.calls.map(([a]) => a.action)).toEqual([action]);
     });
 
     it("a PENDING send writes the one audit row tx-status looks for", async () => {

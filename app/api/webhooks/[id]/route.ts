@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { submitWebhookExecuteTx } from "@/lib/stellar/trigger";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
-import { audit } from "@/lib/audit";
+import { audit, needsSubmitRow } from "@/lib/audit";
 import { timingSafeEqualString } from "@/lib/auth/timing-safe";
 
 const PostSchema = z
@@ -76,8 +76,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
 
     if (result.status === "PENDING") {
-      // A duplicate send means whoever queued this hash first wrote its row.
-      if (!result.duplicate) {
+      // A duplicate send writes the row only if whoever queued this hash first
+      // left none.
+      if (await needsSubmitRow(id, result.txHash, result.duplicate)) {
         await audit({
           action: "DEPLOY_TRIGGER",
           userId: deployment.flow.ownerId,
