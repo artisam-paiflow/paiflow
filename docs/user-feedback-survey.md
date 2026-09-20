@@ -183,7 +183,9 @@ minutes in the product taught them.)
 
 **28. Was there anything you expected to find and didn't?** — paragraph, optional.
 
-**29. May we follow up with you? If yes, your email.** — short answer, optional.
+**29. May we follow up with you? If yes, your email.** — short answer, optional. This is consent to
+be asked more questions later, **not** the payout channel, so leave it optional: the incentive is
+arranged on the message the tester's login was sent in, matched to the response by question 1.
 
 **30. Link to your screenshots folder** — short answer. Help text: A Google Drive folder shared as
 "Anyone with the link can view", containing B1-homepage, B3-review and B4-phone.

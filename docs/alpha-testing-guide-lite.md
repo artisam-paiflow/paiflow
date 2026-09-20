@@ -127,8 +127,8 @@ you and overall**, paste the folder link into its final question, and press **Su
 
 The submitted survey and the three screenshots are what make you eligible for the **₱125**
 incentive. An honest "I couldn't finish B3", with a screenshot of where you stopped, counts exactly
-the same as a perfect run. We'll contact you on the name you enter in
-the survey.
+the same as a perfect run. Enter the name we sent your test account to, and we'll reply about the
+incentive on the message this guide came in.
 
 Please leave everything else in the app alone: other block types, **Dev mode**, and the Profile page
 aren't part of this round.
