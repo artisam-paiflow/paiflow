@@ -569,8 +569,9 @@ Being worked through; don't trust these yet:
   `homepage/terms.html` that it is "gated by an allowlist and an explicit confirmation". No allowlist exists —
   the claim stands and the control is being built to match it in
   [#377](https://github.com/webnxt-2030/pinkraft/issues/377), which also rewrites [§7.5](#75-networks).
-- `docs/instawards/changelog.md` and the week-2 report stop at 19 September, the extent of the
-  public mirror. The 20 September merges are added the next time the mirror syncs; regenerate with
+- The generated changelog tables in `docs/instawards/changelog.md` and `week-2.md` stop at
+  19 September, the extent of the public mirror, and omit the 20 September merges; the week-2 prose
+  covers them. The rows are added the next time the mirror syncs; regenerate with
   `pnpm instawards:changelog --ref mirror/develop`, never from `origin/develop` (the SHAs differ).
 
 ---

@@ -129,7 +129,10 @@ All five of D2's §6.1 evidence items are present, from two runs on 18 September
 curl sequence executed a swap ([`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7), 10 XLM → 1.0584167 USDC) with its
 events response and audit rows; importing the Postman collection and driving it end to end executed
 a second ([`27f68188…`](https://stellar.expert/explorer/testnet/tx/27f681889bfebdab92a4d9e6d70770ea5df72bd597c627bc5c0014d0d86bfbfb), 1 XLM → 0.1055731 USDC), so the collection is evidenced by a
-transaction rather than only a screenshot. **D2 is complete and closed.**
+transaction rather than only a screenshot. The public-URL item was corroborated again on
+20 September, by a run of the anonymous demo-token path
+([`11-demo-token.md`](evidence/d2/11-demo-token.md)) that #554 opened the day before.
+**D2 is complete and closed.**
 
 The 15 September swap is kept in the [evidence index](evidence/README.md#transactions) but could
 not supply the events response: its deployment, token and event rows are in the database the public

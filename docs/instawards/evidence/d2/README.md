@@ -7,6 +7,8 @@ is redacted; the full `pfk_…` value never appears in a file or a capture.
 The run these files record: **18 September 2026, 02:31:52–02:32:17 UTC**, deployment
 `ad0843d9-f6de-422f-b216-717caa92aa8a`, 10 XLM → 1.0584167 USDC through the Soroswap router,
 transaction [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7).
+One file is a later, separate run: [`11-demo-token.md`](11-demo-token.md), the anonymous
+demo-token path on 20 September, added after #554 opened that route.
 
 | File                                                                               | What it is                                                                                                                 | Status  |
 | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------- |
@@ -46,8 +48,9 @@ testnet, [`27f68188…`](https://stellar.expert/explorer/testnet/tx/27f681889bfe
 rather than only by a screenshot; [`09-postman-run.png`](09-postman-run.png) shows the run that
 produced it. The capture is cropped to the Postman panes, dropping the window title bar, the
 editor's assistant panel and the desktop taskbar; nothing in the request or response is altered. The
-collection has since gained a **Get demo token** request that runs first and fills the variables
-(#554), so the capture shows the four-request collection as it stood on 18 September.
+capture shows the collection as it stood that day: four requests. #554 added a fifth on
+19 September — **Get demo token**, which now runs first and fills the variables — so a capture taken
+today would differ by that one row.
 
 ## The 15 September run
 
