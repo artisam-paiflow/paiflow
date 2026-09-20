@@ -66,6 +66,7 @@ vi.mock("@/lib/env", () => ({
 }));
 vi.mock("@/lib/auth", () => ({ requireSession: vi.fn(async () => ({ id: "user-1" })) }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
+vi.mock("@/lib/analytics/server", () => ({ captureServer: vi.fn(async () => undefined) }));
 vi.mock("@/lib/redis", () => ({
   redis: () => mockRedis.client,
   eventChannel: mockRedis.eventChannel,
@@ -83,6 +84,11 @@ vi.mock("@stellar/stellar-sdk", async () => {
 });
 
 import { POST } from "@/app/api/deployments/[id]/submit/route";
+import { audit } from "@/lib/audit";
+import { captureServer } from "@/lib/analytics/server";
+
+const auditActions = () => vi.mocked(audit).mock.calls.map(([a]) => a.action);
+const capturedEvents = () => vi.mocked(captureServer).mock.calls.map(([, event]) => event);
 
 function makeRequest({ deploymentId, signedXdr }: { deploymentId: string; signedXdr: string }) {
   return {
@@ -222,6 +228,84 @@ describe("deployments/[id]/submit", () => {
     expect(mockDb.deployment.update.mock.calls.at(-1)?.[0]).toMatchObject({
       where: { id: "dep-1", status: "SUBMITTED" },
       data: { status: "FAILED" },
+    });
+  });
+
+  // #557: TRY_AGAIN_LATER means the network never queued the transaction.
+  describe("a send the network did not accept", () => {
+    it("hands the claim back: PENDING_SIGNATURE, no hash, no DEPLOY_FAIL, 502", async () => {
+      mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+      mockDeploy.submitDeployTx.mockResolvedValue({ status: "NOT_ACCEPTED" });
+      mockDb.deployment.update.mockResolvedValue(undefined);
+
+      const res = await POST(
+        makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+        makeContext("dep-1"),
+      );
+      const json = await res.json();
+
+      expect(res.status).toBe(502);
+      expect(json.error.code).toBe("UPSTREAM_RPC");
+      expect(json.error.message).toContain("submit the same envelope again");
+      expect(mockDb.deployment.update).toHaveBeenCalledTimes(2);
+      expect(mockDb.deployment.update.mock.calls.at(-1)?.[0]).toEqual({
+        where: { id: "dep-1", status: "SUBMITTED" },
+        data: { status: "PENDING_SIGNATURE" },
+      });
+      expect(auditActions()).toEqual(["DEPLOY_SUBMIT"]);
+      expect(capturedEvents()).not.toContain("deploy_failed");
+    });
+
+    it("the same signed envelope can then be submitted again and confirm", async () => {
+      mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+      mockDb.deployment.update.mockResolvedValue({
+        id: "dep-1",
+        status: "CONFIRMED",
+        deployTxHash: TX_HASH,
+        contractAddress: "CABC",
+        pipelineSnapshot: [{ nodeId: "n1", contractAddress: "CABC", templateKind: "SPLITTER" }],
+      });
+      // The signer row is keyed on the hash: created once, skipped on the retry.
+      mockDb.signedTransaction.createMany
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 });
+      mockDeploy.submitDeployTx
+        .mockResolvedValueOnce({ status: "NOT_ACCEPTED" })
+        .mockResolvedValueOnce({ status: "SUCCESS", txHash: TX_HASH, contractAddress: "CABC" });
+
+      const first = await POST(
+        makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+        makeContext("dep-1"),
+      );
+      const second = await POST(
+        makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+        makeContext("dep-1"),
+      );
+
+      expect(first.status).toBe(502);
+      expect(second.status).toBe(200);
+      expect((await second.json()).data).toMatchObject({ status: "CONFIRMED", txHash: TX_HASH });
+      expect(mockDeploy.submitDeployTx).toHaveBeenCalledTimes(2);
+      expect(auditActions()).toEqual(["DEPLOY_SUBMIT", "DEPLOY_SUBMIT", "DEPLOY_CONFIRM"]);
+      expect(capturedEvents().filter((e) => e === "transaction_signed")).toHaveLength(1);
+      expect(capturedEvents()).not.toContain("deploy_failed");
+    });
+
+    it("still answers 502 when the row stopped being SUBMITTED in the meantime", async () => {
+      mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+      mockDeploy.submitDeployTx.mockResolvedValue({ status: "NOT_ACCEPTED" });
+      mockDb.deployment.update
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(makePrismaError("P2025", "No record was found for an update"));
+
+      const res = await POST(
+        makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+        makeContext("dep-1"),
+      );
+
+      expect(res.status).toBe(502);
+      expect((await res.json()).error.code).toBe("UPSTREAM_RPC");
+      expect(auditActions()).toEqual(["DEPLOY_SUBMIT"]);
     });
   });
 

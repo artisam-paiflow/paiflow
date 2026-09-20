@@ -24,6 +24,7 @@ import { AppError } from "@/lib/errors";
 import type { PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { nodeBlueprint, pipelineNodeConstructorArgs } from "./scval";
+import { classifySend } from "./send-status";
 import { simulationFailure } from "./sim-error";
 import { contractKeyForTemplate, type ContractErrorKey } from "./soroban-errors";
 
@@ -237,26 +238,34 @@ function computeContractAddress(sourceAccount: string, salt: Buffer): string {
   return Address.contract(idBytes).toString();
 }
 
-export type SubmitResult = {
-  status: "SUCCESS" | "FAILED";
-  txHash: string;
-  contractAddress?: string;
-  errorMessage?: string;
-};
+export type SubmitResult =
+  | { status: "SUCCESS"; txHash: string; contractAddress?: string }
+  | { status: "FAILED"; txHash: string; errorMessage?: string }
+  // No `txHash`: the network never queued one, so there is nothing a caller
+  // could store or reconcile against. The same signed envelope can be sent again.
+  | { status: "NOT_ACCEPTED" };
 
 /** Submit a signed XDR, poll until finalized. */
 export async function submitDeployTx(signedXdr: string): Promise<SubmitResult> {
   const server = sorobanRpc();
   const tx = TransactionBuilder.fromXDR(signedXdr, stellarPassphrase());
   const send = await server.sendTransaction(tx);
+  const sent = classifySend(send);
 
-  if (send.status === "ERROR") {
+  // Answered before the poll: the hash was never queued, so polling it would
+  // spend the whole 30 s on NOT_FOUND, and a relayer deploy spends them holding
+  // the relayer lock.
+  if (sent.outcome === "NOT_ACCEPTED") return { status: "NOT_ACCEPTED" };
+  if (sent.outcome === "REJECTED") {
     return {
       status: "FAILED",
       txHash: send.hash,
       errorMessage: `sendTransaction error: ${JSON.stringify(send.errorResult?.result?.()) ?? send.status}`,
     };
   }
+  // A duplicate is already in the queue under this same hash, so it is polled
+  // exactly like a first send.
+  sent.outcome satisfies "QUEUED";
 
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
@@ -281,7 +290,7 @@ export async function submitDeployTx(signedXdr: string): Promise<SubmitResult> {
   return { status: "FAILED", txHash: send.hash, errorMessage: "Timed out waiting for finality" };
 }
 
-export type RelayerPipelineDeployResult = SubmitResult & {
+export type RelayerPipelineDeployResult = Exclude<SubmitResult, { status: "NOT_ACCEPTED" }> & {
   pipeline: PreparedPipelineDeploy["pipeline"];
 };
 
@@ -332,6 +341,17 @@ export async function deployPipelineByRelayer(opts: {
     tx.sign(Keypair.fromSecret(secret));
 
     const result = await submitDeployTx(tx.toXDR());
+    if (result.status === "NOT_ACCEPTED") {
+      // Nothing to resubmit here: the envelope lives only inside this lock, and
+      // a retry re-prepares with a fresh sequence number. An empty hash is how
+      // the callers already read "no transaction to reconcile".
+      return {
+        status: "FAILED",
+        txHash: "",
+        errorMessage: "The network is busy and did not accept the transaction; try again",
+        pipeline: prepared.pipeline,
+      };
+    }
     return { ...result, pipeline: prepared.pipeline };
   });
 }

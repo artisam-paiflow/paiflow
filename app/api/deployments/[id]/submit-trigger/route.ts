@@ -8,7 +8,7 @@ import { submitTriggerTx } from "@/lib/stellar/trigger";
 import { signerFromSignedXdr } from "@/lib/stellar/signer";
 import { recordSignedTransaction } from "@/lib/signed-tx";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
-import { audit } from "@/lib/audit";
+import { audit, needsSubmitRow } from "@/lib/audit";
 
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
 
@@ -58,22 +58,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const result = await submitTriggerTx(body.signedXdr);
     if (result.status === "PENDING") {
-      await audit({
-        action: "DEPLOY_TRIGGER",
-        userId: d.ownerId,
-        metadata: {
-          deploymentId: id,
-          txHash: result.txHash,
-          signerAddress: signer.ok ? signer.signerAddress : null,
-        },
-      });
+      // `tx-status` runs its confirmation bookkeeping off this row, one per
+      // hash: a duplicate send writes it only if the earlier one left none.
+      if (await needsSubmitRow(id, result.txHash, result.duplicate)) {
+        await audit({
+          action: "DEPLOY_TRIGGER",
+          userId: d.ownerId,
+          metadata: {
+            deploymentId: id,
+            txHash: result.txHash,
+            signerAddress: signer.ok ? signer.signerAddress : null,
+          },
+        });
+      }
       return NextResponse.json({ data: { txHash: result.txHash, status: "PENDING" } });
     }
     if (result.status === "FAILED") {
-      return NextResponse.json(
-        { error: { code: "UPSTREAM_RPC", message: result.errorMessage ?? "Submission failed" } },
-        { status: 502 },
-      );
+      // Thrown so `errorResponse` logs it; a hand-built 502 left no trace.
+      throw new AppError("UPSTREAM_RPC", result.errorMessage ?? "Submission failed");
     }
     return NextResponse.json({ data: { txHash: result.txHash } });
   });
