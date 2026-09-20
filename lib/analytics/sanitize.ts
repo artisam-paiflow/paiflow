@@ -2,8 +2,13 @@
  * Runtime backstop for the privacy rules in `lib/analytics/events.ts`: whatever
  * a call site passes, no Stellar secret seed, account/contract address, XDR
  * blob, app-minted credential or email address leaves the app in an analytics
- * payload. Transaction hashes and UUIDs pass on purpose: the funnel joins on them. Pure, so the browser and the
- * server share it.
+ * payload. Pure, so the browser and the server share it.
+ *
+ * Transaction hashes and UUIDs pass on purpose. `tx_hash` and `deployment_id`
+ * are declared properties the funnel joins on (alpha-tracking-plan.md, "Wallet
+ * traceability"), so PostHog holds the person → deployment → transaction join
+ * by design, and stripping the same values out of a URL or a message would hide
+ * nothing while breaking `sanitizeValue` for the declared ones.
  *
  * One deliberate exception, added 17 September 2026 for wallet ↔ user ↔ tx
  * traceability (docs/analytics/alpha-tracking-plan.md, "Wallet traceability"):
