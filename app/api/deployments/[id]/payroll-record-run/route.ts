@@ -56,6 +56,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         offRampJobs: { select: { id: true } },
       },
     });
+    // txHash is unique across every deployment, not per deployment, so the
+    // lookup above can land on someone else's run for any hash the caller
+    // observed on-chain. Refuse before it is read from, and before the
+    // recipient reads below spend RPC calls on it. CONFLICT, not NOT_FOUND:
+    // the hash really is taken, and it is what the unique constraint would
+    // have raised at create time anyway.
+    if (existingRun && existingRun.deploymentId !== d.id) {
+      throw new AppError("CONFLICT", "That transaction is already recorded");
+    }
     if (existingRun) {
       const existingJobIds = existingRun.offRampJobs.map((j) => j.id);
       return NextResponse.json({

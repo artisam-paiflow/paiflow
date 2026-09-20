@@ -259,6 +259,7 @@ describe("payroll-record-run", () => {
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
     mockDb.payrollRun.findUnique.mockResolvedValue({
       id: "run-existing",
+      deploymentId: "dep-1",
       payouts: [{ offRampJobs: [{ id: "job-existing" }] }],
       offRampJobs: [{ id: "job-existing" }],
     });
@@ -270,6 +271,28 @@ describe("payroll-record-run", () => {
     expect(res.status).toBe(200);
     expect(json.data.idempotent).toBe(true);
     expect(json.data.payrollRunId).toBe("run-existing");
+    expect(mockDb.payrollRun.create).not.toHaveBeenCalled();
+  });
+
+  // txHash is unique globally, so the idempotency lookup is not scoped by the
+  // owner check above it: a caller who observed another tenant's charge on-chain
+  // could otherwise read back its run id, payout count and off-ramp job ids.
+  it("409s rather than returning a run recorded under another deployment", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+    mockDb.payrollRun.findUnique.mockResolvedValue({
+      id: "run-somebody-else",
+      deploymentId: "dep-2",
+      payouts: [{ offRampJobs: [{ id: "job-somebody-else" }] }],
+      offRampJobs: [{ id: "job-somebody-else" }],
+    });
+
+    const req = makeRequest({ deploymentId: "dep-1", txHash: "tx-theirs" });
+    const res = await POST(req, makeContext("dep-1"));
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(JSON.stringify(json)).not.toContain("somebody-else");
+    expect(mockRelayer.readSplitterDevRecipients).not.toHaveBeenCalled();
     expect(mockDb.payrollRun.create).not.toHaveBeenCalled();
   });
 
