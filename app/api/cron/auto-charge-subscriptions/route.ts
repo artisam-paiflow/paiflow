@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
 import { withErrorHandler } from "@/lib/errors";
+import { assertPublicUrl, UnsafeUrlError } from "@/lib/net/assert-public-url";
 import { createContractReadCache } from "@/lib/contract-read-cache";
 import {
   prepareSubscriptionChargeByRelayerTx,
@@ -31,6 +33,50 @@ type ResultDetail = {
   status: "charged" | "skipped" | "failed";
   error?: string;
 };
+
+/**
+ * A failure the tenant's own relayer endpoint caused. Marked by class, never by
+ * message text: `isExpectedSkipError` below matches on substrings, so a relayer
+ * answering with "insufficient" could otherwise get its own failed charge
+ * reclassified as an expected skip (#581).
+ */
+class RelayerResponseError extends Error {}
+
+/**
+ * The tenant's relayer response is untrusted input — `signedXdr` is handed
+ * straight to the submitter — so it gets a schema like any other boundary.
+ * `errorMessage` is deliberately absent: it was a read-back channel for a
+ * response body the tenant's endpoint chose.
+ */
+const RelayerChargeResponseSchema = z.object({
+  status: z.enum(["SUCCESS", "PENDING", "FAILED"]),
+  txHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/i)
+    .optional(),
+  signedXdr: z.string().max(65536).optional(),
+});
+
+/** `res.json()` on a non-JSON body throws a SyntaxError carrying a fragment of
+ * that body, which must not reach a reported message. */
+async function readJson(res: Response): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/** We deliberately never read a failed relayer response, but an undrained body
+ * keeps undici's socket out of the pool until GC, and this loop runs up to
+ * MAX_CATCHUP_PER_RUN times per deployment. */
+async function discardBody(res: Response): Promise<void> {
+  try {
+    await res.body?.cancel();
+  } catch {
+    // Already consumed or errored; nothing to release.
+  }
+}
 
 function isExpectedSkipError(message: string): boolean {
   return (
@@ -241,6 +287,42 @@ export async function POST(req: NextRequest) {
             continue;
           }
 
+          // Check the stored URL again here, not just where it was saved: DNS
+          // can change under us, and rows predate this check (#581). Once per
+          // deployment rather than once per iteration, because undici pools the
+          // connection — iterations 2…n reuse the socket iteration 1 opened and
+          // never re-resolve.
+          let relayerUrl: URL;
+          try {
+            relayerUrl = await assertPublicUrl(d.chargeRelayerUrl, {
+              subject: "Relayer URL",
+              field: "chargeRelayerUrl",
+            });
+          } catch (err) {
+            const unsafe = err instanceof UnsafeUrlError ? err : null;
+            const message = unsafe?.message ?? "Relayer URL could not be validated";
+            if (unsafe?.terminal) {
+              // `nextChargeAt` is already in the past, so this deployment would
+              // otherwise come back every tick. Only for a deterministic
+              // refusal: one EAI_AGAIN must not switch off a tenant.
+              await db.deployment.update({
+                where: { id: d.id },
+                data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
+              });
+            }
+            log.warn(
+              {
+                deploymentId: d.id,
+                contractAddress,
+                reason: unsafe?.reason ?? "unknown",
+                terminal: unsafe?.terminal ?? false,
+              },
+              "Tenant relayer URL refused",
+            );
+            results.push({ deploymentId: d.id, contractAddress, status: "failed", error: message });
+            continue;
+          }
+
           for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
             const { xdr: unsignedXdr } = await prepareSubscriptionChargeByRelayerUnsigned({
               contractAddress,
@@ -254,32 +336,64 @@ export async function POST(req: NextRequest) {
               headers["Authorization"] = `Bearer ${d.chargeRelayerToken}`;
             }
 
-            const response = await fetch(d.chargeRelayerUrl, {
-              method: "POST",
-              headers,
-              body: JSON.stringify({
-                deploymentId: d.id,
-                contractAddress,
-                network: env().STELLAR_NETWORK,
-                networkPassphrase: stellarPassphrase(),
-                unsignedXdr,
-              }),
-              // Tenant-supplied endpoint: one that black-holes the connection
-              // must not stall the charge loop for every other customer.
-              signal: AbortSignal.timeout(TENANT_RELAYER_TIMEOUT_MS),
-            });
-
-            if (!response.ok) {
-              const text = await response.text();
-              throw new Error(`User relayer returned ${response.status}: ${text}`);
+            let response: Response;
+            try {
+              response = await fetch(relayerUrl, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                  deploymentId: d.id,
+                  contractAddress,
+                  network: env().STELLAR_NETWORK,
+                  networkPassphrase: stellarPassphrase(),
+                  unsignedXdr,
+                }),
+                // Tenant-supplied endpoint: one that black-holes the connection
+                // must not stall the charge loop for every other customer.
+                signal: AbortSignal.timeout(TENANT_RELAYER_TIMEOUT_MS),
+                // Not "error", which surfaces as an opaque `TypeError: fetch
+                // failed`. "manual" does not follow the hop either, and lets us
+                // say what happened. Following it would defeat the URL check
+                // above and forward the tenant's bearer token to the new host.
+                redirect: "manual",
+              });
+            } catch (err) {
+              const name = err instanceof Error ? err.name : "";
+              // The message the tenant gets is fixed, so log the real cause —
+              // otherwise a bug on our side is indistinguishable from an
+              // unreachable endpoint.
+              log.warn({ deploymentId: d.id, contractAddress, err }, "Tenant relayer fetch failed");
+              throw new RelayerResponseError(
+                name === "TimeoutError" || name === "AbortError"
+                  ? `User relayer did not respond within ${TENANT_RELAYER_TIMEOUT_MS}ms`
+                  : "User relayer could not be reached",
+              );
             }
 
-            const body = (await response.json()) as {
-              status?: string;
-              txHash?: string;
-              signedXdr?: string;
-              errorMessage?: string;
-            };
+            // Nothing upstream-controlled may reach an Error message: it is
+            // reported and logged, and on the payroll side persisted for the
+            // owner to read back, which is what made this a read-capable SSRF
+            // (#581). A status code is a number; a body is not.
+            if (response.status >= 300 && response.status < 400) {
+              await discardBody(response);
+              throw new RelayerResponseError(
+                `User relayer returned a redirect (${response.status}); redirects are not followed`,
+              );
+            }
+            if (!response.ok) {
+              await discardBody(response);
+              log.warn(
+                { deploymentId: d.id, contractAddress, status: response.status },
+                "Tenant relayer rejected charge",
+              );
+              throw new RelayerResponseError(`User relayer returned ${response.status}`);
+            }
+
+            const parsed = RelayerChargeResponseSchema.safeParse(await readJson(response));
+            if (!parsed.success) {
+              throw new RelayerResponseError("User relayer returned an unrecognised payload");
+            }
+            const body = parsed.data;
 
             if (body.status === "SUCCESS" && body.txHash) {
               chargedCount++;
@@ -291,7 +405,7 @@ export async function POST(req: NextRequest) {
                 throw new Error(submit.errorMessage ?? "User relayer signed tx submission failed");
               }
             } else {
-              throw new Error(body.errorMessage ?? "User relayer did not return a success payload");
+              throw new RelayerResponseError("User relayer did not return a success payload");
             }
 
             const next = await readSubscriptionNextChargeAt(contractAddress);
@@ -324,7 +438,20 @@ export async function POST(req: NextRequest) {
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        if (isExpectedSkipError(message)) {
+        if (err instanceof RelayerResponseError) {
+          // Never `skipped`: a tenant must not be able to pick a status code or
+          // payload that reclassifies its own failed charge.
+          log.warn(
+            { deploymentId: d.id, contractAddress, error: message },
+            "Tenant relayer charge failed",
+          );
+          results.push({
+            deploymentId: d.id,
+            contractAddress,
+            status: "failed",
+            error: message,
+          });
+        } else if (isExpectedSkipError(message)) {
           results.push({
             deploymentId: d.id,
             contractAddress,

@@ -202,6 +202,10 @@ export default function SubscriptionRelayerPanel({
                   placeholder="https://your-relayer.example.com/charge"
                   className="border-outline-variant/40 bg-surface-container w-full rounded border px-2 py-1.5 font-mono text-xs"
                 />
+                <div className="text-label-sm text-on-surface-variant">
+                  Must be a public https:// endpoint. localhost, IP addresses and internal hostnames
+                  are refused.
+                </div>
               </div>
               <div className="space-y-1">
                 <label className="text-label-sm text-on-surface-variant font-mono">
