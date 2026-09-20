@@ -16,7 +16,7 @@ const { mockRpc, mockDb, mockEnforceRateLimit, mockRedis, mockCapture } = vi.hoi
   mockRpc: { getTransaction: vi.fn() },
   mockDb: { deployment: { findUnique: vi.fn() }, signedTransaction: { findUnique: vi.fn() } },
   mockEnforceRateLimit: vi.fn(async (_opts: { key: string }) => undefined),
-  mockRedis: { set: vi.fn(), del: vi.fn() },
+  mockRedis: { set: vi.fn(), del: vi.fn(), expire: vi.fn() },
   mockCapture: vi.fn(async () => undefined),
 }));
 vi.mock("@/lib/redis", () => ({ redis: () => mockRedis }));
@@ -72,6 +72,8 @@ describe("GET /api/deployments/[id]/tx-status", () => {
     });
     mockRedis.del.mockReset();
     mockRedis.del.mockImplementation(async (key: string) => (claimed.delete(key) ? 1 : 0));
+    mockRedis.expire.mockReset();
+    mockRedis.expire.mockResolvedValue(1);
   });
 
   it("ingests the deployment's events once the transaction succeeds", async () => {
@@ -235,6 +237,44 @@ describe("GET /api/deployments/[id]/tx-status", () => {
     await call();
     expect(pollEventsFor).toHaveBeenCalledTimes(1);
     expect(audit).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes the claim as a short lease and keeps it only once the lookup has answered", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
+    await call();
+    const [key, , , lease] = mockRedis.set.mock.calls[0]!;
+    expect(lease).toBe(60);
+    expect(mockRedis.expire).toHaveBeenCalledWith(key, 7 * 24 * 60 * 60);
+  });
+
+  it("leaves the claim on its lease when the lookup fails", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
+    vi.mocked(wasTxSubmittedFor).mockRejectedValueOnce(new Error("db blip"));
+    mockRedis.del.mockRejectedValueOnce(new Error("redis blip"));
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(mockRedis.expire).not.toHaveBeenCalled();
+  });
+
+  it("does not release a claim it never took", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
+    mockRedis.set.mockRejectedValueOnce(new Error("redis blip"));
+    vi.mocked(wasTxSubmittedFor).mockRejectedValueOnce(new Error("db blip"));
+    await call();
+    expect(mockRedis.del).not.toHaveBeenCalled();
+    expect(mockRedis.expire).not.toHaveBeenCalled();
+  });
+
+  it("still records the allowance event when the graph read fails", async () => {
+    mockRpc.getTransaction.mockResolvedValue({
+      status: "SUCCESS",
+      ledger: 4598539,
+      createdAt: 1_790_000_000,
+      envelopeXdr: "AAAA",
+    });
+    mockDb.deployment.findUnique.mockRejectedValue(new Error("db blip"));
+    await call();
+    expect(recordAllowanceEvent).toHaveBeenCalledWith(expect.objectContaining({ graph: null }));
   });
 
   it("still does the bookkeeping when the claim itself errors", async () => {

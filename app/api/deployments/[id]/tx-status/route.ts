@@ -49,7 +49,15 @@ const EVENT_INGEST_DEADLINE_MS = 5_000;
 // back to per-process memory by then too, and skipping the ingest would cost a
 // real user their events for a minute.
 const OUTCOME_CLAIM_TTL_SECONDS = 7 * 24 * 60 * 60;
+// A claim starts as a short lease and is only kept for the full week once the
+// submit lookup has answered. A request that dies between the two — a restart
+// mid-poll, or a lookup failure whose release also fails — then blocks a retry
+// for a minute, not for a week.
+const OUTCOME_LEASE_SECONDS = 60;
 type Outcome = "confirmed" | "failed";
+// "unclaimed" is not "taken": there was nothing to claim against, so the work
+// goes ahead, but the key is not ours to keep or release.
+type Claim = "owned" | "taken" | "unclaimed";
 
 function outcomeClaimKey(deploymentId: string, txHash: string, outcome: Outcome): string {
   return `analytics:trigger:${deploymentId}:${txHash}:${outcome}`;
@@ -59,32 +67,52 @@ async function claimOutcome(
   deploymentId: string,
   txHash: string,
   outcome: Outcome,
-): Promise<boolean> {
+): Promise<Claim> {
   const client = redis();
-  if (!client) return true;
+  if (!client) return "unclaimed";
   try {
     const claimed = await client.set(
       outcomeClaimKey(deploymentId, txHash, outcome),
       "1",
       "EX",
-      OUTCOME_CLAIM_TTL_SECONDS,
+      OUTCOME_LEASE_SECONDS,
       "NX",
     );
-    return claimed === "OK";
+    return claimed === "OK" ? "owned" : "taken";
   } catch (err) {
     log.warn(
       { err, deploymentId, txHash },
       "tx-status: outcome claim failed, proceeding unclaimed",
     );
-    return true;
+    return "unclaimed";
   }
 }
 
-// Only for a claim whose work never started, so the next poll can retry it.
-async function releaseOutcome(deploymentId: string, txHash: string, outcome: Outcome) {
+async function keepOutcome(claim: Claim, deploymentId: string, txHash: string, outcome: Outcome) {
+  if (claim !== "owned") return;
+  const key = outcomeClaimKey(deploymentId, txHash, outcome);
   await redis()
-    ?.del(outcomeClaimKey(deploymentId, txHash, outcome))
-    .catch(() => null);
+    ?.expire(key, OUTCOME_CLAIM_TTL_SECONDS)
+    .catch((err) => {
+      log.warn({ err, key }, "tx-status: could not extend the outcome claim past its lease");
+    });
+}
+
+// Only for a claim this request took and whose work never started, so the next
+// poll can retry it. An unowned key may be a later request's claim.
+async function releaseOutcome(
+  claim: Claim,
+  deploymentId: string,
+  txHash: string,
+  outcome: Outcome,
+) {
+  if (claim !== "owned") return;
+  const key = outcomeClaimKey(deploymentId, txHash, outcome);
+  await redis()
+    ?.del(key)
+    .catch((err) => {
+      log.warn({ err, key }, "tx-status: outcome claim release failed, it lapses with its lease");
+    });
 }
 
 async function captureTriggerOutcome(
@@ -185,17 +213,24 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       // read of AuditLog (#435), and a repeat poll should not pay for it either.
       // The key carries the deployment id, so a poll against the wrong
       // deployment claims nothing the right one needs.
-      if (!(await claimOutcome(id, txHash, "confirmed"))) {
+      const claim = await claimOutcome(id, txHash, "confirmed");
+      if (claim === "taken") {
         return NextResponse.json({ data: { status: "SUCCESS", txHash } });
       }
-      const submittedHere = await wasTxSubmittedFor(id, txHash).catch(async (err) => {
-        log.warn(
-          { err, deploymentId: id, txHash },
-          "tx-status: submit lookup failed, leaving ingest to the cron poller",
-        );
-        await releaseOutcome(id, txHash, "confirmed");
-        return false;
-      });
+      const submittedHere = await wasTxSubmittedFor(id, txHash).then(
+        async (submitted) => {
+          await keepOutcome(claim, id, txHash, "confirmed");
+          return submitted;
+        },
+        async (err) => {
+          log.warn(
+            { err, deploymentId: id, txHash },
+            "tx-status: submit lookup failed, leaving ingest to the cron poller",
+          );
+          await releaseOutcome(claim, id, txHash, "confirmed");
+          return false;
+        },
+      );
 
       if (submittedHere) {
         await audit({
@@ -232,11 +267,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         const envelopeXdr = (got as any).envelopeXdr as string | undefined;
         if (envelopeXdr) {
           try {
-            const deployment = await db.deployment.findUnique({
-              where: { id },
-              select: { graphSnapshot: true },
-            });
-            const graph = deployment?.graphSnapshot as FlowGraph | null;
+            // The graph only supplies the asset's symbol, and the claim above
+            // means this runs once: a failed read costs the label, not the event.
+            const deployment = await db.deployment
+              .findUnique({ where: { id }, select: { graphSnapshot: true } })
+              .catch(() => null);
+            const graph = (deployment?.graphSnapshot ?? null) as FlowGraph | null;
             await recordAllowanceEvent({
               deploymentId: id,
               envelopeXdr,
@@ -261,14 +297,19 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (got.status === "FAILED") {
       // Unlike the SUCCESS branch this reads nothing that a stranger's hash
       // could pollute, but only a hash we submitted says something about Paiflow.
-      if (
-        (await claimOutcome(id, txHash, "failed")) &&
-        (await wasTxSubmittedFor(id, txHash).catch(async () => {
-          await releaseOutcome(id, txHash, "failed");
-          return false;
-        }))
-      ) {
-        void captureTriggerOutcome(id, txHash, "failed");
+      const claim = await claimOutcome(id, txHash, "failed");
+      if (claim !== "taken") {
+        const submittedHere = await wasTxSubmittedFor(id, txHash).then(
+          async (submitted) => {
+            await keepOutcome(claim, id, txHash, "failed");
+            return submitted;
+          },
+          async () => {
+            await releaseOutcome(claim, id, txHash, "failed");
+            return false;
+          },
+        );
+        if (submittedHere) void captureTriggerOutcome(id, txHash, "failed");
       }
       return NextResponse.json({
         data: { status: "FAILED", txHash, errorMessage: "Transaction failed on the network" },
