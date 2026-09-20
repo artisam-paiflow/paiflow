@@ -42,6 +42,11 @@ export function TriggerButton({
   const [pendingWallet, setPendingWallet] = useState<string | null>(null);
   const [showOpenWallet, setShowOpenWallet] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  // Wallet-kit 1.9.5 can still fire onClosed after a wallet was picked: the
+  // modal waits 280ms before dispatching wallet-selected, its backdrop stays
+  // clickable meanwhile, and openModal never detaches the modal-closed
+  // listener on selection. Once this is set, a close is not a cancellation.
+  const signingStartedRef = useRef(false);
   const selectedWalletRef = useRef<string | null>(null);
   // Where the current attempt got to, so a failure is reported with its stage.
   const attemptRef = useRef<{
@@ -238,8 +243,10 @@ export function TriggerButton({
   async function runDesktopFlow() {
     const { kit, module: walletConnectModule } = await ensureWalletConnect();
 
+    signingStartedRef.current = false;
     await kit.openModal({
       onWalletSelected: async (wallet: { id: string; name: string }) => {
+        signingStartedRef.current = true;
         setBusy(true);
         try {
           toast.info(`Selected wallet: ${wallet.name}`);
@@ -265,6 +272,7 @@ export function TriggerButton({
         }
       },
       onClosed: () => {
+        if (signingStartedRef.current) return;
         toast.warning("Connection cancelled");
         abortRef.current?.abort();
         setBusy(false);
@@ -283,6 +291,12 @@ export function TriggerButton({
     },
     onAwaitingSignature?: () => void,
   ) {
+    // Created here, not in onTrigger: the WalletConnect resume effect runs on a
+    // fresh mount and calls this directly, so it used to reach the poll with no
+    // controller and throw after the transaction was already broadcast (#451).
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     attemptRef.current.stage = "prepare";
     toast.info("Preparing transaction...");
     const preparePath =
@@ -337,7 +351,7 @@ export function TriggerButton({
     attemptRef.current.stage = "status_poll";
     toast.info("Transaction submitted. Waiting for confirmation...");
 
-    const outcome = await pollTxStatus(deploymentId, txHash, abortRef.current!.signal);
+    const outcome = await pollTxStatus(deploymentId, txHash, controller.signal);
     if (outcome.status === "SUCCESS") {
       track("trigger_succeeded", {
         deployment_id: deploymentId,
@@ -477,7 +491,6 @@ export function TriggerButton({
       return;
     }
     abortRef.current?.abort();
-    abortRef.current = new AbortController();
     setShowOpenWallet(false);
     attemptRef.current = { stage: "wallet", startedAt: Date.now() };
     track("trigger_started", { deployment_id: deploymentId, mode, amount_stroops: amount });
