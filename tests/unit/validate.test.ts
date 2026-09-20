@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { validateFlow, computeAssetFlow } from "@/lib/flows/validate";
-import { AssetSchema, FlowGraphSchema } from "@/lib/flows/schema";
+import { AssetSchema, FlowGraphSchema, FlowPatchSchema } from "@/lib/flows/schema";
 import { TemplateKind } from "@prisma/client";
 
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
@@ -1582,6 +1582,20 @@ describe("validateFlow", () => {
         emailUnderPay({ recipients: [], subject: "", body: "" }),
       );
       expect(parsed.success).toBe(true);
+    });
+
+    // The save route's first statement is `FlowPatchSchema.parse(body)`: this is
+    // the parse that answered 422 for a blank node (#450), so it is the one that
+    // has to keep the node intact.
+    it("round-trips the blank palette default through the save route's schema", () => {
+      const graph = emailUnderPay({ recipients: [], subject: "", body: "" });
+      const parsed = FlowPatchSchema.safeParse(JSON.parse(JSON.stringify({ graph })));
+      expect(parsed.success).toBe(true);
+      const saved = parsed.success ? parsed.data.graph?.nodes.find((n) => n.id === "e") : null;
+      expect(saved).toMatchObject({
+        type: "email_notify",
+        config: { recipients: [], subject: "", body: "" },
+      });
     });
 
     it("refuses the blank palette default on recipients and subject", () => {
