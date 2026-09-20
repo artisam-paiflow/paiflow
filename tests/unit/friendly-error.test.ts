@@ -29,6 +29,24 @@ describe("friendlyError", () => {
     expect(f.details).toBe(raw);
   });
 
+  it("maps every relay variant the SDK actually emits", () => {
+    for (const raw of [
+      "Failed to publish payload, please try again. id:1 tag:1100",
+      "websocket connection failed",
+      "No internet connection detected. Please reconnect.",
+    ]) {
+      expect(friendlyError(new Error(raw)).message).toMatch(/reach the wallet network/i);
+    }
+  });
+
+  it("does not claim a wallet-network fault for an unrelated relayer message", () => {
+    // An earlier "relayer connection" alternative matched no string in any
+    // installed @walletconnect package and risked swallowing config errors.
+    expect(
+      friendlyError(new Error("Relayer connection rejected: invalid project ID")).message,
+    ).toBe("Relayer connection rejected: invalid project ID");
+  });
+
   it("leaves an unapproved wallet connection as a timeout, not a network fault", () => {
     expect(friendlyError(new Error("Wallet connection timed out")).message).toBe(
       "Wallet connection timed out",

@@ -34,10 +34,14 @@ export const NETWORK_FAILURE =
 
 // WalletConnect relay transport failures. "Failed to publish payload ... id:N
 // tag:N" is core's 60-second expiring timer around a relay request, not a
-// refusal from the relay: the socket never answered. Deliberately excludes
-// "Wallet connection timed out", which means the user never approved.
+// refusal from the relay: the socket never answered.
+//
+// Every alternative here is a string the installed @walletconnect packages
+// actually emit -- an earlier "relayer connection" alternative appeared in none
+// of them and was dropped (#598 review). Deliberately excludes "Wallet
+// connection timed out", which means the user never approved.
 export const WALLET_RELAY_FAILURE =
-  /failed to publish payload|websocket connection failed|relayer connection|no internet connection/i;
+  /failed to publish payload|websocket connection failed|no internet connection/i;
 
 /**
  * Map any thrown value — Error, string, or an API error body
