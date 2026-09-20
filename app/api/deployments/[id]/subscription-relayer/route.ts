@@ -3,8 +3,12 @@ import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { stellarRelayerAddress } from "@/lib/env";
+import { assertPublicUrl } from "@/lib/net/assert-public-url";
+import { MAX_URL_LENGTH } from "@/lib/net/public-url";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { ChargeRelayerMode } from "@prisma/client";
 import { prepareSubscriptionSetRelayerInvocation } from "@/lib/stellar/invoke";
 import { readSubscriptionRelayer } from "@/lib/stellar/relayer";
@@ -12,8 +16,8 @@ import { stellarPassphrase } from "@/lib/env";
 
 const PostSchema = z.object({
   mode: z.enum(["PLATFORM", "USER", "MANUAL"]),
-  url: z.string().url().optional(),
-  token: z.string().optional(),
+  url: z.string().url().max(MAX_URL_LENGTH).optional(),
+  token: z.string().max(2048).optional(),
   relayerAddress: z
     .string()
     .refine((s) => !s || StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address")
@@ -56,6 +60,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   return withErrorHandler(async () => {
     const user = await requireSession();
     const { id } = await ctx.params;
+    // The URL check below resolves a caller-supplied hostname, so an unthrottled
+    // POST here is a DNS oracle as well as a write endpoint (§10, #371).
+    await enforceRateLimit({
+      key: `relayer-config:${user.id}`,
+      limit: 20,
+      windowSeconds: 60,
+      message: "Too many relayer configuration updates",
+    });
     const body = PostSchema.parse(await req.json());
 
     const d = await db.deployment.findFirst({
@@ -86,11 +98,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       body.relayerAddress = platformRelayer;
     }
 
+    let relayerHost: string | null = null;
     if (body.mode === "USER") {
       if (!body.url) throw new AppError("VALIDATION", "User relayer URL is required");
       if (!body.relayerAddress) {
         throw new AppError("VALIDATION", "User relayer address is required");
       }
+      // Nothing has been written yet, so a refusal leaves the row untouched.
+      const safeUrl = await assertPublicUrl(body.url, { subject: "Relayer URL", field: "url" });
+      body.url = safeUrl.toString();
+      relayerHost = safeUrl.hostname;
     }
 
     const newRelayerAddress =
@@ -110,6 +127,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         chargeRelayerUrl: body.mode === "USER" ? body.url : null,
         chargeRelayerToken: body.mode === "USER" ? body.token : null,
         chargeRelayerAddress: newRelayerAddress ?? null,
+      },
+    });
+
+    // Host only: the token never, and not the full URL either, since a query
+    // string can carry a secret.
+    await audit({
+      action: "DEPLOY_RELAYER_CONFIG",
+      userId: user.id,
+      metadata: {
+        deploymentId: id,
+        kind: "subscription",
+        mode: body.mode,
+        relayerHost,
+        hasToken: Boolean(body.token),
       },
     });
 
