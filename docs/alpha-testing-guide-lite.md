@@ -12,9 +12,10 @@ and password we sent you, and a **Google Drive folder** for your three screensho
 folder → Share → General access: **Anyone with the link** → Viewer → Copy link. Any other shared
 folder that opens without signing in is fine too.
 
-**Open the survey now, in its own tab, and keep it open:** <https://forms.gle/s5D1R8xVnN6X4N338>. Each
-task tells you when to switch to it. Don't close that tab until you've pressed Submit — an
-unfinished survey isn't saved.
+**Open the survey now, in its own tab, and keep it open:** <https://forms.gle/s5D1R8xVnN6X4N338>. Its
+first section just asks your name — enter the name we sent your test account to, and leave the tab
+there. Each task tells you when to switch back to it. Don't close that tab until you've pressed
+Submit — an unfinished survey isn't saved.
 
 > **We are testing Paiflow, not you.** Most of this guide deliberately doesn't tell you where to
 > click. If something is confusing, that is exactly what we need to hear — write it down and move
@@ -127,8 +128,8 @@ you and overall**, paste the folder link into its final question, and press **Su
 
 The submitted survey and the three screenshots are what make you eligible for the **₱125**
 incentive. An honest "I couldn't finish B3", with a screenshot of where you stopped, counts exactly
-the same as a perfect run. Enter the name we sent your test account to, and we'll reply about the
-incentive on the message this guide came in.
+the same as a perfect run. We match your answers to your test account by the name in the survey's
+first section, and we'll reply about the incentive on the message this guide came in.
 
 Please leave everything else in the app alone: other block types, **Dev mode**, and the Profile page
 aren't part of this round.

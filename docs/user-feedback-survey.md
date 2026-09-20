@@ -89,15 +89,22 @@ just one place. The ratings, the recommend score and the closing questions use *
 verbatim** (the answers-file template in `alpha-testing-guide.md`), so the two groups can be read
 side by side. Don't reword one without the other.
 
+Three deliberate departures from that, each noted again where it happens: group A's fourth rating
+is left out (question 21–23), its closing question 6 ("what one feature would make Paiflow
+significantly more useful to you?") has no group B counterpart, and its closing question 7 becomes
+question 20 — the first clause only, as a 1–5 scale, because a twenty-minute session gives nothing
+to say about the second clause. Question 20 is therefore not pooled with group A's answers.
+
 There are no file-upload questions, so the form never forces a Google sign-in. The three
 screenshots the guide asks for go in a folder the tester shares, and the form takes its link
 (question 30). A Drive folder does need a Google account; any shared folder that opens without
 signing in is acceptable instead.
 
 The form was generated from this spec with a one-off Apps Script (`FormApp`), so if a question
-changes here, change it in the form by hand as well. It has **six sections**, in this order. The guide sends testers to each section by name, and
-B1 has to be answered before they see the app, so don't merge sections. Every question is required
-unless marked optional.
+changes here, change it in the form by hand as well. It has **six sections**, in this order. The
+guide sends testers to each test section by name, tells them to fill in section 1 when they first
+open the form, and B1 has to be answered before they see the app — so don't merge sections. Every
+question is required unless marked optional.
 
 ## Section 1 — You
 
@@ -161,7 +168,9 @@ us which phone.
 engineer · SMB operator or finance manager · freelancer/creator · crypto-native user · other.
 
 **20. How comfortable were you with blockchain and smart contracts before today?** — linear scale
-1–5 (1 = never used it, 5 = very comfortable).
+1–5 (1 = never used it, 5 = very comfortable). Group A asks this as free text and adds "and did
+anything in this session change that?"; twenty minutes isn't enough to answer the second clause, so
+this is the first clause only and isn't pooled with group A.
 
 **21–23. Ratings** — linear scale 1–5 (1 = poor, 5 = excellent):
 

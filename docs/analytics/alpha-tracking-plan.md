@@ -220,8 +220,12 @@ What to read, per tester, filtered to that account's `distinct_id`:
 - **Guided against unguided:** B3 is group A's T4 (a two-way XLM split) without the steps. The same
   `error_key`s, compared across the two groups, show what the written steps were papering over.
 
-Three things that will look wrong on the dashboards and aren't:
+Four things that will look wrong on the dashboards and aren't:
 
+- **Task B1 emits nothing at all.** It happens on `beta.paiflow.xyz` before the tester signs in, and
+  that host is the static marketing site — it has no app on it and no analytics in it. A group B
+  tester's first event is `login_succeeded`, so the ten seconds the survey asks about exist only in
+  their answers to questions 2–4.
 - Group B accounts are `role = USER`, so they appear on Alpha 1–6 next to group A. **On _Alpha 1 —
   Tester funnel_ they drop out at `deploy_confirmed` by design**; only a tester who does the
   optional bonus deploys. Read group B by an explicit `distinct_id` list, the way
