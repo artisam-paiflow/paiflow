@@ -33,7 +33,8 @@ incentive isn't released (`alpha-testing-guide.md` §8.2).
 
 - File upload, **required**
 - Max **1 file**, up to 100 MB — the named screenshots from the testing guide, zipped into a single
-  archive. Forms caps a question at 10 files, and a full run produces about 30.
+  archive. Forms caps a question at 10 files, and a full run produces the ten named screenshots
+  plus any extras from T7 and bug reports.
 - Leave **"Allow only specific file types" off**. Google's presets are Document / Spreadsheet /
   PDF / Image / Video / Presentation / Drawing / Audio — ZIP is not among them, so switching the
   restriction on rejects exactly the file we're asking for.
