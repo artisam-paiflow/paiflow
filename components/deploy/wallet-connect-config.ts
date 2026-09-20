@@ -15,8 +15,9 @@ export function walletConnectProjectId(): string | null {
 // A stored WalletConnect session outlives the relay's record of it. Adopting a
 // dead one is silent: the kit reuses it instead of opening the QR modal, then
 // the wallet never prompts and the signing request hangs. Sessions live in
-// localStorage, which is per-origin, so one host can be stuck this way while
-// another is fine. The margin keeps a session from expiring mid-handshake.
+// IndexedDB (WALLET_CONNECT_V2_INDEXED_DB), which is per-origin, so one host
+// can be stuck this way while another is fine. The margin keeps a session from
+// expiring mid-handshake.
 const SESSION_EXPIRY_MARGIN_SECONDS = 60;
 
 export function isLiveSession(
@@ -69,4 +70,62 @@ export function pairingExpiresAt(uri: string, nowMs: number = Date.now()): numbe
 export function isPairingFresh(expiresAt: number | undefined, nowMs: number = Date.now()): boolean {
   if (typeof expiresAt !== "number" || !Number.isFinite(expiresAt)) return false;
   return expiresAt > nowMs + PAIRING_STALE_MARGIN_MS;
+}
+
+/** CAIP-2 chain id for a Paiflow network. The server pins which one is live. */
+export function stellarChainId(network: "testnet" | "mainnet"): string {
+  return network === "mainnet" ? "stellar:pubnet" : "stellar:testnet";
+}
+
+type SessionNamespaces = {
+  namespaces?: { stellar?: { accounts?: string[]; chains?: string[] } };
+};
+
+/**
+ * Whether a stored session actually authorizes the chain we are about to use.
+ *
+ * `Deployment.network` is a column while `STELLAR_NETWORK` is pinned per
+ * environment, so after a cutover one origin serves both old testnet trigger
+ * pages and new mainnet ones against the same per-origin session store. A
+ * session scoped to the wrong chain is rejected by the wallet at signing time;
+ * filtering here turns that into a fresh pairing instead.
+ *
+ * Accounts are `stellar:<chain>:<G…>`; `chains` may be absent, so both are
+ * consulted and an unreadable session is treated as not matching.
+ */
+export function sessionHasChain(
+  session: SessionNamespaces | null | undefined,
+  chain: string,
+): boolean {
+  const stellar = session?.namespaces?.stellar;
+  if (!stellar) return false;
+  if (stellar.chains?.some((c) => c === chain)) return true;
+  return Boolean(stellar.accounts?.some((account) => account.startsWith(`${chain}:`)));
+}
+
+// The peer name a wallet reports is free-form third-party metadata
+// ("Freighter", "LOBSTR", "xBull Wallet"), so this is a keyword match rather
+// than an identifier comparison.
+const WALLET_PEER_KEYWORDS: Record<string, string> = {
+  freighter: "freighter",
+  lobstr: "lobstr",
+  xbull: "xbull",
+};
+
+/**
+ * Whether a stored session belongs to the wallet the user actually tapped.
+ *
+ * Without this the freshest live session wins regardless of the button pressed:
+ * tapping Freighter with a live LOBSTR session connects LOBSTR while analytics
+ * records Freighter, which breaks signer traceability. Fails safe — an
+ * unrecognized or missing peer name means "no match", so the caller pairs with
+ * the chosen wallet rather than reusing someone else's session.
+ */
+export function sessionMatchesWallet(
+  peerName: string | null | undefined,
+  walletId: string,
+): boolean {
+  const keyword = WALLET_PEER_KEYWORDS[walletId];
+  if (!keyword || typeof peerName !== "string") return false;
+  return peerName.toLowerCase().includes(keyword);
 }

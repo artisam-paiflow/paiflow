@@ -8,6 +8,9 @@ import {
   isPairingFresh,
   PAIRING_STALE_MARGIN_MS,
   pairingExpiresAt,
+  sessionHasChain,
+  sessionMatchesWallet,
+  stellarChainId,
   WALLET_CONNECT_UNCONFIGURED,
   walletConnectProjectId,
 } from "../../../components/deploy/wallet-connect-config";
@@ -143,5 +146,76 @@ describe("isPairingFresh", () => {
     expect(isPairingFresh(NOW_MS - 1, NOW_MS)).toBe(false);
     expect(isPairingFresh(undefined, NOW_MS)).toBe(false);
     expect(isPairingFresh(Number.NaN, NOW_MS)).toBe(false);
+  });
+});
+
+describe("stellarChainId", () => {
+  it("maps each network to its CAIP-2 chain", () => {
+    expect(stellarChainId("testnet")).toBe("stellar:testnet");
+    expect(stellarChainId("mainnet")).toBe("stellar:pubnet");
+  });
+});
+
+describe("sessionHasChain", () => {
+  it("accepts a session whose accounts carry the chain", () => {
+    const session = {
+      namespaces: { stellar: { accounts: ["stellar:testnet:GABC"] } },
+    };
+    expect(sessionHasChain(session, "stellar:testnet")).toBe(true);
+  });
+
+  it("accepts a session that declares the chain explicitly", () => {
+    expect(
+      sessionHasChain(
+        { namespaces: { stellar: { chains: ["stellar:pubnet"] } } },
+        "stellar:pubnet",
+      ),
+    ).toBe(true);
+  });
+
+  it("refuses a session scoped to the other network", () => {
+    // After a mainnet cutover one origin serves both old testnet trigger pages
+    // and new mainnet ones against the same per-origin session store.
+    const testnet = { namespaces: { stellar: { accounts: ["stellar:testnet:GABC"] } } };
+    expect(sessionHasChain(testnet, "stellar:pubnet")).toBe(false);
+  });
+
+  it("does not match on a chain that is merely a prefix", () => {
+    const session = { namespaces: { stellar: { accounts: ["stellar:testnet2:GABC"] } } };
+    expect(sessionHasChain(session, "stellar:testnet")).toBe(false);
+  });
+
+  it("fails safe when the namespace cannot be read", () => {
+    for (const session of [
+      null,
+      undefined,
+      {},
+      { namespaces: {} },
+      { namespaces: { stellar: {} } },
+    ]) {
+      expect(sessionHasChain(session, "stellar:testnet")).toBe(false);
+    }
+  });
+});
+
+describe("sessionMatchesWallet", () => {
+  it("matches a peer name to the wallet the user tapped", () => {
+    expect(sessionMatchesWallet("Freighter", "freighter")).toBe(true);
+    expect(sessionMatchesWallet("LOBSTR", "lobstr")).toBe(true);
+    expect(sessionMatchesWallet("xBull Wallet", "xbull")).toBe(true);
+  });
+
+  it("refuses another wallet's session", () => {
+    // Tapping Freighter with a live LOBSTR session used to connect LOBSTR and
+    // record it as Freighter, which breaks signer traceability.
+    expect(sessionMatchesWallet("LOBSTR", "freighter")).toBe(false);
+    expect(sessionMatchesWallet("Freighter", "xbull")).toBe(false);
+  });
+
+  it("fails safe on metadata it cannot interpret", () => {
+    for (const name of ["", "Some Other Wallet", null, undefined]) {
+      expect(sessionMatchesWallet(name, "freighter")).toBe(false);
+    }
+    expect(sessionMatchesWallet("Freighter", "unknown-wallet")).toBe(false);
   });
 });
