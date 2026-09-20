@@ -34,6 +34,7 @@ vi.mock("@/lib/rate-limit", () => ({
 import { GET, POST } from "@/app/api/deployments/[id]/api-tokens/route";
 import { DELETE } from "@/app/api/deployments/[id]/api-tokens/[tokenId]/route";
 import { DEPLOYMENT_API_TOKEN_PATTERN } from "@/lib/api/v1/auth";
+import { DEMO_TOKEN_LABEL } from "@/lib/api/v1/tokens";
 import { hashApiToken } from "@/lib/auth/api-token";
 import { AppError } from "@/lib/errors";
 
@@ -138,6 +139,26 @@ describe("POST /api/deployments/:id/api-tokens", () => {
     expect(mockAudit).not.toHaveBeenCalled();
   });
 
+  it("leaves the demo route's tokens out of the cap count", async () => {
+    await POST(req("POST", {}), ctx());
+    const { where } = mockDb.deploymentApiToken.count.mock.calls[0]![0];
+    expect(where.NOT).toEqual({ label: DEMO_TOKEN_LABEL, createdById: null });
+  });
+
+  it("mints for the operator even when the demo route holds ten live tokens", async () => {
+    // Stand in for the database: ten live demo rows on this deployment and none of the
+    // operator's own. The demo cap is six times this one, so without the subtraction the
+    // operator would be refused with a CONFLICT they cannot clear — the demo rows are not
+    // theirs to revoke and the panel would not even list them.
+    mockDb.deploymentApiToken.count.mockImplementation(
+      async ({ where }: { where: Record<string, unknown> }) =>
+        JSON.stringify(where.NOT ?? {}).includes(DEMO_TOKEN_LABEL) ? 0 : 10,
+    );
+    const res = await POST(req("POST", {}), ctx());
+    expect(res.status).toBe(201);
+    expect(mockDb.deploymentApiToken.create).toHaveBeenCalledOnce();
+  });
+
   it("refuses a malformed JSON body with 422 instead of 500", async () => {
     const bad = new Request(`http://localhost/api/deployments/${DEP_ID}/api-tokens`, {
       method: "POST",
@@ -239,8 +260,11 @@ describe("GET /api/deployments/:id/api-tokens", () => {
       { expiresAt: null },
       { expiresAt: { gt: expect.any(Date) } },
     ]);
-    expect(inactiveArgs.where).toEqual({ deploymentId: DEP_ID, NOT: expect.any(Object) });
-    expect(inactiveArgs.where.NOT).toMatchObject({ revokedAt: null });
+    expect(inactiveArgs.where).toEqual({ deploymentId: DEP_ID, NOT: expect.any(Array) });
+    expect(inactiveArgs.where.NOT).toEqual([
+      { label: DEMO_TOKEN_LABEL, createdById: null },
+      expect.objectContaining({ revokedAt: null }),
+    ]);
     expect(activeArgs.select).not.toHaveProperty("tokenHash");
     expect(inactiveArgs.select).not.toHaveProperty("tokenHash");
   });
@@ -256,6 +280,17 @@ describe("GET /api/deployments/:id/api-tokens", () => {
     const { data } = await (await GET(req("GET"), ctx())).json();
     expect(data).toHaveLength(100);
     expect(data[0].id).toBe(active.id);
+  });
+
+  it("leaves the demo route's tokens out of both halves", async () => {
+    mockDb.deploymentApiToken.findMany.mockResolvedValue([]);
+    await GET(req("GET"), ctx());
+    const [activeArgs, inactiveArgs] = mockDb.deploymentApiToken.findMany.mock.calls.map(
+      (c) => c[0],
+    );
+    const demo = { label: DEMO_TOKEN_LABEL, createdById: null };
+    expect(activeArgs.where.NOT).toEqual(demo);
+    expect(inactiveArgs.where.NOT[0]).toEqual(demo);
   });
 
   it("returns 404 for a deployment the caller does not own", async () => {

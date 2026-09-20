@@ -69,6 +69,22 @@ export function activeTokenFilter(now: Date) {
 }
 
 /**
+ * What identifies a row as the demo route's, for a query that wants to exclude them. The same two
+ * discriminators `demoTokenFilter` requires, without the liveness clauses, so it also matches a
+ * demo row that has already expired.
+ *
+ * Owner-facing queries subtract this. The demo route mints into the operator's own deployment and
+ * is bounded by `DEMO_MAX_ACTIVE_TOKENS` (60), six times `MAX_ACTIVE_API_TOKENS` (10) — so without
+ * the subtraction ten live demo tokens would refuse the operator's own mint with a `CONFLICT` they
+ * cannot clear, since the panel lists at most ten active rows and every one of them would be a
+ * demo row. Demo tokens expire in an hour and the demo route evicts its own oldest, so the
+ * operator has nothing to manage here.
+ */
+export function demoTokenIdentity() {
+  return { label: DEMO_TOKEN_LABEL, createdById: null };
+}
+
+/**
  * The guard shared by the token-management routes: a signed-in, non-sandbox
  * owner of the deployment. A deployment the caller does not own is a 404, not
  * a 403, so its existence is not disclosed.
