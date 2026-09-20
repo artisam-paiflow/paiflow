@@ -249,7 +249,8 @@ Request and response pairs recorded against the public app.
 | Raw RPC `getTransaction` for the API swap                  | D2          | [`d2/04-getTransaction.json`](d2/04-getTransaction.json)             |
 | Events response, then the feed paged with the cursor       | D2          | [`d2/05-events-response.json`](d2/05-events-response.json)           |
 | Audit rows: prepared, submitted, confirmed (redacted)      | D2          | [`d2/06-audit-rows.json`](d2/06-audit-rows.json)                     |
-| The OpenAPI document, a copy of the committed one          | D2          | [`d2/08-openapi.json`](d2/08-openapi.json)                           |
+| The OpenAPI document as committed on 18 September          | D2          | [`d2/08-openapi.json`](d2/08-openapi.json)                           |
+| Demo token minted with no account, then used on `/events`  | D2          | [`d2/11-demo-token.md`](d2/11-demo-token.md)                         |
 
 The quote sample is a real answer from the public app: 10 XLM quotes at `10564278` stroops of
 USDC with a `10490132` minimum at 1 % slippage, through pair `CCBX3NZT…7RQS` on router

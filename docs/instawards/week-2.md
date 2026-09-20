@@ -5,8 +5,9 @@
 **Deliverable:** [D2 — Developer API](deliverables/d2.md) · **Evidence:** [transactions](evidence/README.md#transactions)
 
 {% hint style="info" %}
-Written on 17 September and updated on the 18th. The changelog below covers 14–18 September, which
-is what the public mirror holds; it is regenerated again when the week closes.
+Written on 17 September and updated on the 18th, then again on the 20th to record the hardening
+work of 19–20 September. The changelog below covers 14–19 September, the extent of the public
+mirror; the 20 September merges are added when the mirror next syncs.
 {% endhint %}
 
 ## Summary
@@ -38,6 +39,8 @@ pnpm instawards:changelog --since 2026-09-14 --until 2026-09-20 \
 
 | Date       | Change                                                                                               | Issues | Commit                                                                                                  |
 | ---------- | ---------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| 2026-09-19 | perf(cron): stop polling sandbox deployments after a day, and never auto-release them                | #556   | [`a5eb4d8`](https://github.com/artisam-paiflow/paiflow/commit/a5eb4d8f5a9eb76fe5b49a6ec1ee3971dacf6915) |
+| 2026-09-19 | feat(api): let anyone try /api/v1 with a demo token                                                  | #554   | [`92dfa15`](https://github.com/artisam-paiflow/paiflow/commit/92dfa15ece75727906f12494e3d0a5fb427f6afb) |
 | 2026-09-18 | docs(instawards): report metrics on two bases, and count the alpha-tester cohort from PostHog        | #544   | [`00ce55b`](https://github.com/artisam-paiflow/paiflow/commit/00ce55b0dc8d45992edba77cb89f2055d842fd56) |
 | 2026-09-17 | docs(alpha): record with the Loom desktop app, and correct what the guide promises testers           | #543   | [`f1184ba`](https://github.com/artisam-paiflow/paiflow/commit/f1184ba1532579095a7404911c2263855b6cec20) |
 | 2026-09-17 | feat(analytics): wallet traceability in PostHog (promote #538)                                       | #540   | [`ceb1152`](https://github.com/artisam-paiflow/paiflow/commit/ceb1152602033dca728f47c04d7f0923f1d40d82) |
@@ -86,7 +89,7 @@ Rows that moved this week. The full tables live on the deliverable pages.
 
 | SOW clause                                                | Deliverable              | Status    | Evidence                                                                                                                   |
 | --------------------------------------------------------- | ------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Extract reusable auth, rate limiting and audit primitives | [D2](deliverables/d2.md) | Done      | `lib/api/v1/handler.ts`, eight test suites                                                                                 |
+| Extract reusable auth, rate limiting and audit primitives | [D2](deliverables/d2.md) | Done      | `lib/api/v1/handler.ts`, ten test suites                                                                                   |
 | Deployment-scoped API tokens                              | [D2](deliverables/d2.md) | Done      | [access panel](evidence/d2/api-access-panel.png)                                                                           |
 | `POST /api/v1/deployments/{id}/execute`                   | [D2](deliverables/d2.md) | Evidenced | [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7) |
 | `GET /api/v1/deployments/{id}/events`                     | [D2](deliverables/d2.md) | Evidenced | [events response](evidence/d2/05-events-response.json)                                                                     |
@@ -100,26 +103,27 @@ link).
 
 ## Evidence added
 
-| Item                                                  | Type             | Link                                                                                                                       |
-| ----------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| API access panel                                      | Screenshot       | [`d2/api-access-panel.png`](evidence/d2/api-access-panel.png)                                                              |
-| OpenAPI specification                                 | Artefact         | [`openapi.json`](../api/openapi.json)                                                                                      |
-| Postman collection                                    | Artefact         | [collection](../api/paiflow-api-v1.postman_collection.json)                                                                |
-| Alpha-tester cohort                                   | Definition       | [`alpha-testers.json`](evidence/alpha-testers.json)                                                                        |
-| First alpha-tester metrics snapshot                   | Metrics          | [`alpha-metrics-2026-09-17.json`](evidence/alpha-metrics-2026-09-17.json)                                                  |
-| API-executed swap, 10 XLM → 1.0584167 USDC            | Transaction hash | [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7) |
-| curl transcript: prepare → local sign → submit        | API sample       | [`01-curl-transcript.md`](evidence/d2/01-curl-transcript.md)                                                               |
-| Prepare and submit responses                          | API sample       | [`02`](evidence/d2/02-prepare-response.json), [`03`](evidence/d2/03-submit-response.json)                                  |
-| Raw `getTransaction` for the swap                     | RPC record       | [`04-getTransaction.json`](evidence/d2/04-getTransaction.json)                                                             |
-| Audit rows: prepared, submitted, confirmed (redacted) | Audit log        | [`06-audit-rows.json`](evidence/d2/06-audit-rows.json)                                                                     |
-| The OpenAPI document as served by paiflow.xyz         | API sample       | [`08-openapi.json`](evidence/d2/08-openapi.json)                                                                           |
-| Events response: three events, then the cursor walk   | API sample       | [`05-events-response.json`](evidence/d2/05-events-response.json)                                                           |
-| stellar.expert capture of the router sub-invocation   | Screenshot       | [`07-stellar-expert-swap.png`](evidence/d2/07-stellar-expert-swap.png)                                                     |
-| Postman collection run against paiflow.xyz            | Screenshot       | [`09-postman-run.png`](evidence/d2/09-postman-run.png)                                                                     |
-| Postman-driven swap, 1 XLM → 0.1055731 USDC           | Transaction hash | [`27f68188…`](https://stellar.expert/explorer/testnet/tx/27f681889bfebdab92a4d9e6d70770ea5df72bd597c627bc5c0014d0d86bfbfb) |
-| Second alpha-tester metrics snapshot                  | Metrics          | [`alpha-metrics-2026-09-18.json`](evidence/alpha-metrics-2026-09-18.json)                                                  |
-| First read of the live database                       | Metrics          | [`metrics-live-2026-09-18.json`](evidence/metrics-live-2026-09-18.json)                                                    |
-| Swapper flows on the live database                    | Metrics          | [`swapper-flows-live-2026-09-18.json`](evidence/swapper-flows-live-2026-09-18.json)                                        |
+| Item                                                     | Type             | Link                                                                                                                       |
+| -------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| API access panel                                         | Screenshot       | [`d2/api-access-panel.png`](evidence/d2/api-access-panel.png)                                                              |
+| OpenAPI specification                                    | Artefact         | [`openapi.json`](../api/openapi.json)                                                                                      |
+| Postman collection                                       | Artefact         | [collection](../api/paiflow-api-v1.postman_collection.json)                                                                |
+| Alpha-tester cohort                                      | Definition       | [`alpha-testers.json`](evidence/alpha-testers.json)                                                                        |
+| First alpha-tester metrics snapshot                      | Metrics          | [`alpha-metrics-2026-09-17.json`](evidence/alpha-metrics-2026-09-17.json)                                                  |
+| API-executed swap, 10 XLM → 1.0584167 USDC               | Transaction hash | [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7) |
+| curl transcript: prepare → local sign → submit           | API sample       | [`01-curl-transcript.md`](evidence/d2/01-curl-transcript.md)                                                               |
+| Prepare and submit responses                             | API sample       | [`02`](evidence/d2/02-prepare-response.json), [`03`](evidence/d2/03-submit-response.json)                                  |
+| Raw `getTransaction` for the swap                        | RPC record       | [`04-getTransaction.json`](evidence/d2/04-getTransaction.json)                                                             |
+| Audit rows: prepared, submitted, confirmed (redacted)    | Audit log        | [`06-audit-rows.json`](evidence/d2/06-audit-rows.json)                                                                     |
+| The OpenAPI document as served on 18 September           | API sample       | [`08-openapi.json`](evidence/d2/08-openapi.json)                                                                           |
+| Events response: three events, then the cursor walk      | API sample       | [`05-events-response.json`](evidence/d2/05-events-response.json)                                                           |
+| stellar.expert capture of the router sub-invocation      | Screenshot       | [`07-stellar-expert-swap.png`](evidence/d2/07-stellar-expert-swap.png)                                                     |
+| Postman collection run against paiflow.xyz               | Screenshot       | [`09-postman-run.png`](evidence/d2/09-postman-run.png)                                                                     |
+| Postman-driven swap, 1 XLM → 0.1055731 USDC              | Transaction hash | [`27f68188…`](https://stellar.expert/explorer/testnet/tx/27f681889bfebdab92a4d9e6d70770ea5df72bd597c627bc5c0014d0d86bfbfb) |
+| Anonymous demo token, then `/events` with and without it | API sample       | [`11-demo-token.md`](evidence/d2/11-demo-token.md)                                                                         |
+| Second alpha-tester metrics snapshot                     | Metrics          | [`alpha-metrics-2026-09-18.json`](evidence/alpha-metrics-2026-09-18.json)                                                  |
+| First read of the live database                          | Metrics          | [`metrics-live-2026-09-18.json`](evidence/metrics-live-2026-09-18.json)                                                    |
+| Swapper flows on the live database                       | Metrics          | [`swapper-flows-live-2026-09-18.json`](evidence/swapper-flows-live-2026-09-18.json)                                        |
 
 All five of D2's §6.1 evidence items are present, from two runs on 18 September. The documented
 curl sequence executed a swap ([`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7), 10 XLM → 1.0584167 USDC) with its
@@ -168,9 +172,10 @@ present. D2 is closed.
 - **Eight deliberate differences from the SOW's wording.** Execute is two calls and the partner
   signs; new deployment-scoped tokens instead of the payroll credentials; a route-handler wrapper
   instead of edge middleware; execute runs the flow's deposit trigger; rate limits keyed on the
-  token; events read from the app's own record; a hand-authored OpenAPI document; reviewers read
-  the API path rather than drive it anonymously. Each is recorded with its reason and how to
-  verify it in the [D2 scope notes](deliverables/d2.md#scope-notes), without editing the SOW.
+  token; events read from the app's own record; a hand-authored OpenAPI document; anyone can drive
+  the API anonymously through a sixty-minute demo token rather than through the sandbox identity,
+  which stays refused. Each is recorded with its reason and how to verify it in the
+  [D2 scope notes](deliverables/d2.md#scope-notes), without editing the SOW.
 - **A risk the SOW's table does not list: the developer API itself.** Section 3.9 has no row for
   it, so it is added here.
 
@@ -216,6 +221,41 @@ present. D2 is closed.
   request and compare the secret in constant time. Several of these routes sign with the relayer key.
 - **Admin credentials were published in the README** and have been removed.
 - **A navigation was counted as a dropped live feed**, overstating the disconnect metric.
+
+### 19–20 September
+
+D2 closed on the 18th; the rest of the window went on hardening, which is why these land inside
+week 2 rather than week 3. None of them changed what the deliverables do.
+
+- **A machine caller could read another tenant's data** (#247). The shared `DEV_API_SECRET`
+  authenticated a caller with no owner attached, so every `dev-*` and payroll route it reached
+  skipped the ownership filter for that caller. The secret is removed from the product; each of
+  those routes now resolves an owner and filters on it, and a machine caller must hold an
+  owner-bound developer token. `/api/v1` never accepted the secret, so the deliverable's own
+  surface was not exposed.
+- **Sessions survived deactivation, a password change and revoke-all** (#519). Sessions are
+  stateless JWTs, so the cookie kept working until it expired. A `sessionVersion` column is now
+  bumped by each of those actions and checked on every request.
+- **A tenant charge-relayer URL could be pointed at a private address** (#581) — a
+  server-side request forgery. Non-public URLs are refused, and the relayer's response is no
+  longer stored.
+- **App-minted credentials and email addresses could reach PostHog** (#517) through autocapture.
+  They are stripped before an event leaves the browser, and the API token reveal is marked
+  no-capture.
+- **A rate-limited status poll was shown to the user as a failed transaction** (#434), and a
+  broadcast transaction's confirmation could be aborted mid-flight (#451). The poller now retries
+  through a 429 and never abandons a transaction that is already on the network.
+- **A send the RPC refused was reported as pending** (#557), so the caller waited out the whole
+  confirmation budget on a transaction that had never been accepted. Refusals are now classified
+  and surfaced immediately.
+- **`tx-status` could run its confirmation bookkeeping more than once** (#561) for a single
+  transaction. It is now claimed once.
+- **Soroban, Horizon and tenant-relayer HTTP calls had no timeout** (#559): a hung socket could
+  park a request indefinitely. All three now time out at ten seconds.
+- **Every save of a flow was refused until an Email Notify node was fully configured** (#450). An
+  unconfigured node now saves as a draft and is refused at deploy instead.
+- **Mobile WalletConnect pairing did not work on Android** (#594): the session was paired after
+  the tap rather than before it, and a stale stored session could be reused.
 
 ## Planned maintenance
 

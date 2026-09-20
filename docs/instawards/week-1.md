@@ -210,5 +210,6 @@ D2 (developer API) starts: deployment-scoped tokens, `POST /api/v1/deployments/[
 for the Swapper action, `GET /api/v1/deployments/[id]/events`, tests, OpenAPI spec and Postman
 collection. The swapper binary the API will exercise is good for another 180 days, so D2 opens
 with no operational prerequisite. Three defects the 11 September QA pass found in the trigger
-path carry into the week: #450, #451 and #452. The public mirror is synced, so every commit link
+path carry into the week: #450, #451 and #452 (#450 and #451 were fixed on 20 September — see
+[week 2](week-2.md#19-20-september)). The public mirror is synced, so every commit link
 in this report resolves.
