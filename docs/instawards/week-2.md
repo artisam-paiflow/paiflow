@@ -190,7 +190,7 @@ present. D2 is closed.
   another.
 - **Alpha-tester figures are counted from PostHog, not the database.** The database cannot separate
   one user from another without a cohort marker it does not have, and the live beta database has no
-  public endpoint. PostHog identifies per person. The five testers are listed by `User.id` in
+  public endpoint. PostHog identifies per person. The issued testers are listed by `User.id` in
   [`evidence/alpha-testers.json`](evidence/alpha-testers.json) and every query filters on that list;
   PostHog's own `role = USER` cohort is not used, because since the cutover it also matches ordinary
   `paiflow.xyz` visitors. The file is pseudonymous — no name, username or email.
