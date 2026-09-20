@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit } from "@/lib/rate-limit";
 import {
   RunListResponseSchema,
   countCompletedPayouts,
@@ -29,9 +29,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
 
-    const rlKey = user
-      ? `payroll-runs-list:${user.id}`
-      : `payroll-runs-list:machine:${clientIp(req)}`;
+    const rlKey = `payroll-runs-list:${user.id}`;
     const rl = await rateLimit(rlKey, 60, 60);
     if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many payroll run list requests");
 
@@ -39,9 +37,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (!isUuid(id)) throw new AppError("NOT_FOUND", "Deployment not found");
 
     const deployment = await db.deployment.findFirst({
-      // Machine callers authenticated via x-dev-api-secret are trusted to access
-      // any deployment; this matches the trust model of payroll-record-run.
-      where: user ? { id, ownerId: user.id } : { id },
+      where: { id, ownerId: user.id },
       select: { id: true },
     });
     if (!deployment) throw new AppError("NOT_FOUND", "Deployment not found");

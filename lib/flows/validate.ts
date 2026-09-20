@@ -11,6 +11,7 @@ import {
   isLogic,
   isTrigger,
   isPendingAddress,
+  isValidEmailAddress,
   migrateFlowGraph,
   splitTotalFixedStroops,
   subscriptionAmountPerPeriodStroops,
@@ -763,9 +764,18 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       const parentEdge = graph.edges.find((e) => e.target === n.id);
       const parent = parentEdge ? nodesById.get(parentEdge.source) : undefined;
 
+      // The schema lets a row through with its email still blank or half typed
+      // (the config panel writes one row per split recipient before any email
+      // is entered), so this block is the only thing standing between such a
+      // row and the Resend call in notifications.ts. A blank row reads as "not
+      // filled in yet" and is reported once, under whichever rule names it best.
+      const filledRows = n.config.recipients.filter((r) => r.email.trim() !== "");
+      let unreportedBlankRows = n.config.recipients.filter((r) => r.email.trim() === "");
+
       if (parent?.type === "split") {
         const parentAddresses = parent.config.recipients.map((r) => r.address);
         const emailAddresses = n.config.recipients.map((r) => r.address);
+        const filledAddresses = filledRows.map((r) => r.address);
         // When the split is in dev mode and its recipients are left empty to be
         // filled via API, we can't validate a 1:1 address mapping yet.
         const splitFilledViaApi = graph.devMode === true && parentAddresses.length === 0;
@@ -779,7 +789,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
         }
         if (!splitFilledViaApi) {
           for (const addr of parentAddresses) {
-            if (!emailAddresses.includes(addr)) {
+            if (!filledAddresses.includes(addr)) {
               errors.push({
                 path: `nodes.${n.id}.config.recipients`,
                 message: `Missing email for split recipient ${addr}`,
@@ -787,13 +797,36 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
               });
             }
           }
+          const missingAddresses = parentAddresses.filter((a) => !filledAddresses.includes(a));
+          unreportedBlankRows = unreportedBlankRows.filter(
+            (r) => !missingAddresses.includes(r.address),
+          );
         }
-      } else if (n.config.recipients.length === 0) {
+      } else if (filledRows.length === 0) {
         errors.push({
           path: `nodes.${n.id}.config.recipients`,
           message: "Email notify node requires at least one recipient",
           friendlyMessage: "Add at least one recipient email to the email notify node.",
         });
+        unreportedBlankRows = [];
+      }
+
+      if (unreportedBlankRows.length > 0) {
+        errors.push({
+          path: `nodes.${n.id}.config.recipients`,
+          message: "Email notify node has a recipient with no email address",
+          friendlyMessage: "Fill in or remove the blank recipient row on the email notify node.",
+        });
+      }
+
+      for (const r of filledRows) {
+        if (!isValidEmailAddress(r.email)) {
+          errors.push({
+            path: `nodes.${n.id}.config.recipients`,
+            message: `Invalid email address: ${r.email}`,
+            friendlyMessage: `"${r.email}" isn't a valid email address. Check it for typos.`,
+          });
+        }
       }
 
       if (!n.config.subject.trim()) {

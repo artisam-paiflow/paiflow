@@ -75,7 +75,6 @@ export default defineRailway(() => {
       AUTH_URL: preserve(),
       CRON_SECRET: preserve(),
       DATABASE_URL: preserve(),
-      DEV_API_SECRET: preserve(),
       FILE_STORAGE_DRIVER: preserve(),
       FILE_STORAGE_PATH: preserve(),
       GROQ_API_KEY: preserve(),

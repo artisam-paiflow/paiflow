@@ -9,7 +9,7 @@ export const metadata = { title: "Sign in · Paiflow" };
 export default function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; error?: string }>;
+  searchParams: Promise<{ from?: string; error?: string; reason?: string }>;
 }) {
   const sandboxEnabled = env().SANDBOX_ENABLED;
 
@@ -34,8 +34,8 @@ export default function LoginPage({
 async function LoginFormWrapper({
   params,
 }: {
-  params: Promise<{ from?: string; error?: string }>;
+  params: Promise<{ from?: string; error?: string; reason?: string }>;
 }) {
   const p = await params;
-  return <LoginForm from={p.from} error={p.error} />;
+  return <LoginForm from={p.from} error={p.error} reason={p.reason} />;
 }

@@ -28,6 +28,7 @@ export type AuditAction =
   | "DEPLOY_TRIGGER_CONFIRMED"
   | "DEPLOY_INVOKE"
   | "DEPLOY_AMOUNT_CHANGE"
+  | "DEPLOY_RELAYER_CONFIG"
   | "DEPLOY_DEV_PAYROLL"
   | "DEV_UPDATE_PAYMENT"
   | "DEV_UPDATE_RECIPIENTS"
@@ -72,6 +73,23 @@ const SUBMITTED_TX_ACTIONS = [
  */
 export async function wasTxSubmittedFor(deploymentId: string, txHash: string): Promise<boolean> {
   return hasTxAuditRow(SUBMITTED_TX_ACTIONS, deploymentId, txHash);
+}
+
+/**
+ * Should a submit route write its audit row for `txHash`? A first send always
+ * does. A duplicate send usually means an earlier request wrote it, but that
+ * write is best-effort and the envelope may have been queued by something other
+ * than this app, so look rather than assume: `tx-status` does no bookkeeping for
+ * a hash with no row. A failed look writes, since a second row costs less than
+ * none.
+ */
+export async function needsSubmitRow(
+  deploymentId: string,
+  txHash: string,
+  duplicate: boolean | undefined,
+): Promise<boolean> {
+  if (!duplicate) return true;
+  return !(await wasTxSubmittedFor(deploymentId, txHash).catch(() => false));
 }
 
 /**

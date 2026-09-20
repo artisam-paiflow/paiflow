@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit } from "@/lib/rate-limit";
 import { updateBankByRelayer } from "@/lib/stellar/dev-mutate";
 
 const BankDetailSchema = z.object({
@@ -23,8 +23,8 @@ const PostSchema = BankDetailSchema.refine((v) => !!v.employeeId !== !!v.address
   message: "Provide exactly one of employeeId or address",
 });
 
-async function requirePayrollDeployment(id: string, userId: string | null) {
-  const where = userId ? { id, ownerId: userId } : { id };
+async function requirePayrollDeployment(id: string, userId: string) {
+  const where = { id, ownerId: userId };
   const d = await db.deployment.findFirst({
     where,
     include: { flow: { select: { templateKind: true } } },
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
-    await requirePayrollDeployment(id, user?.id ?? null);
+    await requirePayrollDeployment(id, user.id);
 
     const employees = await db.employee.findMany({
       where: { deploymentId: id },
@@ -69,10 +69,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
-    const rlKey = user ? `employee-bank:${user.id}` : `employee-bank:machine:${clientIp(req)}`;
+    const rlKey = `employee-bank:${user.id}`;
     const rl = await rateLimit(rlKey, 60, 60);
     if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many bank detail updates");
-    await requirePayrollDeployment(id, user?.id ?? null);
+    await requirePayrollDeployment(id, user.id);
 
     const body = PostSchema.parse(await req.json());
 
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     await audit({
       action: "DEV_UPDATE_BANK",
-      userId: user?.id ?? null,
+      userId: user.id,
       metadata: {
         deploymentId: id,
         employeeId: employee.id,
@@ -150,10 +150,10 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
-    const rlKey = user ? `employee-bank:${user.id}` : `employee-bank:machine:${clientIp(req)}`;
+    const rlKey = `employee-bank:${user.id}`;
     const rl = await rateLimit(rlKey, 60, 60);
     if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many bank detail updates");
-    await requirePayrollDeployment(id, user?.id ?? null);
+    await requirePayrollDeployment(id, user.id);
 
     const { searchParams } = new URL(req.url);
     const address = searchParams.get("address");
@@ -199,7 +199,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
 
     await audit({
       action: "DEV_UPDATE_BANK",
-      userId: user?.id ?? null,
+      userId: user.id,
       metadata: { deploymentId: id, employeeId: employee.id, address: employee.address },
     });
 

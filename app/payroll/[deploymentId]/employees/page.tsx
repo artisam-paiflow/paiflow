@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { requireSession } from "@/lib/auth";
+import { requirePageSession } from "@/lib/auth";
 import Topbar from "@/components/app/topbar";
 import EmployeeManager from "@/components/payroll/employee-manager";
 import { assetLabel, type Asset } from "@/lib/flows/schema";
@@ -11,7 +11,7 @@ export default async function PayrollEmployeesPage({
 }: {
   params: Promise<{ deploymentId: string }>;
 }) {
-  const user = await requireSession();
+  const user = await requirePageSession();
   const { deploymentId } = await params;
 
   const deployment = await db.deployment.findFirst({

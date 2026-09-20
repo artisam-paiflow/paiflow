@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Paiflow Quick Test</title>
+<style>
+@font-face { font-family: "Space Grotesk"; src: url("../../homepage/fonts/space-grotesk-latin.woff2") format("woff2"); font-weight: 300 700; }
+@font-face { font-family: "Geist"; src: url("../../homepage/fonts/geist-latin.woff2") format("woff2"); font-weight: 100 900; }
+@font-face { font-family: "JetBrains Mono"; src: url("../../homepage/fonts/jetbrains-mono-latin.woff2") format("woff2"); font-weight: 100 800; }
+
+:root {
+  --ink: #17151a;
+  --muted: #5d5660;
+  --line: #ece6e9;
+  --pink: #e0005f;
+  --pink-soft: #fff0f5;
+  --pink-tint: #ffb1c4;
+  --blue: #0079c2;
+  --blue-soft: #eef7ff;
+  --amber: #b77900;
+  --amber-soft: #fff7e3;
+  --dark: #131313;
+  --panel: #f7f5f6;
+}
+
+@page { size: A4; margin: 17mm 17mm 18mm; }
+@page cover { margin: 0; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Geist", system-ui, sans-serif;
+  font-size: 10.2pt;
+  line-height: 1.55;
+  color: var(--ink);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+h1, h2, h3, .display { font-family: "Space Grotesk", "Geist", sans-serif; letter-spacing: -0.01em; }
+p { margin: 0 0 8pt; }
+strong { font-weight: 650; }
+a { color: var(--blue); text-decoration: none; border-bottom: 1px solid rgba(0,121,194,.35); }
+code, .mono { font-family: "JetBrains Mono", monospace; }
+code {
+  font-size: 8.6pt;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.5pt 4pt;
+  word-break: break-all;
+}
+.ui {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 8.4pt;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid #d9d0d5;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0 4pt;
+  white-space: nowrap;
+}
+
+/* ---------- cover ---------- */
+.cover {
+  page: cover;
+  height: 297mm;
+  width: 210mm;
+  background-color: #0e0e0e;
+  background-image:
+    linear-gradient(rgba(255,177,196,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,177,196,.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  color: #e5e2e1;
+  padding: 26mm 22mm 22mm;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  break-after: page;
+}
+.cover::after {
+  content: "";
+  position: absolute;
+  right: -60mm; top: 60mm;
+  width: 170mm; height: 170mm;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,74,141,.28), rgba(255,74,141,0) 65%);
+}
+.brand { display: flex; align-items: center; gap: 10pt; position: relative; z-index: 1; }
+.brand svg { width: 34pt; height: 34pt; }
+.brand span { font-family: "Space Grotesk"; font-weight: 700; font-size: 17pt; color: #fff; letter-spacing: -.01em; }
+.cover-body { margin-top: auto; position: relative; z-index: 1; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6pt;
+  font-family: "JetBrains Mono"; font-size: 8pt; font-weight: 700; letter-spacing: .12em;
+  padding: 3pt 8pt; border-radius: 4px;
+}
+.chip-testnet { color: #ffb1c4; background: rgba(255,177,196,.1); border: 1px solid rgba(255,177,196,.3); }
+.chip-testnet::before { content: ""; width: 5pt; height: 5pt; border-radius: 50%; background: #ffb1c4; box-shadow: 0 0 6px #ffb1c4; }
+.cover h1 { font-size: 46pt; line-height: 1.02; margin: 14pt 0 10pt; color: #fff; font-weight: 700; }
+.cover h1 em { font-style: normal; color: #ffb1c4; }
+.cover .lede { font-size: 12.5pt; color: #cfc7c9; max-width: 125mm; margin-bottom: 18pt; }
+.facts { display: flex; gap: 22pt; margin: 0 0 26pt; }
+.facts div { border-left: 2px solid rgba(255,177,196,.45); padding-left: 9pt; }
+.facts b { display: block; font-family: "Space Grotesk"; font-size: 15pt; color: #fff; font-weight: 700; }
+.facts span { font-family: "JetBrains Mono"; font-size: 7.5pt; letter-spacing: .1em; color: #a99ea2; text-transform: uppercase; }
+.cover-links { display: flex; gap: 10pt; }
+.btn {
+  display: inline-block; border: none;
+  font-family: "JetBrains Mono"; font-size: 8.5pt; font-weight: 700; letter-spacing: .06em;
+  padding: 7pt 13pt; border-radius: 6px;
+}
+.btn-primary { background: #ffb1c4; color: #65002e; }
+.btn-ghost { color: #98cbff; border: 1px solid rgba(152,203,255,.5); }
+.cover-foot { position: relative; z-index: 1; margin-top: 22pt; font-family: "JetBrains Mono"; font-size: 7.5pt; color: #8a8084; letter-spacing: .08em; }
+
+/* ---------- layout ---------- */
+.page-break { break-before: page; }
+.kicker { font-family: "JetBrains Mono"; font-size: 7.6pt; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--pink); }
+.section-head { break-after: avoid; display: flex; align-items: baseline; gap: 12pt; margin: 0 0 12pt; padding-bottom: 9pt; border-bottom: 2px solid var(--ink); }
+.section-head .num { font-family: "Space Grotesk"; font-weight: 700; font-size: 30pt; line-height: 1; color: var(--pink); }
+.section-head h2 { font-size: 21pt; line-height: 1.1; margin: 0; font-weight: 700; }
+h3 { font-size: 12.5pt; margin: 18pt 0 7pt; font-weight: 700; display: flex; align-items: center; gap: 7pt; break-after: avoid; }
+h3 .tag { font-family: "JetBrains Mono"; font-size: 7.5pt; font-weight: 700; color: var(--pink); background: var(--pink-soft); border-radius: 4px; padding: 1pt 5pt; }
+
+/* intro page */
+.intro-grid { display: grid; grid-template-columns: 1fr; gap: 10pt; }
+.lead { font-size: 11.5pt; line-height: 1.55; }
+
+/* callouts */
+.callout { border-radius: 8px; padding: 10pt 12pt; margin: 10pt 0 12pt; break-inside: avoid; border-left: 4px solid; }
+.callout p:last-child { margin-bottom: 0; }
+.callout .label { font-family: "JetBrains Mono"; font-size: 7.4pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; display: block; margin-bottom: 3pt; }
+.callout.warn { background: var(--amber-soft); border-color: #ffba20; }
+.callout.warn .label { color: var(--amber); }
+.callout.tip { background: var(--blue-soft); border-color: #00a2fd; }
+.callout.tip .label { color: var(--blue); }
+.callout.note { background: var(--panel); border-color: #cfc5ca; }
+.callout.note .label { color: var(--muted); }
+
+/* contents */
+.toc { list-style: none; padding: 0; margin: 6pt 0 0; }
+.toc li { display: grid; grid-template-columns: 26pt 1fr; gap: 6pt; padding: 8pt 0; border-bottom: 1px solid var(--line); }
+.toc .n { font-family: "Space Grotesk"; font-weight: 700; font-size: 14pt; color: var(--pink); line-height: 1.2; }
+.toc a { color: var(--ink); border: none; font-family: "Space Grotesk"; font-weight: 600; font-size: 12pt; }
+.toc small { display: block; color: var(--muted); font-size: 9pt; }
+
+/* steps */
+ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 6pt 0 10pt; }
+ol.steps > li { counter-increment: step; position: relative; padding: 0 0 0 26pt; margin: 0 0 8pt; break-inside: avoid; }
+ol.steps > li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: 0.5pt;
+  width: 17pt; height: 17pt; border-radius: 50%;
+  background: var(--ink); color: #fff;
+  font-family: "Space Grotesk"; font-weight: 700; font-size: 8.8pt;
+  display: flex; align-items: center; justify-content: center;
+}
+ul.plain { margin: 4pt 0 4pt; padding-left: 14pt; }
+ul.plain li { margin: 1.5pt 0; }
+ul.plain li::marker { color: var(--pink); }
+
+/* checks */
+ul.checks { list-style: none; padding: 0; margin: 5pt 0 2pt; }
+ul.checks li { position: relative; padding: 2.5pt 0 2.5pt 19pt; color: #2b262d; }
+ul.checks li::before {
+  content: ""; position: absolute; left: 0; top: 4.2pt;
+  width: 10pt; height: 10pt; border: 1.5px solid var(--pink); border-radius: 3px; background: #fff;
+}
+.checks-block { background: var(--pink-soft); border-radius: 8px; padding: 6pt 10pt 6pt; margin: 8pt 0 12pt; break-inside: avoid; }
+.checks-block .label { font-family: "JetBrains Mono"; font-size: 7.2pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--pink); }
+
+/* glossary list (builder tour) */
+.tour { display: grid; grid-template-columns: 1fr 1fr; gap: 8pt; margin: 8pt 0 12pt; }
+.tour div { border: 1px solid var(--line); border-radius: 8px; padding: 8pt 10pt; break-inside: avoid; background: #fff; }
+.tour b { display: block; font-family: "Space Grotesk"; font-size: 10.5pt; margin-bottom: 1pt; }
+.tour em { font-style: normal; font-family: "JetBrains Mono"; font-size: 7pt; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-left: 3pt; }
+.tour p { margin: 0; font-size: 9.2pt; color: #3c3540; }
+
+/* test cards */
+.test { border: 1px solid var(--line); border-radius: 10px; margin: 0 0 14pt; overflow: hidden; }
+.test-head { background: var(--dark); color: #fff; padding: 10pt 14pt; display: flex; align-items: center; gap: 10pt; break-after: avoid; }
+.test-id { font-family: "JetBrains Mono"; font-weight: 700; font-size: 9pt; color: #65002e; background: #ffb1c4; border-radius: 5px; padding: 2pt 7pt; }
+.test-head h3 { margin: 0; color: #fff; font-size: 13pt; }
+.test-body { padding: 10pt 14pt 4pt; }
+.goal { font-size: 9.6pt; color: var(--muted); border-bottom: 1px dashed var(--line); padding-bottom: 7pt; margin-bottom: 8pt; }
+.goal b { color: var(--pink); font-family: "JetBrains Mono"; font-size: 7.6pt; letter-spacing: .12em; text-transform: uppercase; margin-right: 4pt; }
+.test-body ul.checks { margin-top: 3pt; }
+
+/* break-it grid */
+.breakit { break-inside: avoid; margin: 6pt 0 10pt; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.breakit .row { display: grid; grid-template-columns: 16pt 1fr 1fr; gap: 10pt; padding: 7pt 10pt; border-top: 1px solid var(--line); break-inside: avoid; }
+.breakit .row:first-child { border-top: none; }
+.breakit .hdr { background: var(--panel); font-family: "JetBrains Mono"; font-size: 7.2pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding: 5pt 10pt; }
+.breakit .l { font-family: "Space Grotesk"; font-weight: 700; color: var(--pink); }
+.breakit .exp { color: #3c3540; }
+
+/* not in scope */
+.scope { list-style: none; padding: 0; margin: 8pt 0; }
+.scope li { display: grid; grid-template-columns: 1fr auto; gap: 12pt; align-items: start; padding: 8pt 0; border-bottom: 1px solid var(--line); break-inside: avoid; }
+.scope li p { margin: 0; }
+.scope .off { font-family: "JetBrains Mono"; font-size: 7pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border: 1px solid #d9d0d5; border-radius: 4px; padding: 1pt 5pt; white-space: nowrap; margin-top: 2pt; }
+
+/* known issues */
+.issues { list-style: none; padding: 0; margin: 8pt 0; display: grid; gap: 7pt; }
+.issues li { background: var(--panel); border-radius: 8px; padding: 8pt 11pt; break-inside: avoid; }
+.issues li p { margin: 0; }
+
+/* troubleshooting */
+.trouble { margin: 8pt 0; display: grid; gap: 7pt; }
+.trouble .item { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; break-inside: avoid; }
+.trouble .see, .trouble .try { padding: 8pt 11pt; }
+.trouble .see { background: var(--panel); }
+.trouble .k { display: block; font-family: "JetBrains Mono"; font-size: 7pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 2pt; }
+.trouble .see .k { color: var(--muted); }
+.trouble .try .k { color: var(--pink); }
+
+/* report */
+.report-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; margin: 10pt 0 14pt; }
+.report-card { border-radius: 10px; padding: 13pt 14pt; break-inside: avoid; }
+.report-card.bug { background: var(--dark); color: #e5e2e1; }
+.report-card.survey { background: var(--pink-soft); border: 1px solid #ffd3e0; }
+.report-card h3 { margin: 0 0 4pt; font-size: 13pt; }
+.report-card.bug h3 { color: #fff; }
+.report-card p { font-size: 9.4pt; margin-bottom: 8pt; }
+.report-card .url { font-family: "JetBrains Mono"; font-size: 8.5pt; font-weight: 700; border: none; }
+.report-card.bug .url { color: #ffb1c4; }
+.report-card.survey .url { color: var(--pink); }
+.thanks { font-family: "Space Grotesk"; font-weight: 700; font-size: 22pt; margin-top: 16pt; }
+.thanks span { color: var(--pink); }
+
+/* ---------- added: screenshots, interview, artifacts, template ---------- */
+ul.shots { list-style: none; padding: 0; margin: 4pt 0 2pt; }
+ul.shots li { position: relative; padding: 2.5pt 0 2.5pt 32pt; font-size: 9.3pt; color: #3c3540; }
+ul.shots li::before {
+  content: "SHOT"; position: absolute; left: 0; top: 3.6pt;
+  font-family: "JetBrains Mono"; font-size: 6.4pt; font-weight: 700; letter-spacing: .1em;
+  color: var(--pink); background: var(--pink-soft); border: 1px solid #ffd3e0;
+  border-radius: 3px; padding: 0.5pt 3.5pt;
+}
+ul.shots code { background: #fff; font-size: 8.2pt; }
+
+.callout.ask { background: #faf3ff; border-color: #9b5de5; }
+.callout.ask .label { color: #7a2fd0; }
+
+.payout { background: var(--dark); border-radius: 10px; padding: 13pt 16pt; margin: 6pt 0 12pt;
+  display: flex; align-items: baseline; gap: 13pt; break-inside: avoid; }
+.payout b { font-family: "Space Grotesk"; font-weight: 700; font-size: 29pt; color: #ffb1c4; line-height: 1; }
+.payout span { font-size: 10.2pt; color: #cfc7c9; }
+.artifacts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10pt; margin: 4pt 0 12pt; }
+.artifacts div { border: 1px solid var(--line); border-radius: 9px; padding: 10pt 12pt; background: #fff; break-inside: avoid; }
+.artifacts .box { display: block; width: 11pt; height: 11pt; border: 1.5px solid var(--pink); border-radius: 3px; margin-bottom: 6pt; }
+.artifacts b { display: block; font-family: "Space Grotesk"; font-size: 10.4pt; margin-bottom: 1pt; }
+.artifacts p { margin: 0; font-size: 8.9pt; color: var(--muted); }
+
+ol.qs { padding-left: 16pt; margin: 8pt 0; }
+ol.qs li { margin: 0 0 7pt; padding-left: 3pt; break-inside: avoid; }
+ol.qs li::marker { font-family: "Space Grotesk"; font-weight: 700; color: var(--pink); }
+
+pre.template {
+  font-family: "JetBrains Mono", monospace; font-size: 7.3pt; line-height: 1.52;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 10pt 12pt; white-space: pre-wrap; color: #2b262d; margin: 8pt 0;
+}
+.report-card.submit { background: var(--pink-soft); border: 1px solid #ffd3e0; }
+.report-card.submit h3 { color: var(--ink); }
+.report-card.submit .url { color: var(--pink); }
+</style>
+</head>
+<body>
+
+<!-- ================= COVER ================= -->
+<section class="cover">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <rect width="32" height="32" rx="6" fill="#0e0e0e" stroke="rgba(255,177,196,.25)"/>
+      <g stroke="#ffb1c4" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <polyline points="6,7 10,11 6,15"/>
+        <polyline points="13,11 17,15 13,19" opacity="0.78"/>
+        <polyline points="20,15 24,19 20,23" opacity="0.55"/>
+      </g>
+    </svg>
+    <span>Paiflow</span>
+  </div>
+
+  <div class="cover-body">
+    <span class="chip chip-testnet">STELLAR TESTNET</span>
+    <h1>Quick<br><em>Test</em></h1>
+    <p class="lede">Thanks for helping test Paiflow. Four short tasks, three screenshots and a survey — no coding, no crypto wallet, and nothing to record.</p>
+    <div class="facts">
+      <div><b>~20 min</b><span>End to end</span></div>
+      <div><b>4</b><span>Tasks</span></div>
+      <div><b>₱125</b><span>Incentive</span></div>
+      <div><b>+₱75</b><span>Optional bonus</span></div>
+    </div>
+    <div class="cover-links">
+      <a class="btn btn-primary" href="https://forms.gle/s5D1R8xVnN6X4N338">OPEN THE SURVEY ↗</a>
+    </div>
+  </div>
+  <div class="cover-foot">BETA.PAIFLOW.XYZ · ALPHA ROUND · GROUP B</div>
+</section>
+
+<!-- ================= INTRO ================= -->
+<section>
+  <div class="kicker">Welcome</div>
+  <h2 class="display" style="font-size:24pt;margin:4pt 0 10pt;line-height:1.1">Before you begin</h2>
+  <p class="lead">This takes <strong>about 20 minutes</strong>. You don't need to know how to code, you don't need a crypto wallet, and you don't record anything.</p>
+  <p><strong>What you do:</strong> four short tasks, three screenshots, and a survey you answer as you go. The completed survey and the screenshots make you eligible for the <strong>₱125</strong> incentive. An <a href="#bonus">optional bonus</a> at the end adds <strong>₱75</strong>.</p>
+  <p><strong>What you need:</strong> a laptop or desktop with <strong>Chrome</strong> or <strong>Brave</strong>, your phone, the username and password we sent you, and a <strong>Google Drive folder</strong> for your three screenshots. Make it now: New folder → Share → General access: <strong>Anyone with the link</strong> → Viewer → Copy link. Any other shared folder that opens without signing in is fine too.</p>
+
+  <div class="callout ask">
+    <span class="label">Open the survey now</span>
+    <p>Open it in its own tab and keep it open: <a href="https://forms.gle/s5D1R8xVnN6X4N338">forms.gle/s5D1R8xVnN6X4N338</a>. Its first section just asks your name — enter the name we sent your test account to, and leave the tab there. Each task tells you when to switch back to it. Don't close that tab until you've pressed Submit — an unfinished survey isn't saved.</p>
+  </div>
+
+  <div class="callout note">
+    <span class="label">We are testing Paiflow, not you</span>
+    <p>Most of this guide deliberately doesn't tell you where to click. If something is confusing, that is exactly what we need to hear — write it down and move on. There are no wrong answers.</p>
+  </div>
+
+  <div class="callout warn">
+    <span class="label">Testnet only</span>
+    <p><strong>Everything here runs on Stellar testnet.</strong> Testnet money is free and worthless. You will never be asked for real funds, a card, or a seed phrase. If anything ever asks you for one, stop and tell us.</p>
+  </div>
+
+  <div class="callout note">
+    <span class="label">What we record</span>
+    <p>If any of it concerns you, contact us before you start.</p>
+    <ul class="plain">
+      <li><strong>Usage analytics, sent to PostHog:</strong> which buttons and screens you reach, and where errors appear. Events are tied to your test account's internal ID, not your name.</li>
+      <li><strong>Your screen is not recorded</strong>, and neither are your face or voice.</li>
+      <li><strong>Your survey answers</strong> are stored in Google Forms and read by the Paiflow team. So are your screenshots, which show whatever is on your screen — close anything private before taking one.</li>
+      <li><strong>Only if you do the optional bonus:</strong> the public address of the wallet you connect, the transaction hash, and your IP address at the moment you connect are recorded and linked to your test account. We never see or store a secret key.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= TASKS ================= -->
+<section id="tasks" style="margin-top:22pt">
+  <div class="section-head"><span class="num">20</span><h2>minutes, four tasks</h2></div>
+
+  <!-- B1 -->
+  <div class="test" style="break-inside:avoid">
+    <div class="test-head"><span class="test-id">B1</span><h3>First impression · 2 minutes</h3></div>
+    <div class="test-body">
+      <ol class="steps">
+        <li>On your laptop, open <a href="https://beta.paiflow.xyz">beta.paiflow.xyz</a>.</li>
+        <li>Look at the page for <strong>ten seconds. Don't scroll, don't click.</strong></li>
+        <li>Take a screenshot.
+          <ul class="shots"><li><code>B1-homepage</code> — the page exactly as you saw it, before scrolling.</li></ul></li>
+        <li>Switch to the survey and answer <strong>section B1</strong> now, before you look at anything else.</li>
+      </ol>
+    </div>
+  </div>
+
+  <h3>Sign in · 1 minute</h3>
+  <ol class="steps">
+    <li>Back on the page, click <span class="ui">Build a flow</span>.</li>
+    <li>Enter your <strong>Username</strong> and <strong>Password</strong>, then click <span class="ui">SIGN IN</span>.</li>
+  </ol>
+  <div class="checks-block"><ul class="checks"><li>You land on your dashboard (“Your flows.”).</li></ul></div>
+
+  <!-- B2 -->
+  <div class="test" style="break-inside:avoid">
+    <div class="test-head"><span class="test-id">B2</span><h3>Read a flow · 3 minutes</h3></div>
+    <div class="test-body">
+      <ol class="steps">
+        <li>Click <span class="ui">NEW FLOW</span>, name it <strong>Shop</strong>, and click <span class="ui">CREATE FLOW</span>. The builder opens with an example flow already on the canvas.</li>
+        <li><strong>Don't change anything yet.</strong> Look at the screen and work out: when money arrives, who gets paid, and how much each?</li>
+        <li>Answer survey <strong>section B2</strong>.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- B3 -->
+  <div class="test" style="break-before:page">
+    <div class="test-head"><span class="test-id">B3</span><h3>Make it yours · 8 minutes</h3></div>
+    <div class="test-body">
+      <p>Here is the situation. There are no steps — do it however makes sense to you.</p>
+      <div class="goal"><b>The situation</b>You run a small shop with a business partner. Customers pay you in <strong>XLM</strong>. Whenever a payment arrives, <strong>60% should go to you and 40% to your partner</strong>. Nobody else gets a share.</div>
+      <p>Change the <strong>Shop</strong> flow so it does exactly that, <strong>by hand</strong>: the <strong>Ask AI</strong> panel and its suggestion buttons aren't part of this round. Keep every payout on <strong>Crypto (wallet)</strong>. Use these two addresses:</p>
+      <pre class="template">You           GAS4J4X5VR7TYWGD5CLVIFMIHDAOAJZYAOA7KPVHKYS5XWSTMUZBC25K
+Your partner  GBPL3PMLOWFYARP6OL2H6HIFMLS5Q7ZWUMNKTIDPBK4REPXLZOMY2XSP</pre>
+      <p><strong>You're done when</strong> the <span class="ui">DEPLOY</span> button at the top is no longer greyed out. Then:</p>
+      <ol class="steps">
+        <li>Click <span class="ui">DEPLOY</span>. A review page opens.</li>
+        <li>Read the review page. <strong>Stop there — do not press DEPLOY TO TESTNET.</strong>
+          <ul class="shots"><li><code>B3-review</code> — the review page, with the English Preview sentence and the TESTNET chip in shot. If you never got this far, screenshot the builder where you stopped.</li></ul></li>
+        <li>Answer survey <strong>section B3</strong>.</li>
+      </ol>
+      <p>Give yourself eight minutes. If you aren't there by then, stop anyway and tell us where you got stuck — that is a useful result, and it doesn't affect your incentive.</p>
+      <div class="callout note" style="break-inside:avoid">
+        <span class="label">Stuck for more than three minutes? Read this hint — the survey asks whether you did</span>
+        <ul class="plain">
+          <li>Click a block on the canvas to open its settings.</li>
+          <li>Both blocks have an <strong>Asset</strong> setting. The example uses USDC; the shop is paid in XLM.</li>
+          <li>The <strong>Split</strong> block lists its recipients. Each one has an address, a share and a label, and the shares must add up to 100%.</li>
+          <li>While something is wrong, a button at the top shows the number of errors. Click it to see them.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- B4 -->
+  <div class="test" style="break-inside:avoid">
+    <div class="test-head"><span class="test-id">B4</span><h3>The customer's side, on your phone · 3 minutes</h3></div>
+    <div class="test-body">
+      <p>A flow like yours gives you a page to send to the people who pay you. Here is one we made earlier. <strong>Scan each code with your phone's camera</strong> — or tap the link if you're reading this on your phone.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12pt;margin:8pt 0">
+        <div style="display:flex;gap:10pt;align-items:center"><svg style="width:66pt;height:66pt;flex:none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 39 39" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path fill="#ffffff" d="M0 0h39v39H0z"/><path stroke="#000000" d="M1 1.5h7m3 0h1m1 0h1m1 0h1m3 0h1m1 0h1m2 0h1m2 0h1m3 0h7M1 2.5h1m5 0h1m5 0h6m1 0h1m2 0h1m1 0h1m2 0h2m1 0h1m5 0h1M1 3.5h1m1 0h3m1 0h1m1 0h1m1 0h1m3 0h1m4 0h3m1 0h2m2 0h2m1 0h1m1 0h3m1 0h1M1 4.5h1m1 0h3m1 0h1m1 0h1m5 0h1m2 0h1m1 0h1m2 0h1m1 0h2m1 0h2m1 0h1m1 0h3m1 0h1M1 5.5h1m1 0h3m1 0h1m1 0h2m2 0h1m2 0h2m1 0h7m3 0h1m1 0h1m1 0h3m1 0h1M1 6.5h1m5 0h1m1 0h3m2 0h1m1 0h1m2 0h1m1 0h1m4 0h1m1 0h1m2 0h1m5 0h1M1 7.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M9 8.5h1m1 0h2m1 0h4m2 0h3m1 0h1m2 0h2M1 9.5h1m1 0h5m6 0h1m4 0h1m1 0h1m4 0h3m2 0h5M1 10.5h1m2 0h3m2 0h2m1 0h3m1 0h2m5 0h4m2 0h2m5 0h1M5 11.5h3m1 0h1m1 0h2m1 0h1m6 0h2m2 0h4m2 0h2m1 0h4M3 12.5h4m1 0h2m3 0h1m1 0h1m1 0h1m4 0h1m1 0h1m7 0h3m2 0h1M1 13.5h3m3 0h1m3 0h4m2 0h2m4 0h1m2 0h6m1 0h5M1 14.5h1m2 0h1m1 0h1m3 0h2m1 0h2m3 0h1m1 0h5m2 0h1m1 0h1m2 0h1m3 0h1M1 15.5h2m2 0h1m1 0h3m1 0h1m3 0h4m2 0h1m4 0h1m1 0h7m2 0h1M1 16.5h2m3 0h1m1 0h1m1 0h2m2 0h6m2 0h3m2 0h2m2 0h3M1 17.5h2m1 0h1m1 0h2m1 0h1m1 0h1m1 0h5m2 0h1m3 0h1m1 0h1m1 0h1m1 0h2m1 0h1m1 0h3M1 18.5h2m8 0h1m4 0h1m2 0h1m1 0h1m1 0h3m3 0h1m5 0h2M4 19.5h1m2 0h2m2 0h2m2 0h6m1 0h1m5 0h6m2 0h2M8 20.5h1m1 0h2m4 0h1m2 0h5m4 0h4m2 0h1m2 0h1M4 21.5h1m2 0h1m1 0h2m2 0h2m1 0h5m2 0h1m1 0h3m2 0h2m1 0h1m1 0h1M6 22.5h1m1 0h2m9 0h3m1 0h2m1 0h1m2 0h2m3 0h1m1 0h1M3 23.5h2m2 0h1m1 0h3m1 0h4m2 0h1m2 0h1m2 0h1m1 0h2m1 0h5m2 0h1M1 24.5h2m1 0h3m3 0h2m1 0h1m2 0h2m2 0h1m1 0h1m4 0h1m1 0h1m2 0h2m2 0h2M1 25.5h2m1 0h1m1 0h4m6 0h1m2 0h1m3 0h2m1 0h2m3 0h3m1 0h1m1 0h1M1 26.5h1m7 0h4m1 0h5m5 0h2m4 0h1M1 27.5h1m1 0h1m1 0h1m1 0h1m1 0h2m4 0h1m2 0h1m2 0h1m6 0h5m1 0h4M1 28.5h1m1 0h1m1 0h1m3 0h3m1 0h1m1 0h1m1 0h1m2 0h3m4 0h2m2 0h1m4 0h2M1 29.5h1m1 0h3m1 0h2m2 0h1m1 0h1m1 0h1m2 0h2m1 0h1m3 0h11M9 30.5h1m1 0h1m2 0h2m1 0h2m1 0h3m1 0h1m3 0h2m3 0h2M1 31.5h7m2 0h3m1 0h5m6 0h2m2 0h1m1 0h1m1 0h1m1 0h3M1 32.5h1m5 0h1m1 0h2m1 0h1m3 0h4m1 0h4m3 0h2m3 0h2m1 0h2M1 33.5h1m1 0h3m1 0h1m1 0h2m2 0h2m1 0h2m3 0h1m1 0h1m1 0h2m1 0h6m1 0h3M1 34.5h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h2m1 0h1m2 0h2m3 0h1m1 0h2m2 0h2m1 0h1m3 0h1M1 35.5h1m1 0h3m1 0h1m1 0h3m2 0h1m1 0h3m2 0h1m1 0h1m1 0h1m2 0h1m5 0h4M1 36.5h1m5 0h1m3 0h1m1 0h1m1 0h2m3 0h1m1 0h4m1 0h1m1 0h1m1 0h1m1 0h1m3 0h1M1 37.5h7m1 0h1m1 0h2m1 0h3m1 0h1m2 0h1m1 0h1m1 0h4m1 0h1m2 0h5"/></svg><div><strong>1 · The pay page</strong><br><a href="https://beta.app.paiflow.xyz/trigger/7ed55a66-6fa3-4f31-be3c-b2e562b38cc7" style="font-size:7.5pt">Open the pay page</a><br>Look at it as if a shop had just sent it to you. <strong>Don't pay anything</strong> and don't install anything.</div></div>
+        <div style="display:flex;gap:10pt;align-items:center"><svg style="width:66pt;height:66pt;flex:none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 39 39" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path fill="#ffffff" d="M0 0h39v39H0z"/><path stroke="#000000" d="M1 1.5h7m2 0h2m3 0h4m1 0h1m3 0h1m2 0h1m3 0h7M1 2.5h1m5 0h1m3 0h2m1 0h2m1 0h2m2 0h1m1 0h1m1 0h1m2 0h2m1 0h1m5 0h1M1 3.5h1m1 0h3m1 0h1m1 0h4m2 0h3m2 0h1m1 0h1m1 0h2m5 0h1m1 0h3m1 0h1M1 4.5h1m1 0h3m1 0h1m1 0h2m1 0h2m1 0h4m4 0h1m1 0h2m1 0h2m1 0h1m1 0h3m1 0h1M1 5.5h1m1 0h3m1 0h1m1 0h1m2 0h2m1 0h1m4 0h6m3 0h1m1 0h1m1 0h3m1 0h1M1 6.5h1m5 0h1m1 0h1m1 0h1m1 0h1m2 0h3m3 0h2m4 0h1m2 0h1m5 0h1M1 7.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M9 8.5h1m3 0h1m1 0h1m1 0h1m3 0h4m2 0h2M1 9.5h1m1 0h5m2 0h3m2 0h2m1 0h3m5 0h1m1 0h2m1 0h5M2 10.5h1m1 0h1m3 0h1m2 0h2m1 0h1m1 0h6m1 0h4m5 0h1m3 0h1M1 11.5h2m2 0h5m1 0h5m3 0h1m1 0h2m2 0h4m2 0h1m1 0h1m2 0h2M1 12.5h1m2 0h3m1 0h3m6 0h1m2 0h1m1 0h1m1 0h2m3 0h1m2 0h1m1 0h1m2 0h1M1 13.5h1m5 0h3m1 0h1m1 0h1m3 0h2m4 0h1m2 0h6m1 0h1m1 0h3M1 14.5h2m2 0h2m2 0h2m1 0h4m2 0h7m1 0h2m1 0h1m2 0h1m3 0h1M2 15.5h1m4 0h1m1 0h5m1 0h4m3 0h2m3 0h8m2 0h1M1 16.5h3m2 0h1m1 0h1m1 0h1m1 0h2m3 0h1m4 0h3m2 0h2m3 0h2m3 0h1M2 17.5h4m1 0h1m1 0h1m2 0h1m5 0h1m5 0h5m1 0h4m1 0h3M1 18.5h2m1 0h2m4 0h3m2 0h2m1 0h4m1 0h2m4 0h1m6 0h1M2 19.5h1m2 0h1m1 0h3m3 0h1m1 0h2m5 0h1m5 0h1m1 0h3m3 0h2M6 20.5h1m1 0h2m1 0h1m3 0h3m4 0h2m4 0h6m3 0h1M2 21.5h1m1 0h5m5 0h3m1 0h1m1 0h2m1 0h6m1 0h2m1 0h3M1 22.5h1m1 0h3m2 0h2m2 0h1m1 0h2m3 0h6m4 0h2m3 0h1M1 23.5h1m1 0h3m1 0h1m1 0h1m1 0h2m1 0h1m1 0h2m3 0h1m1 0h1m1 0h2m1 0h1m2 0h4m1 0h2M2 24.5h1m1 0h1m7 0h1m1 0h1m6 0h2m6 0h5m2 0h2M1 25.5h1m1 0h2m1 0h3m1 0h1m1 0h3m1 0h1m1 0h1m2 0h1m2 0h4m1 0h1m1 0h1m1 0h1m1 0h3M1 26.5h1m1 0h4m1 0h4m1 0h3m1 0h1m1 0h2m2 0h3m4 0h1m3 0h1M1 27.5h1m3 0h3m5 0h5m3 0h1m6 0h4m1 0h1m2 0h2M1 28.5h1m1 0h3m3 0h9m2 0h1m1 0h1m1 0h2m1 0h3m1 0h2m1 0h1m1 0h1M1 29.5h1m2 0h4m1 0h1m1 0h3m2 0h3m6 0h3m1 0h5m1 0h1m1 0h1M9 30.5h2m4 0h1m1 0h6m1 0h1m3 0h2m3 0h2M1 31.5h7m3 0h2m2 0h2m8 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h3M1 32.5h1m5 0h1m1 0h1m1 0h1m1 0h2m1 0h2m3 0h2m1 0h1m2 0h3m3 0h2m1 0h1M1 33.5h1m1 0h3m1 0h1m1 0h1m3 0h4m1 0h1m2 0h1m1 0h1m1 0h2m1 0h6m1 0h3M1 34.5h1m1 0h3m1 0h1m1 0h3m1 0h1m1 0h1m1 0h4m3 0h1m1 0h2m2 0h2m1 0h1m2 0h2M1 35.5h1m1 0h3m1 0h1m1 0h3m1 0h1m2 0h1m1 0h1m4 0h1m4 0h1m5 0h4M1 36.5h1m5 0h1m11 0h2m1 0h4m1 0h3m1 0h1m1 0h2m2 0h1M1 37.5h7m1 0h1m3 0h1m2 0h3m4 0h1m1 0h4m1 0h1m2 0h1m1 0h3"/></svg><div><strong>2 · The live page</strong><br><a href="https://beta.app.paiflow.xyz/deployments/7ed55a66-6fa3-4f31-be3c-b2e562b38cc7/embed" style="font-size:7.5pt">Open the live page</a><br>Scroll down to <strong>Live events</strong>. Ignore the red “Authentication required” box and the missing QR image — both are already on our list.</div></div>
+      </div>
+      <ul class="shots"><li><code>B4-phone</code> — the live page on your phone, with the Live events rows in shot. Upload it from your phone's Drive app, or send it to yourself first.</li></ul>
+      <p>Then answer survey <strong>section B4</strong>.</p>
+    </div>
+  </div>
+
+  <h3>Finish the survey · 5 minutes</h3>
+  <p>Put <code>B1-homepage</code>, <code>B3-review</code> and <code>B4-phone</code> in your Drive folder. Answer the last section, <strong>About you and overall</strong>, paste the folder link into its final question, and press <strong>Submit</strong>.</p>
+  <div class="payout"><b>₱125</b><span>once we've received your completed survey and your three screenshots</span></div>
+  <p>An honest “I couldn't finish B3”, with a screenshot of where you stopped, counts exactly the same as a perfect run. We match your answers to your test account by the name in the survey's first section, and we'll reply about the incentive on the message this guide came in. Please leave everything else in the app alone: other block types, <strong>Dev mode</strong>, and the Profile page aren't part of this round.</p>
+  <div class="thanks">Thank you<span>!</span></div>
+  <p style="color:var(--muted)">Twenty minutes of somebody's real attention is the most useful thing we get.</p>
+</section>
+
+<!-- ================= BONUS ================= -->
+<section id="bonus" style="break-before:page">
+  <div class="section-head"><span class="num">+₱75</span><h2>Optional bonus</h2></div>
+  <p>About 25 more minutes: install a test wallet, deploy your Shop flow, and pay it once. Do this <strong>after</strong> submitting the survey.</p>
+
+  <h3><span class="tag">1</span> Install Freighter and get free testnet XLM</h3>
+  <ol class="steps">
+    <li>Install the <a href="https://www.freighter.app/">Freighter wallet extension</a> in Chrome or Brave and pin it to your toolbar.</li>
+    <li>Open Freighter → <strong>Create new wallet</strong>. Write down the recovery phrase somewhere safe.</li>
+    <li>In Freighter, open the network menu at the top and choose <strong>Testnet</strong>.</li>
+    <li>Copy your address (it starts with <code>G</code>) and open this link in a new tab, replacing <code>YOUR_ADDRESS</code>: <code>https://friendbot.stellar.org/?addr=YOUR_ADDRESS</code></li>
+  </ol>
+  <div class="checks-block"><ul class="checks"><li>Freighter shows <strong>Testnet</strong> at the top, and a balance of 10,000 XLM.</li></ul></div>
+
+  <h3><span class="tag">2</span> Deploy the Shop flow</h3>
+  <ol class="steps">
+    <li>Open your <strong>Shop</strong> flow and click <span class="ui">DEPLOY</span>, then <span class="ui">DEPLOY TO TESTNET</span> on the review page.</li>
+    <li>Freighter pops up — check it says testnet, then <strong>sign</strong>.</li>
+  </ol>
+  <div class="checks-block"><ul class="checks">
+    <li>A “Contract deployed” message appears and you're taken to the deployment page.</li>
+    <li>Within about a minute the status becomes <strong>ACTIVE</strong> and a QR code appears.</li>
+  </ul></div>
+
+  <h3><span class="tag">3</span> Pay it once, and send us the link</h3>
+  <ol class="steps">
+    <li>On the deployment page, click <span class="ui">OPEN TRIGGER PAGE</span>.</li>
+    <li>Enter <strong>10</strong> as the amount, click <span class="ui">CONFIRM AMOUNT</span>, then <span class="ui">CONNECT WALLET &amp; TRIGGER</span>, and sign in Freighter.</li>
+    <li>Go back to the deployment page and watch the live feed.
+      <ul class="checks"><li>The live feed shows one RECEIVE row and two PAYOUT rows: 6 XLM and 4 XLM.</li></ul>
+      <ul class="shots"><li><code>bonus-live-feed</code> — the feed showing all three rows. Add it to the same folder.</li></ul></li>
+    <li>Reply to the message this guide came in with the address of your <strong>deployment page</strong>. That link, plus <code>bonus-live-feed</code> in your folder, makes you eligible for the extra <strong>₱75</strong>.</li>
+  </ol>
+  <p style="color:var(--muted);margin-top:4pt"><strong>Already on our list:</strong> the trigger page can report a failure even though the payment went through — check the live feed first. Only Freighter works for deploying, and the live feed can lag up to a minute.</p>
+</section>
+
+</body>
+</html>

@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth";
+import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
 import { Role } from "@prisma/client";
@@ -6,7 +6,7 @@ import { Role } from "@prisma/client";
 export const dynamic = "force-dynamic";
 
 export default async function AdminTemplates() {
-  const user = await requireSession({ role: Role.ADMIN });
+  const user = await requirePageSession({ role: Role.ADMIN });
   const templates = await db.contractTemplate.findMany({
     orderBy: [{ network: "asc" }, { kind: "asc" }],
   });

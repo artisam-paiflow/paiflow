@@ -7,6 +7,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { redis, eventChannel } from "@/lib/redis";
 import { submitDeployTx } from "@/lib/stellar/deploy";
+import { SEND_NOT_ACCEPTED_MESSAGE } from "@/lib/stellar/send-status";
 import { signerFromSignedXdr } from "@/lib/stellar/signer";
 import {
   captureTransactionSigned,
@@ -128,6 +129,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
 
     const result = await submitDeployTx(body.signedXdr);
+    if (result.status === "NOT_ACCEPTED") {
+      // Nothing reached the network, so nothing failed: the claim is handed
+      // back and the same signed envelope can be submitted again. It still
+      // matches `unsignedXdr`, its signer row is keyed on the hash and inserts
+      // once, and each attempt leaves its own DEPLOY_SUBMIT row. No hash is
+      // stored because none was queued, and no DEPLOY_FAIL or `deploy_failed`
+      // is recorded for a deployment that can still confirm.
+      try {
+        await db.deployment.update({
+          where: { id, status: "SUBMITTED" },
+          data: { status: "PENDING_SIGNATURE" },
+        });
+      } catch (err) {
+        if ((err as { code?: string }).code !== "P2025") throw err;
+        log.warn({ deploymentId: id }, "submit: send not accepted, but no longer SUBMITTED");
+      }
+      throw new AppError("UPSTREAM_RPC", SEND_NOT_ACCEPTED_MESSAGE);
+    }
     if (result.status === "SUCCESS") {
       // For pipeline deployments we trust the deterministic pre-computed
       // addresses stored in pipelineSnapshot.  For legacy single-contract

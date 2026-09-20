@@ -56,6 +56,11 @@ const SANDBOX_PATHS = [
   /^\/api\/auth\/(session|csrf|providers|signin|signout|error)$/,
   /^\/api\/auth\/(signin|callback)\/credentials$/,
   /^\/api\/auth\/sandbox$/,
+  // Deactivating is the only lever an admin has over a sandbox account, and it
+  // leaves the visitor holding a cookie that still says SANDBOX to middleware.
+  // Without this entry the redirect that clears that cookie is answered with
+  // the sandbox 403 instead. The route can only sign its own caller out.
+  /^\/api\/auth\/stale-session$/,
 
   /^\/api\/health$/,
   /^\/api\/flows$/,
