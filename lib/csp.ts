@@ -47,8 +47,14 @@ export function cspHeader(nonce: string, isDev: boolean): string {
       "https://relay.walletconnect.com",
       "https://relay.walletconnect.org",
       "https://*.walletconnect.com",
+      "https://*.walletconnect.org",
       ...(isDev ? ["ws:", "http:"] : []),
     ],
+    // WalletConnect core loads the Verify attestation in an iframe. Without an
+    // explicit frame-src this falls back to default-src 'self' and is blocked
+    // on every page load; the pairing survives it, but the console fills with
+    // violations and the origin never resolves as verified (#594).
+    "frame-src": ["'self'", "https://verify.walletconnect.com", "https://verify.walletconnect.org"],
     "frame-ancestors": ["'none'"],
     "base-uri": ["'self'"],
     "form-action": ["'self'"],
