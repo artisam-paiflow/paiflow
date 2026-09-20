@@ -20,13 +20,14 @@ const { mockDb, mockEnv, mockAuth, mockRelayer } = vi.hoisted(() => {
   };
 
   const mockEnv = {
-    DEV_API_SECRET: "dev-secret",
     LOG_LEVEL: "silent",
     STELLAR_NETWORK: "testnet",
   };
 
   const mockAuth = {
-    requireDevAuth: vi.fn(async () => ({ user: null })),
+    requireDevAuth: vi.fn(async () => ({
+      user: { id: "owner-1", username: "owner", role: "USER" },
+    })),
   };
 
   const mockRelayer = {

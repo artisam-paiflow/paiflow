@@ -18,6 +18,41 @@ describe("friendlyError", () => {
     ).toMatch(/check your connection/i);
   });
 
+  it("maps a WalletConnect relay stall, keeping the raw string as details", () => {
+    // core wraps a relay request in a 60s expiring timer and rejects with this
+    // when nothing answers; the id/tag suffix is noise to a user (#594).
+    const raw = "Failed to publish payload, please try again. id:1789865355430728192 tag:1100";
+    const f = friendlyError(new Error(raw));
+    expect(f.message).toBe(
+      "Couldn't reach the wallet network. Try again, or use Freighter on desktop.",
+    );
+    expect(f.details).toBe(raw);
+  });
+
+  it("maps every relay variant the SDK actually emits", () => {
+    for (const raw of [
+      "Failed to publish payload, please try again. id:1 tag:1100",
+      "websocket connection failed",
+      "No internet connection detected. Please reconnect.",
+    ]) {
+      expect(friendlyError(new Error(raw)).message).toMatch(/reach the wallet network/i);
+    }
+  });
+
+  it("does not claim a wallet-network fault for an unrelated relayer message", () => {
+    // An earlier "relayer connection" alternative matched no string in any
+    // installed @walletconnect package and risked swallowing config errors.
+    expect(
+      friendlyError(new Error("Relayer connection rejected: invalid project ID")).message,
+    ).toBe("Relayer connection rejected: invalid project ID");
+  });
+
+  it("leaves an unapproved wallet connection as a timeout, not a network fault", () => {
+    expect(friendlyError(new Error("Wallet connection timed out")).message).toBe(
+      "Wallet connection timed out",
+    );
+  });
+
   it("passes through API error bodies and preserves details", () => {
     const body = {
       error: {

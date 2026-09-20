@@ -1,5 +1,6 @@
 import "server-only";
 import type { NextRequest } from "next/server";
+import { redirect } from "next/navigation";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
@@ -10,7 +11,7 @@ import { log } from "./log";
 import { audit } from "./audit";
 import { AppError } from "./errors";
 import { hashApiToken } from "./auth/api-token";
-import { timingSafeEqualString } from "./auth/timing-safe";
+import { isSessionCurrent } from "./auth/session-version";
 import { captureServer } from "./analytics/server";
 import { Role } from "@prisma/client";
 import { authConfig as edgeConfig } from "@/auth.config";
@@ -59,6 +60,7 @@ async function authorizeUser(input: unknown): Promise<{
   id: string;
   username: string;
   role: Role;
+  sessionVersion: number;
 } | null> {
   const parsed = CredentialsSchema.safeParse(input);
   if (!parsed.success) return null;
@@ -78,7 +80,7 @@ async function authorizeUser(input: unknown): Promise<{
       data: { lastLoginAt: new Date(), failedLogins: 0, lockedUntil: null },
     });
     void captureServer(u.id, "login_succeeded", { method: "ticket" });
-    return { id: u.id, username: u.username, role: u.role };
+    return { id: u.id, username: u.username, role: u.role, sessionVersion: u.sessionVersion };
   }
 
   if (!username || !password) return null;
@@ -122,7 +124,12 @@ async function authorizeUser(input: unknown): Promise<{
   await audit({ action: "USER_LOGIN", userId: user.id });
   void captureServer(user.id, "login_succeeded", { method: "password" });
 
-  return { id: user.id, username: user.username, role: user.role };
+  return {
+    id: user.id,
+    username: user.username,
+    role: user.role,
+    sessionVersion: user.sessionVersion,
+  };
 }
 
 export const fullAuthConfig = {
@@ -157,23 +164,29 @@ export type SessionUser = {
 export async function getSessionUser(): Promise<SessionUser | null> {
   const session = await auth();
   if (!session?.user?.id) return null;
+  // The cookie only proves who signed in, up to seven days ago. Whether that
+  // still counts is the row's call: one primary-key read per request is the
+  // price of being able to end a stateless session at all.
+  const row = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { isActive: true, role: true, sessionVersion: true },
+  });
+  if (!row || !isSessionCurrent(session.user as { sessionVersion?: unknown }, row)) return null;
   return {
     id: session.user.id,
     username: (session.user as { username?: string }).username ?? "",
-    role: ((session.user as { role?: Role }).role ?? Role.USER) as Role,
+    // From the row, not the token: a role change bumps the version, but a guard
+    // that trusted the token's copy would be one missed bump away from letting
+    // a demoted admin through.
+    role: row.role,
   };
 }
 
-export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionUser | null }> {
-  const secret = env().DEV_API_SECRET;
-  const presented = req.headers.get("x-dev-api-secret");
-  if (secret && presented && timingSafeEqualString(presented, secret)) {
-    return { user: null };
-  }
-
-  // Per-developer machine tokens also grant access to dev endpoints; they carry
-  // an owner, unlike the shared secret above. requireDevApiToken() rejects a
-  // SANDBOX owner itself, so both user-bearing paths here are covered.
+export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionUser }> {
+  // Per-developer machine tokens are the machine path into the dev endpoints;
+  // they carry an owner, so every caller that gets through here can be
+  // ownership-filtered. requireDevApiToken() rejects a SANDBOX owner itself,
+  // so both paths below are covered.
   try {
     return { user: await requireDevApiToken(req) };
   } catch (err) {
@@ -193,12 +206,13 @@ export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionU
 }
 
 /**
- * Resolve a per-developer API token to the Paiflow user that owns it. Machine
- * endpoints that CREATE owned rows (e.g. the dev-payroll deploy) cannot use the
- * shared `x-dev-api-secret` because it carries no owner. The caller presents the
- * token in the `x-dev-api-secret` header (or `Authorization: Bearer <token>`);
- * we match its SHA-256 hash against an active `DevApiToken` row and return the
- * mapped user.
+ * Resolve a per-developer API token to the Paiflow user that owns it. Every
+ * machine caller must carry an owner, so that endpoints which CREATE owned rows
+ * (e.g. the dev-payroll deploy) have someone to attribute them to, and every
+ * other dev endpoint can filter on `ownerId`. The caller presents the token in
+ * the `x-dev-api-secret` header (or `Authorization: Bearer <token>`); we match
+ * its SHA-256 hash against an active `DevApiToken` row and return the mapped
+ * user.
  *
  * This is token-only auth: there is no interactive-session fallback. The route
  * it guards signs and submits a relayer-funded on-chain deploy, so it must not
@@ -246,4 +260,25 @@ export async function requireSession(opts?: { role?: Role }): Promise<SessionUse
     throw new AppError("FORBIDDEN", "Insufficient permissions");
   }
   return user;
+}
+
+/** Where a server page sends a cookie that getSessionUser() no longer accepts. */
+export const STALE_SESSION_PATH = "/api/auth/stale-session";
+
+/**
+ * requireSession() for `page.tsx`. Middleware verifies the JWT's signature and
+ * nothing else (it runs on the edge, without a database), so a session ended
+ * by a version bump still gets past it and reaches the page. Throwing there
+ * renders app/error.tsx on every page for the rest of the cookie's seven days,
+ * and /login is no way out because middleware bounces a signed-in visitor off
+ * it. A server component cannot clear a cookie, so hand the browser to a route
+ * handler that can.
+ */
+export async function requirePageSession(opts?: { role?: Role }): Promise<SessionUser> {
+  try {
+    return await requireSession(opts);
+  } catch (err) {
+    if (err instanceof AppError && err.code === "UNAUTHENTICATED") redirect(STALE_SESSION_PATH);
+    throw err;
+  }
 }

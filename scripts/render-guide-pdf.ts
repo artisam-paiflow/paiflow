@@ -12,7 +12,7 @@
  *
  * Usage:
  *   pnpm docs:pdf                                # docs/pdf/alpha-testing-guide.html
- *   pnpm docs:pdf docs/pdf/some-other-doc.html
+ *   pnpm docs:pdf docs/pdf/alpha-testing-guide-lite.html   # group B's quick test
  */
 import { existsSync } from "node:fs";
 import { basename, resolve } from "node:path";

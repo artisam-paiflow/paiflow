@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireSession } from "@/lib/auth";
+import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Role } from "@prisma/client";
 import { getSubmissionProof } from "@/lib/admin-stats";
@@ -9,7 +9,7 @@ import { PrintButton } from "@/components/admin/print-button";
 export const dynamic = "force-dynamic";
 
 export default async function SubmissionProofPage() {
-  const user = await requireSession({ role: Role.ADMIN });
+  const user = await requirePageSession({ role: Role.ADMIN });
   const proof = await getSubmissionProof();
 
   return (

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireSession } from "@/lib/auth";
+import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import Topbar from "@/components/app/topbar";
@@ -46,7 +46,7 @@ function truncateAddr(addr: string | null) {
 }
 
 export default async function Dashboard() {
-  const user = await requireSession();
+  const user = await requirePageSession();
   const [flows, deployments] = await Promise.all([
     db.flow.findMany({
       where: { ownerId: user.id },
