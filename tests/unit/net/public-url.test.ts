@@ -166,6 +166,8 @@ describe("isBlockedAddress", () => {
     "2002:a00:1::1", // 6to4
     "64:ff9b::a00:1", // NAT64
     "100::1",
+    "fec0::1", // deprecated site-local
+    "feff::1", // top of fec0::/10
   ])("blocks the IPv6 address %s", (address) => {
     expect(isBlockedAddress(address, 6)).toBe(true);
   });

@@ -118,6 +118,7 @@ BLOCKED.addSubnet("2001:db8::", 32, "ipv6"); // documentation
 BLOCKED.addSubnet("2002::", 16, "ipv6"); // 6to4 — embeds an IPv4 address
 BLOCKED.addSubnet("fc00::", 7, "ipv6"); // unique-local (fc00::/8 + fd00::/8)
 BLOCKED.addSubnet("fe80::", 10, "ipv6"); // link-local
+BLOCKED.addSubnet("fec0::", 10, "ipv6"); // site-local: deprecated, still routable on kit that predates it
 BLOCKED.addSubnet("ff00::", 8, "ipv6"); // multicast
 
 /**

@@ -79,6 +79,17 @@ async function readJson(res: Response): Promise<unknown> {
   }
 }
 
+/** We deliberately never read a failed relayer response, but an undrained body
+ * keeps undici's socket out of the pool until GC, and this loop runs up to
+ * MAX_CATCHUP_PER_RUN times per deployment. */
+async function discardBody(res: Response): Promise<void> {
+  try {
+    await res.body?.cancel();
+  } catch {
+    // Already consumed or errored; nothing to release.
+  }
+}
+
 function isExpectedSkipError(message: string): boolean {
   return (
     message.includes("AlreadyCancelled") ||
@@ -736,11 +747,13 @@ export async function POST(req: NextRequest) {
             // is what made this a read-capable SSRF (#581). A status code is a
             // number; a body is not.
             if (res.status >= 300 && res.status < 400) {
+              await discardBody(res);
               throw new RelayerResponseError(
                 `User relayer returned a redirect (${res.status}); redirects are not followed`,
               );
             }
             if (!res.ok) {
+              await discardBody(res);
               log.warn(
                 { deploymentId: d.id, contractAddress, status: res.status },
                 "Tenant relayer rejected charge",
