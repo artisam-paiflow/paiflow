@@ -105,7 +105,8 @@ read its events, and nothing else: no other deployment, no account data, no admi
 
 - **Minting.** The deployment's owner signs in, opens the deployment page and uses the **API access**
   panel. Tokens can only be minted for a `CONFIRMED` deployment, and a deployment can have at most 10
-  active tokens.
+  active tokens of the owner's own. Tokens handed out by the public demo route are bounded and
+  expired separately, and the panel neither lists nor counts them.
 - **Shown once.** The full token (`pfk_` followed by 64 hex characters) is displayed only when it's
   created. Paiflow stores only a hash. Copy it into your secret store straight away.
 - **Expiry and revocation.** A token can be given an expiry of 1 to 365 days, or none. Revoking a
