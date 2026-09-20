@@ -39,9 +39,13 @@ async function validateRelayerSequence(server: rpc.Server) {
 // socket that never answers would park a cron, or the whole relayer queue,
 // until the process restarts (#559).
 export const STELLAR_HTTP_TIMEOUT_MS = 10_000;
-// The same budget for a tenant's own charge-relayer endpoint (USER mode), which
-// the auto-charge crons call from inside their per-deployment loop.
-export const TENANT_RELAYER_TIMEOUT_MS = 10_000;
+// A tenant's own charge-relayer endpoint (USER mode), which the auto-charge crons
+// call from inside their per-deployment loop. Longer than one RPC call on
+// purpose: the endpoint may answer `SUCCESS` with a tx hash, which means it
+// signed, submitted and polled to finality before responding — our own finality
+// poll alone is 30s. Cutting a healthy relayer off mid-poll would record a
+// charge that landed on-chain as failed.
+export const TENANT_RELAYER_TIMEOUT_MS = 45_000;
 
 export function sorobanRpc(): rpc.Server {
   if (!g.__sorobanRpc) {

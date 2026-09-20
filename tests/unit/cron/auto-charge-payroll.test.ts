@@ -57,6 +57,7 @@ const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockJobs } = vi.ho
 
   const mockClient = {
     withRelayerLock: vi.fn((fn: any) => fn()),
+    TENANT_RELAYER_TIMEOUT_MS: 25,
   };
 
   const mockJobs = {
@@ -113,6 +114,10 @@ describe("auto-charge-payroll", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockEnv.STELLAR_RELAYER_ADDRESS = "GDRELAYER";
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("rejects requests without the cron secret", async () => {
@@ -272,6 +277,70 @@ describe("auto-charge-payroll", () => {
     await res.json();
 
     expect(mockJobs.createOffRampJobsForPayrollRun).not.toHaveBeenCalled();
+  });
+
+  it("fails a USER deployment whose relayer never answers and carries on to the next", async () => {
+    const user = {
+      chargeRelayerMode: ChargeRelayerMode.USER,
+      chargeRelayerAddress: "GTENANT",
+    };
+    mockDb.deployment.findMany.mockResolvedValue([
+      makeDeployment({ id: "dep-hung", chargeRelayerUrl: "https://hung.example/charge", ...user }),
+      makeDeployment({ id: "dep-ok", chargeRelayerUrl: "https://ok.example/charge", ...user }),
+    ]);
+    mockRelayer.readPayrollIsCancelled.mockResolvedValue(false);
+    mockRelayer.readPayrollNextChargeAt
+      .mockResolvedValueOnce(BigInt(nextChargeAt))
+      .mockResolvedValueOnce(BigInt(nextChargeAt))
+      .mockResolvedValue(BigInt(nextChargeAt + 86400));
+    mockRelayer.readPayrollRecipients.mockResolvedValue([{ address: "GEMP1", amount: "5000000" }]);
+    mockRelayer.readPayrollEmployer.mockResolvedValue("GEMPLOYER");
+    mockRelayer.readPayrollAsset.mockResolvedValue("CASSET");
+    mockRelayer.readTokenAllowance.mockResolvedValue(10_000_000n);
+    mockRelayer.readPayrollRelayer.mockResolvedValue("GTENANT");
+    mockInvoke.preparePayrollChargeByRelayerUnsigned.mockResolvedValue({ xdr: "unsigned-xdr" });
+    mockDb.payrollRun.create
+      .mockResolvedValueOnce({ id: "run-hung" })
+      .mockResolvedValueOnce({ id: "run-ok" });
+    mockDb.employee.findMany.mockResolvedValue([]);
+    mockDb.employee.upsert.mockResolvedValue({ id: "emp-1" });
+
+    const fetchMock = vi.fn((url: string, init: RequestInit) => {
+      if (url.includes("hung")) {
+        // Never answers; settles only when the caller's own signal gives up.
+        return new Promise<Response>((_, reject) => {
+          init.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        });
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ status: "SUCCESS", txHash: "tx-ok" }), { status: 200 }),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await POST(makeRequest("cron-secret"));
+    const json = await res.json();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[1].signal).toBeInstanceOf(AbortSignal);
+    expect(json.data.failed).toBe(1);
+    expect(json.data.userCharged).toBe(1);
+    expect(json.data.details).toEqual([
+      expect.objectContaining({ deploymentId: "dep-hung", status: "failed" }),
+      expect.objectContaining({ deploymentId: "dep-ok", status: "charged" }),
+    ]);
+    expect(mockDb.payrollRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "run-hung" },
+        data: expect.objectContaining({ status: PayrollRunStatus.FAILED }),
+      }),
+    );
+    expect(mockDb.payrollRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "run-ok" },
+        data: expect.objectContaining({ status: PayrollRunStatus.CHARGED, txHash: "tx-ok" }),
+      }),
+    );
   });
 
   it("skips when no chargeable contract is in the pipeline", async () => {
