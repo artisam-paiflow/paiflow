@@ -199,20 +199,29 @@ describe("sessionHasChain", () => {
 });
 
 describe("sessionMatchesWallet", () => {
-  it("matches a peer name to the wallet the user tapped", () => {
+  // A ranking signal over self-reported metadata, never an authorization check:
+  // WalletConnect v2 gives a dApp no way to verify which wallet a session
+  // belongs to, so callers must stay correct when this is wrong in either
+  // direction.
+  it("recognizes a peer that claims the tapped wallet", () => {
     expect(sessionMatchesWallet("Freighter", "freighter")).toBe(true);
     expect(sessionMatchesWallet("LOBSTR", "lobstr")).toBe(true);
     expect(sessionMatchesWallet("xBull Wallet", "xbull")).toBe(true);
   });
 
-  it("refuses another wallet's session", () => {
-    // Tapping Freighter with a live LOBSTR session used to connect LOBSTR and
-    // record it as Freighter, which breaks signer traceability.
+  it("does not recognize a different wallet", () => {
     expect(sessionMatchesWallet("LOBSTR", "freighter")).toBe(false);
     expect(sessionMatchesWallet("Freighter", "xbull")).toBe(false);
   });
 
-  it("fails safe on metadata it cannot interpret", () => {
+  it("is spoofable, which is why callers must not treat it as proof", () => {
+    // Any wallet can name itself whatever it likes. This asserts the known
+    // limitation rather than pretending the match is trustworthy.
+    expect(sessionMatchesWallet("Freighter Helper", "freighter")).toBe(true);
+    expect(sessionMatchesWallet("definitely-not-lobstr", "lobstr")).toBe(true);
+  });
+
+  it("returns false for metadata it has no keyword for", () => {
     for (const name of ["", "Some Other Wallet", null, undefined]) {
       expect(sessionMatchesWallet(name, "freighter")).toBe(false);
     }

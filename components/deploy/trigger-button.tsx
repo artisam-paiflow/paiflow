@@ -47,12 +47,14 @@ const WALLET_DEEP_LINKS: Record<string, (uri: string) => string> = {
 };
 
 /**
- * Topics of stored sessions that are usable *for this call*, freshest first.
+ * Topics of stored sessions usable *for this call*, best first.
  *
- * Liveness is not enough. A session also has to authorize the chain we are
- * about to use, and — when the user picked a wallet — belong to that wallet;
- * otherwise the freshest session wins regardless of what was tapped. Every
- * filter fails safe, so anything unreadable is skipped and the caller pairs.
+ * Two hard filters: the session must still be live, and it must authorize the
+ * chain we are about to use. `preferWalletId` only *ranks* — it never excludes.
+ * Peer metadata is self-reported by the wallet, so it cannot carry a trust
+ * decision (see `sessionMatchesWallet`), and using it to exclude would break
+ * the return-from-wallet path whenever a wallet reports a name we do not
+ * recognize (#598 review).
  *
  * Provably expired rows are dropped from the local store as a side effect: the
  * kit picks a session by scanning that store, so leaving one there lets it
@@ -61,15 +63,17 @@ const WALLET_DEEP_LINKS: Record<string, (uri: string) => string> = {
  * has forgotten is exactly the 60-second stall this exists to avoid (#594).
  *
  * The liveness and expiry predicates are asymmetric on purpose: a session that
- * is not usable is not necessarily safe to destroy. Only chain/wallet mismatch
- * and the expiry margin cause a skip; only a passed expiry causes a delete.
+ * is not usable is not necessarily safe to destroy. Only the expiry margin and
+ * a chain mismatch cause a skip; only a passed expiry causes a delete.
  */
+type StoredSession = InstanceType<typeof SignClient>["session"]["values"][number];
+
 function usableSessionTopics(
   client: InstanceType<typeof SignClient> | null,
-  { chain, walletId }: { chain: string; walletId?: string | null },
+  { chain, preferWalletId }: { chain: string; preferWalletId?: string | null },
 ): string[] {
   if (!client) return [];
-  const usable = [];
+  const usable: StoredSession[] = [];
   for (const session of client.session.values) {
     if (isExpiredSession(session)) {
       void client.session
@@ -79,10 +83,13 @@ function usableSessionTopics(
     }
     if (!isLiveSession(session)) continue;
     if (!sessionHasChain(session, chain)) continue;
-    if (walletId && !sessionMatchesWallet(session.peer?.metadata?.name, walletId)) continue;
     usable.push(session);
   }
-  return usable.sort((a, b) => b.expiry - a.expiry).map((session) => session.topic);
+  const rank = (session: StoredSession) =>
+    preferWalletId && sessionMatchesWallet(session.peer?.metadata?.name, preferWalletId) ? 0 : 1;
+  return usable
+    .sort((a, b) => rank(a) - rank(b) || b.expiry - a.expiry)
+    .map((session) => session.topic);
 }
 
 export function TriggerButton({
@@ -474,7 +481,7 @@ export function TriggerButton({
           kit.setWallet("wallet_connect");
           const [topic] = usableSessionTopics(client, {
             chain: stellarChainId(network),
-            walletId: data.walletId,
+            preferWalletId: data.walletId,
           });
           if (!topic) {
             throw new Error("No session found after returning from wallet");
@@ -503,16 +510,6 @@ export function TriggerButton({
   /** Whether a wallet tap can navigate right now with no await in the way. */
   function isReadyToTap(): boolean {
     return isPairingFresh(readyRef.current?.expiresAt);
-  }
-
-  /**
-   * A session usable for this wallet right now, read synchronously so the tap
-   * handler can consult it without an await. Null means "pair instead".
-   */
-  function reusableSessionTopic(walletId: string): string | null {
-    const client = wcRef.current?.client ?? null;
-    const [topic] = usableSessionTopics(client, { chain: stellarChainId(network), walletId });
-    return topic ?? null;
   }
 
   function schedulePairingRefresh(expiresAt: number) {
@@ -581,16 +578,13 @@ export function TriggerButton({
     }
     selectedWalletRef.current = walletId;
 
-    // This wallet's own session, if the relay still honours one. Checked here
-    // because the tap is the first moment the chosen wallet is known.
-    const sessionTopic = reusableSessionTopic(walletId);
-    if (sessionTopic) {
-      setPendingWallet(walletId);
-      setBusy(true);
-      void completeMobileConnect({ sessionTopic });
-      return;
-    }
-
+    // A stored session is deliberately NOT reused here. Nothing in WalletConnect
+    // v2 attests a session's wallet to the dApp -- peer metadata is self-reported
+    // and Verify attests our origin to the wallet, not the reverse -- so reusing
+    // one could silently connect a wallet the user did not tap. Always pairing
+    // costs a returning user one approval; they must open the wallet to sign
+    // either way (#598 review).
+    //
     // Freshness is rechecked here, not just when the picker opened: a picker
     // left open outlives a five-minute pairing, and handing the wallet a dead
     // URI reproduces the original #594 silence. The refresh timer normally
@@ -613,33 +607,26 @@ export function TriggerButton({
 
   async function completeMobileConnect({
     pairing,
-    sessionTopic,
   }: {
-    pairing?: { approval: () => Promise<{ topic: string }> };
-    sessionTopic?: string;
+    pairing: { approval: () => Promise<{ topic: string }> };
   }) {
     try {
       const { kit, module: walletConnectModule, client } = await ensureWalletConnect();
       if (!client || !walletConnectModule) throw new Error(WALLET_CONNECT_UNCONFIGURED);
       kit.setWallet("wallet_connect");
 
-      if (pairing) {
-        const session = await Promise.race([
-          pairing.approval(),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Wallet connection timed out")), 60_000),
-          ),
-        ]);
-        readyRef.current = null;
-        setPairingState("idle");
-        walletConnectModule.setSession(session.topic);
-        sessionStorage.removeItem("paiflow_pending_wc");
-        // The pairing is spent; line up a fresh one for the next attempt.
-        void beginPairing({ silent: true });
-      } else {
-        if (!sessionTopic) throw new Error("WalletConnect session expired");
-        walletConnectModule.setSession(sessionTopic);
-      }
+      const session = await Promise.race([
+        pairing.approval(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Wallet connection timed out")), 60_000),
+        ),
+      ]);
+      readyRef.current = null;
+      setPairingState("idle");
+      walletConnectModule.setSession(session.topic);
+      sessionStorage.removeItem("paiflow_pending_wc");
+      // The pairing is spent; line up a fresh one for the next attempt.
+      void beginPairing({ silent: true });
 
       setShowPicker(false);
       const { address } = await kit.getAddress();

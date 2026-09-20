@@ -113,13 +113,19 @@ const WALLET_PEER_KEYWORDS: Record<string, string> = {
 };
 
 /**
- * Whether a stored session belongs to the wallet the user actually tapped.
+ * Whether a session's peer *claims* to be the given wallet. A ranking signal —
+ * never a trust decision.
  *
- * Without this the freshest live session wins regardless of the button pressed:
- * tapping Freighter with a live LOBSTR session connects LOBSTR while analytics
- * records Freighter, which breaks signer traceability. Fails safe — an
- * unrecognized or missing peer name means "no match", so the caller pairs with
- * the chosen wallet rather than reusing someone else's session.
+ * `peer.metadata.name` is self-reported by the wallet, and WalletConnect v2
+ * gives a dApp no way to verify it: `peer.publicKey` binds to no registry we
+ * consult, and Verify attests our own origin to the wallet rather than the
+ * wallet to us. Any wallet can name itself "Freighter". So this must not decide
+ * whether a session may be *used* — it only decides which of several equally
+ * valid sessions is tried first (#598 review).
+ *
+ * It must also never *exclude* a session: an unrecognized name is a wallet we
+ * have no keyword for, not a wallet that is wrong, and filtering on it broke the
+ * return-from-wallet path.
  */
 export function sessionMatchesWallet(
   peerName: string | null | undefined,
