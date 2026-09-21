@@ -59,6 +59,28 @@ describe("Field", () => {
     expect(mutations.concat(observer.takeRecords())).toEqual([]);
   });
 
+  it("describes the control with a note in its own polite region", async () => {
+    const { container, rerender } = render(
+      <Field label="Amount" hint="In USDC.">
+        {(control) => <input {...control} className={inputClass} defaultValue="100" />}
+      </Field>,
+    );
+    const input = screen.getByRole("textbox", { name: "Amount" });
+    const region = document.getElementById(`${input.id.replace(/-control$/, "")}-note`);
+    expect(region?.getAttribute("aria-live")).toBe("polite");
+    expect(describedText(input)).toBe("In USDC.");
+
+    rerender(
+      <Field label="Amount" hint="In USDC." note="Lowered to the maximum, 100 USDC.">
+        {(control) => <input {...control} className={inputClass} defaultValue="100" />}
+      </Field>,
+    );
+    expect(document.getElementById(region!.id)).toBe(region);
+    expect(input.getAttribute("aria-invalid")).toBeNull();
+    expect(describedText(input)).toBe("In USDC. | Lowered to the maximum, 100 USDC.");
+    expect((await axe.run(container)).violations).toEqual([]);
+  });
+
   it("labels a composite control as a group without naming only its first child", async () => {
     const { container } = render(
       <Field label="Window" hint="Both ends inclusive." error="End is before start." group>

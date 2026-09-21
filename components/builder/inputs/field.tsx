@@ -9,24 +9,41 @@ export type FieldControlProps = {
   "aria-describedby": string | undefined;
 };
 
-export function useField({ hint, error }: { hint?: React.ReactNode; error?: string | null }) {
+export function useField({
+  hint,
+  note,
+  error,
+}: {
+  hint?: React.ReactNode;
+  note?: string | null;
+  error?: string | null;
+}) {
   const base = useId();
   const controlId = `${base}-control`;
   const labelId = `${base}-label`;
   const hintId = `${base}-hint`;
+  const noteId = `${base}-note`;
   const errorId = `${base}-error`;
-  const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ");
+  const describedBy = [hint ? hintId : null, note ? noteId : null, error ? errorId : null]
+    .filter(Boolean)
+    .join(" ");
   const controlProps: FieldControlProps = {
     id: controlId,
     "aria-invalid": error ? true : undefined,
     "aria-describedby": describedBy || undefined,
   };
-  return { controlId, labelId, hintId, errorId, controlProps };
+  return { controlId, labelId, hintId, noteId, errorId, controlProps };
 }
 
 type CommonProps = {
   label: React.ReactNode;
   hint?: React.ReactNode;
+  /**
+   * What the control just did to the user's input — a refused keystroke, a
+   * clamp on blur. Polite and always mounted, like the error, so it is
+   * announced once when it changes.
+   */
+  note?: string | null;
   error?: string | null;
 };
 
@@ -52,8 +69,12 @@ type FieldProps =
  * changes, not on every keystroke, and it stays out of the control's name.
  */
 export function Field(props: FieldProps) {
-  const { label, hint, error } = props;
-  const { controlId, labelId, hintId, errorId, controlProps } = useField({ hint, error });
+  const { label, hint, note, error } = props;
+  const { controlId, labelId, hintId, noteId, errorId, controlProps } = useField({
+    hint,
+    note,
+    error,
+  });
 
   return (
     <div className="group grid gap-1">
@@ -85,6 +106,9 @@ export function Field(props: FieldProps) {
           {hint}
         </div>
       )}
+      <p id={noteId} aria-live="polite" className={note ? hintClass : "sr-only"}>
+        {note ?? ""}
+      </p>
       <p id={errorId} aria-live="polite" className={error ? errorClass : "sr-only"}>
         {error ?? ""}
       </p>
