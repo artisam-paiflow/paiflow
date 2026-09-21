@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import SwapQuotePreview from "@/components/builder/swap-quote-preview";
-import type { FlowNode, FlowGraph, Asset } from "@/lib/flows/schema";
+import type { FlowNode, FlowGraph } from "@/lib/flows/schema";
 import {
   isPendingAddress,
   bpsToPct,
@@ -14,7 +13,6 @@ import {
   stroopsToDisplay,
   tokenAmountToStroops,
   splitTotalFixedStroops,
-  MIN_SWAP_SLIPPAGE_BPS,
   type SplitRecipient,
 } from "@/lib/flows/schema";
 import { cn, formatStroops, shortAddr } from "@/lib/utils";
@@ -22,12 +20,9 @@ import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
-import {
-  computeAssetFlow,
-  assetsEqual,
-  validateFlow,
-  FIAT_PAYOUT_TRIGGERS,
-} from "@/lib/flows/validate";
+import { computeAssetFlow, FIAT_PAYOUT_TRIGGERS, type ValidationIssue } from "@/lib/flows/validate";
+import { AssetField, Field } from "./panels/asset-fields";
+import SwapPanel from "./panels/swap-panel";
 
 /**
  * Sentinel for an address field a developer chose to leave blank at design time
@@ -104,6 +99,8 @@ function isoFromLocalAndTimezone(local: string, timeZone: string): string {
 type Props = {
   node: FlowNode | null;
   graph: FlowGraph;
+  /** The graph's validation issues, computed once by the builder and shared with this panel. */
+  errors: ValidationIssue[];
   onChange: (n: FlowNode) => void;
   onDelete: (id: string) => void;
   addressBook?: AddressEntry[];
@@ -128,6 +125,7 @@ type Props = {
 export default function ConfigPanel({
   node,
   graph,
+  errors,
   onChange,
   onDelete,
   addressBook = [],
@@ -152,10 +150,8 @@ export default function ConfigPanel({
     const field = new Map<string, string>();
     const general: string[] = [];
     if (!node) return { field, general };
-    const result = validateFlow(graph);
-    if (result.ok) return { field, general };
     const idx = graph.nodes.findIndex((n) => n.id === node.id);
-    for (const issue of result.errors) {
+    for (const issue of errors) {
       const seg = issue.path.split(".");
       const key = seg[0] === "nodes" ? seg[1] : undefined;
       const isThisNode =
@@ -169,7 +165,7 @@ export default function ConfigPanel({
       }
     }
     return { field, general };
-  }, [graph, node]);
+  }, [errors, graph.nodes, node]);
 
   const fieldError = (name: string): string | null => nodeErrors.field.get(name) ?? null;
 
@@ -1371,92 +1367,13 @@ export default function ConfigPanel({
       )}
 
       {node.type === "swap" && (
-        <>
-          <AssetSimpleSelect
-            label="Asset In"
-            asset={node.config.assetIn}
-            onChange={(assetIn) =>
-              onChange({ ...node, config: { ...node.config, assetIn } } as FlowNode)
-            }
-            expectedAsset={expectedAsset}
-            error={fieldError("assetIn")}
-          />
-          <AssetSimpleSelect
-            label="Asset Out"
-            asset={node.config.assetOut}
-            onChange={(assetOut) =>
-              onChange({ ...node, config: { ...node.config, assetOut } } as FlowNode)
-            }
-            error={fieldError("assetOut")}
-          />
-          <Field label="Router">
-            {/* One option, disabled: the router address is pinned per environment
-                on the server and injected at deploy time. Soroswap redeploys its
-                testnet router on every reset, so a user-typed address would go
-                stale and widen the trust surface. */}
-            <select className="input" disabled value="soroswap" data-testid="swap-router">
-              <option value="soroswap">Soroswap ({network})</option>
-            </select>
-          </Field>
-          <Field label="Max slippage (%)" error={fieldError("slippageBps")}>
-            <input
-              className="input"
-              type="number"
-              min={MIN_SWAP_SLIPPAGE_BPS / 100}
-              max={100}
-              step={0.1}
-              value={node.config.slippageBps / 100}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                onChange({
-                  ...node,
-                  config: {
-                    ...node.config,
-                    slippageBps: isNaN(v)
-                      ? 100
-                      : Math.max(
-                          MIN_SWAP_SLIPPAGE_BPS,
-                          Math.round(Math.min(100, Math.max(0, v)) * 100),
-                        ),
-                  },
-                });
-              }}
-            />
-            <div className="mt-0.5 text-[11px] text-zinc-500">
-              Minimum output is the pool&apos;s spot price less this percentage. It must cover
-              Soroswap&apos;s 0.3% fee plus price impact, so at least 0.3% is required.
-            </div>
-          </Field>
-          <Field label="Deadline (seconds)" error={fieldError("deadlineSecs")}>
-            <input
-              className="input"
-              type="number"
-              min={1}
-              max={86400}
-              value={node.config.deadlineSecs}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                onChange({
-                  ...node,
-                  config: {
-                    ...node.config,
-                    // Clamped to the schema's bound so the panel and the server agree.
-                    deadlineSecs: isNaN(v) ? 300 : Math.min(86_400, Math.max(1, Math.floor(v))),
-                  },
-                });
-              }}
-            />
-            <div className="mt-0.5 text-[11px] text-zinc-500">
-              Bounds the ledger close time the router accepts. On the direct trigger path it is
-              computed in the same transaction and cannot expire.
-            </div>
-          </Field>
-          <SwapQuotePreview
-            assetIn={node.config.assetIn}
-            assetOut={node.config.assetOut}
-            slippageBps={node.config.slippageBps}
-          />
-        </>
+        <SwapPanel
+          node={node}
+          onChange={onChange}
+          errors={fieldError}
+          expectedAsset={expectedAsset}
+          network={network}
+        />
       )}
 
       {node.type === "yield" && (
@@ -2464,24 +2381,6 @@ function SplitRecipientsEditor({
   );
 }
 
-function Field({
-  label,
-  error,
-  children,
-}: {
-  label: React.ReactNode;
-  error?: string | null;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="grid gap-1">
-      <span className={cn("text-xs", error ? "text-error" : "text-zinc-400")}>{label}</span>
-      <div className={cn("grid gap-1", error && "[&_.input]:!border-error/70")}>{children}</div>
-      {error && <span className="text-error text-[11px] leading-snug">{error}</span>}
-    </label>
-  );
-}
-
 /**
  * A field with an explicit "Fill via API" affordance, shown only in dev mode.
  * When the toggle is on, the input is replaced by a banner and the underlying
@@ -2686,140 +2585,6 @@ function EmailRecipientsField({
         </div>
       )}
     </Field>
-  );
-}
-
-function AssetOptionInfoIcon({ expectedAsset }: { expectedAsset: Asset }) {
-  return (
-    <span
-      className="material-symbols-outlined cursor-help text-[14px] text-zinc-500"
-      title={`Only ${assetLabel(expectedAsset)} can be picked here — that's the asset flowing into this step. Add or change a swap node upstream to use a different asset.`}
-    >
-      info
-    </span>
-  );
-}
-
-type SimpleAsset =
-  | { kind: "native" }
-  | { kind: "known"; symbol: "USDC" }
-  | { kind: "custom"; code: string; issuer: string };
-
-function AssetFieldLabel({
-  label,
-  expectedAsset,
-}: {
-  label: React.ReactNode;
-  expectedAsset?: Asset | null;
-}) {
-  if (!expectedAsset) return <>{label}</>;
-  return (
-    <span className="inline-flex items-center gap-1">
-      {label}
-      <AssetOptionInfoIcon expectedAsset={expectedAsset} />
-    </span>
-  );
-}
-
-/**
- * The dropdown below only offers native/USDC. When the upstream trigger
- * carries a custom asset, neither option is valid — rather than disabling
- * both and leaving the field dead, show the required asset read-only and
- * force the node's config to match it, since there is no other value the
- * user could legitimately pick.
- */
-function AssetSelectOrReadout({
-  label,
-  asset,
-  onChange,
-  expectedAsset,
-  error,
-}: {
-  label: React.ReactNode;
-  asset: SimpleAsset;
-  onChange: (a: SimpleAsset) => void;
-  expectedAsset?: Asset | null;
-  error?: string | null;
-}) {
-  useEffect(() => {
-    if (expectedAsset?.kind === "custom" && !assetsEqual(expectedAsset, asset)) {
-      onChange(expectedAsset);
-    }
-  }, [expectedAsset, asset, onChange]);
-
-  if (expectedAsset?.kind === "custom") {
-    return (
-      <Field label={<AssetFieldLabel label={label} expectedAsset={expectedAsset} />} error={error}>
-        <div className="input flex items-center text-zinc-400">{assetLabel(expectedAsset)}</div>
-      </Field>
-    );
-  }
-
-  const nativeDisabled = !!expectedAsset && !assetsEqual(expectedAsset, { kind: "native" });
-  const usdcDisabled =
-    !!expectedAsset && !assetsEqual(expectedAsset, { kind: "known", symbol: "USDC" });
-  return (
-    <Field label={<AssetFieldLabel label={label} expectedAsset={expectedAsset} />} error={error}>
-      <select
-        className="input"
-        value={asset.kind === "known" ? `known:${asset.symbol}` : asset.kind}
-        onChange={(e) => {
-          const v = e.target.value;
-          if (v === "native") onChange({ kind: "native" });
-          else if (v === "known:USDC") onChange({ kind: "known", symbol: "USDC" });
-        }}
-      >
-        <option value="known:USDC" disabled={usdcDisabled}>
-          USDC
-        </option>
-        <option value="native" disabled={nativeDisabled}>
-          XLM (native)
-        </option>
-      </select>
-    </Field>
-  );
-}
-
-function AssetField({
-  asset,
-  onChange,
-  expectedAsset,
-}: {
-  asset: SimpleAsset;
-  onChange: (a: SimpleAsset) => void;
-  expectedAsset?: Asset | null;
-}) {
-  return (
-    <AssetSelectOrReadout
-      label="Asset"
-      asset={asset}
-      onChange={onChange}
-      expectedAsset={expectedAsset}
-    />
-  );
-}
-
-function AssetSimpleSelect({
-  label,
-  asset,
-  onChange,
-  expectedAsset,
-  error,
-}: {
-  label: string;
-  asset: SimpleAsset;
-  onChange: (a: SimpleAsset) => void;
-  expectedAsset?: Asset | null;
-  error?: string | null;
-}) {
-  return (
-    <AssetSelectOrReadout
-      label={label}
-      asset={asset}
-      onChange={onChange}
-      expectedAsset={expectedAsset}
-      error={error}
-    />
   );
 }
 

@@ -7,11 +7,13 @@ import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import type { FlowNode, FlowGraph } from "@/lib/flows/schema";
 import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
+import type { ValidationIssue } from "@/lib/flows/validate";
 
 type CanvasConfigPanelProps = {
   selectedId: string;
   node: FlowNode;
   graph: FlowGraph;
+  errors: ValidationIssue[];
   onChange: (n: FlowNode) => void;
   onDelete: (id: string) => void;
   addressBook: AddressEntry[];
@@ -29,6 +31,7 @@ export default function CanvasConfigPanel({
   selectedId,
   node,
   graph,
+  errors,
   onChange,
   onDelete,
   addressBook,
@@ -201,6 +204,7 @@ export default function CanvasConfigPanel({
               <ConfigPanel
                 node={node}
                 graph={graph}
+                errors={errors}
                 onChange={onChange}
                 onDelete={onDelete}
                 addressBook={addressBook}
