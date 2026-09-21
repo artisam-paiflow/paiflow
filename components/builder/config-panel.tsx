@@ -1370,7 +1370,7 @@ export default function ConfigPanel({
         <SwapPanel
           node={node}
           onChange={onChange}
-          errors={fieldError}
+          fieldError={fieldError}
           expectedAsset={expectedAsset}
           network={network}
         />

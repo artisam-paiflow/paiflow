@@ -9,14 +9,14 @@ import { AssetSimpleSelect, Field } from "./asset-fields";
 type Props = {
   node: Extract<FlowNode, { type: "swap" }>;
   onChange: (n: FlowNode) => void;
-  errors: (field: string) => string | null;
+  fieldError: (field: string) => string | null;
   expectedAsset: Asset | null;
   network: StellarNetwork;
   /** The router this environment resolves to. Unused until #612 names it on the panel. */
   routerContractId?: string;
 };
 
-export default function SwapPanel({ node, onChange, errors, expectedAsset, network }: Props) {
+export default function SwapPanel({ node, onChange, fieldError, expectedAsset, network }: Props) {
   return (
     <>
       <AssetSimpleSelect
@@ -26,7 +26,7 @@ export default function SwapPanel({ node, onChange, errors, expectedAsset, netwo
           onChange({ ...node, config: { ...node.config, assetIn } } as FlowNode)
         }
         expectedAsset={expectedAsset}
-        error={errors("assetIn")}
+        error={fieldError("assetIn")}
       />
       <AssetSimpleSelect
         label="Asset Out"
@@ -34,7 +34,7 @@ export default function SwapPanel({ node, onChange, errors, expectedAsset, netwo
         onChange={(assetOut) =>
           onChange({ ...node, config: { ...node.config, assetOut } } as FlowNode)
         }
-        error={errors("assetOut")}
+        error={fieldError("assetOut")}
       />
       <Field label="Router">
         {/* One option, disabled: the router address is pinned per environment
@@ -45,7 +45,7 @@ export default function SwapPanel({ node, onChange, errors, expectedAsset, netwo
           <option value="soroswap">Soroswap ({network})</option>
         </select>
       </Field>
-      <Field label="Max slippage (%)" error={errors("slippageBps")}>
+      <Field label="Max slippage (%)" error={fieldError("slippageBps")}>
         <input
           className="input"
           type="number"
@@ -74,7 +74,7 @@ export default function SwapPanel({ node, onChange, errors, expectedAsset, netwo
           Soroswap&apos;s 0.3% fee plus price impact, so at least 0.3% is required.
         </div>
       </Field>
-      <Field label="Deadline (seconds)" error={errors("deadlineSecs")}>
+      <Field label="Deadline (seconds)" error={fieldError("deadlineSecs")}>
         <input
           className="input"
           type="number"
