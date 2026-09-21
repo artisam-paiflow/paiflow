@@ -147,7 +147,7 @@ Key boundaries:
 git clone https://github.com/webnxt-2030/pinkraft.git
 cd pinkraft
 
-# 2. Install deps (requires Node 22.11.x and pnpm 10.4.1)
+# 2. Install deps (requires Node 22.22.x and pnpm 10.4.1)
 corepack enable && corepack prepare pnpm@10.4.1 --activate
 pnpm install
 
@@ -195,7 +195,7 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 | Layer         | Tech                                                                                         |
 | ------------- | -------------------------------------------------------------------------------------------- |
-| Runtime       | Node.js 22 LTS (`>=22.11 <23`), pnpm 10.4.1                                                  |
+| Runtime       | Node.js 22 LTS (`>=22.22.2 <23`), pnpm 10.4.1                                                |
 | Language      | TypeScript 5.7 — `strict`, `noUncheckedIndexedAccess`                                        |
 | Framework     | Next.js 15 (App Router, RSC, Route Handlers), React 19                                       |
 | UI            | Tailwind 4 beta (CSS-first `@theme`), Material Symbols (self-hosted), `@xyflow/react` 12     |
@@ -227,7 +227,7 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 ### Prerequisites
 
-- Node `22.11.x` (capped at `<23` — see `engines` in `package.json`)
+- Node `22.22.x` (capped at `<23` — see `engines` in `package.json`)
 - pnpm `10.4.1` — `corepack enable && corepack prepare pnpm@10.4.1 --activate`
 - Docker (for Postgres / Redis / MinIO)
 - _(Optional)_ A [Resend](https://resend.com) account for outbound transactional email (password reset). When unset, emails are logged to the dev console.

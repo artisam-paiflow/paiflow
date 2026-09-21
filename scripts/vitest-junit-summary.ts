@@ -53,7 +53,7 @@ const lines = [
 ];
 for (const [project, c] of rows) {
   const passed = c.tests - c.failed - c.skipped;
-  const mark = c.failed > 0 ? "❌" : "✅";
+  const mark = c.failed > 0 ? "❌" : passed > 0 ? "✅" : "⚠️";
   lines.push(`| ${mark} \`${project}\` | ${c.files} | ${passed} | ${c.failed} | ${c.skipped} |`);
 }
 lines.push("", `Full report: the \`vitest-junit\` artifact on this run.`);

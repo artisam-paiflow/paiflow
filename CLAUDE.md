@@ -26,7 +26,7 @@ You are building a **financial application that signs blockchain transactions**.
 ## 1. Commands
 
 ```bash
-pnpm install                 # Node 22.11.x, pnpm 10.4.1 (corepack)
+pnpm install                 # Node 22.22.x, pnpm 10.4.1 (corepack)
 pnpm docker:up               # Postgres + Redis + MinIO (profile "full"; "core" omits MinIO)
 pnpm db:migrate              # create + apply a migration (dev)
 pnpm db:seed                 # requires ADMIN_SEED_PASSWORD (>=12 chars); refuses to use a default
@@ -53,7 +53,8 @@ Vitest runs two projects: `node` picks up `tests/unit/**/*.test.ts`, `dom` picks
 `tests/unit/**/*.test.tsx` under jsdom (plus `tests/unit/setup-dom.ts`), and a file matching
 neither is skipped without a warning, which `tests/unit/test-config.test.ts` guards against.
 `vitest.config.ts` aliases `server-only` and `dotenv` to stubs in `tests/stubs/` — **there is no
-`@/lib/env` stub; code under test gets the real schema.** Isolation comes from `tests/unit/setup.ts` instead: before each test **file** it deletes
+`@/lib/env` stub; code under test gets the real schema.** Isolation comes from `tests/unit/setup.ts`
+instead: before each test **file** it deletes
 every variable `EnvSchema` knows (`ENV_VAR_NAMES`), then sets `AUTH_SECRET`, pins `NODE_ENV=test`
 (vitest only does `??=`, so a shell `production` would otherwise leak), and puts back `DATABASE_URL`
 and `LOG_LEVEL` from your shell — falling back to the local Postgres and `silent` — so you can still
@@ -74,7 +75,8 @@ cd contracts && cargo test --workspace && cargo clippy --all-targets -- -D warni
 
 CI (`.github/workflows/ci.yml`): a **node** lane (`db:generate` → `db:migrate:deploy` → `typecheck`
 → `test:ci`, which uploads the `vitest-junit` artifact and a job summary → `db:seed` → `build` →
-`pnpm audit`) and a **rust** lane (`cargo fmt --check`, `clippy -D warnings`, `cargo test --workspace`). Both must be green. **There is no E2E job.**
+`pnpm audit`) and a **rust** lane (`cargo fmt --check`, `clippy -D warnings`,
+`cargo test --workspace`). Both must be green. **There is no E2E job.**
 
 The stack table and directory tree live in
 [`README.md` → "Stack at a glance"](README.md#stack-at-a-glance) and
