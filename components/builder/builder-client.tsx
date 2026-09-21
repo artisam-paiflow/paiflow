@@ -856,6 +856,7 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
                   selectedId={selectedId}
                   node={selectedNode}
                   graph={graph}
+                  errors={errors}
                   network={network}
                   onChange={updateNode}
                   onDelete={deleteNode}
