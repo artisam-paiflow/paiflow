@@ -1,0 +1,36 @@
+# graphify reads .gitignore too; these are extra exclusions for the knowledge graph.
+
+# Docs are text only: no PDFs, images, or media.
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.svg
+*.ico
+*.mp4
+*.webm
+*.mov
+*.docx
+*.pptx
+*.xlsx
+
+# Generated or noisy
+graphify-out/
+screenshots/
+homepage/styles.css
+prisma/migrations/
+pnpm-lock.yaml
+contracts/Cargo.lock
+contracts/target/
+
+# Secrets and auth state (also gitignored; belt and braces)
+.env*
+!.env.example
+tests/e2e/.auth/
+
+# Evidence captures are data dumps, not structure; docs/pdf/ duplicates the md guides
+docs/instawards/evidence/**/*.json
+docs/instawards/evidence/*.json
+docs/pdf/
