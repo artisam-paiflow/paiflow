@@ -67,7 +67,7 @@ export function AssetSelect({
       <Field
         label={label}
         hint={hint ?? "Set by the asset flowing into this step."}
-        error={error ?? policyError}
+        error={policyError ?? error}
       >
         {(control) => (
           <output {...control} className={readoutClass}>

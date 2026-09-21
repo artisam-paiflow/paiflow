@@ -83,6 +83,37 @@ describe("AssetSelect", () => {
     expect((await axe.run(container)).violations).toEqual([]);
   });
 
+  it("keeps the policy message over a caller error, which still shows under adopt", () => {
+    const { unmount } = render(
+      <AssetSelect
+        label="Asset In"
+        value={USDC}
+        onChange={() => {}}
+        expectedAsset={CUSTOM}
+        onUpstreamCustom="error"
+        error="Server says no."
+      />,
+    );
+    const readout = screen.getByRole("status", { name: "Asset In" });
+    expect(readout.getAttribute("aria-invalid")).toBe("true");
+    expect(describedText(readout)).toMatch(/delivers EURC/);
+    unmount();
+
+    render(
+      <AssetSelect
+        label="Asset In"
+        value={CUSTOM}
+        onChange={() => {}}
+        expectedAsset={CUSTOM}
+        onUpstreamCustom="adopt"
+        error="Server says no."
+      />,
+    );
+    expect(describedText(screen.getByRole("status", { name: "Asset In" }))).toMatch(
+      /Server says no\./,
+    );
+  });
+
   it('"adopt" policy writes the upstream custom asset once', () => {
     const onChange = vi.fn();
     function Adopting() {
