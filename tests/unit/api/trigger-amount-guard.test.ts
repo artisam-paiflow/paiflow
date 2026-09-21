@@ -203,3 +203,45 @@ describe("POST /api/deployments/[id]/trigger — amount guard", () => {
     expect(log.warn).toHaveBeenCalled();
   });
 });
+
+describe("POST /api/deployments/[id]/trigger — amount shape", () => {
+  beforeEach(() => {
+    mockDb.deployment.findFirst.mockClear();
+    mockPrepareTriggerTx.mockClear();
+    mockPrepareWebhookDepositTx.mockClear();
+    mockPrepareStreamerTopUp.mockClear();
+    mockDb.deployment.findFirst.mockResolvedValue(
+      deployment({
+        pipelineSnapshot: [{ nodeId: "t", contractAddress: "CWH", templateKind: "WEBHOOK" }],
+      }),
+    );
+  });
+
+  function expectNothingPrepared() {
+    expect(mockDb.deployment.findFirst).not.toHaveBeenCalled();
+    expect(mockPrepareTriggerTx).not.toHaveBeenCalled();
+    expect(mockPrepareWebhookDepositTx).not.toHaveBeenCalled();
+    expect(mockPrepareStreamerTopUp).not.toHaveBeenCalled();
+  }
+
+  it("refuses zero with a field error", async () => {
+    const res = await call("0");
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error.code).toBe("VALIDATION");
+    expect(body.error.fields.amount).toBeDefined();
+    expectNothingPrepared();
+  });
+
+  it("refuses an amount past i128 with a 422, not a RangeError 500", async () => {
+    const res = await call((1n << 127n).toString());
+    expect(res.status).toBe(422);
+    expectNothingPrepared();
+  });
+
+  it("accepts the i128 ceiling itself", async () => {
+    const res = await call(((1n << 127n) - 1n).toString());
+    expect(res.status).toBe(200);
+    expect(mockPrepareWebhookDepositTx).toHaveBeenCalled();
+  });
+});
