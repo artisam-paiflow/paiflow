@@ -1,7 +1,0 @@
-#!/usr/bin/env sh
-# Refresh the local graphify graph after a pull (CLAUDE.md §22). Silent no-op without graphify;
-# --force because the checked-out tree may legitimately have fewer nodes than the last build.
-if command -v graphify >/dev/null 2>&1 && [ -f graphify-out/graph.json ]; then
-  (graphify update . --force >/dev/null 2>&1 &)
-fi
-exit 0
