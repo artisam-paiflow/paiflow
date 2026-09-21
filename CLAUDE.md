@@ -612,9 +612,9 @@ multi-megabyte file every branch rewrites would conflict across parallel PRs.
 
 Setup, once per machine: `uv tool install graphifyy && graphify install`. Per clone: build with
 `/graphify .` in Claude Code, or copy `graphify-out/` from another clone (its extraction cache is
-content-keyed and portable) and run `graphify update .`. The PreToolUse hooks that nudge toward the
-graph live in `.claude/settings.json`, which is gitignored too — add them with
-`graphify claude install`, then revert the section it appends to this file (§22 already covers it).
+content-keyed and portable) and run `graphify update .`. Don't run `graphify claude install`: its
+PreToolUse hooks demand a graph query before every Bash, Grep, Read and Glob call, and it appends a
+section to this file that duplicates §22.
 
 - For "where is X" / "what calls Y" / "how does A reach B", ask the graph before grepping:
   `graphify explain "withRelayerLock()"`, `graphify path "A" "B" --undirected`,
