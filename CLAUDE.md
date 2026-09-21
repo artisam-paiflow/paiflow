@@ -621,8 +621,11 @@ graph live in `.claude/settings.json`, which is gitignored too — add them with
   `graphify query "<question>"`. `GRAPH_REPORT.md` is the overview; read it only for broad questions.
 - `explain` and `path` are the precise tools. `query` is a keyword BFS and gets noisy on generic words.
 - Grep is still right for exact strings, and the code is the authority — the graph can be stale.
-- After changing code, run `graphify update .` before committing (AST only, seconds, no LLM). After
-  changing docs, run `/graphify . --update` in Claude Code (re-extracts only the changed docs).
+- After changing code, run `graphify update .` before committing (AST only, seconds, no LLM).
+  Pulls and branch switches refresh the code side on their own: `.husky/post-merge` and
+  `.husky/post-checkout` run it in the background, and do nothing where graphify isn't installed.
+- Docs are never refreshed automatically. After changing docs, or pulling changes to them, run
+  `/graphify . --update` in Claude Code (re-extracts only the changed docs).
 - If `graphify-out/` is missing, there is no graph here yet: grep as usual, and build or copy one
   when the task is large enough to benefit.
 
