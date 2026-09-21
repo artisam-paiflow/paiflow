@@ -21,3 +21,6 @@ next-env.d.ts
 .agents/
 skills-lock.json
 .claude/
+
+# graphify knowledge graph: local per clone (CLAUDE.md §22)
+graphify-out/

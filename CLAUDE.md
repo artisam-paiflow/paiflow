@@ -588,6 +588,32 @@ Being worked through; don't trust these yet:
 
 ---
 
+## 22. Knowledge graph (graphify)
+
+`graphify-out/` holds a [graphify](https://github.com/Graphify-Labs/graphify) knowledge graph of the
+repo: code via tree-sitter AST, plus text docs (`.md`, `.html`, `.yml`) via LLM extraction. PDFs,
+images and evidence JSON are excluded (`.graphifyignore`). The graph is **gitignored and local to
+each clone or worktree**, so it always describes the branch checked out there. Never commit it: a
+multi-megabyte file every branch rewrites would conflict across parallel PRs.
+
+Setup, once per machine: `uv tool install graphifyy && graphify install`. Per clone: build with
+`/graphify .` in Claude Code, or copy `graphify-out/` from another clone (its extraction cache is
+content-keyed and portable) and run `graphify update .`. The PreToolUse hooks that nudge toward the
+graph live in `.claude/settings.json`, which is gitignored too — add them with
+`graphify claude install`, then revert the section it appends to this file (§22 already covers it).
+
+- For "where is X" / "what calls Y" / "how does A reach B", ask the graph before grepping:
+  `graphify explain "withRelayerLock()"`, `graphify path "A" "B" --undirected`,
+  `graphify query "<question>"`. `GRAPH_REPORT.md` is the overview; read it only for broad questions.
+- `explain` and `path` are the precise tools. `query` is a keyword BFS and gets noisy on generic words.
+- Grep is still right for exact strings, and the code is the authority — the graph can be stale.
+- After changing code, run `graphify update .` before committing (AST only, seconds, no LLM). After
+  changing docs, run `/graphify . --update` in Claude Code (re-extracts only the changed docs).
+- If `graphify-out/` is missing, there is no graph here yet: grep as usual, and build or copy one
+  when the task is large enough to benefit.
+
+---
+
 ## Other agent configs
 
 A Codex config (`~/.codex/config.toml`) and a Gemini CLI config (`~/.gemini/settings.json`) exist on
