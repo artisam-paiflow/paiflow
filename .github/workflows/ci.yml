@@ -42,7 +42,17 @@ jobs:
       - run: pnpm db:generate
       - run: pnpm db:migrate:deploy
       - run: pnpm typecheck
-      - run: pnpm test
+      - run: pnpm test:ci
+      - name: Upload test report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-junit
+          path: reports/vitest-junit.xml
+          if-no-files-found: warn
+      - name: Test summary
+        if: ${{ !cancelled() }}
+        run: pnpm exec tsx scripts/vitest-junit-summary.ts >> "$GITHUB_STEP_SUMMARY"
       - run: pnpm db:seed
       - run: pnpm build
       - name: pnpm audit

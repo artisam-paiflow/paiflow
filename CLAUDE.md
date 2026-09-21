@@ -26,7 +26,7 @@ You are building a **financial application that signs blockchain transactions**.
 ## 1. Commands
 
 ```bash
-pnpm install                 # Node 22.11.x, pnpm 10.4.1 (corepack)
+pnpm install                 # Node 22.22.x, pnpm 10.4.1 (corepack)
 pnpm docker:up               # Postgres + Redis + MinIO (profile "full"; "core" omits MinIO)
 pnpm db:migrate              # create + apply a migration (dev)
 pnpm db:seed                 # requires ADMIN_SEED_PASSWORD (>=12 chars); refuses to use a default
@@ -41,14 +41,20 @@ pnpm dev
 | Unit tests                                | `pnpm test`                                                                        |
 | **One unit test file**                    | `pnpm test tests/unit/offramp/pdax.test.ts`                                        |
 | **One unit test by name**                 | `pnpm test -- -t "<test name substring>"`                                          |
+| **One component test file**               | `pnpm test tests/unit/builder/inputs/smoke.test.tsx`                               |
+| Component tests only                      | `pnpm test --project dom`                                                          |
+| As CI runs it (junit to `reports/`)       | `pnpm test:ci`                                                                     |
 | Watch                                     | `pnpm test:watch`                                                                  |
 | E2E (boots `pnpm dev` itself)             | `pnpm test:e2e`                                                                    |
 | **One E2E spec**                          | `pnpm test:e2e tests/e2e/happy-path.spec.ts`                                       |
 | Screenshots (committed to `screenshots/`) | `pnpm screenshots` / `pnpm screenshots:mobile`                                     |
 
-Vitest only picks up `tests/unit/**/*.test.ts`. `vitest.config.ts` aliases `server-only` and
-`dotenv` to stubs in `tests/stubs/` — **there is no `@/lib/env` stub; code under test gets the real
-schema.** Isolation comes from `tests/unit/setup.ts` instead: before each test **file** it deletes
+Vitest runs two projects: `node` picks up `tests/unit/**/*.test.ts`, `dom` picks up
+`tests/unit/**/*.test.tsx` under jsdom (plus `tests/unit/setup-dom.ts`), and a file matching
+neither is skipped without a warning, which `tests/unit/test-config.test.ts` guards against.
+`vitest.config.ts` aliases `server-only` and `dotenv` to stubs in `tests/stubs/` — **there is no
+`@/lib/env` stub; code under test gets the real schema.** Isolation comes from `tests/unit/setup.ts`
+instead: before each test **file** it deletes
 every variable `EnvSchema` knows (`ENV_VAR_NAMES`), then sets `AUTH_SECRET`, pins `NODE_ENV=test`
 (vitest only does `??=`, so a shell `production` would otherwise leak), and puts back `DATABASE_URL`
 and `LOG_LEVEL` from your shell — falling back to the local Postgres and `silent` — so you can still
@@ -68,8 +74,9 @@ cd contracts && cargo test --workspace && cargo clippy --all-targets -- -D warni
 ```
 
 CI (`.github/workflows/ci.yml`): a **node** lane (`db:generate` → `db:migrate:deploy` → `typecheck`
-→ `test` → `db:seed` → `build` → `pnpm audit`) and a **rust** lane (`cargo fmt --check`,
-`clippy -D warnings`, `cargo test --workspace`). Both must be green. **There is no E2E job.**
+→ `test:ci`, which uploads the `vitest-junit` artifact and a job summary → `db:seed` → `build` →
+`pnpm audit`) and a **rust** lane (`cargo fmt --check`, `clippy -D warnings`,
+`cargo test --workspace`). Both must be green. **There is no E2E job.**
 
 The stack table and directory tree live in
 [`README.md` → "Stack at a glance"](README.md#stack-at-a-glance) and
@@ -446,6 +453,13 @@ You will rarely modify these. When you do:
 **Unit (vitest)** — mandatory for `lib/flows/validate.ts`, `lib/flows/to-params.ts`,
 `lib/flows/english.ts` (pure, high-leverage), `lib/stellar/deploy.ts` (mock the RPC client),
 `lib/auth.ts` helpers, and every Zod schema (round-trip realistic _and_ adversarial inputs).
+
+**Component (vitest `dom` project)** — `tests/unit/**/*.test.tsx`, rendered under jsdom with
+`@testing-library/react` and `user-event`; query with `getByRole` and plain DOM (no jest-dom), and
+scan with `axe-core` where accessibility is the claim. Test the extracted component, **never
+`ConfigPanel`**: its `<style jsx>` needs Next's SWC styled-jsx transform, which vitest does not run.
+Pure logic still belongs in a `*.utils.ts` tested in the `node` project. CI runs both projects via
+`pnpm test:ci` and uploads the junit report as the `vitest-junit` artifact, with a job summary.
 
 **E2E (Playwright)** — at least one happy path: log in as the seeded admin, build a splitter flow,
 deploy with a mocked wallet signature, assert `CONFIRMED` plus a contract address, then fund and
