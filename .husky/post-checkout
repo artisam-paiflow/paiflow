@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# Refresh the local graphify graph on a branch switch (CLAUDE.md §22); $3 = 0 for file checkouts.
+# --force because the other branch may legitimately have fewer nodes than the last build.
+if [ "$3" = "1" ] && command -v graphify >/dev/null 2>&1 && [ -f graphify-out/graph.json ]; then
+  (graphify update . --force >/dev/null 2>&1 &)
+fi
+exit 0
