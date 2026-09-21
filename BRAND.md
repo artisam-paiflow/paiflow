@@ -297,11 +297,18 @@ Hero cards (denser content): use `rounded-full` (12px) and `p-md` to `p-lg`.
 
 ```html
 <input
-  class="bg-surface-container-lowest border-outline-variant/50 text-on-surface p-xs pl-sm focus:border-primary focus:ring-primary w-full rounded border font-mono text-sm transition-all focus:ring-1 focus:outline-none"
+  class="bg-surface-container-lowest border-outline-variant/50 text-on-surface focus-visible:border-primary focus-visible:ring-primary aria-invalid:border-error/70 w-full rounded border px-3 py-2 font-mono text-[16px] focus:outline-none focus-visible:ring-1 md:text-[14px] pointer-coarse:min-h-11"
 />
 ```
 
 Labels above inputs, in `label-sm` mono, `text-on-surface-variant`. On focus, label color shifts to `primary` (use `group-focus-within:text-primary`).
+
+- **Focus:** the ring is `focus-visible:`, not `focus:`. It shows for keyboard focus and stays out of the way of a mouse click. Never remove the outline without putting a ring in its place.
+- **Touch targets:** at least 44px tall under a coarse pointer (`pointer-coarse:min-h-11`).
+- **Text size:** 16px below `md`, because iOS zooms the page when it focuses a smaller input. Above `md` it is 14px.
+- **Error state:** the border goes to `error/70`, keyed off `aria-invalid`. The message sits below the control in `label-sm` mono `text-error`, wired with `aria-describedby` and in a polite live region. Colour is never the only signal.
+
+These are implemented once in `components/builder/inputs/styles.ts`, with the label, hint and error wiring in `components/builder/inputs/field.tsx`. New inputs use those; the legacy `.input` rule in `config-panel.tsx` is kept only for panels not yet migrated.
 
 ### Data tables
 
