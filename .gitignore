@@ -12,6 +12,7 @@ out/
 coverage/
 playwright-report/
 test-results/
+reports/
 tests/e2e/.auth/
 .docker/
 contracts/target/
