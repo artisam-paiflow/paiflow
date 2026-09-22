@@ -12,8 +12,8 @@ export function nodeIssues(
   issues: readonly ValidationIssue[],
   nodeId: string,
   nodeIndex: number,
-): { fields: Map<string, string>; general: string[] } {
-  const fields = new Map<string, string>();
+): { field: Map<string, string>; general: string[] } {
+  const field = new Map<string, string>();
   const general: string[] = [];
   for (const issue of issues) {
     const seg = issue.path.split(".");
@@ -23,10 +23,10 @@ export function nodeIssues(
     if (!isThisNode) continue;
     if (seg[2] === "config" && seg.length > 3) {
       const fieldPath = seg.slice(3).join(".");
-      if (!fields.has(fieldPath)) fields.set(fieldPath, issue.friendlyMessage);
+      if (!field.has(fieldPath)) field.set(fieldPath, issue.friendlyMessage);
     } else {
       general.push(issue.friendlyMessage);
     }
   }
-  return { fields, general };
+  return { field, general };
 }
