@@ -78,6 +78,23 @@ describe("AmountInput", () => {
     expect((await axe.run(container)).violations).toEqual([]);
   });
 
+  it("lets the caller word the empty note, for an amount the flow never holds", async () => {
+    const user = userEvent.setup();
+    const spy = vi.fn();
+    render(
+      <Owned
+        initial="15000000"
+        spy={spy}
+        emptyNote={(described) => `Empty — the preview still quotes ${described}.`}
+      />,
+    );
+    await user.clear(field());
+    await user.tab();
+    expect(spy).not.toHaveBeenCalled();
+    expect(describedText(field())).toContain("Empty — the preview still quotes 1.5 USDC.");
+    expect(describedText(field())).not.toContain("the flow still uses");
+  });
+
   it("refuses an 8th decimal and says why", async () => {
     const user = userEvent.setup();
     const spy = vi.fn();

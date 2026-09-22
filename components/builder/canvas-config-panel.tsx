@@ -23,6 +23,7 @@ type CanvasConfigPanelProps = {
   chatCollapsed: boolean;
   canvasRef: React.RefObject<HTMLDivElement | null>;
   network: StellarNetwork;
+  routerContractId?: string;
 };
 
 const NODE_ANCHOR_OFFSET_X = 240;
@@ -41,6 +42,7 @@ export default function CanvasConfigPanel({
   chatCollapsed,
   canvasRef,
   network,
+  routerContractId,
 }: CanvasConfigPanelProps) {
   const { getNode, screenToFlowPosition } = useReactFlow();
   const { x, y, zoom } = useViewport();
@@ -212,6 +214,7 @@ export default function CanvasConfigPanel({
                 addressBookLoading={addressBookLoading}
                 addressBookError={addressBookError}
                 network={network}
+                routerContractId={routerContractId}
                 hideHeader
                 className="border-0"
               />

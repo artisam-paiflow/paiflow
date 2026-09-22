@@ -22,6 +22,8 @@ type Props = {
   error?: string | null;
   hint?: React.ReactNode;
   disabled?: boolean;
+  /** Overrides the note shown when a cleared field blurs, e.g. for a preview-only amount. */
+  emptyNote?: (described: string) => string;
 };
 
 const STROOPS = /^\d{1,39}$/;
@@ -42,6 +44,7 @@ export function AmountInput({
   error,
   hint,
   disabled,
+  emptyNote,
 }: Props) {
   const unit = asset ? assetLabel(asset) : null;
   const describe = (units: bigint) =>
@@ -54,6 +57,7 @@ export function AmountInput({
     min: toUnits(min) ?? 1n,
     max: toUnits(max) ?? I128_MAX,
     describe,
+    emptyNote,
   });
   // The echo is what the flow holds, which the draft may not show mid-edit.
   const echo = current !== null && unit ? `= ${describe(current)}` : null;

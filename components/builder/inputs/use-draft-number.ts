@@ -12,6 +12,8 @@ type Options = {
   max: bigint;
   /** A value as the user reads it, with its unit, for the notes: "0.3%". */
   describe: (units: bigint) => string;
+  /** The note when a cleared field blurs, given `describe(value)`; defaults to "the flow still uses". */
+  emptyNote?: (described: string) => string;
 };
 
 /**
@@ -27,7 +29,15 @@ type Options = {
  * that committed would loop. The one effect below re-syncs the draft and does
  * not touch `onChange`.
  */
-export function useDraftNumber({ value, onChange, decimals, min, max, describe }: Options) {
+export function useDraftNumber({
+  value,
+  onChange,
+  decimals,
+  min,
+  max,
+  describe,
+  emptyNote = (described) => `Empty — the flow still uses ${described}.`,
+}: Options) {
   const format = (units: bigint | null) => (units === null ? "" : formatUnits(units, decimals));
   const [draft, setDraft] = useState(() => format(value));
   const [note, setNote] = useState<string | null>(null);
@@ -79,7 +89,7 @@ export function useDraftNumber({ value, onChange, decimals, min, max, describe }
       }
       if (parsed.kind === "refused") return; // unreachable: a refused edit never becomes the draft
       if (parsed.kind === "partial") setDraft("");
-      if (value !== null) setNote(`Empty — the flow still uses ${describe(value)}.`);
+      if (value !== null) setNote(emptyNote(describe(value)));
     },
   } as const;
 

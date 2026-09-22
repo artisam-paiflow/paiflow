@@ -72,8 +72,10 @@ type BuilderProps = {
   flowId: string;
   initialName: string;
   initialGraph: FlowGraph;
-  /** Pinned per environment on the server; the swap panel names it on the router selector. */
+  /** Pinned per environment on the server; the swap panel names it on the router field. */
   network: StellarNetwork;
+  /** The Soroswap router this environment resolves to, shown read-only on the swap panel. */
+  routerContractId?: string;
 };
 
 function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["positions"]): Node {
@@ -180,7 +182,7 @@ export default function BuilderClient(props: BuilderProps) {
   );
 }
 
-function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
+function Builder({ flowId, initialName, initialGraph, network, routerContractId }: BuilderProps) {
   const [name, setName] = useState(initialName);
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>(initialGraph.nodes);
   const [rfNodes, setRfNodes] = useState<Node[]>(
@@ -858,6 +860,7 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
                   graph={graph}
                   errors={errors}
                   network={network}
+                  routerContractId={routerContractId}
                   onChange={updateNode}
                   onDelete={deleteNode}
                   addressBook={addressBook}

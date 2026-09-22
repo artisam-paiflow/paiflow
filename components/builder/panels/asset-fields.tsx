@@ -133,27 +133,3 @@ export function AssetField({
     />
   );
 }
-
-export function AssetSimpleSelect({
-  label,
-  asset,
-  onChange,
-  expectedAsset,
-  error,
-}: {
-  label: string;
-  asset: SimpleAsset;
-  onChange: (a: SimpleAsset) => void;
-  expectedAsset?: Asset | null;
-  error?: string | null;
-}) {
-  return (
-    <AssetSelectOrReadout
-      label={label}
-      asset={asset}
-      onChange={onChange}
-      expectedAsset={expectedAsset}
-      error={error}
-    />
-  );
-}
