@@ -42,6 +42,7 @@ import { apiError } from "@/lib/friendly-error";
 import { track } from "@/lib/analytics/client";
 import { IN_SCOPE_NODE_TYPES } from "@/lib/analytics/events";
 import { useValidationTracking } from "@/lib/analytics/validation-tracking";
+import { NARROW_VIEWPORT_QUERY, useMediaQuery } from "@/lib/hooks/use-media-query";
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -192,6 +193,8 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
     initialGraph.edges.map((e) => edgeWithColors(e, initialGraph.nodes)),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // How the open panel was opened: only a keyboard open moves focus into it.
+  const [openedBy, setOpenedBy] = useState<"keyboard" | "pointer">("pointer");
   const [chatCollapsed, setChatCollapsed] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -207,6 +210,13 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
   const [senderKyc, setSenderKyc] = useState<SenderKyc | undefined>(initialGraph.senderKyc);
   const [kycDialogOpen, setKycDialogOpen] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
+  // React Flow reports a keyboard selection (Enter/Space on a focused node) and
+  // a click the same way, as `select` changes, so the canvas remembers which
+  // kind of input came last.
+  const lastInputRef = useRef<"keyboard" | "pointer">("pointer");
+  const narrow = useMediaQuery(NARROW_VIEWPORT_QUERY);
+  const narrowRef = useRef(narrow);
+  narrowRef.current = narrow;
 
   useEffect(() => {
     track("builder_opened", {
@@ -245,7 +255,7 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
     const stored = localStorage.getItem("sidebarCollapsed");
     if (stored === "true") {
       setSidebarCollapsed(true);
-    } else if (stored === null && window.matchMedia("(max-width: 767px)").matches) {
+    } else if (stored === null && window.matchMedia(NARROW_VIEWPORT_QUERY).matches) {
       // No explicit preference yet: default collapsed on narrow viewports so the
       // canvas isn't squeezed to nothing by a fixed 260px sidebar.
       setSidebarCollapsed(true);
@@ -392,9 +402,58 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowId, name, graph]);
 
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+
+  // The one way a node's panel opens, whether by click or by Enter/Space.
+  const selectNode = useCallback((id: string, via: "keyboard" | "pointer") => {
+    if (id !== selectedIdRef.current) {
+      const opened = nodeLookupRef.current.get(id);
+      if (opened) track("node_settings_opened", { node_type: opened.type });
+    }
+    // A click reports twice (the `select` change, then onNodeClick) before a
+    // re-render, so the ref moves now to keep the event from firing twice.
+    selectedIdRef.current = id;
+    setSelectedId(id);
+    setOpenedBy(via);
+    // Below md the panel is a bottom sheet and the chat is full-width, so only
+    // one of them is shown at a time.
+    if (narrowRef.current) setChatCollapsed(true);
+  }, []);
+
+  // Close and Escape hand focus back to the node the panel belongs to.
+  const closePanel = useCallback(() => {
+    const id = selectedIdRef.current;
+    selectedIdRef.current = null;
+    setSelectedId(null);
+    if (!id) return;
+    requestAnimationFrame(() => {
+      canvasRef.current
+        ?.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(id)}"]`)
+        ?.focus();
+    });
+  }, []);
+
   // Sync React Flow node removals back to flowNodes (from develop)
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setRfNodes((nds) => applyNodeChanges(changes, nds));
+
+    // Keyboard selection only reaches us here: React Flow's Enter/Space on a
+    // focused node selects it without calling onNodeClick, and Escape on it
+    // deselects.
+    const selected = changes.find(
+      (c): c is { type: "select"; id: string; selected: true } => c.type === "select" && c.selected,
+    );
+    if (selected) {
+      selectNode(selected.id, lastInputRef.current);
+    } else if (
+      changes.some(
+        (c) => (c.type === "select" || c.type === "remove") && c.id === selectedIdRef.current,
+      )
+    ) {
+      selectedIdRef.current = null;
+      setSelectedId(null);
+    }
 
     const removedIds = changes
       .filter((c): c is { type: "remove"; id: string } => c.type === "remove")
@@ -671,7 +730,9 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
         }
         style={{
           height: "calc(100vh - 4rem)",
-          gridTemplateColumns: sidebarCollapsed ? "40px 1fr" : "260px 1fr",
+          // minmax(0, …): a bare 1fr grows to the toolbar's content width,
+          // which pushed the page past a phone's screen.
+          gridTemplateColumns: sidebarCollapsed ? "40px minmax(0, 1fr)" : "260px minmax(0, 1fr)",
         }}
       >
         <Palette
@@ -691,9 +752,9 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
           }}
         />
 
-        <div className="grid min-h-0 grid-rows-[auto_auto_1fr]">
+        <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_1fr]">
           {/* Row 1: Deploy → editable title */}
-          <div className="px-md gap-md flex items-center py-3">
+          <div className="px-md gap-md flex flex-wrap items-center py-3">
             <DeployButton
               flowId={flowId}
               disabled={!isValid}
@@ -742,7 +803,7 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
           {/* Row 2: English Preview */}
           <div className="px-md pb-2">
             <div className="glass-panel px-md py-sm max-w-2xl rounded-xl">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="text-label-sm text-primary font-mono tracking-[0.08em] uppercase">
                   English Preview
                 </div>
@@ -807,7 +868,16 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
           </div>
 
           {/* Row 3: Canvas */}
-          <div ref={canvasRef} className="relative min-h-0">
+          <div
+            ref={canvasRef}
+            className="relative min-h-0"
+            onKeyDownCapture={() => {
+              lastInputRef.current = "keyboard";
+            }}
+            onPointerDownCapture={() => {
+              lastInputRef.current = "pointer";
+            }}
+          >
             <ReactFlow
               nodes={rfNodes.map((n) => {
                 const fn = flowNodes.find((f) => f.id === n.id);
@@ -826,13 +896,7 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
-              onNodeClick={(_, n) => {
-                if (n.id !== selectedId) {
-                  const clicked = nodeLookupRef.current.get(n.id);
-                  if (clicked) track("node_settings_opened", { node_type: clicked.type });
-                }
-                setSelectedId(n.id);
-              }}
+              onNodeClick={(_, n) => selectNode(n.id, "pointer")}
               onPaneClick={() => {
                 setSelectedId(null);
                 if (!chatCollapsed) setChatCollapsed(true);
@@ -869,6 +933,8 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
                   addressBookError={addressBookError}
                   chatCollapsed={chatCollapsed}
                   canvasRef={canvasRef}
+                  onClose={closePanel}
+                  focusOnOpen={openedBy === "keyboard"}
                 />
               )}
             </ReactFlow>
@@ -885,7 +951,11 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
         onResolveAddress={handleResolveAddress}
         onSkipAddresses={handleSkipAddresses}
         collapsed={chatCollapsed}
-        onToggleCollapse={() => setChatCollapsed((v) => !v)}
+        onToggleCollapse={() => {
+          // Opening the chat below md dismisses the docked panel (see selectNode).
+          if (chatCollapsed && narrow) setSelectedId(null);
+          setChatCollapsed((v) => !v);
+        }}
       />
 
       {/* Sender KYC dialog — design-time capture of the PDAX sender profile */}

@@ -590,6 +590,11 @@ h4 {
   .react-flow__edge-path {
     animation: none;
   }
+  /* The config panel's chat-shift and the splitter's allocation bar. */
+  .config-panel-card,
+  .allocation-bar-segment {
+    transition: none;
+  }
 }
 
 /* ---------------------------------------------------------------------------

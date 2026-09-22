@@ -2623,7 +2623,7 @@ function AllocationBar({ recipients }: { recipients: SplitRecipient[] }) {
         return (
           <div
             key={i}
-            className="h-full transition-all duration-200"
+            className="allocation-bar-segment h-full transition-all duration-200"
             style={{
               width: `${w}%`,
               backgroundColor: colors[i % colors.length]!,
@@ -2634,7 +2634,7 @@ function AllocationBar({ recipients }: { recipients: SplitRecipient[] }) {
       })}
       {total < TOTAL_BPS && (
         <div
-          className="h-full bg-zinc-700 transition-all duration-200"
+          className="allocation-bar-segment h-full bg-zinc-700 transition-all duration-200"
           style={{ width: `${((TOTAL_BPS - total) / TOTAL_BPS) * 100}%` }}
         />
       )}
