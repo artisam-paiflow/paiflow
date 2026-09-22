@@ -10,6 +10,7 @@
  *   pnpm testers:seed-flow-sql --from 7 --to 10
  */
 import { buildTesterStarterFlowSql, testerUsernames } from "@/lib/auth/tester-seed-sql";
+import { SANDBOX_STARTER_NAME } from "@/lib/flows/starter";
 
 function arg(name: string): string | undefined {
   const prefix = `--${name}=`;
@@ -36,7 +37,8 @@ try {
   process.stdout.write(buildTesterStarterFlowSql(usernames));
   console.error(
     `\nStarter flow for: ${usernames.join(", ")}\n` +
-      "Expect one row per username. A missing one already had the flow or does not exist.",
+      `Expect one row per username. A missing one already had a flow named '${SANDBOX_STARTER_NAME}'` +
+      " or does not exist; a renamed or deleted one is re-created.",
   );
 } catch (err) {
   console.error(err instanceof Error ? err.message : err);

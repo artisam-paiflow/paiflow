@@ -95,7 +95,8 @@ function dollarQuoted(tag: string, body: string): string {
  *
  * Create-only, like `buildTesterSeedSql`: an account that already has a flow of that name is
  * skipped and missing from the result, so a re-run never duplicates or overwrites a tester's
- * edited copy. Only `USER`-role rows are touched.
+ * edited copy. A tester who renamed or deleted it gets a fresh one. Only `USER`-role rows are
+ * touched.
  *
  * The `FLOW_CREATE` audit row keeps `userId` null — the tester did not create it, and the alpha
  * metrics read `AuditLog.userId` as tester activity.
