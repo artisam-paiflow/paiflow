@@ -8,13 +8,14 @@
  * One deliberate divergence, in `spotOut` — see its doc comment.
  */
 import { z } from "zod";
+import { bpsSchema, stroopsSchema, TOTAL_BPS as TOTAL_BPS_NUMBER } from "@/lib/flows/primitives";
 import type { Asset } from "@/lib/flows/schema";
 import { assetToParam } from "@/lib/soroswap/asset-param";
 import { StrKey } from "@stellar/stellar-sdk";
 
 export { assetToParam };
 
-export const TOTAL_BPS = 10_000n;
+export const TOTAL_BPS = BigInt(TOTAL_BPS_NUMBER);
 
 /** `native`, `USDC`, or `CODE:GISSUER…` for a custom classic asset. */
 export function parseAssetParam(raw: string): Asset {
@@ -48,8 +49,8 @@ export const QuoteQuerySchema = z
   .object({
     assetIn: assetParam,
     assetOut: assetParam,
-    amountStroops: z.string().regex(/^[1-9]\d{0,38}$/, "Must be a positive integer in stroops"),
-    slippageBps: z.coerce.number().int().min(0).max(10_000).default(100),
+    amountStroops: stroopsSchema({ message: "Must be a positive integer in stroops" }),
+    slippageBps: bpsSchema({ coerce: true }).default(100),
   })
   .refine((q) => assetToParam(q.assetIn) !== assetToParam(q.assetOut), {
     message: "assetIn and assetOut must differ",

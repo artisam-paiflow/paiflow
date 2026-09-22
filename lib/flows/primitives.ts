@@ -18,3 +18,13 @@ export function stroopsSchema({ message }: { message: string }) {
     .string()
     .refine((s) => DIGITS.test(s) && BigInt(s) > 0n && BigInt(s) <= I128_MAX, message);
 }
+
+export const TOTAL_BPS = 10_000;
+
+/**
+ * Basis points, 0 to 100%. `coerce` for query strings; each caller adds its own
+ * default.
+ */
+export function bpsSchema({ coerce = false }: { coerce?: boolean } = {}) {
+  return (coerce ? z.coerce.number() : z.number()).int().min(0).max(TOTAL_BPS);
+}

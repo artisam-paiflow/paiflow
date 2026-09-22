@@ -6,6 +6,7 @@ import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { FlowGraphSchema, isPendingAddress } from "@/lib/flows/schema";
 import type { FlowGraph } from "@/lib/flows/schema";
+import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { upsertAddress } from "@/lib/address-book";
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       throw new AppError(
         "VALIDATION",
         "Resolved addresses created an invalid flow",
-        Object.fromEntries(v.errors.map((e) => [e.path, [e.message]])),
+        issuesToFields(v.errors),
       );
     }
 

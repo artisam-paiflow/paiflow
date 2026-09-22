@@ -123,7 +123,7 @@ describe("validateFlow", () => {
     expect(r.errors.some((e) => /only come straight after/.test(e.friendlyMessage))).toBe(true);
   });
 
-  it("rejects a swap with more than one outgoing edge with a friendly message", () => {
+  it("rejects a swap with more than one outgoing edge", () => {
     const g = swapFlow();
     g.nodes.push({
       id: "p2",
@@ -141,7 +141,7 @@ describe("validateFlow", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) {
       const issue = r.errors.find((e) => e.path === "nodes.s");
-      expect(issue?.friendlyMessage).toMatch(/Remove the extra connections/);
+      expect(issue?.code).toBe("SWAP_SINGLE_EDGE");
     }
   });
 
@@ -155,7 +155,7 @@ describe("validateFlow", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) {
       const issue = r.errors.find((e) => e.path === "nodes.s");
-      expect(issue?.friendlyMessage).toMatch(/needs one/);
+      expect(issue?.code).toBe("SWAP_NEEDS_NEXT_STEP");
     }
   });
 
@@ -178,7 +178,7 @@ describe("validateFlow", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) {
       const issue = r.errors.find((e) => e.path === "nodes.s");
-      expect(issue?.friendlyMessage).toMatch(/needs one/);
+      expect(issue?.code).toBe("SWAP_NEEDS_NEXT_STEP");
     }
   });
 
@@ -222,7 +222,7 @@ describe("validateFlow", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) {
       const issue = r.errors.find((e) => e.path === "nodes.s.config.assetOut");
-      expect(issue?.friendlyMessage).toMatch(/two different assets/);
+      expect(issue?.code).toBe("SWAP_SAME_ASSET");
     }
   });
 
@@ -249,7 +249,7 @@ describe("validateFlow", () => {
       expect(r.ok).toBe(false);
       if (!r.ok) {
         const issue = r.errors.find((e) => e.path === "nodes.s.config.slippageBps");
-        expect(issue?.friendlyMessage).toMatch(/at least 0\.3%/);
+        expect(issue?.code).toBe("SWAP_SLIPPAGE_TOO_LOW");
       }
     }
     expect(withSlippage(30).ok).toBe(true);
