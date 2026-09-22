@@ -256,10 +256,15 @@ test.describe("Config panel container (Instawards D3)", () => {
       reduced.property === "none" || /^0s(, 0s)*$/.test(reduced.duration),
       JSON.stringify(reduced),
     ).toBe(true);
+    // The packet that travels along each edge stops too (#647).
+    const packet = page.locator('.react-flow__edge[data-id="e1"] path.edge-packet');
+    const packetAnimation = () => packet.evaluate((el) => getComputedStyle(el).animationName);
+    expect(await packetAnimation()).toBe("none");
 
+    // And the rules are what remove it: without the preference it animates.
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    expect(await packetAnimation()).toBe("flow-dash");
     if (!isMobile) {
-      // And the rule is what removes it: without the preference it animates.
-      await page.emulateMedia({ reducedMotion: "no-preference" });
       expect((await transition()).property).toMatch(/transform/);
     }
   });

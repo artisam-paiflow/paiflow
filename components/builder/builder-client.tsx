@@ -729,7 +729,7 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
         suppressHydrationWarning
         className={
           ready && hasAnimated
-            ? "grid gap-0 transition-[grid-template-columns] duration-300 ease-in-out"
+            ? "builder-grid grid gap-0 transition-[grid-template-columns] duration-300 ease-in-out"
             : "grid gap-0"
         }
         style={{
