@@ -59,7 +59,6 @@ export default function SwapPanel({
         value={node.config.assetOut}
         onChange={(assetOut) => set({ assetOut })}
         error={fieldError("assetOut")}
-        onUpstreamCustom="error"
       />
       <div data-testid="swap-router">
         {/* Pinned, never editable: the server resolves the router per
@@ -94,6 +93,7 @@ export default function SwapPanel({
         onChange={setPreviewStroops}
         asset={node.config.assetIn}
         hint="Used for this preview only — a swap converts whatever the flow receives."
+        emptyNote={(described) => `Empty — the preview still quotes ${described}.`}
       />
       <SwapQuotePreview
         assetIn={node.config.assetIn}

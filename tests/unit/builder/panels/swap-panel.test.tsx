@@ -294,6 +294,19 @@ describe("SwapPanel", () => {
     expect(screen.getByText(/Used for this preview only/)).toBeTruthy();
   });
 
+  it("says a cleared preview amount still quotes the last one, not that the flow uses it", async () => {
+    const user = userEvent.setup();
+    const refused: unknown[] = [];
+    const spy = vi.fn();
+    render(<Owned spy={spy} refused={refused} />);
+
+    await user.clear(preview());
+    await user.tab();
+    expect(spy).not.toHaveBeenCalled();
+    expect(describedText(preview())).toContain("Empty — the preview still quotes 10 XLM.");
+    expect(describedText(preview())).not.toContain("the flow still uses");
+  });
+
   it("cannot edit the router by typing or pasting", async () => {
     const user = userEvent.setup();
     const refused: unknown[] = [];
