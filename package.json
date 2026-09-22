@@ -28,6 +28,7 @@
     "db:studio": "prisma studio",
     "dev-token:create": "tsx scripts/create-dev-api-token.ts",
     "testers:seed-sql": "tsx scripts/seed-testers.ts",
+    "testers:seed-flow-sql": "tsx scripts/seed-tester-flows.ts",
     "api:openapi": "tsx scripts/print-openapi.ts > docs/api/openapi.json && prettier --write docs/api/openapi.json",
     "demo:check": "tsx scripts/check-demo-deployment.ts",
     "relayer:audit-urls": "tsx scripts/audit-charge-relayer-urls.ts",

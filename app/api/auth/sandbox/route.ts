@@ -10,7 +10,7 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { saveChallenge } from "@/lib/passkey/challenges";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
-import { SANDBOX_STARTER_GRAPH } from "@/lib/flows/starter";
+import { SANDBOX_STARTER_GRAPH, SANDBOX_STARTER_NAME } from "@/lib/flows/starter";
 import { SANDBOX_PASSWORD_SENTINEL } from "@/lib/sandbox";
 
 /**
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
         role: Role.SANDBOX,
         flows: {
           create: {
-            name: "Swap XLM to USDC",
+            name: SANDBOX_STARTER_NAME,
             templateKind: v.templateKind satisfies TemplateKind,
             graph: v.graph as object,
             parameters: flowToPipeline(v.graph) as object,

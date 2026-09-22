@@ -54,6 +54,12 @@ export const STARTER_GRAPH = {
 } as const;
 
 /**
+ * Name of the flow built from `SANDBOX_STARTER_GRAPH`. The alpha testing guide quotes it, so the
+ * sandbox mint and the tester seed (`lib/auth/tester-seed-sql.ts`) share this one copy.
+ */
+export const SANDBOX_STARTER_NAME = "Swap XLM to USDC";
+
+/**
  * The flow seeded into a brand-new sandbox session (`POST /api/auth/sandbox`).
  *
  * This is the D1 evidence path: a visitor with no account lands on it and can
