@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -137,6 +137,24 @@ describe('AddressPicker commit="valid"', () => {
     expect(onChange).toHaveBeenLastCalledWith("PENDING:alice");
   });
 
+  it("marks an edit that breaks a committed address as invalid, and a pick restores it", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} commit="valid" initial={ACCOUNT} addressBook={BOOK} />);
+    const input = screen.getByRole("combobox", { name: "Recipient" }) as HTMLInputElement;
+    expect(input.getAttribute("aria-invalid")).toBeNull();
+
+    fireEvent.change(input, { target: { value: `${ACCOUNT}X` } });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+
+    // The entry equals the committed value, so only selectEntry can reset the draft.
+    await user.click(input);
+    await user.click(screen.getByRole("option", { name: /Alice/ }));
+    expect(input.value).toBe(ACCOUNT);
+    expect(input.getAttribute("aria-invalid")).toBeNull();
+  });
+
   it('"always" (the default) still forwards every keystroke', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
@@ -226,6 +244,28 @@ describe("AddressPicker combobox ARIA", () => {
     expect(onSelectEntry).toHaveBeenCalledWith(BOOK[0]);
     expect(onChange).not.toHaveBeenCalled();
     expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it('accept="contract" offers no G… entry from the address book', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const onSelectEntry = vi.fn();
+    render(
+      <AddressPicker
+        label="Contract"
+        accept="contract"
+        commit="valid"
+        value=""
+        onChange={onChange}
+        onSelectEntry={onSelectEntry}
+        addressBook={BOOK}
+      />,
+    );
+    await user.click(screen.getByRole("combobox", { name: "Contract" }));
+    expect(screen.queryAllByRole("option")).toEqual([]);
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onSelectEntry).not.toHaveBeenCalled();
   });
 
   it("is axe clean closed and with an empty address book open", async () => {

@@ -217,12 +217,23 @@ function EditableAddressPicker({
   const trimmedValue = text.trim();
 
   const isValid = isAcceptedAddress(trimmedValue, accept);
+  // A draft the parent never received: it still holds the last committed
+  // address, so the field must not look settled on something else.
+  const uncommitted = commit === "valid" && trimmedValue !== value.trim();
+  const invalid = Boolean(error) || uncommitted;
   // The address book stores G… accounts only (`/api/address-book`).
   const canSave = isAccountId(trimmedValue);
 
   const isSaved = addressBook.some((e) => e.address === trimmedValue);
 
-  const filtered = useMemo(() => filterAddressBook(addressBook, query), [addressBook, query]);
+  const filtered = useMemo(
+    () =>
+      filterAddressBook(
+        addressBook.filter((e) => isAcceptedAddress(e.address, accept)),
+        query,
+      ),
+    [addressBook, query, accept],
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -320,6 +331,7 @@ function EditableAddressPicker({
   }, [highlightIndex, open]);
 
   function selectEntry(entry: AddressEntry) {
+    setDraft(entry.address);
     if (onSelectEntry) {
       onSelectEntry(entry);
     } else {
@@ -645,12 +657,12 @@ function EditableAddressPicker({
           className={cn(
             inputClasses,
             pending && "ring-1 ring-amber-700",
-            error && "!border-error/70 focus:!border-error focus:!ring-error/50",
+            invalid && "!border-error/70 focus:!border-error focus:!ring-error/50",
           )}
           autoComplete="off"
           {...comboboxProps}
           aria-haspopup="listbox"
-          aria-invalid={error ? true : undefined}
+          aria-invalid={invalid ? true : undefined}
         />
         {pending && (
           <span className="absolute -top-2 right-1 rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400">
