@@ -32,3 +32,6 @@ export const labelClass =
 export const hintClass = "text-label-sm text-on-surface-variant/80 leading-snug";
 
 export const errorClass = "text-label-sm text-error font-mono leading-snug";
+
+/** A unit beside a control (`USDC`, `%`): laid out, not positioned over it. */
+export const suffixClass = "text-label-sm text-on-surface-variant shrink-0 font-mono";
