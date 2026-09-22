@@ -94,4 +94,33 @@ describe("POST /api/deployments/prepare with a swap node", () => {
     expect(json.error?.message ?? "").not.toMatch(/Soroswap router address/);
     expect(json.error?.message ?? "").toMatch(/No WASM uploaded for/);
   });
+
+  it("refuses a swap asset the panel does not offer with a field error, not a 500", async () => {
+    // Saved through the API, not the panel: a PENDING: issuer parses under
+    // AssetSchema, and without the catalogue rule `new Asset()` throws later.
+    const pending = { kind: "custom", code: "PHP", issuer: "PENDING:issuer" };
+    mockDb.flow.findFirst.mockResolvedValue({
+      id: FLOW_ID,
+      ownerId: "user-1",
+      graph: {
+        ...swapGraph,
+        nodes: swapGraph.nodes.map((n) =>
+          n.id === "s"
+            ? { ...n, config: { ...n.config, assetOut: pending } }
+            : n.id === "p"
+              ? { ...n, config: { ...n.config, asset: pending } }
+              : n,
+        ),
+      },
+    });
+    vi.mocked(soroswapRouterAddress).mockReturnValue(
+      "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+    );
+    const res = await POST(request());
+    expect(res.status).toBe(422);
+    const json = await res.json();
+    expect(json.error.code).toBe("VALIDATION");
+    const [msg] = json.error.fields["nodes.s.config.assetOut"];
+    expect(msg).toMatch(/Swaps support/);
+  });
 });
