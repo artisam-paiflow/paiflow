@@ -76,7 +76,8 @@ cd contracts && cargo test --workspace && cargo clippy --all-targets -- -D warni
 CI (`.github/workflows/ci.yml`): a **node** lane (`db:generate` → `db:migrate:deploy` → `typecheck`
 → `test:ci`, which uploads the `vitest-junit` artifact and a job summary → `db:seed` → `build` →
 `pnpm audit`) and a **rust** lane (`cargo fmt --check`, `clippy -D warnings`,
-`cargo test --workspace`). Both must be green. **There is no E2E job.**
+`cargo test --workspace`). Both must be green. **There is no E2E job.** The node lane's
+`setup-node` reads `engines.node` from `package.json`, so CI cannot resolve a Node below the floor.
 
 The stack table and directory tree live in
 [`README.md` → "Stack at a glance"](README.md#stack-at-a-glance) and
