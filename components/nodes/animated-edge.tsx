@@ -57,10 +57,8 @@ export default function AnimatedStraightEdge({
           stroke={`url(#grad-${id})`}
           strokeWidth={1.5}
           strokeDasharray="20 50"
-          style={{
-            animation: "flow-dash 6s linear infinite",
-            pointerEvents: "none",
-          }}
+          className="edge-packet"
+          style={{ pointerEvents: "none" }}
         />
       </g>
 
