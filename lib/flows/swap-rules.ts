@@ -46,18 +46,29 @@ export function swapConfigIssues(node: SwapNode, ctx: SwapRuleContext): Validati
   // Only XLM/USDC is verified on the pinned router, and the pair's SAC
   // addresses are fixed in an immutable constructor. A custom asset (including
   // a PENDING: issuer, which `new Asset()` would throw on as a 500) stops here.
-  if (!isCatalogueAsset(assetIn)) {
-    const fromTrigger =
-      ctx.incomingAsset !== null &&
-      ctx.triggerAsset !== null &&
-      sameAsset(ctx.incomingAsset, assetIn) &&
-      sameAsset(ctx.triggerAsset, assetIn);
+  // Keyed on the incoming asset, not assetIn: the catalogue-only picker can't
+  // set assetIn to the trigger's custom asset, so the fix is the trigger
+  // whatever assetIn holds.
+  const { incomingAsset, triggerAsset } = ctx;
+  if (
+    incomingAsset !== null &&
+    triggerAsset !== null &&
+    sameAsset(incomingAsset, triggerAsset) &&
+    !isCatalogueAsset(incomingAsset)
+  ) {
+    issues.push({
+      path: at("assetIn"),
+      message: `Swap asset ${assetLabel(incomingAsset)} is not supported`,
+      friendlyMessage: FRIENDLY.SWAP_ASSET_FROM_TRIGGER(assetLabel(incomingAsset)),
+      code: "SWAP_ASSET_NOT_SUPPORTED",
+      nodeId: node.id,
+      field: "assetIn",
+    });
+  } else if (!isCatalogueAsset(assetIn)) {
     issues.push({
       path: at("assetIn"),
       message: `Swap asset ${assetLabel(assetIn)} is not supported`,
-      friendlyMessage: fromTrigger
-        ? FRIENDLY.SWAP_ASSET_FROM_TRIGGER(assetLabel(assetIn))
-        : FRIENDLY.SWAP_ASSET_NOT_SUPPORTED(assetLabel(assetIn), "Asset In"),
+      friendlyMessage: FRIENDLY.SWAP_ASSET_NOT_SUPPORTED(assetLabel(assetIn), "Asset In"),
       code: "SWAP_ASSET_NOT_SUPPORTED",
       nodeId: node.id,
       field: "assetIn",

@@ -17,6 +17,7 @@ import {
   subscriptionAmountPerPeriodStroops,
   assetLabel,
 } from "./schema";
+import { isCatalogueAsset } from "./asset-catalogue";
 import type { ValidationIssue } from "./issue";
 import { checkHardLimits } from "./limits";
 import { swapConfigIssues, type SwapNode } from "./swap-rules";
@@ -1062,7 +1063,12 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       if (a.type === "pay") actual = a.config.asset;
       else if (a.type === "split") actual = a.config.asset;
       else if (a.type === "yield") actual = a.config.asset;
-      else if (a.type === "swap") actual = a.config.assetIn;
+      else if (a.type === "swap") {
+        // swapConfigIssues names the trigger for this; "Change Asset In to
+        // <custom>" is advice the catalogue rule would then refuse.
+        if (!isCatalogueAsset(expected)) continue;
+        actual = a.config.assetIn;
+      }
 
       if (actual && !assetsEqual(expected, actual)) {
         errors.push({

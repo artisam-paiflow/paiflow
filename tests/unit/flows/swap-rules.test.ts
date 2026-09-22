@@ -75,6 +75,18 @@ describe("swapConfigIssues", () => {
     expect(issue?.friendlyMessage).toContain("Change the trigger's asset");
   });
 
+  it("names the trigger once even when Asset In is a catalogue asset", () => {
+    const issues = swapConfigIssues(swap({ assetIn: XLM }), {
+      ...CTX,
+      incomingAsset: PHP,
+      triggerAsset: PHP,
+    });
+    expect(issues.map((i) => [i.code, i.path])).toEqual([
+      ["SWAP_ASSET_NOT_SUPPORTED", "nodes.s.config.assetIn"],
+    ]);
+    expect(issues[0]?.friendlyMessage).toContain("receives PHP from the trigger");
+  });
+
   it("does not blame the trigger when the asset was picked on the swap", () => {
     const [issue] = swapConfigIssues(swap({ assetIn: PHP }), CTX);
     expect(issue?.friendlyMessage).not.toContain("trigger");
@@ -145,6 +157,19 @@ describe("validateFlow with swap rules", () => {
       const issue = r.errors.find((e) => e.path === "nodes.s.config.assetIn");
       expect(issue?.code).toBe("SWAP_ASSET_NOT_SUPPORTED");
       expect(issue?.friendlyMessage).toContain("from the trigger");
+    }
+  });
+
+  it("a custom trigger into an XLM → USDC swap points at the trigger, not at Asset In", () => {
+    const r = validateFlow(flow(PHP, { assetIn: XLM }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      const issue = r.errors.find((e) => e.path === "nodes.s.config.assetIn");
+      expect(issue?.code).toBe("SWAP_ASSET_NOT_SUPPORTED");
+      expect(issue?.friendlyMessage).toContain("from the trigger");
+      expect(r.errors.some((e) => e.friendlyMessage?.includes('Change "Asset In" to PHP'))).toBe(
+        false,
+      );
     }
   });
 
