@@ -119,4 +119,18 @@ describe("ShareInput", () => {
     const share = screen.getByRole("textbox", { name: "Recipient share" });
     expect(describedText(share)).toBe("Add a recipient address.");
   });
+
+  it("shows the over-allocation when the caller's error is empty", () => {
+    render(
+      <ShareInput
+        label="Recipient share"
+        value={5000}
+        remainingBps={4000}
+        onChange={() => {}}
+        error=""
+      />,
+    );
+    const share = screen.getByRole("textbox", { name: "Recipient share" });
+    expect(describedText(share)).toContain("Over-allocated by 10%");
+  });
 });

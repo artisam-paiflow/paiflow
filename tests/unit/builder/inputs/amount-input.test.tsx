@@ -113,6 +113,18 @@ describe("AmountInput", () => {
     expect(describedText(field())).toContain("Lowered to the maximum, 100 USDC.");
   });
 
+  it("never commits 0 without a min: the floor is 1 stroop", async () => {
+    const user = userEvent.setup();
+    const spy = vi.fn();
+    render(<Owned spy={spy} />);
+    await user.type(field(), "0");
+    expect(spy).not.toHaveBeenCalled();
+    await user.tab();
+    expect(spy).toHaveBeenLastCalledWith("1");
+    expect(field().value).toBe("0.0000001");
+    expect(describedText(field())).toContain("Raised to the minimum, 0.0000001 USDC.");
+  });
+
   it("normalises the draft on blur without a note when the value is unchanged", async () => {
     const user = userEvent.setup();
     const spy = vi.fn();

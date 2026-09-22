@@ -38,7 +38,7 @@ export function ShareInput({ remainingBps, hint, error, ...rest }: Props) {
           </>
         ) : undefined
       }
-      error={error ?? overError}
+      error={error || overError}
     />
   );
 }

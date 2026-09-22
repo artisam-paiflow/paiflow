@@ -14,7 +14,7 @@ type Props = {
   onChange: (stroops: string) => void;
   /** Supplies the unit suffix and the `= 1.5 USDC` echo. */
   asset?: Asset;
-  /** Stroops. */
+  /** Stroops; defaults to 1 stroop, the smallest amount the flow schema accepts. */
   min?: string;
   /** Stroops; defaults to the largest i128 a contract call can encode. */
   max?: string;
@@ -51,7 +51,7 @@ export function AmountInput({
     value: current,
     onChange: (units) => onChange(units.toString()),
     decimals,
-    min: toUnits(min) ?? 0n,
+    min: toUnits(min) ?? 1n,
     max: toUnits(max) ?? I128_MAX,
     describe,
   });
