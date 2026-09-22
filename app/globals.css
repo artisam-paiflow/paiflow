@@ -645,7 +645,8 @@ h4 {
   .react-flow__edge-path,
   .edge-packet,
   .chat-tab-glow,
-  /* :nth-child(n) to outrank the per-row :nth-child(2|3) name and duration. */
+  /* :nth-child(n) ties the per-row :nth-child(2|3) rules on specificity and
+     wins on source order, so the marquee rules must stay above this block. */
   .marquee-row:nth-child(n) {
     animation: none;
   }
