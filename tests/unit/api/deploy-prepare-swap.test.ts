@@ -5,6 +5,7 @@
  * a config alone can trip is refused here with a field error, not only by
  * validateFlow.
  */
+import { TemplateKind } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockDb } = vi.hoisted(() => ({
@@ -26,6 +27,7 @@ vi.mock("@/lib/env", async (importOriginal) => ({
 
 import { POST } from "@/app/api/deployments/prepare/route";
 import { soroswapRouterAddress } from "@/lib/env";
+import { getWasmHashes } from "@/lib/stellar/config";
 import { preparePipelineDeployTx } from "@/lib/stellar/deploy";
 
 const FLOW_ID = "11111111-1111-1111-1111-111111111111";
@@ -141,6 +143,15 @@ describe("POST /api/deployments/prepare with a swap node", () => {
       },
     });
     vi.mocked(soroswapRouterAddress).mockReturnValue(ROUTER);
+    // A full hash map, so a flow that got past validation would reach
+    // deployment.create and the "nothing prepared" assertions could fail.
+    vi.mocked(getWasmHashes).mockResolvedValueOnce(
+      new Map([
+        [TemplateKind.DEPOSIT_TRIGGER, "hash-trigger"],
+        [TemplateKind.SWAPPER, "hash-swapper"],
+        [TemplateKind.PAYER, "hash-payer"],
+      ]),
+    );
   }
 
   async function refusedFields() {
