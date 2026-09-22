@@ -313,6 +313,26 @@ test.describe("Config panel container (Instawards D3)", () => {
       await expect(node).toHaveCount(0);
       await expect(panel).toHaveCount(0);
     });
+
+    test("dragging a node neither opens its panel nor closes an open one", async ({ page }) => {
+      await gotoBuilder(page, flowId);
+      const drag = async (node: ReturnType<Page["locator"]>) => {
+        const b = (await node.boundingBox())!;
+        await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(b.x + b.width / 2 + 120, b.y + b.height / 2 + 60, { steps: 8 });
+        await page.mouse.up();
+        await expect.poll(async () => (await node.boundingBox())!.x).toBeGreaterThan(b.x + 100);
+      };
+
+      await drag(swapNode(page));
+      await expect(container(page)).toHaveCount(0);
+
+      await page.locator('.react-flow__node[data-id="p"]').click();
+      await expect(container(page)).toBeVisible();
+      await drag(page.locator('.react-flow__node[data-id="t"]'));
+      await expect(container(page)).toHaveAccessibleName("Pay settings");
+    });
   });
 
   test.describe("phone", () => {
@@ -352,6 +372,24 @@ test.describe("Config panel container (Instawards D3)", () => {
 
       await panel.getByRole("button", { name: "Close Swap settings" }).tap();
       await expect(panel).toHaveCount(0);
+    });
+
+    test("the sheet and the chat are never shown together", async ({ page }) => {
+      await gotoBuilder(page, flowId);
+      await swapNode(page).tap();
+      await expect(container(page)).toBeVisible();
+
+      const openChat = page.getByTitle("Open AI chat");
+      await openChat.tap();
+      await expect(container(page)).toHaveCount(0);
+      await expect(page.locator("#ai-panel")).not.toHaveClass(/translate-x-full/);
+
+      // The full-width chat covers the canvas, so the node is reached by keyboard.
+      await swapNode(page).focus();
+      await page.keyboard.press("Enter");
+      await expect(container(page)).toBeVisible();
+      await expect(page.locator("#ai-panel")).toHaveClass(/translate-x-full/);
+      await expect(openChat).toBeVisible();
     });
 
     test("every interactive element in the panel is at least 44×44 CSS px", async ({ page }) => {

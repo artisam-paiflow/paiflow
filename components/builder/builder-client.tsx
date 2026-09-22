@@ -440,15 +440,19 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
 
     // Keyboard selection only reaches us here: React Flow's Enter/Space on a
     // focused node selects it without calling onNodeClick, and Escape on it
-    // deselects.
+    // deselects. Pointer selection goes through onNodeClick/onPaneClick; the
+    // `select` changes a drag start emits are ignored so a drag opens nothing.
+    const keyboard = lastInputRef.current === "keyboard";
     const selected = changes.find(
       (c): c is { type: "select"; id: string; selected: true } => c.type === "select" && c.selected,
     );
-    if (selected) {
-      selectNode(selected.id, lastInputRef.current);
+    if (selected && keyboard) {
+      selectNode(selected.id, "keyboard");
     } else if (
       changes.some(
-        (c) => (c.type === "select" || c.type === "remove") && c.id === selectedIdRef.current,
+        (c) =>
+          (c.type === "remove" || (keyboard && c.type === "select")) &&
+          c.id === selectedIdRef.current,
       )
     ) {
       selectedIdRef.current = null;
