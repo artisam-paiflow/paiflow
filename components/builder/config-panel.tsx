@@ -111,9 +111,11 @@ type Props = {
   /**
    * The network this environment is pinned to, resolved from STELLAR_NETWORK on
    * the server and passed down as a prop (the same route DeployReview takes).
-   * Named on the swap panel's router selector.
+   * Named on the swap panel's router field.
    */
   network: StellarNetwork;
+  /** The Soroswap router this environment resolves to; `undefined` when unset. */
+  routerContractId?: string;
   /**
    * Hide the internal node-type label + Delete header row. Set when the floating
    * wrapper renders its own draggable header with the title and Delete control,
@@ -134,6 +136,7 @@ export default function ConfigPanel({
   addressBookError,
   className,
   network,
+  routerContractId,
   hideHeader = false,
 }: Props) {
   const expectedAsset = useMemo(
@@ -1368,11 +1371,14 @@ export default function ConfigPanel({
 
       {node.type === "swap" && (
         <SwapPanel
+          // Keyed so the preview amount and every draft reset with the selection.
+          key={node.id}
           node={node}
           onChange={onChange}
           fieldError={fieldError}
           expectedAsset={expectedAsset}
           network={network}
+          routerContractId={routerContractId}
         />
       )}
 
