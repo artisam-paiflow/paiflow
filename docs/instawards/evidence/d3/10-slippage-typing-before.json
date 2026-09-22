@@ -1,0 +1,11 @@
+{
+  "field": "Max slippage (%)",
+  "startValue": "1",
+  "typed": "0.5",
+  "afterEachKey": [
+    { "key": "0", "value": "0.3", "screenshot": "10-slippage-typing-before-1.png" },
+    { "key": ".", "value": "0.3", "screenshot": "10-slippage-typing-before-2.png" },
+    { "key": "5", "value": "0.35", "screenshot": "10-slippage-typing-before-3.png" }
+  ],
+  "note": "The 0.3% floor is applied on every keystroke (#454), so typing 0.5 ends as 0.35."
+}

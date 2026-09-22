@@ -1,0 +1,18 @@
+{
+  "capturedAt": "2026-09-22",
+  "url": "https://paiflow.xyz/flows/<throwaway flow>",
+  "build": "staging as promoted 2026-09-20 (#599): the D1 Swapper panel, before #612/#613",
+  "browser": "Chrome on Linux, driven through the Claude in Chrome extension",
+  "viewport": "1536x904 CSS px at devicePixelRatio 1.25; the window could not be resized to 1440x1600, and panel shots are cropped to the panel",
+  "flow": "Receive (XLM) -> Swap (XLM -> USDC, 1% slippage, 300 s deadline) -> Pay (USDC)",
+  "findings": {
+    "09-focus": "The slippage field reached by Shift+Tab, Tab matches :focus-visible and shows the browser's default outline only; the app's own border stays #27272a (no BRAND focus style). The focused canvas node shows no visible focus indicator.",
+    "10-slippage": "Typing 0.5 ends as 0.35; see 10-slippage-typing-before.json.",
+    "11-same-asset": "The message renders under Asset Out, but no control carries aria-invalid or aria-describedby and the panel has no live region, so the error is not announced.",
+    "12-router": "A disabled <select> with one option, 'Soroswap (testnet)'; the router contract id is not shown.",
+    "14-keyboard": "The Swap node is reachable by Tab (18 presses from page load, via the edges); Enter and Space do not open the panel; after opening it with a click, Escape does not close it, and the panel has no Close button."
+  },
+  "notCaptured": {
+    "13-phone": "The Chrome window could not be narrowed below its maximised size, so the Pixel 7 (412 px) shot is left to the manual phone check in #614."
+  }
+}
