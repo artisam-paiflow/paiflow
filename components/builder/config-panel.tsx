@@ -21,6 +21,7 @@ import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import { computeAssetFlow, FIAT_PAYOUT_TRIGGERS, type ValidationIssue } from "@/lib/flows/validate";
+import { nodeIssues } from "@/lib/flows/issue-paths";
 import { AssetField, Field } from "./panels/asset-fields";
 import SwapPanel from "./panels/swap-panel";
 
@@ -144,31 +145,17 @@ export default function ConfigPanel({
     [graph, node],
   );
 
-  // Validation issues belonging to this node, split into per-field messages
-  // (keyed by config path, e.g. "recipient" or "recipients.0.address") and
-  // node-level messages with no single field to attach to. Schema (zod) paths
-  // index nodes positionally (`nodes.0.config…`) while semantic rules key by
-  // node id (`nodes.<id>.…`); both are normalized here.
-  const nodeErrors = useMemo(() => {
-    const field = new Map<string, string>();
-    const general: string[] = [];
-    if (!node) return { field, general };
-    const idx = graph.nodes.findIndex((n) => n.id === node.id);
-    for (const issue of errors) {
-      const seg = issue.path.split(".");
-      const key = seg[0] === "nodes" ? seg[1] : undefined;
-      const isThisNode =
-        key === node.id || (key !== undefined && /^\d+$/.test(key) && Number(key) === idx);
-      if (!isThisNode) continue;
-      if (seg[2] === "config" && seg.length > 3) {
-        const fieldPath = seg.slice(3).join(".");
-        if (!field.has(fieldPath)) field.set(fieldPath, issue.friendlyMessage);
-      } else {
-        general.push(issue.friendlyMessage);
-      }
-    }
-    return { field, general };
-  }, [errors, graph.nodes, node]);
+  const nodeErrors = useMemo(
+    () =>
+      node
+        ? nodeIssues(
+            errors,
+            node.id,
+            graph.nodes.findIndex((n) => n.id === node.id),
+          )
+        : { field: new Map<string, string>(), general: [] },
+    [errors, graph.nodes, node],
+  );
 
   const fieldError = (name: string): string | null => nodeErrors.field.get(name) ?? null;
 

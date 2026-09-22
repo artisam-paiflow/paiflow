@@ -11,7 +11,7 @@ const issue = (path: string, friendlyMessage: string): ValidationIssue => ({
 describe("nodeIssues", () => {
   it("keys a semantic path by its config field", () => {
     const r = nodeIssues([issue("nodes.s.config.slippageBps", "too low")], "s", 1);
-    expect([...r.fields]).toEqual([["slippageBps", "too low"]]);
+    expect([...r.field]).toEqual([["slippageBps", "too low"]]);
     expect(r.general).toEqual([]);
   });
 
@@ -21,7 +21,7 @@ describe("nodeIssues", () => {
       "split-a",
       1,
     );
-    expect(r.fields.get("recipients.0.address")).toBe("bad address");
+    expect(r.field.get("recipients.0.address")).toBe("bad address");
   });
 
   it("puts a node-level issue in general", () => {
@@ -30,7 +30,7 @@ describe("nodeIssues", () => {
       "s",
       0,
     );
-    expect(r.fields.size).toBe(0);
+    expect(r.field.size).toBe(0);
     expect(r.general).toEqual(["needs a next step", "whole config"]);
   });
 
@@ -40,7 +40,7 @@ describe("nodeIssues", () => {
       "s",
       0,
     );
-    expect(r.fields.get("assetOut")).toBe("first");
+    expect(r.field.get("assetOut")).toBe("first");
   });
 
   it("ignores other nodes, other indices, edges and graph-level paths", () => {
@@ -55,7 +55,7 @@ describe("nodeIssues", () => {
       "s",
       0,
     );
-    expect(r.fields.size).toBe(0);
+    expect(r.field.size).toBe(0);
     expect(r.general).toEqual([]);
   });
 });
