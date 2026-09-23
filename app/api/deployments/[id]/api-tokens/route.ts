@@ -8,6 +8,7 @@ import {
   API_TOKEN_SELECT,
   MAX_ACTIVE_API_TOKENS,
   activeTokenFilter,
+  demoTokenIdentity,
   generateDeploymentApiToken,
   requireTokenManager,
 } from "@/lib/api/v1/tokens";
@@ -20,6 +21,8 @@ const LIST_LIMIT = 100;
  * List a deployment's API tokens: active ones first, then revoked and expired, each newest first.
  * Revoked rows are kept forever, so a plain newest-first page could push a still-working token
  * off the list; active tokens are capped, so they always fit.
+ *
+ * Tokens the public demo route minted are left out of both halves — see `demoTokenIdentity`.
  */
 export async function GET(_req: NextRequest, ctx: Ctx) {
   return withErrorHandler(async () => {
@@ -27,15 +30,17 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     const { deployment } = await requireTokenManager(id);
 
     const filter = activeTokenFilter(new Date());
+    const demo = demoTokenIdentity();
     const [active, inactive] = await Promise.all([
       db.deploymentApiToken.findMany({
-        where: { deploymentId: deployment.id, ...filter },
+        where: { deploymentId: deployment.id, NOT: demo, ...filter },
         select: API_TOKEN_SELECT,
         orderBy: { createdAt: "desc" },
         take: MAX_ACTIVE_API_TOKENS,
       }),
       db.deploymentApiToken.findMany({
-        where: { deploymentId: deployment.id, NOT: filter },
+        // A list under NOT is NOT(demo) AND NOT(active): the operator's own inactive rows.
+        where: { deploymentId: deployment.id, NOT: [demo, filter] },
         select: API_TOKEN_SELECT,
         orderBy: { createdAt: "desc" },
         take: LIST_LIMIT,
@@ -73,7 +78,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       // (ContractEvent, jobs) take on this row, so event ingestion never waits on a mint.
       await tx.$queryRaw`SELECT id FROM "Deployment" WHERE id = ${deployment.id}::uuid FOR NO KEY UPDATE`;
       const active = await tx.deploymentApiToken.count({
-        where: { deploymentId: deployment.id, ...activeTokenFilter(now) },
+        // Demo-route tokens are excluded: they are bounded separately and the operator cannot
+        // revoke them, so counting them here would refuse a mint for a reason nobody can clear.
+        where: { deploymentId: deployment.id, NOT: demoTokenIdentity(), ...activeTokenFilter(now) },
       });
       if (active >= MAX_ACTIVE_API_TOKENS) {
         throw new AppError(

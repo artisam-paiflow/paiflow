@@ -490,30 +490,11 @@ export default function RaftLog({
 
   return (
     <>
-      <style>{`
-        @keyframes marquee-right {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        @keyframes marquee-left {
-          0% { transform: translateX(-50%); }
-          100% { transform: translateX(0); }
-        }
-        .marquee-row { animation: marquee-right 25s linear infinite; }
-        .marquee-row:nth-child(2) { animation-name: marquee-left; animation-duration: 22s; }
-        .marquee-row:nth-child(3) { animation-name: marquee-right; animation-duration: 28s; }
-        .marquee-row:hover { animation-play-state: paused !important; }
-        @keyframes pulse-glow {
-          0%, 100% { box-shadow: 0 0 18px rgba(255, 177, 196, 0.45); }
-          50% { box-shadow: 0 0 28px rgba(255, 177, 196, 0.7); }
-        }
-        .pulse-glow { animation: pulse-glow 3s ease-in-out infinite; }
-      `}</style>
       {/* Collapsed tab — Railway-style floating pill on right edge */}
       {collapsed && (
         <button
           onClick={onToggleCollapse}
-          className="pulse-glow border-primary/50 bg-primary text-on-primary fixed top-20 right-0 z-40 flex items-center gap-2 rounded-l-lg border-y border-l px-3 py-2.5 shadow-[0_0_18px_rgba(255,177,196,0.45)] transition-all duration-200 hover:-translate-y-px hover:pr-4 hover:shadow-[0_0_24px_rgba(255,177,196,0.65)] active:scale-95"
+          className="chat-tab-glow border-primary/50 bg-primary text-on-primary fixed top-20 right-0 z-40 flex items-center gap-2 rounded-l-lg border-y border-l px-3 py-2.5 shadow-[0_0_18px_rgba(255,177,196,0.45)] transition-all duration-200 hover:-translate-y-px hover:pr-4 hover:shadow-[0_0_24px_rgba(255,177,196,0.65)] active:scale-95"
           title="Open AI chat"
         >
           <div className="bg-on-primary/15 flex h-6 w-6 items-center justify-center rounded-full">

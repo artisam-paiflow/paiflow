@@ -147,7 +147,7 @@ Key boundaries:
 git clone https://github.com/webnxt-2030/pinkraft.git
 cd pinkraft
 
-# 2. Install deps (requires Node 22.11.x and pnpm 10.4.1)
+# 2. Install deps (requires Node 22.22.x and pnpm 10.4.1)
 corepack enable && corepack prepare pnpm@10.4.1 --activate
 pnpm install
 
@@ -195,7 +195,7 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 | Layer         | Tech                                                                                         |
 | ------------- | -------------------------------------------------------------------------------------------- |
-| Runtime       | Node.js 22 LTS (`>=22.11 <23`), pnpm 10.4.1                                                  |
+| Runtime       | Node.js 22 LTS (`>=22.22.2 <23`), pnpm 10.4.1                                                |
 | Language      | TypeScript 5.7 — `strict`, `noUncheckedIndexedAccess`                                        |
 | Framework     | Next.js 15 (App Router, RSC, Route Handlers), React 19                                       |
 | UI            | Tailwind 4 beta (CSS-first `@theme`), Material Symbols (self-hosted), `@xyflow/react` 12     |
@@ -209,7 +209,7 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 | AI            | Groq — Whisper (STT, raft-log voice input) + Llama (text)                                    |
 | Blockchain    | Stellar / Soroban — `@stellar/stellar-sdk` 15, `@creit.tech/stellar-wallets-kit` 1.9         |
 | Contracts     | Rust (CI toolchain 1.95), `soroban-sdk` 26, target `wasm32v1-none`                           |
-| Tests         | vitest 3 (unit), `@playwright/test` 1.49 (e2e, run locally)                                  |
+| Tests         | vitest 4 (node + jsdom, Testing Library, axe-core), `@playwright/test` 1.59 (e2e, local)     |
 | Observability | pino (+ pino-pretty in dev). Sentry is stubbed out — see note below.                         |
 
 **Notes on things people expect to find and won't:**
@@ -227,7 +227,7 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 ### Prerequisites
 
-- Node `22.11.x` (capped at `<23` — see `engines` in `package.json`)
+- Node `22.22.x` (capped at `<23` — see `engines` in `package.json`)
 - pnpm `10.4.1` — `corepack enable && corepack prepare pnpm@10.4.1 --activate`
 - Docker (for Postgres / Redis / MinIO)
 - _(Optional)_ A [Resend](https://resend.com) account for outbound transactional email (password reset). When unset, emails are logged to the dev console.
@@ -270,7 +270,9 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 
 | Script                    | Purpose                                          |
 | ------------------------- | ------------------------------------------------ |
-| `pnpm test`               | Vitest unit suite (one-shot)                     |
+| `pnpm test`               | Vitest, both projects (one-shot)                 |
+| `pnpm test --project dom` | Component tests only (jsdom)                     |
+| `pnpm test:ci`            | As `pnpm test`, plus `reports/vitest-junit.xml`  |
 | `pnpm test:watch`         | Vitest in watch mode                             |
 | `pnpm test:e2e`           | Playwright end-to-end                            |
 | `pnpm screenshots`        | Regenerate desktop screenshots in `screenshots/` |
@@ -345,7 +347,7 @@ contracts/       Soroban smart contracts (Rust workspace)
   factory/          deploys a whole pipeline in one transaction (kind-agnostic)
 scripts/         Operational scripts (upload-wasm, deploy-factory, update-hashes, …)
 tests/
-  unit/             Vitest specs
+  unit/             Vitest specs (`*.test.ts` node, `*.test.tsx` jsdom components)
   e2e/              Playwright specs
 screenshots/     Generated UI screenshots (committed)
 docs/            Architecture, runbooks, design records, archive/
@@ -363,7 +365,7 @@ homepage/        Static marketing site (index, about, privacy, terms); its own R
 
 CI (`.github/workflows/ci.yml`) runs on every push to `main` and every PR:
 
-- **node** lane — `pnpm install --frozen-lockfile`, `db:generate`, `db:migrate:deploy`, `typecheck`, `test`, `db:seed`, `build`, `pnpm audit`
+- **node** lane — `pnpm install --frozen-lockfile`, `db:generate`, `db:migrate:deploy`, `typecheck`, `test:ci` (uploads the `vitest-junit` artifact and writes a job summary), `db:seed`, `build`, `pnpm audit`
 - **rust** lane — `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --workspace`
 
 Both lanes must be green before merge — except the audit step, which runs as

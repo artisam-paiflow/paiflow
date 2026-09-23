@@ -105,7 +105,8 @@ read its events, and nothing else: no other deployment, no account data, no admi
 
 - **Minting.** The deployment's owner signs in, opens the deployment page and uses the **API access**
   panel. Tokens can only be minted for a `CONFIRMED` deployment, and a deployment can have at most 10
-  active tokens.
+  active tokens of the owner's own. Tokens handed out by the public demo route are bounded and
+  expired separately, and the panel neither lists nor counts them.
 - **Shown once.** The full token (`pfk_` followed by 64 hex characters) is displayed only when it's
   created. Paiflow stores only a hash. Copy it into your secret store straight away.
 - **Expiry and revocation.** A token can be given an expiry of 1 to 365 days, or none. Revoking a
@@ -231,6 +232,10 @@ What to expect:
 
 - **It waits.** By default the call waits up to about 25 seconds for a final result. Add
   `?wait=false` to get `PENDING` back as soon as the network accepts the transaction.
+- **A `502` here does not mean the transaction was not sent.** Each RPC call times out at ten
+  seconds, so a stalled RPC during the wait ends the call with `502 UPSTREAM_RPC` even though the
+  envelope was already broadcast. Treat it like `PENDING`: submit the same `signedXdr` again, or
+  poll events, rather than preparing a new one.
 - **`status` is one of three values.**
   - `SUCCESS`: the flow ran. Look up `txHash` on
     [stellar.expert](https://stellar.expert/explorer/testnet).
@@ -361,12 +366,12 @@ as a Soroban simulation diagnostic.
 | -------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `UNAUTHENTICATED`    | 401  | Token missing, unknown, revoked, expired, or for another deployment (token management: no signed-in session)                      |
 | `INSUFFICIENT_FUNDS` | 402  | The `from` account doesn't exist on this network (prepare)                                                                        |
-| `FORBIDDEN`          | 403  | Not allowed for this caller (sandbox)                                                                                             |
+| `FORBIDDEN`          | 403  | Not allowed for this caller (sandbox), or the public demo is not enabled on this instance (demo token)                            |
 | `NOT_FOUND`          | 404  | A malformed deployment id, or (execute) a deployment that isn't confirmed                                                         |
 | `CONFLICT`           | 409  | Token management only: already 10 active tokens                                                                                   |
 | `VALIDATION`         | 422  | Bad body or query; a deposit the simulation rejects; a flow that isn't a swapper flow; an envelope that isn't this flow's deposit |
-| `RATE_LIMITED`       | 429  | Too many requests in the window (see below)                                                                                       |
-| `INTERNAL`           | 500  | Unexpected server error                                                                                                           |
+| `RATE_LIMITED`       | 429  | Too many requests in the window (see below); on the demo token, also when the instance has no shared rate limiter                 |
+| `INTERNAL`           | 500  | Unexpected server error; on the demo token, also a deliberate refusal when the demo flow is misconfigured, with the reason logged |
 | `UPSTREAM_RPC`       | 502  | The Stellar RPC call failed, or the network was too busy to accept the transaction; retry, resubmitting the same envelope         |
 
 Every response carries an `x-request-id` header. Include it when you report a problem.
@@ -375,7 +380,10 @@ Every response carries an `x-request-id` header. Include it when you report a pr
 
 Token-authenticated endpoints are counted **per token**, per endpoint, in fixed 60-second windows.
 The two public endpoints carry no token, so they are counted per client IP instead, and the demo
-token also has an instance-wide hourly cap. Going over returns `429 RATE_LIMITED`.
+token also has an instance-wide hourly cap. Going over returns `429 RATE_LIMITED`. The demo token's
+instance-wide cap fails closed: on an instance without a shared rate limiter it refuses every
+request with `429`, because a per-process count cannot bound how many live credentials the route
+hands out across replicas.
 
 | Endpoint                                      | Limit                                                     |
 | --------------------------------------------- | --------------------------------------------------------- |

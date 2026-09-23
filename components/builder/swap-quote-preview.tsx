@@ -38,18 +38,20 @@ export default function SwapQuotePreview({
   assetIn,
   assetOut,
   slippageBps,
+  amountStroops = (SAMPLE_UNITS * STROOPS_PER_UNIT).toString(),
   compact = false,
 }: {
   assetIn: Asset;
   assetOut: Asset;
   slippageBps: number;
+  /** The size to quote, in stroops. Pass committed values only: each change fetches. */
+  amountStroops?: string;
   compact?: boolean;
 }) {
-  const sample = (SAMPLE_UNITS * STROOPS_PER_UNIT).toString();
   const state = useSoroswapQuote(
     assetToParam(assetIn) === assetToParam(assetOut)
       ? null
-      : { assetIn, assetOut, amountStroops: sample, slippageBps },
+      : { assetIn, assetOut, amountStroops, slippageBps },
   );
   const base = compact
     ? "text-label-sm text-on-surface-variant font-mono"
@@ -83,7 +85,7 @@ export default function SwapQuotePreview({
       data-testid="swap-quote"
       aria-live="polite"
     >
-      {SAMPLE_UNITS.toString()} {label(assetIn)} → ~{units(quote.amountOutStroops)}{" "}
+      {units(amountStroops, 7)} {label(assetIn)} → ~{units(quote.amountOutStroops)}{" "}
       {label(assetOut)} via Soroswap (live). Minimum at {slippageBps / 100}% slippage: ~
       {units(quote.amountOutMinStroops)} {label(assetOut)}
       {alwaysReverts && (

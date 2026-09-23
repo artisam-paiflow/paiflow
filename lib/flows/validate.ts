@@ -16,13 +16,15 @@ import {
   splitTotalFixedStroops,
   subscriptionAmountPerPeriodStroops,
   assetLabel,
-  MIN_SWAP_SLIPPAGE_BPS,
 } from "./schema";
+import { isCatalogueAsset } from "./asset-catalogue";
+import type { ValidationIssue } from "./issue";
 import { checkHardLimits } from "./limits";
+import { swapConfigIssues, type SwapNode } from "./swap-rules";
 import { inFlowOrder } from "./graph";
 import { flowToPipeline, absorbedActionIds, type PipelineNode } from "./to-params";
 
-export type ValidationIssue = { path: string; message: string; friendlyMessage: string };
+export type { ValidationIssue };
 
 export type ValidationResult =
   | {
@@ -66,14 +68,6 @@ const FRIENDLY = {
     "A scheduled split needs an amount per interval — the total released each interval, divided among the recipients by their shares. Set it on the split step, or switch the recipients to fixed amounts (each then receives their amount every interval).",
   ASSET_CONFLICT:
     "This step can receive different assets depending on which path funds arrive through. Make sure every path leading into it carries the same asset, or add a swap so they match before merging.",
-  SWAP_SINGLE_EDGE:
-    "A swap sends its whole output to one next step. Remove the extra connections coming out of it, or add a Split block after the swap.",
-  SWAP_NEEDS_NEXT_STEP:
-    "A swap sends its whole output to one next step, so it needs one. Connect it to a Pay or Split block — an email notification doesn't count as a destination.",
-  SWAP_SLIPPAGE_TOO_LOW:
-    "Soroswap's pool fee is 0.3%, so a max slippage under 0.3% makes every swap revert. Set it to at least 0.3%.",
-  SWAP_SAME_ASSET: (asset: string) =>
-    `A swap has to exchange two different assets, and both sides of this one are ${asset}. Change "Asset Out" to the asset you want back, or remove the swap.`,
   DANGLING_NEXT_STEP: (label: string) =>
     `${label} is still connected as a next step, but it isn't part of the pipeline this flow would deploy. Remove the connection into it, or rebuild the steps in the order the money moves.`,
   ACTION_NOT_DEPLOYED: (label: string) =>
@@ -693,58 +687,26 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
   }
 
-  // A swap forwards its entire output to next_steps[0]; the contract rejects
-  // both zero and more than one next step at construction, so catch it here
-  // first. Zero matters as much as two: do_swap still executes the trade and
-  // then leaves asset_out in the swapper, which has no withdrawal path, so the
-  // output would be unrecoverable. Only on-chain children count:
-  // getPipelineChildren in to-params.ts drops every edge touching an
-  // email_notify node, so those never become next steps and `swap -> pay` plus
-  // `swap -> email_notify` still constructs with exactly one.
-  for (const n of graph.nodes) {
-    if (n.type === "swap") {
-      // Both sides the same asset is not a trade: Soroswap has no pair for it,
-      // so `factory.get_pair` panics on the first trigger and the flow reverts
-      // after the user has already paid to deploy it. Nothing downstream
-      // catches this — the constructor stores the pair without checking it, and
-      // computeAssetFlow propagates assetOut, so the rest of the graph agrees.
-      if (assetsEqual(n.config.assetIn, n.config.assetOut)) {
-        errors.push({
-          path: `nodes.${n.id}.config.assetOut`,
-          message: "Swap node must exchange two different assets",
-          friendlyMessage: FRIENDLY.SWAP_SAME_ASSET(assetLabel(n.config.assetOut)),
-        });
-      }
-
-      // The contract's amount_out_min is spot less slippageBps, while the router
-      // has already taken its 0.3% fee off the output, so a bound under the fee
-      // fails the router's check on every trigger (see the swapper crate's
-      // `zero_slippage_reverts_on_the_pool_fee_alone`). Schema keeps min(0) so
-      // graphs saved before this rule still load; only deploying is refused.
-      if (n.config.slippageBps < MIN_SWAP_SLIPPAGE_BPS) {
-        errors.push({
-          path: `nodes.${n.id}.config.slippageBps`,
-          message: `Swap slippage must be at least ${MIN_SWAP_SLIPPAGE_BPS} bps`,
-          friendlyMessage: FRIENDLY.SWAP_SLIPPAGE_TOO_LOW,
-        });
-      }
-
-      const outgoing = graph.edges.filter(
+  // Swap rules live in swap-rules.ts so the panel and the tests read the same
+  // ones. Only on-chain children count as next steps: getPipelineChildren in
+  // to-params.ts drops every edge touching an email_notify node, so those
+  // never become next steps and `swap -> pay` plus `swap -> email_notify`
+  // still constructs with exactly one.
+  const swaps = graph.nodes.filter((n): n is SwapNode => n.type === "swap");
+  if (swaps.length) {
+    const assetFlow = computeAssetFlow(graph);
+    const triggerAsset = triggers[0] ? getTriggerAsset(triggers[0]) : null;
+    for (const n of swaps) {
+      const nextStepCount = graph.edges.filter(
         (e) => e.source === n.id && nodesById.get(e.target)?.type !== "email_notify",
+      ).length;
+      errors.push(
+        ...swapConfigIssues(n, {
+          nextStepCount,
+          incomingAsset: assetFlow.get(n.id) ?? null,
+          triggerAsset,
+        }),
       );
-      if (outgoing.length === 0) {
-        errors.push({
-          path: `nodes.${n.id}`,
-          message: "Swap node must have exactly one outgoing edge",
-          friendlyMessage: FRIENDLY.SWAP_NEEDS_NEXT_STEP,
-        });
-      } else if (outgoing.length > 1) {
-        errors.push({
-          path: `nodes.${n.id}`,
-          message: "Swap node can have at most one outgoing edge",
-          friendlyMessage: FRIENDLY.SWAP_SINGLE_EDGE,
-        });
-      }
     }
   }
 
@@ -1101,7 +1063,12 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       if (a.type === "pay") actual = a.config.asset;
       else if (a.type === "split") actual = a.config.asset;
       else if (a.type === "yield") actual = a.config.asset;
-      else if (a.type === "swap") actual = a.config.assetIn;
+      else if (a.type === "swap") {
+        // swapConfigIssues names the trigger for this; "Change Asset In to
+        // <custom>" is advice the catalogue rule would then refuse.
+        if (!isCatalogueAsset(expected)) continue;
+        actual = a.config.assetIn;
+      }
 
       if (actual && !assetsEqual(expected, actual)) {
         errors.push({

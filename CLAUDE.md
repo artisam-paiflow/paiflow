@@ -26,7 +26,7 @@ You are building a **financial application that signs blockchain transactions**.
 ## 1. Commands
 
 ```bash
-pnpm install                 # Node 22.11.x, pnpm 10.4.1 (corepack)
+pnpm install                 # Node 22.22.x, pnpm 10.4.1 (corepack)
 pnpm docker:up               # Postgres + Redis + MinIO (profile "full"; "core" omits MinIO)
 pnpm db:migrate              # create + apply a migration (dev)
 pnpm db:seed                 # requires ADMIN_SEED_PASSWORD (>=12 chars); refuses to use a default
@@ -41,14 +41,20 @@ pnpm dev
 | Unit tests                                | `pnpm test`                                                                        |
 | **One unit test file**                    | `pnpm test tests/unit/offramp/pdax.test.ts`                                        |
 | **One unit test by name**                 | `pnpm test -- -t "<test name substring>"`                                          |
+| **One component test file**               | `pnpm test tests/unit/builder/inputs/smoke.test.tsx`                               |
+| Component tests only                      | `pnpm test --project dom`                                                          |
+| As CI runs it (junit to `reports/`)       | `pnpm test:ci`                                                                     |
 | Watch                                     | `pnpm test:watch`                                                                  |
 | E2E (boots `pnpm dev` itself)             | `pnpm test:e2e`                                                                    |
 | **One E2E spec**                          | `pnpm test:e2e tests/e2e/happy-path.spec.ts`                                       |
 | Screenshots (committed to `screenshots/`) | `pnpm screenshots` / `pnpm screenshots:mobile`                                     |
 
-Vitest only picks up `tests/unit/**/*.test.ts`. `vitest.config.ts` aliases `server-only` and
-`dotenv` to stubs in `tests/stubs/` — **there is no `@/lib/env` stub; code under test gets the real
-schema.** Isolation comes from `tests/unit/setup.ts` instead: before each test **file** it deletes
+Vitest runs two projects: `node` picks up `tests/unit/**/*.test.ts`, `dom` picks up
+`tests/unit/**/*.test.tsx` under jsdom (plus `tests/unit/setup-dom.ts`), and a file matching
+neither is skipped without a warning, which `tests/unit/test-config.test.ts` guards against.
+`vitest.config.ts` aliases `server-only` and `dotenv` to stubs in `tests/stubs/` — **there is no
+`@/lib/env` stub; code under test gets the real schema.** Isolation comes from `tests/unit/setup.ts`
+instead: before each test **file** it deletes
 every variable `EnvSchema` knows (`ENV_VAR_NAMES`), then sets `AUTH_SECRET`, pins `NODE_ENV=test`
 (vitest only does `??=`, so a shell `production` would otherwise leak), and puts back `DATABASE_URL`
 and `LOG_LEVEL` from your shell — falling back to the local Postgres and `silent` — so you can still
@@ -68,8 +74,10 @@ cd contracts && cargo test --workspace && cargo clippy --all-targets -- -D warni
 ```
 
 CI (`.github/workflows/ci.yml`): a **node** lane (`db:generate` → `db:migrate:deploy` → `typecheck`
-→ `test` → `db:seed` → `build` → `pnpm audit`) and a **rust** lane (`cargo fmt --check`,
-`clippy -D warnings`, `cargo test --workspace`). Both must be green. **There is no E2E job.**
+→ `test:ci`, which uploads the `vitest-junit` artifact and a job summary → `db:seed` → `build` →
+`pnpm audit`) and a **rust** lane (`cargo fmt --check`, `clippy -D warnings`,
+`cargo test --workspace`). Both must be green. **There is no E2E job.** The node lane's
+`setup-node` reads `engines.node` from `package.json`, so CI cannot resolve a Node below the floor.
 
 The stack table and directory tree live in
 [`README.md` → "Stack at a glance"](README.md#stack-at-a-glance) and
@@ -447,6 +455,13 @@ You will rarely modify these. When you do:
 `lib/flows/english.ts` (pure, high-leverage), `lib/stellar/deploy.ts` (mock the RPC client),
 `lib/auth.ts` helpers, and every Zod schema (round-trip realistic _and_ adversarial inputs).
 
+**Component (vitest `dom` project)** — `tests/unit/**/*.test.tsx`, rendered under jsdom with
+`@testing-library/react` and `user-event`; query with `getByRole` and plain DOM (no jest-dom), and
+scan with `axe-core` where accessibility is the claim. Test the extracted component, **never
+`ConfigPanel`**: its `<style jsx>` needs Next's SWC styled-jsx transform, which vitest does not run.
+Pure logic still belongs in a `*.utils.ts` tested in the `node` project. CI runs both projects via
+`pnpm test:ci` and uploads the junit report as the `vitest-junit` artifact, with a job summary.
+
 **E2E (Playwright)** — at least one happy path: log in as the seeded admin, build a splitter flow,
 deploy with a mocked wallet signature, assert `CONFIRMED` plus a contract address, then fund and
 assert the event feed animates the fan-out. Runs locally only; not wired into CI.
@@ -489,7 +504,9 @@ assert the event feed animates the fan-out. Runs locally only; not wired into CI
 - Forms show field-level errors from the server (`error.fields`) **and** the client (Zod resolver).
 - Async actions show optimistic state, a toast on success, an inline error on failure.
 - The builder canvas is keyboard accessible: arrows move the selected node, Delete removes it, Enter
-  opens the config panel.
+  or Space on a focused node opens its config panel and moves focus to the panel's heading (a click
+  opens it without taking focus), and Escape or the panel's Close button shuts it and returns focus
+  to the node. Below 768px the panel is a bottom sheet rather than a card on the canvas.
 - Honour `prefers-reduced-motion: reduce` and disable edge animations.
 - Contrast ≥ AA. The app is **dark-only** by design (`BRAND.md` §10) — don't add a light variant
   without updating `BRAND.md` first. Design tokens live in `app/globals.css` (`@theme`), not
@@ -545,19 +562,19 @@ assert the event feed animates the fan-out. Runs locally only; not wired into CI
 These are real rules the project wants, currently unbacked by tooling. Don't assume CI catches them,
 and don't cite them as already-true when reviewing.
 
-| Rule                                                                 | Reality                                                                                                                                                                                                                                                                                        |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No `any`; import ordering                                            | `eslint.config.mjs` doesn't extend `next/core-web-vitals` and explicitly disables `no-explicit-any` and `no-unused-vars`. No import-order plugin is installed. `pnpm lint` is close to a no-op; 14 `any` sites exist, none justified.                                                          |
-| Secrets only via `lib/env.ts`                                        | 29 `process.env` reads sit outside it, of which only 11 are `NEXT_PUBLIC_*` and 6 are `NODE_ENV`. `GROQ_API_KEY` (`lib/ai/groq.ts`) and `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` (`lib/files/storage.ts`) are genuine violations; the rest is non-secret config that still bypasses the schema. |
-| Re-parse signed XDR before submit ([§7.3](#73-submitting))           | Partial. `lib/stellar/signer.ts` re-parses every submitted envelope for source and hash; the deploy route asserts the signed hash matches the prepared one. Nothing compares operations, and `submit-trigger` / `submit-invoke` accept any envelope (`assertDepositEnvelope` is the pattern).  |
-| Branded Stellar types ([§6](#6-validation))                          | `lib/stellar/strkey.ts` has its first consumer, `lib/stellar/signer.ts`. Every other boundary still uses inline `StrKey` refinements.                                                                                                                                                          |
-| `safeRaw` tagged template                                            | Doesn't exist. Raw SQL is plain `$queryRaw` in `app/api/health` and `lib/admin-stats.ts`.                                                                                                                                                                                                      |
-| `app/` routes stay thin                                              | Several are not: `cron/auto-charge-payroll` (807 lines), `cron/process-offramp-jobs` (562), `deployments/[id]/submit` (507).                                                                                                                                                                   |
-| E2E in CI                                                            | No Playwright job exists in `.github/workflows/ci.yml`.                                                                                                                                                                                                                                        |
-| Mandatory unit tests ([§12](#12-testing))                            | `lib/flows/validate.ts`, `to-params.ts` and `english.ts` are covered. `lib/stellar/deploy.ts` and the `lib/auth.ts` helpers are not, and "every Zod schema" is not met. Decide in [#376](https://github.com/webnxt-2030/pinkraft/issues/376).                                                  |
-| `withErrorHandler` on every handler ([§13](#13-errors--logging))     | 8 of 83 routes skip it. Five are defensible (SSE `events`, `[...nextauth]`, binary `qr` / `files`, `health`); `balances`, `poll-events` and `status` are unexplained and return a non-standard error shape. Tracked in [#376](https://github.com/webnxt-2030/pinkraft/issues/376).             |
-| Rate-limit on write endpoints ([§10](#10-security-checklist-per-pr)) | 31 mutating routes have none, including `deployments/[id]/submit`. Tracked in [#371](https://github.com/webnxt-2030/pinkraft/issues/371).                                                                                                                                                      |
-| Passkey add requires password re-auth ([§5](#5-authentication))      | Not implemented; session alone is enough. Tracked in [#375](https://github.com/webnxt-2030/pinkraft/issues/375).                                                                                                                                                                               |
+| Rule                                                                 | Reality                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No `any`; import ordering                                            | `eslint.config.mjs` doesn't extend `next/core-web-vitals` and explicitly disables `no-explicit-any` and `no-unused-vars`. No import-order plugin is installed. `pnpm lint` is close to a no-op; 12 `any` sites exist, none justified.                                                                           |
+| Secrets only via `lib/env.ts`                                        | 32 `process.env` reads sit outside it, of which only 14 are `NEXT_PUBLIC_*` and 6 are `NODE_ENV`. `GROQ_API_KEY` (`lib/ai/groq.ts`) and `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` (`lib/files/storage.ts`) are genuine violations; the rest is non-secret config that still bypasses the schema.                  |
+| Re-parse signed XDR before submit ([§7.3](#73-submitting))           | Partial. `lib/stellar/signer.ts` re-parses every submitted envelope for source and hash; the deploy route asserts the signed hash matches the prepared one. Nothing compares operations, and `submit-trigger` / `submit-invoke` accept any envelope (`assertDepositEnvelope` is the pattern).                   |
+| Branded Stellar types ([§6](#6-validation))                          | `lib/stellar/strkey.ts` has two consumers, `lib/stellar/signer.ts` and `components/builder/inputs/address-picker.tsx`. Every other boundary still uses inline `StrKey` refinements.                                                                                                                             |
+| `safeRaw` tagged template                                            | Doesn't exist. Raw SQL is plain `$queryRaw` in `app/api/health` and `lib/admin-stats.ts`.                                                                                                                                                                                                                       |
+| `app/` routes stay thin                                              | Several are not: `cron/auto-charge-payroll` (946 lines), `cron/process-offramp-jobs` (560), `deployments/[id]/submit` (594).                                                                                                                                                                                    |
+| E2E in CI                                                            | No Playwright job exists in `.github/workflows/ci.yml`.                                                                                                                                                                                                                                                         |
+| Mandatory unit tests ([§12](#12-testing))                            | `lib/flows/validate.ts`, `to-params.ts` and `english.ts` are covered. `lib/stellar/deploy.ts` and the `lib/auth.ts` helpers are not, and "every Zod schema" is not met. Decide in [#376](https://github.com/webnxt-2030/pinkraft/issues/376).                                                                   |
+| `withErrorHandler` on every handler ([§13](#13-errors--logging))     | 9 of 95 routes skip it. Six are defensible (SSE `events`, `[...nextauth]`, binary `qr` / `files`, `health`, the `ingest` analytics proxy); `balances`, `poll-events` and `status` are unexplained and return a non-standard error shape. Tracked in [#376](https://github.com/webnxt-2030/pinkraft/issues/376). |
+| Rate-limit on write endpoints ([§10](#10-security-checklist-per-pr)) | 31 mutating routes have none, including `deployments/[id]/submit`. Tracked in [#371](https://github.com/webnxt-2030/pinkraft/issues/371).                                                                                                                                                                       |
+| Passkey add requires password re-auth ([§5](#5-authentication))      | Not implemented; session alone is enough. Tracked in [#375](https://github.com/webnxt-2030/pinkraft/issues/375).                                                                                                                                                                                                |
 
 ---
 
@@ -569,6 +586,10 @@ Being worked through; don't trust these yet:
   `homepage/terms.html` that it is "gated by an allowlist and an explicit confirmation". No allowlist exists —
   the claim stands and the control is being built to match it in
   [#377](https://github.com/webnxt-2030/pinkraft/issues/377), which also rewrites [§7.5](#75-networks).
+- The generated changelog tables in `docs/instawards/changelog.md` and `week-2.md` stop at
+  19 September, the extent of the public mirror, and omit the 20 September merges; the week-2 prose
+  covers them. The rows are added the next time the mirror syncs; regenerate with
+  `pnpm instawards:changelog --ref mirror/develop`, never from `origin/develop` (the SHAs differ).
 
 ---
 

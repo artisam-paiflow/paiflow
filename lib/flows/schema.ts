@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
 import { formatStroops } from "@/lib/utils";
+import { bpsSchema, TOTAL_BPS } from "./primitives";
 
 const PENDING_PREFIX = "PENDING:";
 
@@ -368,7 +369,7 @@ export const SwapAction = z.object({
     assetOut: AssetSchema,
     // Max slippage vs the pool's spot price, in basis points. Values under
     // MIN_SWAP_SLIPPAGE_BPS always revert and are rejected by validate.ts.
-    slippageBps: z.number().int().min(0).max(10_000).default(100),
+    slippageBps: bpsSchema().default(100),
     // Seconds added to the ledger timestamp for the router's deadline check.
     // Bounded above because scval.ts serializes this as a u64: `.int()` accepts
     // any integer-valued float, and anything past 2^64 makes nativeToScVal throw
@@ -607,7 +608,7 @@ export function tokenAmountToStroops(amount: string): string {
   return combined;
 }
 
-export const TOTAL_BPS = 10_000;
+export { TOTAL_BPS };
 
 export function bpsToPct(bps: number): number {
   return bps / 100;

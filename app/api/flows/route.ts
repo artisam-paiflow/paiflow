@@ -6,6 +6,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { FlowSaveSchema } from "@/lib/flows/schema";
+import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 
@@ -47,11 +48,7 @@ export async function POST(req: NextRequest) {
     const body = FlowSaveSchema.parse(await req.json());
     const v = validateFlow(body.graph);
     if (!v.ok) {
-      throw new AppError(
-        "VALIDATION",
-        "Invalid flow graph",
-        Object.fromEntries(v.errors.map((e) => [e.path, [e.message]])),
-      );
+      throw new AppError("VALIDATION", "Invalid flow graph", issuesToFields(v.errors));
     }
     const pipeline = flowToPipeline(v.graph);
 

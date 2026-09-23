@@ -7,6 +7,8 @@ is redacted; the full `pfk_…` value never appears in a file or a capture.
 The run these files record: **18 September 2026, 02:31:52–02:32:17 UTC**, deployment
 `ad0843d9-f6de-422f-b216-717caa92aa8a`, 10 XLM → 1.0584167 USDC through the Soroswap router,
 transaction [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7).
+One file is a later, separate run: [`11-demo-token.md`](11-demo-token.md), the anonymous
+demo-token path on 20 September, added after #554 opened that route.
 
 | File                                                                               | What it is                                                                                                                 | Status  |
 | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------- |
@@ -18,9 +20,10 @@ transaction [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306c
 | `05-events-response.json`                                                          | The events endpoint: the run's three events by transaction hash, then the feed paged forward with the opaque cursor        | Present |
 | `06-audit-rows.json`                                                               | `API_EXECUTE_PREPARED` / `API_EXECUTE_SUBMITTED` / `API_EXECUTE_CONFIRMED` for the run, from the admin audit log, redacted | Present |
 | `07-stellar-expert-swap.png`                                                       | stellar.expert's invocation tree for the swap: `deposit` → `execute_step` → `swap_exact_tokens_for_tokens` on the router   | Present |
-| `08-openapi.json`                                                                  | `https://paiflow.xyz/api/v1/openapi.json` as served                                                                        | Present |
+| `08-openapi.json`                                                                  | `https://paiflow.xyz/api/v1/openapi.json` as served on 18 September 2026                                                   | Present |
 | `09-postman-run.png`                                                               | The Postman collection run against paiflow.xyz: Submit execute at `200 OK`, its test passing, the swap's hash in the body  | Present |
 | `10-e2e-api-run.json`, `10-e2e-api-run.getTransaction.json`, `10-e2e-openapi.json` | Written by `tests/e2e/d2-api-testnet.spec.ts` when it is run: the same sequence, repeatable. Not produced yet              | Not run |
+| `11-demo-token.md`                                                                 | The anonymous path: `POST /api/v1/demo-token` with no account, then that token on `/events`, then the same call refused    | Present |
 
 The explorer capture is worth reading in full. It shows the router call as
 `swap_exact_tokens_for_tokens(100000000, 10509881, […], …) → [100000000, 10584167]`: the second
@@ -30,8 +33,11 @@ ties the explorer's record to the committed one.
 
 `08-openapi.json` is a copy of the committed [`docs/api/openapi.json`](../../../api/openapi.json),
 which the drift test holds to the handlers. It was byte-identical to the live endpoint on
-18 September and is refreshed whenever the committed copy changes, so the live endpoint serves the
-same bytes once the change is promoted.
+18 September, and it is kept as that dated snapshot rather than rewritten in place: on 19 September
+#554 added the public demo-token route to the committed document, so the live endpoint now serves
+that route, its schema and one further sentence of the description on top of what is here. Nothing
+asserts this copy against the committed one (#548), which is why it carries a date. For the current
+document, fetch the endpoint — it answers without a token.
 
 ## The Postman run produced its own swap
 
@@ -41,7 +47,10 @@ testnet, [`27f68188…`](https://stellar.expert/explorer/testnet/tx/27f681889bfe
 `SoroswapRouter` `swap` event in the transaction. So the collection is evidenced by a transaction
 rather than only by a screenshot; [`09-postman-run.png`](09-postman-run.png) shows the run that
 produced it. The capture is cropped to the Postman panes, dropping the window title bar, the
-editor's assistant panel and the desktop taskbar; nothing in the request or response is altered.
+editor's assistant panel and the desktop taskbar; nothing in the request or response is altered. The
+capture shows the collection as it stood that day: four requests. #554 added a fifth on
+19 September — **Get demo token**, which now runs first and fills the variables — so a capture taken
+today would differ by that one row.
 
 ## The 15 September run
 

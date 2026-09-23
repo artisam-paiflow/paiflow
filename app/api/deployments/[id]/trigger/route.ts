@@ -10,11 +10,12 @@ import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { FlowGraphSchema, assetLabel, migrateFlowGraph } from "@/lib/flows/schema";
 import { inboundRequirement } from "@/lib/flows/inbound-amount";
+import { stroopsSchema } from "@/lib/flows/primitives";
 import { formatStroops } from "@/lib/utils";
 import { log } from "@/lib/log";
 
 const PostSchema = z.object({
-  amount: z.string().regex(/^\d+$/, "Must be a positive integer"),
+  amount: stroopsSchema({ message: "Must be a positive whole number of stroops" }),
   userAddress: z.string().refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar address"),
 });
 

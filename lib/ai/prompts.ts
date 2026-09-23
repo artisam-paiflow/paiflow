@@ -370,7 +370,7 @@ ACTIONS — a flow needs ≥1 of pay/split/swap (email_notify does NOT satisfy t
     • fixed recipient:      { address: stellarAddress, mode: "fixed", amountStroops: string, label?: string, payoutMode?: "crypto"|"fiat", accountName?: string, accountNumber?: string, bankCode?: string }    — each amount > 0
     • amountPerIntervalStroops (optional): when set, the split streams this total amount per interval across recipients.
     • FIAT PAYOUT on a recipient: set payoutMode="fiat" + accountName/accountNumber/bankCode on that recipient. That recipient does NOT need a real Stellar address — use "PENDING:<label>". Contract addresses (C...) MUST have payoutMode="fiat".
-- swap: { assetIn: Asset, assetOut: Asset, slippageBps: int ${MIN_SWAP_SLIPPAGE_BPS}–10000, deadlineSecs: int 1–86400 }   // slippageBps 100 = max 1% below the Soroswap pool's spot price; the floor of ${MIN_SWAP_SLIPPAGE_BPS} is Soroswap's 0.3% pool fee, and anything under it is refused at deploy; deadlineSecs 300
+- swap: { assetIn: Asset, assetOut: Asset, slippageBps: int ${MIN_SWAP_SLIPPAGE_BPS}–10000, deadlineSecs: int 1–86400 }   // slippageBps 100 = max 1% below the Soroswap pool's spot price; the floor of ${MIN_SWAP_SLIPPAGE_BPS} is Soroswap's 0.3% pool fee, and anything under it is refused at deploy; deadlineSecs 300; assetIn and assetOut must each be {"kind":"native"} or {"kind":"known","symbol":"USDC"} — a custom asset is refused at deploy
 - yield (HIDDEN): { asset: Asset, vault: stellarAddress }   // vault may be "PENDING:<label>"
 - cash_out (HIDDEN — auto-generated, never add by hand): { asset: Asset, accountName: string, accountNumber: string, bankCode: string }
 - email_notify: { recipients: [{ address: string, email: string }], subject: string (non-empty), body?: string }
