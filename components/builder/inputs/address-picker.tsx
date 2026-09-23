@@ -198,11 +198,17 @@ function EditableAddressPicker({
     placeholderProp ?? KIND_PLACEHOLDER[accept] + (pendingAllowed ? " or PENDING:label" : "");
   const listboxId = useId();
   const pendingBadgeId = useId();
+  const saveLabelId = useId();
   const [draft, setDraft] = useState(value);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const [showSave, setShowSave] = useState(false);
+  // The bookmark button opens the dropdown and the save form in one click, but
+  // the `[open]` effect below clears transient state whenever the dropdown
+  // opens, so without this the form is wiped in the same render and the first
+  // click appears to do nothing (#661).
+  const openingToSave = useRef(false);
   const [saveLabel, setSaveLabel] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -272,7 +278,8 @@ function EditableAddressPicker({
       return;
     }
     setQuery("");
-    setShowSave(false);
+    if (openingToSave.current) openingToSave.current = false;
+    else setShowSave(false);
 
     function updatePosition() {
       if (!containerRef.current) return;
@@ -467,7 +474,9 @@ function EditableAddressPicker({
     if (addressBookLoading) {
       return (
         <div className="text-label-sm text-on-surface-variant flex items-center justify-center gap-2 px-3 py-6 font-mono">
-          <span className="material-symbols-outlined animate-spin text-[16px]">sync</span>
+          <span aria-hidden="true" className="material-symbols-outlined animate-spin text-[16px]">
+            sync
+          </span>
           Loading contacts…
         </div>
       );
@@ -491,10 +500,14 @@ function EditableAddressPicker({
     if (showSave) {
       return (
         <div className="p-3">
-          <div className="text-label-sm text-on-surface-variant mb-1.5 font-mono uppercase">
+          <label
+            htmlFor={saveLabelId}
+            className="text-label-sm text-on-surface-variant mb-1.5 block font-mono uppercase"
+          >
             Save to address book
-          </div>
+          </label>
           <input
+            id={saveLabelId}
             value={saveLabel}
             onChange={(e) => setSaveLabel(e.target.value)}
             placeholder="Label e.g. Alice"
@@ -513,7 +526,7 @@ function EditableAddressPicker({
                 setSaveError(null);
               }}
               disabled={saveBusy}
-              className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:bg-surface-container-high/40 shrink-0 rounded-lg border px-2.5 py-1.5 font-mono transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:bg-surface-container-high/40 shrink-0 rounded-lg border px-2.5 py-1.5 font-mono transition-colors disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11"
             >
               CANCEL
             </button>
@@ -521,7 +534,7 @@ function EditableAddressPicker({
               type="button"
               onClick={() => void saveToAddressBook()}
               disabled={saveBusy || !saveLabel.trim() || !canSave}
-              className="bg-primary text-label-sm text-on-primary inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 font-mono font-bold transition-all hover:-translate-y-px active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="bg-primary text-label-sm text-on-primary inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 font-mono font-bold transition-all hover:-translate-y-px active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11"
             >
               {saveBusy ? "SAVING…" : "SAVE"}
             </button>
@@ -658,7 +671,11 @@ function EditableAddressPicker({
           onFocus={() => setOpen(true)}
           onKeyDown={handleInputKeyDown}
           placeholder={placeholder}
-          className={cn(inputClass, "pr-10", pending && "ring-tertiary-container ring-1")}
+          className={cn(
+            inputClass,
+            "pr-10 pointer-coarse:pr-14",
+            pending && "ring-tertiary-container ring-1",
+          )}
           autoComplete="off"
           {...comboboxProps}
           aria-haspopup="listbox"
@@ -679,13 +696,17 @@ function EditableAddressPicker({
           <button
             type="button"
             onClick={() => {
+              openingToSave.current = !showSave;
               setOpen(true);
               setShowSave((v) => !v);
             }}
+            aria-label="Save to address book"
             title="Save to address book"
-            className="text-on-surface-variant hover:text-primary absolute right-2 transition-colors"
+            className="text-on-surface-variant hover:text-primary absolute inset-y-0 right-2 my-auto inline-flex items-center justify-center transition-colors pointer-coarse:min-h-11 pointer-coarse:min-w-11"
           >
-            <span className="material-symbols-outlined text-[18px]">bookmark_add</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-[18px]">
+              bookmark_add
+            </span>
           </button>
         )}
       </div>

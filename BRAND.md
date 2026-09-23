@@ -273,10 +273,25 @@ Three variants only. Don't invent more.
 **Icon button**
 
 ```html
-<button class="text-on-surface-variant hover:text-primary p-xs transition-colors duration-200">
-  <span class="material-symbols-outlined">settings</span>
+<button
+  aria-label="Settings"
+  title="Settings"
+  class="text-on-surface-variant hover:text-primary p-xs inline-flex items-center justify-center transition-colors duration-200 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+>
+  <span aria-hidden="true" class="material-symbols-outlined">settings</span>
 </button>
 ```
+
+- **Name:** always an `aria-label`. A `title` is a tooltip that a mouse user sees, not a name — and
+  it is worth writing down here because the linter will not catch it: axe's `button-name` rule
+  accepts a bare `title`, so a nameless icon button passes every scan in this repo.
+- **The glyph is decorative:** `aria-hidden="true"` on the `<span>`. Material Symbols render from
+  ligature text, so without it a screen reader announces "bookmark_add".
+- **Touch targets:** 44px under a coarse pointer, the same minimum as an input. Note axe's
+  `target-size` rule is disabled by default and set to 24px in any case; the gate is the 44×44 scan
+  in `tests/e2e/d3-swap-panel.spec.ts`.
+
+`components/builder/inputs/address-picker.tsx:145-171` is the worked example.
 
 ### Status chips
 
