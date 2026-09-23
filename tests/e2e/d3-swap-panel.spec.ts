@@ -4,6 +4,10 @@
  * docked as a bottom sheet on a phone — with the desktop mouse behaviour
  * asserted unchanged. Writes PNGs into docs/instawards/evidence/d3/.
  *
+ * Also measures the editable AddressPicker's controls on the Pay panel (#661):
+ * the Swapper renders the pinned branch only, so the 44×44 scan below would
+ * never reach the editable one.
+ *
  * Runs on both projects (the per-project suffix keeps their PNGs apart):
  *   PLAYWRIGHT_NO_SERVER=1 ADMIN_SEED_PASSWORD=… pnpm exec playwright test \
  *     tests/e2e/d3-swap-panel.spec.ts
@@ -397,12 +401,13 @@ test.describe("Config panel container (Instawards D3)", () => {
       await expect(openChat).toBeVisible();
     });
 
-    test("every interactive element in the panel is at least 44×44 CSS px", async ({ page }) => {
-      await gotoBuilder(page, flowId);
-      await swapNode(page).tap();
+    // The scan is scoped to the panel container, so the listbox `AddressPicker`
+    // portals to <body> is out of reach; the controls inside the panel itself
+    // are what it covers.
+    async function tooSmall(page: Page) {
       const panel = container(page);
       await expect(panel).toBeVisible();
-      const small = await panel.evaluate((root) =>
+      return panel.evaluate((root) =>
         Array.from(
           root.querySelectorAll<HTMLElement>(
             'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
@@ -418,7 +423,42 @@ test.describe("Config panel container (Instawards D3)", () => {
           })
           .filter((t) => t.w > 0 && t.h > 0 && (t.w < 44 || t.h < 44)),
       );
-      expect(small).toEqual([]);
+    }
+
+    test("every interactive element in the panel is at least 44×44 CSS px", async ({ page }) => {
+      await gotoBuilder(page, flowId);
+      await swapNode(page).tap();
+      expect(await tooSmall(page)).toEqual([]);
+    });
+
+    // The Swapper renders `AddressPicker` in pinned mode only, so the editable
+    // branch every other panel gets was never measured — which is how #661's
+    // 18px save button survived. Pay is the nearest non-swap caller.
+    //
+    // Scoped to the picker's own controls rather than the whole panel: Pay
+    // still renders the legacy `AssetField` select, the payout-mode select and
+    // a bare checkbox, all under 44px. Those are the unmigrated inputs #607
+    // deliberately left untouched (SOW l.262-263) and are tracked separately.
+    test("the editable AddressPicker's controls are at least 44×44 CSS px", async ({ page }) => {
+      await gotoBuilder(page, flowId);
+      await page.locator('.react-flow__node[data-id="p"]').tap();
+      await expect(container(page)).toHaveAccessibleName("Pay settings");
+
+      const input = page.getByRole("combobox", { name: /Recipient/ });
+      await input.fill(RECIPIENT);
+      const save = page.getByRole("button", { name: "Save to address book" });
+      await expect(save).toBeVisible();
+
+      const inputBox = (await input.boundingBox())!;
+      const saveBox = (await save.boundingBox())!;
+      expect({ w: Math.round(saveBox.width), h: Math.round(saveBox.height) }).toEqual({
+        w: 44,
+        h: 44,
+      });
+      // The target must sit in the gutter `pointer-coarse:pr-14` reserves, not
+      // over the address the user is typing.
+      expect(saveBox.x).toBeGreaterThanOrEqual(inputBox.x + inputBox.width - 56);
+      expect(Math.round(inputBox.height)).toBeGreaterThanOrEqual(44);
     });
   });
 });
