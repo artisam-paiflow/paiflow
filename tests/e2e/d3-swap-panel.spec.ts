@@ -270,21 +270,33 @@ test.describe("Config panel container (Instawards D3)", () => {
         .map((id) => document.getElementById(id)?.textContent ?? "")
         .join(" "),
     );
-    expect(described).toMatch(/at least 0\.3%/);
+    expect(described).toMatch(/pool fee is 0\.3%/);
 
-    // The floating panel opens with its foot below the 1600px viewport, which
-    // would cut the message off. Its header drags it (asserted in the mouse
-    // suite below), so lift the card until the whole of it is in frame.
+    // The floating panel opens with its foot below the viewport, which would
+    // cut the message off the shot. Its header drags it (asserted in the mouse
+    // suite below), so lift it by exactly what the foot needs — measured, not a
+    // fixed amount a taller panel would outgrow, and no further, because the
+    // builder's own header strip paints over the top of the canvas.
     if (!isMobile) {
+      const vh = page.viewportSize()!.height;
+      const card = (await panel.boundingBox())!;
+      const lift = Math.max(0, Math.min(card.y, card.y + card.height + 24 - vh));
       const header = panel.getByRole("heading", { name: "Swap settings" });
       const h = (await header.boundingBox())!;
       const x = h.x + h.width / 2;
       const y = h.y + h.height / 2;
       await page.mouse.move(x, y);
       await page.mouse.down();
-      await page.mouse.move(x, y - 420, { steps: 8 });
+      await page.mouse.move(x, y - lift, { steps: 8 });
       await page.mouse.up();
-      await expect.poll(async () => (await header.boundingBox())!.y).toBeLessThan(y - 300);
+      // The drag's whole purpose: the card ends up entirely in frame. A panel
+      // too tall for the viewport fails here rather than clipping the PNG.
+      await expect
+        .poll(async () => {
+          const b = (await panel.boundingBox())!;
+          return b.y >= 0 && b.y + b.height <= vh;
+        })
+        .toBe(true);
     }
 
     const message = panel.getByText(/makes every swap revert/);
