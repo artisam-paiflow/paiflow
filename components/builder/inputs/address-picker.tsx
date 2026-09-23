@@ -15,7 +15,7 @@ import {
   nextHighlightIndex,
 } from "../address-input.utils";
 import { Field, type FieldControlProps } from "./field";
-import { readoutClass } from "./styles";
+import { inputClass, readoutClass } from "./styles";
 
 export type AddressKind = "account" | "contract" | "either";
 
@@ -197,6 +197,7 @@ function EditableAddressPicker({
   const placeholder =
     placeholderProp ?? KIND_PLACEHOLDER[accept] + (pendingAllowed ? " or PENDING:label" : "");
   const listboxId = useId();
+  const pendingBadgeId = useId();
   const [draft, setDraft] = useState(value);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -439,9 +440,6 @@ function EditableAddressPicker({
     }
   }
 
-  const inputClasses =
-    "border-outline-variant/40 bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-primary w-full rounded border px-3 py-2 pr-10 font-mono text-[14px] focus:ring-1 focus:outline-none";
-
   // ARIA only; the portal, positioning and key handling are unchanged (#609).
   // "Expanded" means the listbox is on screen, not merely the popup: the
   // loading, error, save and empty states have no listbox to control.
@@ -500,7 +498,7 @@ function EditableAddressPicker({
             value={saveLabel}
             onChange={(e) => setSaveLabel(e.target.value)}
             placeholder="Label e.g. Alice"
-            className={inputClasses}
+            className={inputClass}
             autoFocus
           />
           {saveError && (
@@ -541,7 +539,7 @@ function EditableAddressPicker({
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               placeholder="Search contacts…"
-              className={inputClasses}
+              className={inputClass}
               autoFocus
               aria-label="Search contacts"
               {...comboboxProps}
@@ -644,6 +642,12 @@ function EditableAddressPicker({
     );
   })();
 
+  // The badge is the only place the pending state is written down, so it joins
+  // whatever `Field` already describes the control with.
+  const describedBy = (control?: FieldControlProps) =>
+    [control?.["aria-describedby"], pending ? pendingBadgeId : null].filter(Boolean).join(" ") ||
+    undefined;
+
   const picker = (control?: FieldControlProps) => (
     <div ref={containerRef} className="relative">
       <div className="relative flex items-center">
@@ -654,18 +658,18 @@ function EditableAddressPicker({
           onFocus={() => setOpen(true)}
           onKeyDown={handleInputKeyDown}
           placeholder={placeholder}
-          className={cn(
-            inputClasses,
-            pending && "ring-1 ring-amber-700",
-            invalid && "!border-error/70 focus:!border-error focus:!ring-error/50",
-          )}
+          className={cn(inputClass, "pr-10", pending && "ring-tertiary-container ring-1")}
           autoComplete="off"
           {...comboboxProps}
           aria-haspopup="listbox"
           aria-invalid={invalid ? true : undefined}
+          aria-describedby={describedBy(control)}
         />
         {pending && (
-          <span className="absolute -top-2 right-1 rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400">
+          <span
+            id={pendingBadgeId}
+            className="text-label-sm bg-on-tertiary text-tertiary absolute -top-2 right-1 rounded px-1.5 py-0.5 font-mono"
+          >
             needs address
           </span>
         )}
@@ -695,7 +699,7 @@ function EditableAddressPicker({
               left: position.left,
               width: position.width,
             }}
-            className="border-outline-variant/60 bg-surface-container-high fixed z-[100] overflow-hidden rounded-xl border shadow-[0_8px_24px_-4px_rgba(0,0,0,0.7)]"
+            className="border-outline-variant/60 bg-surface-container-high shadow-popover fixed z-[100] overflow-hidden rounded-xl border"
           >
             {dropdownContent}
           </div>,

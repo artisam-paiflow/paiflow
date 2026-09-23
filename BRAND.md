@@ -63,7 +63,7 @@ This electric hot pink shows up in the HTML mockups as inline hex (`text-[#FF007
 
 ## 3. Effects: the visual signatures
 
-These four effects are what make Paiflow look like Paiflow. Every screen must use at least one. No screen should use all four simultaneously (visual fatigue).
+The first four effects are what make Paiflow look like Paiflow. Every screen must use at least one. No screen should use all four simultaneously (visual fatigue). The fifth, §3.5, is plumbing rather than signature: it applies to one kind of surface and carries no meaning.
 
 ### 3.1 Grid pattern background
 
@@ -149,6 +149,22 @@ For "live," "listening," "deploying" status indicators. Always small — never a
 ```
 
 For secondary statuses (deploying, info), swap `primary` → `secondary`. For success, use `tertiary`.
+
+### 3.5 Popover elevation
+
+One token, `shadow-popover`, for a surface portalled **over** the page — the address picker's
+listbox, a dropdown menu. Everything else on a screen sits in the layout and needs no shadow at all.
+
+```css
+--shadow-popover: 0 8px 24px -4px rgb(0 0 0 / 0.7);
+```
+
+This is the one place a grey shadow is right rather than a neon glow. A popover floats over whatever
+happens to be under it — canvas, table rows, another panel — so it needs **separation**, which is
+what a dark blur gives. Glow means _selected_, _live_ or _primary action_ ([§3.3](#33-neon-glow));
+putting it on a menu says the menu is emphasised, which it is not. See
+[§10](#10-anti-patterns): this token and the mobile FAB are the only grey shadows in the product,
+and anything reaching for a fourth is a value that should have been this one.
 
 ---
 
@@ -458,7 +474,7 @@ Things that will break the brand. The agent must refuse these even if asked.
 - ❌ **Generic crypto purple gradients.** Avoid `from-purple-500 to-pink-500` and similar Web3 clichés.
 - ❌ **Hexagons.** Used heavily by Stellar's own brand; we don't compete with their visual identity.
 - ❌ **Rounded corners larger than `rounded-full` (12px).** No pill buttons. No `rounded-2xl` or `rounded-3xl`.
-- ❌ **Drop shadows.** Use neon glow (color box-shadow) for elevation, not gray blur. The only acceptable gray shadow is the FAB on mobile.
+- ❌ **Drop shadows.** Use neon glow (color box-shadow) for elevation, not gray blur. Two exceptions, both named: the FAB on mobile, and the `shadow-popover` token for a surface portalled over the page ([§3.5](#35-popover-elevation)). A hand-written `shadow-[0_8px_24px_-4px_rgba(0,0,0,0.7)]` is the same shadow with the name filed off — use the token.
 - ❌ **Sans-serif for amounts or addresses.** All numeric and on-chain data goes in JetBrains Mono. Always.
 - ❌ **Emoji in the product.** None in the app UI, marketing pages, or anything a user sees —
   use Material Symbols for everything visual. Developer-facing docs (`README.md` and friends)
