@@ -9,6 +9,7 @@ import {
   type PinnedAddress,
 } from "@/components/builder/inputs/address-picker";
 import AddressInput from "@/components/builder/address-input";
+import { inputClass } from "@/components/builder/inputs/styles";
 import type { AddressEntry } from "@/lib/address-book.types";
 
 // Checksummed strkeys: an account (Circle's USDC issuer) and two contracts.
@@ -184,7 +185,8 @@ describe("AddressPicker error message", () => {
   it("a boolean error colours the border and renders no text, as before", () => {
     const { container } = render(<AddressInput value="GABC" onChange={() => {}} error />);
     const input = screen.getByRole("combobox");
-    expect(input.className).toMatch(/border-error/);
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(input.className).toMatch(/aria-invalid:border-error/);
     expect(input.getAttribute("aria-describedby")).toBeNull();
     expect(container.querySelector("p")).toBeNull();
   });
@@ -276,6 +278,48 @@ describe("AddressPicker combobox ARIA", () => {
     expect(screen.getByText("NO SAVED CONTACTS.")).toBeTruthy();
     expect(screen.getByRole("combobox").getAttribute("aria-expanded")).toBe("false");
     expect(await axeViolations()).toEqual([]);
+  });
+});
+
+describe("AddressPicker editable styling", () => {
+  // Not two sampled utilities but the whole contract: `cn()` runs these through
+  // tailwind-merge, which does not know the @theme names, and styles.ts warns
+  // that an override "could silently drop the wrong class" (#648).
+  function missingFromInputClass(el: HTMLElement): string[] {
+    return inputClass.split(" ").filter((c) => !el.classList.contains(c));
+  }
+
+  it("the editable input is styled from styles.ts, plus room for the save button", () => {
+    render(<AddressPicker label="Recipient" value="" onChange={() => {}} />);
+    const input = screen.getByRole("combobox", { name: "Recipient" });
+    expect(missingFromInputClass(input)).toEqual([]);
+    expect(input.classList.contains("pr-10")).toBe(true);
+    // BRAND §6: the ring is keyboard-only. A `focus:` ring is the bug #648 fixed.
+    expect(input.className).not.toMatch(/(^|\s)focus:(ring|border)-/);
+  });
+
+  it("the contacts search inside the listbox is styled from styles.ts too", async () => {
+    const user = userEvent.setup();
+    render(<AddressPicker label="Recipient" value="" onChange={() => {}} addressBook={BOOK} />);
+    await user.click(screen.getByRole("combobox", { name: "Recipient" }));
+    const search = screen.getByRole("combobox", { name: "Search contacts" });
+    expect(missingFromInputClass(search)).toEqual([]);
+  });
+
+  it("the pending badge is announced, not only amber", async () => {
+    render(<AddressPicker label="Recipient" value="PENDING:payroll" onChange={() => {}} pending />);
+    const input = screen.getByRole("combobox", { name: "Recipient" });
+    expect(describedText(input)).toContain("needs address");
+    const badge = screen.getByText("needs address");
+    expect(badge.className).toMatch(/text-tertiary/);
+    expect(badge.className).not.toMatch(/amber/);
+    expect(input.className).not.toMatch(/amber/);
+    expect(await axeViolations()).toEqual([]);
+  });
+
+  it("an unlabelled picker still describes its pending badge", () => {
+    render(<AddressInput value="PENDING:payroll" onChange={() => {}} pending />);
+    expect(describedText(screen.getByRole("combobox"))).toContain("needs address");
   });
 });
 
