@@ -275,6 +275,7 @@ function EditableAddressPicker({
   useEffect(() => {
     if (!open) {
       setPosition(null);
+      openingToSave.current = false;
       return;
     }
     setQuery("");
@@ -500,17 +501,22 @@ function EditableAddressPicker({
     if (showSave) {
       return (
         <div className="p-3">
+          <div className="text-label-sm text-on-surface-variant mb-1.5 font-mono uppercase">
+            Save to address book
+          </div>
+          {/* The heading names the action; the field holds a contact label, and an aria-label
+              that disagreed with a visible <label> would fail WCAG 2.5.3. */}
           <label
             htmlFor={saveLabelId}
-            className="text-label-sm text-on-surface-variant mb-1.5 block font-mono uppercase"
+            className="text-label-sm text-on-surface-variant mb-1 block font-mono uppercase"
           >
-            Save to address book
+            Label
           </label>
           <input
             id={saveLabelId}
             value={saveLabel}
             onChange={(e) => setSaveLabel(e.target.value)}
-            placeholder="Label e.g. Alice"
+            placeholder="e.g. Alice"
             className={inputClass}
             autoFocus
           />
@@ -696,7 +702,9 @@ function EditableAddressPicker({
           <button
             type="button"
             onClick={() => {
-              openingToSave.current = !showSave;
+              // Only the click that opens the dropdown may suppress the [open] effect's reset;
+              // armed while already open, the mark would outlive this click.
+              openingToSave.current = !open && !showSave;
               setOpen(true);
               setShowSave((v) => !v);
             }}

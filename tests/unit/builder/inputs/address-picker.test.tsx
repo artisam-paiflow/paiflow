@@ -355,7 +355,7 @@ describe("AddressPicker editable controls (#661)", () => {
     const user = userEvent.setup();
     saveable();
     await user.click(screen.getByRole("button", { name: "Save to address book" }));
-    expect(screen.getByRole("textbox", { name: "Save to address book" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Label" })).toBeTruthy();
     expect(await axeViolations()).toEqual([]);
   });
 
@@ -372,10 +372,27 @@ describe("AddressPicker editable controls (#661)", () => {
     const user = userEvent.setup();
     saveable();
     await user.click(screen.getByRole("button", { name: "Save to address book" }));
-    expect(screen.getByRole("textbox", { name: "Save to address book" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Label" })).toBeTruthy();
     // and it still toggles shut
     await user.click(screen.getByRole("button", { name: "Save to address book" }));
-    expect(screen.queryByRole("textbox", { name: "Save to address book" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Label" })).toBeNull();
+  });
+
+  it("reopening the dropdown after a close shows contacts, not the save form", async () => {
+    const user = userEvent.setup();
+    saveable();
+    const input = screen.getByRole("combobox", { name: "Recipient" });
+    // The ordinary path: the field is already focused, so the button's setOpen(true)
+    // is a no-op and the [open] effect never runs to spend `openingToSave`.
+    fireEvent.focus(input);
+    await user.click(screen.getByRole("button", { name: "Save to address book" }));
+    expect(screen.getByRole("textbox", { name: "Label" })).toBeTruthy();
+
+    fireEvent.mouseDown(document.body);
+    fireEvent.focus(input);
+    // An invariant lock, not a regression guard: this passed before the ref was
+    // scoped to the opening click too, because every close path clears showSave.
+    expect(screen.queryByRole("textbox", { name: "Label" })).toBeNull();
   });
 
   it("a pending value is never saveable, so the badge and the button never collide", () => {

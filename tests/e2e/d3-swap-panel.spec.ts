@@ -4,6 +4,10 @@
  * docked as a bottom sheet on a phone — with the desktop mouse behaviour
  * asserted unchanged. Writes PNGs into docs/instawards/evidence/d3/.
  *
+ * Also measures the editable AddressPicker's controls on the Pay panel (#661):
+ * the Swapper renders the pinned branch only, so the 44×44 scan below would
+ * never reach the editable one.
+ *
  * Runs on both projects (the per-project suffix keeps their PNGs apart):
  *   PLAYWRIGHT_NO_SERVER=1 ADMIN_SEED_PASSWORD=… pnpm exec playwright test \
  *     tests/e2e/d3-swap-panel.spec.ts
