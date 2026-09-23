@@ -666,6 +666,8 @@ function EditableAddressPicker({
           aria-describedby={describedBy(control)}
         />
         {pending && (
+          // bg-on-tertiary is a foreground token used as a background deliberately: the container
+          // pairing inverts it to dark-on-light, where amber-950/amber-400 read light-on-dark.
           <span
             id={pendingBadgeId}
             className="text-label-sm bg-on-tertiary text-tertiary absolute -top-2 right-1 rounded px-1.5 py-0.5 font-mono"

@@ -163,8 +163,9 @@ This is the one place a grey shadow is right rather than a neon glow. A popover 
 happens to be under it — canvas, table rows, another panel — so it needs **separation**, which is
 what a dark blur gives. Glow means _selected_, _live_ or _primary action_ ([§3.3](#33-neon-glow));
 putting it on a menu says the menu is emphasised, which it is not. See
-[§10](#10-anti-patterns): this token and the mobile FAB are the only grey shadows in the product,
-and anything reaching for a fourth is a value that should have been this one.
+[§10](#10-anti-patterns): this token and the mobile FAB are the only grey shadows the brand allows,
+and anything reaching for a third is a value that should have been this one.
+`components/app/topbar.tsx:105` still carries a hand-written one and has not been migrated (#664).
 
 ---
 
