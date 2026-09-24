@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SwapQuotePreview from "@/components/builder/swap-quote-preview";
 import type { Asset, FlowNode } from "@/lib/flows/schema";
 import { MIN_SWAP_SLIPPAGE_BPS } from "@/lib/flows/schema";
@@ -44,8 +44,17 @@ export default function SwapPanel({
   const set = (config: Partial<SwapNode["config"]>) =>
     onChange({ ...node, config: { ...node.config, ...config } });
 
+  // Advanced starts collapsed, but never hides a problem: a deadline error or
+  // a missing router opens it.
+  const deadlineError = fieldError("deadlineSecs");
+  const advancedNeedsAttention = deadlineError !== null || routerContractId === undefined;
+  const [advancedOpen, setAdvancedOpen] = useState(advancedNeedsAttention);
+  useEffect(() => {
+    if (advancedNeedsAttention) setAdvancedOpen(true);
+  }, [advancedNeedsAttention]);
+
   return (
-    <>
+    <div className="grid gap-4">
       <AssetSelect
         label="Asset In"
         value={node.config.assetIn}
@@ -60,48 +69,67 @@ export default function SwapPanel({
         onChange={(assetOut) => set({ assetOut })}
         error={fieldError("assetOut")}
       />
-      <div data-testid="swap-router">
-        {/* Pinned, never editable: the server resolves the router per
-            environment and injects it at deploy time. An editable router
-            would let a flow route its funds through an arbitrary contract. */}
-        <AddressPicker
-          pinned={{ id: routerContractId, label: `Router — Soroswap (${network})`, network }}
-          hint="Set by Paiflow for this network and applied when you deploy. It can't be changed here."
-        />
-      </div>
       <ShareInput
         label="Max slippage (%)"
         value={node.config.slippageBps}
         onChange={(slippageBps) => set({ slippageBps })}
         minBps={MIN_SWAP_SLIPPAGE_BPS}
         error={fieldError("slippageBps")}
-        hint={
-          <>
-            Minimum output is the pool&apos;s spot price less this percentage. It must cover
-            Soroswap&apos;s 0.3% fee plus price impact, so at least 0.3% is required.
-          </>
-        }
+        hint="At least 0.3%, to cover Soroswap's fee and price impact."
       />
-      <DeadlineInput
-        value={node.config.deadlineSecs}
-        onChange={(deadlineSecs) => set({ deadlineSecs })}
-        error={fieldError("deadlineSecs")}
-      />
-      <AmountInput
-        label="Preview amount"
-        value={previewStroops}
-        onChange={setPreviewStroops}
-        asset={node.config.assetIn}
-        hint="Used for this preview only — a swap converts whatever the flow receives."
-        emptyNote={(described) => `Empty — the preview still quotes ${described}.`}
-      />
-      <SwapQuotePreview
-        assetIn={node.config.assetIn}
-        assetOut={node.config.assetOut}
-        slippageBps={node.config.slippageBps}
-        amountStroops={previewStroops}
-      />
-    </>
+      <section
+        aria-label="Live quote"
+        className="border-outline-variant/40 bg-surface-container grid gap-3 rounded border p-3"
+      >
+        <AmountInput
+          label="Preview amount"
+          value={previewStroops}
+          onChange={setPreviewStroops}
+          asset={node.config.assetIn}
+          hint="Preview only; the swap converts whatever arrives."
+          emptyNote={(described) => `Empty — the preview still quotes ${described}.`}
+        />
+        <SwapQuotePreview
+          assetIn={node.config.assetIn}
+          assetOut={node.config.assetOut}
+          slippageBps={node.config.slippageBps}
+          amountStroops={previewStroops}
+        />
+      </section>
+      <details
+        open={advancedOpen}
+        onToggle={(e) => setAdvancedOpen(e.currentTarget.open)}
+        className="group/advanced"
+        data-testid="swap-advanced"
+      >
+        <summary className="text-label-sm text-on-surface-muted hover:text-on-surface focus-visible:ring-primary font-body flex cursor-pointer list-none items-center gap-1 rounded font-medium focus:outline-none focus-visible:ring-1 pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
+          <span
+            aria-hidden
+            className="material-symbols-outlined text-[18px] transition-transform group-open/advanced:rotate-90 motion-reduce:transition-none"
+          >
+            chevron_right
+          </span>
+          Advanced
+          <span className="font-normal">· router, deadline</span>
+        </summary>
+        <div className="mt-3 grid gap-4">
+          <div data-testid="swap-router">
+            {/* Pinned, never editable: the server resolves the router per
+                environment and injects it at deploy time. An editable router
+                would let a flow route its funds through an arbitrary contract. */}
+            <AddressPicker
+              pinned={{ id: routerContractId, label: `Router — Soroswap (${network})`, network }}
+              hint="Set by Paiflow for this network; it can't be changed."
+            />
+          </div>
+          <DeadlineInput
+            value={node.config.deadlineSecs}
+            onChange={(deadlineSecs) => set({ deadlineSecs })}
+            error={deadlineError}
+          />
+        </div>
+      </details>
+    </div>
   );
 }
 
@@ -128,7 +156,7 @@ function DeadlineInput({
   return (
     <Field
       label="Deadline (seconds)"
-      hint="Bounds the ledger close time the router accepts. On the direct trigger path it is computed in the same transaction and cannot expire."
+      hint="How long the router accepts the swap after it is submitted."
       note={note}
       error={error}
     >

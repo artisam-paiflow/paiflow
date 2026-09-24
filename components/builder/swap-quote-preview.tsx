@@ -30,9 +30,11 @@ function units(stroops: string, maxFrac = 4): string {
 }
 
 /**
- * "10 XLM → ~1.05 USDC via Soroswap (live). Minimum at 1% slippage: ~1.04 USDC"
- * The minimum is the spot-based number the swapper contract enforces, not the
- * quote less slippage. Instawards D1, #391.
+ * The builder shows the output as a figure ("≈ 1.05 USDC", then "for 10 XLM ·
+ * at least 1.04 USDC at 1% slippage"); `compact` (deploy review) keeps the one
+ * sentence: "10 XLM → ~1.05 USDC via Soroswap (live). Minimum at 1% slippage:
+ * ~1.04 USDC". The minimum is the spot-based number the swapper contract
+ * enforces, not the quote less slippage. Instawards D1, #391.
  */
 export default function SwapQuotePreview({
   assetIn,
@@ -55,7 +57,7 @@ export default function SwapQuotePreview({
   );
   const base = compact
     ? "text-label-sm text-on-surface-variant font-mono"
-    : "text-[11px] text-zinc-400";
+    : "text-label-sm text-on-surface-muted font-body leading-snug";
 
   if (state.status === "idle") return null;
   if (state.status === "loading") {
@@ -79,22 +81,42 @@ export default function SwapQuotePreview({
   }
   const { quote } = state;
   const alwaysReverts = quoteAlwaysReverts(quote);
+  const inText = `${units(amountStroops, 7)} ${label(assetIn)}`;
+  const outText = `${units(quote.amountOutStroops)} ${label(assetOut)}`;
+  const minText = `${units(quote.amountOutMinStroops)} ${label(assetOut)}`;
+  const slippage = `${slippageBps / 100}%`;
+
+  if (compact) {
+    return (
+      <div
+        className={alwaysReverts ? `${base} text-error` : base}
+        data-testid="swap-quote"
+        aria-live="polite"
+      >
+        {inText} → ~{outText} via Soroswap (live). Minimum at {slippage} slippage: ~{minText}
+        {alwaysReverts && (
+          <>
+            {" "}
+            — above the router&apos;s expected output, so this swap would always revert. Raise the
+            slippage allowance to cover the 0.3% pool fee and price impact.
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={alwaysReverts ? `${base} text-error` : base}
-      data-testid="swap-quote"
-      aria-live="polite"
-    >
-      {units(amountStroops, 7)} {label(assetIn)} → ~{units(quote.amountOutStroops)}{" "}
-      {label(assetOut)} via Soroswap (live). Minimum at {slippageBps / 100}% slippage: ~
-      {units(quote.amountOutMinStroops)} {label(assetOut)}
-      {alwaysReverts && (
-        <>
-          {" "}
-          — above the router&apos;s expected output, so this swap would always revert. Raise the
-          slippage allowance to cover the 0.3% pool fee and price impact.
-        </>
-      )}
+    <div className="grid gap-0.5" data-testid="swap-quote" aria-live="polite">
+      <div
+        className={`font-mono text-[18px] leading-tight ${alwaysReverts ? "text-error" : "text-primary"}`}
+      >
+        ≈ {outText}
+      </div>
+      <div className={alwaysReverts ? `${base} text-error` : base}>
+        {alwaysReverts
+          ? `Would always revert: at ${slippage} slippage the minimum, ${minText}, is above the expected output. Raise the slippage.`
+          : `for ${inText} · at least ${minText} at ${slippage} slippage · live Soroswap quote`}
+      </div>
     </div>
   );
 }

@@ -61,6 +61,9 @@
   --color-outline-variant: #5c3f46;
   --color-on-surface: #e5e2e1;
   --color-on-surface-variant: #e5bcc5;
+  /* Neutral muted text for dense forms (builder labels, hints), where the
+     pink-tinted variant would tint the whole panel. BRAND.md §2. */
+  --color-on-surface-muted: #a8a3a6;
   --color-on-background: #e5e2e1;
   --color-inverse-surface: #e5e2e1;
   --color-inverse-on-surface: #313030;

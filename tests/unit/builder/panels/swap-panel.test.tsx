@@ -109,6 +109,8 @@ const deadline = () =>
   screen.getByRole("textbox", { name: "Deadline (seconds)" }) as HTMLInputElement;
 const preview = () => screen.getByRole("textbox", { name: "Preview amount" }) as HTMLInputElement;
 const router = () => screen.getByRole("status", { name: /Router — Soroswap \(testnet\)/ });
+const advanced = () => screen.getByTestId("swap-advanced") as HTMLDetailsElement;
+const advancedToggle = () => screen.getByText("Advanced").closest("summary") as HTMLElement;
 
 let fetchMock: ReturnType<typeof vi.fn>;
 const quotedAmounts = () =>
@@ -139,6 +141,11 @@ describe("SwapPanel", () => {
     const refused: unknown[] = [];
     render(<Owned spy={vi.fn()} refused={refused} />);
 
+    // Router and deadline sit under Advanced, collapsed until asked for.
+    expect(advanced().open).toBe(false);
+    await user.click(advancedToggle());
+    expect(advanced().open).toBe(true);
+
     // AssetSelect ×2, AddressPicker (pinned), ShareInput, AmountInput.
     expect(assetIn().tagName).toBe("SELECT");
     expect(assetOut().tagName).toBe("SELECT");
@@ -152,14 +159,16 @@ describe("SwapPanel", () => {
     // None carries ConfigPanel's legacy `.input` class.
     expect(document.querySelector(".input")).toBeNull();
 
+    (document.activeElement as HTMLElement | null)?.blur();
     const order = [
       assetIn(),
       assetOut(),
+      slippage(),
+      preview(),
+      advancedToggle(),
       screen.getByRole("button", { name: /Copy Router/ }),
       screen.getByRole("link", { name: /View Router .* on stellar\.expert/ }),
-      slippage(),
       deadline(),
-      preview(),
     ];
     for (const el of order) {
       await user.tab();
@@ -216,7 +225,7 @@ describe("SwapPanel", () => {
     expect(spy.mock.lastCall?.[0].config.slippageBps).toBe(30);
     expect(describedText(slippage())).toContain("Raised to the minimum, 0.3%.");
     // The static requirement stays alongside the note.
-    expect(describedText(slippage())).toContain("at least 0.3% is required");
+    expect(describedText(slippage())).toContain("At least 0.3%");
     expect(refused).toEqual([]);
   });
 
@@ -284,14 +293,16 @@ describe("SwapPanel", () => {
 
     await user.clear(preview());
     await user.type(preview(), "2500.");
-    await waitFor(() => expect(screen.getByTestId("swap-quote").textContent).toMatch(/^2500 XLM/));
+    await waitFor(() =>
+      expect(screen.getByTestId("swap-quote").textContent).toMatch(/for 2500 XLM ·/),
+    );
     await user.tab();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
 
     expect(spy).not.toHaveBeenCalled();
     // Debounced, and never a draft: no "", "2500." or partial string was quoted.
     expect(quotedAmounts()).toEqual(["100000000", "25000000000"]);
-    expect(screen.getByText(/Used for this preview only/)).toBeTruthy();
+    expect(describedText(preview())).toContain("Preview only");
   });
 
   it("says a cleared preview amount still quotes the last one, not that the flow uses it", async () => {
@@ -327,7 +338,33 @@ describe("SwapPanel", () => {
     const refused: unknown[] = [];
     render(<Owned spy={vi.fn()} refused={refused} noRouter />);
     expect(screen.getByText("Not configured on this environment")).toBeTruthy();
+    // Nothing to flag is ever collapsed away.
+    expect(advanced().open).toBe(true);
     expect(screen.queryByRole("link", { name: /stellar\.expert/ })).toBeNull();
+    expect(await axeViolations()).toEqual([]);
+  });
+
+  it("shows the quote as a figure with its minimum", async () => {
+    render(<Owned spy={vi.fn()} refused={[]} />);
+    const quote = await screen.findByText("≈ 1.05 USDC");
+    expect(quote.closest("[data-testid=swap-quote]")?.textContent).toContain(
+      "for 10 XLM · at least 1.04 USDC at 1% slippage",
+    );
+  });
+
+  it("opens Advanced by itself when the deadline has an error", async () => {
+    render(
+      <SwapPanel
+        node={SWAP}
+        onChange={vi.fn()}
+        fieldError={(f) => (f === "deadlineSecs" ? "Deadline must be 1–86,400 seconds." : null)}
+        expectedAsset={null}
+        network="testnet"
+        routerContractId={ROUTER}
+      />,
+    );
+    expect(advanced().open).toBe(true);
+    expect(deadline().getAttribute("aria-invalid")).toBe("true");
     expect(await axeViolations()).toEqual([]);
   });
 });

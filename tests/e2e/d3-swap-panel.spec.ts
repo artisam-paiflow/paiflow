@@ -168,8 +168,8 @@ test.describe("Config panel container (Instawards D3)", () => {
       /Asset In/,
       /Asset Out/,
       /Max slippage/,
-      /Deadline/,
       /Preview amount/,
+      /Advanced/,
     ];
     let at = 0;
     for (const re of expected) {
@@ -180,6 +180,13 @@ test.describe("Config panel container (Instawards D3)", () => {
       ).toBeGreaterThanOrEqual(at);
       at = found + 1;
     }
+
+    // Advanced (router, deadline) opens from the keyboard too.
+    const advanced = panel.locator("summary", { hasText: "Advanced" });
+    await advanced.focus();
+    await page.keyboard.press("Enter");
+    await expect(panel.getByLabel(/Deadline/)).toBeVisible();
+    await expect(panel.getByTestId("swap-router")).toBeVisible();
 
     // Edit slippage from the keyboard; the draft commits on blur.
     const slippage = panel.getByLabel(/Max slippage/);

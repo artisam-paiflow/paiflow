@@ -58,7 +58,7 @@ describe("AssetSelect", () => {
     expect(option("USDC").disabled).toBe(true);
     expect(option("XLM (native)").disabled).toBe(false);
     const select = screen.getByRole("combobox", { name: "Asset In" });
-    expect(describedText(select)).toMatch(/Only XLM can be picked here/);
+    expect(describedText(select)).toMatch(/Set by the previous step/);
     expect(select.getAttribute("title")).toBeNull();
     expect((await axe.run(container)).violations).toEqual([]);
   });

@@ -919,7 +919,10 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
                 bgColor="#09090b"
                 maskColor="rgba(9, 9, 11, 0.6)"
                 nodeComponent={MinimapNode}
-                className="!border !border-zinc-800"
+                // The minimap renders above the config panel (docked sheet or
+                // floating card) and would swallow clicks on it, so it steps
+                // aside while a panel is open.
+                className={cn("!border !border-zinc-800", selectedId && "!hidden")}
               />
               {selectedId && selectedNode && (
                 <CanvasConfigPanel

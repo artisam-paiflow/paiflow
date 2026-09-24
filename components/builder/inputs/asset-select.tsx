@@ -81,9 +81,7 @@ export function AssetSelect({
   const selected = assetOptionValue(value);
   const known = catalogueEntry(selected, options) !== undefined;
   const expectedValue = expectedAsset ? assetOptionValue(expectedAsset) : null;
-  const restriction = expectedAsset
-    ? `Only ${assetLabel(expectedAsset)} can be picked here — that's the asset flowing into this step. Add or change a swap node upstream to use a different asset.`
-    : null;
+  const restriction = expectedAsset ? "Set by the previous step." : null;
 
   return (
     <Field
