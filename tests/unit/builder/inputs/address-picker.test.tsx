@@ -9,6 +9,7 @@ import {
   type PinnedAddress,
 } from "@/components/builder/inputs/address-picker";
 import AddressInput from "@/components/builder/address-input";
+import { inputClass } from "@/components/builder/inputs/styles";
 import type { AddressEntry } from "@/lib/address-book.types";
 
 // Checksummed strkeys: an account (Circle's USDC issuer) and two contracts.
@@ -184,7 +185,8 @@ describe("AddressPicker error message", () => {
   it("a boolean error colours the border and renders no text, as before", () => {
     const { container } = render(<AddressInput value="GABC" onChange={() => {}} error />);
     const input = screen.getByRole("combobox");
-    expect(input.className).toMatch(/border-error/);
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(input.className).toMatch(/aria-invalid:border-error/);
     expect(input.getAttribute("aria-describedby")).toBeNull();
     expect(container.querySelector("p")).toBeNull();
   });
@@ -276,6 +278,127 @@ describe("AddressPicker combobox ARIA", () => {
     expect(screen.getByText("NO SAVED CONTACTS.")).toBeTruthy();
     expect(screen.getByRole("combobox").getAttribute("aria-expanded")).toBe("false");
     expect(await axeViolations()).toEqual([]);
+  });
+});
+
+describe("AddressPicker editable styling", () => {
+  // Not two sampled utilities but the whole contract: `cn()` runs these through
+  // tailwind-merge, which does not know the @theme names, and styles.ts warns
+  // that an override "could silently drop the wrong class" (#648).
+  function missingFromInputClass(el: HTMLElement): string[] {
+    return inputClass.split(" ").filter((c) => !el.classList.contains(c));
+  }
+
+  it("the editable input is styled from styles.ts, plus room for the save button", () => {
+    render(<AddressPicker label="Recipient" value="" onChange={() => {}} />);
+    const input = screen.getByRole("combobox", { name: "Recipient" });
+    expect(missingFromInputClass(input)).toEqual([]);
+    expect(input.classList.contains("pr-10")).toBe(true);
+    // BRAND §6: the ring is keyboard-only. A `focus:` ring is the bug #648 fixed.
+    expect(input.className).not.toMatch(/(^|\s)focus:(ring|border)-/);
+  });
+
+  it("the contacts search inside the listbox is styled from styles.ts too", async () => {
+    const user = userEvent.setup();
+    render(<AddressPicker label="Recipient" value="" onChange={() => {}} addressBook={BOOK} />);
+    await user.click(screen.getByRole("combobox", { name: "Recipient" }));
+    const search = screen.getByRole("combobox", { name: "Search contacts" });
+    expect(missingFromInputClass(search)).toEqual([]);
+  });
+
+  it("the pending badge is announced, not only amber", async () => {
+    render(<AddressPicker label="Recipient" value="PENDING:payroll" onChange={() => {}} pending />);
+    const input = screen.getByRole("combobox", { name: "Recipient" });
+    expect(describedText(input)).toContain("needs address");
+    const badge = screen.getByText("needs address");
+    expect(badge.className).toMatch(/text-tertiary/);
+    expect(badge.className).not.toMatch(/amber/);
+    expect(input.className).not.toMatch(/amber/);
+    expect(await axeViolations()).toEqual([]);
+  });
+
+  it("an unlabelled picker still describes its pending badge", () => {
+    render(<AddressInput value="PENDING:payroll" onChange={() => {}} pending />);
+    expect(describedText(screen.getByRole("combobox"))).toContain("needs address");
+  });
+});
+
+describe("AddressPicker editable controls (#661)", () => {
+  // `ACCOUNT` is saveable: a G… account that is not already in the book.
+  const saveable = () =>
+    render(<AddressPicker label="Recipient" value={ACCOUNT} onChange={() => {}} />);
+
+  it("the save button has a real name, and the glyph is not part of it", () => {
+    saveable();
+    // The assertion that proves the fix. axe cannot: `button-name` lists
+    // `non-empty-title` among its `any` checks, so the title-only button it
+    // replaced passed every scan in this repo.
+    const button = screen.getByRole("button", { name: "Save to address book" });
+    expect(button.textContent).toContain("bookmark_add");
+    expect(button.getAttribute("aria-label")).toBe("Save to address book");
+    expect(screen.queryByRole("button", { name: /bookmark_add/ })).toBeNull();
+  });
+
+  it("the save button meets the coarse-pointer target", () => {
+    saveable();
+    const button = screen.getByRole("button", { name: "Save to address book" });
+    // jsdom has no layout, so the class is the claim here; the geometry is
+    // measured in tests/e2e/d3-swap-panel.spec.ts's 44x44 scan.
+    expect(button.classList.contains("pointer-coarse:min-h-11")).toBe(true);
+    expect(button.classList.contains("pointer-coarse:min-w-11")).toBe(true);
+    // The gutter has to hold that target, or it covers what the user typed.
+    const input = screen.getByRole("combobox", { name: "Recipient" });
+    expect(input.classList.contains("pointer-coarse:pr-14")).toBe(true);
+  });
+
+  it("that name opens the save form, whose label field is named", async () => {
+    const user = userEvent.setup();
+    saveable();
+    await user.click(screen.getByRole("button", { name: "Save to address book" }));
+    expect(screen.getByRole("textbox", { name: "Label" })).toBeTruthy();
+    expect(await axeViolations()).toEqual([]);
+  });
+
+  it("the loading row hides its spinner's ligature from the accessible name", () => {
+    render(<AddressPicker label="Recipient" value="" onChange={() => {}} addressBookLoading />);
+    fireEvent.focus(screen.getByRole("combobox", { name: "Recipient" }));
+    const row = screen.getByText(/Loading contacts/);
+    const glyph = row.querySelector(".material-symbols-outlined");
+    expect(glyph?.textContent?.trim()).toBe("sync");
+    expect(glyph?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("the save form opens on the first click, not the second", async () => {
+    const user = userEvent.setup();
+    saveable();
+    await user.click(screen.getByRole("button", { name: "Save to address book" }));
+    expect(screen.getByRole("textbox", { name: "Label" })).toBeTruthy();
+    // and it still toggles shut
+    await user.click(screen.getByRole("button", { name: "Save to address book" }));
+    expect(screen.queryByRole("textbox", { name: "Label" })).toBeNull();
+  });
+
+  it("reopening the dropdown after a close shows contacts, not the save form", async () => {
+    const user = userEvent.setup();
+    saveable();
+    const input = screen.getByRole("combobox", { name: "Recipient" });
+    // The ordinary path: the field is already focused, so the button's setOpen(true)
+    // is a no-op and the [open] effect never runs to spend `openingToSave`.
+    fireEvent.focus(input);
+    await user.click(screen.getByRole("button", { name: "Save to address book" }));
+    expect(screen.getByRole("textbox", { name: "Label" })).toBeTruthy();
+
+    fireEvent.mouseDown(document.body);
+    fireEvent.focus(input);
+    // An invariant lock, not a regression guard: this passed before the ref was
+    // scoped to the opening click too, because every close path clears showSave.
+    expect(screen.queryByRole("textbox", { name: "Label" })).toBeNull();
+  });
+
+  it("a pending value is never saveable, so the badge and the button never collide", () => {
+    render(<AddressPicker label="Recipient" value="PENDING:payroll" onChange={() => {}} pending />);
+    expect(screen.getByText("needs address")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Save to address book" })).toBeNull();
   });
 });
 

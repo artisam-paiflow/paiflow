@@ -73,6 +73,11 @@
   --radius-xl: 0.5rem;
   --radius-full: 0.75rem;
 
+  /* The one grey elevation BRAND §10 allows besides the mobile FAB: a
+   * portalled popover floating over arbitrary content needs separation, not
+   * the emphasis a neon glow carries. See BRAND.md §3.5. */
+  --shadow-popover: 0 8px 24px -4px rgb(0 0 0 / 0.7);
+
   --spacing-xs: 4px;
   --spacing-sm: 12px;
   --spacing-base: 8px;

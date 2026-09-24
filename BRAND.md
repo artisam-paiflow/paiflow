@@ -63,7 +63,7 @@ This electric hot pink shows up in the HTML mockups as inline hex (`text-[#FF007
 
 ## 3. Effects: the visual signatures
 
-These four effects are what make Paiflow look like Paiflow. Every screen must use at least one. No screen should use all four simultaneously (visual fatigue).
+The first four effects are what make Paiflow look like Paiflow. Every screen must use at least one. No screen should use all four simultaneously (visual fatigue). The fifth, §3.5, is plumbing rather than signature: it applies to one kind of surface and carries no meaning.
 
 ### 3.1 Grid pattern background
 
@@ -149,6 +149,23 @@ For "live," "listening," "deploying" status indicators. Always small — never a
 ```
 
 For secondary statuses (deploying, info), swap `primary` → `secondary`. For success, use `tertiary`.
+
+### 3.5 Popover elevation
+
+One token, `shadow-popover`, for a surface portalled **over** the page — the address picker's
+listbox, a dropdown menu. Everything else on a screen sits in the layout and needs no shadow at all.
+
+```css
+--shadow-popover: 0 8px 24px -4px rgb(0 0 0 / 0.7);
+```
+
+This is the one place a grey shadow is right rather than a neon glow. A popover floats over whatever
+happens to be under it — canvas, table rows, another panel — so it needs **separation**, which is
+what a dark blur gives. Glow means _selected_, _live_ or _primary action_ ([§3.3](#33-neon-glow));
+putting it on a menu says the menu is emphasised, which it is not. See
+[§10](#10-anti-patterns): this token and the mobile FAB are the only grey shadows the brand allows,
+and anything reaching for a third is a value that should have been this one.
+`components/app/topbar.tsx:105` still carries a hand-written one and has not been migrated (#664).
 
 ---
 
@@ -256,10 +273,25 @@ Three variants only. Don't invent more.
 **Icon button**
 
 ```html
-<button class="text-on-surface-variant hover:text-primary p-xs transition-colors duration-200">
-  <span class="material-symbols-outlined">settings</span>
+<button
+  aria-label="Settings"
+  title="Settings"
+  class="text-on-surface-variant hover:text-primary p-xs inline-flex items-center justify-center transition-colors duration-200 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+>
+  <span aria-hidden="true" class="material-symbols-outlined">settings</span>
 </button>
 ```
+
+- **Name:** always an `aria-label`. A `title` is a tooltip that a mouse user sees, not a name — and
+  it is worth writing down here because the linter will not catch it: axe's `button-name` rule
+  accepts a bare `title`, so a nameless icon button passes every scan in this repo.
+- **The glyph is decorative:** `aria-hidden="true"` on the `<span>`. Material Symbols render from
+  ligature text, so without it a screen reader announces "bookmark_add".
+- **Touch targets:** 44px under a coarse pointer, the same minimum as an input. Note axe's
+  `target-size` rule is disabled by default and set to 24px in any case; the gate is the 44×44 scan
+  in `tests/e2e/d3-swap-panel.spec.ts`.
+
+`components/builder/inputs/address-picker.tsx:145-171` is the worked example.
 
 ### Status chips
 
@@ -458,7 +490,7 @@ Things that will break the brand. The agent must refuse these even if asked.
 - ❌ **Generic crypto purple gradients.** Avoid `from-purple-500 to-pink-500` and similar Web3 clichés.
 - ❌ **Hexagons.** Used heavily by Stellar's own brand; we don't compete with their visual identity.
 - ❌ **Rounded corners larger than `rounded-full` (12px).** No pill buttons. No `rounded-2xl` or `rounded-3xl`.
-- ❌ **Drop shadows.** Use neon glow (color box-shadow) for elevation, not gray blur. The only acceptable gray shadow is the FAB on mobile.
+- ❌ **Drop shadows.** Use neon glow (color box-shadow) for elevation, not gray blur. Two exceptions, both named: the FAB on mobile, and the `shadow-popover` token for a surface portalled over the page ([§3.5](#35-popover-elevation)). A hand-written `shadow-[0_8px_24px_-4px_rgba(0,0,0,0.7)]` is the same shadow with the name filed off — use the token.
 - ❌ **Sans-serif for amounts or addresses.** All numeric and on-chain data goes in JetBrains Mono. Always.
 - ❌ **Emoji in the product.** None in the app UI, marketing pages, or anything a user sees —
   use Material Symbols for everything visual. Developer-facing docs (`README.md` and friends)

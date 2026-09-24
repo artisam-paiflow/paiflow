@@ -15,7 +15,7 @@ import {
   nextHighlightIndex,
 } from "../address-input.utils";
 import { Field, type FieldControlProps } from "./field";
-import { readoutClass } from "./styles";
+import { inputClass, readoutClass } from "./styles";
 
 export type AddressKind = "account" | "contract" | "either";
 
@@ -197,11 +197,18 @@ function EditableAddressPicker({
   const placeholder =
     placeholderProp ?? KIND_PLACEHOLDER[accept] + (pendingAllowed ? " or PENDING:label" : "");
   const listboxId = useId();
+  const pendingBadgeId = useId();
+  const saveLabelId = useId();
   const [draft, setDraft] = useState(value);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const [showSave, setShowSave] = useState(false);
+  // The bookmark button opens the dropdown and the save form in one click, but
+  // the `[open]` effect below clears transient state whenever the dropdown
+  // opens, so without this the form is wiped in the same render and the first
+  // click appears to do nothing (#661).
+  const openingToSave = useRef(false);
   const [saveLabel, setSaveLabel] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -268,10 +275,12 @@ function EditableAddressPicker({
   useEffect(() => {
     if (!open) {
       setPosition(null);
+      openingToSave.current = false;
       return;
     }
     setQuery("");
-    setShowSave(false);
+    if (openingToSave.current) openingToSave.current = false;
+    else setShowSave(false);
 
     function updatePosition() {
       if (!containerRef.current) return;
@@ -439,9 +448,6 @@ function EditableAddressPicker({
     }
   }
 
-  const inputClasses =
-    "border-outline-variant/40 bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-primary w-full rounded border px-3 py-2 pr-10 font-mono text-[14px] focus:ring-1 focus:outline-none";
-
   // ARIA only; the portal, positioning and key handling are unchanged (#609).
   // "Expanded" means the listbox is on screen, not merely the popup: the
   // loading, error, save and empty states have no listbox to control.
@@ -469,7 +475,9 @@ function EditableAddressPicker({
     if (addressBookLoading) {
       return (
         <div className="text-label-sm text-on-surface-variant flex items-center justify-center gap-2 px-3 py-6 font-mono">
-          <span className="material-symbols-outlined animate-spin text-[16px]">sync</span>
+          <span aria-hidden="true" className="material-symbols-outlined animate-spin text-[16px]">
+            sync
+          </span>
           Loading contacts…
         </div>
       );
@@ -496,11 +504,20 @@ function EditableAddressPicker({
           <div className="text-label-sm text-on-surface-variant mb-1.5 font-mono uppercase">
             Save to address book
           </div>
+          {/* The heading names the action; the field holds a contact label, and an aria-label
+              that disagreed with a visible <label> would fail WCAG 2.5.3. */}
+          <label
+            htmlFor={saveLabelId}
+            className="text-label-sm text-on-surface-variant mb-1 block font-mono uppercase"
+          >
+            Label
+          </label>
           <input
+            id={saveLabelId}
             value={saveLabel}
             onChange={(e) => setSaveLabel(e.target.value)}
-            placeholder="Label e.g. Alice"
-            className={inputClasses}
+            placeholder="e.g. Alice"
+            className={inputClass}
             autoFocus
           />
           {saveError && (
@@ -515,7 +532,7 @@ function EditableAddressPicker({
                 setSaveError(null);
               }}
               disabled={saveBusy}
-              className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:bg-surface-container-high/40 shrink-0 rounded-lg border px-2.5 py-1.5 font-mono transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              className="border-outline-variant/40 text-label-sm text-on-surface-variant hover:bg-surface-container-high/40 shrink-0 rounded-lg border px-2.5 py-1.5 font-mono transition-colors disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11"
             >
               CANCEL
             </button>
@@ -523,7 +540,7 @@ function EditableAddressPicker({
               type="button"
               onClick={() => void saveToAddressBook()}
               disabled={saveBusy || !saveLabel.trim() || !canSave}
-              className="bg-primary text-label-sm text-on-primary inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 font-mono font-bold transition-all hover:-translate-y-px active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="bg-primary text-label-sm text-on-primary inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 font-mono font-bold transition-all hover:-translate-y-px active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11"
             >
               {saveBusy ? "SAVING…" : "SAVE"}
             </button>
@@ -541,7 +558,7 @@ function EditableAddressPicker({
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               placeholder="Search contacts…"
-              className={inputClasses}
+              className={inputClass}
               autoFocus
               aria-label="Search contacts"
               {...comboboxProps}
@@ -644,6 +661,12 @@ function EditableAddressPicker({
     );
   })();
 
+  // The badge is the only place the pending state is written down, so it joins
+  // whatever `Field` already describes the control with.
+  const describedBy = (control?: FieldControlProps) =>
+    [control?.["aria-describedby"], pending ? pendingBadgeId : null].filter(Boolean).join(" ") ||
+    undefined;
+
   const picker = (control?: FieldControlProps) => (
     <div ref={containerRef} className="relative">
       <div className="relative flex items-center">
@@ -655,17 +678,23 @@ function EditableAddressPicker({
           onKeyDown={handleInputKeyDown}
           placeholder={placeholder}
           className={cn(
-            inputClasses,
-            pending && "ring-1 ring-amber-700",
-            invalid && "!border-error/70 focus:!border-error focus:!ring-error/50",
+            inputClass,
+            "pr-10 pointer-coarse:pr-14",
+            pending && "ring-tertiary-container ring-1",
           )}
           autoComplete="off"
           {...comboboxProps}
           aria-haspopup="listbox"
           aria-invalid={invalid ? true : undefined}
+          aria-describedby={describedBy(control)}
         />
         {pending && (
-          <span className="absolute -top-2 right-1 rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400">
+          // bg-on-tertiary is a foreground token used as a background deliberately: the container
+          // pairing inverts it to dark-on-light, where amber-950/amber-400 read light-on-dark.
+          <span
+            id={pendingBadgeId}
+            className="text-label-sm bg-on-tertiary text-tertiary absolute -top-2 right-1 rounded px-1.5 py-0.5 font-mono"
+          >
             needs address
           </span>
         )}
@@ -673,13 +702,19 @@ function EditableAddressPicker({
           <button
             type="button"
             onClick={() => {
+              // Only the click that opens the dropdown may suppress the [open] effect's reset;
+              // armed while already open, the mark would outlive this click.
+              openingToSave.current = !open && !showSave;
               setOpen(true);
               setShowSave((v) => !v);
             }}
+            aria-label="Save to address book"
             title="Save to address book"
-            className="text-on-surface-variant hover:text-primary absolute right-2 transition-colors"
+            className="text-on-surface-variant hover:text-primary absolute inset-y-0 right-2 my-auto inline-flex items-center justify-center transition-colors pointer-coarse:min-h-11 pointer-coarse:min-w-11"
           >
-            <span className="material-symbols-outlined text-[18px]">bookmark_add</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-[18px]">
+              bookmark_add
+            </span>
           </button>
         )}
       </div>
@@ -695,7 +730,7 @@ function EditableAddressPicker({
               left: position.left,
               width: position.width,
             }}
-            className="border-outline-variant/60 bg-surface-container-high fixed z-[100] overflow-hidden rounded-xl border shadow-[0_8px_24px_-4px_rgba(0,0,0,0.7)]"
+            className="border-outline-variant/60 bg-surface-container-high shadow-popover fixed z-[100] overflow-hidden rounded-xl border"
           >
             {dropdownContent}
           </div>,
