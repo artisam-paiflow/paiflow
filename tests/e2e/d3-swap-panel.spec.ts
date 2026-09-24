@@ -88,7 +88,20 @@ function activeName(page: Page) {
   });
 }
 
+/**
+ * Router and deadline sit in a collapsed Advanced section, which axe skips and
+ * the 44px scan sees as zero-size, so both scans open it first.
+ */
+async function openAdvanced(page: Page) {
+  const advanced = container(page).getByTestId("swap-advanced");
+  await advanced.evaluate((el) => {
+    (el as HTMLDetailsElement).open = true;
+  });
+  await expect(advanced.getByTestId("swap-router")).toBeVisible();
+}
+
 async function axeViolations(page: Page) {
+  await openAdvanced(page);
   // page.evaluate runs over CDP, outside the page's CSP.
   await page.evaluate(AXE_SOURCE);
   return page.evaluate(async () => {
@@ -486,10 +499,11 @@ test.describe("Config panel container (Instawards D3)", () => {
     async function tooSmall(page: Page) {
       const panel = container(page);
       await expect(panel).toBeVisible();
+      await openAdvanced(page);
       return panel.evaluate((root) =>
         Array.from(
           root.querySelectorAll<HTMLElement>(
-            'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+            'button, a[href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])',
           ),
         )
           .map((el) => {

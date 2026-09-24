@@ -76,7 +76,7 @@ export default function SwapPanel({
         onChange={(slippageBps) => set({ slippageBps })}
         minBps={MIN_SWAP_SLIPPAGE_BPS}
         error={fieldError("slippageBps")}
-        hint="At least 0.3%, to cover Soroswap's fee and price impact."
+        hint="At least 0.3% for Soroswap's fee, plus room for price impact."
       />
       <section
         aria-labelledby={ticketId}

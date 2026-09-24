@@ -134,7 +134,9 @@ test.describe("Swap block (Instawards D1)", () => {
     await expect(routerField).toContainText(
       router ?? /C[A-Z2-7]{55}|Not configured on this environment/,
     );
-    await expect(panel.getByText(/At least 0\.3%, to cover Soroswap's fee/)).toBeVisible();
+    await expect(
+      panel.getByText(/At least 0\.3% for Soroswap's fee, plus room for price impact/),
+    ).toBeVisible();
     await expect(
       page.getByText(/swap XLM to USDC via Soroswap with up to 1% slippage/),
     ).toBeVisible();
