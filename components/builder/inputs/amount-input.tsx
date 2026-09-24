@@ -24,6 +24,8 @@ type Props = {
   disabled?: boolean;
   /** Overrides the note shown when a cleared field blurs, e.g. for a preview-only amount. */
   emptyNote?: (described: string) => string;
+  /** Shows the `= 1.5 USDC` echo under the field; off where the unit suffix already says it. */
+  echo?: boolean;
 };
 
 const STROOPS = /^\d{1,39}$/;
@@ -45,6 +47,7 @@ export function AmountInput({
   hint,
   disabled,
   emptyNote,
+  echo: showEcho = true,
 }: Props) {
   const unit = asset ? assetLabel(asset) : null;
   const describe = (units: bigint) =>
@@ -60,7 +63,7 @@ export function AmountInput({
     emptyNote,
   });
   // The echo is what the flow holds, which the draft may not show mid-edit.
-  const echo = current !== null && unit ? `= ${describe(current)}` : null;
+  const echo = showEcho && current !== null && unit ? `= ${describe(current)}` : null;
 
   return (
     <Field

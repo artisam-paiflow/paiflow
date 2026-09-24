@@ -107,7 +107,7 @@ const slippage = () =>
   screen.getByRole("textbox", { name: "Max slippage (%)" }) as HTMLInputElement;
 const deadline = () =>
   screen.getByRole("textbox", { name: "Deadline (seconds)" }) as HTMLInputElement;
-const preview = () => screen.getByRole("textbox", { name: "Preview amount" }) as HTMLInputElement;
+const preview = () => screen.getByRole("textbox", { name: "You send" }) as HTMLInputElement;
 const router = () => screen.getByRole("status", { name: /Router — Soroswap \(testnet\)/ });
 const advanced = () => screen.getByTestId("swap-advanced") as HTMLDetailsElement;
 const advancedToggle = () => screen.getByText("Advanced").closest("summary") as HTMLElement;
@@ -294,7 +294,8 @@ describe("SwapPanel", () => {
     await user.clear(preview());
     await user.type(preview(), "2500.");
     await waitFor(() =>
-      expect(screen.getByTestId("swap-quote").textContent).toMatch(/for 2500 XLM ·/),
+      // The mock answers 1.05 USDC whatever the size, so the rate moves with it.
+      expect(screen.getByTestId("swap-quote").textContent).toContain("1 XLM = 0.0004 USDC"),
     );
     await user.tab();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
@@ -302,7 +303,9 @@ describe("SwapPanel", () => {
     expect(spy).not.toHaveBeenCalled();
     // Debounced, and never a draft: no "", "2500." or partial string was quoted.
     expect(quotedAmounts()).toEqual(["100000000", "25000000000"]);
-    expect(describedText(preview())).toContain("Preview only");
+    // The ticket says it is a preview; the field itself carries no echo.
+    expect(screen.getByRole("region", { name: "Preview" }).contains(preview())).toBe(true);
+    expect(describedText(preview())).not.toContain("= 2500 XLM");
   });
 
   it("says a cleared preview amount still quotes the last one, not that the flow uses it", async () => {
@@ -344,12 +347,29 @@ describe("SwapPanel", () => {
     expect(await axeViolations()).toEqual([]);
   });
 
-  it("shows the quote as a figure with its minimum", async () => {
+  it("shows the quote as a ticket: the output, then the minimum and the rate", async () => {
     render(<Owned spy={vi.fn()} refused={[]} />);
-    const quote = await screen.findByText("≈ 1.05 USDC");
-    expect(quote.closest("[data-testid=swap-quote]")?.textContent).toContain(
-      "for 10 XLM · at least 1.04 USDC at 1% slippage",
-    );
+    const figure = await screen.findByText("≈ 1.05 USDC");
+    const ticket = figure.closest("[data-testid=swap-quote]") as HTMLElement;
+    const rows = Array.from(ticket.querySelectorAll("dl > div")).map((row) => [
+      row.querySelector("dt")?.textContent,
+      row.querySelector("dd")?.textContent,
+    ]);
+    expect(rows).toEqual([
+      ["Minimum (1%)", "1.04 USDC"],
+      ["Rate", "1 XLM = 0.105 USDC"],
+    ]);
+    expect(ticket.textContent).toContain("Live · Soroswap");
+    expect(await axeViolations()).toEqual([]);
+  });
+
+  it("holds the figure's place with a skeleton while the quote loads", async () => {
+    fetchMock.mockImplementation(() => new Promise(() => {}));
+    render(<Owned spy={vi.fn()} refused={[]} />);
+    const quote = await screen.findByTestId("swap-quote");
+    expect(quote.getAttribute("aria-busy")).toBe("true");
+    expect(quote.textContent).toContain("Fetching a live Soroswap quote…");
+    expect(quote.querySelector("dl")).toBeNull();
   });
 
   it("opens Advanced by itself when the deadline has an error", async () => {

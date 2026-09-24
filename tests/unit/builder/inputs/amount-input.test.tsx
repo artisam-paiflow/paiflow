@@ -56,6 +56,13 @@ describe("AmountInput", () => {
     expect((await axe.run(container)).violations).toEqual([]);
   });
 
+  it("leaves the echo out with echo={false}", async () => {
+    const user = userEvent.setup();
+    render(<Owned spy={vi.fn()} echo={false} />);
+    await user.type(field(), "1.5");
+    expect(describedText(field())).not.toContain("= 1.5 USDC");
+  });
+
   it("takes 0.5 character by character", async () => {
     const user = userEvent.setup();
     const spy = vi.fn();

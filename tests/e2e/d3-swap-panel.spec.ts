@@ -168,7 +168,7 @@ test.describe("Config panel container (Instawards D3)", () => {
       /Asset In/,
       /Asset Out/,
       /Max slippage/,
-      /Preview amount/,
+      /You send/,
       /Advanced/,
     ];
     let at = 0;

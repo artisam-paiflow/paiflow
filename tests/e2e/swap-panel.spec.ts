@@ -320,7 +320,8 @@ test.describe("Swap block (Instawards D1)", () => {
     const panel = await openSwapPanel(page, flowId);
     const quote = panel.getByTestId("swap-quote");
     await expect(quote).toContainText(/≈ \d+\.\d+ USDC/, { timeout: 30_000 });
-    await expect(quote).toContainText(/for 10 XLM · at least \d+\.\d+ USDC at 1% slippage/);
+    await expect(quote).toContainText(/Minimum \(1%\)\s*\d+\.\d+ USDC/);
+    await expect(quote).toContainText(/Rate\s*1 XLM = \d+\.\d+ USDC/);
     await panel.screenshot({ path: `${OUT}/08-swap-panel-live-quote.png`, animations: "disabled" });
     await page.screenshot({ path: `${OUT}/09-builder-live-quote.png`, animations: "disabled" });
   });
