@@ -194,7 +194,7 @@ export default function CanvasConfigPanel({
           ref={headingRef}
           tabIndex={-1}
           aria-label={`${label} settings`}
-          className="text-brand-400 text-xs tracking-wider uppercase focus:outline-none focus-visible:underline"
+          className="text-on-surface text-xs tracking-wider uppercase focus:outline-none focus-visible:underline"
         >
           {label}
         </h2>

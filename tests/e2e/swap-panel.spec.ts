@@ -119,6 +119,7 @@ test.describe("Swap block (Instawards D1)", () => {
     const panel = await openSwapPanel(page, flowId);
     await expect(page.getByTestId("palette-swap")).toBeVisible();
     await expect(panel.getByText("Max slippage (%)")).toBeVisible();
+    await panel.locator("summary", { hasText: "Advanced" }).click();
     await expect(panel.getByText("Deadline (seconds)")).toBeVisible();
     // Pinned and read-only (#612): the actual router contract, with nothing to
     // type into. The label names the network, which reaches the panel as a
@@ -133,7 +134,9 @@ test.describe("Swap block (Instawards D1)", () => {
     await expect(routerField).toContainText(
       router ?? /C[A-Z2-7]{55}|Not configured on this environment/,
     );
-    await expect(panel.getByText(/spot price less this percentage/)).toBeVisible();
+    await expect(
+      panel.getByText(/At least 0\.3% for Soroswap's fee, plus room for price impact/),
+    ).toBeVisible();
     await expect(
       page.getByText(/swap XLM to USDC via Soroswap with up to 1% slippage/),
     ).toBeVisible();
@@ -318,10 +321,9 @@ test.describe("Swap block (Instawards D1)", () => {
     expect(res.ok()).toBeTruthy();
     const panel = await openSwapPanel(page, flowId);
     const quote = panel.getByTestId("swap-quote");
-    await expect(quote).toContainText(/10 XLM → ~\d+\.\d+ USDC via Soroswap \(live\)/, {
-      timeout: 30_000,
-    });
-    await expect(quote).toContainText(/Minimum at 1% slippage/);
+    await expect(quote).toContainText(/≈ \d+\.\d+ USDC/, { timeout: 30_000 });
+    await expect(quote).toContainText(/Minimum \(1%\)\s*\d+\.\d+ USDC/);
+    await expect(quote).toContainText(/Rate\s*1 XLM = \d+\.\d+ USDC/);
     await panel.screenshot({ path: `${OUT}/08-swap-panel-live-quote.png`, animations: "disabled" });
     await page.screenshot({ path: `${OUT}/09-builder-live-quote.png`, animations: "disabled" });
   });

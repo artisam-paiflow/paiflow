@@ -26,12 +26,13 @@ export const readoutClass = [
   "aria-invalid:border-error/70",
 ].join(" ");
 
+// Neutral, not pink: pink is kept for the focused field (BRAND.md §6).
 export const labelClass =
-  "text-label-sm text-on-surface-variant group-focus-within:text-primary font-mono";
+  "text-label-sm text-on-surface-muted group-focus-within:text-primary font-body font-medium";
 
-export const hintClass = "text-label-sm text-on-surface-variant/80 leading-snug";
+export const hintClass = "text-label-sm text-on-surface-muted font-body leading-snug";
 
 export const errorClass = "text-label-sm text-error font-mono leading-snug";
 
 /** A unit beside a control (`USDC`, `%`): laid out, not positioned over it. */
-export const suffixClass = "text-label-sm text-on-surface-variant shrink-0 font-mono";
+export const suffixClass = "text-label-sm text-on-surface-muted shrink-0 font-mono";
