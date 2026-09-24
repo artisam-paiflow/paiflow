@@ -107,8 +107,10 @@ const slippage = () =>
   screen.getByRole("textbox", { name: "Max slippage (%)" }) as HTMLInputElement;
 const deadline = () =>
   screen.getByRole("textbox", { name: "Deadline (seconds)" }) as HTMLInputElement;
-const preview = () => screen.getByRole("textbox", { name: "Preview amount" }) as HTMLInputElement;
+const preview = () => screen.getByRole("textbox", { name: "You send" }) as HTMLInputElement;
 const router = () => screen.getByRole("status", { name: /Router — Soroswap \(testnet\)/ });
+const advanced = () => screen.getByTestId("swap-advanced") as HTMLDetailsElement;
+const advancedToggle = () => screen.getByText("Advanced").closest("summary") as HTMLElement;
 
 let fetchMock: ReturnType<typeof vi.fn>;
 const quotedAmounts = () =>
@@ -139,6 +141,11 @@ describe("SwapPanel", () => {
     const refused: unknown[] = [];
     render(<Owned spy={vi.fn()} refused={refused} />);
 
+    // Router and deadline sit under Advanced, collapsed until asked for.
+    expect(advanced().open).toBe(false);
+    await user.click(advancedToggle());
+    expect(advanced().open).toBe(true);
+
     // AssetSelect ×2, AddressPicker (pinned), ShareInput, AmountInput.
     expect(assetIn().tagName).toBe("SELECT");
     expect(assetOut().tagName).toBe("SELECT");
@@ -152,14 +159,16 @@ describe("SwapPanel", () => {
     // None carries ConfigPanel's legacy `.input` class.
     expect(document.querySelector(".input")).toBeNull();
 
+    (document.activeElement as HTMLElement | null)?.blur();
     const order = [
       assetIn(),
       assetOut(),
+      slippage(),
+      preview(),
+      advancedToggle(),
       screen.getByRole("button", { name: /Copy Router/ }),
       screen.getByRole("link", { name: /View Router .* on stellar\.expert/ }),
-      slippage(),
       deadline(),
-      preview(),
     ];
     for (const el of order) {
       await user.tab();
@@ -216,7 +225,7 @@ describe("SwapPanel", () => {
     expect(spy.mock.lastCall?.[0].config.slippageBps).toBe(30);
     expect(describedText(slippage())).toContain("Raised to the minimum, 0.3%.");
     // The static requirement stays alongside the note.
-    expect(describedText(slippage())).toContain("at least 0.3% is required");
+    expect(describedText(slippage())).toContain("At least 0.3%");
     expect(refused).toEqual([]);
   });
 
@@ -284,14 +293,19 @@ describe("SwapPanel", () => {
 
     await user.clear(preview());
     await user.type(preview(), "2500.");
-    await waitFor(() => expect(screen.getByTestId("swap-quote").textContent).toMatch(/^2500 XLM/));
+    await waitFor(() =>
+      // The mock answers 1.05 USDC whatever the size, so the rate moves with it.
+      expect(screen.getByTestId("swap-quote").textContent).toContain("1 XLM = 0.0004 USDC"),
+    );
     await user.tab();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
 
     expect(spy).not.toHaveBeenCalled();
     // Debounced, and never a draft: no "", "2500." or partial string was quoted.
     expect(quotedAmounts()).toEqual(["100000000", "25000000000"]);
-    expect(screen.getByText(/Used for this preview only/)).toBeTruthy();
+    // The ticket says it is a preview; the field itself carries no echo.
+    expect(screen.getByRole("region", { name: "Preview" }).contains(preview())).toBe(true);
+    expect(describedText(preview())).not.toContain("= 2500 XLM");
   });
 
   it("says a cleared preview amount still quotes the last one, not that the flow uses it", async () => {
@@ -327,7 +341,50 @@ describe("SwapPanel", () => {
     const refused: unknown[] = [];
     render(<Owned spy={vi.fn()} refused={refused} noRouter />);
     expect(screen.getByText("Not configured on this environment")).toBeTruthy();
+    // Nothing to flag is ever collapsed away.
+    expect(advanced().open).toBe(true);
     expect(screen.queryByRole("link", { name: /stellar\.expert/ })).toBeNull();
+    expect(await axeViolations()).toEqual([]);
+  });
+
+  it("shows the quote as a ticket: the output, then the minimum and the rate", async () => {
+    render(<Owned spy={vi.fn()} refused={[]} />);
+    const figure = await screen.findByText("≈ 1.05 USDC");
+    const ticket = figure.closest("[data-testid=swap-quote]") as HTMLElement;
+    const rows = Array.from(ticket.querySelectorAll("dl > div")).map((row) => [
+      row.querySelector("dt")?.textContent,
+      row.querySelector("dd")?.textContent,
+    ]);
+    expect(rows).toEqual([
+      ["Minimum (1%)", "1.04 USDC"],
+      ["Rate", "1 XLM = 0.105 USDC"],
+    ]);
+    expect(ticket.textContent).toContain("Live · Soroswap");
+    expect(await axeViolations()).toEqual([]);
+  });
+
+  it("holds the figure's place with a skeleton while the quote loads", async () => {
+    fetchMock.mockImplementation(() => new Promise(() => {}));
+    render(<Owned spy={vi.fn()} refused={[]} />);
+    const quote = await screen.findByTestId("swap-quote");
+    expect(quote.getAttribute("aria-busy")).toBe("true");
+    expect(quote.textContent).toContain("Fetching a live Soroswap quote…");
+    expect(quote.querySelector("dl")).toBeNull();
+  });
+
+  it("opens Advanced by itself when the deadline has an error", async () => {
+    render(
+      <SwapPanel
+        node={SWAP}
+        onChange={vi.fn()}
+        fieldError={(f) => (f === "deadlineSecs" ? "Deadline must be 1–86,400 seconds." : null)}
+        expectedAsset={null}
+        network="testnet"
+        routerContractId={ROUTER}
+      />,
+    );
+    expect(advanced().open).toBe(true);
+    expect(deadline().getAttribute("aria-invalid")).toBe("true");
     expect(await axeViolations()).toEqual([]);
   });
 });

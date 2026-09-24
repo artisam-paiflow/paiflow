@@ -243,7 +243,7 @@ export default function ConfigPanel({
     >
       {!hideHeader && (
         <div className="flex items-center justify-between">
-          <div className="text-brand-400 text-xs tracking-wider uppercase">
+          <div className="text-on-surface text-xs tracking-wider uppercase">
             {NODE_TYPE_LABELS[node.type]}
           </div>
           <button

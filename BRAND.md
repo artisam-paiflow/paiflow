@@ -40,6 +40,7 @@ All UI must consume colors via the Tailwind tokens below. Do not hardcode hex va
 | `tertiary`                  | `#ffba20` | Amber — warnings, audit/security highlights                    |
 | `on-surface`                | `#e5e2e1` | Body text                                                      |
 | `on-surface-variant`        | `#e5bcc5` | Muted body text, labels                                        |
+| `on-surface-muted`          | `#a8a3a6` | Neutral muted text for dense forms (builder labels, hints)     |
 | `outline`                   | `#ac878f` | Visible dividers                                               |
 | `outline-variant`           | `#5c3f46` | Subtle dividers (usually at `/10` to `/30` opacity)            |
 | `error`                     | `#ffb4ab` | Error text                                                     |
@@ -333,7 +334,7 @@ Hero cards (denser content): use `rounded-full` (12px) and `p-md` to `p-lg`.
 />
 ```
 
-Labels above inputs, in `label-sm` mono, `text-on-surface-variant`. On focus, label color shifts to `primary` (use `group-focus-within:text-primary`).
+Labels above inputs, in `label-sm` medium sans, `text-on-surface-muted`; hints below in `label-sm` `text-on-surface-muted`. On focus, label color shifts to `primary` (use `group-focus-within:text-primary`). A config panel is mostly labels and hints, so they stay neutral: pink marks the focused field, the actions and the one figure that matters (a swap's quoted output), not every line of text. Values stay mono.
 
 - **Focus:** the ring is `focus-visible:`, not `focus:`. It shows for keyboard focus and stays out of the way of a mouse click. Never remove the outline without putting a ring in its place.
 - **Touch targets:** at least 44px tall under a coarse pointer (`pointer-coarse:min-h-11`).

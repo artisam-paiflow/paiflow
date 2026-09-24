@@ -88,7 +88,20 @@ function activeName(page: Page) {
   });
 }
 
+/**
+ * Router and deadline sit in a collapsed Advanced section, which axe skips and
+ * the 44px scan sees as zero-size, so both scans open it first.
+ */
+async function openAdvanced(page: Page) {
+  const advanced = container(page).getByTestId("swap-advanced");
+  await advanced.evaluate((el) => {
+    (el as HTMLDetailsElement).open = true;
+  });
+  await expect(advanced.getByTestId("swap-router")).toBeVisible();
+}
+
 async function axeViolations(page: Page) {
+  await openAdvanced(page);
   // page.evaluate runs over CDP, outside the page's CSP.
   await page.evaluate(AXE_SOURCE);
   return page.evaluate(async () => {
@@ -168,8 +181,8 @@ test.describe("Config panel container (Instawards D3)", () => {
       /Asset In/,
       /Asset Out/,
       /Max slippage/,
-      /Deadline/,
-      /Preview amount/,
+      /You send/,
+      /Advanced/,
     ];
     let at = 0;
     for (const re of expected) {
@@ -180,6 +193,13 @@ test.describe("Config panel container (Instawards D3)", () => {
       ).toBeGreaterThanOrEqual(at);
       at = found + 1;
     }
+
+    // Advanced (router, deadline) opens from the keyboard too.
+    const advanced = panel.locator("summary", { hasText: "Advanced" });
+    await advanced.focus();
+    await page.keyboard.press("Enter");
+    await expect(panel.getByLabel(/Deadline/)).toBeVisible();
+    await expect(panel.getByTestId("swap-router")).toBeVisible();
 
     // Edit slippage from the keyboard; the draft commits on blur.
     const slippage = panel.getByLabel(/Max slippage/);
@@ -479,10 +499,11 @@ test.describe("Config panel container (Instawards D3)", () => {
     async function tooSmall(page: Page) {
       const panel = container(page);
       await expect(panel).toBeVisible();
+      await openAdvanced(page);
       return panel.evaluate((root) =>
         Array.from(
           root.querySelectorAll<HTMLElement>(
-            'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+            'button, a[href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])',
           ),
         )
           .map((el) => {
