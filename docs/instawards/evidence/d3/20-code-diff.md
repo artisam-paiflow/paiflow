@@ -123,7 +123,7 @@ a3f9c4c:components/builder/config-panel.tsx:155:    const result = validateFlow(
 
 ## 5. The swap rules live in one function, each with a fixed code
 
-Every rule a Swapper must satisfy is in one function, and each rule has a code that stays the same
+The rules that apply only to a Swapper are in one function, and each has a code that stays the same
 when its wording changes. The code, not the sentence, is what the rest of the app matches on.
 
 ```bash
@@ -149,6 +149,10 @@ It is defined once and called from one place, the flow check that both the build
 server run. Added in
 [`ddd9aa5`](https://github.com/artisam-paiflow/paiflow/commit/ddd9aa58b80c35e2cb67d76d9cd816560b422cec)
 (#610, merged in [#631](https://github.com/artisam-paiflow/paiflow/commit/e3ba1dc78875f9498613c62f1d2848be3b9c87b9)).
+
+One check on a Swapper sits outside it and has no code: "Asset In" must match the asset that
+actually flows into the swap (`lib/flows/validate.ts:1066-1083`). That is the asset-flow check every
+paying step shares, not a swap rule, so it stays where the other steps' version is.
 
 ## 6. Amounts and percentages are checked by the same rules everywhere
 
@@ -178,18 +182,24 @@ The four endpoints that check a flow all turn its problems into per-field messag
 shared helper. None of them builds that shape by hand any more.
 
 ```bash
+git grep -c 'Object.fromEntries(v.errors' a3f9c4c -- app
 git grep -n 'issuesToFields(' 5a866ae -- app
 git grep -c 'Object.fromEntries(v.errors' 5a866ae -- app
 ```
 
 ```text
+a3f9c4c:app/api/deployments/prepare/route.ts:1
+a3f9c4c:app/api/flows/[id]/edit/route.ts:1
+a3f9c4c:app/api/flows/[id]/resolve-addresses/route.ts:1
+a3f9c4c:app/api/flows/route.ts:1
 5a866ae:app/api/deployments/prepare/route.ts:44:      throw new AppError("VALIDATION", "Flow is invalid", issuesToFields(v.errors));
 5a866ae:app/api/flows/[id]/edit/route.ts:346:      const fieldErrors = issuesToFields(v.errors);
 5a866ae:app/api/flows/[id]/resolve-addresses/route.ts:79:        issuesToFields(v.errors),
 5a866ae:app/api/flows/route.ts:51:      throw new AppError("VALIDATION", "Invalid flow graph", issuesToFields(v.errors));
 ```
 
-(The second command prints nothing: no matches.) Added in
+Before, each of the four routes built the shape by hand. The last command prints nothing: no
+matches. Added in
 [`ddd9aa5`](https://github.com/artisam-paiflow/paiflow/commit/ddd9aa58b80c35e2cb67d76d9cd816560b422cec).
 
 ## 8. One helper picks out a node's errors
@@ -210,10 +220,43 @@ git grep -n 'nodeIssues(' 5a866ae -- components lib
 Adopted in [`d10dc0b`](https://github.com/artisam-paiflow/paiflow/commit/d10dc0bcbcb2d53aa051c97f057bd6e466f2e63a)
 (#646, merged in [#650](https://github.com/artisam-paiflow/paiflow/commit/d4bacbf037fca056c1fbe3bb89be9b1b2eb5364e)).
 
-## 9. What was left alone on purpose
+## 9. Every input shows its error the same way
 
-The sprint moved one panel onto the shared inputs; the other nodes still use the old ones. They
-stay as they are to serve as the contrast, and moving them is a later phase.
+Each shared input draws its label, hint and error through one component, `Field`. It also links
+the error to the control (`aria-invalid`, `aria-describedby`), so a screen reader announces it the
+same way in every field.
+
+```bash
+git grep -l '<Field' 5a866ae -- components/builder/inputs
+```
+
+```text
+5a866ae:components/builder/inputs/address-picker.tsx
+5a866ae:components/builder/inputs/amount-input.tsx
+5a866ae:components/builder/inputs/asset-select.tsx
+5a866ae:components/builder/inputs/percent-bps-input.tsx
+```
+
+`ShareInput` is a `PercentBpsInput` with the running total left off
+(`components/builder/inputs/share-input.tsx:4`), and the panel's `DeadlineInput` uses `Field` too
+([section 3](#3-hand-written-inputs-before-and-after)).
+
+## 10. The shared inputs are ready for the other nodes
+
+None of the shared inputs depends on the Swapper. They import only general helpers and the flow
+schema, so another node's panel can use them unchanged.
+
+```bash
+git grep -n -E 'swap-panel|swap-rules' 5a866ae -- components/builder/inputs
+```
+
+(Prints nothing: no shared input imports the Swapper's panel or its rules.)
+
+## 11. What was left alone on purpose
+
+The sprint moved one panel onto the shared inputs; the other nodes still use the old ones, among
+them Pay (`config-panel.tsx:507`) and Split (`:793`). They stay as they are to serve as the
+contrast, and moving them is a later phase.
 
 ```bash
 git grep -n ':global(.input)' 5a866ae -- components/builder/config-panel.tsx
