@@ -29,9 +29,16 @@ function units(stroops: string, maxFrac = 4): string {
   return frac ? `${whole}.${frac}` : whole.toString();
 }
 
+/** Units of `assetOut` per one unit of `assetIn`, or null for a zero input. */
+function rate(inStroops: string, outStroops: string): string | null {
+  const amountIn = BigInt(inStroops);
+  if (amountIn === 0n) return null;
+  return units(((BigInt(outStroops) * STROOPS_PER_UNIT) / amountIn).toString());
+}
+
 /**
- * The builder shows the output as a figure ("≈ 1.05 USDC", then "for 10 XLM ·
- * at least 1.04 USDC at 1% slippage"); `compact` (deploy review) keeps the one
+ * The builder shows a swap ticket: the output as the figure ("≈ 1.05 USDC"),
+ * then the minimum and the rate. `compact` (deploy review) keeps one
  * sentence: "10 XLM → ~1.05 USDC via Soroswap (live). Minimum at 1% slippage:
  * ~1.04 USDC". The minimum is the spot-based number the swapper contract
  * enforces, not the quote less slippage. Instawards D1, #391.
@@ -55,45 +62,41 @@ export default function SwapQuotePreview({
       ? null
       : { assetIn, assetOut, amountStroops, slippageBps },
   );
-  const base = compact
-    ? "text-label-sm text-on-surface-variant font-mono"
-    : "text-label-sm text-on-surface-muted font-body leading-snug";
-
-  if (state.status === "idle") return null;
-  if (state.status === "loading") {
-    return (
-      <div className={base} data-testid="swap-quote" aria-live="polite" aria-busy="true">
-        Fetching a live Soroswap quote…
-      </div>
-    );
-  }
-  if (state.status === "error") {
-    return (
-      <div
-        className={`${base} text-error`}
-        data-testid="swap-quote"
-        aria-live="polite"
-        role="status"
-      >
-        {state.message}
-      </div>
-    );
-  }
-  const { quote } = state;
-  const alwaysReverts = quoteAlwaysReverts(quote);
-  const inText = `${units(amountStroops, 7)} ${label(assetIn)}`;
-  const outText = `${units(quote.amountOutStroops)} ${label(assetOut)}`;
-  const minText = `${units(quote.amountOutMinStroops)} ${label(assetOut)}`;
   const slippage = `${slippageBps / 100}%`;
 
   if (compact) {
+    const base = "text-label-sm text-on-surface-variant font-mono";
+    if (state.status === "idle") return null;
+    if (state.status === "loading") {
+      return (
+        <div className={base} data-testid="swap-quote" aria-live="polite" aria-busy="true">
+          Fetching a live Soroswap quote…
+        </div>
+      );
+    }
+    if (state.status === "error") {
+      return (
+        <div
+          className={`${base} text-error`}
+          data-testid="swap-quote"
+          aria-live="polite"
+          role="status"
+        >
+          {state.message}
+        </div>
+      );
+    }
+    const { quote } = state;
+    const alwaysReverts = quoteAlwaysReverts(quote);
     return (
       <div
         className={alwaysReverts ? `${base} text-error` : base}
         data-testid="swap-quote"
         aria-live="polite"
       >
-        {inText} → ~{outText} via Soroswap (live). Minimum at {slippage} slippage: ~{minText}
+        {units(amountStroops, 7)} {label(assetIn)} → ~{units(quote.amountOutStroops)}{" "}
+        {label(assetOut)} via Soroswap (live). Minimum at {slippage} slippage: ~
+        {units(quote.amountOutMinStroops)} {label(assetOut)}
         {alwaysReverts && (
           <>
             {" "}
@@ -105,18 +108,79 @@ export default function SwapQuotePreview({
     );
   }
 
+  if (state.status === "idle") return null;
+  const outLabel = label(assetOut);
+  const quote = state.status === "ok" ? state.quote : null;
+  const alwaysReverts = quote !== null && quoteAlwaysReverts(quote);
+  const perUnit = quote ? rate(amountStroops, quote.amountOutStroops) : null;
+
   return (
-    <div className="grid gap-0.5" data-testid="swap-quote" aria-live="polite">
-      <div
-        className={`font-mono text-[18px] leading-tight ${alwaysReverts ? "text-error" : "text-primary"}`}
-      >
-        ≈ {outText}
+    <div
+      className="grid gap-3"
+      data-testid="swap-quote"
+      aria-live="polite"
+      aria-busy={state.status === "loading" || undefined}
+      role={state.status === "error" ? "status" : undefined}
+    >
+      <div aria-hidden className="text-on-surface-muted flex items-center gap-2">
+        <span className="bg-outline-variant/40 h-px flex-1" />
+        <span className="material-symbols-outlined text-[16px]">arrow_downward</span>
+        <span className="bg-outline-variant/40 h-px flex-1" />
       </div>
-      <div className={alwaysReverts ? `${base} text-error` : base}>
-        {alwaysReverts
-          ? `Would always revert: at ${slippage} slippage the minimum, ${minText}, is above the expected output. Raise the slippage.`
-          : `for ${inText} · at least ${minText} at ${slippage} slippage · live Soroswap quote`}
+      <div className="grid gap-1">
+        <span className="text-label-sm text-on-surface-muted font-body font-medium">You get</span>
+        {state.status === "loading" && (
+          <>
+            <span
+              aria-hidden
+              className="bg-surface-container-highest h-7 w-40 animate-pulse rounded motion-reduce:animate-none"
+            />
+            <span className="sr-only">Fetching a live Soroswap quote…</span>
+          </>
+        )}
+        {state.status === "error" && (
+          <span className="text-label-sm text-error font-body flex min-h-7 items-center leading-snug">
+            {state.message}
+          </span>
+        )}
+        {quote && (
+          <span
+            className={`font-mono text-[20px] leading-7 tabular-nums ${alwaysReverts ? "text-error" : "text-primary"}`}
+          >
+            ≈ {units(quote.amountOutStroops)} {outLabel}
+          </span>
+        )}
       </div>
+      {quote && (
+        <dl className="text-label-sm grid gap-1">
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-on-surface-muted font-body">Minimum ({slippage})</dt>
+            <dd className="text-on-surface font-mono tabular-nums">
+              {units(quote.amountOutMinStroops)} {outLabel}
+            </dd>
+          </div>
+          {perUnit !== null && (
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-on-surface-muted font-body">Rate</dt>
+              <dd className="text-on-surface font-mono tabular-nums">
+                1 {label(assetIn)} = {perUnit} {outLabel}
+              </dd>
+            </div>
+          )}
+        </dl>
+      )}
+      {alwaysReverts ? (
+        <p className="text-label-sm text-error font-body leading-snug">
+          Would always revert: the minimum is above the expected output. Raise the slippage.
+        </p>
+      ) : (
+        quote && (
+          <p className="text-label-sm text-on-surface-muted font-body flex items-center gap-2">
+            <span aria-hidden className="status-dot-live" />
+            Live · Soroswap
+          </p>
+        )
+      )}
     </div>
   );
 }

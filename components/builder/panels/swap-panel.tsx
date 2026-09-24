@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import SwapQuotePreview from "@/components/builder/swap-quote-preview";
 import type { Asset, FlowNode } from "@/lib/flows/schema";
 import { MIN_SWAP_SLIPPAGE_BPS } from "@/lib/flows/schema";
@@ -41,6 +41,7 @@ export default function SwapPanel({
   // UI state only, never written to the graph: a swap converts whatever the
   // flow receives, so this sizes the quote and nothing else.
   const [previewStroops, setPreviewStroops] = useState(DEFAULT_PREVIEW_STROOPS);
+  const ticketId = useId();
   const set = (config: Partial<SwapNode["config"]>) =>
     onChange({ ...node, config: { ...node.config, ...config } });
 
@@ -78,15 +79,21 @@ export default function SwapPanel({
         hint="At least 0.3%, to cover Soroswap's fee and price impact."
       />
       <section
-        aria-label="Live quote"
-        className="border-outline-variant/40 bg-surface-container grid gap-3 rounded border p-3"
+        aria-labelledby={ticketId}
+        className="border-outline-variant/40 bg-surface-container grid gap-3 rounded-lg border p-3"
       >
+        <h3
+          id={ticketId}
+          className="text-label-sm text-on-surface-muted font-mono tracking-wider uppercase"
+        >
+          Preview
+        </h3>
         <AmountInput
-          label="Preview amount"
+          label="You send"
           value={previewStroops}
           onChange={setPreviewStroops}
           asset={node.config.assetIn}
-          hint="Preview only; the swap converts whatever arrives."
+          echo={false}
           emptyNote={(described) => `Empty — the preview still quotes ${described}.`}
         />
         <SwapQuotePreview
