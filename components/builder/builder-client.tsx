@@ -922,6 +922,9 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
         onResolveAddress={handleResolveAddress}
         onSkipAddresses={handleSkipAddresses}
         collapsed={chatCollapsed}
+        // Below md the docked sheet sits over the tab's corner; hiding it keeps
+        // it out of the tab order instead of focusable but unseen.
+        hideTab={narrow && !!selectedId && !!selectedNode}
         onToggleCollapse={() => {
           // Opening the chat below md dismisses the docked panel (see selectNode).
           if (chatCollapsed && narrow) setSelectedId(null);

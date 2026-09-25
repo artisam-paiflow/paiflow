@@ -31,6 +31,8 @@ interface RaftLogProps {
   onSkipAddresses?: () => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  /** Hides the collapsed tab, e.g. while a phone's docked sheet covers it. */
+  hideTab?: boolean;
 }
 
 const SUGGESTIONS_ROWS = [
@@ -178,6 +180,7 @@ export default function RaftLog({
   onSkipAddresses,
   collapsed = false,
   onToggleCollapse,
+  hideTab = false,
 }: RaftLogProps) {
   const [input, setInput] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -491,8 +494,8 @@ export default function RaftLog({
   return (
     <>
       {/* Collapsed tab — Railway-style floating pill on right edge; on a
-          phone, a round button in the thumb zone clear of the header row */}
-      {collapsed && (
+          phone, an icon button in the thumb zone clear of the header row */}
+      {collapsed && !hideTab && (
         <button
           onClick={onToggleCollapse}
           className="chat-tab-glow border-primary/50 bg-primary text-on-primary fixed z-40 flex items-center gap-2 shadow-[0_0_18px_rgba(255,177,196,0.45)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.65)] active:scale-95 max-md:right-4 max-md:bottom-[calc(1rem+env(safe-area-inset-bottom))] max-md:h-14 max-md:w-14 max-md:justify-center max-md:rounded-full max-md:border md:top-20 md:right-0 md:rounded-l-lg md:border-y md:border-l md:px-3 md:py-2.5 md:hover:pr-4"

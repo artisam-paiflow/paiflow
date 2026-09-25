@@ -559,11 +559,17 @@ test.describe("Config panel container (Instawards D3)", () => {
     test("the sheet and the chat are never shown together", async ({ page }) => {
       await gotoBuilder(page, flowId);
       await swapNode(page).tap();
-      await expect(container(page)).toBeVisible();
+      const panel = container(page);
+      await expect(panel).toBeVisible();
 
+      // The sheet covers the Ask AI button's corner, so the button steps out
+      // rather than sit focusable but unseen beneath it.
       const openChat = page.getByTitle("Open AI chat");
+      await expect(openChat).toHaveCount(0);
+
+      await panel.getByRole("button", { name: "Close Swap settings" }).tap();
+      await expect(panel).toHaveCount(0);
       await openChat.tap();
-      await expect(container(page)).toHaveCount(0);
       await expect(page.locator("#ai-panel")).not.toHaveClass(/translate-x-full/);
 
       // The full-width chat covers the canvas, so the node is reached by keyboard.
@@ -571,6 +577,9 @@ test.describe("Config panel container (Instawards D3)", () => {
       await page.keyboard.press("Enter");
       await expect(container(page)).toBeVisible();
       await expect(page.locator("#ai-panel")).toHaveClass(/translate-x-full/);
+      await expect(openChat).toHaveCount(0);
+
+      await container(page).getByRole("button", { name: "Close Swap settings" }).tap();
       await expect(openChat).toBeVisible();
     });
 
