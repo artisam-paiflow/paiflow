@@ -40,9 +40,9 @@ link).
 _Screenshots, recordings, transaction hashes and API samples added this week, linked from the_
 _[evidence index](evidence/README.md#transactions)._
 
-| Item | Type | Link |
-| ---- | ---- | ---- |
-|      |      |      |
+| Item                                                             | Type       | Link                                                                      |
+| ---------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------- |
+| PostHog swap validation errors before and after the D3 promotion | API sample | [`d3/22-posthog-validation.json`](evidence/d3/22-posthog-validation.json) |
 
 ## Metrics
 
@@ -55,6 +55,12 @@ See [metrics](metrics.md) for the running totals and how each number is measured
 | Unique swapper flows executed | ≥ 5    |                  |        |
 | Distinct deploying wallets    | ≥ 6    |                  |        |
 | Contract WASM uploaded        | ≥ 1    |                  |        |
+
+**Swap validation errors in PostHog: too little traffic to compare.** Before the D3 panel went live
+(7 days to 23 September, 00:53 UTC) 26 swap errors came from 4 people. In the 2.6 days after, 20
+came from 3 people. All of them were on beta.app.paiflow.xyz, and `swap.config.slippageBps` did not
+appear in either window. That is too few people to read a change from, so there is no chart
+([`d3/22-posthog-validation.json`](evidence/d3/22-posthog-validation.json)).
 
 ## Decisions
 
