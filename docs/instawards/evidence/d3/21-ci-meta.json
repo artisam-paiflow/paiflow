@@ -1,0 +1,38 @@
+{
+  "capturedAt": "2026-09-25",
+  "run": "https://github.com/artisam-paiflow/paiflow/actions/runs/35982489259",
+  "workflow": "CI (.github/workflows/ci.yml), job node, run #57, success",
+  "ranAt": "2026-09-24T09:38:51Z",
+  "commit": {
+    "mirror": "5a866ae46ba2b56975a1e2c3ba79fb35fc9ca15c",
+    "origin": "70f38b0",
+    "what": "Merge pull request #670 on develop; the mirror and origin SHAs differ for the same tree"
+  },
+  "node": {
+    "resolved": "v22.23.2",
+    "pin": "setup-node reads node-version-file: package.json (engines.node >=22.22.2 <23) since #652; the log line is 'Resolved package.json as >=22.22.2 <23'"
+  },
+  "artifact": {
+    "name": "vitest-junit",
+    "zipDigest": "sha256:bc32a03a5903f06a6d438940a49a34e0379eea5ada97b533cb8b0d5d5f5ec6f5",
+    "expiresAt": "2026-12-23T09:38:46Z",
+    "file": "21-vitest-junit.xml is the zip's only entry, byte for byte"
+  },
+  "counts": {
+    "files": 121,
+    "tests": 1756,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "byProject": {
+      "dom": { "files": 7, "tests": 83 },
+      "node": { "files": 114, "tests": 1673 }
+    }
+  },
+  "crossCheck": {
+    "testcaseElements": "1756 <testcase> elements in the XML, equal to <testsuites tests>, the job summary's 1756 and the log's 'Tests 1756 passed (1756)'",
+    "domFiles": "All 7 dom files are in the XML and are every *.test.tsx in the tree at 70f38b0: tests/unit/builder/inputs/{field,asset-select,amount-input,share-input,address-picker,smoke}.test.tsx and tests/unit/builder/panels/swap-panel.test.tsx",
+    "digest": "sha256 of the zip downloaded through the API equals the digest shown on the run page"
+  },
+  "summaryCapture": "21-ci-summary.png is the node job's summary, captured signed in. GitHub shows job summaries and logs only to signed-in viewers; a signed-out visitor sees the run, its status and the artifact, not the summary"
+}
