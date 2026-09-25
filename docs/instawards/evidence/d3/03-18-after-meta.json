@@ -28,5 +28,30 @@
     "18-pay-panel-legacy-{desktop,mobile}": "The contrast: the Pay panel in the same viewport, still on the legacy AssetField select, payout-mode select and bare checkbox beside the migrated AddressPicker."
   },
   "composite": "magick ( -background '#0e0e10' -fill '#e4e4e7' -font NotoSans-Regular.ttf -pointsize 17 -size 440x caption:'BEFORE …' ( d3/09-swap-panel-keyboard-focus-before.png -resize 80% ) -append ) ( … -size 420x caption:'AFTER …' d3/16-swap-panel-advanced-after-desktop.png -append ) -background '#0e0e10' -gravity north +smush 48 -bordercolor '#0e0e10' -border 24 +repage -alpha off -depth 8 d3/17-swap-panel-before-after.png",
-  "notCovered": "09–14 are the before-set (09-14-before-meta.json). The 09–12 after-pairs from #637's checklist are not in this set; 13 stays reserved for #641's phone shot."
+  "pairs": {
+    "09": {
+      "before": ["09-swap-panel-keyboard-focus-before.png"],
+      "after": ["03-keyboard-open-{desktop,mobile}", "04-keyboard-error-{desktop,mobile}"],
+      "shows": "03: the panel opened with Enter on the focused Swap node, focus on the 'Swap settings' heading (asserted by the spec). 04: Asset Out focused after the keyboard walk, with the app's own focus ring (its error variant) in place of the browser default.",
+      "gap": "09 focused the slippage field; no after shot has slippage, or any valid field, focused. The ring in 04 is on Asset Out while it is invalid, so it is the error variant of the focus ring (components/builder/inputs/styles.ts, aria-invalid:focus-visible:border-error), not the default focus-visible:border-primary ring. The spec reached Asset Out by Tab in its walk, but moved focus back to it with .focus() before the shot. 09's other finding, no visible focus on the canvas node, has no after shot: 03 is taken after Enter, when focus is already on the heading."
+    },
+    "10": {
+      "before": ["10-slippage-typing-before-{1,2,3}.png", "10-slippage-typing-before.json"],
+      "after": ["15-slippage-error-{desktop,mobile}"],
+      "shows": "Related state, not the fixed keystroke: a flow saved at 0.1%, below the 0.3% floor, loads with the floor error on the shared input, aria-invalid and the message in its aria-describedby (asserted by the spec). The fix to 10 itself is that typing is no longer clamped on every keystroke: a draft below the floor is kept while typing and raised to 0.3 on blur with the note 'Raised to the minimum, 0.3%.'",
+      "gap": "There is no after shot of the typing itself, from paiflow.xyz or elsewhere. That 0.5 stays 0.5 while typing, and that 0.1 is raised to 0.3 on blur with a note, is covered only by tests/unit/builder/panels/swap-panel.test.tsx ('lets 0.5 be typed into slippage and clamps 0.1 on blur with a note') and tests/unit/builder/inputs/share-input.test.tsx ('lets slippage 0.5 be typed past a 0.3 floor and commits 50 bps'). The spec's keyboard walk types 2, which is above the floor from its first keystroke, so it shows keyboard entry committing but not the 0.5 case."
+    },
+    "11": {
+      "before": ["11-same-asset-error-before.png"],
+      "after": ["04-keyboard-error-{desktop,mobile}"],
+      "shows": "The same-asset error under Asset Out; the control carries aria-invalid and the message is in its aria-describedby (asserted by the spec)."
+    },
+    "12": {
+      "before": ["12-router-select-before.png"],
+      "after": ["16-swap-panel-advanced-after-{desktop,mobile}"],
+      "shows": "The pinned Soroswap router in place of the one-option select: short id, copy button, stellar.expert link. The spec asserts the full id and the link's /testnet/contract/<id> target.",
+      "gap": "The stellar.expert page itself is not captured; the asserted link and #636's pnpm soroswap:check stand in for it."
+    }
+  },
+  "notCovered": "09–14 are the before-set (09-14-before-meta.json); the after halves of 09–12 are existing files, recorded under pairs rather than re-shot. 13 stays reserved for #641's phone shot. 14 (the keyboard GIF) pairs with #639's keyboard-only recording, still open; until then the spec's keyboard walk asserts Enter, Close and Escape back to the node."
 }
