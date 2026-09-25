@@ -1,0 +1,66 @@
+{
+  "queriedAt": "2026-09-25T14:39:12Z",
+  "source": "PostHog HogQL, project 610680 (US cloud), POST /api/projects/610680/query/",
+  "boundary": "2026-09-23T00:53:06Z, the merge of #659 (the #636 promotion that put the D3 Swapper panel on the staging service)",
+  "windows": {
+    "before": "2026-09-16T00:53:06Z to 2026-09-23T00:53:06Z (7 days)",
+    "after": "2026-09-23T00:53:06Z to queriedAt (about 2.6 days, partial)"
+  },
+  "keys": ["swap.config.assetOut", "swap.config.assetIn", "swap.config.slippageBps", "swap"],
+  "verdict": "too little traffic to compare: 3-4 distinct people per window, all on beta.app.paiflow.xyz; swap.config.slippageBps never appeared in either window",
+  "caveats": [
+    "The after window is partial and #672 (2026-09-24 08:28Z) changed the panel again inside it.",
+    "No event came from paiflow.xyz in either window, so this is beta.app traffic only.",
+    "People are PostHog person_ids, not filtered to exclude the team or testers."
+  ],
+  "queries": {
+    "appearedByKey": {
+      "query": "select if(timestamp < toDateTime('2026-09-23 00:53:06', 'UTC'), 'before', 'after') as w, properties.error_key as k, count() as n, count(distinct person_id) as people from events where event='validation_error_appeared' and timestamp >= toDateTime('2026-09-16 00:53:06', 'UTC') and properties.error_key in ('swap.config.assetOut','swap.config.assetIn','swap.config.slippageBps','swap') group by w, k order by w, k",
+      "columns": ["w", "k", "n", "people"],
+      "results": [
+        ["after", "swap", 6, 3],
+        ["after", "swap.config.assetIn", 8, 2],
+        ["after", "swap.config.assetOut", 6, 3],
+        ["before", "swap", 14, 3],
+        ["before", "swap.config.assetIn", 4, 1],
+        ["before", "swap.config.assetOut", 8, 4]
+      ]
+    },
+    "appearedByHost": {
+      "query": "select if(timestamp < toDateTime('2026-09-23 00:53:06', 'UTC'), 'before', 'after') as w, properties.$host as host, count() as n, count(distinct person_id) as people from events where event='validation_error_appeared' and timestamp >= toDateTime('2026-09-16 00:53:06', 'UTC') and properties.error_key in ('swap.config.assetOut','swap.config.assetIn','swap.config.slippageBps','swap') group by w, host order by w, host",
+      "columns": ["w", "host", "n", "people"],
+      "results": [
+        ["after", "beta.app.paiflow.xyz", 20, 3],
+        ["before", "beta.app.paiflow.xyz", 26, 4]
+      ]
+    },
+    "resolvedMedianByKey": {
+      "query": "select if(timestamp < toDateTime('2026-09-23 00:53:06', 'UTC'), 'before', 'after') as w, properties.error_key as k, count() as n, median(toFloat(properties.time_to_resolve_ms)) as median_ms from events where event='validation_error_resolved' and timestamp >= toDateTime('2026-09-16 00:53:06', 'UTC') and properties.error_key in ('swap.config.assetOut','swap.config.assetIn','swap.config.slippageBps','swap') group by w, k order by w, k",
+      "columns": ["w", "k", "n", "median_ms"],
+      "results": [
+        ["after", "swap", 6, 46942.0],
+        ["after", "swap.config.assetIn", 1, 7090.0],
+        ["after", "swap.config.assetOut", 6, 22780.0],
+        ["before", "swap", 12, 17753.0],
+        ["before", "swap.config.assetIn", 4, 5058.0],
+        ["before", "swap.config.assetOut", 8, 12659.5]
+      ]
+    },
+    "appearedAllKeys": {
+      "query": "select if(timestamp < toDateTime('2026-09-23 00:53:06', 'UTC'), 'before', 'after') as w, count() as n, count(distinct person_id) as people from events where event='validation_error_appeared' and timestamp >= toDateTime('2026-09-16 00:53:06', 'UTC') group by w order by w",
+      "columns": ["w", "n", "people"],
+      "results": [
+        ["after", 73, 5],
+        ["before", 118, 8]
+      ]
+    },
+    "builderVisitors": {
+      "query": "select if(timestamp < toDateTime('2026-09-23 00:53:06', 'UTC'), 'before', 'after') as w, count(distinct person_id) as people from events where event='$pageview' and timestamp >= toDateTime('2026-09-16 00:53:06', 'UTC') and properties.$pathname like '/flows/%' group by w order by w",
+      "columns": ["w", "people"],
+      "results": [
+        ["after", 6],
+        ["before", 15]
+      ]
+    }
+  }
+}
