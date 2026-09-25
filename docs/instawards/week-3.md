@@ -40,9 +40,10 @@ link).
 _Screenshots, recordings, transaction hashes and API samples added this week, linked from the_
 _[evidence index](evidence/README.md#transactions)._
 
-| Item                                                             | Type       | Link                                                                      |
-| ---------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------- |
-| PostHog swap validation errors before and after the D3 promotion | API sample | [`d3/22-posthog-validation.json`](evidence/d3/22-posthog-validation.json) |
+| Item                                                                                   | Type       | Link                                                                      |
+| -------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------- |
+| PostHog swap validation errors before and after the D3 promotion                       | API sample | [`d3/22-posthog-validation.json`](evidence/d3/22-posthog-validation.json) |
+| Real-phone check: slippage field with the keyboard up, no zoom (vivo Y22s, Android 14) | Screenshot | [`d3/13-phone-keyboard-up.jpg`](evidence/d3/13-phone-keyboard-up.jpg)     |
 
 ## Metrics
 
