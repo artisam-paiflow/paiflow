@@ -28,5 +28,30 @@
     "18-pay-panel-legacy-{desktop,mobile}": "The contrast: the Pay panel in the same viewport, still on the legacy AssetField select, payout-mode select and bare checkbox beside the migrated AddressPicker."
   },
   "composite": "magick ( -background '#0e0e10' -fill '#e4e4e7' -font NotoSans-Regular.ttf -pointsize 17 -size 440x caption:'BEFORE …' ( d3/09-swap-panel-keyboard-focus-before.png -resize 80% ) -append ) ( … -size 420x caption:'AFTER …' d3/16-swap-panel-advanced-after-desktop.png -append ) -background '#0e0e10' -gravity north +smush 48 -bordercolor '#0e0e10' -border 24 +repage -alpha off -depth 8 d3/17-swap-panel-before-after.png",
-  "notCovered": "09–14 are the before-set (09-14-before-meta.json). The 09–12 after-pairs from #637's checklist are not in this set; 13 stays reserved for #641's phone shot."
+  "pairs": {
+    "09": {
+      "before": "09-swap-panel-keyboard-focus-before.png",
+      "after": ["03-keyboard-open-{desktop,mobile}", "04-keyboard-error-{desktop,mobile}"],
+      "shows": "03: the panel opened with Enter on the focused Swap node, focus on the 'Swap settings' heading (asserted by the spec). 04: a field reached from the keyboard, Asset Out, with the app's own focus ring in place of the browser default.",
+      "gap": "09 focused the slippage field; the after ring is on Asset Out, which uses the same shared input styles. No after shot has slippage itself focused."
+    },
+    "10": {
+      "before": ["10-slippage-typing-before-{1,2,3}.png", "10-slippage-typing-before.json"],
+      "after": "15-slippage-error-{desktop,mobile}",
+      "shows": "The 0.3% floor is now a validation error on the shared input, with aria-invalid and the message in its aria-describedby (asserted by the spec), not a clamp applied on every keystroke.",
+      "gap": "There is no per-keystroke after shot. That 0.5 stays 0.5 while typing is covered by tests/unit/builder/panels/swap-panel.test.tsx ('lets 0.5 be typed into slippage and clamps 0.1 on blur with a note') and tests/unit/builder/inputs/share-input.test.tsx ('lets slippage 0.5 be typed past a 0.3 floor and commits 50 bps'), and on paiflow.xyz by the spec's keyboard walk, which types 2 and asserts it commits on blur."
+    },
+    "11": {
+      "before": "11-same-asset-error-before.png",
+      "after": "04-keyboard-error-{desktop,mobile}",
+      "shows": "The same-asset error under Asset Out; the control carries aria-invalid and the message is in its aria-describedby (asserted by the spec)."
+    },
+    "12": {
+      "before": "12-router-select-before.png",
+      "after": "16-swap-panel-advanced-after-{desktop,mobile}",
+      "shows": "The pinned Soroswap router in place of the one-option select: short id, copy button, stellar.expert link. The spec asserts the full id and the link's /testnet/contract/<id> target.",
+      "gap": "The stellar.expert page itself is not captured; the asserted link and #636's pnpm soroswap:check stand in for it."
+    }
+  },
+  "notCovered": "09–14 are the before-set (09-14-before-meta.json); the after halves of 09–12 are existing files, recorded under pairs rather than re-shot. 13 stays reserved for #641's phone shot. 14 (the keyboard GIF) pairs with #639's keyboard-only recording, still open; until then the spec's keyboard walk asserts Enter, Close and Escape back to the node."
 }
