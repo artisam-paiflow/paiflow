@@ -154,7 +154,9 @@ the code hash to compare against Soroswap's file.
 
 ## Screenshots and recordings
 
-All captured from [paiflow.xyz](https://paiflow.xyz) itself, not a development environment.
+All captured from [paiflow.xyz](https://paiflow.xyz) itself, or from beta.app.paiflow.xyz, the
+same Railway service ([counting rules](../metrics.md#counting-rules)), not a development
+environment.
 
 | Item                                                                         | Deliverable | File                                                                                                                                                                        |
 | ---------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
