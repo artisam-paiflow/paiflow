@@ -194,7 +194,23 @@ test.describe("Config panel container (Instawards D3)", () => {
     isMobile,
   }) => {
     await gotoBuilder(page, flowId);
-    await swapNode(page).focus();
+    // Reach the canvas by Tab alone: the skip link, then the first node, then
+    // the Swap node — each with a visible ring (pair 09's missing node focus).
+    const skip = page.getByRole("button", { name: "Skip to canvas" });
+    await page.locator("body").focus();
+    for (let i = 0; i < 20; i++) {
+      await page.keyboard.press("Tab");
+      if (await skip.evaluate((el) => el === document.activeElement)) break;
+    }
+    await expect(skip).toBeFocused();
+    await expect(skip).toBeInViewport();
+    await page.keyboard.press("Enter");
+    await expect(page.locator('.react-flow__node[data-id="t"]')).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(swapNode(page)).toBeFocused();
+    expect(await swapNode(page).evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe(
+      "none",
+    );
     await page.keyboard.press("Enter");
 
     const panel = container(page);
@@ -275,6 +291,9 @@ test.describe("Config panel container (Instawards D3)", () => {
     await page.keyboard.press("Escape");
     await expect(panel).toHaveCount(0);
     await expect(swapNode(page)).toBeFocused();
+    expect(await swapNode(page).evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe(
+      "none",
+    );
 
     // Enter reopens it; Close does the same as Escape.
     await page.keyboard.press("Enter");

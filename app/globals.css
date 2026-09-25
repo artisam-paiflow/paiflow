@@ -568,6 +568,28 @@ h4 {
   box-shadow: 0 0 15px rgba(255, 177, 196, 0.3);
 }
 
+/* React Flow makes nodes and edges tabbable, then sets `outline: none` on
+   `.react-flow__node.selectable:focus-visible` and draws a ring only for its
+   built-in node types, so a keyboard user could not see where focus was on
+   ours. Its stylesheet is imported by the builder and lands after this one,
+   hence the extra `.react-flow` to outrank it. An outline, not a shadow, so
+   it stacks with .selected and the neon glows. */
+.react-flow .react-flow__node.selectable:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 4px;
+  border-radius: 0.75rem;
+}
+
+/* An outline on an SVG <g> draws a stray bounding box; mark the path instead. */
+.react-flow__edge:focus-visible {
+  outline: none;
+}
+
+.react-flow__edge:focus-visible .react-flow__edge-path {
+  stroke: var(--color-primary) !important;
+  stroke-width: 3.5 !important;
+}
+
 .react-flow__handle {
   background: #201f1f;
   border: 1px solid #ffb1c4;

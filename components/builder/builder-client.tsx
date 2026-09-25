@@ -725,6 +725,18 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
 
   return (
     <>
+      {/* The canvas sits behind the header, palette and toolbar in tab order;
+          this lands keyboard users on the first node instead. */}
+      <button
+        type="button"
+        onClick={() => {
+          const first = canvasRef.current?.querySelector<HTMLElement>(".react-flow__node");
+          (first ?? canvasRef.current)?.focus();
+        }}
+        className="bg-primary text-on-primary text-label-md font-body sr-only rounded-lg font-semibold focus:not-sr-only focus:fixed focus:top-3 focus:left-1/2 focus:z-50 focus:-translate-x-1/2 focus:px-3 focus:py-2"
+      >
+        Skip to canvas
+      </button>
       <div
         suppressHydrationWarning
         className={
@@ -874,7 +886,8 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
           {/* Row 3: Canvas */}
           <div
             ref={canvasRef}
-            className="relative min-h-0"
+            tabIndex={-1}
+            className="relative min-h-0 focus:outline-none"
             onKeyDownCapture={() => {
               lastInputRef.current = "keyboard";
             }}
