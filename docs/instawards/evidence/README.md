@@ -154,30 +154,47 @@ the code hash to compare against Soroswap's file.
 
 ## Screenshots and recordings
 
-All captured from [paiflow.xyz](https://paiflow.xyz) itself, or from beta.app.paiflow.xyz, the
-same Railway service ([counting rules](../metrics.md#counting-rules)), not a development
-environment.
+Every app capture is from [paiflow.xyz](https://paiflow.xyz) itself, or from beta.app.paiflow.xyz,
+the same Railway service ([counting rules](../metrics.md#counting-rules)), not a development
+environment. Only one D3 capture, the real-phone shot `d3/13`, is from beta.app. The CI job summary
+is a GitHub Actions page rather than the app. The D3 files, their meta records and their numbering are
+explained in the [D3 evidence pack](d3/README.md).
 
-| Item                                                                         | Deliverable | File                                                                                                                                                                        |
-| ---------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Screen recording of deploy and trigger** (11 Sep)                          | D1          | [Google Drive, `ScreenRec.mp4`](https://drive.google.com/file/d/1hcaNcojXrLmEYmTEHrNavQ_Wu9xgqaHL/view?usp=sharing)                                                         |
-| **Screen recording of building a Swapper flow with the new inputs** (25 Sep) | D3          | [Google Drive, `D3`](https://drive.google.com/file/d/1bcZP0jpYhn_9kdQzs73kr01DpXBeXn2Y/view?usp=sharing) — record in [`d3/19-recording-run.json`](d3/19-recording-run.json) |
-| Swap block on the canvas, palette and English preview                        | D1          | [`d1/01-builder-swap-flow.png`](d1/01-builder-swap-flow.png)                                                                                                                |
-| Swapper config panel: router, slippage, deadline                             | D1          | [`d1/02-swap-panel-after.png`](d1/02-swap-panel-after.png)                                                                                                                  |
-| Error: `assetIn` does not match the incoming asset                           | D1          | [`d1/03-error-asset-mismatch.png`](d1/03-error-asset-mismatch.png)                                                                                                          |
-| Error: more than one outgoing edge                                           | D1          | [`d1/04-error-two-edges.png`](d1/04-error-two-edges.png)                                                                                                                    |
-| Error: both sides of the swap are the same asset                             | D1          | [`d1/06-error-same-asset.png`](d1/06-error-same-asset.png)                                                                                                                  |
-| Deploy review with the TESTNET chip and the live quote                       | D1          | [`d1/07-deploy-review.png`](d1/07-deploy-review.png)                                                                                                                        |
-| Live Soroswap quote in the config panel                                      | D1          | [`d1/08-swap-panel-live-quote.png`](d1/08-swap-panel-live-quote.png)                                                                                                        |
-| Live quote on the builder canvas                                             | D1          | [`d1/09-builder-live-quote.png`](d1/09-builder-live-quote.png)                                                                                                              |
-| Swapper config panel as it was **before** D1 (9 Sep)                         | D3          | [`d3/02-swap-panel-before.png`](d3/02-swap-panel-before.png)                                                                                                                |
-| Builder with the pre-D1 swap node selected (9 Sep)                           | D3          | [`d3/01-builder-before.png`](d3/01-builder-before.png)                                                                                                                      |
-| Palette before the Swap block was unhidden (9 Sep)                           | D3          | [`d3/00-palette-before.png`](d3/00-palette-before.png)                                                                                                                      |
-| Real phone, `Max slippage (%)` focused with the keyboard up (25 Sep)         | D3          | [`d3/13-phone-keyboard-up.jpg`](d3/13-phone-keyboard-up.jpg) — record in [`d3/13-phone-meta.json`](d3/13-phone-meta.json)                                                   |
-| PostHog swap validation errors before and after the D3 promotion (25 Sep)    | D3          | [`d3/22-posthog-validation.json`](d3/22-posthog-validation.json)                                                                                                            |
-| API access panel, the minted token by its prefix only                        | D2          | [`d2/api-access-panel.png`](d2/api-access-panel.png)                                                                                                                        |
-| stellar.expert invocation tree for the API swap                              | D2          | [`d2/07-stellar-expert-swap.png`](d2/07-stellar-expert-swap.png)                                                                                                            |
-| Postman collection run against paiflow.xyz                                   | D2          | [`d2/09-postman-run.png`](d2/09-postman-run.png)                                                                                                                            |
+| Item                                                                         | Deliverable | File                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Screen recording of deploy and trigger** (11 Sep)                          | D1          | [Google Drive, `ScreenRec.mp4`](https://drive.google.com/file/d/1hcaNcojXrLmEYmTEHrNavQ_Wu9xgqaHL/view?usp=sharing)                                                                                                                                                                                                         |
+| **Screen recording of building a Swapper flow with the new inputs** (25 Sep) | D3          | [Google Drive, `D3`](https://drive.google.com/file/d/1bcZP0jpYhn_9kdQzs73kr01DpXBeXn2Y/view?usp=sharing) — record in [`d3/19-recording-run.json`](d3/19-recording-run.json)                                                                                                                                                 |
+| Swap block on the canvas, palette and English preview                        | D1          | [`d1/01-builder-swap-flow.png`](d1/01-builder-swap-flow.png)                                                                                                                                                                                                                                                                |
+| Swapper config panel: router, slippage, deadline                             | D1          | [`d1/02-swap-panel-after.png`](d1/02-swap-panel-after.png)                                                                                                                                                                                                                                                                  |
+| Error: `assetIn` does not match the incoming asset                           | D1          | [`d1/03-error-asset-mismatch.png`](d1/03-error-asset-mismatch.png)                                                                                                                                                                                                                                                          |
+| Error: more than one outgoing edge                                           | D1          | [`d1/04-error-two-edges.png`](d1/04-error-two-edges.png)                                                                                                                                                                                                                                                                    |
+| Error: both sides of the swap are the same asset                             | D1          | [`d1/06-error-same-asset.png`](d1/06-error-same-asset.png)                                                                                                                                                                                                                                                                  |
+| Deploy review with the TESTNET chip and the live quote                       | D1          | [`d1/07-deploy-review.png`](d1/07-deploy-review.png)                                                                                                                                                                                                                                                                        |
+| Live Soroswap quote in the config panel                                      | D1          | [`d1/08-swap-panel-live-quote.png`](d1/08-swap-panel-live-quote.png)                                                                                                                                                                                                                                                        |
+| Live quote on the builder canvas                                             | D1          | [`d1/09-builder-live-quote.png`](d1/09-builder-live-quote.png)                                                                                                                                                                                                                                                              |
+| **Swapper panel before and after D3, side by side**                          | D3          | [`d3/17-swap-panel-before-after.png`](d3/17-swap-panel-before-after.png)                                                                                                                                                                                                                                                    |
+| After D3: the Swapper panel with the live quote (25 Sep)                     | D3          | [`d3/06-swap-panel-after.png`](d3/06-swap-panel-after.png) — provenance in [`d3/03-18-after-meta.json`](d3/03-18-after-meta.json)                                                                                                                                                                                           |
+| After D3: the builder with the panel open                                    | D3          | [`d3/05-builder-after.png`](d3/05-builder-after.png)                                                                                                                                                                                                                                                                        |
+| After D3: the panel opened with Enter, focus on its heading                  | D3          | [`d3/03-keyboard-open-desktop.png`](d3/03-keyboard-open-desktop.png), [`d3/03-keyboard-open-mobile.png`](d3/03-keyboard-open-mobile.png)                                                                                                                                                                                    |
+| After D3: the same-asset error, reached from the keyboard                    | D3          | [`d3/04-keyboard-error-desktop.png`](d3/04-keyboard-error-desktop.png), [`d3/04-keyboard-error-mobile.png`](d3/04-keyboard-error-mobile.png)                                                                                                                                                                                |
+| After D3: the 0.3% slippage floor error on the shared input                  | D3          | [`d3/15-slippage-error-desktop.png`](d3/15-slippage-error-desktop.png), [`d3/15-slippage-error-mobile.png`](d3/15-slippage-error-mobile.png)                                                                                                                                                                                |
+| After D3: Advanced open, the pinned Soroswap router and the deadline         | D3          | [`d3/16-swap-panel-advanced-after-desktop.png`](d3/16-swap-panel-advanced-after-desktop.png), [`d3/16-swap-panel-advanced-after-mobile.png`](d3/16-swap-panel-advanced-after-mobile.png)                                                                                                                                    |
+| After D3: the docked sheet on a Pixel 7, and scrolled to its foot            | D3          | [`d3/07-docked-sheet-mobile.png`](d3/07-docked-sheet-mobile.png), [`d3/08-docked-sheet-scrolled-mobile.png`](d3/08-docked-sheet-scrolled-mobile.png)                                                                                                                                                                        |
+| Real phone, `Max slippage (%)` focused with the keyboard up (25 Sep)         | D3          | [`d3/13-phone-keyboard-up.jpg`](d3/13-phone-keyboard-up.jpg) — record in [`d3/13-phone-meta.json`](d3/13-phone-meta.json)                                                                                                                                                                                                   |
+| Contrast: the Pay panel, not migrated, in the same viewport                  | D3          | [`d3/18-pay-panel-legacy-desktop.png`](d3/18-pay-panel-legacy-desktop.png), [`d3/18-pay-panel-legacy-mobile.png`](d3/18-pay-panel-legacy-mobile.png)                                                                                                                                                                        |
+| Before D3: slippage focused from the keyboard, default outline only (22 Sep) | D3          | [`d3/09-swap-panel-keyboard-focus-before.png`](d3/09-swap-panel-keyboard-focus-before.png) — provenance in [`d3/09-14-before-meta.json`](d3/09-14-before-meta.json)                                                                                                                                                         |
+| Before D3: typing `0.5` into slippage ends as `0.35`                         | D3          | [`d3/10-slippage-typing-before-1.png`](d3/10-slippage-typing-before-1.png), [`d3/10-slippage-typing-before-2.png`](d3/10-slippage-typing-before-2.png), [`d3/10-slippage-typing-before-3.png`](d3/10-slippage-typing-before-3.png) — keystrokes in [`d3/10-slippage-typing-before.json`](d3/10-slippage-typing-before.json) |
+| Before D3: the same-asset error, not announced                               | D3          | [`d3/11-same-asset-error-before.png`](d3/11-same-asset-error-before.png)                                                                                                                                                                                                                                                    |
+| Before D3: the router as a one-option select                                 | D3          | [`d3/12-router-select-before.png`](d3/12-router-select-before.png)                                                                                                                                                                                                                                                          |
+| Before D3: Enter, Space and Escape do not open or close the panel            | D3          | [`d3/14-keyboard-open-close-before.gif`](d3/14-keyboard-open-close-before.gif)                                                                                                                                                                                                                                              |
+| Pre-sprint baseline: the Swapper panel **before D1** (9 Sep)                 | D1 baseline | [`d3/02-swap-panel-before.png`](d3/02-swap-panel-before.png)                                                                                                                                                                                                                                                                |
+| Pre-sprint baseline: the builder with the pre-D1 swap node selected (9 Sep)  | D1 baseline | [`d3/01-builder-before.png`](d3/01-builder-before.png)                                                                                                                                                                                                                                                                      |
+| Pre-sprint baseline: the palette before the Swap block was unhidden (9 Sep)  | D1 baseline | [`d3/00-palette-before.png`](d3/00-palette-before.png)                                                                                                                                                                                                                                                                      |
+| CI job summary for the component tests (public mirror run, 24 Sep)           | D3          | [`d3/21-ci-summary.png`](d3/21-ci-summary.png)                                                                                                                                                                                                                                                                              |
+| PostHog swap validation errors before and after the D3 promotion (25 Sep)    | D3          | [`d3/22-posthog-validation.json`](d3/22-posthog-validation.json)                                                                                                                                                                                                                                                            |
+| API access panel, the minted token by its prefix only                        | D2          | [`d2/api-access-panel.png`](d2/api-access-panel.png)                                                                                                                                                                                                                                                                        |
+| stellar.expert invocation tree for the API swap                              | D2          | [`d2/07-stellar-expert-swap.png`](d2/07-stellar-expert-swap.png)                                                                                                                                                                                                                                                            |
+| Postman collection run against paiflow.xyz                                   | D2          | [`d2/09-postman-run.png`](d2/09-postman-run.png)                                                                                                                                                                                                                                                                            |
 
 The recording is the journey the SOW asks for, made on paiflow.xyz through the no-account
 sandbox: build `Receive XLM → Swap → Pay USDC` in the builder, deploy it with a browser wallet,
@@ -200,14 +217,21 @@ timestamps, the pipeline and the amounts, and
 [`d3/19-recording-run.getTransaction.json`](d3/19-recording-run.getTransaction.json) the raw RPC
 responses for both transactions.
 
-The D1 and D3 panel shots are the two halves of the same comparison. Before: `Asset In`,
-`Asset Out` and a raw `Rate (basis points, 1–10000)`. After: the same two assets plus a
-read-only `Soroswap (testnet)` router, `Max slippage (%)`, `Deadline (seconds)` and a live
-quote reading `10 XLM → ~1.0564 USDC`.
+**Which screenshot is D3's "before".** D3 rebuilt the panel D1 shipped, so D3's "before" is D1's
+"after" ([`d1/02-swap-panel-after.png`](d1/02-swap-panel-after.png) and
+[`d1/08-swap-panel-live-quote.png`](d1/08-swap-panel-live-quote.png)) plus `d3/09`–`14`. Those are
+the same D1 panel on paiflow.xyz on 22 September, captured to show what D3 fixes in it. Its "after"
+is `d3/03`–`08` and `15`–`18`, and [`d3/17`](d3/17-swap-panel-before-after.png) puts the two side by
+side. The three 9 September files `d3/00`–`02` are older than both: they show the **pre-D1** panel
+(`Asset In`, `Asset Out` and a raw `Rate (basis points, 1–10000)`, with no slippage, no deadline and
+no router). They are kept as the pre-sprint baseline. They are D1's "before", not D3's, and the
+fields that differ between them and today's panel are D1's work. The
+[D3 evidence pack](d3/README.md) pairs each D3 "before" with its "after".
 
 ### The captures
 
-Each screenshot in the table, in order. Every one was taken from paiflow.xyz.
+Each screenshot in the table, in order. Every one was taken from paiflow.xyz, except the real-phone
+shot `d3/13` (beta.app.paiflow.xyz, the same service) and the CI job summary (GitHub Actions).
 
 ![Swap block on the canvas, with the palette and the English preview](d1/01-builder-swap-flow.png)
 
@@ -241,35 +265,134 @@ _Live Soroswap quote in the config panel._
 
 _Live quote on the builder canvas._
 
-![Before D1: the swapper panel with a raw rate field (9 Sep)](d3/02-swap-panel-before.png)
+![Side by side: the Swapper panel before D3 on the left, with slippage focused, and after D3 on the right, with Advanced open](d3/17-swap-panel-before-after.png)
 
-_Before D1: the swapper panel with a raw rate field (9 Sep)._
+_Side by side: the Swapper panel before D3 on the left, with slippage focused, and after D3 on the right, with Advanced open._
 
-![Before D1: the builder with the old swap node selected (9 Sep)](d3/01-builder-before.png)
+![After D3: the Swapper panel built from the shared inputs, with the live quote loaded](d3/06-swap-panel-after.png)
 
-_Before D1: the builder with the old swap node selected (9 Sep)._
+_After D3: the Swapper panel built from the shared inputs, with the live quote loaded._
 
-![Before D1: the palette without the Swap block (9 Sep)](d3/00-palette-before.png)
+![After D3: the desktop builder with the Swapper panel open over the canvas](d3/05-builder-after.png)
 
-_Before D1: the palette without the Swap block (9 Sep)._
+_After D3: the desktop builder with the Swapper panel open over the canvas._
 
-## API samples
+![After D3, desktop: the panel opened with Enter on the focused Swap node, focus on the Swap settings heading](d3/03-keyboard-open-desktop.png)
 
-Request and response pairs recorded against the public app.
+_After D3, desktop: the panel opened with Enter on the focused Swap node, focus on the Swap settings heading._
 
-| Item                                                       | Deliverable | File                                                                 |
-| ---------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
-| `slippageBps` outside 0–10000 rejected at the API boundary | D1          | [`d1/05-error-slippage-range.json`](d1/05-error-slippage-range.json) |
-| `deadlineSecs` below 1 rejected at the API boundary        | D1          | [`d1/06-error-deadline.json`](d1/06-error-deadline.json)             |
-| Live Soroswap quote endpoint response                      | D1          | [`d1/10-quote-endpoint.json`](d1/10-quote-endpoint.json)             |
-| curl transcript: prepare → local sign → submit → events    | D2          | [`d2/01-curl-transcript.md`](d2/01-curl-transcript.md)               |
-| Prepare response: the unsigned envelope                    | D2          | [`d2/02-prepare-response.json`](d2/02-prepare-response.json)         |
-| Submit response: `SUCCESS` and the swap hash               | D2          | [`d2/03-submit-response.json`](d2/03-submit-response.json)           |
-| Raw RPC `getTransaction` for the API swap                  | D2          | [`d2/04-getTransaction.json`](d2/04-getTransaction.json)             |
-| Events response, then the feed paged with the cursor       | D2          | [`d2/05-events-response.json`](d2/05-events-response.json)           |
-| Audit rows: prepared, submitted, confirmed (redacted)      | D2          | [`d2/06-audit-rows.json`](d2/06-audit-rows.json)                     |
-| The OpenAPI document as committed on 18 September          | D2          | [`d2/08-openapi.json`](d2/08-openapi.json)                           |
-| Demo token minted with no account, then used on `/events`  | D2          | [`d2/11-demo-token.md`](d2/11-demo-token.md)                         |
+![After D3, phone: the same, in the docked sheet](d3/03-keyboard-open-mobile.png)
+
+_After D3, phone: the same, in the docked sheet._
+
+![After D3, desktop: Asset Out moved onto XLM from the keyboard, the same-asset error under the control](d3/04-keyboard-error-desktop.png)
+
+_After D3, desktop: Asset Out moved onto XLM from the keyboard, the same-asset error under the control._
+
+![After D3, phone: the same-asset error in the docked sheet](d3/04-keyboard-error-mobile.png)
+
+_After D3, phone: the same-asset error in the docked sheet._
+
+![After D3, desktop: a flow saved at 0.1% slippage shows the 0.3% floor error on the shared input](d3/15-slippage-error-desktop.png)
+
+_After D3, desktop: a flow saved at 0.1% slippage shows the 0.3% floor error on the shared input._
+
+![After D3, phone: the slippage floor error in the docked sheet](d3/15-slippage-error-mobile.png)
+
+_After D3, phone: the slippage floor error in the docked sheet._
+
+![After D3, desktop: Advanced open, the pinned Soroswap router with its short id, copy button and explorer link, and the deadline](d3/16-swap-panel-advanced-after-desktop.png)
+
+_After D3, desktop: Advanced open, the pinned Soroswap router with its short id, copy button and explorer link, and the deadline._
+
+![After D3, phone: Advanced open in the docked sheet](d3/16-swap-panel-advanced-after-mobile.png)
+
+_After D3, phone: Advanced open in the docked sheet._
+
+![After D3: the Swapper panel as a bottom sheet on a Pixel 7, with the live quote](d3/07-docked-sheet-mobile.png)
+
+_After D3: the Swapper panel as a bottom sheet on a Pixel 7, with the live quote._
+
+![After D3: the same sheet scrolled to its foot, the live quote in the ticket](d3/08-docked-sheet-scrolled-mobile.png)
+
+_After D3: the same sheet scrolled to its foot, the live quote in the ticket._
+
+![Real phone: Max slippage focused with the keyboard up, the field and its hint still visible above it](d3/13-phone-keyboard-up.jpg)
+
+_Real phone: Max slippage focused with the keyboard up, the field and its hint still visible above it._
+
+![Contrast, desktop: the Pay panel, not migrated, still on the legacy asset select, payout-mode select and checkbox](d3/18-pay-panel-legacy-desktop.png)
+
+_Contrast, desktop: the Pay panel, not migrated, still on the legacy asset select, payout-mode select and checkbox._
+
+![Contrast, phone: the legacy Pay panel in the docked sheet](d3/18-pay-panel-legacy-mobile.png)
+
+_Contrast, phone: the legacy Pay panel in the docked sheet._
+
+![Before D3: the slippage field focused from the keyboard with only the browser's default outline (22 Sep)](d3/09-swap-panel-keyboard-focus-before.png)
+
+_Before D3: the slippage field focused from the keyboard with only the browser's default outline (22 Sep)._
+
+![Before D3: typing 0.5 into slippage, first key, 0 already rewritten to 0.3](d3/10-slippage-typing-before-1.png)
+
+_Before D3: typing 0.5 into slippage, first key, 0 already rewritten to 0.3._
+
+![Before D3: second key, the decimal point, still 0.3](d3/10-slippage-typing-before-2.png)
+
+_Before D3: second key, the decimal point, still 0.3._
+
+![Before D3: third key, 5, and the field ends as 0.35](d3/10-slippage-typing-before-3.png)
+
+_Before D3: third key, 5, and the field ends as 0.35._
+
+![Before D3: the same-asset error under Asset Out, with nothing to announce it to a screen reader](d3/11-same-asset-error-before.png)
+
+_Before D3: the same-asset error under Asset Out, with nothing to announce it to a screen reader._
+
+![Before D3: the router as a disabled select with one option and no contract id](d3/12-router-select-before.png)
+
+_Before D3: the router as a disabled select with one option and no contract id._
+
+![Before D3: the Swap node reached by Tab, Enter and Space not opening the panel, Escape not closing it](d3/14-keyboard-open-close-before.gif)
+
+_Before D3: the Swap node reached by Tab, Enter and Space not opening the panel, Escape not closing it._
+
+![Pre-sprint baseline, before D1: the swapper panel with a raw rate field (9 Sep)](d3/02-swap-panel-before.png)
+
+_Pre-sprint baseline, before D1: the swapper panel with a raw rate field (9 Sep)._
+
+![Pre-sprint baseline, before D1: the builder with the old swap node selected (9 Sep)](d3/01-builder-before.png)
+
+_Pre-sprint baseline, before D1: the builder with the old swap node selected (9 Sep)._
+
+![Pre-sprint baseline, before D1: the palette without the Swap block (9 Sep)](d3/00-palette-before.png)
+
+_Pre-sprint baseline, before D1: the palette without the Swap block (9 Sep)._
+
+![CI: the node job summary for the public mirror run of the #670 merge, 1756 tests passing](d3/21-ci-summary.png)
+
+_CI: the node job summary for the public mirror run of the #670 merge, 1756 tests passing._
+
+## API samples and records
+
+Request and response pairs recorded against the public app, and D3's code and CI records.
+
+| Item                                                            | Deliverable | File                                                                 |
+| --------------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
+| `slippageBps` outside 0–10000 rejected at the API boundary      | D1          | [`d1/05-error-slippage-range.json`](d1/05-error-slippage-range.json) |
+| `deadlineSecs` below 1 rejected at the API boundary             | D1          | [`d1/06-error-deadline.json`](d1/06-error-deadline.json)             |
+| Live Soroswap quote endpoint response                           | D1          | [`d1/10-quote-endpoint.json`](d1/10-quote-endpoint.json)             |
+| curl transcript: prepare → local sign → submit → events         | D2          | [`d2/01-curl-transcript.md`](d2/01-curl-transcript.md)               |
+| Prepare response: the unsigned envelope                         | D2          | [`d2/02-prepare-response.json`](d2/02-prepare-response.json)         |
+| Submit response: `SUCCESS` and the swap hash                    | D2          | [`d2/03-submit-response.json`](d2/03-submit-response.json)           |
+| Raw RPC `getTransaction` for the API swap                       | D2          | [`d2/04-getTransaction.json`](d2/04-getTransaction.json)             |
+| Events response, then the feed paged with the cursor            | D2          | [`d2/05-events-response.json`](d2/05-events-response.json)           |
+| Audit rows: prepared, submitted, confirmed (redacted)           | D2          | [`d2/06-audit-rows.json`](d2/06-audit-rows.json)                     |
+| The OpenAPI document as committed on 18 September               | D2          | [`d2/08-openapi.json`](d2/08-openapi.json)                           |
+| Demo token minted with no account, then used on `/events`       | D2          | [`d2/11-demo-token.md`](d2/11-demo-token.md)                         |
+| The Swapper panel's change in code, each claim with its command | D3          | [`d3/20-code-diff.md`](d3/20-code-diff.md)                           |
+| Component tests: the CI junit report                            | D3          | [`d3/21-vitest-junit.xml`](d3/21-vitest-junit.xml)                   |
+| That CI run: URL, SHAs, Node version, artifact digest, counts   | D3          | [`d3/21-ci-meta.json`](d3/21-ci-meta.json)                           |
 
 The quote sample is a real answer from the public app: 10 XLM quotes at `10564278` stroops of
 USDC with a `10490132` minimum at 1 % slippage, through pair `CCBX3NZT…7RQS` on router
