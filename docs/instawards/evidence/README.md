@@ -57,6 +57,8 @@ extends it again.
 | 17 Sep | Internal testing of the developer API: two more swapper flows executed through `/api/v1`                                                 | D2          | [`8d8e1d6b…`](https://stellar.expert/explorer/testnet/tx/8d8e1d6b96c615b4ed6f6e8ce40218e07b8b0a38b5694b0fbf31675c7995e2f6)<br>[`cbe539ff…`](https://stellar.expert/explorer/testnet/tx/cbe539ffdfa204ec6b1463bfd1741f9cb2be1caa10e196096e52726faf97a577) |
 | 18 Sep | The D2 evidence run, executed through the developer API (`/api/v1`, partner-signed): 10 XLM swapped to 1.0584167 USDC and paid on        | D2          | [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7)                                                                                                                               |
 | 18 Sep | The same API driven from the Postman collection rather than curl: 1 XLM swapped to 0.1055731 USDC and paid on                            | D2          | [`27f68188…`](https://stellar.expert/explorer/testnet/tx/27f681889bfebdab92a4d9e6d70770ea5df72bd597c627bc5c0014d0d86bfbfb)                                                                                                                               |
+| 25 Sep | The D3 recorded run: a registered user's swap-and-split flow deployed from the builder with Freighter                                    | D3          | [`f82d7486…`](https://stellar.expert/explorer/testnet/tx/f82d74863e90e36184bd7809b525fbf7f923843963b3c3178f94a1b576b33d63)                                                                                                                               |
+| 25 Sep | The D3 recorded run: 50 XLM swapped to 5.2731437 USDC through the Soroswap router and split 60/40                                        | D3          | [`34048835…`](https://stellar.expert/explorer/testnet/tx/34048835187d7d4c66d496e35bbb4994caee88a82b362131ac5b260d52baeb31)                                                                                                                               |
 
 The two 9 September swaps are the same deployed flow triggered twice. [`d1/11-happy-path.json`](d1/11-happy-path.json)
 records the deployment, the three contracts the factory produced and the amounts in and out;
@@ -154,23 +156,24 @@ the code hash to compare against Soroswap's file.
 
 All captured from [paiflow.xyz](https://paiflow.xyz) itself, not a development environment.
 
-| Item                                                   | Deliverable | File                                                                                                                |
-| ------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------- |
-| **Screen recording of deploy and trigger** (11 Sep)    | D1          | [Google Drive, `ScreenRec.mp4`](https://drive.google.com/file/d/1hcaNcojXrLmEYmTEHrNavQ_Wu9xgqaHL/view?usp=sharing) |
-| Swap block on the canvas, palette and English preview  | D1          | [`d1/01-builder-swap-flow.png`](d1/01-builder-swap-flow.png)                                                        |
-| Swapper config panel: router, slippage, deadline       | D1          | [`d1/02-swap-panel-after.png`](d1/02-swap-panel-after.png)                                                          |
-| Error: `assetIn` does not match the incoming asset     | D1          | [`d1/03-error-asset-mismatch.png`](d1/03-error-asset-mismatch.png)                                                  |
-| Error: more than one outgoing edge                     | D1          | [`d1/04-error-two-edges.png`](d1/04-error-two-edges.png)                                                            |
-| Error: both sides of the swap are the same asset       | D1          | [`d1/06-error-same-asset.png`](d1/06-error-same-asset.png)                                                          |
-| Deploy review with the TESTNET chip and the live quote | D1          | [`d1/07-deploy-review.png`](d1/07-deploy-review.png)                                                                |
-| Live Soroswap quote in the config panel                | D1          | [`d1/08-swap-panel-live-quote.png`](d1/08-swap-panel-live-quote.png)                                                |
-| Live quote on the builder canvas                       | D1          | [`d1/09-builder-live-quote.png`](d1/09-builder-live-quote.png)                                                      |
-| Swapper config panel as it was **before** D1 (9 Sep)   | D3          | [`d3/02-swap-panel-before.png`](d3/02-swap-panel-before.png)                                                        |
-| Builder with the pre-D1 swap node selected (9 Sep)     | D3          | [`d3/01-builder-before.png`](d3/01-builder-before.png)                                                              |
-| Palette before the Swap block was unhidden (9 Sep)     | D3          | [`d3/00-palette-before.png`](d3/00-palette-before.png)                                                              |
-| API access panel, the minted token by its prefix only  | D2          | [`d2/api-access-panel.png`](d2/api-access-panel.png)                                                                |
-| stellar.expert invocation tree for the API swap        | D2          | [`d2/07-stellar-expert-swap.png`](d2/07-stellar-expert-swap.png)                                                    |
-| Postman collection run against paiflow.xyz             | D2          | [`d2/09-postman-run.png`](d2/09-postman-run.png)                                                                    |
+| Item                                                                         | Deliverable | File                                                                                                                                                                        |
+| ---------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Screen recording of deploy and trigger** (11 Sep)                          | D1          | [Google Drive, `ScreenRec.mp4`](https://drive.google.com/file/d/1hcaNcojXrLmEYmTEHrNavQ_Wu9xgqaHL/view?usp=sharing)                                                         |
+| **Screen recording of building a Swapper flow with the new inputs** (25 Sep) | D3          | [Google Drive, `D3`](https://drive.google.com/file/d/1bcZP0jpYhn_9kdQzs73kr01DpXBeXn2Y/view?usp=sharing) — record in [`d3/19-recording-run.json`](d3/19-recording-run.json) |
+| Swap block on the canvas, palette and English preview                        | D1          | [`d1/01-builder-swap-flow.png`](d1/01-builder-swap-flow.png)                                                                                                                |
+| Swapper config panel: router, slippage, deadline                             | D1          | [`d1/02-swap-panel-after.png`](d1/02-swap-panel-after.png)                                                                                                                  |
+| Error: `assetIn` does not match the incoming asset                           | D1          | [`d1/03-error-asset-mismatch.png`](d1/03-error-asset-mismatch.png)                                                                                                          |
+| Error: more than one outgoing edge                                           | D1          | [`d1/04-error-two-edges.png`](d1/04-error-two-edges.png)                                                                                                                    |
+| Error: both sides of the swap are the same asset                             | D1          | [`d1/06-error-same-asset.png`](d1/06-error-same-asset.png)                                                                                                                  |
+| Deploy review with the TESTNET chip and the live quote                       | D1          | [`d1/07-deploy-review.png`](d1/07-deploy-review.png)                                                                                                                        |
+| Live Soroswap quote in the config panel                                      | D1          | [`d1/08-swap-panel-live-quote.png`](d1/08-swap-panel-live-quote.png)                                                                                                        |
+| Live quote on the builder canvas                                             | D1          | [`d1/09-builder-live-quote.png`](d1/09-builder-live-quote.png)                                                                                                              |
+| Swapper config panel as it was **before** D1 (9 Sep)                         | D3          | [`d3/02-swap-panel-before.png`](d3/02-swap-panel-before.png)                                                                                                                |
+| Builder with the pre-D1 swap node selected (9 Sep)                           | D3          | [`d3/01-builder-before.png`](d3/01-builder-before.png)                                                                                                                      |
+| Palette before the Swap block was unhidden (9 Sep)                           | D3          | [`d3/00-palette-before.png`](d3/00-palette-before.png)                                                                                                                      |
+| API access panel, the minted token by its prefix only                        | D2          | [`d2/api-access-panel.png`](d2/api-access-panel.png)                                                                                                                        |
+| stellar.expert invocation tree for the API swap                              | D2          | [`d2/07-stellar-expert-swap.png`](d2/07-stellar-expert-swap.png)                                                                                                            |
+| Postman collection run against paiflow.xyz                                   | D2          | [`d2/09-postman-run.png`](d2/09-postman-run.png)                                                                                                                            |
 
 The recording is the journey the SOW asks for, made on paiflow.xyz through the no-account
 sandbox: build `Receive XLM → Swap → Pay USDC` in the builder, deploy it with a browser wallet,
@@ -180,6 +183,18 @@ trigger rather than by opening the explorer; the transaction behind it is
 (100 XLM → 10.5594796 USDC), deployed by
 [`c0460040…`](https://stellar.expert/explorer/testnet/tx/c04600408d910f55639a09b54725f65b38881820bbd468358be6546ce3416f18),
 with the raw records in [`d1/13-recording-run.json`](d1/13-recording-run.json) and [`d1/13-recording-run.getTransaction.json`](d1/13-recording-run.getTransaction.json).
+
+The D3 recording (7:19, narrated with captions) is the same journey on the rebuilt panel, from a
+registered account rather than the sandbox: build `Receive XLM → Swap → Split USDC`, then use each
+Swapper input on camera — the asset-mismatch and same-asset errors appearing and clearing, slippage
+raised to the 0.3% floor and lowered from 200% on blur, the preview amount re-quoting live, and
+Advanced with the pinned Soroswap router opened on stellar.expert. It deploys with Freighter, triggers
+with 50 XLM ([`34048835…`](https://stellar.expert/explorer/testnet/tx/34048835187d7d4c66d496e35bbb4994caee88a82b362131ac5b260d52baeb31),
+50 XLM → 5.2731437 USDC, split 60/40), shows a short keyboard pass over the canvas, and ends with a
+phone take of the docked sheet. [`d3/19-recording-run.json`](d3/19-recording-run.json) has the
+timestamps, the pipeline and the amounts, and
+[`d3/19-recording-run.getTransaction.json`](d3/19-recording-run.getTransaction.json) the raw RPC
+responses for both transactions.
 
 The D1 and D3 panel shots are the two halves of the same comparison. Before: `Asset In`,
 `Asset Out` and a raw `Rate (basis points, 1–10000)`. After: the same two assets plus a
