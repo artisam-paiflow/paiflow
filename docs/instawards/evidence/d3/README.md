@@ -4,8 +4,8 @@ The evidence for [D3 — Shared builder inputs](../../deliverables/d3.md): the S
 and after it was rebuilt on the shared inputs, the recorded run, the code change, the CI test
 report and the product-analytics check.
 
-Every capture comes from the public app. The screenshots are from [paiflow.xyz](https://paiflow.xyz)
-except `13`, which is from beta.app.paiflow.xyz, the same Railway service and the same build
+Every app capture comes from the public app. The screenshots are from [paiflow.xyz](https://paiflow.xyz)
+except `13`, which is from beta.app.paiflow.xyz, the same Railway service, so it ran the same build as paiflow.xyz at the time
 ([counting rules](../../metrics.md#counting-rules)). `21-ci-summary.png` is a GitHub Actions page
 and `22` is a PostHog query, so neither is an app capture. Where a meta file sits beside a set, it
 records the URL (the flow id elided), the build, the browser and the viewport.
@@ -27,9 +27,9 @@ There are two, and only one of them is D3's.
 ## Numbering
 
 The numbers record the order the files were claimed, not a single sequence. `03`–`08` were first
-used by #613's end-to-end spec, so #614's before set took `09`–`14`. #637 then re-captured `03`–`08`
-from paiflow.xyz under the same names, replacing the original local-dev output, and continued the
-after set at `15`–`18`. `13` was held for the real-phone check (#641), which was made after D3 was
+used by #613's end-to-end spec, so #614's before set took `09`–`14`. #637 continued the after set at
+`15`–`18`, then re-captured `03`–`08` and `15` from paiflow.xyz under the same names, replacing
+their original local-dev output. `13` was held for the real-phone check (#641), which was made after D3 was
 promoted, so it shows the new panel even though it sits in the before range. `19`–`22` are the
 recording, the code diff, the CI report and the PostHog check.
 
