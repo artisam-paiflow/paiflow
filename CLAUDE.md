@@ -508,7 +508,9 @@ assert the event feed animates the fan-out. Runs locally only; not wired into CI
   opens it without taking focus), and Escape or the panel's Close button shuts it and returns focus
   to the node. A "Skip to canvas" button, the first stop after the app header, focuses the first
   node, and a focused node or edge shows a primary-coloured ring (`app/globals.css`). Below 768px
-  the panel is a bottom sheet rather than a card on the canvas.
+  the panel is a bottom sheet rather than a card on the canvas, the header is one row, the English
+  preview collapses behind a toggle (its error count stays visible), Ask AI is a bottom-right
+  button, and the MiniMap is hidden.
 - Honour `prefers-reduced-motion: reduce` and disable edge animations.
 - Contrast ≥ AA. The app is **dark-only** by design (`BRAND.md` §10) — don't add a light variant
   without updating `BRAND.md` first. Design tokens live in `app/globals.css` (`@theme`), not

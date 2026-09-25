@@ -31,6 +31,8 @@ interface RaftLogProps {
   onSkipAddresses?: () => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  /** Hides the collapsed tab, e.g. while a phone's docked sheet covers it. */
+  hideTab?: boolean;
 }
 
 const SUGGESTIONS_ROWS = [
@@ -178,6 +180,7 @@ export default function RaftLog({
   onSkipAddresses,
   collapsed = false,
   onToggleCollapse,
+  hideTab = false,
 }: RaftLogProps) {
   const [input, setInput] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -490,19 +493,20 @@ export default function RaftLog({
 
   return (
     <>
-      {/* Collapsed tab — Railway-style floating pill on right edge */}
-      {collapsed && (
+      {/* Collapsed tab — Railway-style floating pill on right edge; on a
+          phone, an icon button in the thumb zone clear of the header row */}
+      {collapsed && !hideTab && (
         <button
           onClick={onToggleCollapse}
-          className="chat-tab-glow border-primary/50 bg-primary text-on-primary fixed top-20 right-0 z-40 flex items-center gap-2 rounded-l-lg border-y border-l px-3 py-2.5 shadow-[0_0_18px_rgba(255,177,196,0.45)] transition-all duration-200 hover:-translate-y-px hover:pr-4 hover:shadow-[0_0_24px_rgba(255,177,196,0.65)] active:scale-95"
+          className="chat-tab-glow border-primary/50 bg-primary text-on-primary fixed z-40 flex items-center gap-2 shadow-[0_0_18px_rgba(255,177,196,0.45)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.65)] active:scale-95 max-md:right-4 max-md:bottom-[calc(1rem+env(safe-area-inset-bottom))] max-md:h-14 max-md:w-14 max-md:justify-center max-md:rounded-full max-md:border md:top-20 md:right-0 md:rounded-l-lg md:border-y md:border-l md:px-3 md:py-2.5 md:hover:pr-4"
           title="Open AI chat"
         >
           <div className="bg-on-primary/15 flex h-6 w-6 items-center justify-center rounded-full">
             <Ship className="text-on-primary h-3.5 w-3.5" />
           </div>
-          <span className="text-on-primary text-sm font-medium">Ask AI</span>
+          <span className="text-on-primary text-sm font-medium max-md:sr-only">Ask AI</span>
           {hasPending && (
-            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-900 text-xs text-amber-400">
+            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-900 text-xs text-amber-400 max-md:absolute max-md:-top-1 max-md:-right-1">
               {pendingAddresses!.length}
             </span>
           )}
@@ -512,7 +516,7 @@ export default function RaftLog({
       {/* Expanded slide-in panel */}
       <div
         id="ai-panel"
-        className={`fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-full transform border-l border-zinc-800 bg-zinc-950 shadow-2xl transition-transform duration-300 ease-out sm:w-[360px] ${
+        className={`fixed top-16 right-0 z-40 h-[calc(100dvh-4rem)] w-full transform border-l border-zinc-800 bg-zinc-950 shadow-2xl transition-transform duration-300 ease-out sm:w-[360px] ${
           collapsed ? "translate-x-full" : "translate-x-0"
         }`}
       >
