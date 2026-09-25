@@ -16,9 +16,11 @@
  *   PLAYWRIGHT_NO_SERVER=1 ADMIN_SEED_PASSWORD=… pnpm exec playwright test \
  *     tests/e2e/d3-swap-panel.spec.ts
  *
- * The committed PNGs are evidence only when taken from paiflow.xyz (#637):
- * add PLAYWRIGHT_BASE_URL=https://paiflow.xyz, and record the build in
- * 03-18-after-meta.json.
+ * The committed PNGs are evidence only when taken from paiflow.xyz (#637),
+ * signed in as a disposable sandbox user rather than an admin:
+ *   PLAYWRIGHT_BASE_URL=https://paiflow.xyz PLAYWRIGHT_NO_SERVER=1 \
+ *     PLAYWRIGHT_SANDBOX=1 pnpm exec playwright test tests/e2e/d3-swap-panel.spec.ts
+ * and record the build in 03-18-after-meta.json.
  */
 import { readFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
@@ -189,6 +191,7 @@ test.describe("Config panel container (Instawards D3)", () => {
 
   test("keyboard only: open, walk every field, edit, read an error, Escape back to the node", async ({
     page,
+    isMobile,
   }) => {
     await gotoBuilder(page, flowId);
     await swapNode(page).focus();
@@ -236,6 +239,9 @@ test.describe("Config panel container (Instawards D3)", () => {
     await page.keyboard.press("Enter");
     await expect(panel.getByLabel(/Deadline/)).toBeVisible();
     await expect(panel.getByTestId("swap-router")).toBeVisible();
+    // Advanced open pushes the card's foot out of frame; lift it before the
+    // error shot below. The steps after this refocus their own fields.
+    if (!isMobile) await liftIntoView(page);
 
     // Edit slippage from the keyboard; the draft commits on blur.
     const slippage = panel.getByLabel(/Max slippage/);
@@ -337,16 +343,16 @@ test.describe("Config panel container (Instawards D3)", () => {
 
     // The docked sheet captures cleanly on its own. The desktop card cannot:
     // it lives under React Flow's transformed viewport, where an element
-    // capture lands on the untransformed rect (06-swap-panel-after.png shows
-    // that defect), so the page is the shot, as for 04.
+    // capture lands on the untransformed rect, so the page is the shot, as
+    // for 04.
     const shot = { path: `${OUT}/15-slippage-error-${sfx}.png`, animations: "disabled" } as const;
     await (isMobile ? panel.screenshot(shot) : page.screenshot(shot));
 
     expect(await axeViolations(page)).toEqual([]);
   });
 
-  // The #637 after-shots. The desktop card is clipped from the page by its
-  // bounding box rather than captured as an element, for the transformed-
+  // The #637 after-shots (and 06). The desktop card is clipped from the page by
+  // its bounding box rather than captured as an element, for the transformed-
   // viewport reason given at 15 above.
   async function panelShot(page: Page, isMobile: boolean, path: string) {
     const panel = container(page);
@@ -439,10 +445,8 @@ test.describe("Config panel container (Instawards D3)", () => {
       // Still in flow space: inside the viewport, and it zooms with the canvas.
       expect(await panel.evaluate((el) => !!el.closest(".react-flow__viewport"))).toBe(true);
       await page.screenshot({ path: `${OUT}/05-builder-after.png`, animations: "disabled" });
-      await page.getByTestId("config-panel").screenshot({
-        path: `${OUT}/06-swap-panel-after.png`,
-        animations: "disabled",
-      });
+      await liftIntoView(page);
+      await panelShot(page, false, `${OUT}/06-swap-panel-after.png`);
 
       const before = (await panel.boundingBox())!;
       await page.locator(".react-flow__controls-zoomin").click();
@@ -501,6 +505,7 @@ test.describe("Config panel container (Instawards D3)", () => {
       await swapNode(page).tap();
       const panel = container(page);
       await expect(panel).toBeVisible();
+      await expect(panel.getByTestId("swap-quote")).not.toHaveAttribute("aria-busy", "true");
 
       const layout = await panel.evaluate((el) => ({
         inViewport: !!el.closest(".react-flow__viewport"),

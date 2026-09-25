@@ -6,6 +6,15 @@ const STORAGE = "tests/e2e/.auth/admin.json";
 
 export default async function globalSetup(config: FullConfig) {
   const baseURL = config.projects[0]?.use?.baseURL ?? "http://localhost:3000";
+  mkdirSync(dirname(STORAGE), { recursive: true });
+
+  // Evidence runs against paiflow.xyz (#637) sign in as a disposable sandbox
+  // user, so no real account's password leaves the operator's machine.
+  if (process.env.PLAYWRIGHT_SANDBOX === "1") {
+    await sandboxLogin(baseURL);
+    return;
+  }
+
   const username = process.env.ADMIN_SEED_USERNAME ?? "admin";
   const password = process.env.ADMIN_SEED_PASSWORD;
 
@@ -14,8 +23,6 @@ export default async function globalSetup(config: FullConfig) {
       "ADMIN_SEED_PASSWORD must be set in the environment for Playwright screenshots.",
     );
   }
-
-  mkdirSync(dirname(STORAGE), { recursive: true });
 
   // Wait for the app to come up by hitting /api/health.
   const apiCtx = await request.newContext({ baseURL });
@@ -51,4 +58,30 @@ export default async function globalSetup(config: FullConfig) {
 
   await page.context().storageState({ path: STORAGE });
   await browser.close();
+}
+
+/**
+ * The same single-use ticket handshake the login page's "Try the sandbox"
+ * button runs: mint, then redeem the ticket through the credentials provider.
+ */
+async function sandboxLogin(baseURL: string) {
+  const api = await request.newContext({ baseURL });
+  const mint = await api.post("/api/auth/sandbox");
+  if (mint.status() !== 201) {
+    throw new Error(`POST /api/auth/sandbox returned ${mint.status()}: ${await mint.text()}`);
+  }
+  const { ticket } = (await mint.json()).data as { ticket: string };
+  const { csrfToken } = (await (await api.get("/api/auth/csrf")).json()) as { csrfToken: string };
+  await api.post("/api/auth/callback/credentials", {
+    form: { csrfToken, passkeyTicket: ticket, json: "true" },
+    maxRedirects: 0,
+  });
+  const session = (await (await api.get("/api/auth/session")).json()) as {
+    user?: { role?: string };
+  } | null;
+  if (session?.user?.role !== "SANDBOX") {
+    throw new Error("The sandbox ticket did not produce a SANDBOX session.");
+  }
+  await api.storageState({ path: STORAGE });
+  await api.dispose();
 }
