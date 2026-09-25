@@ -15,6 +15,12 @@
  * Runs on both projects (the per-project suffix keeps their PNGs apart):
  *   PLAYWRIGHT_NO_SERVER=1 ADMIN_SEED_PASSWORD=… pnpm exec playwright test \
  *     tests/e2e/d3-swap-panel.spec.ts
+ *
+ * The committed PNGs are evidence only when taken from paiflow.xyz (#637),
+ * signed in as a disposable sandbox user rather than an admin:
+ *   PLAYWRIGHT_BASE_URL=https://paiflow.xyz PLAYWRIGHT_NO_SERVER=1 \
+ *     PLAYWRIGHT_SANDBOX=1 pnpm exec playwright test tests/e2e/d3-swap-panel.spec.ts
+ * and record the build in 03-18-after-meta.json.
  */
 import { readFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
@@ -24,6 +30,8 @@ const OUT = "docs/instawards/evidence/d3";
 const RECIPIENT = "GC5Q654OUY2FMR6TVBCTQYNGZLGX4ZCGUJ5XDE2UMBSLYYHTNIN3L6O6";
 const XLM = { kind: "native" };
 const USDC = { kind: "known", symbol: "USDC" };
+// Soroswap's published testnet router; see #636's `pnpm soroswap:check`.
+const SOROSWAP_ROUTER_TESTNET = "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD";
 
 // Injected as content: a script `url` is blocked by the app's CSP (lib/csp.ts).
 const AXE_SOURCE = readFileSync("node_modules/axe-core/axe.min.js", "utf8");
@@ -100,6 +108,36 @@ async function openAdvanced(page: Page) {
   await expect(advanced.getByTestId("swap-router")).toBeVisible();
 }
 
+/**
+ * The floating panel opens with its foot below the viewport, which would cut
+ * the bottom off a shot. Its header drags it (asserted in the mouse suite
+ * below), so lift it by exactly what the foot needs — measured, not a fixed
+ * amount a taller panel would outgrow, and no further, because the builder's
+ * own header strip paints over the top of the canvas.
+ */
+async function liftIntoView(page: Page) {
+  const panel = container(page);
+  const vh = page.viewportSize()!.height;
+  const card = (await panel.boundingBox())!;
+  const lift = Math.max(0, Math.min(card.y, card.y + card.height + 24 - vh));
+  const header = panel.getByRole("heading", { name: / settings$/ });
+  const h = (await header.boundingBox())!;
+  const x = h.x + h.width / 2;
+  const y = h.y + h.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y - lift, { steps: 8 });
+  await page.mouse.up();
+  // The drag's whole purpose: the card ends up entirely in frame. A panel
+  // too tall for the viewport fails here rather than clipping the PNG.
+  await expect
+    .poll(async () => {
+      const b = (await panel.boundingBox())!;
+      return b.y >= 0 && b.y + b.height <= vh;
+    })
+    .toBe(true);
+}
+
 async function axeViolations(page: Page) {
   await openAdvanced(page);
   // page.evaluate runs over CDP, outside the page's CSP.
@@ -153,9 +191,26 @@ test.describe("Config panel container (Instawards D3)", () => {
 
   test("keyboard only: open, walk every field, edit, read an error, Escape back to the node", async ({
     page,
+    isMobile,
   }) => {
     await gotoBuilder(page, flowId);
-    await swapNode(page).focus();
+    // Reach the canvas by Tab alone: the skip link, then the first node, then
+    // the Swap node — each with a visible ring (pair 09's missing node focus).
+    const skip = page.getByRole("button", { name: "Skip to canvas" });
+    await page.locator("body").focus();
+    for (let i = 0; i < 20; i++) {
+      await page.keyboard.press("Tab");
+      if (await skip.evaluate((el) => el === document.activeElement)) break;
+    }
+    await expect(skip).toBeFocused();
+    await expect(skip).toBeInViewport();
+    await page.keyboard.press("Enter");
+    await expect(page.locator('.react-flow__node[data-id="t"]')).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(swapNode(page)).toBeFocused();
+    expect(await swapNode(page).evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe(
+      "none",
+    );
     await page.keyboard.press("Enter");
 
     const panel = container(page);
@@ -200,6 +255,9 @@ test.describe("Config panel container (Instawards D3)", () => {
     await page.keyboard.press("Enter");
     await expect(panel.getByLabel(/Deadline/)).toBeVisible();
     await expect(panel.getByTestId("swap-router")).toBeVisible();
+    // Advanced open pushes the card's foot out of frame; lift it before the
+    // error shot below. The steps after this refocus their own fields.
+    if (!isMobile) await liftIntoView(page);
 
     // Edit slippage from the keyboard; the draft commits on blur.
     const slippage = panel.getByLabel(/Max slippage/);
@@ -233,6 +291,9 @@ test.describe("Config panel container (Instawards D3)", () => {
     await page.keyboard.press("Escape");
     await expect(panel).toHaveCount(0);
     await expect(swapNode(page)).toBeFocused();
+    expect(await swapNode(page).evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe(
+      "none",
+    );
 
     // Enter reopens it; Close does the same as Escape.
     await page.keyboard.press("Enter");
@@ -292,32 +353,7 @@ test.describe("Config panel container (Instawards D3)", () => {
     );
     expect(described).toMatch(/pool fee is 0\.3%/);
 
-    // The floating panel opens with its foot below the viewport, which would
-    // cut the message off the shot. Its header drags it (asserted in the mouse
-    // suite below), so lift it by exactly what the foot needs — measured, not a
-    // fixed amount a taller panel would outgrow, and no further, because the
-    // builder's own header strip paints over the top of the canvas.
-    if (!isMobile) {
-      const vh = page.viewportSize()!.height;
-      const card = (await panel.boundingBox())!;
-      const lift = Math.max(0, Math.min(card.y, card.y + card.height + 24 - vh));
-      const header = panel.getByRole("heading", { name: "Swap settings" });
-      const h = (await header.boundingBox())!;
-      const x = h.x + h.width / 2;
-      const y = h.y + h.height / 2;
-      await page.mouse.move(x, y);
-      await page.mouse.down();
-      await page.mouse.move(x, y - lift, { steps: 8 });
-      await page.mouse.up();
-      // The drag's whole purpose: the card ends up entirely in frame. A panel
-      // too tall for the viewport fails here rather than clipping the PNG.
-      await expect
-        .poll(async () => {
-          const b = (await panel.boundingBox())!;
-          return b.y >= 0 && b.y + b.height <= vh;
-        })
-        .toBe(true);
-    }
+    if (!isMobile) await liftIntoView(page);
 
     const message = panel.getByText(/makes every swap revert/);
     await expect(message).toBeVisible();
@@ -326,12 +362,57 @@ test.describe("Config panel container (Instawards D3)", () => {
 
     // The docked sheet captures cleanly on its own. The desktop card cannot:
     // it lives under React Flow's transformed viewport, where an element
-    // capture lands on the untransformed rect (06-swap-panel-after.png shows
-    // that defect), so the page is the shot, as for 04.
+    // capture lands on the untransformed rect, so the page is the shot, as
+    // for 04.
     const shot = { path: `${OUT}/15-slippage-error-${sfx}.png`, animations: "disabled" } as const;
     await (isMobile ? panel.screenshot(shot) : page.screenshot(shot));
 
     expect(await axeViolations(page)).toEqual([]);
+  });
+
+  // The #637 after-shots (and 06). The desktop card is clipped from the page by
+  // its bounding box rather than captured as an element, for the transformed-
+  // viewport reason given at 15 above.
+  async function panelShot(page: Page, isMobile: boolean, path: string) {
+    const panel = container(page);
+    if (isMobile) return panel.screenshot({ path, animations: "disabled" });
+    const clip = (await panel.boundingBox())!;
+    return page.screenshot({ path, clip, animations: "disabled" });
+  }
+
+  test("Advanced shows the pinned Soroswap router, with copy and explorer link", async ({
+    page,
+    isMobile,
+  }) => {
+    await gotoBuilder(page, flowId);
+    await swapNode(page).click();
+    const panel = container(page);
+    await expect(panel).toHaveAccessibleName("Swap settings");
+    await openAdvanced(page);
+
+    const router = panel.getByTestId("swap-router");
+    await expect(router.locator("output")).toHaveAttribute("title", SOROSWAP_ROUTER_TESTNET);
+    await expect(router.getByRole("button", { name: /^Copy Router/ })).toBeVisible();
+    await expect(router.getByRole("link", { name: /on stellar\.expert/ })).toHaveAttribute(
+      "href",
+      new RegExp(`/testnet/contract/${SOROSWAP_ROUTER_TESTNET}$`),
+    );
+
+    // The live Soroswap quote, so the ticket is not an empty skeleton.
+    await expect(panel.getByTestId("swap-quote")).not.toHaveAttribute("aria-busy", "true");
+    if (isMobile) await panel.getByLabel(/Deadline/).scrollIntoViewIfNeeded();
+    else await liftIntoView(page);
+    await panelShot(page, isMobile, `${OUT}/16-swap-panel-advanced-after-${sfx}.png`);
+  });
+
+  // Contrast for D3's later-phase argument: Pay still renders the legacy
+  // `AssetField` select, payout-mode select and bare checkbox beside the
+  // migrated AddressPicker.
+  test("the Pay panel, not yet on the shared inputs", async ({ page, isMobile }) => {
+    await gotoBuilder(page, flowId);
+    await page.locator('.react-flow__node[data-id="p"]').click();
+    await expect(container(page)).toHaveAccessibleName("Pay settings");
+    await panelShot(page, isMobile, `${OUT}/18-pay-panel-legacy-${sfx}.png`);
   });
 
   test("with reduced motion the panel has no transform transition", async ({ page, isMobile }) => {
@@ -378,14 +459,13 @@ test.describe("Config panel container (Instawards D3)", () => {
       await expect(panel).toBeVisible();
       expect(await panel.evaluate((el) => el.contains(document.activeElement))).toBe(false);
       await expect(page.getByTestId("config-panel")).toBeVisible();
+      await expect(panel.getByTestId("swap-quote")).not.toHaveAttribute("aria-busy", "true");
 
       // Still in flow space: inside the viewport, and it zooms with the canvas.
       expect(await panel.evaluate((el) => !!el.closest(".react-flow__viewport"))).toBe(true);
       await page.screenshot({ path: `${OUT}/05-builder-after.png`, animations: "disabled" });
-      await page.getByTestId("config-panel").screenshot({
-        path: `${OUT}/06-swap-panel-after.png`,
-        animations: "disabled",
-      });
+      await liftIntoView(page);
+      await panelShot(page, false, `${OUT}/06-swap-panel-after.png`);
 
       const before = (await panel.boundingBox())!;
       await page.locator(".react-flow__controls-zoomin").click();
@@ -444,6 +524,7 @@ test.describe("Config panel container (Instawards D3)", () => {
       await swapNode(page).tap();
       const panel = container(page);
       await expect(panel).toBeVisible();
+      await expect(panel.getByTestId("swap-quote")).not.toHaveAttribute("aria-busy", "true");
 
       const layout = await panel.evaluate((el) => ({
         inViewport: !!el.closest(".react-flow__viewport"),
