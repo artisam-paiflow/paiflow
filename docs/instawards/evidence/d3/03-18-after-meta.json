@@ -1,0 +1,32 @@
+{
+  "capturedAt": "2026-09-25",
+  "url": "https://paiflow.xyz/flows/<throwaway flow>",
+  "build": "staging 27f7f68 (#672: #670's simpler Swapper panel and #671's swap ticket), Railway deployment ffd10ee0…, health ok; deploy record on #636",
+  "source": "tests/e2e/d3-swap-panel.spec.ts, run with PLAYWRIGHT_BASE_URL=https://paiflow.xyz PLAYWRIGHT_NO_SERVER=1 PLAYWRIGHT_SANDBOX=1 on both projects: 20 passed, 6 skipped (the project-specific suites)",
+  "session": "A disposable no-account sandbox session, minted by tests/e2e/global-setup.ts under PLAYWRIGHT_SANDBOX=1: POST /api/auth/sandbox, then the ticket redeemed at /api/auth/callback/credentials, the same handshake as the login page's 'Try the sandbox'. No admin credentials were used. Each test creates its flow through /api/flows and deletes it afterwards. Nothing is deployed.",
+  "browser": "Playwright 1.59.1, headless Chromium 147.0.7727.15",
+  "viewports": {
+    "desktop": "1440x1600 CSS px at devicePixelRatio 1 (the D1 viewport)",
+    "mobile": "Pixel 7: 412x839 CSS px at devicePixelRatio 2.625"
+  },
+  "flow": "Receive (XLM) -> Swap (XLM -> USDC, 1% slippage, 300 s deadline) -> Pay (USDC), the D1 fixture",
+  "router": {
+    "id": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+    "network": "testnet",
+    "check": "The spec asserts the pinned field's full id and its stellar.expert link. The id matches #636's pnpm soroswap:check, which this run did not repeat."
+  },
+  "files": {
+    "03-keyboard-open-{desktop,mobile}": "The panel opened with Enter on the focused Swap node; focus is on the 'Swap settings' heading.",
+    "04-keyboard-error-{desktop,mobile}": "Asset Out moved onto XLM from the keyboard: the same-asset error under the control, which carries aria-invalid and aria-describedby. Advanced is open (the walk opened it from the keyboard), and on desktop the card is lifted so its foot is in frame.",
+    "05-builder-after": "Desktop builder with the floating panel open by click, after the live quote has loaded.",
+    "06-swap-panel-after": "The desktop panel opened by click with the live quote loaded, clipped from the page by its bounding box (the element capture used before landed on React Flow's untransformed rect).",
+    "07-docked-sheet-mobile": "The Pixel 7 bottom sheet, after the live quote has loaded.",
+    "08-docked-sheet-scrolled-mobile": "The same sheet scrolled to its foot, with the live quote in the ticket.",
+    "15-slippage-error-{desktop,mobile}": "A graph saved at 0.1% slippage: the 0.3% floor error on the shared input (#665).",
+    "16-swap-panel-advanced-after-{desktop,mobile}": "Advanced open: the pinned Soroswap router (short id, copy button, stellar.expert link) and the deadline, with the live quote in the ticket above.",
+    "17-swap-panel-before-after": "A composite: 09-swap-panel-keyboard-focus-before.png (the pre-D3 panel on paiflow.xyz, 22 Sep, #599 build; cropped at capture, slippage focused) scaled by 0.8 from its devicePixelRatio 1.25 to 1 CSS px per pixel, on the left, and 16-…-desktop (1 CSS px per pixel) on the right.",
+    "18-pay-panel-legacy-{desktop,mobile}": "The contrast: the Pay panel in the same viewport, still on the legacy AssetField select, payout-mode select and bare checkbox beside the migrated AddressPicker."
+  },
+  "composite": "magick ( -background '#0e0e10' -fill '#e4e4e7' -font NotoSans-Regular.ttf -pointsize 17 -size 440x caption:'BEFORE …' ( d3/09-swap-panel-keyboard-focus-before.png -resize 80% ) -append ) ( … -size 420x caption:'AFTER …' d3/16-swap-panel-advanced-after-desktop.png -append ) -background '#0e0e10' -gravity north +smush 48 -bordercolor '#0e0e10' -border 24 +repage -alpha off -depth 8 d3/17-swap-panel-before-after.png",
+  "notCovered": "09–14 are the before-set (09-14-before-meta.json). The 09–12 after-pairs from #637's checklist are not in this set; 13 stays reserved for #641's phone shot."
+}
