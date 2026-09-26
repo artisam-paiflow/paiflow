@@ -118,10 +118,13 @@ Every one of these transactions carries the `SoroswapRouter / swap` event from
 
 This table is the archive database, which stopped changing at the 16 September cutover. Flows
 executed since then are on the live database and are listed in
-[`swapper-flows-live-2026-09-18.json`](swapper-flows-live-2026-09-18.json): 11 flows and 17 swap
-transactions, among them D2's evidence deployment `ad0843d9` (swapper `CD767KMX…YK46`) with both
-18 September API swaps, [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7)
-and [`27f68188…`](https://stellar.expert/explorer/testnet/tx/27f681889bfebdab92a4d9e6d70770ea5df72bd597c627bc5c0014d0d86bfbfb).
+[`swapper-flows-live-2026-09-26.json`](swapper-flows-live-2026-09-26.json): 17 flows and 24 swap
+transactions. Among them are D2's evidence deployment `ad0843d9` (swapper `CD767KMX…YK46`), with
+both 18 September API swaps, [`b14e8306…`](https://stellar.expert/explorer/testnet/tx/b14e8306ce55741d19e61b32cae5cef9a9abc04259cf3093fe105f4f1a2fbdf7)
+and [`27f68188…`](https://stellar.expert/explorer/testnet/tx/27f681889bfebdab92a4d9e6d70770ea5df72bd597c627bc5c0014d0d86bfbfb),
+and D3's recorded run `a0072403` with [`34048835…`](https://stellar.expert/explorer/testnet/tx/34048835187d7d4c66d496e35bbb4994caee88a82b362131ac5b260d52baeb31).
+The 18 September list, [`swapper-flows-live-2026-09-18.json`](swapper-flows-live-2026-09-18.json),
+had 11 flows and 17 swaps.
 The two lists are never added together; [metrics](../metrics.md#counting-rules) explains why.
 
 ## How to verify the router
@@ -410,21 +413,24 @@ USDC with a `10490132` minimum at 1 % slippage, through pair `CCBX3NZT…7RQS` o
 
 ## Metrics snapshots
 
-| Date   | File                                                                       | Source                                                                                           |
-| ------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 11 Sep | [`metrics-2026-09-11.json`](metrics-2026-09-11.json)                       | Read-only query on the public app's database; each figure carries its definition                 |
-| 12 Sep | [`metrics-2026-09-12.json`](metrics-2026-09-12.json)                       | Same query, re-run at the close of week 1; each figure also carries its target                   |
-| 17 Sep | [`alpha-metrics-2026-09-17.json`](alpha-metrics-2026-09-17.json)           | PostHog HogQL over the issued alpha-tester ids; first cohort snapshot                            |
-| 18 Sep | [`alpha-metrics-2026-09-18.json`](alpha-metrics-2026-09-18.json)           | The same, after the second tester finished                                                       |
-| 18 Sep | [`metrics-live-2026-09-18.json`](metrics-live-2026-09-18.json)             | The first read of the **live** database, the one the app has used since the 16 September cutover |
-| 18 Sep | [`swapper-flows-live-2026-09-18.json`](swapper-flows-live-2026-09-18.json) | `--flows` against the same database: 11 executed swapper flows, 17 swap transactions             |
+| Date   | File                                                                       | Source                                                                                              |
+| ------ | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 11 Sep | [`metrics-2026-09-11.json`](metrics-2026-09-11.json)                       | Read-only query on the public app's database; each figure carries its definition                    |
+| 12 Sep | [`metrics-2026-09-12.json`](metrics-2026-09-12.json)                       | Same query, re-run at the close of week 1; each figure also carries its target                      |
+| 17 Sep | [`alpha-metrics-2026-09-17.json`](alpha-metrics-2026-09-17.json)           | PostHog HogQL over the issued alpha-tester ids; first cohort snapshot                               |
+| 18 Sep | [`alpha-metrics-2026-09-18.json`](alpha-metrics-2026-09-18.json)           | The same, after the second tester finished                                                          |
+| 18 Sep | [`metrics-live-2026-09-18.json`](metrics-live-2026-09-18.json)             | The first read of the **live** database, the one the app has used since the 16 September cutover    |
+| 18 Sep | [`swapper-flows-live-2026-09-18.json`](swapper-flows-live-2026-09-18.json) | `--flows` against the same database: 11 executed swapper flows, 17 swap transactions                |
+| 26 Sep | [`metrics-live-2026-09-26.json`](metrics-live-2026-09-26.json)             | The live database at the close of week 3                                                            |
+| 26 Sep | [`swapper-flows-live-2026-09-26.json`](swapper-flows-live-2026-09-26.json) | `--flows` against it: 17 executed swapper flows, 24 swap transactions, D3's recorded run among them |
+| 26 Sep | [`alpha-metrics-2026-09-26.json`](alpha-metrics-2026-09-26.json)           | The cohort snapshot after all three issued testers had run a session                                |
 
 The `metrics-*` files are the output of `pnpm instawards:metrics` and the `alpha-metrics-*` files
 of `pnpm instawards:alpha-metrics`, so any figure here can be recomputed with the same definitions.
 
 **Two databases, and each snapshot says which it read.** The 11 and 12 September files are the
 Postgres now kept as `postgres-staging-archive`, frozen at the 16 September cutover. The
-18 September live file is the database the application uses now. They hold different rows and are
+`metrics-live-*` and `swapper-flows-live-*` files are the database the application uses now. They hold different rows and are
 never added together; [metrics](../metrics.md#counting-rules) explains why.
 
 ## Scope
