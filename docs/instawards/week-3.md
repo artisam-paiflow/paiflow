@@ -84,7 +84,7 @@ Rows that moved this week. The full table, with the change behind each row, live
 | Week 3: "Validation errors display consistently in the Swapper panel" (§5.1) | [D3](deliverables/d3.md) | Evidenced | [`04`](evidence/d3/04-keyboard-error-desktop.png), [`15`](evidence/d3/15-slippage-error-desktop.png)                                                           |
 | Week 3: "Shared inputs pass smoke tests" (§5.1)                              | [D3](deliverables/d3.md) | Evidenced | `smoke.test.tsx` in [`21-vitest-junit.xml`](evidence/d3/21-vitest-junit.xml)                                                                                   |
 | Week 3: "UI tests green in CI" (§5.1)                                        | [D3](deliverables/d3.md) | Evidenced | [CI run 35982489259](https://github.com/artisam-paiflow/paiflow/actions/runs/35982489259); [`21-ci-summary.png`](evidence/d3/21-ci-summary.png)                |
-| §6.1: live app URL, screen recording, side-by-side screenshots, CI report    | [D3](deliverables/d3.md) | Evidenced | [Evidence required](deliverables/d3.md#evidence-required)                                                                                                      |
+| §6.1: live app URL, screen recording, side-by-side screenshots, CI report    | [D3](deliverables/d3.md) | Evidenced | [Evidence](deliverables/d3.md#evidence)                                                                                                                        |
 
 Status values: Not started · In progress · Done · **Evidenced** (done _and_ proven by a public
 link).
