@@ -413,17 +413,18 @@ USDC with a `10490132` minimum at 1 % slippage, through pair `CCBX3NZT…7RQS` o
 
 ## Metrics snapshots
 
-| Date   | File                                                                       | Source                                                                                              |
-| ------ | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| 11 Sep | [`metrics-2026-09-11.json`](metrics-2026-09-11.json)                       | Read-only query on the public app's database; each figure carries its definition                    |
-| 12 Sep | [`metrics-2026-09-12.json`](metrics-2026-09-12.json)                       | Same query, re-run at the close of week 1; each figure also carries its target                      |
-| 17 Sep | [`alpha-metrics-2026-09-17.json`](alpha-metrics-2026-09-17.json)           | PostHog HogQL over the issued alpha-tester ids; first cohort snapshot                               |
-| 18 Sep | [`alpha-metrics-2026-09-18.json`](alpha-metrics-2026-09-18.json)           | The same, after the second tester finished                                                          |
-| 18 Sep | [`metrics-live-2026-09-18.json`](metrics-live-2026-09-18.json)             | The first read of the **live** database, the one the app has used since the 16 September cutover    |
-| 18 Sep | [`swapper-flows-live-2026-09-18.json`](swapper-flows-live-2026-09-18.json) | `--flows` against the same database: 11 executed swapper flows, 17 swap transactions                |
-| 26 Sep | [`metrics-live-2026-09-26.json`](metrics-live-2026-09-26.json)             | The live database at the close of week 3                                                            |
-| 26 Sep | [`swapper-flows-live-2026-09-26.json`](swapper-flows-live-2026-09-26.json) | `--flows` against it: 17 executed swapper flows, 24 swap transactions, D3's recorded run among them |
-| 26 Sep | [`alpha-metrics-2026-09-26.json`](alpha-metrics-2026-09-26.json)           | The cohort snapshot after all three issued testers had run a session                                |
+| Date   | File                                                                           | Source                                                                                              |
+| ------ | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| 11 Sep | [`metrics-2026-09-11.json`](metrics-2026-09-11.json)                           | Read-only query on the public app's database; each figure carries its definition                    |
+| 12 Sep | [`metrics-2026-09-12.json`](metrics-2026-09-12.json)                           | Same query, re-run at the close of week 1; each figure also carries its target                      |
+| 17 Sep | [`alpha-metrics-2026-09-17.json`](alpha-metrics-2026-09-17.json)               | PostHog HogQL over the issued alpha-tester ids; first cohort snapshot                               |
+| 18 Sep | [`alpha-metrics-2026-09-18.json`](alpha-metrics-2026-09-18.json)               | The same, after the second tester finished                                                          |
+| 18 Sep | [`metrics-live-2026-09-18.json`](metrics-live-2026-09-18.json)                 | The first read of the **live** database, the one the app has used since the 16 September cutover    |
+| 18 Sep | [`swapper-flows-live-2026-09-18.json`](swapper-flows-live-2026-09-18.json)     | `--flows` against the same database: 11 executed swapper flows, 17 swap transactions                |
+| 26 Sep | [`metrics-live-2026-09-26.json`](metrics-live-2026-09-26.json)                 | The live database at the close of week 3                                                            |
+| 26 Sep | [`swapper-flows-live-2026-09-26.json`](swapper-flows-live-2026-09-26.json)     | `--flows` against it: 17 executed swapper flows, 24 swap transactions, D3's recorded run among them |
+| 26 Sep | [`alpha-metrics-2026-09-26.json`](alpha-metrics-2026-09-26.json)               | The cohort snapshot after all three group A testers had run a session                               |
+| 26 Sep | [`alpha-metrics-2026-09-26-groups.json`](alpha-metrics-2026-09-26-groups.json) | The same, with group B (tester-8, tester-10) added: five accounts, both protocols                   |
 
 The `metrics-*` files are the output of `pnpm instawards:metrics` and the `alpha-metrics-*` files
 of `pnpm instawards:alpha-metrics`, so any figure here can be recomputed with the same definitions.

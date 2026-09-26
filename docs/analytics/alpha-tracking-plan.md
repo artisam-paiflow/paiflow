@@ -238,9 +238,11 @@ Four things that will look wrong on the dashboards and aren't:
   `deployment_page_viewed` arrive under an anonymous `distinct_id` and cannot be tied to a tester.
   Those answers exist only in the survey.
 
-Group B is not in `docs/instawards/evidence/alpha-testers.json`. When the accounts are issued, list
-them in a cohort file of their own and pass it with `--cohort=`; a bonus deployer's wallet then
-counts toward "distinct wallets deploying" only on that basis, stated as such.
+Group B is listed in `docs/instawards/evidence/alpha-testers.json` beside group A, each entry
+tagged with its `group`, so the published alpha-tester figures cover both protocols. Group B was
+added on 26 September 2026 (tester-8 and tester-10); every snapshot before
+`alpha-metrics-2026-09-26-groups.json` is group A only. A bonus deployer's wallet counts toward
+"distinct wallets deploying" like any other tester's.
 
 ## Setup
 
