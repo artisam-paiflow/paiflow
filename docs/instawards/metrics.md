@@ -35,12 +35,12 @@ reach, the third measures depth.
 
 ## Results
 
-| Metric                                   | Target | Archive (to 16 Sep) | Live (since 15 Sep) | Alpha testers (2 active / 3 issued / 5 planned) |
+| Metric                                   | Target | Archive (to 16 Sep) | Live (since 15 Sep) | Alpha testers (3 active / 3 issued / 5 planned) |
 | ---------------------------------------- | ------ | ------------------- | ------------------- | ----------------------------------------------- |
-| Unique flows deployed                    | ≥ 5    | 26 ✓                | 36 ✓                | 22 ✓                                            |
-| Contract executions / events published   | ≥ 60   | 61 ✓                | 79 ✓                | — (not cohort-filterable)                       |
-| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 11 ✓                | 5 ✓                                             |
-| Distinct wallets deploying               | ≥ 6    | 7 ✓                 | 7 ✓                 | 5                                               |
+| Unique flows deployed                    | ≥ 5    | 26 ✓                | 64 ✓                | 25 ✓                                            |
+| Contract executions / events published   | ≥ 60   | 61 ✓                | 128 ✓               | — (not cohort-filterable)                       |
+| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 17 ✓                | 5 ✓                                             |
+| Distinct wallets deploying               | ≥ 6    | 7 ✓                 | 20 ✓                | 6 ✓ (addresses, from three people)              |
 | Contract WASM uploaded                   | ≥ 1    | 1 ✓                 | 1 ✓                 | 1 ✓ (the same binary)                           |
 | Public testnet URL live and accessible   | Yes    | Yes ✓               | Yes ✓               | Yes ✓                                           |
 | Demo video published                     | Yes    | No                  | No                  | Week 4                                          |
@@ -48,66 +48,88 @@ reach, the third measures depth.
 Every metric except the week-4 demo video is met on **both** all-activity bases, independently.
 On the archive, executions cleared the target on 12 September; the 11 September snapshot had them
 at 43. On the live database every target was already clear when it was first read on 18 September
-([`evidence/metrics-live-2026-09-18.json`](evidence/metrics-live-2026-09-18.json)).
+([`evidence/metrics-live-2026-09-18.json`](evidence/metrics-live-2026-09-18.json)), and the
+26 September read roughly doubled each figure
+([`evidence/metrics-live-2026-09-26.json`](evidence/metrics-live-2026-09-26.json)).
 
-The live column's swapper flows read lower than the archive's — 11 against 16 — and that is not a
-regression. The archive's 16 include 13 run by anonymous sandbox visitors; all 11 on the live
-database belong to registered accounts, across 17 swap transactions and 5 distinct signers,
-including both of D2's API-executed swaps
-([`evidence/swapper-flows-live-2026-09-18.json`](evidence/swapper-flows-live-2026-09-18.json)).
+The live column's swapper flows now pass the archive's, 17 against 16, and they are a different
+kind of figure. The archive's 16 include 13 run by anonymous sandbox visitors. All 17 on the live
+database belong to registered accounts: 24 swap transactions from 9 distinct signers. They include
+both of D2's API-executed swaps and D3's recorded run, deployment `a0072403`
+([`evidence/swapper-flows-live-2026-09-26.json`](evidence/swapper-flows-live-2026-09-26.json)).
+On 18 September the live figure was 11, from 17 swap transactions and 5 signers.
 
 **Contract executions cannot be given per cohort.** PostHog has no counterpart to a `ContractEvent`
-row, and `scripts/instawards-metrics.ts` counts rows without filtering by user, so the 79 above is
-every execution on the live database — 22 users and 14 sandbox sessions — not the testers' share of
-it. The alpha cell stays blank rather than borrowing a number that means something else.
+row, and `scripts/instawards-metrics.ts` counts rows without filtering by user. So the 128 above is
+every execution on the live database, by 44 users of whom 31 are sandbox sessions, not the testers'
+share of it. The alpha cell stays blank rather than borrowing a number that means something else.
 
-**The alpha-tester column is two testers' work**, and should be read that way. The three counts in
-its heading are different things: the round **plans** five testers, three have been **issued** an
-account, and two have so far been **active** — run a session. Only those two contribute figures, and
-they contribute almost equally: 11 deployments each, 19 transactions each, three signing wallets for
-one and two for the other. Testers sign with more than one wallet, which is why the ≥ 6 wallets
-target stays reachable for a five-person round rather than being capped by headcount. Swapper flows
-cleared their target on this basis with the second session. Distinct deploying wallets is the one
-measured target still short, at five against six, with two issued accounts yet to run and two yet to
-be issued; contract executions is not short but unmeasurable here, since PostHog has no counterpart
-to a `ContractEvent` row and that figure only comes from a database run. Figures come from
-[`evidence/alpha-metrics-2026-09-18.json`](evidence/alpha-metrics-2026-09-18.json).
+**The alpha-tester column is three testers' work, unevenly split**, and should be read that way.
+The three counts in its heading are different things: the round **plans** five testers, three have
+been **issued** an account, and all three have now been **active**, meaning they have run a
+session. Two of them did nearly all of the work:
 
-**One of the two active testers is a member of the project.** Of the three accounts issued, one
-belongs to someone working on Paiflow, who ran the first session on 17 September as a pilot of the
-protocol before asking an external tester to use it; the other two are external. One of those
-external testers ran their session on 18 September, and that is what the second half of every figure
-above is. So the column now does show independent outside use — but only about half of it, and the
-split is recorded here rather than left to be assumed. The project member also tests internally under
-a separate account, and one wallet appears under both, so their three signing addresses belong to one
-human rather than three people. This is recorded for the same reason the all-activity column names
-`admin` and `judge` below: a figure produced by the project should say so.
+| Tester   | Deployments | Signed transactions | Signing wallets |
+| -------- | ----------- | ------------------- | --------------- |
+| tester-1 | 12          | 20                  | 3               |
+| tester-2 | 11          | 19                  | 2               |
+| tester-3 | 2           | 1                   | 1               |
+
+Testers sign with more than one wallet, which is why the ≥ 6 wallets target is reachable for a
+five-person round rather than capped by headcount. The third session brought distinct deploying
+wallets to six and cleared that target. Those six are addresses, not people, and three of them
+belong to one person, as the next paragraph explains. Swapper flows cleared their target with the
+second session and did not move with the third. Contract executions is not short on this basis but
+unmeasurable: PostHog has no counterpart to a `ContractEvent` row, and that figure only comes from
+a database run.
+
+One small inconsistency is left as generated. tester-3's 2 deployments come from a browser event
+and their 1 signed transaction from a server-side one. A deploy cannot happen without a signature,
+so one of those records has no counterpart in PostHog. Figures come from
+[`evidence/alpha-metrics-2026-09-26.json`](evidence/alpha-metrics-2026-09-26.json).
+
+**One of the three active testers is a member of the project.** Of the three accounts issued, one
+belongs to someone working on Paiflow. They ran the first session on 17 September, as a pilot of
+the protocol before asking external testers to use it. The other two accounts are external: one
+ran their session on 18 September, the other on 19 September. The column therefore does show
+independent outside use, but only about half of it: tester-1 accounts for 12 of the 25 deployments
+and 20 of the 40 signed transactions. The split is recorded here rather than left to be assumed.
+The project member also tests internally under a separate account, and one wallet appears under
+both, so their three signing addresses belong to one human rather than three people. This is
+recorded for the same reason the all-activity column names `admin` and `judge` below: a figure
+produced by the project should say so.
 
 ### What the two all-activity columns contain
 
-It is almost entirely disposable sandbox sessions and the project's own two accounts. The
-12 September snapshot reports 19 users of whom 17 are `SANDBOX` rows, leaving `admin` and `judge`
-— **no other registered user existed in that database**. The committed swapper-flow list bears the
-same shape: of its 16 executed flows, 13 were run by sandbox visitors, 2 by `judge` and 1 by
-`admin` ([`d1/14-swapper-flows.json`](evidence/d1/14-swapper-flows.json)).
+The archive column is almost entirely disposable sandbox sessions and the project's own two
+accounts. The 12 September snapshot reports 19 users of whom 17 are `SANDBOX` rows, leaving `admin`
+and `judge` — **no other registered user existed in that database**. The committed swapper-flow
+list has the same shape: of its 16 executed flows, 13 were run by sandbox visitors, 2 by `judge`
+and 1 by `admin` ([`d1/14-swapper-flows.json`](evidence/d1/14-swapper-flows.json)).
 
 That is a real demonstration of a public, working application — anyone could open it and deploy a
 flow without an account, and 17 people did. It is not a demonstration that identified users came
 back and used it.
 
-**The live column has the opposite shape**, which is the more interesting result. It reports 22
-users against 14 sandbox sessions, so eight registered accounts rather than two, and every one of
-its 11 executed swapper flows belongs to a registered account rather than an anonymous visitor.
-Those accounts are the alpha testers and the project's own; the round is young enough that the
-distinction between "identified users" and "people we know" has not yet opened up, and the
-alpha-tester column is where that is tracked honestly.
+**The live column has the opposite shape**, which is the more interesting result. It reports 44
+users against 31 sandbox sessions, so thirteen registered accounts rather than two. Every one of
+its 17 executed swapper flows belongs to a registered account rather than an anonymous visitor.
+Those accounts are the alpha testers and the project's own. The round is young enough that the
+distinction between "identified users" and "people we know" has not yet opened up; the
+alpha-tester column is where that is tracked honestly. Deploying wallets went from 7 to 20 in the
+same week that 17 new sandbox sessions appeared, and a sandbox session signs with the visitor's own
+wallet. The snapshot does not split wallets by account type, so how much of the rise they account
+for is not measured.
 
-_Last updated: 18 September. Archive figures are the 12 September snapshot
+_Last updated: 26 September. Archive figures are the 12 September snapshot
 ([`evidence/metrics-2026-09-12.json`](evidence/metrics-2026-09-12.json)); earlier snapshot:
-[11 September](evidence/metrics-2026-09-11.json). Live figures are the 18 September snapshot
-([`evidence/metrics-live-2026-09-18.json`](evidence/metrics-live-2026-09-18.json)). Alpha-tester figures are the 18 September cohort snapshot
-([`evidence/alpha-metrics-2026-09-18.json`](evidence/alpha-metrics-2026-09-18.json)); earlier
-snapshot: [17 September](evidence/alpha-metrics-2026-09-17.json)._
+[11 September](evidence/metrics-2026-09-11.json). Live figures are the 26 September snapshot
+([`evidence/metrics-live-2026-09-26.json`](evidence/metrics-live-2026-09-26.json)); earlier
+snapshot: [18 September](evidence/metrics-live-2026-09-18.json). Alpha-tester figures are the
+26 September cohort snapshot
+([`evidence/alpha-metrics-2026-09-26.json`](evidence/alpha-metrics-2026-09-26.json)); earlier
+snapshots: [17 September](evidence/alpha-metrics-2026-09-17.json),
+[18 September](evidence/alpha-metrics-2026-09-18.json)._
 
 ## How the numbers are produced
 
@@ -121,10 +143,10 @@ system that was on its own, since `DATABASE_URL` decides it.
 
 Since 16 September 2026 there are **two** databases, so the service has to be named explicitly. The
 beta moved onto the staging service, which was repointed at a new Postgres holding a copy of the
-beta's data. Every snapshot in the evidence index was taken against what is now the separate
-**`postgres-staging-archive`** service. The service called `Postgres` is the live beta database and
-yields different figures — the command below used to say `-s Postgres`, which would now read the
-wrong system while `--source` still claimed otherwise.
+beta's data. The 11 and 12 September snapshots were taken against what is now the separate
+**`postgres-staging-archive`** service. The service called `Postgres` is the live database, which
+the `metrics-live-*` snapshots read, and it yields different figures. Each command below names its
+service, and each `--source` says which one it read.
 
 The archive has no public endpoint by design; it holds KYC data, bank details and password hashes.
 Since the public TCP proxies were removed, one has to be created for the run and removed straight
@@ -139,6 +161,24 @@ railway run -p <project> -s postgres-staging-archive -e staging -- \
   > docs/instawards/evidence/metrics-$(date +%F).json
 
 railway tcp-proxy delete --project <id> -e staging -s postgres-staging-archive -y <proxy-id>
+```
+
+The live database is read the same way, with one difference. Its service has no
+`DATABASE_PUBLIC_URL` variable, so the URL is built from its `PG*` credentials and the proxy's
+domain and port. This is how the 26 September snapshots were taken:
+
+```bash
+railway tcp-proxy create --project <id> -e staging -s Postgres --port 5432
+
+railway run -p <project> -s Postgres -e staging -- \
+  bash -c 'DATABASE_URL="postgresql://$PGUSER:$PGPASSWORD@$RAILWAY_TCP_PROXY_DOMAIN:$RAILWAY_TCP_PROXY_PORT/$PGDATABASE" \
+    pnpm -s tsx scripts/instawards-metrics.ts \
+    --source="Read-only SQL against the live paiflow.xyz application database (Railway project paiflow, environment staging, service Postgres)."' \
+  > docs/instawards/evidence/metrics-live-$(date +%F).json
+
+# the same again with --flows, into swapper-flows-live-$(date +%F).json
+
+railway tcp-proxy delete --project <id> -e staging -s Postgres -y <proxy-id>
 ```
 
 ### Alpha testers — PostHog
@@ -165,7 +205,7 @@ explicit list of ids separates the round from everything else. No real name, use
 appears in the file or on these pages.
 
 ```bash
-POSTHOG_PERSONAL_API_KEY=phx_… pnpm instawards:alpha-metrics --per-tester \
+POSTHOG_PERSONAL_API_KEY=phx_… pnpm -s instawards:alpha-metrics --per-tester \
   > docs/instawards/evidence/alpha-metrics-$(date +%F).json
 ```
 

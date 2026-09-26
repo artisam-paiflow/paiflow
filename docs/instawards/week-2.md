@@ -224,6 +224,11 @@ present. D2 is closed.
   request and compare the secret in constant time. Several of these routes sign with the relayer key.
 - **Admin credentials were published in the README** and have been removed.
 - **A navigation was counted as a dropped live feed**, overstating the disconnect metric.
+- **The Pay block and the trigger asked for different amounts, and the live feed labelled a
+  RECEIVE with the swap's output asset.** Both were reported by an external QA tester in the
+  [Paiflow QA / UX Findings](https://docs.google.com/document/d/1U8iZViPNstKnLC32Jacv2v63o0EX-0EKySW8gvuvTTo/edit) (findings 8 and 3). They were fixed on 17 September by #493
+  (the trigger amount is locked to what the flow consumes) and #491/#492 (a RECEIVE is labelled
+  with the asset entering the flow), and promoted the same day in #541.
 
 ### 19–20 September
 

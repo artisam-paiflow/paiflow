@@ -1,0 +1,16 @@
+{
+  "capturedAt": "2026-09-25T22:41+08:00",
+  "url": "https://beta.app.paiflow.xyz/flows/<flow>",
+  "host": "beta.app.paiflow.xyz is served by the Railway staging service alongside paiflow.xyz, so it runs the same build",
+  "build": "staging at 8830610 (merge of #680, promoted 2026-09-25 13:39Z)",
+  "device": "vivo Y22s",
+  "os": "Android 14",
+  "browser": "Chrome for Android",
+  "screenshot": "13-phone-keyboard-up.jpg, 720x1612 device pixels, uncropped",
+  "flow": "Swap XLM -> USDC via Soroswap, 1% slippage",
+  "findings": {
+    "keyboard": "With Max slippage (%) focused and the numeric keypad open, the field, its value and the hint below it stay visible above the keyboard and its autofill bar. The docked sheet keeps its SWAP header, Delete and Close in view.",
+    "zoom": "No zoom on focus: the sheet still spans the full screen width and the page is not panned. Inputs are 16px below md (styles.ts inputClass); since #660 that includes AddressPicker's editable input, so this holds for every builder input, not only the one pictured.",
+    "askAi": "The floating Ask AI button #634 saw overlapping the flow title is not shown while the config sheet is open (#679). This capture does not show the builder with the sheet closed, so the overlap there is not re-checked."
+  }
+}

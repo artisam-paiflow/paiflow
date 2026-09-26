@@ -53,5 +53,5 @@
       "gap": "The stellar.expert page itself is not captured; the asserted link and #636's pnpm soroswap:check stand in for it."
     }
   },
-  "notCovered": "09–14 are the before-set (09-14-before-meta.json); the after halves of 09–12 are existing files, recorded under pairs rather than re-shot. 13 stays reserved for #641's phone shot. 14 (the keyboard GIF) pairs with #639's keyboard-only recording, still open; until then the spec's keyboard walk asserts Enter, Close and Escape back to the node."
+  "notCovered": "09–14 are the before-set (09-14-before-meta.json); the after halves of 09–12 are existing files, recorded under pairs rather than re-shot. 13 is #641's real-phone shot, recorded in 13-phone-meta.json. 14 (the keyboard GIF) pairs with the keyboard segment of #639's recording, 19-recording-run.json at 5:44: a visible focus ring across the canvas, Enter opening a node's panel and Escape closing it with focus back on the node. That segment uses the On Receive node; the Swap panel's full keyboard walk is asserted by the spec."
 }
