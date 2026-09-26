@@ -119,12 +119,24 @@ test.describe("Swap block (Instawards D1)", () => {
     const panel = await openSwapPanel(page, flowId);
     await expect(page.getByTestId("palette-swap")).toBeVisible();
     await expect(panel.getByText("Max slippage (%)")).toBeVisible();
+    await panel.locator("summary", { hasText: "Advanced" }).click();
     await expect(panel.getByText("Deadline (seconds)")).toBeVisible();
-    await expect(panel.getByTestId("swap-router")).toBeDisabled();
-    // The label names the network, which reaches the panel as a server prop
-    // (STELLAR_NETWORK), never a NEXT_PUBLIC_ copy that could drift.
-    await expect(panel.getByTestId("swap-router")).toContainText("Soroswap (testnet)");
-    await expect(panel.getByText(/spot price less this percentage/)).toBeVisible();
+    // Pinned and read-only (#612): the actual router contract, with nothing to
+    // type into. The label names the network, which reaches the panel as a
+    // server prop (STELLAR_NETWORK), never a NEXT_PUBLIC_ copy that could drift.
+    const routerField = panel.getByTestId("swap-router");
+    await expect(routerField).toContainText("Soroswap (testnet)");
+    await expect(routerField.getByRole("textbox")).toHaveCount(0);
+    await expect(routerField.getByRole("combobox")).toHaveCount(0);
+    // A public contract id. Playwright does not load the app's .env, and the
+    // spec also runs against a live server, so compare exactly only when set.
+    const router = process.env.STELLAR_SOROSWAP_ROUTER_TESTNET;
+    await expect(routerField).toContainText(
+      router ?? /C[A-Z2-7]{55}|Not configured on this environment/,
+    );
+    await expect(
+      panel.getByText(/At least 0\.3% for Soroswap's fee, plus room for price impact/),
+    ).toBeVisible();
     await expect(
       page.getByText(/swap XLM to USDC via Soroswap with up to 1% slippage/),
     ).toBeVisible();
@@ -169,9 +181,9 @@ test.describe("Swap block (Instawards D1)", () => {
   }
 
   // Out-of-range slippage and deadline never reach the panel: the graph schema
-  // rejects them at the API boundary (422 with the field path) and the panel's
-  // inputs clamp to the same range. The evidence for these two is the server
-  // response, saved as text next to the screenshots.
+  // rejects them at the API boundary (422 with the field path), and the panel's
+  // inputs hold a draft and clamp it to the same range on blur. The evidence
+  // for these two is the server response, saved as text next to the screenshots.
   const apiCases: Array<{
     name: string;
     file: string;
@@ -206,6 +218,21 @@ test.describe("Swap block (Instawards D1)", () => {
       );
     });
   }
+
+  // Under Soroswap's 0.3% fee every trigger reverts, so a new flow cannot be
+  // saved with it (#453). The contract-level proof is the swapper crate's
+  // `zero_slippage_reverts_on_the_pool_fee_alone`.
+  test("edge case at the API boundary: slippage under the 0.3% floor is refused on create", async ({
+    request,
+  }) => {
+    const res = await request.post("/api/flows", {
+      data: { name: "D1 swap 0 bps", graph: graph({ swap: { slippageBps: 0 } }) },
+    });
+    expect(res.status()).toBe(422);
+    const json = await res.json();
+    expect(json.error.code).toBe("VALIDATION");
+    expect(Object.keys(json.error.fields).some((k) => k.endsWith("config.slippageBps"))).toBe(true);
+  });
 
   test("deploy review shows the TESTNET chip and a live Soroswap quote for a swap flow", async ({
     page,
@@ -294,10 +321,9 @@ test.describe("Swap block (Instawards D1)", () => {
     expect(res.ok()).toBeTruthy();
     const panel = await openSwapPanel(page, flowId);
     const quote = panel.getByTestId("swap-quote");
-    await expect(quote).toContainText(/10 XLM → ~\d+\.\d+ USDC via Soroswap \(live\)/, {
-      timeout: 30_000,
-    });
-    await expect(quote).toContainText(/Minimum at 1% slippage/);
+    await expect(quote).toContainText(/≈ \d+\.\d+ USDC/, { timeout: 30_000 });
+    await expect(quote).toContainText(/Minimum \(1%\)\s*\d+\.\d+ USDC/);
+    await expect(quote).toContainText(/Rate\s*1 XLM = \d+\.\d+ USDC/);
     await panel.screenshot({ path: `${OUT}/08-swap-panel-live-quote.png`, animations: "disabled" });
     await page.screenshot({ path: `${OUT}/09-builder-live-quote.png`, animations: "disabled" });
   });

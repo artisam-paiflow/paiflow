@@ -1,8 +1,10 @@
 /**
  * Instawards D1 (#390 Stage 2): deploy an `on_receive XLM → swap → pay USDC`
  * flow through the app's own API on Stellar testnet, trigger it with a real
- * deposit, and prove the swap went through the Soroswap router. Then the
- * negative: a flow with 0 bps slippage reverts with a plain-English message.
+ * deposit, and prove the swap went through the Soroswap router. The 0 bps
+ * negative is gone (#453): such a flow can no longer be saved, which
+ * `tests/e2e/swap-panel.spec.ts` asserts, and the revert itself is proven by
+ * the swapper crate's `zero_slippage_reverts_on_the_pool_fee_alone`.
  *
  * A throwaway testnet key signs in place of the browser wallet; the deploy and
  * trigger transactions are exactly the ones the UI would hand to Freighter.
@@ -228,21 +230,4 @@ test("happy path: deploy, deposit 10 XLM, swap on Soroswap, pay USDC to the reci
     ),
   );
   await writeFile(`${OUT}/11-happy-path.getTransaction.json`, JSON.stringify(tx, null, 2));
-});
-
-test("negative: 0 bps slippage reverts on the pool fee with a friendly router message", async ({
-  request,
-}) => {
-  const { deploymentId } = await deployFlow(request, "D1 testnet negative", 0);
-  const trig = await request.post(`/api/deployments/${deploymentId}/trigger`, {
-    data: { amount: "100000000", userAddress: depositor!.publicKey() },
-  });
-  expect(trig.ok()).toBeFalsy();
-  const json = await trig.json();
-  expect(json.error.message).toMatch(/slippage/i);
-  expect(json.error.message).not.toMatch(/HostError|Error\(Contract/);
-  await writeFile(
-    `${OUT}/12-negative-slippage-0.json`,
-    JSON.stringify({ deploymentId, status: trig.status(), response: json }, null, 2),
-  );
 });

@@ -8,6 +8,7 @@ import { audit } from "@/lib/audit";
 import { rateLimit } from "@/lib/rate-limit";
 import { env, soroswapRouterAddress, SWAP_ROUTER_UNSET_MESSAGE } from "@/lib/env";
 import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
+import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { preparePipelineDeployTx, checkAccountFunding } from "@/lib/stellar/deploy";
@@ -40,11 +41,7 @@ export async function POST(req: NextRequest) {
     const graph = FlowGraphSchema.parse(flow.graph);
     const v = validateFlow(graph);
     if (!v.ok) {
-      throw new AppError(
-        "VALIDATION",
-        "Flow is invalid",
-        Object.fromEntries(v.errors.map((e) => [e.path, [e.message]])),
-      );
+      throw new AppError("VALIDATION", "Flow is invalid", issuesToFields(v.errors));
     }
 
     // Dev-mode flows are allowed to deploy with blank (pending) recipients —

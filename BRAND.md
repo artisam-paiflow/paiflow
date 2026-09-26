@@ -40,6 +40,7 @@ All UI must consume colors via the Tailwind tokens below. Do not hardcode hex va
 | `tertiary`                  | `#ffba20` | Amber — warnings, audit/security highlights                    |
 | `on-surface`                | `#e5e2e1` | Body text                                                      |
 | `on-surface-variant`        | `#e5bcc5` | Muted body text, labels                                        |
+| `on-surface-muted`          | `#a8a3a6` | Neutral muted text for dense forms (builder labels, hints)     |
 | `outline`                   | `#ac878f` | Visible dividers                                               |
 | `outline-variant`           | `#5c3f46` | Subtle dividers (usually at `/10` to `/30` opacity)            |
 | `error`                     | `#ffb4ab` | Error text                                                     |
@@ -63,7 +64,7 @@ This electric hot pink shows up in the HTML mockups as inline hex (`text-[#FF007
 
 ## 3. Effects: the visual signatures
 
-These four effects are what make Paiflow look like Paiflow. Every screen must use at least one. No screen should use all four simultaneously (visual fatigue).
+The first four effects are what make Paiflow look like Paiflow. Every screen must use at least one. No screen should use all four simultaneously (visual fatigue). The fifth, §3.5, is plumbing rather than signature: it applies to one kind of surface and carries no meaning.
 
 ### 3.1 Grid pattern background
 
@@ -149,6 +150,23 @@ For "live," "listening," "deploying" status indicators. Always small — never a
 ```
 
 For secondary statuses (deploying, info), swap `primary` → `secondary`. For success, use `tertiary`.
+
+### 3.5 Popover elevation
+
+One token, `shadow-popover`, for a surface portalled **over** the page — the address picker's
+listbox, a dropdown menu. Everything else on a screen sits in the layout and needs no shadow at all.
+
+```css
+--shadow-popover: 0 8px 24px -4px rgb(0 0 0 / 0.7);
+```
+
+This is the one place a grey shadow is right rather than a neon glow. A popover floats over whatever
+happens to be under it — canvas, table rows, another panel — so it needs **separation**, which is
+what a dark blur gives. Glow means _selected_, _live_ or _primary action_ ([§3.3](#33-neon-glow));
+putting it on a menu says the menu is emphasised, which it is not. See
+[§10](#10-anti-patterns): this token and the mobile FAB are the only grey shadows the brand allows,
+and anything reaching for a third is a value that should have been this one.
+`components/app/topbar.tsx:105` still carries a hand-written one and has not been migrated (#664).
 
 ---
 
@@ -256,10 +274,25 @@ Three variants only. Don't invent more.
 **Icon button**
 
 ```html
-<button class="text-on-surface-variant hover:text-primary p-xs transition-colors duration-200">
-  <span class="material-symbols-outlined">settings</span>
+<button
+  aria-label="Settings"
+  title="Settings"
+  class="text-on-surface-variant hover:text-primary p-xs inline-flex items-center justify-center transition-colors duration-200 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+>
+  <span aria-hidden="true" class="material-symbols-outlined">settings</span>
 </button>
 ```
+
+- **Name:** always an `aria-label`. A `title` is a tooltip that a mouse user sees, not a name — and
+  it is worth writing down here because the linter will not catch it: axe's `button-name` rule
+  accepts a bare `title`, so a nameless icon button passes every scan in this repo.
+- **The glyph is decorative:** `aria-hidden="true"` on the `<span>`. Material Symbols render from
+  ligature text, so without it a screen reader announces "bookmark_add".
+- **Touch targets:** 44px under a coarse pointer, the same minimum as an input. Note axe's
+  `target-size` rule is disabled by default and set to 24px in any case; the gate is the 44×44 scan
+  in `tests/e2e/d3-swap-panel.spec.ts`.
+
+`components/builder/inputs/address-picker.tsx:145-171` is the worked example.
 
 ### Status chips
 
@@ -297,11 +330,18 @@ Hero cards (denser content): use `rounded-full` (12px) and `p-md` to `p-lg`.
 
 ```html
 <input
-  class="bg-surface-container-lowest border-outline-variant/50 text-on-surface p-xs pl-sm focus:border-primary focus:ring-primary w-full rounded border font-mono text-sm transition-all focus:ring-1 focus:outline-none"
+  class="bg-surface-container-lowest border-outline-variant/50 text-on-surface focus-visible:border-primary focus-visible:ring-primary aria-invalid:border-error/70 w-full rounded border px-3 py-2 font-mono text-[16px] focus:outline-none focus-visible:ring-1 md:text-[14px] pointer-coarse:min-h-11"
 />
 ```
 
-Labels above inputs, in `label-sm` mono, `text-on-surface-variant`. On focus, label color shifts to `primary` (use `group-focus-within:text-primary`).
+Labels above inputs, in `label-sm` medium sans, `text-on-surface-muted`; hints below in `label-sm` `text-on-surface-muted`. On focus, label color shifts to `primary` (use `group-focus-within:text-primary`). A config panel is mostly labels and hints, so they stay neutral: pink marks the focused field, the actions and the one figure that matters (a swap's quoted output), not every line of text. Values stay mono.
+
+- **Focus:** the ring is `focus-visible:`, not `focus:`. It shows for keyboard focus and stays out of the way of a mouse click. Never remove the outline without putting a ring in its place.
+- **Touch targets:** at least 44px tall under a coarse pointer (`pointer-coarse:min-h-11`).
+- **Text size:** 16px below `md`, because iOS zooms the page when it focuses a smaller input. Above `md` it is 14px.
+- **Error state:** the border goes to `error/70`, keyed off `aria-invalid`. The message sits below the control in `label-sm` mono `text-error`, wired with `aria-describedby` and in a polite live region. Colour is never the only signal.
+
+These are implemented once in `components/builder/inputs/styles.ts`, with the label, hint and error wiring in `components/builder/inputs/field.tsx`. New inputs use those; the legacy `.input` rule in `config-panel.tsx` is kept only for panels not yet migrated.
 
 ### Data tables
 
@@ -451,7 +491,7 @@ Things that will break the brand. The agent must refuse these even if asked.
 - ❌ **Generic crypto purple gradients.** Avoid `from-purple-500 to-pink-500` and similar Web3 clichés.
 - ❌ **Hexagons.** Used heavily by Stellar's own brand; we don't compete with their visual identity.
 - ❌ **Rounded corners larger than `rounded-full` (12px).** No pill buttons. No `rounded-2xl` or `rounded-3xl`.
-- ❌ **Drop shadows.** Use neon glow (color box-shadow) for elevation, not gray blur. The only acceptable gray shadow is the FAB on mobile.
+- ❌ **Drop shadows.** Use neon glow (color box-shadow) for elevation, not gray blur. Two exceptions, both named: the FAB on mobile, and the `shadow-popover` token for a surface portalled over the page ([§3.5](#35-popover-elevation)). A hand-written `shadow-[0_8px_24px_-4px_rgba(0,0,0,0.7)]` is the same shadow with the name filed off — use the token.
 - ❌ **Sans-serif for amounts or addresses.** All numeric and on-chain data goes in JetBrains Mono. Always.
 - ❌ **Emoji in the product.** None in the app UI, marketing pages, or anything a user sees —
   use Material Symbols for everything visual. Developer-facing docs (`README.md` and friends)

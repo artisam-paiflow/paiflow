@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
+import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { isPendingAddress } from "@/lib/flows/schema";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
@@ -342,7 +343,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const v = validateFlow(result.patchedGraph);
     if (!v.ok) {
-      const fieldErrors = Object.fromEntries(v.errors.map((e) => [e.path, [e.message]]));
+      const fieldErrors = issuesToFields(v.errors);
       throw new AppError("VALIDATION", "Patched flow is invalid", fieldErrors);
     }
 

@@ -31,4 +31,17 @@ describe("validationErrorKey", () => {
     expect(validationErrorKey("nodes", types).key).toBe("nodes");
     expect(validationErrorKey("senderKyc", types).key).toBe("senderKyc");
   });
+
+  it("keeps the swap rule keys stable, and groups the catalogue rule by its field", () => {
+    expect(validationErrorKey("nodes.n-swap.config.assetOut", types).key).toBe(
+      "swap.config.assetOut",
+    );
+    expect(validationErrorKey("nodes.n-swap.config.slippageBps", types).key).toBe(
+      "swap.config.slippageBps",
+    );
+    expect(validationErrorKey("nodes.n-swap", types).key).toBe("swap");
+    expect(validationErrorKey("nodes.n-swap.config.assetIn", types).key).toBe(
+      "swap.config.assetIn",
+    );
+  });
 });

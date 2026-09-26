@@ -1,10 +1,7 @@
+import type { ValidationIssue } from "./issue";
 import { assetLabel, tokenAmountToStroops, type Asset } from "./schema";
 
-export type ValidationIssue = {
-  path: string;
-  message: string;
-  friendlyMessage: string;
-};
+export type { ValidationIssue };
 
 export const DEFAULT_HARD_LIMITS = {
   xlmMin: 150,

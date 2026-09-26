@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildTesterSeedSql, testerUsernames } from "@/lib/auth/tester-seed-sql";
+import {
+  buildTesterSeedSql,
+  buildTesterStarterFlowSql,
+  testerUsernames,
+} from "@/lib/auth/tester-seed-sql";
+import { SANDBOX_STARTER_NAME } from "@/lib/flows/starter";
+import { validateFlow } from "@/lib/flows/validate";
 
 const HASH =
   "$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHRzb21lc2FsdA$3Q2dJ9o0mJ8m1hQx8sC0m0m8o2m1m8o2m1m8o2m1m8o";
@@ -79,5 +85,55 @@ describe("buildTesterSeedSql", () => {
     ).toThrow(/Duplicate username/);
     expect(() => buildTesterSeedSql([])).toThrow(/No accounts/);
     expect(() => buildTesterSeedSql(rows, "x'; --")).toThrow(/Bad "via"/);
+  });
+});
+
+describe("buildTesterStarterFlowSql", () => {
+  const usernames = ["tester7", "tester8"];
+
+  function quoted(sql: string, tag: string): unknown {
+    const m = sql.match(new RegExp(`\\$${tag}\\$(.*?)\\$${tag}\\$`, "s"));
+    expect(m).not.toBeNull();
+    return JSON.parse(m![1]!);
+  }
+
+  it("is one create-only statement that skips a tester who already has the flow", () => {
+    const sql = buildTesterStarterFlowSql(usernames);
+    expect(sql.trim().split(";").filter(Boolean)).toHaveLength(1);
+    expect(sql).not.toMatch(/\bupdate\b/i);
+    expect(sql).not.toMatch(/\bdelete\b/i);
+    expect(sql).toContain(`and not exists (select 1 from "Flow" f where f."ownerId" = u.id`);
+    expect(sql).toContain("where u.username in ('tester7', 'tester8')");
+    expect(sql).toContain("and u.role = 'USER'");
+  });
+
+  it("names the flow the way the alpha guide quotes it", () => {
+    expect(SANDBOX_STARTER_NAME).toBe("Swap XLM to USDC");
+    expect(buildTesterStarterFlowSql(usernames)).toContain(`'${SANDBOX_STARTER_NAME}'`);
+  });
+
+  it("embeds a graph that still validates, with the matching template kind and pipeline", () => {
+    const sql = buildTesterStarterFlowSql(usernames);
+    const v = validateFlow(quoted(sql, "graph"));
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(sql).toContain(`'${v.templateKind}'::"TemplateKind"`);
+    expect(Array.isArray(quoted(sql, "params"))).toBe(true);
+  });
+
+  it("audits without attributing the flow to the tester", () => {
+    const sql = buildTesterStarterFlowSql(usernames);
+    expect(sql).toContain(`insert into "AuditLog" (id, action, metadata, "createdAt")`);
+    expect(sql).toContain("'FLOW_CREATE'");
+    expect(sql).toContain("'via', 'scripts/seed-tester-flows.ts'");
+  });
+
+  it("refuses hostile usernames, duplicates, an empty batch and a hostile via label", () => {
+    expect(() => buildTesterStarterFlowSql(['x\'); drop table "Flow"; --'])).toThrow(
+      /Not a valid username/,
+    );
+    expect(() => buildTesterStarterFlowSql(["tester7", "Tester7"])).toThrow(/Duplicate username/);
+    expect(() => buildTesterStarterFlowSql([])).toThrow(/No accounts/);
+    expect(() => buildTesterStarterFlowSql(usernames, "x'; --")).toThrow(/Bad "via"/);
   });
 });

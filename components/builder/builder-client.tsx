@@ -33,6 +33,7 @@ import AnimatedStraightEdge from "@/components/nodes/animated-edge";
 import CanvasConfigPanel from "./canvas-config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
+import EnglishPreview from "./english-preview";
 import SenderKycDialog from "./sender-kyc-dialog";
 import RaftLog, { type ChatMessage } from "./raft-log";
 import type { PatchOp } from "@/lib/ai/prompts";
@@ -42,6 +43,7 @@ import { apiError } from "@/lib/friendly-error";
 import { track } from "@/lib/analytics/client";
 import { IN_SCOPE_NODE_TYPES } from "@/lib/analytics/events";
 import { useValidationTracking } from "@/lib/analytics/validation-tracking";
+import { NARROW_VIEWPORT_QUERY, useMediaQuery } from "@/lib/hooks/use-media-query";
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -72,8 +74,10 @@ type BuilderProps = {
   flowId: string;
   initialName: string;
   initialGraph: FlowGraph;
-  /** Pinned per environment on the server; the swap panel names it on the router selector. */
+  /** Pinned per environment on the server; the swap panel names it on the router field. */
   network: StellarNetwork;
+  /** The Soroswap router this environment resolves to, shown read-only on the swap panel. */
+  routerContractId?: string;
 };
 
 function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["positions"]): Node {
@@ -180,7 +184,7 @@ export default function BuilderClient(props: BuilderProps) {
   );
 }
 
-function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
+function Builder({ flowId, initialName, initialGraph, network, routerContractId }: BuilderProps) {
   const [name, setName] = useState(initialName);
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>(initialGraph.nodes);
   const [rfNodes, setRfNodes] = useState<Node[]>(
@@ -190,6 +194,8 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
     initialGraph.edges.map((e) => edgeWithColors(e, initialGraph.nodes)),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // How the open panel was opened: only a keyboard open moves focus into it.
+  const [openedBy, setOpenedBy] = useState<"keyboard" | "pointer">("pointer");
   const [chatCollapsed, setChatCollapsed] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -205,6 +211,13 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
   const [senderKyc, setSenderKyc] = useState<SenderKyc | undefined>(initialGraph.senderKyc);
   const [kycDialogOpen, setKycDialogOpen] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
+  // React Flow reports a keyboard selection (Enter/Space on a focused node) and
+  // a click the same way, as `select` changes, so the canvas remembers which
+  // kind of input came last.
+  const lastInputRef = useRef<"keyboard" | "pointer">("pointer");
+  const narrow = useMediaQuery(NARROW_VIEWPORT_QUERY);
+  const narrowRef = useRef(narrow);
+  narrowRef.current = narrow;
 
   useEffect(() => {
     track("builder_opened", {
@@ -243,7 +256,7 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
     const stored = localStorage.getItem("sidebarCollapsed");
     if (stored === "true") {
       setSidebarCollapsed(true);
-    } else if (stored === null && window.matchMedia("(max-width: 767px)").matches) {
+    } else if (stored === null && window.matchMedia(NARROW_VIEWPORT_QUERY).matches) {
       // No explicit preference yet: default collapsed on narrow viewports so the
       // canvas isn't squeezed to nothing by a fixed 260px sidebar.
       setSidebarCollapsed(true);
@@ -390,9 +403,62 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowId, name, graph]);
 
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+
+  // The one way a node's panel opens, whether by click or by Enter/Space.
+  const selectNode = useCallback((id: string, via: "keyboard" | "pointer") => {
+    if (id !== selectedIdRef.current) {
+      const opened = nodeLookupRef.current.get(id);
+      if (opened) track("node_settings_opened", { node_type: opened.type });
+    }
+    // A click reports twice (the `select` change, then onNodeClick) before a
+    // re-render, so the ref moves now to keep the event from firing twice.
+    selectedIdRef.current = id;
+    setSelectedId(id);
+    setOpenedBy(via);
+    // Below md the panel is a bottom sheet and the chat is full-width, so only
+    // one of them is shown at a time.
+    if (narrowRef.current) setChatCollapsed(true);
+  }, []);
+
+  // Close and Escape hand focus back to the node the panel belongs to.
+  const closePanel = useCallback(() => {
+    const id = selectedIdRef.current;
+    selectedIdRef.current = null;
+    setSelectedId(null);
+    if (!id) return;
+    requestAnimationFrame(() => {
+      canvasRef.current
+        ?.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(id)}"]`)
+        ?.focus();
+    });
+  }, []);
+
   // Sync React Flow node removals back to flowNodes (from develop)
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setRfNodes((nds) => applyNodeChanges(changes, nds));
+
+    // Keyboard selection only reaches us here: React Flow's Enter/Space on a
+    // focused node selects it without calling onNodeClick, and Escape on it
+    // deselects. Pointer selection goes through onNodeClick/onPaneClick; the
+    // `select` changes a drag start emits are ignored so a drag opens nothing.
+    const keyboard = lastInputRef.current === "keyboard";
+    const selected = changes.find(
+      (c): c is { type: "select"; id: string; selected: true } => c.type === "select" && c.selected,
+    );
+    if (selected && keyboard) {
+      selectNode(selected.id, "keyboard");
+    } else if (
+      changes.some(
+        (c) =>
+          (c.type === "remove" || (keyboard && c.type === "select")) &&
+          c.id === selectedIdRef.current,
+      )
+    ) {
+      selectedIdRef.current = null;
+      setSelectedId(null);
+    }
 
     const removedIds = changes
       .filter((c): c is { type: "remove"; id: string } => c.type === "remove")
@@ -660,16 +726,30 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
 
   return (
     <>
+      {/* The canvas sits behind the header, palette and toolbar in tab order;
+          this lands keyboard users on the first node instead. */}
+      <button
+        type="button"
+        onClick={() => {
+          const first = canvasRef.current?.querySelector<HTMLElement>(".react-flow__node");
+          (first ?? canvasRef.current)?.focus();
+        }}
+        className="bg-primary text-on-primary text-label-md font-body sr-only rounded-lg font-semibold focus:not-sr-only focus:fixed focus:top-3 focus:left-1/2 focus:z-50 focus:-translate-x-1/2 focus:px-3 focus:py-2"
+      >
+        Skip to canvas
+      </button>
       <div
         suppressHydrationWarning
         className={
           ready && hasAnimated
-            ? "grid gap-0 transition-[grid-template-columns] duration-300 ease-in-out"
+            ? "builder-grid grid gap-0 transition-[grid-template-columns] duration-300 ease-in-out"
             : "grid gap-0"
         }
         style={{
-          height: "calc(100vh - 4rem)",
-          gridTemplateColumns: sidebarCollapsed ? "40px 1fr" : "260px 1fr",
+          height: "calc(100dvh - 4rem)",
+          // minmax(0, …): a bare 1fr grows to the toolbar's content width,
+          // which pushed the page past a phone's screen.
+          gridTemplateColumns: sidebarCollapsed ? "40px minmax(0, 1fr)" : "260px minmax(0, 1fr)",
         }}
       >
         <Palette
@@ -689,9 +769,9 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
           }}
         />
 
-        <div className="grid min-h-0 grid-rows-[auto_auto_1fr]">
+        <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_1fr]">
           {/* Row 1: Deploy → editable title */}
-          <div className="px-md gap-md flex items-center py-3">
+          <div className="px-md gap-md max-md:gap-sm flex flex-wrap items-center py-3 max-md:flex-nowrap max-md:px-3 max-md:py-2">
             <DeployButton
               flowId={flowId}
               disabled={!isValid}
@@ -707,13 +787,14 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               aria-label="Flow name"
-              className="text-headline-sm text-on-surface max-w-[40ch] min-w-[12ch] flex-1 border-0 bg-transparent px-0 py-1 font-semibold tracking-[-0.01em] outline-none focus:outline-none"
+              className="text-headline-sm max-md:text-body-lg text-on-surface max-w-[40ch] min-w-[12ch] flex-1 border-0 bg-transparent px-0 py-1 font-semibold tracking-[-0.01em] outline-none focus:outline-none max-md:min-w-0"
               style={{ fieldSizing: "content" } as React.CSSProperties}
             />
             <button
               type="button"
               role="switch"
               aria-checked={devMode}
+              aria-label="Dev mode"
               onClick={() => {
                 if (!devMode) track("off_script_feature_used", { feature: "dev_mode_on" });
                 setDevMode((v) => !v);
@@ -724,88 +805,46 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
                   : "Dev mode OFF — recipients and amounts are fixed at design time"
               }
               className={cn(
-                "text-label-sm inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors",
+                "text-label-sm inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors max-md:px-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
                 devMode
                   ? "border-primary/40 bg-primary/10 text-primary"
                   : "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant hover:text-on-surface",
               )}
             >
-              <span className="material-symbols-outlined text-[16px]">
+              <span aria-hidden="true" className="material-symbols-outlined text-[16px]">
                 {devMode ? "toggle_on" : "toggle_off"}
               </span>
-              Dev mode
+              <span className="max-md:sr-only">Dev mode</span>
             </button>
           </div>
 
           {/* Row 2: English Preview */}
-          <div className="px-md pb-2">
-            <div className="glass-panel px-md py-sm max-w-2xl rounded-xl">
-              <div className="flex items-center gap-2">
-                <div className="text-label-sm text-primary font-mono tracking-[0.08em] uppercase">
-                  English Preview
-                </div>
-                {isValid && pipeline && pipeline.length > 0 && (
-                  <span className="bg-primary/10 border-primary/20 text-primary text-label-sm inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono">
-                    valid pipeline
-                  </span>
-                )}
-                {hasFiatPayout && (
-                  <button
-                    type="button"
-                    onClick={() => setKycDialogOpen(true)}
-                    title={
-                      senderKyc
-                        ? "Sender KYC on file — click to edit"
-                        : devMode
-                          ? "Sender KYC is optional in dev mode (can be submitted via the API after deploy)"
-                          : "Sender KYC is required before deploying a flow with fiat payouts"
-                    }
-                    className={cn(
-                      "text-label-sm ml-auto inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 font-mono transition-colors",
-                      senderKyc
-                        ? "border-green-500/40 bg-green-500/10 text-green-400"
-                        : devMode
-                          ? "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant hover:text-on-surface"
-                          : "border-amber-400/40 bg-amber-400/10 text-amber-400",
-                    )}
-                  >
-                    <span className="material-symbols-outlined text-[16px]">
-                      {senderKyc ? "verified_user" : "warning"}
-                    </span>
-                    Sender KYC
-                  </button>
-                )}
-                {!isValid && errors.length > 0 && (
-                  <button
-                    type="button"
-                    role="alert"
-                    onClick={() => {
-                      track("errors_modal_opened", { error_count: errors.length });
-                      setErrorsModalOpen(true);
-                    }}
-                    aria-label={`View all ${errors.length} validation ${
-                      errors.length === 1 ? "issue" : "issues"
-                    }`}
-                    className={cn(
-                      "bg-error-container/25 border-error/40 text-on-error-container hover:bg-error/10 inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 transition-colors",
-                      !hasFiatPayout && "ml-auto",
-                    )}
-                  >
-                    <span className="material-symbols-outlined text-error text-[16px] leading-none">
-                      error
-                    </span>
-                    <span className="text-label-sm text-error font-semibold">
-                      {errors.length} {errors.length === 1 ? "Error" : "Errors"}
-                    </span>
-                  </button>
-                )}
-              </div>
-              <div className="text-body-md text-on-surface mt-1 line-clamp-2">{english}</div>
-            </div>
-          </div>
+          <EnglishPreview
+            english={english}
+            showValidBadge={isValid && !!pipeline && pipeline.length > 0}
+            hasFiatPayout={hasFiatPayout}
+            hasSenderKyc={!!senderKyc}
+            devMode={devMode}
+            errorCount={isValid ? 0 : errors.length}
+            onOpenKyc={() => setKycDialogOpen(true)}
+            onOpenErrors={() => {
+              track("errors_modal_opened", { error_count: errors.length });
+              setErrorsModalOpen(true);
+            }}
+          />
 
           {/* Row 3: Canvas */}
-          <div ref={canvasRef} className="relative min-h-0">
+          <div
+            ref={canvasRef}
+            tabIndex={-1}
+            className="relative min-h-0 focus:outline-none"
+            onKeyDownCapture={() => {
+              lastInputRef.current = "keyboard";
+            }}
+            onPointerDownCapture={() => {
+              lastInputRef.current = "pointer";
+            }}
+          >
             <ReactFlow
               nodes={rfNodes.map((n) => {
                 const fn = flowNodes.find((f) => f.id === n.id);
@@ -824,13 +863,7 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
-              onNodeClick={(_, n) => {
-                if (n.id !== selectedId) {
-                  const clicked = nodeLookupRef.current.get(n.id);
-                  if (clicked) track("node_settings_opened", { node_type: clicked.type });
-                }
-                setSelectedId(n.id);
-              }}
+              onNodeClick={(_, n) => selectNode(n.id, "pointer")}
               onPaneClick={() => {
                 setSelectedId(null);
                 if (!chatCollapsed) setChatCollapsed(true);
@@ -849,14 +882,20 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
                 bgColor="#09090b"
                 maskColor="rgba(9, 9, 11, 0.6)"
                 nodeComponent={MinimapNode}
-                className="!border !border-zinc-800"
+                // The minimap renders above the config panel (docked sheet or
+                // floating card) and would swallow clicks on it, so it steps
+                // aside while a panel is open. On a phone it would cover a
+                // node's worth of canvas and the Ask AI button, so it's off.
+                className={cn("!border !border-zinc-800 max-md:!hidden", selectedId && "!hidden")}
               />
               {selectedId && selectedNode && (
                 <CanvasConfigPanel
                   selectedId={selectedId}
                   node={selectedNode}
                   graph={graph}
+                  errors={errors}
                   network={network}
+                  routerContractId={routerContractId}
                   onChange={updateNode}
                   onDelete={deleteNode}
                   addressBook={addressBook}
@@ -865,6 +904,8 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
                   addressBookError={addressBookError}
                   chatCollapsed={chatCollapsed}
                   canvasRef={canvasRef}
+                  onClose={closePanel}
+                  focusOnOpen={openedBy === "keyboard"}
                 />
               )}
             </ReactFlow>
@@ -881,7 +922,14 @@ function Builder({ flowId, initialName, initialGraph, network }: BuilderProps) {
         onResolveAddress={handleResolveAddress}
         onSkipAddresses={handleSkipAddresses}
         collapsed={chatCollapsed}
-        onToggleCollapse={() => setChatCollapsed((v) => !v)}
+        // Below md the docked sheet sits over the tab's corner; hiding it keeps
+        // it out of the tab order instead of focusable but unseen.
+        hideTab={narrow && !!selectedId && !!selectedNode}
+        onToggleCollapse={() => {
+          // Opening the chat below md dismisses the docked panel (see selectNode).
+          if (chatCollapsed && narrow) setSelectedId(null);
+          setChatCollapsed((v) => !v);
+        }}
       />
 
       {/* Sender KYC dialog — design-time capture of the PDAX sender profile */}

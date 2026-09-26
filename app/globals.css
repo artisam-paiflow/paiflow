@@ -61,6 +61,9 @@
   --color-outline-variant: #5c3f46;
   --color-on-surface: #e5e2e1;
   --color-on-surface-variant: #e5bcc5;
+  /* Neutral muted text for dense forms (builder labels, hints), where the
+     pink-tinted variant would tint the whole panel. BRAND.md §2. */
+  --color-on-surface-muted: #a8a3a6;
   --color-on-background: #e5e2e1;
   --color-inverse-surface: #e5e2e1;
   --color-inverse-on-surface: #313030;
@@ -72,6 +75,11 @@
   --radius-lg: 0.25rem;
   --radius-xl: 0.5rem;
   --radius-full: 0.75rem;
+
+  /* The one grey elevation BRAND §10 allows besides the mobile FAB: a
+   * portalled popover floating over arbitrary content needs separation, not
+   * the emphasis a neon glow carries. See BRAND.md §3.5. */
+  --shadow-popover: 0 8px 24px -4px rgb(0 0 0 / 0.7);
 
   --spacing-xs: 4px;
   --spacing-sm: 12px;
@@ -382,6 +390,61 @@ h4 {
   }
 }
 
+/* The packet that travels along a builder edge (components/nodes/animated-edge.tsx). */
+.edge-packet {
+  animation: flow-dash 6s linear infinite;
+}
+
+/* The builder chat: the collapsed "Ask AI" tab's glow and the suggestion
+   marquee (components/builder/raft-log.tsx). Not "pulse-glow": that name is
+   the status-dot ring above. */
+@keyframes chat-tab-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 18px rgba(255, 177, 196, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(255, 177, 196, 0.7);
+  }
+}
+
+.chat-tab-glow {
+  animation: chat-tab-glow 3s ease-in-out infinite;
+}
+
+@keyframes marquee-right {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes marquee-left {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.marquee-row {
+  animation: marquee-right 25s linear infinite;
+}
+.marquee-row:nth-child(2) {
+  animation-name: marquee-left;
+  animation-duration: 22s;
+}
+.marquee-row:nth-child(3) {
+  animation-name: marquee-right;
+  animation-duration: 28s;
+}
+.marquee-row:hover {
+  animation-play-state: paused !important;
+}
+
 /* Typography utility shortcuts */
 .text-headline-lg {
   font-family: var(--font-display);
@@ -505,6 +568,28 @@ h4 {
   box-shadow: 0 0 15px rgba(255, 177, 196, 0.3);
 }
 
+/* React Flow makes nodes and edges tabbable, then sets `outline: none` on
+   `.react-flow__node.selectable:focus-visible` and draws a ring only for its
+   built-in node types, so a keyboard user could not see where focus was on
+   ours. Its stylesheet is imported by the builder and lands after this one,
+   hence the extra `.react-flow` to outrank it. An outline, not a shadow, so
+   it stacks with .selected and the neon glows. */
+.react-flow .react-flow__node.selectable:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 4px;
+  border-radius: 0.75rem;
+}
+
+/* An outline on an SVG <g> draws a stray bounding box; mark the path instead. */
+.react-flow__edge:focus-visible {
+  outline: none;
+}
+
+.react-flow__edge:focus-visible .react-flow__edge-path {
+  stroke: var(--color-primary) !important;
+  stroke-width: 3.5 !important;
+}
+
 .react-flow__handle {
   background: #201f1f;
   border: 1px solid #ffb1c4;
@@ -587,8 +672,20 @@ h4 {
   .status-dot-deploy,
   .status-dot-warn,
   path.connection-line,
-  .react-flow__edge-path {
+  .react-flow__edge-path,
+  .edge-packet,
+  .chat-tab-glow,
+  /* :nth-child(n) ties the per-row :nth-child(2|3) rules on specificity and
+     wins on source order, so the marquee rules must stay above this block. */
+  .marquee-row:nth-child(n) {
     animation: none;
+  }
+  /* The config panel's chat-shift, the splitter's allocation bar and the
+     builder's sidebar collapse. */
+  .config-panel-card,
+  .allocation-bar-segment,
+  .builder-grid {
+    transition: none;
   }
 }
 

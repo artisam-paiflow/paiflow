@@ -5,17 +5,64 @@ reproduced in that week's report. Commit links open on the public repository.
 
 Generated with `pnpm instawards:changelog` — see [week 1](week-1.md) for the exact invocation.
 
+## Week 3 — 21–27 September 2026
+
+D3: the Swapper panel rebuilt on four shared input components, with one swap rule set and error
+model, the first component-test lane with a CI report, and a keyboard and phone pass on the config
+panel. Reported in full in [week 3](week-3.md).
+
+Covers 21–26 September, the extent of the public mirror when this was last generated on
+26 September; anything merged on the 27th is added when the mirror next syncs.
+
+| Date       | Change                                                                                                    | Issues           | Commit                                                                                                  |
+| ---------- | --------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------- |
+| 2026-09-26 | docs(instawards): D3 page close-out: status, traceability, scope notes, props contract, §6.1 ticks (#642) | #642             | [`0334cd5`](https://github.com/artisam-paiflow/paiflow/commit/0334cd5ac3544eb9f3a61ffd7c7063d08a931c18) |
+| 2026-09-26 | docs(instawards): D3 evidence pack README, evidence index, and the external QA run (#643, #658)           | #643, #658       | [`d7f437c`](https://github.com/artisam-paiflow/paiflow/commit/d7f437c07c9a79a1d113a8a6b31e6cf385704e97) |
+| 2026-09-25 | docs(instawards): real-phone check and PostHog swap validation before/after (#641)                        | #641             | [`1d62025`](https://github.com/artisam-paiflow/paiflow/commit/1d62025bb24fe6ee63af9afb223232eccddc1624) |
+| 2026-09-25 | docs(instawards): D3 screen recording as evidence 19                                                      | #639             | [`d496d47`](https://github.com/artisam-paiflow/paiflow/commit/d496d47915e98fbc20cdcd7abd0c01ac51824969) |
+| 2026-09-25 | fix(builder): give the canvas the screen on phones                                                        | #679             | [`e192dc9`](https://github.com/artisam-paiflow/paiflow/commit/e192dc912b76294fed5d20b0ba90540887032c32) |
+| 2026-09-25 | fix(builder): visible keyboard focus on canvas nodes and edges, and a Skip to canvas button               | #677             | [`56a3c58`](https://github.com/artisam-paiflow/paiflow/commit/56a3c58122c984239817bc2ed5a615f295919434) |
+| 2026-09-25 | docs(instawards): record the D3 09–12 after-pairs (#637)                                                  | #676             | [`c51088b`](https://github.com/artisam-paiflow/paiflow/commit/c51088b3201e10ee1d66d52d29ca710fb5852fbd) |
+| 2026-09-25 | docs(instawards): D3 after-captures from paiflow.xyz, router, composite and Pay contrast (#637)           | #675             | [`e647615`](https://github.com/artisam-paiflow/paiflow/commit/e64761506a925f49825a74f212ccf311c8dfb7c2) |
+| 2026-09-25 | docs(instawards): D3 CI test report from the public mirror run (#640)                                     | #640             | [`5302056`](https://github.com/artisam-paiflow/paiflow/commit/5302056bf3f125dbb242984effd692c0479141d1) |
+| 2026-09-25 | docs(instawards): the D3 code-diff note, each claim with the command that proves it                       | #638             | [`389c45f`](https://github.com/artisam-paiflow/paiflow/commit/389c45f0e20547c30ed935703f7873e60142ebd1) |
+| 2026-09-24 | feat(builder): simplify the Swapper panel                                                                 | #670             | [`5a866ae`](https://github.com/artisam-paiflow/paiflow/commit/5a866ae46ba2b56975a1e2c3ba79fb35fc9ca15c) |
+| 2026-09-24 | feat(homepage): embed the Paiflow explainer video                                                         | #668             | [`14c837c`](https://github.com/artisam-paiflow/paiflow/commit/14c837c95d88e1121a6e6ec7b3176d7f69577fcd) |
+| 2026-09-24 | docs(instawards): capture D3's "before" from paiflow.xyz ahead of promotion (#614)                        | #666             | [`0214190`](https://github.com/artisam-paiflow/paiflow/commit/0214190a3ddf3856aca71959190882c8beef7422) |
+| 2026-09-23 | test(builder): capture the slippage floor error on the shared input (#637)                                | #665             | [`5aad410`](https://github.com/artisam-paiflow/paiflow/commit/5aad410039efbc3f1eb2fff86c6c96f53ed3be4b) |
+| 2026-09-23 | fix(builder): name AddressPicker's editable controls and give them real targets (#661)                    | #661             | [`c28cb8c`](https://github.com/artisam-paiflow/paiflow/commit/c28cb8cc3d918612416350a8a7b70e939d515101) |
+| 2026-09-23 | fix(builder): AddressPicker's editable branch is styled from styles.ts (#648)                             | #648             | [`0219f12`](https://github.com/artisam-paiflow/paiflow/commit/0219f128ed17524e360e88827c6aa5b6f3a24a84) |
+| 2026-09-22 | test(swap): prove a same-asset swap is refused at prepare, and pin CI Node to engines (#649)              | #649             | [`a976d78`](https://github.com/artisam-paiflow/paiflow/commit/a976d780a4a8e3dd050b572bde5ba6e07e6d49db) |
+| 2026-09-22 | fix(builder): the edge packet, chat glow and grid honour reduced motion (#647)                            | #647             | [`0617084`](https://github.com/artisam-paiflow/paiflow/commit/0617084de09148c2fa6f9c107cd23bee90bbee3e) |
+| 2026-09-22 | refactor(builder): the config panel uses nodeIssues() (#646)                                              | #646             | [`d4bacbf`](https://github.com/artisam-paiflow/paiflow/commit/d4bacbf037fca056c1fbe3bb89be9b1b2eb5364e) |
+| 2026-09-22 | feat(builder): keyboard, focus and a docked sheet for the config panel (#613)                             | #613             | [`a494e86`](https://github.com/artisam-paiflow/paiflow/commit/a494e862bdd8298052d3acdce0211c3cab43d9c5) |
+| 2026-09-22 | feat(builder): rebuild the Swapper panel on the shared inputs (#612)                                      | #612, #454, #453 | [`cdbb8ee`](https://github.com/artisam-paiflow/paiflow/commit/cdbb8ee3242caa04cb33f7b97a3e3f289d9046d3) |
+| 2026-09-22 | feat(builder): AddressPicker with its own error, combobox ARIA and a pinned mode (#609)                   | #609             | [`945c627`](https://github.com/artisam-paiflow/paiflow/commit/945c6271c50694d1f1bc7292758d6bb9e7bc4d8c) |
+| 2026-09-22 | feat(validation): one swap rule set and one error model for the swapper flow                              | #610             | [`e3ba1dc`](https://github.com/artisam-paiflow/paiflow/commit/e3ba1dc78875f9498613c62f1d2848be3b9c87b9) |
+| 2026-09-22 | chore(testers): seed the alpha guide's starter flow for tester accounts                                   | #630             | [`d46a981`](https://github.com/artisam-paiflow/paiflow/commit/d46a981fdc7d914b0f17fa861c34e949a231a949) |
+| 2026-09-22 | feat(builder): AmountInput and ShareInput on a draft-then-commit numeric core (#608)                      | #608             | [`4bb8fde`](https://github.com/artisam-paiflow/paiflow/commit/4bb8fded6fcecfb54b6c6054a9774f1aa4d72b26) |
+| 2026-09-21 | feat(builder): input foundation — Field wiring, input tokens, AssetSelect (#607)                          | #607             | [`decf7e4`](https://github.com/artisam-paiflow/paiflow/commit/decf7e49507a9902759bbbeef85f5edd507babff) |
+| 2026-09-21 | fix(trigger): refuse a zero or out-of-i128 amount with a 422                                              | #628             | [`5f4c28d`](https://github.com/artisam-paiflow/paiflow/commit/5f4c28d7c3e08d2a0ebfdb5071017cae0027e0ad) |
+| 2026-09-21 | chore(graphify): remove the graphify setup                                                                | #626             | [`95c8871`](https://github.com/artisam-paiflow/paiflow/commit/95c88719f049f49003f939d070b60d6a8faa26c6) |
+| 2026-09-21 | chore(graphify): refresh the local graph on pull and branch switch                                        | #625             | [`17b2fb9`](https://github.com/artisam-paiflow/paiflow/commit/17b2fb948212dbfcec9e1edc1f7041cd1d801dde) |
+| 2026-09-21 | refactor(builder): extract the Swapper panel and validate the graph once per render                       | #611             | [`fdb04da`](https://github.com/artisam-paiflow/paiflow/commit/fdb04daa3c1435673563314b8a5d1c736bf1f870) |
+| 2026-09-21 | test(ci): add a jsdom component-test lane and a CI test report                                            | #606             | [`44928ca`](https://github.com/artisam-paiflow/paiflow/commit/44928ca744f62a7b6f588d992ac5a85bbe3ecd93) |
+| 2026-09-21 | chore(graphify): add a local knowledge-graph setup for Claude Code                                        | #624             | [`268200c`](https://github.com/artisam-paiflow/paiflow/commit/268200c50ba594cfecd6671a08fc785300b8d740) |
+| 2026-09-21 | docs(instawards): name the D1 panel as D3's "before"                                                      | #621             | [`a84b5da`](https://github.com/artisam-paiflow/paiflow/commit/a84b5dabac7aa87251e7342dfacf21de3fc6d742) |
+
 ## Week 2 — 14–20 September 2026
 
 D2: a developer API for the swapper — deployment-scoped tokens, an execute endpoint and cursor-based
 event polling. The beta also moved onto the staging service and the alpha round opened. Reported in
 full in [week 2](week-2.md).
 
-Covers 14–18 September, the extent of the public mirror when this was generated on 18 September; it
-is regenerated when the week closes.
+Covers 14–19 September, the extent of the public mirror when this was last generated on
+20 September; the 20 September merges are added when the mirror next syncs.
 
 | Date       | Change                                                                                               | Issues | Commit                                                                                                  |
 | ---------- | ---------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| 2026-09-19 | perf(cron): stop polling sandbox deployments after a day, and never auto-release them                | #556   | [`a5eb4d8`](https://github.com/artisam-paiflow/paiflow/commit/a5eb4d8f5a9eb76fe5b49a6ec1ee3971dacf6915) |
+| 2026-09-19 | feat(api): let anyone try /api/v1 with a demo token                                                  | #554   | [`92dfa15`](https://github.com/artisam-paiflow/paiflow/commit/92dfa15ece75727906f12494e3d0a5fb427f6afb) |
 | 2026-09-18 | docs(instawards): report metrics on two bases, and count the alpha-tester cohort from PostHog        | #544   | [`00ce55b`](https://github.com/artisam-paiflow/paiflow/commit/00ce55b0dc8d45992edba77cb89f2055d842fd56) |
 | 2026-09-17 | docs(alpha): record with the Loom desktop app, and correct what the guide promises testers           | #543   | [`f1184ba`](https://github.com/artisam-paiflow/paiflow/commit/f1184ba1532579095a7404911c2263855b6cec20) |
 | 2026-09-17 | feat(analytics): wallet traceability in PostHog (promote #538)                                       | #540   | [`ceb1152`](https://github.com/artisam-paiflow/paiflow/commit/ceb1152602033dca728f47c04d7f0923f1d40d82) |
