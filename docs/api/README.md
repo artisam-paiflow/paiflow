@@ -4,16 +4,20 @@ Paiflow's `/api/v1` lets your backend run a deployed **swapper flow** and watch 
 chain, with no browser and no wallet integration on Paiflow's side. You send the deposit, the flow
 swaps it on a real DEX and pays the proceeds out, and you poll the events.
 
-| Artefact                  | Where                                                                                        |
-| ------------------------- | -------------------------------------------------------------------------------------------- |
-| OpenAPI 3.1 specification | [`openapi.json`](openapi.json), also served at `GET https://paiflow.xyz/api/v1/openapi.json` |
-| Postman collection        | [`paiflow-api-v1.postman_collection.json`](paiflow-api-v1.postman_collection.json)           |
-| This guide                | `docs/api/README.md`                                                                         |
+| Artefact                  | Where                                                                                                                                                                                                                                                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenAPI 3.1 specification | Served at [`https://paiflow.xyz/api/v1/openapi.json`](https://paiflow.xyz/api/v1/openapi.json); source [`docs/api/openapi.json`](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                                                                     |
+| Postman collection        | [`paiflow-api-v1.postman_collection.json`](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) (import by link: [raw file](https://raw.githubusercontent.com/artisam-paiflow/paiflow/develop/docs/api/paiflow-api-v1.postman_collection.json)) |
+| This guide                | [paiflow.gitbook.io/paiflow-docs/reference/api](https://paiflow.gitbook.io/paiflow-docs/reference/api); source `docs/api/README.md`                                                                                                                                                                 |
 
 {% hint style="warning" %}
 **Testnet only.** The public instance at `https://paiflow.xyz` runs on Stellar testnet. Every
 account, asset and amount in this guide is a testnet one.
 {% endhint %}
+
+`https://paiflow.xyz` is the canonical host, and it is the only entry in the OpenAPI `servers`
+list. `https://beta.app.paiflow.xyz` is the same service with the same database, so every request
+in this guide works against either host.
 
 ## How it works
 
@@ -248,8 +252,9 @@ What to expect:
 - **Only this flow's deposit is accepted.** The envelope must hold exactly one `deposit` call on
   this deployment's trigger contract. Anything else, including a fee-bump envelope, is refused with
   `422`. A token for one flow can't be used to submit an unrelated transaction.
-- **It's audited.** Every prepare, submit and confirmation is written to the deployment owner's
-  audit log, with the token id.
+- **It's audited.** Every prepare, submit and confirmation is recorded in Paiflow's audit log
+  against the deployment owner, with the token id. Paiflow holds these records; the app does not
+  show them to the owner yet.
 
 ### 4. Poll events
 
@@ -396,7 +401,9 @@ hands out across replicas.
 
 ## Postman
 
-Import [`paiflow-api-v1.postman_collection.json`](paiflow-api-v1.postman_collection.json), then:
+Import [`paiflow-api-v1.postman_collection.json`](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json)
+(in Postman, **Import → Link** and paste the
+[raw file URL](https://raw.githubusercontent.com/artisam-paiflow/paiflow/develop/docs/api/paiflow-api-v1.postman_collection.json)), then:
 
 1. Fill in the collection variables `deploymentId`, `apiToken` and `from`, and adjust `amount`.
    `baseUrl` is already `https://paiflow.xyz`.
@@ -441,9 +448,9 @@ Three ways to check the path without running it:
 
 - the curl transcript, audit log rows and transaction link in
   [`docs/instawards/evidence/d2/`](../instawards/evidence/d2/README.md);
-- the [Postman collection](paiflow-api-v1.postman_collection.json), whose first request mints a demo
+- the [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json), whose first request mints a demo
   token and fills in the rest of the variables for you;
-- this guide and the [OpenAPI document](openapi.json).
+- this guide and the [OpenAPI document](https://paiflow.xyz/api/v1/openapi.json).
 
 ## Running the demo deployment yourself
 
