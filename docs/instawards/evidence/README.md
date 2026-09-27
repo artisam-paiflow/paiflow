@@ -46,6 +46,10 @@ extends it again.
 
 ## Transactions
 
+The headline transactions of each deliverable are below. **Every** swap settlement and every flow
+deployment from the public app, on both reporting bases, is in the
+[transaction list](transactions.md), generated from the snapshots with `pnpm instawards:transactions`.
+
 | Date   | What it proves                                                                                                                                                                                                                 | Deliverable | Transaction                                                                                                                                                                                                                                              |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 9 Sep  | A swapper flow deployed from paiflow.xyz, through the app's own factory in one `deploy_pipeline` call                                                                                                                          | D1          | [`775af303…`](https://stellar.expert/explorer/testnet/tx/775af303e24ebd7f59923544df3963cc17fa05e1db66174f38f4c3ae10670943)                                                                                                                               |
