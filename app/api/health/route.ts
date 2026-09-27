@@ -6,7 +6,12 @@ import { sorobanRpc } from "@/lib/stellar/client";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const out: Record<string, string> = { status: "ok" };
+  // The short commit the build came from, so a tester can name the candidate.
+  // Already public: it is inlined into the client bundle for analytics.
+  const out: Record<string, string> = {
+    status: "ok",
+    version: process.env.NEXT_PUBLIC_APP_VERSION ?? "dev",
+  };
   try {
     await db.$queryRaw`SELECT 1`;
     out.db = "ok";
