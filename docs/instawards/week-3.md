@@ -112,7 +112,7 @@ link).
 | The D3 evidence pack, pairing each "before" with its "after"                               | Index            | [`d3/README.md`](evidence/d3/README.md)                                                                                                                                       |
 | The live database at the close of week 3                                                   | Metrics          | [`metrics-live-2026-09-26.json`](evidence/metrics-live-2026-09-26.json)                                                                                                       |
 | Swapper flows on the live database, D3's recorded run among them                           | Metrics          | [`swapper-flows-live-2026-09-26.json`](evidence/swapper-flows-live-2026-09-26.json)                                                                                           |
-| Alpha-tester snapshot, all three issued accounts active                                    | Metrics          | [`alpha-metrics-2026-09-26.json`](evidence/alpha-metrics-2026-09-26.json)                                                                                                     |
+| Alpha-tester snapshot, all five issued accounts active, both groups                        | Metrics          | [`alpha-metrics-2026-09-26-groups.json`](evidence/alpha-metrics-2026-09-26-groups.json)                                                                                       |
 
 All four of D3's §6.1 evidence items are present and public. The rebuilt panel has been live on
 [paiflow.xyz](https://paiflow.xyz) since 23 September. The screen recording was made on
@@ -126,12 +126,12 @@ is evidenced by its code and tests only.
 
 See [metrics](metrics.md) for the running totals and how each number is measured.
 
-| Metric                        | Target | Archive (to 16 Sep) | Live (since 15 Sep) | Alpha testers (3 active / 3 issued / 5 planned) |
+| Metric                        | Target | Archive (to 16 Sep) | Live (since 15 Sep) | Alpha testers (5 active / 5 issued / 5 planned) |
 | ----------------------------- | ------ | ------------------- | ------------------- | ----------------------------------------------- |
-| Unique flows deployed         | ≥ 5    | 26                  | 64 (was 36)         | 25 (was 22)                                     |
+| Unique flows deployed         | ≥ 5    | 26                  | 64 (was 36)         | 26 (was 22)                                     |
 | Contract executions / events  | ≥ 60   | 61                  | 128 (was 79)        | — (not cohort-filterable)                       |
 | Unique swapper flows executed | ≥ 5    | 16                  | 17 (was 11)         | 5 (unchanged)                                   |
-| Distinct deploying wallets    | ≥ 6    | 7                   | 20 (was 7)          | 6 (was 5)                                       |
+| Distinct deploying wallets    | ≥ 6    | 7                   | 20 (was 7)          | 7 (was 5)                                       |
 | Contract WASM uploaded        | ≥ 1    | 1                   | 1                   | 1 (the same binary)                             |
 
 "Was" is the 18 September snapshot, the last one in week 2. The archive column is frozen at the
@@ -153,12 +153,15 @@ snapshot does not split wallets by account type, so how much of the rise they ac
 measured.
 
 On the alpha-tester basis
-([`evidence/alpha-metrics-2026-09-26.json`](evidence/alpha-metrics-2026-09-26.json)), all three
-issued accounts have now run a session, and distinct deploying wallets reached the target at six.
-Those six are addresses, not people: three of them belong to the one project member in the round,
-so the target is met by addresses from three people, as the [metrics page](metrics.md) explains. The
-third tester's session added 2 deployments and 1 signed transaction. A deploy cannot happen without
-a signature, so one of those two records is missing a counterpart in PostHog. The figures are
+([`evidence/alpha-metrics-2026-09-26-groups.json`](evidence/alpha-metrics-2026-09-26-groups.json)),
+the round now has all five planned testers, and all five have run a session: the project member's
+pilot and **four external testers, two on the interview protocol (group A) and two on the quick
+test (group B)**. The two group B testers ran their sessions on 22 and 24 September. The quick test
+reaches the deploy review without a wallet and makes deploying an optional bonus, so group B moved
+the figures little by design: one bonus deploy added a seventh deploying wallet. Those seven are
+addresses, not people: three of them belong to the one project member in the round, so the target
+is met by addresses from four people, as the [metrics page](metrics.md) explains. PostHog misses a
+counterpart for two records, one of tester-3's deployments and one of tester-10's; the figures are
 reported as generated rather than corrected by hand.
 
 ## Decisions

@@ -35,12 +35,12 @@ reach, the third measures depth.
 
 ## Results
 
-| Metric                                   | Target | Archive (to 16 Sep) | Live (since 15 Sep) | Alpha testers (3 active / 3 issued / 5 planned) |
+| Metric                                   | Target | Archive (to 16 Sep) | Live (since 15 Sep) | Alpha testers (5 active / 5 issued / 5 planned) |
 | ---------------------------------------- | ------ | ------------------- | ------------------- | ----------------------------------------------- |
-| Unique flows deployed                    | ≥ 5    | 26 ✓                | 64 ✓                | 25 ✓                                            |
+| Unique flows deployed                    | ≥ 5    | 26 ✓                | 64 ✓                | 26 ✓                                            |
 | Contract executions / events published   | ≥ 60   | 61 ✓                | 128 ✓               | — (not cohort-filterable)                       |
 | Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 17 ✓                | 5 ✓                                             |
-| Distinct wallets deploying               | ≥ 6    | 7 ✓                 | 20 ✓                | 6 ✓ (addresses, from three people)              |
+| Distinct wallets deploying               | ≥ 6    | 7 ✓                 | 20 ✓                | 7 ✓ (addresses, from four people)               |
 | Contract WASM uploaded                   | ≥ 1    | 1 ✓                 | 1 ✓                 | 1 ✓ (the same binary)                           |
 | Public testnet URL live and accessible   | Yes    | Yes ✓               | Yes ✓               | Yes ✓                                           |
 | Demo video published                     | Yes    | No                  | No                  | Week 4                                          |
@@ -64,40 +64,48 @@ row, and `scripts/instawards-metrics.ts` counts rows without filtering by user. 
 every execution on the live database, by 44 users of whom 31 are sandbox sessions, not the testers'
 share of it. The alpha cell stays blank rather than borrowing a number that means something else.
 
-**The alpha-tester column is three testers' work, unevenly split**, and should be read that way.
-The three counts in its heading are different things: the round **plans** five testers, three have
-been **issued** an account, and all three have now been **active**, meaning they have run a
-session. Two of them did nearly all of the work:
+**The alpha-tester column is five accounts' work, unevenly split**, and should be read that way.
+The round **plans** five testers, five have been **issued** an account, and all five have been
+**active**, meaning they have run a session. They followed one of two protocols. **Group A** works
+through the full guide with a recorded interview, deploying and signing throughout. **Group B**
+takes the quick test (`alpha-testing-guide-lite.md`): build a flow and reach the deploy review with
+no wallet, then deploy only as an optional bonus. Group B therefore adds little to the deploy and
+wallet figures by design; its record is the event stream and the survey.
 
-| Tester   | Deployments | Signed transactions | Signing wallets |
-| -------- | ----------- | ------------------- | --------------- |
-| tester-1 | 12          | 20                  | 3               |
-| tester-2 | 11          | 19                  | 2               |
-| tester-3 | 2           | 1                   | 1               |
+| Tester    | Group         | Deployments | Signed transactions | Signing wallets |
+| --------- | ------------- | ----------- | ------------------- | --------------- |
+| tester-1  | A, project    | 12          | 20                  | 3               |
+| tester-2  | A, interview  | 11          | 19                  | 2               |
+| tester-3  | A, interview  | 2           | 1                   | 1               |
+| tester-8  | B, quick test | 0           | 0                   | 0               |
+| tester-10 | B, quick test | 1           | 3                   | 1               |
 
 Testers sign with more than one wallet, which is why the ≥ 6 wallets target is reachable for a
-five-person round rather than capped by headcount. The third session brought distinct deploying
-wallets to six and cleared that target. Those six are addresses, not people, and three of them
-belong to one person, as the next paragraph explains. Swapper flows cleared their target with the
-second session and did not move with the third. Contract executions is not short on this basis but
-unmeasurable: PostHog has no counterpart to a `ContractEvent` row, and that figure only comes from
-a database run.
+five-person round rather than capped by headcount. tester-3's session brought distinct deploying
+wallets to six and cleared that target; tester-10's bonus deploy made it seven. Those seven are
+addresses, not people, and three of them belong to one person, as the next paragraph explains.
+tester-8 reached the deploy review three times and took no bonus deploy, so their session shows in
+the active count only. Swapper flows cleared their target with the second session and have not
+moved since. Contract executions is not short on this basis but unmeasurable: PostHog has no
+counterpart to a `ContractEvent` row, and that figure only comes from a database run.
 
-One small inconsistency is left as generated. tester-3's 2 deployments come from a browser event
-and their 1 signed transaction from a server-side one. A deploy cannot happen without a signature,
-so one of those records has no counterpart in PostHog. Figures come from
-[`evidence/alpha-metrics-2026-09-26.json`](evidence/alpha-metrics-2026-09-26.json).
+Two small inconsistencies are left as generated. tester-3's 2 deployments come from a browser
+event and their 1 signed transaction from a server-side one, and tester-10 signed two deploys of
+which PostHog recorded one `deploy_confirmed` (the other deployment did confirm: a trigger on it
+confirmed minutes later). Figures come from
+[`evidence/alpha-metrics-2026-09-26-groups.json`](evidence/alpha-metrics-2026-09-26-groups.json).
 
-**One of the three active testers is a member of the project.** Of the three accounts issued, one
+**One of the five testers is a member of the project; the other four are external.** One account
 belongs to someone working on Paiflow. They ran the first session on 17 September, as a pilot of
-the protocol before asking external testers to use it. The other two accounts are external: one
-ran their session on 18 September, the other on 19 September. The column therefore does show
-independent outside use, but only about half of it: tester-1 accounts for 12 of the 25 deployments
-and 20 of the 40 signed transactions. The split is recorded here rather than left to be assumed.
-The project member also tests internally under a separate account, and one wallet appears under
-both, so their three signing addresses belong to one human rather than three people. This is
-recorded for the same reason the all-activity column names `admin` and `judge` below: a figure
-produced by the project should say so.
+the protocol before asking external testers to use it. Of the four external testers, two followed
+the interview protocol (tester-2 and tester-3) and two the quick test (tester-8 on 22 September,
+tester-10 on 24 September). The column therefore does show independent outside use, but only about
+half of it: tester-1 accounts for 12 of the 26 deployments and 20 of the 43 signed transactions.
+The split is recorded here rather than left to be assumed. The project member also tests
+internally under a separate account, and one wallet appears under both, so their three signing
+addresses belong to one human rather than three people. This is recorded for the same reason the
+all-activity column names `admin` and `judge` below: a figure produced by the project should say
+so.
 
 ### What the two all-activity columns contain
 
@@ -126,10 +134,11 @@ _Last updated: 26 September. Archive figures are the 12 September snapshot
 [11 September](evidence/metrics-2026-09-11.json). Live figures are the 26 September snapshot
 ([`evidence/metrics-live-2026-09-26.json`](evidence/metrics-live-2026-09-26.json)); earlier
 snapshot: [18 September](evidence/metrics-live-2026-09-18.json). Alpha-tester figures are the
-26 September cohort snapshot
-([`evidence/alpha-metrics-2026-09-26.json`](evidence/alpha-metrics-2026-09-26.json)); earlier
-snapshots: [17 September](evidence/alpha-metrics-2026-09-17.json),
-[18 September](evidence/alpha-metrics-2026-09-18.json)._
+26 September cohort snapshot with both groups
+([`evidence/alpha-metrics-2026-09-26-groups.json`](evidence/alpha-metrics-2026-09-26-groups.json)); earlier
+snapshots, group A only: [17 September](evidence/alpha-metrics-2026-09-17.json),
+[18 September](evidence/alpha-metrics-2026-09-18.json),
+[26 September](evidence/alpha-metrics-2026-09-26.json)._
 
 ## How the numbers are produced
 
@@ -191,8 +200,8 @@ exactly.
 `pnpm instawards:alpha-metrics` is the generator. It reads
 [`evidence/alpha-testers.json`](evidence/alpha-testers.json) — the committed, pseudonymous list of
 each tester's `User.id` and the wallets they sign with — and filters every query to those ids. An
-entry appears when an account is issued, not when its session runs, so the file records three issued
-accounts against a planned five, and `testersActive` reports how many have actually been used. The
+entry appears when an account is issued, not when its session runs, so the file records five issued
+accounts against a planned five, each tagged with its `group` (A or B), and `testersActive` reports how many have actually been used. The
 generator refuses to emit a snapshot while any id is missing, so a file of zeroes cannot be mistaken
 for a measured result.
 
