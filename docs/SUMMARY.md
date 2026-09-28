@@ -16,6 +16,10 @@
 - [D2 — Developer API](instawards/deliverables/d2.md)
 - [D3 — Shared builder inputs](instawards/deliverables/d3.md)
 
+## Guides
+
+- [Integration guide](guide/README.md)
+
 ## Reference
 
 - [Developer API](api/README.md)
