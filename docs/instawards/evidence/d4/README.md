@@ -25,9 +25,10 @@ signed.
 
 ## Files
 
-| File                   | What it is                                                                                          |
-| ---------------------- | --------------------------------------------------------------------------------------------------- |
-| `01-e2e-deploy.*`      | The flow graph, the prepared and signed deploy envelope, the pipeline's contract addresses, raw RPC |
-| `02-e2e-trigger.*`     | The trigger envelope, unsigned and signed; the contracts that emitted events; raw RPC               |
-| `03-e2e-api-execute.*` | Prepare and submit responses, the signed envelope, both legs' swap events from `/events`; raw RPC   |
-| `video-script.md`      | The demo video's script, shot list and test data                                                    |
+| File                    | What it is                                                                                          |
+| ----------------------- | --------------------------------------------------------------------------------------------------- |
+| `01-e2e-deploy.*`       | The flow graph, the prepared and signed deploy envelope, the pipeline's contract addresses, raw RPC |
+| `02-e2e-trigger.*`      | The trigger envelope, unsigned and signed; the contracts that emitted events; raw RPC               |
+| `03-e2e-api-execute.*`  | Prepare and submit responses, the signed envelope, both legs' swap events from `/events`; raw RPC   |
+| `e2e-run-checklist.md`  | The checklist for the end-to-end run with Freighter (the human half of the external-wallet test)    |
+| `walkthrough-script.md` | The technical walkthrough video's script: segments, narration, on-screen actions                    |
