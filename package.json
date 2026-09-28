@@ -43,6 +43,7 @@
     "soroswap:check": "tsx scripts/soroswap-check.ts",
     "instawards:changelog": "tsx scripts/instawards-changelog.ts",
     "instawards:metrics": "tsx scripts/instawards-metrics.ts",
+    "instawards:transactions": "tsx scripts/instawards-transactions.ts",
     "instawards:alpha-metrics": "tsx scripts/alpha-metrics.ts",
     "contracts:deploy-factory": "tsx scripts/deploy-factory.ts",
     "contracts:deploy-factory:testnet": "tsx scripts/deploy-factory.ts --network=testnet",
