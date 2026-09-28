@@ -255,12 +255,14 @@ Open **Swap XLM to USDC**, try each change below, and **undo it** before trying 
 - **Screenshot** `T2-1-error-deploy-greyed` — row **a**'s error with the greyed-out DEPLOY button
   in the same shot.
 
-**Then do it with the keyboard only.** Put the mouse aside, click once on the page background, and
-use only **Tab**, **Enter** and **Escape**.
+**Then do it with the keyboard only.** Reload the page, then put the mouse aside **without clicking
+anything** — a click on the canvas starts the keyboard after the button you need. Use only **Tab**,
+**Enter** and **Escape**.
 
-1. Press **Tab**, starting from the top of the page.
-   - [ ] Just after the header's buttons, a **Skip to canvas** button appears. Press **Enter** on
-         it, and a pink ring appears around the first block (**On Receive**).
+1. Press **Tab** about six times. Focus passes the Paiflow logo, **Flows** and your account menu.
+   - [ ] A pink **Skip to canvas** button appears at the top centre of the screen. It's hidden
+         until you reach it. Press **Enter** on it, and a pink ring appears around the first block
+         (**On Receive**).
 2. Press **Tab** once more, then **Enter**.
    - [ ] The ring moves to the **Swap** block, and Enter opens its settings with the keyboard focus
          on the panel's heading.
