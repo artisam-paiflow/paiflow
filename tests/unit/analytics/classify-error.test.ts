@@ -28,6 +28,16 @@ describe("classifyError", () => {
     ],
     [new Error("trustline entry is missing for account"), "trustline_missing"],
     [
+      apiError({
+        error: {
+          code: "UPSTREAM_RPC",
+          message:
+            "The payout recipient has no trustline for USDC issued by GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5. The recipient must add a trustline for it before this flow can pay them.",
+        },
+      }),
+      "trustline_missing",
+    ],
+    [
       new Error(
         "Soroswap would return less than the minimum allowed by the swap's slippage setting.",
       ),

@@ -16,6 +16,7 @@ export type ContractErrorKey =
   | "swapper"
   | "soroswap_router"
   | "soroswap_factory"
+  | "stellar_asset"
   | "yield"
   | "payer"
   | "payer_dev"
@@ -216,6 +217,29 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     205: {
       name: "PairDoesNotExist",
       friendly: "Soroswap has no liquidity pool for this asset pair on this network.",
+    },
+  },
+  // Stellar Asset Contract (soroban-env-host builtin_contracts ContractError).
+  // Not a Paiflow template; reached through `addressMap` for the pipeline's
+  // payout assets. `{asset}` is filled from `hint.assetLabels`.
+  stellar_asset: {
+    6: {
+      name: "AccountMissingError",
+      friendly:
+        "The account receiving {asset} doesn't exist on this network yet. Fund it with XLM first, then add a trustline for {asset}.",
+    },
+    10: {
+      name: "BalanceError",
+      friendly: "There isn't enough {asset} to cover this transfer.",
+    },
+    11: {
+      name: "BalanceDeauthorizedError",
+      friendly: "The issuer of {asset} has not authorized this account to hold it.",
+    },
+    13: {
+      name: "TrustlineMissingError",
+      friendly:
+        "The payout recipient has no trustline for {asset}. The recipient must add a trustline for {asset} before this flow can pay them.",
     },
   },
   yield: {
@@ -546,6 +570,8 @@ export type SorobanErrorHint = {
   contract?: ContractErrorKey;
   /** Deployed contract address → contract key, for multi-contract pipelines. */
   addressMap?: Record<string, ContractErrorKey>;
+  /** Asset contract address → how to name the asset, e.g. "USDC issued by G…". */
+  assetLabels?: Record<string, string>;
 };
 
 export type SorobanErrorTranslation = {
@@ -618,6 +644,19 @@ const HOST_PATTERNS: Array<[RegExp, string]> = [
   [/expired/i, "Some on-chain state has expired. Please try again."],
 ];
 
+function translated(
+  entry: ContractErrorEntry,
+  address: string | undefined,
+  hint: SorobanErrorHint | undefined,
+): SorobanErrorTranslation {
+  const asset = (address && hint?.assetLabels?.[address]) || "this asset";
+  return {
+    friendly: entry.friendly.replaceAll("{asset}", asset),
+    matched: true,
+    errorName: entry.name,
+  };
+}
+
 const GENERIC_FRIENDLY =
   "The Stellar network rejected this transaction during pre-flight simulation. Expand the details for the technical error.";
 
@@ -645,9 +684,7 @@ export function translateSorobanError(
     if (rejected !== undefined && frame.code === rejected) continue;
     const key = hint?.addressMap ? hint.addressMap[frame.address] : hint?.contract;
     const entry = key ? CONTRACT_ERRORS[key][frame.code] : undefined;
-    if (entry) {
-      return { friendly: entry.friendly, matched: true, errorName: entry.name };
-    }
+    if (entry) return translated(entry, frame.address, hint);
     rejected = frame.code;
   }
   const contractError = findContractError(raw);
@@ -655,9 +692,7 @@ export function translateSorobanError(
     const key =
       (contractError.address && hint?.addressMap?.[contractError.address]) ?? hint?.contract;
     const entry = key ? CONTRACT_ERRORS[key][contractError.code] : undefined;
-    if (entry) {
-      return { friendly: entry.friendly, matched: true, errorName: entry.name };
-    }
+    if (entry) return translated(entry, contractError.address, hint);
     if (contractError.code) {
       return {
         friendly: `The contract rejected the transaction (error #${contractError.code}). Expand the details for more information.`,

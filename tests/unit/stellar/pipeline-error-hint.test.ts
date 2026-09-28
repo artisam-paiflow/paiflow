@@ -3,12 +3,17 @@
  * pipeline read as prose. The Soroswap factory entry is what turns a missing
  * pool from "error #205" into a sentence.
  */
+import { Asset, Networks } from "@stellar/stellar-sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const ROUTER = "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD";
 const FACTORY = "CDGXPBJPUBLIB4IMEIJXWUJXBLHVK6X33UAHIVLXPHMEGYCHZWLYBLQY";
 const SWAPPER = "CDLLYSUI3U4BZBQXQJENHZUHTO4PQ2X54LSVSPQ3SQXC6RAGJYIKGKV6";
 const TRIGGER = "CCH3TIPZCI35FM3BOOBQA4JLLTU6KYOPQEFKWQMYMR5P2J47G3BZDWWN";
+const USDC_ISSUER = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const USDC_SAC = new Asset("USDC", USDC_ISSUER).contractId(Networks.TESTNET);
+const XLM_SAC = Asset.native().contractId(Networks.TESTNET);
+const ASSET_ENTRIES = { [USDC_SAC]: "stellar_asset", [XLM_SAC]: "stellar_asset" };
 
 const stub = vi.hoisted(() => ({
   router: undefined as string | undefined,
@@ -16,8 +21,9 @@ const stub = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/env", () => ({
-  env: () => ({ LOG_LEVEL: "silent" }),
+  env: () => ({ LOG_LEVEL: "silent", STELLAR_NETWORK: "testnet" }),
   soroswapRouterAddress: () => stub.router,
+  stellarPassphrase: () => Networks.TESTNET,
 }));
 vi.mock("@/lib/stellar/soroswap", () => ({
   cachedSoroswapFactoryReader: () => stub.readFactory,
@@ -44,6 +50,7 @@ describe("buildPipelineErrorHint", () => {
       [SWAPPER]: "swapper",
       [ROUTER]: "soroswap_router",
       [FACTORY]: "soroswap_factory",
+      ...ASSET_ENTRIES,
     });
     expect(stub.readFactory).toHaveBeenCalledWith(ROUTER);
   });
@@ -67,6 +74,7 @@ describe("buildPipelineErrorHint", () => {
       [TRIGGER]: "deposit_trigger",
       [SWAPPER]: "swapper",
       [ROUTER]: "soroswap_router",
+      ...ASSET_ENTRIES,
     });
   });
 
@@ -74,7 +82,19 @@ describe("buildPipelineErrorHint", () => {
     stub.router = undefined;
     const { addressMap } = await buildPipelineErrorHint(swapPipeline);
     expect(stub.readFactory).not.toHaveBeenCalled();
-    expect(addressMap).toEqual({ [TRIGGER]: "deposit_trigger", [SWAPPER]: "swapper" });
+    expect(addressMap).toEqual({
+      [TRIGGER]: "deposit_trigger",
+      [SWAPPER]: "swapper",
+      ...ASSET_ENTRIES,
+    });
+  });
+
+  it("names each builder asset by code and issuer, so a wrong-issuer trustline is visible (#574)", async () => {
+    const { assetLabels } = await buildPipelineErrorHint(swapPipeline);
+    expect(assetLabels).toEqual({
+      [USDC_SAC]: `USDC issued by ${USDC_ISSUER}`,
+      [XLM_SAC]: "XLM",
+    });
   });
 
   it("returns an empty map for a non-pipeline deployment", async () => {
