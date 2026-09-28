@@ -1,6 +1,8 @@
 import "server-only";
 import { log } from "@/lib/log";
-import { soroswapRouterAddress } from "@/lib/env";
+import { soroswapRouterAddress, stellarPassphrase } from "@/lib/env";
+import { ASSET_CATALOGUE } from "@/lib/flows/asset-catalogue";
+import { resolveAsset } from "./assets";
 import { contractKeyForTemplate, type ContractErrorKey } from "./soroban-errors";
 import type { SorobanErrorHint } from "./soroban-errors";
 import { cachedSoroswapFactoryReader } from "./soroswap";
@@ -27,6 +29,24 @@ export async function buildPipelineErrorHint(
     if (key && n.contractAddress) addressMap[n.contractAddress] = key;
   }
 
+  // The snapshot does not record which assets a pipeline pays out, so map every
+  // asset the builder offers. A payout to a recipient without a trustline fails
+  // in the asset's own contract with #13, and naming the issuer matters: a
+  // recipient holding a USDC trustline to the wrong issuer fails the same way.
+  const assetLabels: Record<string, string> = {};
+  if (pipeline?.length) {
+    for (const { asset } of ASSET_CATALOGUE) {
+      try {
+        const a = resolveAsset(asset);
+        const id = a.contractId(stellarPassphrase());
+        addressMap[id] = "stellar_asset";
+        assetLabels[id] = a.isNative() ? "XLM" : `${a.getCode()} issued by ${a.getIssuer()}`;
+      } catch (err) {
+        log.warn({ err, asset }, "Asset contract lookup failed; error mapping degraded");
+      }
+    }
+  }
+
   const router = soroswapRouterAddress();
   if (router) {
     addressMap[router] = "soroswap_router";
@@ -44,5 +64,5 @@ export async function buildPipelineErrorHint(
     }
   }
 
-  return { addressMap };
+  return Object.keys(assetLabels).length ? { addressMap, assetLabels } : { addressMap };
 }

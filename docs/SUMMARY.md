@@ -16,11 +16,16 @@
 - [D2 — Developer API](instawards/deliverables/d2.md)
 - [D3 — Shared builder inputs](instawards/deliverables/d3.md)
 
+## Guides
+
+- [Integration guide](guide/README.md)
+
 ## Reference
 
 - [Developer API](api/README.md)
 - [Metrics](instawards/metrics.md)
 - [Evidence index](instawards/evidence/README.md)
+  - [Transaction list](instawards/evidence/transactions.md)
   - [D2 evidence pack](instawards/evidence/d2/README.md)
   - [D3 evidence pack](instawards/evidence/d3/README.md)
 - [Full changelog](instawards/changelog.md)

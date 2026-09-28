@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/v1/schema";
 import { clientIp } from "@/lib/rate-limit";
 import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
+import { SimulationError } from "@/lib/stellar/sim-error";
 import { prepareTriggerTx } from "@/lib/stellar/trigger";
 
 /**
@@ -64,7 +65,7 @@ function prepareFailure(err: unknown): AppError {
   if (err instanceof AppError) {
     // A simulation revert is about this deposit, not the RPC being down: an
     // unfunded `from`, a missing trustline, a pool with no liquidity.
-    if (err.details?.startsWith("Soroban simulate failed")) {
+    if (err instanceof SimulationError) {
       return new AppError(
         "VALIDATION",
         `${err.message} ${EXECUTE_PREREQUISITES}`,
