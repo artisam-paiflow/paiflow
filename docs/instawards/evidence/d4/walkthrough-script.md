@@ -76,29 +76,31 @@ Scroll slowly down the invocation tree and highlight each line as it's named:
 
 ## 3. Building it, with guard rails (1:50–2:40)
 
-**Picture:** the builder on paiflow.xyz, in a no-account sandbox session.
+**Picture:** the builder on paiflow.xyz, in a no-account sandbox session, on a flow already drawn:
+**On Receive** (XLM) → **Swap** → **Pay** (USDC).
 
-1. Add **On Receive** (XLM), **Swap** and **Pay**, and wire them in order.
-2. Open the Swap panel. Set **Asset Out** to XLM: the same-asset error appears under the field.
+1. Open the Swap panel. Set **Asset Out** to XLM: the same-asset error appears under the field.
    Set it back to USDC.
-3. Type **0.1** into **Max slippage (%)** and leave the field: it's raised to the 0.3% floor, with
-   the note shown.
-4. Type **10** into **You send**: the live quote updates.
-5. Open **Advanced**: the router is pinned to Soroswap's real contract, linked to stellar.expert.
-6. Pan to the plain-English preview.
-7. Press **DEPLOY**: the review page, with the **TESTNET** chip. Stop there, before any signing.
+2. Type **0.1** into **Max slippage (%)** and leave the field: it's raised to the 0.3% floor, and
+   the live preview warns that at this setting every swap would revert. Set it to **1**: the
+   warning clears.
+3. Type **10** into **You send**: the live quote from the Soroswap pool.
+4. Open **Advanced**: the router is pinned to Soroswap's real contract, linked to stellar.expert.
+5. Close the panel: the plain-English preview above the canvas.
+6. Press **DEPLOY**: the review page, with the **TESTNET** chip. Stop there, before any signing.
 
-**Caption (at 7):** "Signing is shown in the separate end-to-end recording".
+**Caption (top):** "paiflow.xyz · a no-account sandbox session". At 6: "Signing is shown in the
+separate end-to-end recording".
 
 **Say:**
 
-> This is the builder. The swap block's settings are built from shared inputs: an asset picker,
-> an amount, a percentage and a pinned address. They catch mistakes where you make them. Swapping
-> an asset for itself is an error on the spot. A slippage below Soroswap's zero point three percent
-> pool fee would make every swap fail, so the field won't accept it. And the router isn't a choice
-> you can get wrong: it's pinned to Soroswap's own contract. The preview reads the whole flow back
-> in plain English. Deploy opens a review page, clearly marked testnet, before anything reaches
-> your wallet.
+> This is the builder, with a flow already drawn: receive, swap, pay. The swap block's settings
+> are built from shared inputs: an asset picker, a percentage, an amount and a pinned address.
+> They catch mistakes where you make them. Swapping an asset for itself is an error on the spot.
+> Slippage can't go below Soroswap's zero point three percent pool fee, and the live preview warns
+> when a setting would make every swap revert. The router isn't a choice you can get wrong: it's
+> pinned to Soroswap's own contract. The preview reads the flow back in plain English, and Deploy
+> opens a review page, clearly marked testnet, before anything reaches your wallet.
 
 **Proves:** D3, the Swapper panel on shared input primitives with consistent validation (§6.1 D3).
 
