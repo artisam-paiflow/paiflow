@@ -63,6 +63,9 @@ deployment from the public app, on both reporting bases, is in the
 | 18 Sep | The same API driven from the Postman collection rather than curl: 1 XLM swapped to 0.1055731 USDC and paid on                                                                                                                  | D2          | [`27f68188…`](https://stellar.expert/explorer/testnet/tx/27f681889bfebdab92a4d9e6d70770ea5df72bd597c627bc5c0014d0d86bfbfb)                                                                                                                               |
 | 25 Sep | The D3 recorded run: a registered user's swap-and-split flow deployed from the builder with Freighter                                                                                                                          | D3          | [`f82d7486…`](https://stellar.expert/explorer/testnet/tx/f82d74863e90e36184bd7809b525fbf7f923843963b3c3178f94a1b576b33d63)                                                                                                                               |
 | 25 Sep | The D3 recorded run: 50 XLM swapped to 5.2731437 USDC through the Soroswap router and split 60/40                                                                                                                              | D3          | [`34048835…`](https://stellar.expert/explorer/testnet/tx/34048835187d7d4c66d496e35bbb4994caee88a82b362131ac5b260d52baeb31)                                                                                                                               |
+| 28 Sep | The D4 end-to-end run: a swap flow deployed on paiflow.xyz at build `d850197`                                                                                                                                                  | D4          | [`28b9624e…`](https://stellar.expert/explorer/testnet/tx/28b9624e4b9225619ff21ec46558dd10048fba3409b98bc5896afecc63b4acda)                                                                                                                               |
+| 28 Sep | The D4 end-to-end run: triggered from the app, 10 XLM swapped through the Soroswap router and paid on                                                                                                                          | D4          | [`750f64c1…`](https://stellar.expert/explorer/testnet/tx/750f64c1ac2e2e0085ffcc94aea1f15e2e3d5dcfc961625a92bb0cbf951db903)                                                                                                                               |
+| 28 Sep | The D4 end-to-end run: the same deployment executed through `/api/v1` with a token and no session, 10 XLM swapped and paid on                                                                                                  | D4          | [`56929533…`](https://stellar.expert/explorer/testnet/tx/569295336b906aaeb9538c519bd4d5f7020671a945ac39908fe46d2651803ae6)                                                                                                                               |
 
 The two 9 September swaps are the same deployed flow triggered twice. [`d1/11-happy-path.json`](d1/11-happy-path.json)
 records the deployment, the three contracts the factory produced and the amounts in and out;
@@ -394,22 +397,23 @@ _CI: the node job summary for the public mirror run of the #670 merge, 1756 test
 
 Request and response pairs recorded against the public app, and D3's code and CI records.
 
-| Item                                                            | Deliverable | File                                                                 |
-| --------------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
-| `slippageBps` outside 0–10000 rejected at the API boundary      | D1          | [`d1/05-error-slippage-range.json`](d1/05-error-slippage-range.json) |
-| `deadlineSecs` below 1 rejected at the API boundary             | D1          | [`d1/06-error-deadline.json`](d1/06-error-deadline.json)             |
-| Live Soroswap quote endpoint response                           | D1          | [`d1/10-quote-endpoint.json`](d1/10-quote-endpoint.json)             |
-| curl transcript: prepare → local sign → submit → events         | D2          | [`d2/01-curl-transcript.md`](d2/01-curl-transcript.md)               |
-| Prepare response: the unsigned envelope                         | D2          | [`d2/02-prepare-response.json`](d2/02-prepare-response.json)         |
-| Submit response: `SUCCESS` and the swap hash                    | D2          | [`d2/03-submit-response.json`](d2/03-submit-response.json)           |
-| Raw RPC `getTransaction` for the API swap                       | D2          | [`d2/04-getTransaction.json`](d2/04-getTransaction.json)             |
-| Events response, then the feed paged with the cursor            | D2          | [`d2/05-events-response.json`](d2/05-events-response.json)           |
-| Audit rows: prepared, submitted, confirmed (redacted)           | D2          | [`d2/06-audit-rows.json`](d2/06-audit-rows.json)                     |
-| The OpenAPI document as committed on 18 September               | D2          | [`d2/08-openapi.json`](d2/08-openapi.json)                           |
-| Demo token minted with no account, then used on `/events`       | D2          | [`d2/11-demo-token.md`](d2/11-demo-token.md)                         |
-| The Swapper panel's change in code, each claim with its command | D3          | [`d3/20-code-diff.md`](d3/20-code-diff.md)                           |
-| Component tests: the CI junit report                            | D3          | [`d3/21-vitest-junit.xml`](d3/21-vitest-junit.xml)                   |
-| That CI run: URL, SHAs, Node version, artifact digest, counts   | D3          | [`d3/21-ci-meta.json`](d3/21-ci-meta.json)                           |
+| Item                                                                                 | Deliverable | File                                                                 |
+| ------------------------------------------------------------------------------------ | ----------- | -------------------------------------------------------------------- |
+| `slippageBps` outside 0–10000 rejected at the API boundary                           | D1          | [`d1/05-error-slippage-range.json`](d1/05-error-slippage-range.json) |
+| `deadlineSecs` below 1 rejected at the API boundary                                  | D1          | [`d1/06-error-deadline.json`](d1/06-error-deadline.json)             |
+| Live Soroswap quote endpoint response                                                | D1          | [`d1/10-quote-endpoint.json`](d1/10-quote-endpoint.json)             |
+| curl transcript: prepare → local sign → submit → events                              | D2          | [`d2/01-curl-transcript.md`](d2/01-curl-transcript.md)               |
+| Prepare response: the unsigned envelope                                              | D2          | [`d2/02-prepare-response.json`](d2/02-prepare-response.json)         |
+| Submit response: `SUCCESS` and the swap hash                                         | D2          | [`d2/03-submit-response.json`](d2/03-submit-response.json)           |
+| Raw RPC `getTransaction` for the API swap                                            | D2          | [`d2/04-getTransaction.json`](d2/04-getTransaction.json)             |
+| Events response, then the feed paged with the cursor                                 | D2          | [`d2/05-events-response.json`](d2/05-events-response.json)           |
+| Audit rows: prepared, submitted, confirmed (redacted)                                | D2          | [`d2/06-audit-rows.json`](d2/06-audit-rows.json)                     |
+| The OpenAPI document as served on 18 September                                       | D2          | [`d2/08-openapi.json`](d2/08-openapi.json)                           |
+| Demo token minted with no account, then used on `/events`                            | D2          | [`d2/11-demo-token.md`](d2/11-demo-token.md)                         |
+| End-to-end run: deploy, trigger, `/api/v1` execute on one deployment, full envelopes | D4          | [`d4/`](d4/README.md) (`01`–`03-e2e-*`)                              |
+| The Swapper panel's change in code, each claim with its command                      | D3          | [`d3/20-code-diff.md`](d3/20-code-diff.md)                           |
+| Component tests: the CI junit report                                                 | D3          | [`d3/21-vitest-junit.xml`](d3/21-vitest-junit.xml)                   |
+| That CI run: URL, SHAs, Node version, artifact digest, counts                        | D3          | [`d3/21-ci-meta.json`](d3/21-ci-meta.json)                           |
 
 The quote sample is a real answer from the public app: 10 XLM quotes at `10564278` stroops of
 USDC with a `10490132` minimum at 1 % slippage, through pair `CCBX3NZT…7RQS` on router
