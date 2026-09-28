@@ -28,4 +28,5 @@
   - [Transaction list](instawards/evidence/transactions.md)
   - [D2 evidence pack](instawards/evidence/d2/README.md)
   - [D3 evidence pack](instawards/evidence/d3/README.md)
+  - [D4 evidence pack](instawards/evidence/d4/README.md)
 - [Full changelog](instawards/changelog.md)
