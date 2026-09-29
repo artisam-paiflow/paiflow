@@ -1339,13 +1339,28 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
     scannedThrough = Math.min(scannedThrough, result.ok ? result.scannedThrough : emptySetSentinel);
   }
 
-  if (scannedThrough > emptySetSentinel) {
-    await db.eventCursor.upsert({
-      where: { deploymentId },
-      update: { lastLedger: scannedThrough },
-      create: { deploymentId, lastLedger: scannedThrough },
-    });
-  }
+  if (scannedThrough > emptySetSentinel) await advanceEventCursor(deploymentId, scannedThrough);
 
   return totalWritten;
+}
+
+/**
+ * Move the cursor forward, never back. The cron, the v1 events read, tx-status and the SSE
+ * handler all poll the same deployment, and a slower poll that read an older cursor would
+ * otherwise overwrite a newer one on finishing. Moving back is only wasted RPC (a re-scan's rows
+ * hit the `eventId` unique constraint), but it also re-stamps `updatedAt`, which the v1 events
+ * read uses to judge freshness. An equal ledger still stamps `updatedAt`: the poll did run.
+ */
+export async function advanceEventCursor(deploymentId: string, lastLedger: number): Promise<void> {
+  const notAhead = { deploymentId, lastLedger: { lte: lastLedger } };
+  const moved = await db.eventCursor.updateMany({ where: notAhead, data: { lastLedger } });
+  if (moved.count > 0) return;
+  const created = await db.eventCursor.createMany({
+    data: [{ deploymentId, lastLedger }],
+    skipDuplicates: true,
+  });
+  if (created.count > 0) return;
+  // Either the row is already ahead of us, or a concurrent first poll created it between the two
+  // statements; this second update settles the latter and is a no-op for the former.
+  await db.eventCursor.updateMany({ where: notAhead, data: { lastLedger } });
 }

@@ -1,6 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { nativeToScVal, xdr } from "@stellar/stellar-sdk";
-import { EVENTS_PAGE_LIMIT, MAX_EVENT_PAGES_PER_POLL, pollEventsFor } from "@/lib/stellar/events";
+import {
+  EVENTS_PAGE_LIMIT,
+  MAX_EVENT_PAGES_PER_POLL,
+  advanceEventCursor,
+  pollEventsFor,
+} from "@/lib/stellar/events";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
@@ -15,7 +20,10 @@ vi.mock("@/lib/db", () => ({
   db: {
     deployment: { findUnique: vi.fn() },
     contractEvent: { create: vi.fn() },
-    eventCursor: { upsert: vi.fn() },
+    eventCursor: {
+      updateMany: vi.fn(async () => ({ count: 1 })),
+      createMany: vi.fn(async () => ({ count: 1 })),
+    },
   },
 }));
 
@@ -151,10 +159,9 @@ describe("pollEventsFor", () => {
     const result = await pollEventsFor("dep-1");
     expect(result).toBe(1);
     expect(db.contractEvent.create).toHaveBeenCalledTimes(1);
-    expect(db.eventCursor.upsert).toHaveBeenCalledWith({
-      where: { deploymentId: "dep-1" },
-      update: { lastLedger: 500 },
-      create: { deploymentId: "dep-1", lastLedger: 500 },
+    expect(db.eventCursor.updateMany).toHaveBeenCalledWith({
+      where: { deploymentId: "dep-1", lastLedger: { lte: 500 } },
+      data: { lastLedger: 500 },
     });
   });
 
@@ -210,10 +217,9 @@ describe("pollEventsFor", () => {
     const result = await pollEventsFor("dep-1");
     expect(result).toBe(1);
     expect(db.contractEvent.create).toHaveBeenCalledTimes(1);
-    expect(db.eventCursor.upsert).toHaveBeenCalledWith({
-      where: { deploymentId: "dep-1" },
-      update: { lastLedger: 900 },
-      create: { deploymentId: "dep-1", lastLedger: 900 },
+    expect(db.eventCursor.updateMany).toHaveBeenCalledWith({
+      where: { deploymentId: "dep-1", lastLedger: { lte: 900 } },
+      data: { lastLedger: 900 },
     });
   });
 
@@ -699,7 +705,7 @@ describe("pollEventsFor: RPC scan windows", () => {
     return spy;
   }
 
-  const cursorWritten = () => vi.mocked(db.eventCursor.upsert).mock.calls.at(-1)?.[0].update;
+  const cursorWritten = () => vi.mocked(db.eventCursor.updateMany).mock.calls.at(-1)?.[0].data;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -798,7 +804,7 @@ describe("pollEventsFor: RPC scan windows", () => {
     expect(await pollEventsFor("dep-1")).toBe(0);
     expect(spy).toHaveBeenCalledTimes(1);
     expect(log.warn).not.toHaveBeenCalled();
-    expect(db.eventCursor.upsert).not.toHaveBeenCalled();
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
   });
 
   it("does not advance the cursor when one of the pipeline's contracts fails to scan", async () => {
@@ -811,7 +817,7 @@ describe("pollEventsFor: RPC scan windows", () => {
     });
 
     expect(await pollEventsFor("dep-1")).toBe(1);
-    expect(db.eventCursor.upsert).not.toHaveBeenCalled();
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
   });
 
   it("moves the cursor only as far as the least-advanced contract", async () => {
@@ -846,5 +852,43 @@ describe("pollEventsFor: RPC scan windows", () => {
     );
     // Ledgers past C456's last complete page are re-read next poll, so nothing is skipped.
     expect(cursorWritten()).toEqual({ lastLedger: 110_000 });
+  });
+});
+
+describe("advanceEventCursor", () => {
+  const where = { deploymentId: "dep-1", lastLedger: { lte: 500 } };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("moves an existing cursor forward with one conditional update", async () => {
+    vi.mocked(db.eventCursor.updateMany).mockResolvedValueOnce({ count: 1 });
+    await advanceEventCursor("dep-1", 500);
+    expect(db.eventCursor.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.eventCursor.updateMany).toHaveBeenCalledWith({ where, data: { lastLedger: 500 } });
+    expect(db.eventCursor.createMany).not.toHaveBeenCalled();
+  });
+
+  it("creates the cursor on a deployment's first poll", async () => {
+    vi.mocked(db.eventCursor.updateMany).mockResolvedValueOnce({ count: 0 });
+    vi.mocked(db.eventCursor.createMany).mockResolvedValueOnce({ count: 1 });
+    await advanceEventCursor("dep-1", 500);
+    expect(db.eventCursor.createMany).toHaveBeenCalledWith({
+      data: [{ deploymentId: "dep-1", lastLedger: 500 }],
+      skipDuplicates: true,
+    });
+    expect(db.eventCursor.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a cursor that is already ahead, and retries only the conditional update", async () => {
+    vi.mocked(db.eventCursor.updateMany).mockResolvedValue({ count: 0 });
+    vi.mocked(db.eventCursor.createMany).mockResolvedValueOnce({ count: 0 });
+    await advanceEventCursor("dep-1", 500);
+    expect(db.eventCursor.updateMany).toHaveBeenCalledTimes(2);
+    for (const [arg] of vi.mocked(db.eventCursor.updateMany).mock.calls) {
+      expect(arg).toEqual({ where, data: { lastLedger: 500 } });
+    }
+    vi.mocked(db.eventCursor.updateMany).mockResolvedValue({ count: 1 });
   });
 });
