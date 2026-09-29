@@ -1,14 +1,14 @@
 # Paiflow quick test
 
-Thanks for helping test Paiflow. This takes **about 20 minutes**. You don't need to know how to
+Thanks for helping test Paiflow. This takes **about 25 minutes**. You don't need to know how to
 code, you don't need a crypto wallet, and you don't record anything.
 
-**What you do:** four short tasks, three screenshots, and a survey you answer as you go. The
+**What you do:** five short tasks, four screenshots, and a survey you answer as you go. The
 completed survey and the screenshots make you eligible for the **₱125** incentive. An [optional bonus](#optional-bonus-75) at the end adds
 **₱75**.
 
 **What you need:** a laptop or desktop with **Chrome** or **Brave**, your phone, the username
-and password we sent you, and a **Google Drive folder** for your three screenshots. Make it now: New
+and password we sent you, and a **Google Drive folder** for your four screenshots. Make it now: New
 folder → Share → General access: **Anyone with the link** → Viewer → Copy link. Any other shared
 folder that opens without signing in is fine too.
 
@@ -121,20 +121,43 @@ A flow like yours gives you a page to send to the people who pay you. Here is on
 
 ---
 
+## B5 — Change a swap on your phone (4 minutes)
+
+Still on your phone. This time you open the builder itself.
+
+1. **On your phone**, open [beta.paiflow.xyz](https://beta.paiflow.xyz), tap **Build a flow**, and
+   sign in with the same username and password.
+2. Open the flow called **Swap XLM to USDC** — it was already on your dashboard — and tap the
+   **Swap** block.
+   - [ ] Its settings slide up from the bottom of the screen, and you can still see part of the
+         canvas above them.
+   - [ ] The row with **DEPLOY** and the flow's name fits on one line, and the flow's English
+         sentence is folded away behind a small arrow instead of filling the screen.
+3. Tap **Max slippage (%)** and change it to **2**.
+   - [ ] The field stays in view above your phone's keyboard, and the page doesn't zoom in.
+   - **Screenshot** `B5-phone-swap` — the Swap settings open on your phone, showing Max slippage.
+4. Scroll down the settings, tap **Advanced** to open it, then close the settings with the **✕** at
+   their top. Don't deploy anything from your phone.
+5. Answer survey **section B5**.
+
+---
+
 ## Finish the survey (5 minutes)
 
-Put `B1-homepage`, `B3-review` and `B4-phone` in your Drive folder. Answer the last section, **About
-you and overall**, paste the folder link into its final question, and press **Submit**.
+Put `B1-homepage`, `B3-review`, `B4-phone` and `B5-phone-swap` in your Drive folder. Answer the
+last section, **About you and overall**, paste the folder link into its final question, and press
+**Submit**.
 
-The submitted survey and the three screenshots are what make you eligible for the **₱125**
+The submitted survey and the four screenshots are what make you eligible for the **₱125**
 incentive. An honest "I couldn't finish B3", with a screenshot of where you stopped, counts exactly
 the same as a perfect run. We match your answers to your test account by the name in the survey's
 first section, and we'll reply about the incentive on the message this guide came in.
 
-Please leave everything else in the app alone: other block types, **Dev mode**, and the Profile page
+Please leave everything else in the app alone: other block types (apart from the Swap block in
+B5), **Dev mode**, and the Profile page
 aren't part of this round.
 
-**Thank you.** Twenty minutes of somebody's real attention is the most useful thing we get.
+**Thank you.** Twenty-five minutes of somebody's real attention is the most useful thing we get.
 
 ---
 

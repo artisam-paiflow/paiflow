@@ -34,7 +34,7 @@ incentive isn't released (`alpha-testing-guide.md` §8.2).
 
 - File upload, **required**
 - Max **1 file**, up to 100 MB — the named screenshots from the testing guide, zipped into a single
-  archive. Forms caps a question at 10 files, and a full run produces the ten named screenshots
+  archive. Forms caps a question at 10 files, and a full run produces the eleven named screenshots
   plus any extras from T7 and bug reports.
 - Leave **"Allow only specific file types" off**. Google's presets are Document / Spreadsheet /
   PDF / Image / Video / Presentation / Drawing / Audio — ZIP is not among them, so switching the
@@ -95,13 +95,13 @@ significantly more useful to you?") has no group B counterpart, and its closing 
 question 20 — the first clause only, as a 1–5 scale, because a twenty-minute session gives nothing
 to say about the second clause. Question 20 is therefore not pooled with group A's answers.
 
-There are no file-upload questions, so the form never forces a Google sign-in. The three
+There are no file-upload questions, so the form never forces a Google sign-in. The four
 screenshots the guide asks for go in a folder the tester shares, and the form takes its link
 (question 30). A Drive folder does need a Google account; any shared folder that opens without
 signing in is acceptable instead.
 
 The form was generated from this spec with a one-off Apps Script (`FormApp`), so if a question
-changes here, change it in the form by hand as well. It has **six sections**, in this order. The
+changes here, change it in the form by hand as well. It has **seven sections**, in this order. The
 guide sends testers to each test section by name, tells them to fill in section 1 when they first
 open the form, and B1 has to be answered before they see the app — so don't merge sections. Every
 question is required unless marked optional.
@@ -162,7 +162,22 @@ No. Follow with **16. What would you need first?** — paragraph, optional.
 **18. Was anything hard to read or cut off on your phone?** — paragraph, optional. Help text: Tell
 us which phone.
 
-## Section 6 — About you and overall
+## Section 6 — B5: a swap on your phone
+
+Added on 28 September 2026 with the guide's B5 (D3's mobile pass, moved here from group A). Its
+questions are numbered after 30 so that every existing reference to questions 19–30 still holds;
+responses submitted before the section existed have these three blank.
+
+**31. Could you change Max slippage on your phone?** — multiple choice: Yes, easily · Yes, with
+some trouble · No.
+
+**32. Did anything get covered, cut off, or zoom in while you did it? What?** — paragraph,
+optional. Help text: Tell us which phone.
+
+**33. How easy was the builder to use on your phone, compared with your laptop?** — linear scale
+1–5 (1 = much harder, 5 = just as easy).
+
+## Section 7 — About you and overall
 
 **19. What best describes your role?** — multiple choice: fintech/DeFi founder or PM · software
 engineer · SMB operator or finance manager · freelancer/creator · crypto-native user · other.
@@ -197,7 +212,7 @@ be asked more questions later, **not** the payout channel, so leave it optional:
 arranged on the message the tester's login was sent in, matched to the response by question 1.
 
 **30. Link to your screenshots folder** — short answer. Help text: A Google Drive folder shared as
-"Anyone with the link can view", containing B1-homepage, B3-review and B4-phone.
+"Anyone with the link can view", containing B1-homepage, B3-review, B4-phone and B5-phone-swap.
 
 ## Form settings
 
@@ -214,8 +229,8 @@ arranged on the message the tester's login was sent in, matched to the response 
 - **Open the screenshots folder before releasing the incentive.** A folder left private is the
   likely failure: ask the tester to fix the sharing, don't withhold over it. Copy the images out,
   since a tester can delete their folder at any time. `B3-review` shows the English Preview
-  sentence, so check it against question 11; `B4-phone` is real-device evidence for D3's mobile
-  viewport pass. A `B3-review` that shows the builder instead of the review page means they stopped
+  sentence, so check it against question 11; `B4-phone` and `B5-phone-swap` are real-device
+  evidence for D3's mobile viewport pass, the second of the docked Swap sheet itself. A `B3-review` that shows the builder instead of the review page means they stopped
   short, which the guide allows.
 - **There is no recording, so PostHog is the session record.** Match the response to the account
   by name, then read that account's events (`docs/analytics/alpha-tracking-plan.md`, "Group B").
@@ -229,4 +244,4 @@ arranged on the message the tester's login was sent in, matched to the response 
   ten people, so read the numbers as indications, and keep the two groups labelled when quoting.
 - **The bonus** is not part of the form. A tester sends their deployment page link by message; check
   it is ACTIVE and its live feed shows a RECEIVE and two PAYOUT rows, and that `bonus-live-feed` is in
-  their folder, before releasing the extra ₱75. The base incentive is **₱125** for a submitted survey and the three screenshots (`alpha-testing-guide-lite.md`).
+  their folder, before releasing the extra ₱75. The base incentive is **₱125** for a submitted survey and the four screenshots (`alpha-testing-guide-lite.md`).
