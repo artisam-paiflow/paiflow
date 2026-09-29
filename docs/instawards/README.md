@@ -31,12 +31,15 @@ address, WASM hash and transaction hash produced during the sprint.
 
 ## The deliverables
 
-|                          | Deliverable                                                                | Week | Status      |
-| ------------------------ | -------------------------------------------------------------------------- | ---- | ----------- |
-| [D1](deliverables/d1.md) | The swapper block executes a real swap through the Soroswap testnet router | 1    | Complete    |
-| [D2](deliverables/d2.md) | A developer API with deployment-scoped tokens and execute/events endpoints | 2    | Complete    |
-| [D3](deliverables/d3.md) | Reusable builder input components, adopted in the Swapper panel            | 3    | Complete    |
-| Validation package       | Demo video, integration guide and the transaction list                     | 4    | In progress |
+|                          | Deliverable                                                                   | Week | Status      |
+| ------------------------ | ----------------------------------------------------------------------------- | ---- | ----------- |
+| [D1](deliverables/d1.md) | The swapper block executes a real swap through the Soroswap testnet router    | 1    | Complete    |
+| [D2](deliverables/d2.md) | A developer API with deployment-scoped tokens and execute/events endpoints    | 2    | Complete    |
+| [D3](deliverables/d3.md) | Reusable builder input components, adopted in the Swapper panel               | 3    | Complete    |
+| [D4](deliverables/d4.md) | Validation package: demo video, usage guide, transaction list, end-to-end run | 4    | In progress |
+
+**The [evidence handoff](handoff.md) is the page to start from to check the whole sprint**: one
+section per row of the Statement of Work's checklist, each with a link to every evidence item.
 
 The validation package is the SOW's week-4 work (§5.1) and the fourth row of the Ambassador Chapter
 Lead's checklist (§6.2): an end-to-end run with an external wallet, the demo video, the integration
