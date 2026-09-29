@@ -29,7 +29,6 @@ function Owned({ initial, spy }: { initial?: string; spy: (s: string) => void })
           setValue(s);
         }}
       />
-      <button type="button">elsewhere</button>
     </label>
   );
 }
@@ -192,5 +191,58 @@ describe("StroopsDraftInput (#615)", () => {
     );
     expect(field().placeholder).toBe("Any amount");
     expect(field().className).toBe("input font-mono");
+  });
+
+  it("shows 0 once a cleared field blurs, matching what the flow holds", async () => {
+    const user = userEvent.setup();
+    render(<Owned initial="15000000" spy={vi.fn()} />);
+    await user.clear(field());
+    await user.tab();
+    expect(field().value).toBe("0");
+  });
+
+  it("keeps the note out of the field's name and clears it on blur", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Owned initial="10000000" spy={vi.fn()} />);
+    await user.click(field());
+    await user.paste("x");
+    expect(screen.getByRole("textbox", { name: "Amount" })).toBe(field());
+    expect(describedText(field())).toBe("Use digits and one decimal point, like 1.5.");
+    expect((await axe.run(container)).violations).toEqual([]);
+    await user.tab();
+    expect(describedText(field())).toBe("");
+  });
+
+  it("merges a caller's aria-describedby with the note", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <p id="caller-hint">hint</p>
+        <StroopsDraftInput value="1" onChange={vi.fn()} aria-describedby="caller-hint" />
+      </>,
+    );
+    expect(describedText(field())).toBe("hint");
+    await user.click(field());
+    await user.paste("?");
+    expect(describedText(field())).toBe("hint | Use digits and one decimal point, like 1.5.");
+  });
+
+  it("keeps an unsaved draft that still reads as the stored value", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<StroopsDraftInput value="10000000" onChange={onChange} />);
+    fireEvent.change(field(), { target: { value: "1." } });
+    rerender(<StroopsDraftInput value="10000000" onChange={onChange} />);
+    expect(field().value).toBe("1.");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the stored value on blur when the owner ignores a commit", () => {
+    const onChange = vi.fn();
+    render(<StroopsDraftInput value="10000000" onChange={onChange} />);
+    fireEvent.change(field(), { target: { value: "2.5" } });
+    expect(onChange).toHaveBeenCalledWith("25000000");
+    expect(field().value).toBe("2.5");
+    fireEvent.blur(field());
+    expect(field().value).toBe("1");
   });
 });

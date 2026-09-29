@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { formatStroops } from "@/lib/utils";
 import { parseDraft, refusalNote, STROOP_DECIMALS } from "./numeric.utils";
 
@@ -16,6 +16,12 @@ type Props = Omit<
 
 function display(stroops: string | undefined): string {
   return stroops ? formatStroops(stroops) : "";
+}
+
+/** What `tokenAmountToStroops` gave for an accepted draft: `"0"` when it holds no digits. */
+function draftStroops(draft: string): string {
+  const parsed = parseDraft(draft, STROOP_DECIMALS);
+  return parsed.kind === "value" ? parsed.units.toString() : "0";
 }
 
 /**
@@ -36,14 +42,14 @@ function display(stroops: string | undefined): string {
 export function StroopsDraftInput({ value, onChange, ...rest }: Props) {
   const [draft, setDraft] = useState(() => display(value));
   const [note, setNote] = useState<string | null>(null);
-  // The last string handed to `onChange`, so its echo is not mistaken for an
-  // outside change (another node's edit, undo, a node switch) that resets the draft.
-  const committed = useRef(value ?? "");
   const noteId = useId();
 
+  // Reset the draft only once it no longer reads as the stored amount: an
+  // outside change (undo, another node, a deleted split row shifting up). The
+  // echo of our own commit reads the same, so `1.` survives it. `draft` is
+  // left out of the deps on purpose: typing must never trigger a reset.
   useEffect(() => {
-    if ((value ?? "") === committed.current) return;
-    committed.current = value ?? "";
+    if (draftStroops(draft) === (value ?? "")) return;
     setDraft(display(value));
     setNote(null);
   }, [value]);
@@ -70,18 +76,17 @@ export function StroopsDraftInput({ value, onChange, ...rest }: Props) {
           }
           setDraft(next);
           setNote(null);
-          const stroops = parsed.kind === "value" ? parsed.units.toString() : "0";
-          if (stroops === (value ?? "")) return;
-          committed.current = stroops;
-          onChange(stroops);
+          const stroops = draftStroops(next);
+          if (stroops !== (value ?? "")) onChange(stroops);
         }}
-        onBlur={() => setDraft(display(value))}
+        onBlur={() => {
+          setDraft(display(value));
+          setNote(null);
+        }}
       />
-      <span
-        id={noteId}
-        aria-live="polite"
-        className={note ? "text-[11px] text-zinc-400" : "sr-only"}
-      >
+      {/* Callers wrap this in a <label>, so the note is hidden from the label's
+          text (it would join the input's name) and read via aria-describedby. */}
+      <span id={noteId} aria-hidden className={note ? "text-[11px] text-zinc-400" : "hidden"}>
         {note ?? ""}
       </span>
     </>
