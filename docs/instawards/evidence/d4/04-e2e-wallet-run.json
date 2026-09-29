@@ -1,0 +1,135 @@
+{
+  "note": "Screen-recorded end-to-end run with an external wallet, 2026-09-28, one unedited take on paiflow.xyz. A registered USER account (testusera, not in the alpha cohort) built on_receive XLM → swap (XLM→USDC via Soroswap, 0.8% slippage) → pay (full amount, USDC) in the builder, deployed it with Freighter through the app's factory, triggered it with 25 XLM from Freighter, then minted a deployment API token on the deployment page and executed the same deployment twice through /api/v1 from the published Postman collection, each envelope signed locally with the Stellar CLI (key d4-partner). The human half of SOW §5.1 week 4's \"End-to-end integration test with external wallet\"; 01–03 are the scripted half.",
+  "recording": "https://drive.google.com/file/d/1DofVikDrm_Vq5Lm40Dt_PZUlyx8Euait/view?usp=sharing",
+  "file": {
+    "name": "paiflow-e2e-wallet-run.mp4",
+    "duration": "9:44",
+    "bytes": 56184651,
+    "sha256": "4fa3fa6aee3f26dc6b3e51545752ed08b87a1d87ae6effbccc3ddb7e0b32bef7",
+    "encoding": "H.264, 1920x1200 at 30 fps, AAC. Kooha screen capture of the desktop, no narration. Not committed: too large for the repo, like D1's and D3's."
+  },
+  "capturedAt": "2026-09-28",
+  "build": "d850197, read from https://paiflow.xyz/api/health on camera at 0:10 (the build the scripted run 01–03 used)",
+  "segments": [
+    { "at": "0:10", "shows": "paiflow.xyz/api/health: status ok, version d850197" },
+    {
+      "at": "0:15",
+      "shows": "New flow; On Receive, Swap and Pay added from the palette and connected; the English preview reports 2 errors until the trigger is switched to XLM"
+    },
+    {
+      "at": "1:30",
+      "shows": "Swap panel preview: send 10 XLM, get ≈ 1.0565 USDC, live Soroswap quote; Advanced shows the pinned router CCJU…7BRD"
+    },
+    {
+      "at": "1:40",
+      "shows": "Pay panel: USDC, recipient still PENDING (\"needs address\"), then Send full amount"
+    },
+    {
+      "at": "1:55",
+      "shows": "Freighter unlocked; its account list; the recipient address filled in on the Pay panel"
+    },
+    {
+      "at": "2:25",
+      "shows": "Review & deploy: English preview, pipeline architecture, 3 contracts in one transaction, the TESTNET chip, the pipeline's pre-computed contract addresses"
+    },
+    { "at": "2:40", "shows": "DEPLOY TO TESTNET; Freighter signs; deploying" },
+    {
+      "at": "2:55",
+      "shows": "Deployment page, ACTIVE on TESTNET, with the trigger contract address and QR code"
+    },
+    {
+      "at": "3:20",
+      "shows": "Trigger page: 25 XLM, connect wallet and trigger; Freighter signs; \"Distribution triggered!\""
+    },
+    {
+      "at": "3:45",
+      "shows": "Live events: RECEIVE 25 XLM and PAYOUT \"Swapped 25 XLM → 2.6412 USDC\", ledger 4,915,682"
+    },
+    {
+      "at": "4:10",
+      "shows": "The trigger transaction on stellar.expert: deposit → execute_step → Soroswap router swap_exact_tokens_for_tokens → pair swap → payer transfer to the recipient; then the Soroswap pair contract's page"
+    },
+    {
+      "at": "5:15",
+      "shows": "API access panel: CREATE TOKEN (the token blurred on the page), the token listed as pfk_c0ca1864… ACTIVE"
+    },
+    {
+      "at": "5:40",
+      "shows": "Postman, the Paiflow API v1 collection: base URL, deployment id, from, amount; Prepare execute answers 200 with the unsigned XDR"
+    },
+    {
+      "at": "6:50",
+      "shows": "Terminal: stellar tx sign --sign-with-key d4-partner --network testnet on the prepared envelope"
+    },
+    {
+      "at": "7:45",
+      "shows": "Submit execute answers 200 SUCCESS, ledger 4915750; the deployment page's live events show \"Swapped 1 XLM → 0.1056 USDC\""
+    },
+    {
+      "at": "8:15",
+      "shows": "A second execute for 10 XLM: prepare, sign in the terminal, submit, SUCCESS"
+    },
+    { "at": "9:30", "shows": "Live events: \"Swapped 10 XLM → 1.0565 USDC\", ledger 4,915,786" }
+  ],
+  "notCovered": "The deploy transaction and the two API transactions are not opened on stellar.expert in the take; their links are below. The API leg uses the Postman collection rather than the curl lines of the integration guide; both call the same three endpoints. At about 7:03 the desktop clipboard manager opens for about two seconds over Postman and shows the full deployment token; that token was minted for this run only, and it can prepare, submit and read events for this one deployment but cannot move funds, since every envelope must be signed by the depositor's own key.",
+  "deploymentId": "964e252f-8c26-4a35-82f9-07694368acb7",
+  "account": "testusera (Role USER)",
+  "walletAccount": "GAEBH5ZALWM4SFBG3XEE7FBGKNPUVX5JT7URH34XHQ6SVRT6IGY4SXAM",
+  "walletNote": "The Freighter account. It signed the deploy and the in-app trigger.",
+  "factory": "CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK",
+  "deployTxHash": "5bc90ab08ccf29ef827b59e5d8e24a28b649e12c67125c3858bb17f771cc5109",
+  "deployStellarExpert": "https://stellar.expert/explorer/testnet/tx/5bc90ab08ccf29ef827b59e5d8e24a28b649e12c67125c3858bb17f771cc5109",
+  "deployLedger": 4915666,
+  "deployLedgerClosedAt": "2026-09-28T13:25:17Z",
+  "pipeline": [
+    {
+      "templateKind": "DEPOSIT_TRIGGER",
+      "contractAddress": "CDM67XBEZXVYTZX2SRMIFCTN4H3GXU3M3BUGT4WBCCCGPO7JPQM3JFUP"
+    },
+    {
+      "templateKind": "SWAPPER",
+      "contractAddress": "CD2JR5BHQINM5PGN5IRBXSECSWUXU72OEYI3EYTEO7RL7FHIM62SX2V3"
+    },
+    {
+      "templateKind": "PAYER",
+      "contractAddress": "CCZC4ENRH2H2LNNTY5EQCQCTGV6XWQYFJFPSON53SNOUMIWZEOUSS24Q"
+    }
+  ],
+  "pipelineSource": "The deploy_pipeline return value in the deploy transaction, in pipeline order.",
+  "recipient": "GCVJW2CEXCJ6WPRYAMYFIDA6LLIYX5NJIJ6T76NW2BXQXFNPV2V62J7H",
+  "soroswapRouter": "CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD",
+  "soroswapPair": "CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS",
+  "executions": [
+    {
+      "leg": "In-app trigger, signed in Freighter",
+      "signer": "GAEBH5ZALWM4SFBG3XEE7FBGKNPUVX5JT7URH34XHQ6SVRT6IGY4SXAM",
+      "triggerTxHash": "00acc3862b13337fcb9f2289a97c3fb07075ba7d7b4db82a0ea4d8ce01a6eed1",
+      "stellarExpert": "https://stellar.expert/explorer/testnet/tx/00acc3862b13337fcb9f2289a97c3fb07075ba7d7b4db82a0ea4d8ce01a6eed1",
+      "ledger": 4915682,
+      "ledgerClosedAt": "2026-09-28T13:26:37Z",
+      "assetInStroops": "250000000",
+      "assetOutStroops": "26412762"
+    },
+    {
+      "leg": "/api/v1 execute, from the Postman collection, signed with the Stellar CLI",
+      "signer": "GAA3FZPRMTJ7F6UWZBZJ4XC6RNL2FGGZTUWR7QFMPKPJMBXYRTWSPVQ5",
+      "apiExecuteTxHash": "a759da4a6357a1ec0da071433a3588878ee995059b63ad7169bf87d9fdaa9e37",
+      "stellarExpert": "https://stellar.expert/explorer/testnet/tx/a759da4a6357a1ec0da071433a3588878ee995059b63ad7169bf87d9fdaa9e37",
+      "ledger": 4915750,
+      "ledgerClosedAt": "2026-09-28T13:32:17Z",
+      "assetInStroops": "10000000",
+      "assetOutStroops": "1056503"
+    },
+    {
+      "leg": "/api/v1 execute, from the Postman collection, signed with the Stellar CLI",
+      "signer": "GAA3FZPRMTJ7F6UWZBZJ4XC6RNL2FGGZTUWR7QFMPKPJMBXYRTWSPVQ5",
+      "apiExecuteTxHash": "cf1f70f552f23c35351d83a47133bcdefe209e1bd4df676032509456b92ed524",
+      "stellarExpert": "https://stellar.expert/explorer/testnet/tx/cf1f70f552f23c35351d83a47133bcdefe209e1bd4df676032509456b92ed524",
+      "ledger": 4915786,
+      "ledgerClosedAt": "2026-09-28T13:35:17Z",
+      "assetInStroops": "100000000",
+      "assetOutStroops": "10565005"
+    }
+  ],
+  "eventsSource": "Decoded from each transaction's contract events (04-e2e-wallet-run.getTransaction.json): deposit on the trigger, SoroswapRouter swap [in, out], swap on the swapper, pay on the payer, and the USDC transfer from the payer to the recipient. The recipient received 3.8034270 USDC across the three."
+}

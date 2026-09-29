@@ -35,17 +35,20 @@ reach, the third measures depth.
 
 ## Results
 
-| Metric                                   | Target | Archive (to 16 Sep) | Live (since 15 Sep) | Alpha testers (5 active / 5 issued / 5 planned) |
-| ---------------------------------------- | ------ | ------------------- | ------------------- | ----------------------------------------------- |
-| Unique flows deployed                    | ≥ 5    | 26 ✓                | 64 ✓                | 26 ✓                                            |
-| Contract executions / events published   | ≥ 60   | 61 ✓                | 128 ✓               | — (not cohort-filterable)                       |
-| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 17 ✓                | 5 ✓                                             |
-| Distinct wallets deploying               | ≥ 6    | 7 ✓                 | 20 ✓                | 7 ✓ (addresses, from four people)               |
-| Contract WASM uploaded                   | ≥ 1    | 1 ✓                 | 1 ✓                 | 1 ✓ (the same binary)                           |
-| Public testnet URL live and accessible   | Yes    | Yes ✓               | Yes ✓               | Yes ✓                                           |
-| Demo video published                     | Yes    | No                  | No                  | Week 4                                          |
+| Metric                                   | Target | Archive (to 16 Sep)                                                                                 | Live (since 15 Sep) | Alpha testers (5 active / 5 issued / 5 planned) |
+| ---------------------------------------- | ------ | --------------------------------------------------------------------------------------------------- | ------------------- | ----------------------------------------------- |
+| Unique flows deployed                    | ≥ 5    | 26 ✓                                                                                                | 64 ✓                | 26 ✓                                            |
+| Contract executions / events published   | ≥ 60   | 61 ✓                                                                                                | 128 ✓               | — (not cohort-filterable)                       |
+| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                                                                                                | 17 ✓                | 5 ✓                                             |
+| Distinct wallets deploying               | ≥ 6    | 7 ✓                                                                                                 | 20 ✓                | 7 ✓ (addresses, from four people)               |
+| Contract WASM uploaded                   | ≥ 1    | 1 ✓                                                                                                 | 1 ✓                 | 1 ✓ (the same binary)                           |
+| Public testnet URL live and accessible   | Yes    | Yes ✓                                                                                               | Yes ✓               | Yes ✓                                           |
+| Demo video published                     | Yes    | Yes ✓ ([video](https://drive.google.com/file/d/1_Yg08RncK7eNUM4p4pVVfIGujGrRdV6A/view?usp=sharing)) | Yes ✓               | Yes ✓                                           |
 
-Every metric except the week-4 demo video is met on **both** all-activity bases, independently.
+Every metric is met on **both** all-activity bases, independently. The demo video is one
+artefact, not a count, so it reads the same in every column: the 3:49
+[technical walkthrough](https://drive.google.com/file/d/1_Yg08RncK7eNUM4p4pVVfIGujGrRdV6A/view?usp=sharing) was published on 29 September, alongside the
+[end-to-end wallet run](evidence/d4/README.md#the-freighter-run-28-september).
 On the archive, executions cleared the target on 12 September; the 11 September snapshot had them
 at 43. On the live database every target was already clear when it was first read on 18 September
 ([`evidence/metrics-live-2026-09-18.json`](evidence/metrics-live-2026-09-18.json)), and the
@@ -129,7 +132,7 @@ same week that 17 new sandbox sessions appeared, and a sandbox session signs wit
 wallet. The snapshot does not split wallets by account type, so how much of the rise they account
 for is not measured.
 
-_Last updated: 26 September. Archive figures are the 12 September snapshot
+_Last updated: 29 September (the demo video); the figures are unchanged since 26 September. Archive figures are the 12 September snapshot
 ([`evidence/metrics-2026-09-12.json`](evidence/metrics-2026-09-12.json)); earlier snapshot:
 [11 September](evidence/metrics-2026-09-11.json). Live figures are the 26 September snapshot
 ([`evidence/metrics-live-2026-09-26.json`](evidence/metrics-live-2026-09-26.json)); earlier

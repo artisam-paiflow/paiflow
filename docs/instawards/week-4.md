@@ -40,9 +40,12 @@ link).
 _Screenshots, recordings, transaction hashes and API samples added this week, linked from the_
 _[evidence index](evidence/README.md#transactions)._
 
-| Item | Type | Link |
-| ---- | ---- | ---- |
-|      |      |      |
+| Item                                                                                                              | Type         | Link                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Technical walkthrough video** (3:49, published 29 Sep)                                                          | Recording    | [Google Drive](https://drive.google.com/file/d/1_Yg08RncK7eNUM4p4pVVfIGujGrRdV6A/view?usp=sharing); script [`d4/walkthrough-script.md`](evidence/d4/walkthrough-script.md)   |
+| **End-to-end run with Freighter** (28 Sep, 9:44): deploy, trigger, and `/api/v1` execute on deployment `964e252f` | Recording    | [Google Drive](https://drive.google.com/file/d/1DofVikDrm_Vq5Lm40Dt_PZUlyx8Euait/view?usp=sharing); record [`d4/04-e2e-wallet-run.json`](evidence/d4/04-e2e-wallet-run.json) |
+| The scripted end-to-end run on deployment `516255e1`, full XDR                                                    | API samples  | [`d4/01`–`03`](evidence/d4/README.md#the-scripted-run-28-september)                                                                                                          |
+| Four Freighter-run transactions: deploy `5bc90ab0…`, trigger `00acc386…`, API `a759da4a…` and `cf1f70f5…`         | Transactions | [D4 evidence pack](evidence/d4/README.md#the-freighter-run-28-september)                                                                                                     |
 
 ## Metrics
 
