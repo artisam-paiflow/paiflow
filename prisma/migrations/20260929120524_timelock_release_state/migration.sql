@@ -33,5 +33,8 @@ CREATE INDEX "TimelockRelease_deploymentId_idx" ON "TimelockRelease"("deployment
 -- CreateIndex
 CREATE INDEX "TimelockRelease_nextProbeAt_idx" ON "TimelockRelease"("nextProbeAt");
 
+-- CreateIndex
+CREATE INDEX "ContractEvent_deploymentId_kind_ledger_idx" ON "ContractEvent"("deploymentId", "kind", "ledger");
+
 -- AddForeignKey
 ALTER TABLE "TimelockRelease" ADD CONSTRAINT "TimelockRelease_deploymentId_fkey" FOREIGN KEY ("deploymentId") REFERENCES "Deployment"("id") ON DELETE CASCADE ON UPDATE CASCADE;

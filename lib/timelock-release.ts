@@ -1,12 +1,5 @@
 import "server-only";
-import {
-  EventKind,
-  Prisma,
-  Role,
-  TemplateKind,
-  TimelockMode,
-  type TimelockRelease,
-} from "@prisma/client";
+import { Prisma, Role, TemplateKind, TimelockMode, type TimelockRelease } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
@@ -37,12 +30,19 @@ export const MAX_DISCOVERIES_PER_RUN = 100;
 export const SETTLED_RECHECK_MS = 24 * 60 * 60 * 1000;
 /** Ledger close time trails the wall clock by a few seconds. */
 export const CONDITION_RETRY_MS = 60 * 1000;
+/** How far ahead of a Before lock's deadline its last settled recheck runs. */
+export const PRE_DEADLINE_RECHECK_MS = 10 * 60 * 1000;
 /**
  * How long a run holds a row while it probes. It covers the wait for the
  * relayer lock and a 30s finality poll; if it lapses, the worst case is a
  * second run sending a release that then fails on-chain with NothingToRelease.
  */
 export const LEASE_MS = 10 * 60 * 1000;
+/**
+ * A Before lock is not sent this close to its deadline: the transaction lands
+ * a ledger or two after it is built, and past the deadline it only reverts.
+ */
+export const BEFORE_DEADLINE_MARGIN_MS = 10 * 1000;
 const FAILURE_BACKOFF_BASE_MS = 5 * 60 * 1000;
 const FAILURE_BACKOFF_MAX_MS = 6 * 60 * 60 * 1000;
 // A Postgres timestamp, and a JS Date, stop well before u64 seconds do.
@@ -107,8 +107,22 @@ function relayerEligible(now: Date): Prisma.TimelockReleaseWhereInput {
 function windowOpen(row: Pick<TimelockRelease, "mode" | "unlockAt">, at: Date): boolean {
   if (!row.unlockAt) return false;
   if (row.mode === TimelockMode.AFTER) return at.getTime() >= row.unlockAt.getTime();
-  if (row.mode === TimelockMode.BEFORE) return at.getTime() <= row.unlockAt.getTime();
+  if (row.mode === TimelockMode.BEFORE) {
+    return at.getTime() + BEFORE_DEADLINE_MARGIN_MS <= row.unlockAt.getTime();
+  }
   return false;
+}
+
+/**
+ * When a settled timelock is probed again without a RECEIVE to wake it. A
+ * Before lock also gets one last look shortly ahead of its deadline, since
+ * after it the funds can never be released.
+ */
+function settledRecheckAt(row: Pick<TimelockRelease, "mode" | "unlockAt">, now: Date): Date {
+  const daily = now.getTime() + SETTLED_RECHECK_MS;
+  if (row.mode !== TimelockMode.BEFORE || !row.unlockAt) return new Date(daily);
+  const lastLook = row.unlockAt.getTime() - PRE_DEADLINE_RECHECK_MS;
+  return new Date(lastLook > now.getTime() ? Math.min(daily, lastLook) : daily);
 }
 
 /**
@@ -199,26 +213,42 @@ export async function selectDueTimelocks(now: Date): Promise<TimelockRelease[]> 
   });
   if (scheduled.length >= MAX_PROBES_PER_RUN) return scheduled;
 
-  const settled = await db.timelockRelease.findMany({
-    where: { ...eligible, nextProbeAt: { gt: now }, settledLedger: { not: null } },
-  });
-  if (settled.length === 0) return scheduled;
+  // One bounded query rather than loading every settled row: an After lock
+  // stays settled for good once released, so that set only grows. The
+  // EXISTS probe is served by ContractEvent(deploymentId, kind, ledger).
+  // Timestamps are compared as UTC `timestamp`, the type Prisma stores.
+  const nowUtc = now.toISOString();
+  const limit = MAX_PROBES_PER_RUN - scheduled.length;
+  const wokenIds = await db.$queryRaw<Array<{ id: string }>>`
+    SELECT t."id"
+    FROM "TimelockRelease" t
+    JOIN "Deployment" d ON d."id" = t."deploymentId"
+    JOIN "User" u ON u."id" = d."ownerId"
+    WHERE t."unsupportedReason" IS NULL
+      AND t."settledLedger" IS NOT NULL
+      AND t."nextProbeAt" > (${nowUtc}::timestamptz AT TIME ZONE 'UTC')
+      AND (t."leaseUntil" IS NULL OR t."leaseUntil" < (${nowUtc}::timestamptz AT TIME ZONE 'UTC'))
+      AND (
+        (t."mode" = 'AFTER' AND t."unlockAt" <= (${nowUtc}::timestamptz AT TIME ZONE 'UTC'))
+        OR (t."mode" = 'BEFORE' AND t."unlockAt" >= (${nowUtc}::timestamptz AT TIME ZONE 'UTC'))
+      )
+      AND d."status" = 'CONFIRMED'
+      AND u."role" <> 'SANDBOX'
+      AND EXISTS (
+        SELECT 1 FROM "ContractEvent" e
+        WHERE e."deploymentId" = t."deploymentId"
+          AND e."kind" = 'RECEIVE'
+          AND e."ledger" > t."settledLedger"
+      )
+    ORDER BY t."settledLedger" ASC
+    LIMIT ${limit}
+  `;
+  if (wokenIds.length === 0) return scheduled;
 
-  const latest = await db.contractEvent.groupBy({
-    by: ["deploymentId"],
-    where: {
-      deploymentId: { in: [...new Set(settled.map((r) => r.deploymentId))] },
-      kind: EventKind.RECEIVE,
-    },
-    _max: { ledger: true },
+  const woken = await db.timelockRelease.findMany({
+    where: { id: { in: wokenIds.map((r) => r.id) } },
   });
-  const latestByDeployment = new Map(latest.map((l) => [l.deploymentId, l._max.ledger]));
-  const woken = settled.filter((r) => {
-    const ledger = latestByDeployment.get(r.deploymentId);
-    return ledger != null && r.settledLedger != null && ledger > r.settledLedger;
-  });
-
-  return [...scheduled, ...woken].slice(0, MAX_PROBES_PER_RUN);
+  return [...scheduled, ...woken];
 }
 
 type SimVerdict =
@@ -297,7 +327,7 @@ async function probe(row: TimelockRelease, now: Date): Promise<AutoReleaseDetail
           // Balance is zero as of the ledger the simulation read.
           await update({
             settledLedger: sim.latestLedger,
-            nextProbeAt: new Date(now.getTime() + SETTLED_RECHECK_MS),
+            nextProbeAt: settledRecheckAt(row, now),
             failureCount: 0,
             lastError: null,
           });
@@ -338,12 +368,14 @@ async function probe(row: TimelockRelease, now: Date): Promise<AutoReleaseDetail
     if (send.status === "SUCCESS") {
       log.info({ ...detail, txHash: send.txHash }, "auto-release: released timelock");
       await update({
-        // The balance was zeroed in this ledger. A refill later in the same
-        // ledger is caught by the daily recheck rather than an event.
-        settledLedger: send.ledger ?? sim.latestLedger,
+        // The balance was zeroed somewhere inside this ledger, so a refill
+        // later in the same ledger has to wake it too: settle one ledger
+        // short. The cost is one extra probe when the release's own RECEIVE
+        // events are ingested, which finds it empty and settles past them.
+        settledLedger: (send.ledger ?? sim.latestLedger + 1) - 1,
         lastReleasedAt: new Date(),
         lastReleaseTxHash: send.txHash,
-        nextProbeAt: new Date(now.getTime() + SETTLED_RECHECK_MS),
+        nextProbeAt: settledRecheckAt(row, now),
         failureCount: 0,
         lastError: null,
       });
@@ -376,7 +408,8 @@ export async function runAutoRelease(now: Date = new Date()): Promise<AutoReleas
   const due = await selectDueTimelocks(now);
   const details: AutoReleaseDetail[] = [];
   for (const row of due) {
-    details.push(await probe(row, now));
+    // A run can take minutes; backoff and leases are measured from each probe.
+    details.push(await probe(row, new Date(Math.max(now.getTime(), Date.now()))));
   }
 
   return {

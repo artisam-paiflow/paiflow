@@ -74,6 +74,15 @@ export async function simulateReleaseByRelayer(
   if (rpc.Api.isSimulationError(sim)) {
     return { ok: false, latestLedger: sim.latestLedger, error: sim.error };
   }
+  // Nothing in the relayer paths submits a restore first, and a release
+  // assembled from this simulation would fail; report it like a revert.
+  if (rpc.Api.isSimulationRestore(sim)) {
+    return {
+      ok: false,
+      latestLedger: sim.latestLedger,
+      error: `release_by_relayer needs archived state restored first (${contractAddress})`,
+    };
+  }
   return { ok: true, latestLedger: sim.latestLedger, sim };
 }
 
