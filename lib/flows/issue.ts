@@ -14,7 +14,8 @@ export type ValidationIssueCode =
   | "BRANCH_EMAIL"
   | "BRANCH_MERGE"
   | "BRANCH_TRIGGER"
-  | "BRANCH_TARGET";
+  | "BRANCH_TARGET"
+  | "FEATURE_DISABLED";
 
 /**
  * One validation finding. `path` is the wire key and the analytics grouping

@@ -6,6 +6,7 @@ import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit } from "@/lib/rate-limit";
+import { refuseNewFiatRecipients } from "@/lib/features";
 import { findPipelineNode, type PipelineSnapshotNode } from "@/lib/flows/pipeline-snapshot";
 import {
   updateRecipientsByRelayer,
@@ -81,9 +82,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const rl = await rateLimit(rlKey, 30, 60);
     if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many dev mutations");
     const body = BodySchema.parse(await req.json());
-
     const d = await db.deployment.findFirst({ where: { id, ownerId: user.id } });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
+    // A new fiat recipient deploys a CASH_OUT_DEV sink and queues off-ramp
+    // jobs: new off-ramp use, refused while it is switched off (#722). Crypto
+    // recipients and fiat ones already on this deployment keep updating.
+    await refuseNewFiatRecipients(d.id, body.recipients);
 
     const node = findPipelineNode(d.pipelineSnapshot, "SPLITTER_DEV", body.nodeId);
 

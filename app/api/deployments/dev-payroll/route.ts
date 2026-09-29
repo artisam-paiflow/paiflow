@@ -3,6 +3,7 @@ import { z } from "zod";
 import { StrKey, Keypair } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
 import { requireDevApiToken } from "@/lib/auth";
+import { requireFeature } from "@/lib/features";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit } from "@/lib/rate-limit";
@@ -113,6 +114,8 @@ function deploymentResponse(d: {
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireDevApiToken(req);
+    // Deploying a payroll is new use: the whole route is off with the switch (#722).
+    requireFeature("payroll");
     const rl = await rateLimit(`dev-payroll:${user.id}`, 10, 60);
     if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many dev-payroll deploys");
 

@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { assertPreparedDeploymentAllowed } from "@/lib/features";
 import { audit } from "@/lib/audit";
 import { redis, eventChannel } from "@/lib/redis";
 import { submitDeployTx } from "@/lib/stellar/deploy";
@@ -72,6 +73,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (deployment.status !== "PENDING_SIGNATURE") {
       throw new AppError("CONFLICT", `Deployment is ${deployment.status}, cannot submit`);
     }
+    // A surface switched off after this deployment was prepared (#722):
+    // nothing is on chain yet, so it is still new use and is refused.
+    assertPreparedDeploymentAllowed(deployment.graphSnapshot, deployment.pipelineSnapshot);
 
     // Bind the submission to the prepared transaction: the signed XDR must
     // be exactly the transaction the app built for this deployment, plus

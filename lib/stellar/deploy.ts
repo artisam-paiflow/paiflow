@@ -21,6 +21,7 @@ import {
   SWAP_ROUTER_UNSET_MESSAGE,
 } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { assertNoHiddenSurfaces } from "@/lib/features";
 import type { PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { nodeBlueprint, pipelineNodeConstructorArgs } from "./scval";
@@ -215,6 +216,12 @@ export async function preparePipelineDeployTx(opts: {
   graph: FlowGraph;
   nodes: PipelineDeployNode[];
 }): Promise<PreparedPipelineDeploy> {
+  // The chokepoint behind every route's own check (#722): nothing builds a
+  // deploy transaction for a switched-off surface, whoever the caller is.
+  assertNoHiddenSurfaces(
+    opts.graph,
+    opts.nodes.map((n) => n.templateKind),
+  );
   const plan = buildPipelinePlan(opts.sourceAccount, opts.graph, opts.nodes);
   return preparePipelineDeployTxFromPlan(opts.sourceAccount, plan);
 }
@@ -307,6 +314,10 @@ export async function deployPipelineByRelayer(opts: {
   graph: FlowGraph;
   nodes: PipelineDeployNode[];
 }): Promise<RelayerPipelineDeployResult> {
+  assertNoHiddenSurfaces(
+    opts.graph,
+    opts.nodes.map((n) => n.templateKind),
+  );
   const secret = stellarRelayerSecretKey();
   const relayerAddress = stellarRelayerAddress();
   if (!secret || !relayerAddress) {

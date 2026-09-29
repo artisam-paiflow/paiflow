@@ -17,7 +17,9 @@ import {
   subscriptionAmountPerPeriodStroops,
   assetLabel,
 } from "./schema";
+import type { FeatureFlags } from "@/lib/feature-flags";
 import { isCatalogueAsset } from "./asset-catalogue";
+import { hiddenSurfaceIssues } from "./feature-gates";
 import type { ValidationIssue } from "./issue";
 import { checkHardLimits } from "./limits";
 import { swapConfigIssues, type SwapNode } from "./swap-rules";
@@ -434,7 +436,34 @@ function branchIssues(
   return issues;
 }
 
-export function validateFlow(rawGraph: unknown): ValidationResult {
+export type ValidateFlowOptions = {
+  /**
+   * The surfaces switched on for this server (#722). Omitted means every
+   * surface is on, which is right for saving a draft; anything that leads to a
+   * deploy passes `serverFeatures()` (or, in the builder, the flags the page
+   * handed down) so a hidden block is refused on its node.
+   */
+  features?: FeatureFlags;
+};
+
+export function validateFlow(rawGraph: unknown, opts: ValidateFlowOptions = {}): ValidationResult {
+  const result = validateFlowStructure(rawGraph);
+  if (!opts.features) return result;
+  // A graph that fails to parse has no nodes to check; its schema errors stand.
+  const graph = result.ok
+    ? result.graph
+    : FlowGraphSchema.safeParse(migrateFlowGraph(rawGraph)).data;
+  if (!graph) return result;
+  const gated = hiddenSurfaceIssues(graph, opts.features);
+  if (gated.length === 0) return result;
+  // With the off-ramp off there is no KYC to collect (the button is hidden),
+  // so the KYC rule would be an instruction the user cannot follow.
+  const offramp = opts.features.offramp;
+  const rest = result.ok ? [] : result.errors.filter((e) => offramp || e.path !== "senderKyc");
+  return { ok: false, errors: [...gated, ...rest] };
+}
+
+function validateFlowStructure(rawGraph: unknown): ValidationResult {
   const migrated = migrateFlowGraph(rawGraph);
   const parsed = FlowGraphSchema.safeParse(migrated);
   if (!parsed.success) {

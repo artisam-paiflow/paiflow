@@ -117,6 +117,23 @@ const boolishDefault = (defaultValue: boolean) =>
     .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
     .default(defaultValue);
 
+// A surface switch (#722): unset or blank is ON, so nothing changes until an
+// operator sets it. A value it cannot read is not a startup error, which would
+// take every route (crons and live deployments included) down over a typo:
+// it parses to "unrecognised", which lib/features.ts treats as OFF and warns
+// about, so "flase" hides the surface rather than leaving it showing.
+const featureSwitch = z
+  .union([z.boolean(), z.string()])
+  .optional()
+  .transform((v): boolean | "unrecognised" => {
+    if (v === undefined) return true;
+    if (typeof v === "boolean") return v;
+    const s = v.trim().toLowerCase();
+    if (s === "" || s === "true" || s === "1" || s === "on" || s === "yes") return true;
+    if (s === "false" || s === "0" || s === "off" || s === "no") return false;
+    return "unrecognised" as const;
+  });
+
 // Soroswap router address, pinned per network. Validated at config load so a
 // typo fails at startup rather than when the first swap flow is deployed.
 const optionalContractAddress = z
@@ -187,6 +204,15 @@ const EnvSchema = z.object({
   // without an account. Both are refused on mainnet; see the guard in `env()`.
   DEMO_API_ENABLED: boolish,
   DEMO_API_DEPLOYMENT_ID: optionalUuid,
+
+  // ---- Feature switches ----
+  // Hide a surface and refuse new use of it; existing deployments keep running.
+  // Read on the server and passed to the client as props, so a restart (not a
+  // rebuild) applies a change. See lib/feature-flags.ts.
+  FEATURE_OFFRAMP_ENABLED: featureSwitch,
+  FEATURE_PAYROLL_ENABLED: featureSwitch,
+  FEATURE_AI_ASSISTANT_ENABLED: featureSwitch,
+  FEATURE_ORACLE_CONDITION_ENABLED: featureSwitch,
 
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url().optional(),

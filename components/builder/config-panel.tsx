@@ -18,10 +18,15 @@ import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
-import { computeAssetFlow, FIAT_PAYOUT_TRIGGERS, type ValidationIssue } from "@/lib/flows/validate";
+import { computeAssetFlow, type ValidationIssue } from "@/lib/flows/validate";
 import { nodeIssues } from "@/lib/flows/issue-paths";
+import type { FeatureFlags } from "@/lib/feature-flags";
 import { AssetField, Field } from "./panels/asset-fields";
 import { defaultShares } from "./panels/split-shares.utils";
+import {
+  fiatPayoutAvailable as fiatAvailable,
+  showPayoutModeSelect,
+} from "./panels/payout-mode.utils";
 import SwapPanel from "./panels/swap-panel";
 import { BpsDraftInput } from "./inputs/bps-draft-input";
 import { StroopsDraftInput } from "./inputs/stroops-draft-input";
@@ -124,6 +129,8 @@ type Props = {
    * so the title isn't duplicated.
    */
   hideHeader?: boolean;
+  /** Surface switches from the server (#722). */
+  features: FeatureFlags;
 };
 
 export default function ConfigPanel({
@@ -140,6 +147,7 @@ export default function ConfigPanel({
   network,
   routerContractId,
   hideHeader = false,
+  features,
 }: Props) {
   const expectedAsset = useMemo(
     () => (node ? (computeAssetFlow(graph).get(node.id) ?? null) : null),
@@ -179,9 +187,12 @@ export default function ConfigPanel({
   // is available on pay/split nodes for non-dev flows whose payouts route
   // through the payer/splitter. Payroll also allows it in dev mode (bank
   // details are filled via the API after deploy).
-  const fiatPayoutAvailable =
-    triggerType === "payroll" ||
-    (!devMode && triggerType !== null && FIAT_PAYOUT_TRIGGERS.has(triggerType));
+  // Off on this server (#722), fiat is not offered; a pay step saved with it
+  // still shows the selector, so it can be switched back to crypto.
+  const fiatPayoutAvailable = fiatAvailable(features.offramp, triggerType, devMode);
+  const payPayoutSelect =
+    node.type === "pay" &&
+    showPayoutModeSelect(fiatPayoutAvailable, features.offramp, node.config.payoutMode);
 
   // Payroll distributions must be fixed salary amounts. If a user switches an
   // existing percentage split to a payroll trigger, convert the recipients to
@@ -540,7 +551,7 @@ export default function ConfigPanel({
             </ApiFillField>
           )}
 
-          {fiatPayoutAvailable && (
+          {payPayoutSelect && (
             <div className="space-y-2 pt-1">
               <Field label="Payout mode">
                 <select
@@ -574,11 +585,13 @@ export default function ConfigPanel({
                   }}
                 >
                   <option value="crypto">Crypto (wallet)</option>
-                  <option value="fiat">Fiat (bank transfer)</option>
+                  <option value="fiat" disabled={!fiatPayoutAvailable}>
+                    Fiat (bank transfer)
+                  </option>
                 </select>
               </Field>
 
-              {node.config.payoutMode === "fiat" && !devMode && (
+              {fiatPayoutAvailable && node.config.payoutMode === "fiat" && !devMode && (
                 <>
                   <Field label="Account name" error={fieldError("accountName")}>
                     <input
@@ -625,7 +638,7 @@ export default function ConfigPanel({
                 </>
               )}
 
-              {node.config.payoutMode === "fiat" && devMode && (
+              {fiatPayoutAvailable && node.config.payoutMode === "fiat" && devMode && (
                 <div className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-300">
                   Bank details configured via API after deploy.
                 </div>
@@ -895,6 +908,7 @@ export default function ConfigPanel({
               addressBookError={addressBookError}
               fieldErrors={nodeErrors.field}
               onChange={onChange}
+              offrampEnabled={features.offramp}
             />
           )}
         </>
@@ -1772,6 +1786,7 @@ function SplitRecipientsEditor({
   addressBookError,
   fieldErrors,
   onChange,
+  offrampEnabled,
 }: {
   node: Extract<FlowNode, { type: "split" }>;
   trigger: FlowNode | undefined;
@@ -1784,6 +1799,8 @@ function SplitRecipientsEditor({
   /** Per-field validation messages for this node, keyed by config path. */
   fieldErrors?: Map<string, string>;
   onChange: (n: FlowNode) => void;
+  /** Off on this server (#722): fiat is not offered, only switched away from. */
+  offrampEnabled: boolean;
 }) {
   const onAddressBookChange = refreshAddressBook ?? (() => {});
   const listError = fieldErrors?.get("recipients") ?? null;
@@ -1796,9 +1813,7 @@ function SplitRecipientsEditor({
   const triggerType = trigger?.type ?? null;
   const isPayroll = triggerType === "payroll";
   const isStreamer = triggerType === "on_schedule";
-  const fiatPayoutAvailable =
-    triggerType === "payroll" ||
-    (!devMode && triggerType !== null && FIAT_PAYOUT_TRIGGERS.has(triggerType));
+  const fiatPayoutAvailable = fiatAvailable(offrampEnabled, triggerType, devMode);
   const mode = isPayroll ? "fixed" : (node.config.recipients[0]?.mode ?? "percentage");
   const totalFixed = splitTotalFixedStroops(node.config.recipients);
   const minAmount = trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
@@ -2169,7 +2184,7 @@ function SplitRecipientsEditor({
                   </>
                 )}
 
-                {fiatPayoutAvailable && (
+                {showPayoutModeSelect(fiatPayoutAvailable, offrampEnabled, r.payoutMode) && (
                   <div className="space-y-2 pt-1">
                     <Field label="Payout mode">
                       <select
@@ -2207,11 +2222,13 @@ function SplitRecipientsEditor({
                         }}
                       >
                         <option value="crypto">Crypto (wallet)</option>
-                        <option value="fiat">Fiat (bank transfer)</option>
+                        <option value="fiat" disabled={!fiatPayoutAvailable}>
+                          Fiat (bank transfer)
+                        </option>
                       </select>
                     </Field>
 
-                    {r.payoutMode === "fiat" && !devMode && (
+                    {fiatPayoutAvailable && r.payoutMode === "fiat" && !devMode && (
                       <>
                         <Field label="Account name" error={recipientError(i, "accountName")}>
                           <input
@@ -2258,7 +2275,7 @@ function SplitRecipientsEditor({
                       </>
                     )}
 
-                    {r.payoutMode === "fiat" && devMode && (
+                    {fiatPayoutAvailable && r.payoutMode === "fiat" && devMode && (
                       <div className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-300">
                         Bank details configured via API after deploy.
                       </div>

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
+import { refuseIfFeatureOff } from "@/lib/features";
 
 const PostSchema = z.object({
   enabled: z.boolean(),
@@ -41,6 +42,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const d = await requirePayrollDeployment(id, user.id);
 
     const body = PostSchema.parse(await req.json());
+    // Turning the off-ramp on is new use (#722); turning it off, or reading
+    // the setting, keeps working for an existing payroll.
+    if (body.enabled) refuseIfFeatureOff("offramp", "enabled");
 
     await db.deployment.update({
       where: { id },
