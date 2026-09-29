@@ -103,8 +103,9 @@ describe("POST /api/auth/sandbox", () => {
   });
 
   it("also caps the instance as a whole, since the client controls its own IP header", async () => {
-    // clientIp() reads the first X-Forwarded-For entry, which the caller sets
-    // freely — so the per-IP cap alone is not a real ceiling.
+    // clientIp() is only as honest as the edge in front of the app: Railway's
+    // replaces X-Forwarded-For (#433), a pass-through proxy would not. The
+    // global cap bounds the endpoint either way.
     mockRateLimit.mockImplementation(async (key: string) => ({
       ok: key !== "sandbox:global",
       remaining: 0,

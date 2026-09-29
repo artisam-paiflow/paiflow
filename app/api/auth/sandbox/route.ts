@@ -31,8 +31,9 @@ export async function POST(req: NextRequest) {
     }
     // Two caps, because this endpoint creates a row with no credential of any
     // kind behind it. The per-IP one is the useful signal; the instance-wide one
-    // is the backstop, since clientIp() trusts the first X-Forwarded-For entry
-    // and an attacker sets that header freely.
+    // is the backstop, since clientIp() is only as honest as the edge in front
+    // of the app (#433): behind a proxy that passes X-Forwarded-For through, the
+    // caller would choose its own address.
     const ip = clientIp(req);
     const perIp = await rateLimit(`sandbox:${ip}`, 5, 60 * 10);
     if (!perIp.ok) {

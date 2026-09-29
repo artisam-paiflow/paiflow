@@ -35,8 +35,9 @@ function requestId(req: NextRequest): string {
  * order: error envelope, UUID check on `id` (a malformed id is a 404, never a
  * Prisma 500), deployment-token auth, then a rate limit keyed on the token id.
  *
- * The limit is keyed on the token, not the caller's IP, because `clientIp`
- * trusts the first `X-Forwarded-For` hop (#433). `middleware.ts` lists
+ * The limit is keyed on the token, not the caller's IP, because many partners
+ * can share an address and `clientIp` is only as honest as the edge in front
+ * (#433). `middleware.ts` lists
  * `/api/v1` as public; this wrapper is what actually closes each route.
  */
 export function v1Route<P extends V1Params>(
