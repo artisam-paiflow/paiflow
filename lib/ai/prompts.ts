@@ -12,7 +12,9 @@ const PatchEdgeSchema = z.object({
   id: z.string(),
   source: z.string(),
   target: z.string(),
-  sourceHandle: EdgeBranchSchema.optional(),
+  // A model may write `null` for "no handle"; that is the True branch, not a
+  // reason to throw the whole patch away.
+  sourceHandle: EdgeBranchSchema.nullish().transform((v) => v ?? undefined),
 });
 
 export const PatchOpSchema = z.discriminatedUnion("op", [

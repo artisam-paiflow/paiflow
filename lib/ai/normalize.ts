@@ -478,13 +478,16 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
       }
       const edge = e as Record<string, unknown>;
       // Keep a condition's True/False output: dropping "false" would silently
-      // turn the not-met side into the met side.
+      // turn the not-met side into the met side. A handle on any other source
+      // means nothing and would only trip validation, so it is dropped.
+      const source = String(edge.source ?? "");
+      const fromCondition = nodes.some((n) => n.id === source && n.type === "condition");
       const branch = EdgeBranchSchema.safeParse(edge.sourceHandle);
       return {
         id: String(edge.id ?? `e${i}`),
-        source: String(edge.source ?? ""),
+        source,
         target: String(edge.target ?? ""),
-        ...(branch.success ? { sourceHandle: branch.data } : {}),
+        ...(fromCondition && branch.success ? { sourceHandle: branch.data } : {}),
       };
     });
   } else {

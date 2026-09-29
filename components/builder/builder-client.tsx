@@ -176,8 +176,8 @@ function edgeWithColors(e: FlowEdge, nodes: FlowNode[]): Edge {
     target: e.target,
     ...(branch ? { sourceHandle: branch } : {}),
     type: "straight",
-    ariaLabel: branch
-      ? `${BRANCH_LABEL[branch]} branch from Condition to ${tgt ? NODE_TYPE_LABELS[tgt.type] : "step"}`
+    ariaLabel: branchLabelFor(src, branch)
+      ? `${branchLabelFor(src, branch)} branch from Condition to ${tgt ? NODE_TYPE_LABELS[tgt.type] : "step"}`
       : undefined,
     data: {
       sourceColor: nodeBorderColor(src),

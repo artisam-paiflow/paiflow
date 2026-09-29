@@ -92,6 +92,10 @@ const FRIENDLY = {
     `The ${BRANCH_LABEL[branch]} output of this amount condition connects to ${count} steps. The condition sends the whole payment to every step on a side, so each side can lead to one step only. Keep one, and put a Split there to pay several recipients.`,
   BRANCH_EMAIL:
     "An email notification can't hang off an amount condition: the condition reports every payment, whichever side it takes, so the email couldn't say which side ran. Attach the email to the step on that side instead.",
+  BRANCH_TRIGGER: (label: string) =>
+    `An amount condition can't follow ${label} yet: a scheduled payment has no amount condition contract, so the condition would be skipped and every payment would go out. Remove the condition, or use a Receive trigger.`,
+  BRANCH_TARGET:
+    "An amount condition's output can't lead straight into another condition. Connect each output to a Pay or Split step.",
   BRANCH_MERGE: (label: string) =>
     `${label} is reached from both sides of an amount condition through different steps. A step only accepts money from the one step before it, so one of the two sides would always fail. Give each side its own step.`,
   YIELD_TERMINAL:
@@ -393,8 +397,38 @@ function branchIssues(
     onChainChildren.set(s.id, [...(onChainChildren.get(s.id) ?? []), t.id]);
   }
 
+  const trigger = graph.nodes.find(isTrigger);
+  const scheduleLike =
+    trigger?.type === "on_schedule" ||
+    trigger?.type === "subscription" ||
+    trigger?.type === "payroll";
+
   for (const cond of graph.nodes) {
     if (!isBranchingCondition(cond)) continue;
+
+    // Schedule-like flows compile to a streamer or subscription and never emit
+    // the router, so the gate the user drew would silently not exist.
+    if (scheduleLike && trigger) {
+      issues.push({
+        path: `nodes.${cond.id}`,
+        code: "BRANCH_TRIGGER",
+        nodeId: cond.id,
+        message: `Amount condition ${cond.id} under a ${trigger.type} trigger is not compiled`,
+        friendlyMessage: FRIENDLY.BRANCH_TRIGGER(nodeLabels.get(trigger.id) ?? trigger.type),
+      });
+    }
+
+    const targets = conditionBranchTargets(graph, cond.id);
+    for (const id of [...targets.true, ...targets.false]) {
+      if (nodesById.get(id)?.type !== "condition") continue;
+      issues.push({
+        path: `nodes.${cond.id}`,
+        code: "BRANCH_TARGET",
+        nodeId: cond.id,
+        message: `Condition ${id} is a direct branch target of amount condition ${cond.id}`,
+        friendlyMessage: FRIENDLY.BRANCH_TARGET,
+      });
+    }
 
     if (
       graph.edges.some(
@@ -410,7 +444,6 @@ function branchIssues(
       });
     }
 
-    const targets = conditionBranchTargets(graph, cond.id);
     for (const branch of ["true", "false"] as const) {
       if (targets[branch].length > 1) {
         issues.push({
