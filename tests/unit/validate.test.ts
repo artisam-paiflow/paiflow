@@ -2518,7 +2518,7 @@ describe("validateFlow", () => {
     if (!r.ok) {
       const issue = r.errors.find((e) => e.path.includes("recipient"));
       expect(issue).toBeDefined();
-      expect(issue!.friendlyMessage).toContain("pay node's recipient");
+      expect(issue!.friendlyMessage).toContain("Pay step's recipient");
       expect(issue!.friendlyMessage).toContain("NOTAVALIDSTELLARADDRESS123");
     }
   });

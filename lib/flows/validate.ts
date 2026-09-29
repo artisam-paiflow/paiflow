@@ -1,6 +1,5 @@
 import { TemplateKind } from "@prisma/client";
 import { StrKey } from "@stellar/stellar-sdk";
-import type { ZodIssue } from "zod";
 import {
   FlowGraphSchema,
   type FlowGraph,
@@ -22,6 +21,8 @@ import { isCatalogueAsset } from "./asset-catalogue";
 import type { ValidationIssue } from "./issue";
 import { checkHardLimits } from "./limits";
 import { swapConfigIssues, type SwapNode } from "./swap-rules";
+import { addressIssues, isAcceptedFlowAddress } from "./address-rules";
+import { SECRET_SEED_MESSAGE } from "./secret-seed";
 import { inFlowOrder } from "./graph";
 import { flowToPipeline, absorbedActionIds, type PipelineNode } from "./to-params";
 import {
@@ -289,59 +290,6 @@ export function computeAssetFlow(graph: FlowGraph): Map<string, Asset | null> {
 const GENERIC_SCHEMA_MESSAGE =
   "The flow structure is invalid. Check your node types and configuration.";
 
-// Show the offending value so the user can spot the typo, capped just past a
-// full Stellar address (56 chars) so a pasted blob can't flood the error panel.
-function showValue(v: string): string {
-  return v.length > 60 ? `${v.slice(0, 57)}...` : v;
-}
-
-// Turn a schema (Zod) issue into a message that names the offending field and
-// value. The graph failed to parse, so raw values are read defensively from
-// the migrated (unvalidated) graph rather than the typed one.
-function friendlySchemaIssue(issue: ZodIssue, migrated: unknown): string {
-  const p = issue.path;
-  const nodes = (migrated as { nodes?: unknown[] } | null | undefined)?.nodes;
-  const nodeIdx = p[0] === "nodes" && typeof p[1] === "number" ? p[1] : -1;
-  const node =
-    nodeIdx >= 0
-      ? (nodes?.[nodeIdx] as { type?: string; config?: Record<string, unknown> } | undefined)
-      : undefined;
-
-  if (issue.message === "Invalid Stellar address" && node) {
-    // Split recipient: nodes.<i>.config.recipients.<j>.address
-    if (
-      node.type === "split" &&
-      p[2] === "config" &&
-      p[3] === "recipients" &&
-      typeof p[4] === "number"
-    ) {
-      const recipients = node.config?.recipients as
-        | { label?: string; address?: string }[]
-        | undefined;
-      const recipient = recipients?.[p[4]];
-      const label = recipient?.label?.trim();
-      const who = label ? `recipient "${label}"` : `recipient #${p[4] + 1}`;
-      const bad = typeof recipient?.address === "string" ? recipient.address : "";
-      return `Invalid Stellar address for ${who} in the split node${
-        bad ? `: "${showValue(bad)}"` : ""
-      }. Enter a valid wallet (G...) or contract (C...) address.`;
-    }
-    // Pay recipient: nodes.<i>.config.recipient
-    if (node.type === "pay" && p[2] === "config" && p[3] === "recipient") {
-      const bad = typeof node.config?.recipient === "string" ? node.config.recipient : "";
-      return `Invalid Stellar address for the pay node's recipient${
-        bad ? `: "${showValue(bad)}"` : ""
-      }. Enter a valid wallet (G...) address.`;
-    }
-    // Other address fields (relayer, subscriber, employer, vault, issuer, signers).
-    const last = p[p.length - 1];
-    const field = typeof last === "number" ? String(p[p.length - 2] ?? "address") : String(last);
-    return `Invalid Stellar address in the "${field}" field of the ${node.type ?? "unknown"} node.`;
-  }
-
-  return GENERIC_SCHEMA_MESSAGE;
-}
-
 // True when the flow off-ramps to fiat anywhere: a cash-out sink node, a pay
 // node paid out in fiat, or a split recipient paid out in fiat (both deploy
 // an implicit cash-out contract). Shared by the validator and the builder
@@ -495,7 +443,8 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       errors: parsed.error.issues.map((i) => ({
         path: i.path.join("."),
         message: i.message,
-        friendlyMessage: friendlySchemaIssue(i, migrated),
+        friendlyMessage:
+          i.message === SECRET_SEED_MESSAGE ? SECRET_SEED_MESSAGE : GENERIC_SCHEMA_MESSAGE,
       })),
     };
   }
@@ -523,6 +472,10 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
   }
   if (errors.length) return { ok: false, errors };
+
+  // Any string parses as an address so autosave keeps a half-typed one (#588);
+  // this is the check that keeps it from deploying.
+  errors.push(...addressIssues(graph));
 
   const triggers = graph.nodes.filter(isTrigger);
   if (triggers.length !== 1) {
@@ -708,7 +661,9 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
           if (!isFiat) {
             pendingLabels.add(r.label ?? "unnamed");
           }
-        } else {
+        } else if (isAcceptedFlowAddress(r.address, "account_or_contract")) {
+          // A blank or half-typed address is reported by addressIssues; two
+          // blank rows are not also a "duplicate" (#588).
           if (seen.has(r.address)) {
             errors.push({
               path: `nodes.${a.id}.config.recipients`,

@@ -1676,21 +1676,28 @@ export default function ConfigPanel({
                   <Field label="Signers" error={fieldError("signers")}>
                     {cfg.signers.map((s, i) => (
                       <div key={i} className="mb-1 flex gap-1">
-                        <AddressInput
-                          value={s}
-                          placeholder="G... or PENDING:label"
-                          onChange={(address) => {
-                            const next = [...cfg.signers];
-                            next[i] = address;
-                            onChange({ ...node, config: { ...cfg, signers: next } } as FlowNode);
-                          }}
-                          pending={isPendingAddress(s)}
-                          error={!!fieldError(`signers.${i}`)}
-                          addressBook={addressBook}
-                          onAddressBookChange={refreshAddressBook}
-                          addressBookLoading={addressBookLoading}
-                          addressBookError={addressBookError}
-                        />
+                        <div className="grid min-w-0 flex-1 gap-0.5">
+                          <AddressInput
+                            value={s}
+                            placeholder="G... or PENDING:label"
+                            onChange={(address) => {
+                              const next = [...cfg.signers];
+                              next[i] = address;
+                              onChange({ ...node, config: { ...cfg, signers: next } } as FlowNode);
+                            }}
+                            pending={isPendingAddress(s)}
+                            error={!!fieldError(`signers.${i}`)}
+                            addressBook={addressBook}
+                            onAddressBookChange={refreshAddressBook}
+                            addressBookLoading={addressBookLoading}
+                            addressBookError={addressBookError}
+                          />
+                          {fieldError(`signers.${i}`) && (
+                            <span className="text-error text-[10px] leading-snug">
+                              {fieldError(`signers.${i}`)}
+                            </span>
+                          )}
+                        </div>
                         <button
                           onClick={() => {
                             const next = cfg.signers.filter((_, j) => j !== i);

@@ -9,6 +9,7 @@ import type { AddressEntry } from "@/lib/address-book.types";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import { isAccountId, isContractId } from "@/lib/stellar/strkey";
 import { apiError } from "@/lib/friendly-error";
+import { looksLikeSecretSeed, SECRET_SEED_MESSAGE } from "@/lib/flows/secret-seed";
 import {
   filterAddressBook,
   findInitialHighlightIndex,
@@ -198,6 +199,8 @@ function EditableAddressPicker({
     placeholderProp ?? KIND_PLACEHOLDER[accept] + (pendingAllowed ? " or PENDING:label" : "");
   const listboxId = useId();
   const pendingBadgeId = useId();
+  const secretNoteId = useId();
+  const [secretRefused, setSecretRefused] = useState(false);
   const saveLabelId = useId();
   const [draft, setDraft] = useState(value);
   const [open, setOpen] = useState(false);
@@ -258,6 +261,14 @@ function EditableAddressPicker({
 
   function handleTyped(raw: string) {
     const next = raw.trim();
+    // No address starts with S, and a secret key must never reach the graph,
+    // the autosave or the screen: the field keeps what it held and says why.
+    if (looksLikeSecretSeed(next)) {
+      setSecretRefused(true);
+      setDraft(value);
+      return;
+    }
+    setSecretRefused(false);
     if (commit === "always") {
       onChange(next);
       return;
@@ -664,8 +675,13 @@ function EditableAddressPicker({
   // The badge is the only place the pending state is written down, so it joins
   // whatever `Field` already describes the control with.
   const describedBy = (control?: FieldControlProps) =>
-    [control?.["aria-describedby"], pending ? pendingBadgeId : null].filter(Boolean).join(" ") ||
-    undefined;
+    [
+      control?.["aria-describedby"],
+      pending ? pendingBadgeId : null,
+      secretRefused ? secretNoteId : null,
+    ]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   const picker = (control?: FieldControlProps) => (
     <div ref={containerRef} className="relative">
@@ -718,6 +734,15 @@ function EditableAddressPicker({
           </button>
         )}
       </div>
+
+      {/* Always mounted and polite, so the refusal is announced once. */}
+      <span
+        id={secretNoteId}
+        aria-live="polite"
+        className={secretRefused ? "text-error mt-1 block text-[11px] leading-snug" : "sr-only"}
+      >
+        {secretRefused ? SECRET_SEED_MESSAGE : ""}
+      </span>
 
       {open &&
         mounted &&
