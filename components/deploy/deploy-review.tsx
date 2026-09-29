@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import SwapQuotePreview from "@/components/builder/swap-quote-preview";
+import TrustlineWarnings from "@/components/deploy/trustline-warnings";
 import type { Asset } from "@/lib/flows/schema";
+import type { TrustlineCheck } from "@/lib/stellar/trustline-check";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
@@ -50,11 +52,14 @@ export default function DeployReview({
   flowId,
   network,
   swapPreviews,
+  trustlineCheck,
 }: {
   flowId: string;
   network: StellarNetwork;
   /** One entry per swap node in the flow: drives the live Soroswap previews. */
   swapPreviews?: Array<{ id: string; assetIn: Asset; assetOut: Asset; slippageBps: number }>;
+  /** Streamed from the server: payout recipients' trustlines, looked up on Horizon. */
+  trustlineCheck?: Promise<TrustlineCheck[]>;
 }) {
   const [busy, setBusy] = useState(false);
   const [pipeline, setPipeline] = useState<
@@ -156,6 +161,11 @@ export default function DeployReview({
           />
         ))}
       </div>
+      {trustlineCheck && (
+        <Suspense fallback={null}>
+          <TrustlineWarnings check={trustlineCheck} network={network} context="deploy" />
+        </Suspense>
+      )}
       {pipeline.length > 0 && (
         <div className="grid gap-2">
           <span className="text-label-sm text-on-surface-variant font-mono uppercase">

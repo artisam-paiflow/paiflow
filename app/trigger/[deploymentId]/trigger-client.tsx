@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { TriggerButton } from "@/components/deploy/trigger-button";
+import TrustlineWarnings from "@/components/deploy/trustline-warnings";
 import { tokenAmountToStroops } from "@/lib/flows/schema";
 import type { InboundRequirement } from "@/lib/flows/inbound-amount";
 import { formatStroops } from "@/lib/utils";
 import { track } from "@/lib/analytics/client";
+import type { TrustlineCheck } from "@/lib/stellar/trustline-check";
 
 export default function TriggerClient({
   deploymentId,
@@ -16,6 +18,7 @@ export default function TriggerClient({
   requirement,
   isDeposit,
   assetLabel,
+  trustlineCheck,
 }: {
   deploymentId: string;
   contractAddress: string;
@@ -24,6 +27,7 @@ export default function TriggerClient({
   requirement: InboundRequirement;
   isDeposit?: boolean;
   assetLabel?: string;
+  trustlineCheck?: Promise<TrustlineCheck[]>;
 }) {
   // An `exact` flow spends precisely what it is configured to spend, and a
   // fixed payer keeps whatever arrives beyond that (see inbound-amount.ts), so
@@ -163,6 +167,12 @@ export default function TriggerClient({
                 CONFIRM AMOUNT
               </button>
             )}
+
+          {trustlineCheck && (
+            <Suspense fallback={null}>
+              <TrustlineWarnings check={trustlineCheck} network={network} context="trigger" />
+            </Suspense>
+          )}
 
           <TriggerButton
             deploymentId={deploymentId}
