@@ -477,10 +477,29 @@ export const FlowNodeSchema = z.discriminatedUnion("type", [
 ]);
 export type FlowNode = z.infer<typeof FlowNodeSchema>;
 
+/**
+ * Which output of a condition an edge leaves from: `"true"` when the condition
+ * is met, `"false"` when it is not. The value doubles as the React Flow source
+ * handle id on the condition node.
+ *
+ * Only a condition with two outputs may carry `"false"` (today the amount
+ * kinds, see `lib/flows/branches.ts`); `lib/flows/validate.ts` refuses it
+ * anywhere else. The schema does not, because the builder autosaves the whole
+ * graph and a user who switches a wired amount condition to a time condition
+ * must still be able to save while the validator tells them to move the edge.
+ *
+ * Absent on every edge saved before branches existed. `edgeBranch()` reads a
+ * handle-less edge out of a condition as `"true"`, which is what such an edge
+ * always meant: the steps that run when the condition holds.
+ */
+export const EdgeBranchSchema = z.enum(["true", "false"]);
+export type EdgeBranch = z.infer<typeof EdgeBranchSchema>;
+
 export const FlowEdgeSchema = z.object({
   id: z.string().min(1),
   source: z.string().min(1),
   target: z.string().min(1),
+  sourceHandle: EdgeBranchSchema.optional(),
 });
 export type FlowEdge = z.infer<typeof FlowEdgeSchema>;
 

@@ -1,8 +1,21 @@
 import { z } from "zod";
 import type { FlowGraph, FlowNode, FlowEdge } from "@/lib/flows/schema";
-import { isPendingAddress, MIN_SWAP_SLIPPAGE_BPS } from "@/lib/flows/schema";
+import { EdgeBranchSchema, isPendingAddress, MIN_SWAP_SLIPPAGE_BPS } from "@/lib/flows/schema";
 import { flowToEnglish } from "@/lib/flows/english";
 import type { AddressEntry } from "@/lib/address-book";
+
+// `sourceHandle` picks the True/False output of an amount condition. Without it
+// an edge out of a condition is its True branch, so a model that ignores the
+// field still can't draw a False branch by accident; validateFlow refuses the
+// flow until one is connected.
+const PatchEdgeSchema = z.object({
+  id: z.string(),
+  source: z.string(),
+  target: z.string(),
+  // A model may write `null` for "no handle"; that is the True branch, not a
+  // reason to throw the whole patch away.
+  sourceHandle: EdgeBranchSchema.nullish().transform((v) => v ?? undefined),
+});
 
 export const PatchOpSchema = z.discriminatedUnion("op", [
   z.object({
@@ -13,7 +26,7 @@ export const PatchOpSchema = z.discriminatedUnion("op", [
   z.object({
     op: z.literal("addNode"),
     node: z.record(z.unknown()),
-    edge: z.object({ id: z.string(), source: z.string(), target: z.string() }).nullish(),
+    edge: PatchEdgeSchema.nullish(),
   }),
   z.object({
     op: z.literal("removeNode"),
@@ -21,7 +34,7 @@ export const PatchOpSchema = z.discriminatedUnion("op", [
   }),
   z.object({
     op: z.literal("addEdge"),
-    edge: z.object({ id: z.string(), source: z.string(), target: z.string() }),
+    edge: PatchEdgeSchema,
   }),
   z.object({
     op: z.literal("removeEdge"),
@@ -165,7 +178,7 @@ Supported patch operations:
 - { "op": "updateNode", "id": "node-id", "config": { ...partial config... } }
 - { "op": "addNode", "node": { id, type, config }, "edge": { id, source, target } }
 - { "op": "removeNode", "id": "node-id" }
-- { "op": "addEdge", "edge": { id, source, target } }
+- { "op": "addEdge", "edge": { id, source, target, sourceHandle? } }   // sourceHandle "true" | "false", only on an edge out of an amount condition
 - { "op": "removeEdge", "id": "edge-id" }
 
 ────────────────────────────────────────────────────────
@@ -389,6 +402,7 @@ CRITICAL SAFETY RULES:
 - NEVER remove the only trigger node. If asked, respond with mode "chat" and explain: "I can't remove the only trigger — every flow needs at least one. Would you like to change it instead?"
 - Every flow needs at least one CONTRACT action: pay, split, swap (or the hidden yield/cash_out on legacy flows). email_notify alone is NOT enough — never leave a flow whose only action is email_notify.
 - A condition node must sit between a trigger and an action. Condition nodes cannot be leaf nodes.
+- An amount condition (amount_gt / amount_lt) has TWO outputs and needs BOTH connected, or the money that misses the condition is stuck: one edge with "sourceHandle": "true" (condition met) and one with "sourceHandle": "false" (otherwise), each to exactly ONE step (a pay or split). An edge from a condition without "sourceHandle" is its "true" output. Other condition kinds have only the "true" output. Never attach an email_notify to an amount condition — attach it to the step on that side.
 - A swap forwards its WHOLE output to exactly ONE next step: it must have exactly one outgoing edge to a pay or split (an email_notify hanging off it doesn't count as that destination). Never leave a swap as a leaf, and never fan a swap out to two steps — put a split after it instead.
 - ASSET MATCHING: every action must use the asset that actually flows into it — the trigger's asset, or the swap's assetOut for anything downstream of a swap. A swap's own assetIn follows the same rule. Do NOT introduce a swap to work around an asset mismatch; instead, ask the user which asset they actually want and set it consistently. Only add a swap when the user asks to convert one asset into another.
 - WEBHOOK/HTTP-WEBHOOK/ORACLE triggers only support a "multisig" condition. They CANNOT be combined with amount_gt/amount_lt/time_after/time_before/oracle_gte conditions. If the user asks for one of those with such a trigger, use a clarifyingQuestion.

@@ -1,6 +1,12 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import type { FlowGraph, FlowNode, FlowEdge, Asset } from "@/lib/flows/schema";
-import { FlowGraphSchema, isTrigger, isAction, isLogic } from "@/lib/flows/schema";
+import {
+  EdgeBranchSchema,
+  FlowGraphSchema,
+  isTrigger,
+  isAction,
+  isLogic,
+} from "@/lib/flows/schema";
 import type { PatchOp } from "./prompts";
 
 export function applyPatch(graph: FlowGraph, patch: PatchOp[]): FlowGraph {
@@ -471,10 +477,17 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
         return { id: `e${i}`, source: "", target: "" };
       }
       const edge = e as Record<string, unknown>;
+      // Keep a condition's True/False output: dropping "false" would silently
+      // turn the not-met side into the met side. A handle on any other source
+      // means nothing and would only trip validation, so it is dropped.
+      const source = String(edge.source ?? "");
+      const fromCondition = nodes.some((n) => n.id === source && n.type === "condition");
+      const branch = EdgeBranchSchema.safeParse(edge.sourceHandle);
       return {
         id: String(edge.id ?? `e${i}`),
-        source: String(edge.source ?? ""),
+        source,
         target: String(edge.target ?? ""),
+        ...(fromCondition && branch.success ? { sourceHandle: branch.data } : {}),
       };
     });
   } else {

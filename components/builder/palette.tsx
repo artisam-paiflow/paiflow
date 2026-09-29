@@ -212,6 +212,10 @@ export const TEMPLATES: Template[] = [
     group: "Logic",
     label: "Condition",
     icon: "rule",
+    // Stays an amount condition: it now drops with True and False outputs, so
+    // the validator's "connect the False output" is the next step to take,
+    // not a dead end. A time condition would need a date picked first and a
+    // relayer to release it.
     make: () => ({
       id: makeId("cond"),
       type: "condition",

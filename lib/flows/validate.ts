@@ -1,12 +1,12 @@
 import { TemplateKind } from "@prisma/client";
 import { StrKey } from "@stellar/stellar-sdk";
 import type { ZodIssue } from "zod";
-import { formatStroops } from "@/lib/utils";
 import {
   FlowGraphSchema,
   type FlowGraph,
   type FlowNode,
   type Asset,
+  type EdgeBranch,
   isAction,
   isContractAction,
   isLogic,
@@ -24,6 +24,13 @@ import { checkHardLimits } from "./limits";
 import { swapConfigIssues, type SwapNode } from "./swap-rules";
 import { inFlowOrder } from "./graph";
 import { flowToPipeline, absorbedActionIds, type PipelineNode } from "./to-params";
+import {
+  BRANCH_LABEL,
+  branchAmountText,
+  conditionBranchTargets,
+  isBranchingCondition,
+  routerPathBranch,
+} from "./branches";
 
 export type { ValidationIssue };
 
@@ -75,8 +82,22 @@ const FRIENDLY = {
     `The ${label} step wouldn't reach the chain, so this flow would deploy as something you didn't draw. Rebuilding the steps in the order the money moves usually fixes it. If it doesn't, this trigger or condition can't carry that step and it has to go.`,
   YIELD_PARENT: (label: string) =>
     `A Yield step can only come straight after a Webhook, HTTP Webhook, or Oracle trigger for now, not after ${label}. Move it, or use a Pay or Split step here.`,
-  ROUTER_EMPTY_PATH: (unmatched: string) =>
-    `A payment of ${unmatched} doesn't meet this amount condition, and nothing comes after the condition for that case, so the money would be stuck in the contract with no way to get it back. An amount condition needs a step on both sides before it can deploy, and the builder can't draw the second side yet, so remove the condition or use a time condition for now.`,
+  ROUTER_EMPTY_PATH: (amounts: string, branch: EdgeBranch) =>
+    `A payment of ${amounts} ${branch === "true" ? "meets" : "doesn't meet"} this amount condition, but nothing is connected to the condition's ${BRANCH_LABEL[branch]} output, so the money would be stuck in the contract with no way to get it back. Connect a step to the ${BRANCH_LABEL[branch]} output, or remove the condition.`,
+  BRANCH_FALSE_ON_SINGLE_OUTPUT:
+    "Only an amount condition has a False output, and a step is still connected to this condition's. Remove that connection, or switch the condition back to an amount condition.",
+  BRANCH_ON_NON_CONDITION: (label: string) =>
+    `A connection out of ${label} is marked as a True or False branch, but only a condition has branches. Remove the connection and draw it again.`,
+  BRANCH_FAN_OUT: (branch: EdgeBranch, count: number) =>
+    `The ${BRANCH_LABEL[branch]} output of this amount condition connects to ${count} steps. The condition sends the whole payment to every step on a side, so each side can lead to one step only. Keep one, and put a Split there to pay several recipients.`,
+  BRANCH_EMAIL:
+    "An email notification can't hang off an amount condition: the condition reports every payment, whichever side it takes, so the email couldn't say which side ran. Attach the email to the step on that side instead.",
+  BRANCH_TRIGGER: (label: string) =>
+    `An amount condition can't follow ${label} yet: a scheduled payment has no amount condition contract, so the condition would be skipped and every payment would go out. Remove the condition, or use a Receive trigger.`,
+  BRANCH_TARGET:
+    "An amount condition's output can't lead straight into another condition. Connect each output to a Pay or Split step.",
+  BRANCH_MERGE: (label: string) =>
+    `${label} is reached from both sides of an amount condition through different steps. A step only accepts money from the one step before it, so one of the two sides would always fail. Give each side its own step.`,
   YIELD_TERMINAL:
     "A Yield step is the end of the line for now — nothing can come after it except an email notification. Remove the connections coming out of it.",
 } as const;
@@ -328,6 +349,137 @@ export function flowHasFiatPayout(graph: FlowGraph): boolean {
       (n.type === "pay" && n.config.payoutMode === "fiat") ||
       (n.type === "split" && n.config.recipients.some((r) => r.payoutMode === "fiat")),
   );
+}
+
+/**
+ * Rules for the True/False branches of a condition (#720). The router behind
+ * an amount condition transfers the whole amount to every step on the side it
+ * takes, and each step only accepts a call from its one parent contract, so a
+ * side must be a single chain of steps of its own.
+ */
+function branchIssues(
+  graph: FlowGraph,
+  nodesById: Map<string, FlowNode>,
+  nodeLabels: Map<string, string>,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  for (const e of graph.edges) {
+    if (!e.sourceHandle) continue;
+    const src = nodesById.get(e.source);
+    if (!src) continue; // reported by the edge checks
+    if (src.type !== "condition") {
+      issues.push({
+        path: `nodes.${src.id}`,
+        code: "BRANCH_NOT_SUPPORTED",
+        nodeId: src.id,
+        message: `Edge ${e.id} leaves ${src.type} node ${src.id} on branch "${e.sourceHandle}"; only a condition has branches`,
+        friendlyMessage: FRIENDLY.BRANCH_ON_NON_CONDITION(nodeLabels.get(src.id) ?? src.type),
+      });
+    } else if (e.sourceHandle === "false" && !isBranchingCondition(src)) {
+      issues.push({
+        path: `nodes.${src.id}`,
+        code: "BRANCH_NOT_SUPPORTED",
+        nodeId: src.id,
+        message: `Edge ${e.id} leaves the false branch of a ${src.config.kind} condition, which has one output`,
+        friendlyMessage: FRIENDLY.BRANCH_FALSE_ON_SINGLE_OUTPUT,
+      });
+    }
+  }
+
+  const onChainParents = new Map<string, Set<string>>();
+  const onChainChildren = new Map<string, string[]>();
+  for (const e of graph.edges) {
+    const s = nodesById.get(e.source);
+    const t = nodesById.get(e.target);
+    if (!s || !t || s.type === "email_notify" || t.type === "email_notify") continue;
+    onChainParents.set(t.id, (onChainParents.get(t.id) ?? new Set()).add(s.id));
+    onChainChildren.set(s.id, [...(onChainChildren.get(s.id) ?? []), t.id]);
+  }
+
+  const trigger = graph.nodes.find(isTrigger);
+  const scheduleLike =
+    trigger?.type === "on_schedule" ||
+    trigger?.type === "subscription" ||
+    trigger?.type === "payroll";
+
+  for (const cond of graph.nodes) {
+    if (!isBranchingCondition(cond)) continue;
+
+    // Schedule-like flows compile to a streamer or subscription and never emit
+    // the router, so the gate the user drew would silently not exist.
+    if (scheduleLike && trigger) {
+      issues.push({
+        path: `nodes.${cond.id}`,
+        code: "BRANCH_TRIGGER",
+        nodeId: cond.id,
+        message: `Amount condition ${cond.id} under a ${trigger.type} trigger is not compiled`,
+        friendlyMessage: FRIENDLY.BRANCH_TRIGGER(nodeLabels.get(trigger.id) ?? trigger.type),
+      });
+    }
+
+    const targets = conditionBranchTargets(graph, cond.id);
+    for (const id of [...targets.true, ...targets.false]) {
+      if (nodesById.get(id)?.type !== "condition") continue;
+      issues.push({
+        path: `nodes.${cond.id}`,
+        code: "BRANCH_TARGET",
+        nodeId: cond.id,
+        message: `Condition ${id} is a direct branch target of amount condition ${cond.id}`,
+        friendlyMessage: FRIENDLY.BRANCH_TARGET,
+      });
+    }
+
+    if (
+      graph.edges.some(
+        (e) => e.source === cond.id && nodesById.get(e.target)?.type === "email_notify",
+      )
+    ) {
+      issues.push({
+        path: `nodes.${cond.id}`,
+        code: "BRANCH_EMAIL",
+        nodeId: cond.id,
+        message: `Email notify node attached to amount condition ${cond.id}`,
+        friendlyMessage: FRIENDLY.BRANCH_EMAIL,
+      });
+    }
+
+    for (const branch of ["true", "false"] as const) {
+      if (targets[branch].length > 1) {
+        issues.push({
+          path: `nodes.${cond.id}`,
+          code: "BRANCH_FAN_OUT",
+          nodeId: cond.id,
+          message: `The ${branch} branch of condition ${cond.id} has ${targets[branch].length} next steps; the router forwards the whole amount to each`,
+          friendlyMessage: FRIENDLY.BRANCH_FAN_OUT(branch, targets[branch].length),
+        });
+      }
+    }
+
+    // A step downstream of the condition with two different parents: its
+    // contract stores one parent, so the call from the other one is refused
+    // on chain. Both outputs straight into the same step is fine, since the
+    // condition is the parent either way.
+    const seen = new Set<string>();
+    const stack = [...targets.true, ...targets.false];
+    while (stack.length) {
+      const id = stack.pop()!;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      if ((onChainParents.get(id)?.size ?? 0) > 1) {
+        issues.push({
+          path: `nodes.${id}`,
+          code: "BRANCH_MERGE",
+          nodeId: id,
+          message: `Node ${id} downstream of condition ${cond.id} has more than one parent`,
+          friendlyMessage: FRIENDLY.BRANCH_MERGE(nodeLabels.get(id) ?? id),
+        });
+      }
+      stack.push(...(onChainChildren.get(id) ?? []));
+    }
+  }
+
+  return issues;
 }
 
 export function validateFlow(rawGraph: unknown): ValidationResult {
@@ -891,6 +1043,8 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
   }
 
+  errors.push(...branchIssues(graph, nodesById, nodeLabels));
+
   // Detect cycles via DFS
   const adj = new Map<string, string[]>();
   for (const n of graph.nodes) adj.set(n.id, []);
@@ -1212,35 +1366,33 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   // The router picks path A or path B and forwards the whole amount down it. An
   // empty path is a silent no-op on chain: the funds already sit in the router,
   // which has no withdraw, so they are lost. Refuse any router the pipeline
-  // would deploy with a path it could take and nothing on it (#719). Today the
-  // graph only ever fills one side, so this refuses every amount condition;
-  // once conditions carry true/false branches it fires only on a missing one.
+  // would deploy with a path it could take and nothing on it (#719). The paths
+  // are filled from the condition's True/False branches (#720), so this fires
+  // on a branch left unconnected, once per missing branch, naming it.
   for (const n of pipelineNodes) {
     const p = n.params;
     if (p.kind !== "router") continue;
-    const { pathANodeIds, pathBNodeIds } = p;
-    if (pathANodeIds.length > 0 && pathBNodeIds.length > 0) continue;
     const cond = graph.nodes.find((g) => g.id === n.nodeId);
-    const threshold =
-      cond?.type === "condition" &&
-      (cond.config.kind === "amount_gt" || cond.config.kind === "amount_lt")
-        ? cond.config
-        : null;
-    const amount = threshold
-      ? `${formatStroops(threshold.amountStroops)} ${assetLabel(p.asset)}`
-      : "some amounts";
-    const unmatched = !threshold
-      ? amount
-      : threshold.kind === "amount_gt"
-        ? `${amount} or less`
-        : `${amount} or more`;
-    errors.push({
-      path: `nodes.${n.nodeId}`,
-      code: "ROUTER_EMPTY_PATH",
-      nodeId: n.nodeId,
-      message: `Router ${n.nodeId} has an empty path ${pathANodeIds.length === 0 ? "A" : "B"}; funds routed there would be stranded`,
-      friendlyMessage: FRIENDLY.ROUTER_EMPTY_PATH(unmatched),
-    });
+    for (const path of ["A", "B"] as const) {
+      const ids = path === "A" ? p.pathANodeIds : p.pathBNodeIds;
+      if (ids.length > 0) continue;
+      // Only an amount condition compiles to a router; the fallback is defensive.
+      const branch: EdgeBranch = isBranchingCondition(cond)
+        ? routerPathBranch(cond.config.kind, path)
+        : path === "A"
+          ? "true"
+          : "false";
+      const amounts = isBranchingCondition(cond)
+        ? branchAmountText(cond.config, branch, ` ${assetLabel(p.asset)}`)
+        : "some amounts";
+      errors.push({
+        path: `nodes.${n.nodeId}`,
+        code: "ROUTER_EMPTY_PATH",
+        nodeId: n.nodeId,
+        message: `Router ${n.nodeId} has an empty path ${path} (the ${branch} branch); funds routed there would be stranded`,
+        friendlyMessage: FRIENDLY.ROUTER_EMPTY_PATH(amounts, branch),
+      });
+    }
   }
 
   // The same set, read the other way round: a pipeline node may not point at a

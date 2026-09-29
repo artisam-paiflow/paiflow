@@ -1,5 +1,12 @@
 import { shortAddr, formatStroops } from "@/lib/utils";
-import type { Asset, FlowGraph, FlowNode } from "./schema";
+import type {
+  Asset,
+  ContractActionNode,
+  EdgeBranch,
+  FlowGraph,
+  FlowNode,
+  TriggerNode,
+} from "./schema";
 import {
   isContractAction,
   isLogic,
@@ -10,6 +17,12 @@ import {
   subscriptionAmountPerPeriodStroops,
 } from "./schema";
 import { inFlowOrder } from "./graph";
+import {
+  BRANCH_LABEL,
+  branchAmountText,
+  conditionBranchTargets,
+  isBranchingCondition,
+} from "./branches";
 
 function isApiFillAddress(addr: string): boolean {
   return addr === "PENDING:__api__";
@@ -65,6 +78,104 @@ function describeCondition(c: Extract<FlowNode, { type: "condition" }>, asset?: 
     case "multisig":
       return `only after ${cfg.threshold} of ${cfg.signers.length} signers approve`;
   }
+}
+
+function describeAction(action: ContractActionNode, trigger: TriggerNode): string {
+  if (action.type === "pay") {
+    const who = isApiFillAddress(action.config.recipient)
+      ? "(recipient set via API)"
+      : isPendingAddress(action.config.recipient)
+        ? "(needs address)"
+        : shortAddr(action.config.recipient);
+    if (action.config.fillValueViaApi) {
+      return `pay ${assetLabel(action.config.asset)} to ${who} (value set via API)`;
+    } else if (action.config.fullAmount) {
+      return `pay full incoming ${assetLabel(action.config.asset)} to ${who}`;
+    } else if (action.config.mode === "percentage") {
+      return `pay ${action.config.percentage}% of incoming ${assetLabel(
+        action.config.asset,
+      )} to ${who}`;
+    } else {
+      return `pay ${formatStroops(action.config.amountStroops || "0")} ${assetLabel(
+        action.config.asset,
+      )} to ${who}`;
+    }
+  } else if (action.type === "swap") {
+    return `swap ${assetLabel(action.config.assetIn)} to ${assetLabel(action.config.assetOut)} via Soroswap with up to ${action.config.slippageBps / 100}% slippage`;
+  } else if (action.type === "yield") {
+    const vault = isPendingAddress(action.config.vault)
+      ? "(needs address)"
+      : shortAddr(action.config.vault);
+    return `deposit ${assetLabel(action.config.asset)} into yield vault ${vault}`;
+  } else if (action.type === "cash_out") {
+    const bank = action.config.bankCode ? `bank ${action.config.bankCode}` : "a bank (set via API)";
+    return `cash out ${assetLabel(action.config.asset)} to ${bank} via off-ramp`;
+  } else {
+    const mode = action.config.recipients[0]?.mode ?? "percentage";
+    const assetStr = assetLabel(action.config.asset);
+    const parts = action.config.recipients.map((r) => {
+      const who =
+        r.payoutMode === "fiat"
+          ? (r.accountName ?? r.label ?? "(fiat recipient)")
+          : isPendingAddress(r.address)
+            ? `${r.label ?? "?"} (needs address)`
+            : (r.label ?? shortAddr(r.address));
+      if (r.mode === "fixed") {
+        return `${formatStroops(r.amountStroops)} ${assetStr} to ${who}`;
+      }
+      const pct = bpsToPct(r.bps);
+      const pctStr = pct === Math.floor(pct) ? `${pct}%` : `${pct.toFixed(1)}%`;
+      const sourceAmount =
+        trigger.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
+      if (sourceAmount) {
+        const projected = (BigInt(sourceAmount) * BigInt(r.bps)) / 10000n;
+        return `${pctStr} (${formatStroops(projected.toString())} ${assetStr}) to ${who}`;
+      }
+      return `${pctStr} to ${who}`;
+    });
+    if (action.config.amountPerIntervalStroops) {
+      return `stream ${formatStroops(action.config.amountPerIntervalStroops)} ${assetStr} per interval — ${parts.join(", ")}`;
+    } else if (action.config.ratePerSecondStroops) {
+      return `stream ${formatStroops(action.config.ratePerSecondStroops)} ${assetStr}/s — ${parts.join(", ")}`;
+    } else if (mode === "fixed") {
+      return `split ${parts.join(", ")}`;
+    } else {
+      return `split ${assetStr} — ${parts.join(", ")}`;
+    }
+  }
+}
+
+/**
+ * What one side of a branching condition does: the first contract action along
+ * each of its next steps, in flow order. A side with nothing on it says so, so
+ * the preview never implies the money goes somewhere it doesn't.
+ */
+function describeBranch(
+  graph: FlowGraph,
+  targetIds: string[],
+  branch: EdgeBranch,
+  trigger: TriggerNode,
+): string {
+  if (targetIds.length === 0) {
+    return `nothing is connected yet (connect a step to the ${BRANCH_LABEL[branch]} output)`;
+  }
+  const parts: string[] = [];
+  for (const id of targetIds) {
+    const reachable = new Set<string>();
+    const stack = [id];
+    while (stack.length) {
+      const cur = stack.pop()!;
+      if (reachable.has(cur)) continue;
+      reachable.add(cur);
+      for (const e of graph.edges) if (e.source === cur) stack.push(e.target);
+    }
+    const first = inFlowOrder(
+      graph,
+      graph.nodes.filter((n) => reachable.has(n.id)).filter(isContractAction),
+    )[0];
+    if (first) parts.push(describeAction(first, trigger));
+  }
+  return parts.length > 0 ? parts.join(" and ") : "nothing is paid out yet";
 }
 
 export function flowToEnglish(graph: FlowGraph): string {
@@ -129,69 +240,7 @@ export function flowToEnglish(graph: FlowGraph): string {
       : interval;
   }
 
-  let actionText: string;
-  if (action.type === "pay") {
-    const who = isApiFillAddress(action.config.recipient)
-      ? "(recipient set via API)"
-      : isPendingAddress(action.config.recipient)
-        ? "(needs address)"
-        : shortAddr(action.config.recipient);
-    if (action.config.fillValueViaApi) {
-      actionText = `pay ${assetLabel(action.config.asset)} to ${who} (value set via API)`;
-    } else if (action.config.fullAmount) {
-      actionText = `pay full incoming ${assetLabel(action.config.asset)} to ${who}`;
-    } else if (action.config.mode === "percentage") {
-      actionText = `pay ${action.config.percentage}% of incoming ${assetLabel(
-        action.config.asset,
-      )} to ${who}`;
-    } else {
-      actionText = `pay ${formatStroops(action.config.amountStroops || "0")} ${assetLabel(
-        action.config.asset,
-      )} to ${who}`;
-    }
-  } else if (action.type === "swap") {
-    actionText = `swap ${assetLabel(action.config.assetIn)} to ${assetLabel(action.config.assetOut)} via Soroswap with up to ${action.config.slippageBps / 100}% slippage`;
-  } else if (action.type === "yield") {
-    const vault = isPendingAddress(action.config.vault)
-      ? "(needs address)"
-      : shortAddr(action.config.vault);
-    actionText = `deposit ${assetLabel(action.config.asset)} into yield vault ${vault}`;
-  } else if (action.type === "cash_out") {
-    const bank = action.config.bankCode ? `bank ${action.config.bankCode}` : "a bank (set via API)";
-    actionText = `cash out ${assetLabel(action.config.asset)} to ${bank} via off-ramp`;
-  } else {
-    const mode = action.config.recipients[0]?.mode ?? "percentage";
-    const assetStr = assetLabel(action.config.asset);
-    const parts = action.config.recipients.map((r) => {
-      const who =
-        r.payoutMode === "fiat"
-          ? (r.accountName ?? r.label ?? "(fiat recipient)")
-          : isPendingAddress(r.address)
-            ? `${r.label ?? "?"} (needs address)`
-            : (r.label ?? shortAddr(r.address));
-      if (r.mode === "fixed") {
-        return `${formatStroops(r.amountStroops)} ${assetStr} to ${who}`;
-      }
-      const pct = bpsToPct(r.bps);
-      const pctStr = pct === Math.floor(pct) ? `${pct}%` : `${pct.toFixed(1)}%`;
-      const sourceAmount =
-        trigger.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
-      if (sourceAmount) {
-        const projected = (BigInt(sourceAmount) * BigInt(r.bps)) / 10000n;
-        return `${pctStr} (${formatStroops(projected.toString())} ${assetStr}) to ${who}`;
-      }
-      return `${pctStr} to ${who}`;
-    });
-    if (action.config.amountPerIntervalStroops) {
-      actionText = `stream ${formatStroops(action.config.amountPerIntervalStroops)} ${assetStr} per interval — ${parts.join(", ")}`;
-    } else if (action.config.ratePerSecondStroops) {
-      actionText = `stream ${formatStroops(action.config.ratePerSecondStroops)} ${assetStr}/s — ${parts.join(", ")}`;
-    } else if (mode === "fixed") {
-      actionText = `split ${parts.join(", ")}`;
-    } else {
-      actionText = `split ${assetStr} — ${parts.join(", ")}`;
-    }
-  }
+  const actionText = describeAction(action, trigger);
 
   const conditionAsset =
     trigger.type === "on_receive"
@@ -206,7 +255,6 @@ export function flowToEnglish(graph: FlowGraph): string {
           : action.type === "yield"
             ? action.config.asset
             : action.config.asset;
-  const tail = condition ? `, ${describeCondition(condition, conditionAsset)}` : "";
   // A freshly dropped email node has no recipients, and the panel keeps rows
   // whose email is still blank; neither may leave a dangling "to ." behind.
   const emails = emailNodes
@@ -214,5 +262,15 @@ export function flowToEnglish(graph: FlowGraph): string {
     .filter((email) => email !== "");
   const emailTail =
     emails.length > 0 ? `, and send email notifications to ${emails.join(", ")}` : "";
+
+  if (isBranchingCondition(condition)) {
+    const targets = conditionBranchTargets(graph, condition.id);
+    const onTrue = describeBranch(graph, targets.true, "true", trigger);
+    const onFalse = describeBranch(graph, targets.false, "false", trigger);
+    const test = branchAmountText(condition.config, "true", ` ${assetLabel(conditionAsset)}`);
+    return `${triggerText}: if the amount is ${test}, ${onTrue}; otherwise, ${onFalse}${emailTail}.`;
+  }
+
+  const tail = condition ? `, ${describeCondition(condition, conditionAsset)}` : "";
   return `${triggerText}, ${actionText}${tail}${emailTail}.`;
 }

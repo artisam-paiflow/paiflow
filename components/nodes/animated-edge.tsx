@@ -18,8 +18,15 @@ export default function AnimatedStraightEdge({
 }: EdgeProps) {
   const { deleteElements } = useReactFlow();
   const [edgePath, labelX, labelY] = getStraightPath({ sourceX, sourceY, targetX, targetY });
-  const { sourceColor = "#ffb1c4", targetColor = "#98cbff" } =
-    (data as Record<string, string> | undefined) ?? {};
+  const {
+    sourceColor = "#ffb1c4",
+    targetColor = "#98cbff",
+    branch,
+  } = (data as Record<string, string | undefined> | undefined) ?? {};
+  // A condition's True/False edge carries its branch as a chip near the
+  // source, clear of the delete button at the midpoint.
+  const chipX = sourceX + (targetX - sourceX) * 0.3;
+  const chipY = sourceY + (targetY - sourceY) * 0.3;
 
   return (
     <>
@@ -61,6 +68,23 @@ export default function AnimatedStraightEdge({
           style={{ pointerEvents: "none" }}
         />
       </g>
+
+      {branch && (
+        <EdgeLabelRenderer>
+          <div
+            aria-hidden="true"
+            data-testid="edge-branch-chip"
+            className="nodrag nopan border-tertiary/40 bg-surface-container text-tertiary rounded-full border px-1.5 py-px font-mono text-[10px] leading-tight tracking-wide uppercase"
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${chipX}px, ${chipY}px)`,
+              pointerEvents: "none",
+            }}
+          >
+            {branch}
+          </div>
+        </EdgeLabelRenderer>
+      )}
 
       {/* Click-to-delete affordance, shown once the edge is selected. Keyboard
           deletion (Delete/Backspace) is handled by React Flow's deleteKeyCode. */}

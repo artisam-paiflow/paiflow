@@ -234,7 +234,11 @@ describe("flowToEnglish", () => {
         { id: "e2", source: "c", target: "a" },
       ],
     });
-    expect(out).toContain("only if the amount is more than 5 XLM");
+    // The handle-less edge is the True branch; nothing is on False yet.
+    expect(out).toContain("if the amount is more than 5 XLM, split XLM");
+    expect(out).toContain(
+      "otherwise, nothing is connected yet (connect a step to the False output)",
+    );
   });
 
   it("describes a pay node with percentage mode", () => {

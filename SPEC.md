@@ -162,6 +162,10 @@ does not count toward that one. The router is environment config, never part of 
 `amount_lt`, `oracle_gte`, `time_after`, `time_before`, or `multisig` (N-of-M signer approval).
 `multisig` is a condition kind, not a block of its own.
 
+An amount condition (`amount_gt`, `amount_lt`) has two outputs: **True** leads to the steps for a
+payment that meets the test, **False** to the steps for one that doesn't. Every other kind has only
+the True output. An edge saved without a branch is the True branch.
+
 ### 3.4 Invariants
 
 Graph shape:
@@ -180,7 +184,8 @@ Money:
 - A scheduled split requires a positive amount per interval.
 - `amount_gt` and `amount_lt` are both strict. An amount condition sends every payment down one of
   two paths, and both must lead to a step: money routed to an empty path would sit in a contract
-  that cannot release it. Until conditions carry a second branch, amount conditions cannot deploy.
+  that cannot release it. So both the True and the False output must be connected, each to one
+  step, before an amount condition can deploy.
 - Amounts are stroops as decimal strings end to end. See [`CLAUDE.md` §3.3](./CLAUDE.md#33-typescript).
 
 Fiat payouts:
