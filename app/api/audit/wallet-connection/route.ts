@@ -4,7 +4,7 @@ import { StrKey } from "@stellar/stellar-sdk";
 import { withErrorHandler } from "@/lib/errors";
 import { getSessionUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
+import { enforceRateLimit, clientIp, rateLimitSubject, CALLER_RATE_LIMITS } from "@/lib/rate-limit";
 
 const Body = z.object({
   address: z.string().refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address"),
@@ -16,12 +16,12 @@ export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const body = Body.parse(await req.json());
     const ip = clientIp(req);
-    await enforceRateLimit({
-      key: `wallet-connect:${ip}`,
-      limit: 30,
-      windowSeconds: 60,
-    });
+    const { perCaller, ipBackstop } = CALLER_RATE_LIMITS.walletConnect;
+    // A loose address-wide bucket first, then one per signed-in user (per
+    // address for a guest), so a venue's shared Wi-Fi is not one bucket (#725).
+    await enforceRateLimit({ key: `wallet-connect:backstop:${ip}`, ...ipBackstop });
     const user = await getSessionUser();
+    await enforceRateLimit({ key: `wallet-connect:${rateLimitSubject(user, ip)}`, ...perCaller });
     await audit({
       action: "WALLET_CONNECT",
       userId: user?.id ?? null,
