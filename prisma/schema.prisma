@@ -302,6 +302,7 @@ model Deployment {
   cashOutJobFailures   CashOutJobFailure[]
   apiTokens            DeploymentApiToken[]
   signedTransactions   SignedTransaction[]
+  timelockReleases     TimelockRelease[]
 
   @@unique([ownerId, idempotencyKey])
   @@index([ownerId, createdAt(sort: Desc)])
@@ -329,6 +330,57 @@ model StreamerClaimJob {
   @@index([status, runAt])
   @@index([deploymentId, nodeId, status])
   @@index([contractAddress, status])
+}
+
+enum TimelockMode {
+  AFTER
+  BEFORE
+}
+
+/// What `cron/auto-release` knows about one deployed timelock, so a tick probes
+/// only the timelocks that can release now instead of simulating every one ever
+/// deployed (#564). A timelock is not "done" after one release: its balance
+/// goes back to zero and a later `execute_step` refills it, so the row records
+/// the ledger up to which the contract was last seen empty (`settledLedger`)
+/// and a RECEIVE event after that ledger makes it due again.
+///
+/// Rows are created by the cron itself from `paramsSnapshot` the first time it
+/// sees a confirmed deployment with a timelock, so older deployments need no
+/// backfill.
+model TimelockRelease {
+  id                String        @id @default(uuid()) @db.Uuid
+  deploymentId      String        @db.Uuid
+  nodeId            String
+  contractAddress   String        @unique
+  templateKind      TemplateKind
+  /// Null only on an unsupported row whose parameters could not be read.
+  mode              TimelockMode?
+  /// The contract's `unlock_time`. AFTER releases from this instant on; BEFORE
+  /// releases up to and including it and never after.
+  unlockAt          DateTime?
+  /// Earliest time the cron probes this timelock again without a new RECEIVE.
+  nextProbeAt       DateTime?
+  /// Ledger through which the balance is known to be zero: the ledger of a
+  /// release that landed, or the ledger a NothingToRelease simulation read.
+  settledLedger     Int?
+  lastReleasedAt    DateTime?
+  lastReleaseTxHash String?
+  failureCount      Int           @default(0)
+  lastError         String?
+  /// Set when the relayer can never release this contract (a timelock deployed
+  /// with relayer == admin, or a WASM without `release_by_relayer`). Such a row
+  /// is never selected again.
+  unsupportedReason String?
+  /// Claimed by a run while it probes, so overlapping runs (a second replica,
+  /// a retried cron call) do not both simulate and submit the same release.
+  leaseUntil        DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+
+  @@index([deploymentId])
+  @@index([nextProbeAt])
 }
 
 enum SignedTxKind {
