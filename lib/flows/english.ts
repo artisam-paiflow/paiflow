@@ -28,6 +28,12 @@ function isApiFillAddress(addr: string): boolean {
   return addr === "PENDING:__api__";
 }
 
+// A cleared address field now saves as "" (#588); read it like a placeholder
+// rather than rendering "pay 10 XLM to ".
+function needsAddress(addr: string): boolean {
+  return isPendingAddress(addr) || addr.trim() === "";
+}
+
 function intervalLabel(amount: number, unit: string): string {
   if (amount === 1) {
     return `every ${unit}`;
@@ -84,7 +90,7 @@ function describeAction(action: ContractActionNode, trigger: TriggerNode): strin
   if (action.type === "pay") {
     const who = isApiFillAddress(action.config.recipient)
       ? "(recipient set via API)"
-      : isPendingAddress(action.config.recipient)
+      : needsAddress(action.config.recipient)
         ? "(needs address)"
         : shortAddr(action.config.recipient);
     if (action.config.fillValueViaApi) {
@@ -103,7 +109,7 @@ function describeAction(action: ContractActionNode, trigger: TriggerNode): strin
   } else if (action.type === "swap") {
     return `swap ${assetLabel(action.config.assetIn)} to ${assetLabel(action.config.assetOut)} via Soroswap with up to ${action.config.slippageBps / 100}% slippage`;
   } else if (action.type === "yield") {
-    const vault = isPendingAddress(action.config.vault)
+    const vault = needsAddress(action.config.vault)
       ? "(needs address)"
       : shortAddr(action.config.vault);
     return `deposit ${assetLabel(action.config.asset)} into yield vault ${vault}`;
@@ -117,7 +123,7 @@ function describeAction(action: ContractActionNode, trigger: TriggerNode): strin
       const who =
         r.payoutMode === "fiat"
           ? (r.accountName ?? r.label ?? "(fiat recipient)")
-          : isPendingAddress(r.address)
+          : needsAddress(r.address)
             ? `${r.label ?? "?"} (needs address)`
             : (r.label ?? shortAddr(r.address));
       if (r.mode === "fixed") {
@@ -202,7 +208,7 @@ export function flowToEnglish(graph: FlowGraph): string {
   } else if (trigger.type === "payroll") {
     const employer = isApiFillAddress(trigger.config.employer)
       ? "(employer set via API)"
-      : isPendingAddress(trigger.config.employer)
+      : needsAddress(trigger.config.employer)
         ? "(needs employer address)"
         : shortAddr(trigger.config.employer);
     const schedule = trigger.config.fillScheduleViaApi

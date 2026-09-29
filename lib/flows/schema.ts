@@ -56,10 +56,6 @@ function validAddress(s: string): boolean {
   return StrKey.isValidEd25519PublicKey(s) || isPendingAddress(s);
 }
 
-function validSplitRecipientAddress(s: string): boolean {
-  return StrKey.isValidEd25519PublicKey(s) || StrKey.isValidContract(s) || isPendingAddress(s);
-}
-
 export const AssetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("native") }),
   z.object({
@@ -84,10 +80,15 @@ export const AssetSchema = z.discriminatedUnion("kind", [
 ]);
 export type Asset = z.infer<typeof AssetSchema>;
 
-const stellarAccount = z.string().refine((s) => validAddress(s), "Invalid Stellar address");
-const splitRecipientAddress = z
-  .string()
-  .refine((s) => validSplitRecipientAddress(s), "Invalid Stellar address");
+// Any string parses. The builder autosaves the whole graph on every keystroke,
+// so a half-typed or cleared address has to save, or every PATCH 422s and the
+// user's other edits are lost with it (#588). `lib/flows/address-rules.ts`
+// holds the real check (a complete G… — or C… for a split recipient — or a
+// PENDING: placeholder), and validateFlow applies it, so /deployments/prepare
+// still refuses anything else. A custom asset's issuer is not typed in any
+// panel and stays strict above.
+const stellarAccount = z.string();
+const splitRecipientAddress = z.string();
 
 export const OnReceiveTrigger = z.object({
   id: z.string().min(1),
