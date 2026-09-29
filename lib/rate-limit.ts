@@ -90,27 +90,30 @@ export const UNKNOWN_CLIENT_IP = "0.0.0.0";
  *  - N >= 1: the Nth entry from the right, for N proxies that each append the
  *    peer they saw. Set it before putting a pass-through proxy (a CDN, a load
  *    balancer) in front, or the leftmost entry becomes whatever the client sent.
- *    With fewer entries than N, the leftmost is used, as proxy-addr does.
+ *    A chain shorter than N, or no header at all, did not come through those
+ *    proxies (a direct hit on the origin), so nothing in it is trusted: the
+ *    caller gets the shared unknown bucket, and `X-Real-IP` is not consulted.
  *
  * Rightmost-minus-hops is not the default because Railway's header length is
  * unobserved: the probe only saw its first entry, and if the edge ever sends
  * `client, internal-hop` then hops=1 would put every caller in one bucket.
  *
- * `X-Real-IP` is read only when `X-Forwarded-For` is absent, which never happens
- * behind Railway. It is not preferred: whether the edge overwrites a
- * client-supplied `X-Real-IP` is untested.
+ * With hops=0, `X-Real-IP` is read only when `X-Forwarded-For` is absent or
+ * empty, which never happens behind Railway. It is not preferred: whether the
+ * edge overwrites a client-supplied `X-Real-IP` is untested.
  *
  * Every value is normalised by `normalizeIp()` so a hostile header cannot mint
  * arbitrary rate-limit keys or write junk into the audit log.
  */
 export function clientIp(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff !== null) {
-    const entries = xff.split(",");
-    const hops = env().TRUSTED_PROXY_HOPS ?? 0;
-    const index = hops === 0 ? 0 : Math.max(0, entries.length - hops);
-    return normalizeIp(entries[index]) ?? UNKNOWN_CLIENT_IP;
+  const hops = env().TRUSTED_PROXY_HOPS ?? 0;
+  const xff = req.headers.get("x-forwarded-for")?.trim();
+  if (hops > 0) {
+    const entries = xff ? xff.split(",") : [];
+    if (entries.length < hops) return UNKNOWN_CLIENT_IP;
+    return normalizeIp(entries[entries.length - hops]) ?? UNKNOWN_CLIENT_IP;
   }
+  if (xff) return normalizeIp(xff.split(",")[0]) ?? UNKNOWN_CLIENT_IP;
   return normalizeIp(req.headers.get("x-real-ip")) ?? UNKNOWN_CLIENT_IP;
 }
 

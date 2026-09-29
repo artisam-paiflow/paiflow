@@ -59,9 +59,24 @@ describe("clientIp — default (TRUSTED_PROXY_HOPS unset), Railway's replacing e
     expect(clientIp(req({ "x-forwarded-for": "unknown", "x-real-ip": "198.51.100.88" }))).toBe(
       UNKNOWN_CLIENT_IP,
     );
-    expect(clientIp(req({ "x-forwarded-for": "", "x-real-ip": "198.51.100.88" }))).toBe(
-      UNKNOWN_CLIENT_IP,
+  });
+
+  it("treats an empty X-Forwarded-For as absent, as the old `if (xff)` did", async () => {
+    const { clientIp } = await load();
+    expect(clientIp(req({ "x-forwarded-for": " ", "x-real-ip": "198.51.100.88" }))).toBe(
+      "198.51.100.88",
     );
+  });
+
+  it("reads the first of duplicate X-Forwarded-For headers, which Headers joins with a comma", async () => {
+    const { clientIp } = await load();
+    const r = new Request("https://paiflow.xyz/", {
+      headers: [
+        ["x-forwarded-for", "203.0.113.7"],
+        ["x-forwarded-for", "198.51.100.77"],
+      ],
+    });
+    expect(clientIp(r)).toBe("203.0.113.7");
   });
 
   it("an empty TRUSTED_PROXY_HOPS is the default", async () => {
@@ -86,9 +101,34 @@ describe("clientIp — TRUSTED_PROXY_HOPS behind appending proxies", () => {
     );
   });
 
-  it("uses the leftmost entry when the chain is shorter than the hop count", async () => {
-    const { clientIp } = await load("3");
-    expect(clientIp(req({ "x-forwarded-for": "203.0.113.7, 10.0.0.5" }))).toBe("203.0.113.7");
+  it("trusts nothing in a chain shorter than the hop count (a request that bypassed the proxies)", async () => {
+    const { clientIp, UNKNOWN_CLIENT_IP } = await load("3");
+    expect(clientIp(req({ "x-forwarded-for": "203.0.113.7, 10.0.0.5" }))).toBe(UNKNOWN_CLIENT_IP);
+  });
+
+  it("ignores X-Real-IP once hops are configured", async () => {
+    const { clientIp, UNKNOWN_CLIENT_IP } = await load("1");
+    expect(clientIp(req({ "x-real-ip": "198.51.100.88" }))).toBe(UNKNOWN_CLIENT_IP);
+    expect(clientIp(req({}))).toBe(UNKNOWN_CLIENT_IP);
+  });
+
+  it("an empty or garbage entry at the trusted position is the unknown bucket, never a neighbour", async () => {
+    const { clientIp, UNKNOWN_CLIENT_IP } = await load("1");
+    expect(clientIp(req({ "x-forwarded-for": "203.0.113.7," }))).toBe(UNKNOWN_CLIENT_IP);
+    expect(clientIp(req({ "x-forwarded-for": "203.0.113.7, unknown" }))).toBe(UNKNOWN_CLIENT_IP);
+  });
+
+  it("handles an IPv6 chain", async () => {
+    const { clientIp } = await load("2");
+    expect(clientIp(req({ "x-forwarded-for": "2001:db8::bad, [2001:DB8::7]:443, fd00::1" }))).toBe(
+      "2001:db8::7",
+    );
+  });
+
+  it("accepts the upper bound of 10", async () => {
+    const { clientIp } = await load("10");
+    const chain = ["203.0.113.7", ...Array.from({ length: 9 }, (_, i) => `10.0.0.${i + 1}`)];
+    expect(clientIp(req({ "x-forwarded-for": chain.join(", ") }))).toBe("203.0.113.7");
   });
 
   it("hops=1 with a single entry equals today's answer", async () => {
@@ -96,10 +136,15 @@ describe("clientIp — TRUSTED_PROXY_HOPS behind appending proxies", () => {
     expect(clientIp(req({ "x-forwarded-for": "136.158.32.30" }))).toBe("136.158.32.30");
   });
 
-  it.each(["-1", "11", "1.5", "one"])("refuses to start with TRUSTED_PROXY_HOPS=%s", async (v) => {
-    const { clientIp } = await load(v);
-    expect(() => clientIp(req({ "x-forwarded-for": "203.0.113.7" }))).toThrow(/TRUSTED_PROXY_HOPS/);
-  });
+  it.each(["-1", "11", "1.5", "one"])(
+    "throws on first use with TRUSTED_PROXY_HOPS=%s, like any invalid env var",
+    async (v) => {
+      const { clientIp } = await load(v);
+      expect(() => clientIp(req({ "x-forwarded-for": "203.0.113.7" }))).toThrow(
+        /TRUSTED_PROXY_HOPS/,
+      );
+    },
+  );
 });
 
 describe("normalizeIp", () => {

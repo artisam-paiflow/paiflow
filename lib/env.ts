@@ -278,7 +278,8 @@ const EnvSchema = z.object({
 
   // How many proxies in front of the app append to X-Forwarded-For; see
   // clientIp() in lib/rate-limit.ts. 0 = the edge replaces the header (Railway).
-  // A typo fails at startup: this decides which address every per-IP limit sees.
+  // Invalid values make env() throw rather than guess: this decides which address
+  // every per-IP limit sees.
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
   SENTRY_DSN: optionalString,
 
