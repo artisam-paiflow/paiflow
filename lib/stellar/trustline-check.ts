@@ -31,7 +31,19 @@ export type TrustlineCheck =
 type BalanceLine = { asset_type: string; asset_code?: string; asset_issuer?: string };
 type AccountLookup = { kind: "found"; balances: BalanceLine[] } | { kind: "missing" | "error" };
 
-async function lookupAccount(address: string): Promise<AccountLookup> {
+// The trigger page is public and a split can have 20 recipients, so without a
+// cache every page view is up to 20 Horizon calls anyone can repeat. A minute
+// of staleness only delays the warning clearing after a trustline is added.
+const CACHE_TTL_MS = 60_000;
+const CACHE_MAX_ENTRIES = 1_000;
+const cache = new Map<string, { expiresAt: number; value: Promise<AccountLookup> }>();
+
+/** Empties the lookup cache. For tests. */
+export function clearTrustlineCache(): void {
+  cache.clear();
+}
+
+async function fetchAccount(address: string): Promise<AccountLookup> {
   try {
     const acct = await horizon().loadAccount(address);
     return { kind: "found", balances: acct.balances as BalanceLine[] };
@@ -40,6 +52,27 @@ async function lookupAccount(address: string): Promise<AccountLookup> {
     log.warn({ err, address }, "Horizon account lookup failed; trustline check degraded");
     return { kind: "error" };
   }
+}
+
+function lookupAccount(address: string): Promise<AccountLookup> {
+  const now = Date.now();
+  const hit = cache.get(address);
+  if (hit && hit.expiresAt > now) return hit.value;
+
+  const value = fetchAccount(address);
+  if (cache.size >= CACHE_MAX_ENTRIES) {
+    for (const [key, entry] of cache) {
+      if (entry.expiresAt <= now) cache.delete(key);
+    }
+    // Map iteration is insertion order, so this drops the oldest entry.
+    if (cache.size >= CACHE_MAX_ENTRIES) cache.delete(cache.keys().next().value as string);
+  }
+  cache.set(address, { expiresAt: now + CACHE_TTL_MS, value });
+  // A failed lookup is not remembered, so the next view asks Horizon again.
+  void value.then((r) => {
+    if (r.kind === "error" && cache.get(address)?.value === value) cache.delete(address);
+  });
+  return value;
 }
 
 /**
@@ -51,16 +84,6 @@ async function lookupAccount(address: string): Promise<AccountLookup> {
 export async function checkPayoutTrustlines(
   recipients: PayoutRecipient[],
 ): Promise<TrustlineCheck[]> {
-  const lookups = new Map<string, Promise<AccountLookup>>();
-  const lookup = (address: string) => {
-    let p = lookups.get(address);
-    if (!p) {
-      p = lookupAccount(address);
-      lookups.set(address, p);
-    }
-    return p;
-  };
-
   return Promise.all(
     recipients.map(async (r): Promise<TrustlineCheck> => {
       const base: Base = {
@@ -82,7 +105,7 @@ export async function checkPayoutTrustlines(
         return { ...base, status: "skipped" };
       }
 
-      const account = await lookup(r.address);
+      const account = await lookupAccount(r.address);
       if (account.kind !== "found") {
         return { ...base, status: account.kind === "missing" ? "no_account" : "unknown", ...ref };
       }

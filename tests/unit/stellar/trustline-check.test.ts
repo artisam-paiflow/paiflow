@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NotFoundError } from "@stellar/stellar-sdk";
 import { horizon } from "@/lib/stellar/client";
-import { checkPayoutTrustlines } from "@/lib/stellar/trustline-check";
+import { checkPayoutTrustlines, clearTrustlineCache } from "@/lib/stellar/trustline-check";
 import { payoutRecipients } from "@/lib/flows/payout-recipients";
 import type { FlowGraph } from "@/lib/flows/schema";
 
@@ -29,7 +29,11 @@ const trustline = (code: string, issuer: string) => ({
 });
 const xlm = { asset_type: "native", balance: "10.0000000" };
 
-afterEach(() => vi.mocked(horizon).mockReset());
+afterEach(() => {
+  vi.mocked(horizon).mockReset();
+  clearTrustlineCache();
+  vi.useRealTimers();
+});
 
 describe("checkPayoutTrustlines", () => {
   it("is ok when the recipient trusts the payout asset from the flow's issuer", async () => {
@@ -119,6 +123,32 @@ describe("checkPayoutTrustlines", () => {
 });
 
 describe("payoutRecipients", () => {
+  it("reuses a lookup for a minute across page views, then asks Horizon again", async () => {
+    vi.useFakeTimers();
+    const loadAccount = mockBalances([xlm, trustline("USDC", USDC_ISSUER)]);
+    const recipients = [{ nodeId: "p", address: RECIPIENT, asset: USDC }];
+
+    await checkPayoutTrustlines(recipients);
+    await checkPayoutTrustlines(recipients);
+    expect(loadAccount).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(60_001);
+    await checkPayoutTrustlines(recipients);
+    expect(loadAccount).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not remember a failed lookup", async () => {
+    const loadAccount = mockLoadAccount(async () => {
+      throw new Error("Horizon timed out");
+    });
+    const recipients = [{ nodeId: "p", address: RECIPIENT, asset: USDC }];
+
+    const [first] = await checkPayoutTrustlines(recipients);
+    expect(first).toMatchObject({ status: "unknown" });
+    await checkPayoutTrustlines(recipients);
+    expect(loadAccount).toHaveBeenCalledTimes(2);
+  });
+
   it("collects crypto Pay and Split recipients with their node's asset, not fiat ones", () => {
     const graph = {
       nodes: [
