@@ -92,7 +92,7 @@ function describeAction(action: ContractActionNode, trigger: TriggerNode): strin
     } else if (action.config.fullAmount) {
       return `pay full incoming ${assetLabel(action.config.asset)} to ${who}`;
     } else if (action.config.mode === "percentage") {
-      return `pay ${action.config.percentage}% of incoming ${assetLabel(
+      return `pay ${action.config.percentage ?? 0}% of incoming ${assetLabel(
         action.config.asset,
       )} to ${who}`;
     } else {

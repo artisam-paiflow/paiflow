@@ -5,7 +5,6 @@ import type { FlowNode, FlowGraph } from "@/lib/flows/schema";
 import {
   isPendingAddress,
   bpsToPct,
-  pctToBps,
   sourceAmountStroops,
   isTrigger,
   TOTAL_BPS,
@@ -22,7 +21,9 @@ import type { StellarNetwork } from "@/lib/stellar/explorer";
 import { computeAssetFlow, FIAT_PAYOUT_TRIGGERS, type ValidationIssue } from "@/lib/flows/validate";
 import { nodeIssues } from "@/lib/flows/issue-paths";
 import { AssetField, Field } from "./panels/asset-fields";
+import { defaultShares } from "./panels/split-shares.utils";
 import SwapPanel from "./panels/swap-panel";
+import { BpsDraftInput } from "./inputs/bps-draft-input";
 import { StroopsDraftInput } from "./inputs/stroops-draft-input";
 
 /**
@@ -765,7 +766,13 @@ export default function ConfigPanel({
                               ...node,
                               config: {
                                 ...node.config,
-                                percentage: isNaN(v) ? 0 : Math.min(100, Math.max(0, v)),
+                                // A cleared field leaves the percentage unset
+                                // instead of snapping to 0; validateFlow asks
+                                // for one before deploy (#583).
+                                percentage:
+                                  e.target.value === "" || isNaN(v)
+                                    ? undefined
+                                    : Math.min(100, Math.max(0, v)),
                               },
                             });
                           }}
@@ -806,7 +813,13 @@ export default function ConfigPanel({
                       ...node.config,
                       recipients: e.target.checked
                         ? []
-                        : [{ address: "", mode: "percentage" as const, bps: 0 }],
+                        : [
+                            {
+                              address: "PENDING:unnamed",
+                              mode: "percentage" as const,
+                              bps: TOTAL_BPS,
+                            },
+                          ],
                     },
                   } as FlowNode)
                 }
@@ -1855,6 +1868,10 @@ function SplitRecipientsEditor({
       if (r.mode === "percentage") modeCache.current.bps.set(i, r.bps);
       else modeCache.current.amountStroops.set(i, r.amountStroops);
     });
+    // A recipient with no cached share gets an even part of what the cached
+    // ones leave, so switching a fresh fixed split to percentage lands on a
+    // valid 100% instead of writing 0 into every share (#583).
+    const fresh = defaultShares(node.config.recipients.map((_, i) => modeCache.current.bps.get(i)));
     const next = node.config.recipients.map((r, i) => {
       // Preserve mode-independent fields (payout/bank details) across the switch.
       const base = {
@@ -1866,7 +1883,7 @@ function SplitRecipientsEditor({
         bankCode: r.bankCode,
       };
       if (newMode === "percentage") {
-        return { ...base, mode: "percentage" as const, bps: modeCache.current.bps.get(i) ?? 0 };
+        return { ...base, mode: "percentage" as const, bps: fresh[i] ?? 0 };
       }
       return {
         ...base,
@@ -2005,30 +2022,12 @@ function SplitRecipientsEditor({
                     </div>
                     {isPercentage ? (
                       <Field label="Share" error={recipientError(i, "bps")}>
-                        <div className="relative">
-                          <input
-                            className="input pr-5 text-right"
-                            value={
-                              r.bps === 0
-                                ? ""
-                                : (() => {
-                                    const pct = bpsToPct(r.bps);
-                                    return pct === Math.floor(pct) ? `${pct}` : `${pct.toFixed(1)}`;
-                                  })()
-                            }
-                            placeholder="0"
-                            onChange={(e) => {
-                              const v = Number(e.target.value);
-                              updateRecipient(i, {
-                                ...r,
-                                bps: isNaN(v) ? 0 : Math.min(10000, Math.max(0, pctToBps(v))),
-                              } as SplitRecipient);
-                            }}
-                          />
-                          <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[11px] text-zinc-500">
-                            %
-                          </span>
-                        </div>
+                        <BpsDraftInput
+                          className="input pr-5 text-right"
+                          value={r.bps}
+                          placeholder="0"
+                          onChange={(bps) => updateRecipient(i, { ...r, bps } as SplitRecipient)}
+                        />
                       </Field>
                     ) : (
                       <Field label="Amount" error={recipientError(i, "amountStroops")}>
@@ -2094,33 +2093,16 @@ function SplitRecipientsEditor({
                         {isPercentage ? "Share" : `Amount (${assetLabel(node.config.asset)})`}
                       </span>
                       {isPercentage ? (
-                        <div className="relative">
-                          <input
-                            className={cn(
-                              "input pr-5 text-right",
-                              recipientError(i, "bps") && "!border-error/70",
-                            )}
-                            value={
-                              r.bps === 0
-                                ? ""
-                                : (() => {
-                                    const pct = bpsToPct(r.bps);
-                                    return pct === Math.floor(pct) ? `${pct}` : `${pct.toFixed(1)}`;
-                                  })()
-                            }
-                            placeholder="0"
-                            onChange={(e) => {
-                              const v = Number(e.target.value);
-                              updateRecipient(i, {
-                                ...r,
-                                bps: isNaN(v) ? 0 : Math.min(10000, Math.max(0, pctToBps(v))),
-                              } as SplitRecipient);
-                            }}
-                          />
-                          <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[11px] text-zinc-500">
-                            %
-                          </span>
-                        </div>
+                        <BpsDraftInput
+                          className={cn(
+                            "input pr-5 text-right",
+                            recipientError(i, "bps") && "!border-error/70",
+                          )}
+                          aria-label={`Share for ${summaryLabel}`}
+                          value={r.bps}
+                          placeholder="0"
+                          onChange={(bps) => updateRecipient(i, { ...r, bps } as SplitRecipient)}
+                        />
                       ) : (
                         <>
                           <div className="relative">
