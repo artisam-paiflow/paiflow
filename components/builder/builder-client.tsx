@@ -21,8 +21,9 @@ import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
 import { cn } from "@/lib/utils";
-import type { FlowGraph, FlowNode, SenderKyc } from "@/lib/flows/schema";
-import { isPendingAddress } from "@/lib/flows/schema";
+import type { EdgeBranch, FlowEdge, FlowGraph, FlowNode, SenderKyc } from "@/lib/flows/schema";
+import { EdgeBranchSchema, isPendingAddress } from "@/lib/flows/schema";
+import { BRANCH_LABEL, edgeBranch, isBranchingCondition } from "@/lib/flows/branches";
 import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { validateFlow, flowHasFiatPayout } from "@/lib/flows/validate";
@@ -158,21 +159,49 @@ function nodeBorderColor(n: FlowNode | undefined): string {
   }
 }
 
-function edgeWithColors(
-  e: { id: string; source: string; target: string },
-  nodes: FlowNode[],
-): Edge {
+/**
+ * An edge out of a condition always carries its branch as the React Flow
+ * `sourceHandle`, including a legacy handle-less one, which `edgeBranch` reads
+ * as "true". Naming the handle keeps the edge on the True output rather than
+ * whichever handle React Flow finds first, and the next autosave writes the
+ * branch down explicitly.
+ */
+function edgeWithColors(e: FlowEdge, nodes: FlowNode[]): Edge {
   const src = nodes.find((n) => n.id === e.source);
   const tgt = nodes.find((n) => n.id === e.target);
+  const branch = edgeBranch(e, src);
   return {
     id: e.id,
     source: e.source,
     target: e.target,
+    ...(branch ? { sourceHandle: branch } : {}),
     type: "straight",
+    ariaLabel: branch
+      ? `${BRANCH_LABEL[branch]} branch from Condition to ${tgt ? NODE_TYPE_LABELS[tgt.type] : "step"}`
+      : undefined,
     data: {
       sourceColor: nodeBorderColor(src),
       targetColor: nodeBorderColor(tgt),
+      branch: branchLabelFor(src, branch),
     },
+  };
+}
+
+/** The chip drawn on an edge: only on a condition that has two outputs. */
+function branchLabelFor(src: FlowNode | undefined, branch: EdgeBranch | null): string | undefined {
+  if (!branch) return undefined;
+  if (!isBranchingCondition(src) && branch === "true") return undefined;
+  return BRANCH_LABEL[branch];
+}
+
+/** The persisted edge for a canvas edge: only a valid branch handle is kept. */
+function toFlowEdge(e: Edge): FlowEdge {
+  const branch = EdgeBranchSchema.safeParse(e.sourceHandle);
+  return {
+    id: e.id,
+    source: e.source,
+    target: e.target,
+    ...(branch.success ? { sourceHandle: branch.data } : {}),
   };
 }
 
@@ -267,7 +296,7 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
   const graph: FlowGraph = useMemo(
     () => ({
       nodes: flowNodes,
-      edges: rfEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+      edges: rfEdges.map(toFlowEdge),
       devMode,
       senderKyc,
       // Persist canvas positions with the flow (autosave is debounced, so a
@@ -489,19 +518,19 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
         from_type: src?.type ?? "unknown",
         to_type: tgt?.type ?? "unknown",
       });
-      setRfEdges((eds) =>
-        addEdge(
-          {
-            ...c,
-            type: "straight",
-            data: {
-              sourceColor: nodeBorderColor(src),
-              targetColor: nodeBorderColor(tgt),
-            },
-          },
-          eds,
-        ),
+      // The handle the user dragged from is the branch; edgeWithColors derives
+      // the colours, the chip and the accessible name from it.
+      const branch = EdgeBranchSchema.safeParse(c.sourceHandle);
+      const drawn = edgeWithColors(
+        {
+          id: `xy-edge__${c.source}${c.sourceHandle ?? ""}-${c.target}${c.targetHandle ?? ""}`,
+          source: c.source,
+          target: c.target,
+          ...(branch.success ? { sourceHandle: branch.data } : {}),
+        },
+        flowNodes,
       );
+      setRfEdges((eds) => addEdge(drawn, eds));
     },
     [flowNodes],
   );
@@ -512,11 +541,13 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
       eds.map((e) => {
         const src = flowNodes.find((n) => n.id === e.source);
         const tgt = flowNodes.find((n) => n.id === e.target);
+        const branch = edgeBranch(toFlowEdge(e), src);
         return {
           ...e,
           data: {
             sourceColor: nodeBorderColor(src),
             targetColor: nodeBorderColor(tgt),
+            branch: branchLabelFor(src, branch),
           },
         };
       }),

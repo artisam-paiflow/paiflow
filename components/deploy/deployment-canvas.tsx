@@ -5,6 +5,7 @@ import { ReactFlow, Background, Controls, type Edge, type Node } from "@xyflow/r
 import "@xyflow/react/dist/style.css";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { assetLabel, isAction, isLogic, isTrigger } from "@/lib/flows/schema";
+import { BRANCH_LABEL, edgeBranch, isBranchingCondition } from "@/lib/flows/branches";
 
 type Evt = { id: string; kind: string; occurredAt: string };
 
@@ -64,6 +65,9 @@ export default function DeploymentCanvas({
     id: e.id,
     source: e.source,
     target: e.target,
+    label: e.label,
+    labelStyle: { fill: "#ffba20", fontSize: 10, fontFamily: "monospace" },
+    labelBgStyle: { fill: "#201f1f" },
     animated: animatedEdges.has(e.id),
     style: animatedEdges.has(e.id)
       ? { stroke: "#ffb1c4", strokeWidth: 2, strokeDasharray: 6 }
@@ -91,7 +95,7 @@ export default function DeploymentCanvas({
 
 function layoutGraph(graph: FlowGraph): {
   nodes: Node[];
-  edges: { id: string; source: string; target: string }[];
+  edges: { id: string; source: string; target: string; label?: string }[];
 } {
   const adj = new Map<string, string[]>();
   const indeg = new Map<string, number>();
@@ -160,7 +164,16 @@ function layoutGraph(graph: FlowGraph): {
   }
   return {
     nodes,
-    edges: graph.edges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+    edges: graph.edges.map((e) => {
+      const src = graph.nodes.find((n) => n.id === e.source);
+      const branch = isBranchingCondition(src) ? edgeBranch(e, src) : null;
+      return {
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        ...(branch ? { label: BRANCH_LABEL[branch] } : {}),
+      };
+    }),
   };
 }
 

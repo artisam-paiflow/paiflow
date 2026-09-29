@@ -3,37 +3,17 @@
  * amount down path A (`amount >= threshold`) or path B (otherwise). A path with
  * no step is a silent no-op on chain and the router has no withdraw, so money
  * routed there is lost (#719). validateFlow refuses any router the pipeline
- * would deploy with an empty path. The graph only fills one side today, so
- * every amount condition is refused; once conditions carry true/false branches
- * (#720) the same rule fires only on a missing branch.
+ * would deploy with an empty path. The paths come from the condition's
+ * True/False branches (#720), so the rule now fires on a missing branch, and
+ * names it. `condition-branches.test.ts` covers the wired-up cases.
  *
  * `amount_gt` must also be strict. The router's comparison is `>=`, so the
  * pipeline feeds it threshold + 1 stroop.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { TemplateKind } from "@prisma/client";
-import type { PipelineNode } from "@/lib/flows/to-params";
-
-// Lets a test stand in for the two-branch pipeline #720 will produce, without
-// a graph shape that can express it yet.
-const pipelineOverride = vi.hoisted(() => ({
-  transform: null as ((nodes: PipelineNode[]) => PipelineNode[]) | null,
-}));
-
-vi.mock("@/lib/flows/to-params", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("@/lib/flows/to-params")>();
-  return {
-    ...mod,
-    flowToPipeline: (...args: Parameters<typeof mod.flowToPipeline>) => {
-      const out = mod.flowToPipeline(...args);
-      return pipelineOverride.transform ? pipelineOverride.transform(out) : out;
-    },
-  };
-});
-
-const { validateFlow } = await import("@/lib/flows/validate");
-const { flowToPipeline, routerThresholdStroops } = await import("@/lib/flows/to-params");
-const { flowToEnglish } = await import("@/lib/flows/english");
+import { validateFlow } from "@/lib/flows/validate";
+import { flowToPipeline, routerThresholdStroops, type PipelineNode } from "@/lib/flows/to-params";
 
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const ADDR_B = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
@@ -44,6 +24,7 @@ type ConditionConfig =
   | { kind: "amount_lt"; amountStroops: string }
   | { kind: "time_after"; at: string };
 
+/** A pre-#720 flow: one handle-less edge out of the condition, read as True. */
 function conditionFlow(config: ConditionConfig) {
   return {
     nodes: [
@@ -74,68 +55,33 @@ function routerOf(nodes: PipelineNode[]) {
   return router.params;
 }
 
-beforeEach(() => {
-  pipelineOverride.transform = null;
-});
-
 describe("validateFlow: a router path with nothing on it", () => {
-  it("refuses amount_gt, naming the amounts that would be stranded", () => {
+  it("refuses amount_gt with no False branch, naming the amounts and the output", () => {
     const r = validateFlow(conditionFlow({ kind: "amount_gt", amountStroops: "50000000" }));
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    const issue = r.errors.find((e) => e.code === "ROUTER_EMPTY_PATH");
-    expect(issue).toMatchObject({ path: "nodes.c", nodeId: "c" });
-    expect(issue?.friendlyMessage).toContain("A payment of 5 USDC or less");
-    expect(issue?.friendlyMessage).toContain("stuck in the contract");
-    expect(issue?.friendlyMessage).toContain("remove the condition or use a time condition");
+    const issues = r.errors.filter((e) => e.code === "ROUTER_EMPTY_PATH");
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ path: "nodes.c", nodeId: "c" });
+    expect(issues[0]?.friendlyMessage).toContain("A payment of 5 USDC or less doesn't meet");
+    expect(issues[0]?.friendlyMessage).toContain("stuck in the contract");
+    expect(issues[0]?.friendlyMessage).toContain("Connect a step to the False output");
+    expect(issues[0]?.friendlyMessage).not.toContain("can't draw");
   });
 
-  it("refuses amount_lt, where the unmatched side is the threshold and above", () => {
+  it("refuses amount_lt with no False branch, where the unmatched side is the threshold and above", () => {
     const r = validateFlow(conditionFlow({ kind: "amount_lt", amountStroops: "50000000" }));
     expect(r.ok).toBe(false);
     if (r.ok) return;
     const issue = r.errors.find((e) => e.code === "ROUTER_EMPTY_PATH");
     expect(issue).toMatchObject({ path: "nodes.c", nodeId: "c" });
-    expect(issue?.friendlyMessage).toContain("A payment of 5 USDC or more");
+    expect(issue?.friendlyMessage).toContain("A payment of 5 USDC or more doesn't meet");
+    expect(issue?.friendlyMessage).toContain("False output");
   });
 
   it("leaves a time condition alone, which compiles to a timelock, not a router", () => {
     const r = validateFlow(conditionFlow({ kind: "time_after", at: "2030-06-01T00:00:00.000Z" }));
     expect(r.ok).toBe(true);
-  });
-
-  it("accepts a router once both paths carry a step", () => {
-    // Both sides point at the one split: not a shape the graph can draw, but
-    // the pipeline #720 produces has the same property this rule reads.
-    pipelineOverride.transform = (nodes) =>
-      nodes.map((n) =>
-        n.params.kind === "router"
-          ? { ...n, params: { ...n.params, pathANodeIds: ["a"], pathBNodeIds: ["a"] } }
-          : n,
-      );
-    const r = validateFlow(conditionFlow({ kind: "amount_gt", amountStroops: "50000000" }));
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.pipeline).toEqual([
-        TemplateKind.DEPOSIT_TRIGGER,
-        TemplateKind.ROUTER,
-        TemplateKind.SPLITTER,
-      ]);
-    }
-  });
-
-  it("still refuses when only path A is empty", () => {
-    pipelineOverride.transform = (nodes) =>
-      nodes.map((n) =>
-        n.params.kind === "router"
-          ? { ...n, params: { ...n.params, pathANodeIds: [], pathBNodeIds: ["a"] } }
-          : n,
-      );
-    const r = validateFlow(conditionFlow({ kind: "amount_gt", amountStroops: "50000000" }));
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.errors.map((e) => e.code)).toContain("ROUTER_EMPTY_PATH");
-    }
   });
 });
 
@@ -174,25 +120,5 @@ describe("flowToPipeline: router threshold", () => {
     expect(routerThresholdStroops({ kind: "amount_lt", amountStroops: "9007199254740993" })).toBe(
       "9007199254740993",
     );
-  });
-});
-
-describe("flowToEnglish: amount conditions read as strict", () => {
-  it("says 'more than' for amount_gt", () => {
-    const out = flowToEnglish(
-      conditionFlow({ kind: "amount_gt", amountStroops: "50000000" }) as Parameters<
-        typeof flowToEnglish
-      >[0],
-    );
-    expect(out).toContain("only if the amount is more than 5 USDC");
-  });
-
-  it("says 'less than' for amount_lt", () => {
-    const out = flowToEnglish(
-      conditionFlow({ kind: "amount_lt", amountStroops: "50000000" }) as Parameters<
-        typeof flowToEnglish
-      >[0],
-    );
-    expect(out).toContain("only if the amount is less than 5 USDC");
   });
 });

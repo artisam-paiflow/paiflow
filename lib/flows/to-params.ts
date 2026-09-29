@@ -21,6 +21,7 @@ import {
   TOTAL_BPS,
 } from "./schema";
 import { inFlowOrder } from "./graph";
+import { conditionBranchTargets, routerPaths } from "./branches";
 
 export type PipelineRecipient = {
   address: string;
@@ -984,6 +985,7 @@ export function flowToPipeline(
 
   // Conditions
   let terminal = false;
+  const routerBranchActions: ContractActionNode[] = [];
   for (const cond of conditions) {
     if (cond.config.kind === "time_after" || cond.config.kind === "time_before") {
       const ts = Math.floor(new Date(cond.config.at).getTime() / 1000);
@@ -999,9 +1001,11 @@ export function flowToPipeline(
         },
       });
     } else if (cond.config.kind === "amount_gt" || cond.config.kind === "amount_lt") {
-      const childIds = children.get(cond.id) ?? [];
-      const pathA = cond.config.kind === "amount_gt" ? childIds : [];
-      const pathB = cond.config.kind === "amount_lt" ? childIds : [];
+      // The true/false branches map onto the router's two paths per kind; see
+      // routerPaths(). A missing branch leaves its path empty, which
+      // validateFlow refuses (ROUTER_EMPTY_PATH) rather than strand funds.
+      const targets = conditionBranchTargets(graph, cond.id);
+      const { pathANodeIds, pathBNodeIds } = routerPaths(cond.config.kind, targets);
       pipeline.push({
         nodeId: cond.id,
         templateKind: TemplateKind.ROUTER,
@@ -1009,10 +1013,16 @@ export function flowToPipeline(
           kind: "router",
           asset,
           threshold: routerThresholdStroops(cond.config),
-          pathANodeIds: pathA,
-          pathBNodeIds: pathB,
+          pathANodeIds,
+          pathBNodeIds,
         },
       });
+      // Each side's step has to be deployed, not only the one the trigger
+      // reaches first (`action`), which is where the action loop starts.
+      for (const id of [...pathANodeIds, ...pathBNodeIds]) {
+        const node = graph.nodes.find((n) => n.id === id);
+        if (node && isContractAction(node)) routerBranchActions.push(node);
+      }
     } else if (cond.config.kind === "oracle_gte") {
       const amount =
         action.type === "pay"
@@ -1055,7 +1065,7 @@ export function flowToPipeline(
   if (!terminal) {
     const cashOutNodes: PipelineNode[] = [];
     const seenActions = new Set<string>();
-    const actionQueue: ContractActionNode[] = [action];
+    const actionQueue: ContractActionNode[] = [action, ...routerBranchActions];
 
     while (actionQueue.length > 0) {
       const current = actionQueue.shift()!;

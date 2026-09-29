@@ -6,7 +6,13 @@ export type SwapIssueCode =
   | "SWAP_SINGLE_EDGE"
   | "SWAP_ASSET_NOT_SUPPORTED";
 
-export type ValidationIssueCode = SwapIssueCode | "ROUTER_EMPTY_PATH";
+export type ValidationIssueCode =
+  | SwapIssueCode
+  | "ROUTER_EMPTY_PATH"
+  | "BRANCH_NOT_SUPPORTED"
+  | "BRANCH_FAN_OUT"
+  | "BRANCH_EMAIL"
+  | "BRANCH_MERGE";
 
 /**
  * One validation finding. `path` is the wire key and the analytics grouping
