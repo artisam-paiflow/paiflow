@@ -766,7 +766,13 @@ export default function ConfigPanel({
                               ...node,
                               config: {
                                 ...node.config,
-                                percentage: isNaN(v) ? 0 : Math.min(100, Math.max(0, v)),
+                                // A cleared field leaves the percentage unset
+                                // instead of snapping to 0; validateFlow asks
+                                // for one before deploy (#583).
+                                percentage:
+                                  e.target.value === "" || isNaN(v)
+                                    ? undefined
+                                    : Math.min(100, Math.max(0, v)),
                               },
                             });
                           }}
