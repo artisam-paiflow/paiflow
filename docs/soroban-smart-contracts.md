@@ -535,7 +535,7 @@ SSE is simpler, works through most load balancers without sticky sessions, and a
 
 ### Why Polling Instead of Webhooks?
 
-Soroban RPC does not provide a push/webhook mechanism for events (events are ephemeral, only kept ~1 week). Paiflow uses Railway cron jobs hitting `GET /api/cron/poll-events` every minute to poll `getEvents` with a cursor. This is simple and reliable, at the cost of up to 60s latency.
+Soroban RPC does not provide a push/webhook mechanism for events (events are ephemeral, only kept ~1 week). Paiflow uses Railway cron jobs hitting `GET /api/cron/poll-events` every minute to poll `getEvents` with a cursor. This is simple and reliable, at the cost of up to 60s latency. Reads that need to be fresher poll one deployment on demand: the trigger page's `tx-status`, the SSE stream on connect, `/api/v1` `execute/submit`, and `GET /api/v1/deployments/{id}/events` when the deployment's cursor is more than 10 s old.
 
 ---
 
