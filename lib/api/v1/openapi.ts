@@ -433,14 +433,16 @@ export const openApiDocument = {
             "appears once (`eventId` is unique).",
           "",
           "**Freshness.** When this deployment's events were last collected from the network more " +
-            "than 10 seconds ago, a call collects them first, waiting at most 5 seconds before " +
-            "answering from the record. So an event is usually returned within about 10 seconds " +
-            "of its ledger closing, whoever submitted the transaction (a wallet paying the " +
-            "contract directly, a scanned SEP-7 QR, a scheduled charge). Collection is shared by " +
-            "every caller of the deployment, at most once per 10 seconds, so polling faster than " +
-            "that does not make events arrive sooner. If the network is slow, the event appears " +
-            "on a later call, and a background poller collects every minute regardless. A " +
-            "confirmed `execute/submit` records its own events before it returns.",
+            "than 10 seconds ago, a call collects them first and waits up to 5 seconds for that " +
+            "before answering from the record. So an event usually appears within 10 to 20 " +
+            "seconds of its ledger closing, whoever submitted the transaction (a wallet paying the " +
+            "contract directly, a scanned SEP-7 QR, a scheduled charge), provided you keep " +
+            "polling. Collection is shared by every caller of the deployment: one at a time, and " +
+            "the next no sooner than 10 seconds after the last one ends, so polling faster than " +
+            "that does not make events arrive sooner. A call that arrives while a collection is " +
+            "already running, or when the network is slow, answers with what is recorded, and " +
+            "the event appears on a later call; a background poller also collects every minute. " +
+            "A confirmed `execute/submit` records its own events before it returns.",
           "",
           'A swap is `kind: PAYOUT` with `topic: "swap"` and `data` ' +
             "`{ assetIn, assetOut, amountIn, amountOut }`; amounts are stroops as strings.",

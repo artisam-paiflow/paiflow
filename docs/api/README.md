@@ -322,14 +322,16 @@ contracts, as recorded in its own database. It is not a raw feed of the chain:
 
 - **No duplicates.** Each event appears exactly once, keyed by the network's `eventId`.
 - **Oldest first.** Events are ordered by `(ledger, eventId)`, and pagination only moves forward.
-- **About 10 seconds behind.** When the deployment's events were last collected from the network
-  more than 10 seconds ago, a call collects them first (waiting at most 5 seconds), so an event
-  usually shows within about 10 seconds of its ledger closing, however it was submitted: through
-  `execute/submit`, by a wallet paying the contract directly, or from a scanned QR. Collection is
-  shared by everyone polling the deployment and runs at most once per 10 seconds, so polling faster
-  than that does not help. If the network is slow the event shows on a later call; a background
-  poller also collects every minute. A `SUCCESS` from `execute/submit` records that transaction's
-  events before it returns, so `?txHash=<txHash>` right after a submit already has them.
+- **About 10 to 20 seconds behind.** When the deployment's events were last collected from the
+  network more than 10 seconds ago, a call collects them first and waits up to 5 seconds for that,
+  so while you keep polling, an event usually shows within 10 to 20 seconds of its ledger closing,
+  however it was submitted: through `execute/submit`, by a wallet paying the contract directly, or
+  from a scanned QR. Collection is shared by everyone polling the deployment, runs one at a time,
+  and starts no sooner than 10 seconds after the last one ended, so polling faster than that does
+  not help. A call that lands while a collection is already running, or when the network is slow,
+  answers with what is recorded and the event shows on a later call; a background poller also
+  collects every minute. A `SUCCESS` from `execute/submit` records that transaction's events before
+  it returns, so `?txHash=<txHash>` right after a submit already has them.
 - **Swaps.** A swap has `kind: "PAYOUT"` and `topic: "swap"`. Its `data` is
   `{ assetIn, assetOut, amountIn, amountOut }`, with amounts in stroops as strings. `assetIn` and
   `assetOut` are the asset's **symbol** where the flow names one (`"XLM"`, `"USDC"`) and the raw

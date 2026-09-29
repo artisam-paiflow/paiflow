@@ -28,6 +28,7 @@ vi.mock("@/lib/log", () => ({ log: { warn: vi.fn(), info: vi.fn(), error: vi.fn(
 
 import {
   EVENTS_REFRESH_DEADLINE_MS,
+  EVENTS_REFRESH_LEASE_MS,
   EVENTS_STALE_AFTER_MS,
   refreshEventsIfStale,
 } from "@/lib/api/v1/events-freshness";
@@ -128,6 +129,52 @@ describe("refreshEventsIfStale", () => {
     expect(mocks.pollEventsFor).toHaveBeenCalledTimes(2);
   });
 
+  it("does not start a second poll while a slow one outlasts the window", async () => {
+    cursorAgedMs(60_000);
+    let finish!: () => void;
+    mocks.pollEventsFor.mockReturnValueOnce(new Promise<number>((r) => (finish = () => r(0))));
+
+    const first = refreshEventsIfStale(id);
+    await vi.advanceTimersByTimeAsync(EVENTS_STALE_AFTER_MS * 2);
+    await first;
+    // The in-flight run is still going; a later caller joins it instead of polling again.
+    await refreshEventsIfStale(id);
+    expect(mocks.pollEventsFor).toHaveBeenCalledTimes(1);
+
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    // The window restarts when the poll ends, not when it started.
+    await refreshEventsIfStale(id);
+    expect(mocks.pollEventsFor).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(EVENTS_STALE_AFTER_MS);
+    await refreshEventsIfStale(id);
+    expect(mocks.pollEventsFor).toHaveBeenCalledTimes(2);
+  });
+
+  it("makes a caller that joins a running poll wait only for what is left of the deadline", async () => {
+    cursorAgedMs(60_000);
+    mocks.pollEventsFor.mockReturnValue(new Promise<number>(() => {}));
+
+    void refreshEventsIfStale(id);
+    await vi.advanceTimersByTimeAsync(EVENTS_REFRESH_DEADLINE_MS - 1_000);
+
+    let joined = false;
+    const joiner = refreshEventsIfStale(id).then(() => (joined = true));
+    await vi.advanceTimersByTimeAsync(999);
+    expect(joined).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await joiner;
+    expect(joined).toBe(true);
+
+    // Past the deadline, a caller does not wait at all.
+    let late = false;
+    const lateCall = refreshEventsIfStale(id).then(() => (late = true));
+    await vi.advanceTimersByTimeAsync(0);
+    await lateCall;
+    expect(late).toBe(true);
+    expect(mocks.pollEventsFor).toHaveBeenCalledTimes(1);
+  });
+
   it("swallows a failed poll and still holds off the next one", async () => {
     cursorAgedMs(60_000);
     mocks.pollEventsFor.mockRejectedValueOnce(new Error("rpc down"));
@@ -143,19 +190,30 @@ describe("refreshEventsIfStale", () => {
   });
 
   describe("with Redis", () => {
-    it("claims the deployment for the window across replicas before polling", async () => {
+    it("leases the deployment across replicas for the poll, then cuts it to the window", async () => {
       const set = vi.fn(async () => "OK");
       mocks.redisClient = { set };
       cursorAgedMs(60_000);
       await refreshEventsIfStale(id);
-      expect(set).toHaveBeenCalledWith(
+      expect(set.mock.calls).toEqual([
+        [`v1:events-refresh:${id}`, "1", "PX", EVENTS_REFRESH_LEASE_MS, "NX"],
+        [`v1:events-refresh:${id}`, "1", "PX", EVENTS_STALE_AFTER_MS],
+      ]);
+      expect(mocks.pollEventsFor).toHaveBeenCalledTimes(1);
+    });
+
+    it("cuts the lease back even when the poll fails", async () => {
+      const set = vi.fn(async () => "OK");
+      mocks.redisClient = { set };
+      cursorAgedMs(60_000);
+      mocks.pollEventsFor.mockRejectedValueOnce(new Error("rpc down"));
+      await refreshEventsIfStale(id);
+      expect(set).toHaveBeenLastCalledWith(
         `v1:events-refresh:${id}`,
         "1",
         "PX",
         EVENTS_STALE_AFTER_MS,
-        "NX",
       );
-      expect(mocks.pollEventsFor).toHaveBeenCalledTimes(1);
     });
 
     it("does not poll when another replica holds the claim", async () => {
