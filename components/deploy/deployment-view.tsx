@@ -100,7 +100,8 @@ export default function DeploymentView({
     // One poll on mount, and one on each drop, reads the store directly.
     const pollOnce = () => {
       fetch(`/api/deployments/${deploymentId}/poll-events`)
-        // 401 and 429 (30/60s per IP, shared by every tab and reconnect) answer
+        // 401 and 429 (30/60s per deployment and user, under a looser per-IP
+        // backstop; see CALLER_RATE_LIMITS in lib/rate-limit.ts) answer
         // with `{ error }`, which has no events to merge.
         .then((r) => (r.ok ? r.json() : null))
         .then((body: { events?: Evt[] } | null) => {
