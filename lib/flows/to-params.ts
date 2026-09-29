@@ -374,6 +374,22 @@ function toPayrollRecipients(action: ContractActionNode): PipelineRecipient[] {
   return [];
 }
 
+/**
+ * The router contract takes path A when `amount >= threshold` and path B
+ * otherwise. `amount_lt` (path B) is therefore already strict; `amount_gt`
+ * (path A) would also fire on an amount equal to the threshold, so it is
+ * compiled one stroop higher: `amount >= t + 1` is `amount > t` on integers.
+ */
+export function routerThresholdStroops(
+  config:
+    | { kind: "amount_gt"; amountStroops: string }
+    | { kind: "amount_lt"; amountStroops: string },
+): string {
+  return config.kind === "amount_gt"
+    ? (BigInt(config.amountStroops) + 1n).toString()
+    : config.amountStroops;
+}
+
 function getChildren(graph: FlowGraph): Map<string, string[]> {
   const children = new Map<string, string[]>();
   for (const n of graph.nodes) children.set(n.id, []);
@@ -992,7 +1008,7 @@ export function flowToPipeline(
         params: {
           kind: "router",
           asset,
-          threshold: cond.config.amountStroops,
+          threshold: routerThresholdStroops(cond.config),
           pathANodeIds: pathA,
           pathBNodeIds: pathB,
         },
