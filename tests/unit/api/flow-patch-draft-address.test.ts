@@ -5,6 +5,7 @@
  * refuses it, through validateFlow.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Keypair } from "@stellar/stellar-sdk";
 
 const { mockDb } = vi.hoisted(() => ({
   mockDb: {
@@ -86,27 +87,43 @@ describe("PATCH /api/flows/:id with a draft address (#588)", () => {
   );
 });
 
+describe("PATCH /api/flows/:id with a secret seed in an address (#588)", () => {
+  it("is refused and never written", async () => {
+    vi.clearAllMocks();
+    mockDb.flow.findFirst.mockResolvedValue({ id: FLOW_ID, ownerId: "user-1", graph: {} });
+    const seed = Keypair.random().secret();
+    const res = await PATCH(jsonRequest({ graph: splitGraph(seed) }), ctx);
+    expect(res.status).toBe(422);
+    expect(JSON.stringify(await res.json())).not.toContain(seed);
+    expect(mockDb.flow.update).not.toHaveBeenCalled();
+  });
+});
+
 describe("POST /api/deployments/prepare with a draft address (#588)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it.each(["", "GAB", SOURCE.slice(0, 55), SOURCE.toLowerCase()])(
-    "refuses %j with an error on the recipient's address field",
-    async (draft) => {
-      mockDb.flow.findFirst.mockResolvedValue({
-        id: FLOW_ID,
-        ownerId: "user-1",
-        graph: splitGraph(draft),
-      });
-      const res = await PREPARE(jsonRequest({ flowId: FLOW_ID, sourceAccount: SOURCE }));
-      expect(res.status).toBe(422);
-      const json = await res.json();
-      expect(json.error.code).toBe("VALIDATION");
-      const [msg] = json.error.fields["nodes.s.config.recipients.1.address"];
-      expect(msg).toMatch(/split recipient "Carol"/);
-      expect(preparePipelineDeployTx).not.toHaveBeenCalled();
-      expect(mockDb.deployment.create).not.toHaveBeenCalled();
-    },
-  );
+  it.each([
+    "",
+    "GAB",
+    SOURCE.slice(0, 55),
+    SOURCE.toLowerCase(),
+    // A valid muxed (M…) account: never accepted, before or after #588.
+    "MBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLEAAAAAAAAAAAFJN3W",
+  ])("refuses %j with an error on the recipient's address field", async (draft) => {
+    mockDb.flow.findFirst.mockResolvedValue({
+      id: FLOW_ID,
+      ownerId: "user-1",
+      graph: splitGraph(draft),
+    });
+    const res = await PREPARE(jsonRequest({ flowId: FLOW_ID, sourceAccount: SOURCE }));
+    expect(res.status).toBe(422);
+    const json = await res.json();
+    expect(json.error.code).toBe("VALIDATION");
+    const [msg] = json.error.fields["nodes.s.config.recipients.1.address"];
+    expect(msg).toMatch(/split recipient "Carol"/);
+    expect(preparePipelineDeployTx).not.toHaveBeenCalled();
+    expect(mockDb.deployment.create).not.toHaveBeenCalled();
+  });
 });

@@ -1,9 +1,10 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import type { ValidationIssue } from "./issue";
+import { looksLikeSecretSeed, SECRET_SEED_MESSAGE } from "./secret-seed";
 import { isPendingAddress, type FlowGraph, type FlowNode } from "./schema";
 
 // Pure and client-safe, like swap-rules.ts. The shape schema lets any string
-// sit in an address field, because the builder autosaves the whole graph on
+// but a possible secret seed (secret-seed.ts) sit in an address field, because the builder autosaves the whole graph on
 // every keystroke and a half-typed or cleared address used to 422 every save,
 // losing unrelated edits with it (#588). This is where an address is actually
 // checked: validateFlow runs it, so /api/deployments/prepare refuses the flow
@@ -29,6 +30,8 @@ type AddressField = {
   accepts: AddressAccepts;
   /** How the message names the field, e.g. "the Pay step's recipient". */
   what: string;
+  /** A split recipient paid in crypto: a C… contract is only a fiat destination. */
+  cryptoRecipient?: boolean;
 };
 
 /** Every address a node's config holds, with what each accepts. */
@@ -49,6 +52,7 @@ export function addressFields(node: FlowNode): AddressField[] {
         value: r.address,
         accepts: "account_or_contract" as const,
         what: `split recipient ${r.label?.trim() ? `"${r.label.trim()}"` : `#${i + 1}`}`,
+        cryptoRecipient: r.payoutMode !== "fiat",
       }));
     case "webhook":
       return [
@@ -142,6 +146,7 @@ export function addressFriendlyMessage(
   if (value.trim() === "") {
     return `Enter ${what}: ${expected(accepts)}, ${pending}.`;
   }
+  if (looksLikeSecretSeed(value)) return SECRET_SEED_MESSAGE;
   const shown = `"${showValue(value)}"`;
   if (accepts === "account" && StrKey.isValidContract(value)) {
     return `${what[0]!.toUpperCase()}${what.slice(1)} must be a wallet address (G…), and ${shown} is a contract address. Enter a wallet address, ${pending}.`;
@@ -162,7 +167,20 @@ export function addressIssues(graph: FlowGraph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   for (const node of graph.nodes) {
     for (const f of addressFields(node)) {
-      if (isAcceptedFlowAddress(f.value, f.accepts)) continue;
+      if (isAcceptedFlowAddress(f.value, f.accepts)) {
+        // Moved here from a schema refine, so pasting one no longer 422s an
+        // autosave (#588); the message is the one the refine carried.
+        if (f.cryptoRecipient && StrKey.isValidContract(f.value)) {
+          issues.push({
+            path: `nodes.${node.id}.config.${f.field}`,
+            message: "Contract addresses (C...) must use fiat payout.",
+            friendlyMessage: `A contract address (C…) can only receive a fiat payout. Set the payout mode for ${f.what} to fiat, or enter a wallet address (G…).`,
+            nodeId: node.id,
+            field: f.field,
+          });
+        }
+        continue;
+      }
       issues.push({
         path: `nodes.${node.id}.config.${f.field}`,
         message: f.value === "" ? "Missing Stellar address" : "Invalid Stellar address",

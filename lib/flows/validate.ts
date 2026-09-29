@@ -21,7 +21,8 @@ import { isCatalogueAsset } from "./asset-catalogue";
 import type { ValidationIssue } from "./issue";
 import { checkHardLimits } from "./limits";
 import { swapConfigIssues, type SwapNode } from "./swap-rules";
-import { addressIssues } from "./address-rules";
+import { addressIssues, isAcceptedFlowAddress } from "./address-rules";
+import { SECRET_SEED_MESSAGE } from "./secret-seed";
 import { inFlowOrder } from "./graph";
 import { flowToPipeline, absorbedActionIds, type PipelineNode } from "./to-params";
 import {
@@ -442,7 +443,8 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       errors: parsed.error.issues.map((i) => ({
         path: i.path.join("."),
         message: i.message,
-        friendlyMessage: GENERIC_SCHEMA_MESSAGE,
+        friendlyMessage:
+          i.message === SECRET_SEED_MESSAGE ? SECRET_SEED_MESSAGE : GENERIC_SCHEMA_MESSAGE,
       })),
     };
   }
@@ -659,7 +661,9 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
           if (!isFiat) {
             pendingLabels.add(r.label ?? "unnamed");
           }
-        } else {
+        } else if (isAcceptedFlowAddress(r.address, "account_or_contract")) {
+          // A blank or half-typed address is reported by addressIssues; two
+          // blank rows are not also a "duplicate" (#588).
           if (seen.has(r.address)) {
             errors.push({
               path: `nodes.${a.id}.config.recipients`,

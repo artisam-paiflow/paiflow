@@ -11,6 +11,7 @@ import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { StrKey } from "@stellar/stellar-sdk";
 import AddressInput from "@/components/builder/address-input";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { addressIssues } from "@/lib/flows/address-rules";
@@ -168,5 +169,37 @@ describe("panel address field commits (#588)", () => {
     await user.paste("PENDING:alice");
     expect(onCommit).toHaveBeenLastCalledWith("PENDING:alice");
     expect(issuesFor("PENDING:alice")).toEqual([]);
+  });
+
+  it("a pasted secret seed is never committed or shown, and the field says why", async () => {
+    const user = userEvent.setup();
+    const onCommit = vi.fn();
+    render(<PayRecipient initial={ACCOUNT} onCommit={onCommit} />);
+    // A valid-checksum seed for a throwaway key (jsdom has no keypair RNG).
+    const seed = StrKey.encodeEd25519SecretSeed(Buffer.alloc(32, 7));
+    await user.clear(field());
+    onCommit.mockClear();
+    await user.paste(seed);
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(field().value).toBe("");
+    expect(document.body.textContent).not.toContain(seed);
+    const describedBy = field().getAttribute("aria-describedby") ?? "";
+    const note = describedBy
+      .split(" ")
+      .map((id) => document.getElementById(id)?.textContent ?? "")
+      .join(" ");
+    expect(note).toContain("secret key");
+  });
+
+  it("typing an S commits nothing, and a following address clears the note", async () => {
+    const user = userEvent.setup();
+    const onCommit = vi.fn();
+    render(<PayRecipient onCommit={onCommit} />);
+    await user.type(field(), "S");
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(field().value).toBe("");
+    await user.paste(ACCOUNT);
+    expect(onCommit).toHaveBeenLastCalledWith(ACCOUNT);
+    expect(field().getAttribute("aria-describedby") ?? "").toBe("");
   });
 });

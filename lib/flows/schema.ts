@@ -2,6 +2,7 @@ import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
 import { formatStroops } from "@/lib/utils";
 import { bpsSchema, TOTAL_BPS } from "./primitives";
+import { looksLikeSecretSeed, SECRET_SEED_MESSAGE } from "./secret-seed";
 
 const PENDING_PREFIX = "PENDING:";
 
@@ -87,8 +88,14 @@ export type Asset = z.infer<typeof AssetSchema>;
 // PENDING: placeholder), and validateFlow applies it, so /deployments/prepare
 // still refuses anything else. A custom asset's issuer is not typed in any
 // panel and stays strict above.
-const stellarAccount = z.string();
-const splitRecipientAddress = z.string();
+//
+// The one thing refused at parse time is a string that could be a secret seed
+// (S…): no address starts with S, and a pasted secret key must never be
+// stored in Flow.graph (CLAUDE.md §0). The panel clears such a paste before it
+// is sent, so this only stops a direct API write.
+const notSecretSeed = (s: string) => !looksLikeSecretSeed(s);
+const stellarAccount = z.string().refine(notSecretSeed, SECRET_SEED_MESSAGE);
+const splitRecipientAddress = z.string().refine(notSecretSeed, SECRET_SEED_MESSAGE);
 
 export const OnReceiveTrigger = z.object({
   id: z.string().min(1),
@@ -214,35 +221,22 @@ const SplitRecipientBase = z.object({
   bankCode: z.string().optional(),
 });
 
-export const SplitRecipient = z
-  .discriminatedUnion("mode", [
-    SplitRecipientBase.extend({
-      mode: z.literal("percentage"),
-      // 0 parses so a cleared or not-yet-set share can autosave (#583);
-      // `validateFlow` refuses it before deploy.
-      bps: bpsSchema(),
-    }),
-    SplitRecipientBase.extend({
-      mode: z.literal("fixed"),
-      amountStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
-    }),
-  ])
-  .refine(
-    (r) => {
-      // Contract addresses are always fiat destinations (cash-out contracts).
-      if (StrKey.isValidContract(r.address)) {
-        return r.payoutMode === "fiat";
-      }
-      // Wallet addresses may be crypto or, in payroll contexts, fiat with bank
-      // details. The more specific "wallet + fiat" rules are enforced in
-      // validateFlow depending on trigger type and dev mode.
-      return true;
-    },
-    {
-      message: "Contract addresses (C...) must use fiat payout.",
-      path: ["address"],
-    },
-  );
+export const SplitRecipient = z.discriminatedUnion("mode", [
+  SplitRecipientBase.extend({
+    mode: z.literal("percentage"),
+    // 0 parses so a cleared or not-yet-set share can autosave (#583);
+    // `validateFlow` refuses it before deploy.
+    bps: bpsSchema(),
+  }),
+  SplitRecipientBase.extend({
+    mode: z.literal("fixed"),
+    amountStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
+  }),
+]);
+// A C… contract as a crypto recipient used to be refused here, which 422d an
+// autosave the moment one was pasted (#588). `addressIssues` refuses it on
+// the recipient's address field instead: a contract is only ever a fiat
+// (cash-out) destination.
 export type SplitRecipient = z.infer<typeof SplitRecipient>;
 
 // Backward compatibility: older flows stored recipients with `bps` but no

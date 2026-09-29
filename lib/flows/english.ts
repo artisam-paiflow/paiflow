@@ -76,7 +76,7 @@ function describeCondition(c: Extract<FlowNode, { type: "condition" }>, asset?: 
     case "amount_lt":
       return `only if the amount is less than ${formatStroops(cfg.amountStroops)}${suffix}`;
     case "oracle_gte":
-      return `only if oracle ${shortAddr(cfg.oracle)}:${cfg.key} ≥ ${cfg.threshold}`;
+      return `only if oracle ${needsAddress(cfg.oracle) ? "(needs address)" : shortAddr(cfg.oracle)}:${cfg.key} ≥ ${cfg.threshold}`;
     case "time_after":
       return `only after ${cfg.at}`;
     case "time_before":
@@ -125,7 +125,7 @@ function describeAction(action: ContractActionNode, trigger: TriggerNode): strin
           ? (r.accountName ?? r.label ?? "(fiat recipient)")
           : needsAddress(r.address)
             ? `${r.label ?? "?"} (needs address)`
-            : (r.label ?? shortAddr(r.address));
+            : (r.label ?? (r.address.trim() === "" ? "(needs address)" : shortAddr(r.address)));
       if (r.mode === "fixed") {
         return `${formatStroops(r.amountStroops)} ${assetStr} to ${who}`;
       }

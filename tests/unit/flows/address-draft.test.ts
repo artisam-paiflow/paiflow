@@ -5,9 +5,11 @@
  * PENDING: placeholder) off the chain.
  */
 import { describe, expect, it } from "vitest";
+import { Keypair } from "@stellar/stellar-sdk";
 import { FlowGraphSchema, FlowPatchSchema, getPendingLabels } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { addressFields, addressIssues, isAcceptedFlowAddress } from "@/lib/flows/address-rules";
+import { SECRET_SEED_MESSAGE } from "@/lib/flows/secret-seed";
 
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const ADDR_B = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
@@ -205,10 +207,39 @@ describe("a draft address saves (#588)", () => {
     expect(FlowGraphSchema.safeParse(g).success).toBe(false);
   });
 
-  it("a contract (C…) split recipient still has to be a fiat payout at parse time", () => {
-    expect(FlowGraphSchema.safeParse(splitFlow([ADDR_A, CONTRACT])).success).toBe(false);
+  it("a contract (C…) as a crypto split recipient saves, and validateFlow refuses it on its address", () => {
+    const crypto = splitFlow([ADDR_A, CONTRACT]);
+    expect(FlowPatchSchema.safeParse({ graph: crypto }).success).toBe(true);
+    const [issue] = errorsOf(crypto).filter(
+      (e) => e.path === "nodes.s.config.recipients.1.address",
+    );
+    expect(issue!.message).toBe("Contract addresses (C...) must use fiat payout.");
+    expect(issue!.friendlyMessage).toContain("can only receive a fiat payout");
     expect(FlowGraphSchema.safeParse(splitFlow([ADDR_A, CONTRACT], "fiat")).success).toBe(true);
+    expect(
+      errorsOf(splitFlow([ADDR_A, CONTRACT], "fiat")).some(
+        (e) => e.path === "nodes.s.config.recipients.1.address",
+      ),
+    ).toBe(false);
   });
+
+  it.each(ALL_FIELDS)(
+    "$name: a secret seed, whole or partial, is refused at parse and never stored",
+    ({ graph }) => {
+      const seed = Keypair.random().secret();
+      for (const v of [seed, seed.slice(0, 10), "S", ` ${seed.toLowerCase()}`]) {
+        const r = FlowPatchSchema.safeParse({ graph: graph(v) });
+        expect(r.success, v.slice(0, 3)).toBe(false);
+        if (!r.success) expect(r.error.issues[0]!.message).toBe(SECRET_SEED_MESSAGE);
+      }
+      const v = validateFlow(graph(seed));
+      expect(v.ok).toBe(false);
+      if (!v.ok) {
+        expect(v.errors.every((e) => !e.friendlyMessage.includes(seed))).toBe(true);
+        expect(v.errors.some((e) => e.friendlyMessage === SECRET_SEED_MESSAGE)).toBe(true);
+      }
+    },
+  );
 });
 
 describe("validateFlow refuses a draft address (#588)", () => {
@@ -273,6 +304,17 @@ describe("validateFlow refuses a draft address (#588)", () => {
     expect(byPos!.friendlyMessage).toContain("split recipient #2");
   });
 
+  it("two blank split recipients are missing addresses, not also duplicates", () => {
+    const errors = errorsOf(splitFlow([ADDR_A, "", ""]));
+    expect(errors.filter((e) => e.message.startsWith("Duplicate address"))).toEqual([]);
+    expect(errors.filter((e) => e.message === "Missing Stellar address")).toHaveLength(2);
+  });
+
+  it("a real duplicate is still reported", () => {
+    const errors = errorsOf(splitFlow([ADDR_A, ADDR_B, ADDR_B]));
+    expect(errors.some((e) => e.message.startsWith("Duplicate address"))).toBe(true);
+  });
+
   it("refuses a draft in dev mode too, where a PENDING: placeholder would deploy", () => {
     const errors = errorsOf({ ...payFlow("GABC"), devMode: true });
     expect(errors.some((e) => e.path === "nodes.p.config.recipient")).toBe(true);
@@ -314,10 +356,10 @@ describe("complete addresses and PENDING: placeholders behave as before (#588)",
 
   it("only a split recipient accepts a C… contract", () => {
     for (const f of ALL_FIELDS) {
-      const g = FlowGraphSchema.safeParse(f.graph(CONTRACT));
-      // A crypto split recipient that is a contract fails the existing refine.
-      if (!g.success) continue;
-      expect(addressIssues(g.data).map((i) => i.path)).toEqual([f.path]);
+      // Every field raises one issue, including a crypto split recipient.
+      expect(addressIssues(FlowGraphSchema.parse(f.graph(CONTRACT))).map((i) => i.path)).toEqual([
+        f.path,
+      ]);
     }
     expect(
       addressIssues(FlowGraphSchema.parse(splitFlow([ADDR_A, CONTRACT], "fiat"))).map(
