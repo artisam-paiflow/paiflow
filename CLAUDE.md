@@ -158,6 +158,14 @@ heartbeats with `: ping`, and unsubscribes on abort. The other `cron/*` routes d
 `auto-charge-payroll`, `auto-charge-subscriptions`, `auto-release`, `finalize-deployments`,
 `process-offramp-jobs`, `process-streamer-jobs`.
 
+Rows also arrive on demand, outside the cron: the `/api/v1` execute submit and `tx-status` ingest the
+transaction they just sent, the SSE handler runs `pollEventsFor()` when a stream connects, and
+`GET /api/v1/deployments/:id/events` runs a bounded `pollEventsFor()` when the cursor is older than
+10 s — one poll at a time per deployment, the next no sooner than 10 s after the last ends, claimed
+in Redis (per replica without it; `lib/api/v1/events-freshness.ts`). Every writer moves
+`EventCursor` through `advanceEventCursor()` in `lib/stellar/events.ts`, which only goes forward;
+never upsert the cursor directly.
+
 ### Fiat off-ramp is a job queue
 
 Payouts marked as fiat create `OffRampPayoutJob` rows that walk
