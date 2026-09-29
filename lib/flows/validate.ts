@@ -71,6 +71,10 @@ const FRIENDLY = {
     const names = recipients.map((r) => r.label?.trim() || r.address);
     return `Each fixed-amount recipient needs a positive amount: ${names.join(", ")}.`;
   },
+  SHARE_REQUIRED: (recipients: { label?: string; address: string }[]) => {
+    const names = recipients.map((r) => r.label?.trim() || r.address);
+    return `Each recipient in a percentage split needs a share greater than 0%: ${names.join(", ")}. Enter a share, or remove the recipient.`;
+  },
   TOTAL_FIXED_AMOUNT_REQUIRED: "Add at least one positive fixed amount to the split.",
   AMOUNT_PER_INTERVAL_REQUIRED:
     "A scheduled split needs an amount per interval — the total released each interval, divided among the recipients by their shares. Set it on the split step, or switch the recipients to fixed amounts (each then receives their amount every interval).",
@@ -590,6 +594,18 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       const mode = a.config.recipients[0]?.mode ?? "percentage";
 
       if (mode === "percentage") {
+        // The schema lets a 0 share parse so the panel can autosave a cleared
+        // field (#583). It must never reach the splitter: its constructor only
+        // checks the sum, so a 0 entry deploys, and as the last recipient it
+        // would be paid the rounding remainder of everyone else's share.
+        const zeroShare = a.config.recipients.filter((r) => r.mode === "percentage" && r.bps <= 0);
+        if (zeroShare.length > 0) {
+          errors.push({
+            path: `nodes.${a.id}.config.recipients`,
+            message: `Every percentage recipient needs a share greater than 0 bps (${zeroShare.length} at 0)`,
+            friendlyMessage: FRIENDLY.SHARE_REQUIRED(zeroShare),
+          });
+        }
         const sum = a.config.recipients.reduce(
           (s, r) => (r.mode === "percentage" ? s + r.bps : s),
           0,

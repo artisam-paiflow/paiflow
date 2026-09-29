@@ -192,15 +192,13 @@ export const PayAction = z.object({
       accountNumber: z.string().optional(),
       bankCode: z.string().optional(),
     })
-    .refine(
-      (c) => {
-        if (c.fullAmount || c.fillValueViaApi) return true;
-        if (c.mode === "fixed") return !!c.amountStroops && c.amountStroops !== "0";
-        if (c.mode === "percentage") return c.percentage !== undefined && c.percentage > 0;
-        return false;
-      },
-      { message: "Invalid pay configuration for the selected mode" },
-    ),
+    // Only the mode is structural here. A zero or missing amount/percentage is
+    // what a half-edited panel autosaves (a cleared field, a fresh switch to
+    // percentage), so it must parse or every save 422s and the edit is lost
+    // (#583). `validateFlow` refuses it before deploy, with a field error.
+    .refine((c) => c.fullAmount || c.fillValueViaApi || c.mode !== undefined, {
+      message: "Invalid pay configuration for the selected mode",
+    }),
 });
 
 const SplitRecipientBase = z.object({
@@ -219,7 +217,9 @@ export const SplitRecipient = z
   .discriminatedUnion("mode", [
     SplitRecipientBase.extend({
       mode: z.literal("percentage"),
-      bps: z.number().int().min(1).max(10_000),
+      // 0 parses so a cleared or not-yet-set share can autosave (#583);
+      // `validateFlow` refuses it before deploy.
+      bps: bpsSchema(),
     }),
     SplitRecipientBase.extend({
       mode: z.literal("fixed"),
