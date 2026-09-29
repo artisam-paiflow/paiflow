@@ -11,7 +11,6 @@ import {
   TOTAL_BPS,
   assetLabel,
   stroopsToDisplay,
-  tokenAmountToStroops,
   splitTotalFixedStroops,
   type SplitRecipient,
 } from "@/lib/flows/schema";
@@ -24,6 +23,7 @@ import { computeAssetFlow, FIAT_PAYOUT_TRIGGERS, type ValidationIssue } from "@/
 import { nodeIssues } from "@/lib/flows/issue-paths";
 import { AssetField, Field } from "./panels/asset-fields";
 import SwapPanel from "./panels/swap-panel";
+import { StroopsDraftInput } from "./inputs/stroops-draft-input";
 
 /**
  * Sentinel for an address field a developer chose to leave blank at design time
@@ -280,14 +280,11 @@ export default function ConfigPanel({
             label={`Minimum amount (${assetLabel(node.config.asset)}), optional`}
             error={fieldError("minAmountStroops")}
           >
-            <input
+            <StroopsDraftInput
               className="input font-mono"
-              value={
-                node.config.minAmountStroops ? formatStroops(node.config.minAmountStroops) : ""
-              }
+              value={node.config.minAmountStroops}
               placeholder="Any amount"
-              onChange={(e) => {
-                const stroops = tokenAmountToStroops(e.target.value);
+              onChange={(stroops) => {
                 onChange({
                   ...node,
                   config: { ...node.config, minAmountStroops: stroops || undefined },
@@ -665,15 +662,15 @@ export default function ConfigPanel({
               label={`Amount per interval (${assetLabel(node.config.asset)})`}
               error={fieldError("amountStroops")}
             >
-              <input
+              <StroopsDraftInput
                 className="input"
-                value={node.config.amountStroops ? formatStroops(node.config.amountStroops) : ""}
-                onChange={(e) =>
+                value={node.config.amountStroops}
+                onChange={(stroops) =>
                   onChange({
                     ...node,
                     config: {
                       ...node.config,
-                      amountStroops: tokenAmountToStroops(e.target.value),
+                      amountStroops: stroops,
                     },
                   } as FlowNode)
                 }
@@ -732,17 +729,15 @@ export default function ConfigPanel({
                       label={`Amount (${assetLabel(node.config.asset)})`}
                       error={fieldError("amountStroops")}
                     >
-                      <input
+                      <StroopsDraftInput
                         className="input"
-                        value={
-                          node.config.amountStroops ? formatStroops(node.config.amountStroops) : ""
-                        }
-                        onChange={(e) =>
+                        value={node.config.amountStroops}
+                        onChange={(stroops) =>
                           onChange({
                             ...node,
                             config: {
                               ...node.config,
-                              amountStroops: tokenAmountToStroops(e.target.value),
+                              amountStroops: stroops,
                             },
                           })
                         }
@@ -852,16 +847,11 @@ export default function ConfigPanel({
                 }
                 error={fieldError("amountPerIntervalStroops")}
               >
-                <input
+                <StroopsDraftInput
                   className="input"
-                  value={
-                    node.config.amountPerIntervalStroops
-                      ? formatStroops(node.config.amountPerIntervalStroops)
-                      : ""
-                  }
+                  value={node.config.amountPerIntervalStroops}
                   placeholder="Amount released each interval"
-                  onChange={(e) => {
-                    const stroops = tokenAmountToStroops(e.target.value);
+                  onChange={(stroops) => {
                     onChange({
                       ...node,
                       config: {
@@ -1004,15 +994,15 @@ export default function ConfigPanel({
                 label={`Amount per period (${assetLabel(node.config.asset)})`}
                 error={fieldError("amountPerPeriodStroops")}
               >
-                <input
+                <StroopsDraftInput
                   className="input"
-                  value={formatStroops(node.config.amountPerPeriodStroops)}
-                  onChange={(e) =>
+                  value={node.config.amountPerPeriodStroops}
+                  onChange={(stroops) =>
                     onChange({
                       ...node,
                       config: {
                         ...node.config,
-                        amountPerPeriodStroops: tokenAmountToStroops(e.target.value),
+                        amountPerPeriodStroops: stroops,
                       },
                     })
                   }
@@ -1562,11 +1552,10 @@ export default function ConfigPanel({
           </Field>
           {(node.config.kind === "amount_gt" || node.config.kind === "amount_lt") && (
             <Field label="Threshold" error={fieldError("amountStroops")}>
-              <input
+              <StroopsDraftInput
                 className="input"
-                value={formatStroops(node.config.amountStroops)}
-                onChange={(e) => {
-                  const stroops = tokenAmountToStroops(e.target.value);
+                value={node.config.amountStroops}
+                onChange={(stroops) => {
                   const next =
                     node.config.kind === "amount_gt"
                       ? { kind: "amount_gt" as const, amountStroops: stroops }
@@ -2043,18 +2032,11 @@ function SplitRecipientsEditor({
                       </Field>
                     ) : (
                       <Field label="Amount" error={recipientError(i, "amountStroops")}>
-                        <input
+                        <StroopsDraftInput
                           className="input text-right"
-                          value={
-                            (r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops
-                              ? formatStroops(
-                                  (r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops,
-                                )
-                              : ""
-                          }
+                          value={(r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops}
                           placeholder="0"
-                          onChange={(e) => {
-                            const stroops = tokenAmountToStroops(e.target.value);
+                          onChange={(stroops) => {
                             updateRecipient(i, {
                               ...r,
                               amountStroops: stroops || "0",
@@ -2142,15 +2124,14 @@ function SplitRecipientsEditor({
                       ) : (
                         <>
                           <div className="relative">
-                            <input
+                            <StroopsDraftInput
                               className={cn(
                                 "input pr-5 text-right",
                                 recipientError(i, "amountStroops") && "!border-error/70",
                               )}
-                              value={r.amountStroops ? formatStroops(r.amountStroops) : ""}
+                              value={r.amountStroops}
                               placeholder="0"
-                              onChange={(e) => {
-                                const stroops = tokenAmountToStroops(e.target.value);
+                              onChange={(stroops) => {
                                 updateRecipient(i, {
                                   ...r,
                                   amountStroops: stroops || "0",
