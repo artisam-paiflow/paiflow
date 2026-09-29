@@ -11,10 +11,11 @@ the builder, deployed and triggered with Freighter, and then run again from a ba
 developer API, all on one deployment, once on camera and once by a script that keeps every
 transaction in full. The package a reviewer needs to check the sprint is now public: a 3:49
 technical walkthrough video, an integration guide that takes a newcomer from the builder to the
-API, a generated list of every swap the public app settled, and a [handoff page](handoff.md) that
-maps each row of the Statement of Work's checklist to its evidence. For a user, a payout to a
-wallet that does not trust the right USDC now says so, naming the asset and its issuer, instead of
-failing as "error #13".
+API, a generated list of every swap the public app settled up to the 26 September snapshot
+(refreshed from the final one on 3 October), and a [handoff page](handoff.md) that maps each row of
+the Statement of Work's checklist to its evidence. For a user, a payout to a wallet that does not
+trust the right USDC now says so, naming the asset and its issuer, instead of failing as "error
+#13".
 
 ## Changelog
 
