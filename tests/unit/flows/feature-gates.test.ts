@@ -209,6 +209,19 @@ describe("validateFlow with surface switches (#722)", () => {
     }
   });
 
+  it("drops the sender-KYC rule while the off-ramp is off, since there is no KYC to collect", () => {
+    const { senderKyc: _kyc, ...noKyc } = GRAPHS["fiat pay step"]!.graph as Record<string, unknown>;
+    const on = validateFlow(noKyc, { features: ALL_FEATURES_ON });
+    expect(on.ok).toBe(false);
+    if (!on.ok) expect(on.errors.some((e) => e.path === "senderKyc")).toBe(true);
+    const r = validateFlow(noKyc, { features: off("offramp") });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => e.path === "senderKyc")).toBe(false);
+      expect(r.errors[0]!.code).toBe("FEATURE_DISABLED");
+    }
+  });
+
   it("puts the switch issue first, ahead of the flow's other issues", () => {
     const graph = {
       nodes: [

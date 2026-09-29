@@ -18,11 +18,15 @@ import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
-import { computeAssetFlow, FIAT_PAYOUT_TRIGGERS, type ValidationIssue } from "@/lib/flows/validate";
+import { computeAssetFlow, type ValidationIssue } from "@/lib/flows/validate";
 import { nodeIssues } from "@/lib/flows/issue-paths";
 import type { FeatureFlags } from "@/lib/feature-flags";
 import { AssetField, Field } from "./panels/asset-fields";
 import { defaultShares } from "./panels/split-shares.utils";
+import {
+  fiatPayoutAvailable as fiatAvailable,
+  showPayoutModeSelect,
+} from "./panels/payout-mode.utils";
 import SwapPanel from "./panels/swap-panel";
 import { BpsDraftInput } from "./inputs/bps-draft-input";
 import { StroopsDraftInput } from "./inputs/stroops-draft-input";
@@ -185,12 +189,10 @@ export default function ConfigPanel({
   // details are filled via the API after deploy).
   // Off on this server (#722), fiat is not offered; a pay step saved with it
   // still shows the selector, so it can be switched back to crypto.
-  const fiatPayoutAvailable =
-    features.offramp &&
-    (triggerType === "payroll" ||
-      (!devMode && triggerType !== null && FIAT_PAYOUT_TRIGGERS.has(triggerType)));
-  const payFiatStranded =
-    !features.offramp && node.type === "pay" && node.config.payoutMode === "fiat";
+  const fiatPayoutAvailable = fiatAvailable(features.offramp, triggerType, devMode);
+  const payPayoutSelect =
+    node.type === "pay" &&
+    showPayoutModeSelect(fiatPayoutAvailable, features.offramp, node.config.payoutMode);
 
   // Payroll distributions must be fixed salary amounts. If a user switches an
   // existing percentage split to a payroll trigger, convert the recipients to
@@ -549,7 +551,7 @@ export default function ConfigPanel({
             </ApiFillField>
           )}
 
-          {(fiatPayoutAvailable || payFiatStranded) && (
+          {payPayoutSelect && (
             <div className="space-y-2 pt-1">
               <Field label="Payout mode">
                 <select
@@ -1804,10 +1806,7 @@ function SplitRecipientsEditor({
   const triggerType = trigger?.type ?? null;
   const isPayroll = triggerType === "payroll";
   const isStreamer = triggerType === "on_schedule";
-  const fiatPayoutAvailable =
-    offrampEnabled &&
-    (triggerType === "payroll" ||
-      (!devMode && triggerType !== null && FIAT_PAYOUT_TRIGGERS.has(triggerType)));
+  const fiatPayoutAvailable = fiatAvailable(offrampEnabled, triggerType, devMode);
   const mode = isPayroll ? "fixed" : (node.config.recipients[0]?.mode ?? "percentage");
   const totalFixed = splitTotalFixedStroops(node.config.recipients);
   const minAmount = trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
@@ -2178,7 +2177,7 @@ function SplitRecipientsEditor({
                   </>
                 )}
 
-                {(fiatPayoutAvailable || (!offrampEnabled && r.payoutMode === "fiat")) && (
+                {showPayoutModeSelect(fiatPayoutAvailable, offrampEnabled, r.payoutMode) && (
                   <div className="space-y-2 pt-1">
                     <Field label="Payout mode">
                       <select

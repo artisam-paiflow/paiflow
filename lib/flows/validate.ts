@@ -508,7 +508,11 @@ export function validateFlow(rawGraph: unknown, opts: ValidateFlowOptions = {}):
   if (!graph) return result;
   const gated = hiddenSurfaceIssues(graph, opts.features);
   if (gated.length === 0) return result;
-  return { ok: false, errors: [...gated, ...(result.ok ? [] : result.errors)] };
+  // With the off-ramp off there is no KYC to collect (the button is hidden),
+  // so the KYC rule would be an instruction the user cannot follow.
+  const offramp = opts.features.offramp;
+  const rest = result.ok ? [] : result.errors.filter((e) => offramp || e.path !== "senderKyc");
+  return { ok: false, errors: [...gated, ...rest] };
 }
 
 function validateFlowStructure(rawGraph: unknown): ValidationResult {

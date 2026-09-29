@@ -8,7 +8,6 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { FlowSaveSchema } from "@/lib/flows/schema";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
-import { serverFeatures } from "@/lib/features";
 import { flowToPipeline } from "@/lib/flows/to-params";
 
 const ListQuerySchema = z.object({
@@ -47,8 +46,7 @@ export async function POST(req: NextRequest) {
     if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many writes");
 
     const body = FlowSaveSchema.parse(await req.json());
-    // Creating a flow is new use, so a switched-off block is refused (#722).
-    const v = validateFlow(body.graph, { features: serverFeatures() });
+    const v = validateFlow(body.graph);
     if (!v.ok) {
       throw new AppError("VALIDATION", "Invalid flow graph", issuesToFields(v.errors));
     }

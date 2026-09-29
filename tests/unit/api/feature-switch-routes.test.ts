@@ -13,7 +13,8 @@ import type { NextRequest } from "next/server";
 
 const { mockDb, mockAuth, mockGroq, mockDeploy, mockRelayer } = vi.hoisted(() => ({
   mockDb: {
-    flow: { findFirst: vi.fn() },
+    flow: { findFirst: vi.fn(), update: vi.fn() },
+    employee: { findMany: vi.fn() },
     deployment: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   },
   mockAuth: {
@@ -149,8 +150,33 @@ const FIAT_PAY_GRAPH = {
   edges: [{ id: "e1", source: "t", target: "a" }],
 };
 
+const CASH_OUT_GRAPH = {
+  senderKyc: FIAT_PAY_GRAPH.senderKyc,
+  nodes: [
+    { id: "t", type: "on_receive", config: { asset: USDC } },
+    {
+      id: "a",
+      type: "split",
+      config: {
+        asset: USDC,
+        recipients: [{ address: ADDR_B, mode: "fixed", amountStroops: "400000000" }],
+      },
+    },
+    {
+      id: "c",
+      type: "cash_out",
+      config: { asset: USDC, accountName: "Bob", accountNumber: "1", bankCode: "BASECPH" },
+    },
+  ],
+  edges: [
+    { id: "e1", source: "t", target: "a" },
+    { id: "e2", source: "a", target: "c" },
+  ],
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
+  mockDb.employee.findMany.mockResolvedValue([]);
   for (const s of SWITCHES) delete process.env[s];
   mockDb.deployment.create.mockResolvedValue({ id: ID });
   mockDb.deployment.update.mockResolvedValue({});
@@ -191,9 +217,14 @@ describe("env: the four switches", () => {
     expect((await features()).offramp).toBe(true);
   });
 
-  it("refuses a value it cannot read rather than guessing", async () => {
+  it("reads a value it cannot parse as OFF instead of crashing every route", async () => {
     process.env.FEATURE_AI_ASSISTANT_ENABLED = "flase";
-    await expect(features()).rejects.toThrow(/FEATURE_AI_ASSISTANT_ENABLED/);
+    const f = await features();
+    expect(f.aiAssistant).toBe(false);
+    expect(f.payroll).toBe(true);
+    // env() still parses, so crons and live deployments are unaffected.
+    const { env } = await import("@/lib/env");
+    expect(() => env()).not.toThrow();
   });
 });
 
@@ -206,6 +237,7 @@ describe("POST /api/deployments/prepare", () => {
 
   it.each([
     ["payroll", "FEATURE_PAYROLL_ENABLED", PAYROLL_GRAPH, "nodes.t", /Payroll is turned off/],
+    ["cash-out", "FEATURE_OFFRAMP_ENABLED", CASH_OUT_GRAPH, "nodes.c", /Fiat off-ramp/],
     ["oracle", "FEATURE_ORACLE_CONDITION_ENABLED", ORACLE_GRAPH, "nodes.c", /oracle condition/],
     ["fiat pay", "FEATURE_OFFRAMP_ENABLED", FIAT_PAY_GRAPH, "nodes.a", /Fiat off-ramp/],
   ] as const)(
@@ -226,6 +258,7 @@ describe("POST /api/deployments/prepare", () => {
     ["payroll", PAYROLL_GRAPH],
     ["oracle", ORACLE_GRAPH],
     ["fiat pay", FIAT_PAY_GRAPH],
+    ["cash-out", CASH_OUT_GRAPH],
   ] as const)("prepares a %s flow when every switch is left unset", async (_n, graph) => {
     setSwitch("FEATURE_PAYROLL_ENABLED", undefined);
     const res = await prepare(graph);
@@ -339,8 +372,9 @@ describe("off-ramp routes", () => {
     expect(mockDb.deployment.update).toHaveBeenCalledOnce();
   });
 
-  it("refuses a fiat recipient on the dev splitter when off", async () => {
+  it("refuses a NEW fiat recipient on the dev splitter when off", async () => {
     setSwitch("FEATURE_OFFRAMP_ENABLED", "false");
+    mockDb.deployment.findFirst.mockResolvedValue({ id: ID, pipelineSnapshot: [] });
     const { POST } = await import("@/app/api/deployments/[id]/dev-splitter/route");
     const res = await POST(
       jsonRequest({
@@ -356,7 +390,87 @@ describe("off-ramp routes", () => {
       ctx(),
     );
     expect(res.status).toBe(422);
-    expect(mockDb.deployment.findFirst).not.toHaveBeenCalled();
+    expect((await res.json()).error.fields.recipients[0]).toMatch(/Existing fiat recipients/);
+  });
+
+  it("refuses a NEW fiat employee on payroll-update-recipients when off", async () => {
+    setSwitch("FEATURE_OFFRAMP_ENABLED", "false");
+    mockDb.deployment.findFirst.mockResolvedValue({ id: ID, flow: { templateKind: "PAYROLL" } });
+    const { POST } = await import("@/app/api/deployments/[id]/payroll-update-recipients/route");
+    const res = await POST(
+      jsonRequest({
+        recipients: [
+          {
+            amount: "10000000",
+            payoutMode: "fiat",
+            bankDetail: { accountName: "B", accountNumber: "9", bankCode: "BASECPH" },
+          },
+        ],
+      }) as never,
+      ctx(),
+    );
+    expect(res.status).toBe(422);
+  });
+});
+
+describe("refuseNewFiatRecipients: existing fiat recipients keep updating", () => {
+  const fiat = (accountNumber: string) => ({
+    payoutMode: "fiat",
+    bankDetail: { accountNumber, bankCode: "BASECPH" },
+  });
+
+  it("lets a roster that keeps an existing fiat employee and edits a crypto one through", async () => {
+    setSwitch("FEATURE_OFFRAMP_ENABLED", "false");
+    mockDb.employee.findMany.mockResolvedValue([
+      { bankDetail: { accountNumber: "111", bankCode: "BASECPH" } },
+    ]);
+    const { refuseNewFiatRecipients } = await import("@/lib/features");
+    await expect(
+      refuseNewFiatRecipients(ID, [fiat("111"), { payoutMode: "crypto" }]),
+    ).resolves.toBeUndefined();
+    await expect(refuseNewFiatRecipients(ID, [fiat("111"), fiat("222")])).rejects.toThrow(
+      /Fiat off-ramp is turned off/,
+    );
+  });
+
+  it("does not look anything up while the off-ramp is on, or for a crypto-only roster", async () => {
+    const { refuseNewFiatRecipients } = await import("@/lib/features");
+    await refuseNewFiatRecipients(ID, [fiat("222")]);
+    setSwitch("FEATURE_OFFRAMP_ENABLED", "false");
+    const off = await import("@/lib/features");
+    await off.refuseNewFiatRecipients(ID, [{ payoutMode: "crypto" }]);
+    expect(mockDb.employee.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("flow save and validate", () => {
+  it("PATCH (autosave) still saves an old flow holding a switched-off block", async () => {
+    setSwitch("FEATURE_PAYROLL_ENABLED", "false");
+    mockDb.flow.findFirst.mockResolvedValue({
+      id: ID,
+      ownerId: "user-1",
+      name: "old",
+      graph: { nodes: [], edges: [] },
+      templateKind: "SPLITTER",
+      parameters: {},
+    });
+    mockDb.flow.update.mockImplementation(async ({ data }: { data: unknown }) => data);
+    const { PATCH } = await import("@/app/api/flows/[id]/route");
+    const res = await PATCH(jsonRequest({ graph: PAYROLL_GRAPH }) as never, ctx());
+    expect(res.status).toBe(200);
+    const saved = mockDb.flow.update.mock.calls[0]![0] as {
+      data: { graph: { nodes: Array<{ type: string }> } };
+    };
+    expect(saved.data.graph.nodes.map((n) => n.type)).toEqual(["payroll", "split"]);
+  });
+
+  it("POST /api/flows/:id/validate reports the switched-off block", async () => {
+    setSwitch("FEATURE_ORACLE_CONDITION_ENABLED", "false");
+    mockDb.flow.findFirst.mockResolvedValue({ id: ID, graph: ORACLE_GRAPH });
+    const { POST } = await import("@/app/api/flows/[id]/validate/route");
+    const json = await (await POST(jsonRequest({}) as never, ctx())).json();
+    expect(json.data.ok).toBe(false);
+    expect(json.data.errors[0]).toMatchObject({ code: "FEATURE_DISABLED", nodeId: "c" });
   });
 });
 

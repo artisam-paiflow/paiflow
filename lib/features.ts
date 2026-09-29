@@ -1,6 +1,8 @@
 import "server-only";
 import type { TemplateKind } from "@prisma/client";
+import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { log } from "@/lib/log";
 import { AppError } from "@/lib/errors";
 import {
   disabledTemplateKinds,
@@ -13,15 +15,39 @@ import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { FlowGraphSchema, migrateFlowGraph, type FlowGraph } from "@/lib/flows/schema";
 
 /** The surface switches for this server, from `FEATURE_*_ENABLED` (all default on). */
+const warnedUnrecognised = new Set<string>();
+
+/**
+ * Only an explicit ON keeps a surface on: unset is ON (the env default), a
+ * recognised off is OFF, and a value `env()` could not read is OFF too, with a
+ * warning, so a typo during an event hides the surface instead of crashing
+ * every route or leaving it showing.
+ */
+function switchOn(name: string, value: boolean | "unrecognised" | undefined): boolean {
+  if (value === "unrecognised") {
+    if (!warnedUnrecognised.has(name)) {
+      warnedUnrecognised.add(name);
+      log.warn(
+        { variable: name },
+        "unrecognised feature switch value; treating the surface as off",
+      );
+    }
+    return false;
+  }
+  return value !== false;
+}
+
 export function serverFeatures(): FeatureFlags {
   const e = env();
-  // `!== false`, not the bare value: only an explicit off turns a surface off,
-  // so a caller holding a partial env (a test double) sees the default.
+  // A caller holding a partial env (a test double) reads unset, so ON.
   return {
-    offramp: e.FEATURE_OFFRAMP_ENABLED !== false,
-    payroll: e.FEATURE_PAYROLL_ENABLED !== false,
-    aiAssistant: e.FEATURE_AI_ASSISTANT_ENABLED !== false,
-    oracleCondition: e.FEATURE_ORACLE_CONDITION_ENABLED !== false,
+    offramp: switchOn("FEATURE_OFFRAMP_ENABLED", e.FEATURE_OFFRAMP_ENABLED),
+    payroll: switchOn("FEATURE_PAYROLL_ENABLED", e.FEATURE_PAYROLL_ENABLED),
+    aiAssistant: switchOn("FEATURE_AI_ASSISTANT_ENABLED", e.FEATURE_AI_ASSISTANT_ENABLED),
+    oracleCondition: switchOn(
+      "FEATURE_ORACLE_CONDITION_ENABLED",
+      e.FEATURE_ORACLE_CONDITION_ENABLED,
+    ),
   };
 }
 
@@ -55,6 +81,41 @@ export function refuseIfFeatureOff(surface: FeatureSurface, field: string): void
 }
 
 /**
+ * For the routes that replace a deployed roster (dev-splitter,
+ * payroll-update-recipients): with the off-ramp off, a fiat recipient already
+ * on this deployment (same bank account) may stay, so crypto edits and amount
+ * changes keep working; a new fiat recipient, which would deploy a cash-out
+ * sink and queue off-ramp jobs, is refused. Call after the ownership check.
+ */
+export async function refuseNewFiatRecipients(
+  deploymentId: string,
+  recipients: ReadonlyArray<{
+    payoutMode?: string;
+    bankDetail?: { accountNumber: string; bankCode: string };
+  }>,
+): Promise<void> {
+  if (isFeatureEnabled("offramp")) return;
+  const fiat = recipients.filter((r) => r.payoutMode === "fiat");
+  if (fiat.length === 0) return;
+  const existing = await db.employee.findMany({
+    where: { deploymentId, payoutMode: "FIAT" },
+    select: { bankDetail: { select: { accountNumber: true, bankCode: true } } },
+  });
+  const known = new Set(
+    existing.flatMap((e) =>
+      e.bankDetail ? [`${e.bankDetail.accountNumber}|${e.bankDetail.bankCode}`] : [],
+    ),
+  );
+  const fresh = fiat.some(
+    (r) => !r.bankDetail || !known.has(`${r.bankDetail.accountNumber}|${r.bankDetail.bankCode}`),
+  );
+  if (fresh) {
+    const message = `${featureOffMessage("offramp")} Existing fiat recipients can stay; add new ones in crypto.`;
+    throw new AppError("VALIDATION", message, { recipients: [message] });
+  }
+}
+
+/**
  * Refuses a deploy that would create a switched-off surface: every node of the
  * graph, then every contract kind of the generated pipeline, the way the
  * sandbox guard in `/api/deployments/prepare` checks each pipeline node. The
@@ -63,7 +124,7 @@ export function refuseIfFeatureOff(surface: FeatureSurface, field: string): void
  */
 export function assertNoHiddenSurfaces(
   graph: FlowGraph,
-  pipelineKinds: readonly TemplateKind[],
+  pipelineKinds: readonly string[],
   features: FeatureFlags = serverFeatures(),
 ): void {
   const issues = hiddenSurfaceIssues(graph, features);
@@ -71,7 +132,7 @@ export function assertNoHiddenSurfaces(
     throw new AppError("VALIDATION", issues[0]!.friendlyMessage, issuesToFields(issues));
   }
   const refused = disabledTemplateKinds(features);
-  const hit = [...new Set(pipelineKinds.filter((k) => refused.includes(k)))];
+  const hit = [...new Set(pipelineKinds.filter((k) => (refused as readonly string[]).includes(k)))];
   if (hit.length > 0) {
     throw new AppError(
       "VALIDATION",

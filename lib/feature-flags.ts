@@ -72,6 +72,9 @@ export const FEATURE_GATED_BLOCKS: Readonly<
     fiatPayout: false,
     templateKinds: [TemplateKind.PAYROLL],
   },
+  // Not a block: the assistant has no node, so every block list is empty and
+  // it is gated on its routes and UI alone. A guide listing visible blocks
+  // reads only the surfaces with nodeTypes, conditionKinds or fiatPayout.
   aiAssistant: {
     envVar: "FEATURE_AI_ASSISTANT_ENABLED",
     label: "The AI assistant",

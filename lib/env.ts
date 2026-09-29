@@ -118,23 +118,20 @@ const boolishDefault = (defaultValue: boolean) =>
     .default(defaultValue);
 
 // A surface switch (#722): unset or blank is ON, so nothing changes until an
-// operator sets it. Anything but a recognised spelling fails env() at startup
-// rather than guessing: "flase" silently leaving payroll on during an event is
-// the failure this refuses.
+// operator sets it. A value it cannot read is not a startup error, which would
+// take every route (crons and live deployments included) down over a typo:
+// it parses to "unrecognised", which lib/features.ts treats as OFF and warns
+// about, so "flase" hides the surface rather than leaving it showing.
 const featureSwitch = z
   .union([z.boolean(), z.string()])
   .optional()
-  .transform((v, ctx) => {
+  .transform((v): boolean | "unrecognised" => {
     if (v === undefined) return true;
     if (typeof v === "boolean") return v;
     const s = v.trim().toLowerCase();
     if (s === "" || s === "true" || s === "1" || s === "on" || s === "yes") return true;
     if (s === "false" || s === "0" || s === "off" || s === "no") return false;
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: `"${v}" is not a switch value; use true or false`,
-    });
-    return z.NEVER;
+    return "unrecognised" as const;
   });
 
 // Soroswap router address, pinned per network. Validated at config load so a
