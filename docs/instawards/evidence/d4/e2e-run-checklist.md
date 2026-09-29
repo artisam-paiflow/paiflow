@@ -1,5 +1,8 @@
 # End-to-end run with an external wallet: checklist
 
+> **Recorded 28 September.** The recording and its record are in the
+> [D4 evidence pack](README.md#the-freighter-run-28-september).
+
 SOW §5.1 week 4: "End-to-end integration test with external wallet". This is the human half. It
 needs a real wallet (Freighter), signing through the app on the current build, in one unedited
 screen recording. The scripted half is [`01`–`03-e2e-*`](README.md). The technical walkthrough
