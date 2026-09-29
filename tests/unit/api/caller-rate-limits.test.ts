@@ -72,6 +72,9 @@ async function burn(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // A request refused by a backstop that runs before getSessionUser() leaves
+  // its queued session unconsumed; drop it so it cannot leak into the next test.
+  mockSession.mockReset();
   mockDb.deployment.findFirst.mockImplementation(async ({ where }: { where: { id: string } }) => ({
     id: where.id,
     status: "CONFIRMED",
@@ -134,10 +137,35 @@ for (const [name, handler, limits] of routes) {
       expect(mockDb.deployment.findFirst).not.toHaveBeenCalled();
     });
 
-    it("answers 404 for a deployment the caller does not own", async () => {
-      mockDb.deployment.findFirst.mockResolvedValueOnce(null);
-      const res = await call(name, handler, crypto.randomUUID(), freshIp(), user());
-      expect(res.status).toBe(404);
+    it("answers 404 for a deployment the caller does not own, and spends none of its bucket", async () => {
+      const ip = freshIp();
+      const id = crypto.randomUUID();
+      const alice = user();
+      for (let i = 0; i < limits.perCaller.limit; i++) {
+        mockDb.deployment.findFirst.mockResolvedValueOnce(null);
+        expect((await call(name, handler, id, ip, alice)).status).toBe(404);
+      }
+      // Had the 404s counted, this would be request limit + 1 on the bucket.
+      expect((await call(name, handler, id, ip, alice)).status).toBe(200);
+    });
+
+    it("checks the IP backstop before the ownership lookup", async () => {
+      const ip = freshIp();
+      for (let i = 0; i < limits.ipBackstop.limit; i++) {
+        await call(name, handler, crypto.randomUUID(), ip, user());
+      }
+      mockDb.deployment.findFirst.mockClear();
+      expect((await call(name, handler, crypto.randomUUID(), ip, user())).status).toBe(429);
+      expect(mockDb.deployment.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("keys a SANDBOX-role user on the user like any other", async () => {
+      const ip = freshIp();
+      const id = crypto.randomUUID();
+      const visitor = { ...user(), role: "SANDBOX" };
+      const statuses = await burn(name, handler, limits.perCaller.limit + 1, id, ip, visitor);
+      expect(statuses.at(-1)).toBe(429);
+      expect((await call(name, handler, id, ip, user())).status).toBe(200);
     });
   });
 }
@@ -158,7 +186,13 @@ describe("audit/wallet-connection rate limits (#725)", () => {
       }),
     );
   };
-  const { perCaller } = CALLER_RATE_LIMITS.walletConnect;
+  const { perCaller, ipBackstop } = CALLER_RATE_LIMITS.walletConnect;
+
+  it("still trips the per-IP backstop across signed-in users", async () => {
+    const ip = freshIp();
+    for (let i = 0; i < ipBackstop.limit; i++) expect((await post(ip, user())).status).toBe(200);
+    expect((await post(ip, user())).status).toBe(429);
+  });
 
   it("gives two signed-in users on the same IP separate buckets", async () => {
     const ip = freshIp();
