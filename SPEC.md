@@ -178,6 +178,9 @@ Money:
 - No duplicate recipient addresses in a split — a duplicate is far more likely a mistake than an
   intent to pay someone twice.
 - A scheduled split requires a positive amount per interval.
+- `amount_gt` and `amount_lt` are both strict. An amount condition sends every payment down one of
+  two paths, and both must lead to a step: money routed to an empty path would sit in a contract
+  that cannot release it. Until conditions carry a second branch, amount conditions cannot deploy.
 - Amounts are stroops as decimal strings end to end. See [`CLAUDE.md` §3.3](./CLAUDE.md#33-typescript).
 
 Fiat payouts:
