@@ -275,6 +275,12 @@ const EnvSchema = z.object({
   OFFRAMP_PDAX_DEPOSIT_MEMO_MAINNET: optionalNumericMemo,
 
   CRON_SECRET: optionalString,
+
+  // How many proxies in front of the app append to X-Forwarded-For; see
+  // clientIp() in lib/rate-limit.ts. 0 = the edge replaces the header (Railway).
+  // Invalid values make env() throw rather than guess: this decides which address
+  // every per-IP limit sees.
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
   SENTRY_DSN: optionalString,
 
   // ---- Analytics (PostHog) ----

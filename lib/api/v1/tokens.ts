@@ -23,7 +23,7 @@ export const DEMO_TOKEN_LABEL = "public demo";
  * redundant: `rateLimit()` counts fixed windows, so up to twice the limit can be
  * minted inside one 60-minute token life across a window boundary. This cap is
  * what bounds live tokens, and it can evict one that has not expired — cheap to
- * force while `clientIp()` is spoofable (#433).
+ * force if `clientIp()` is ever spoofable (#433).
  */
 export const DEMO_MAX_ACTIVE_TOKENS = V1_RATE_LIMITS.demoTokenGlobal.limit;
 

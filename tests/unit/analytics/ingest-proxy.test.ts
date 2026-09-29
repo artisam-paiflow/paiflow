@@ -66,6 +66,16 @@ describe("/ingest proxy", () => {
     expect(sent.get("referer")).toBeNull();
   });
 
+  it("forwards the derived client address, never the raw X-Forwarded-For chain", async () => {
+    await call(POST, "https://beta.paiflow.xyz/ingest/e/", ["e"], {
+      method: "POST",
+      body: "payload",
+      headers: { "x-forwarded-for": "203.0.113.7:5123, 10.0.0.1, <junk>" },
+    });
+    const [, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect((init.headers as Headers).get("x-forwarded-for")).toBe("203.0.113.7");
+  });
+
   it("sends static paths to the assets host", async () => {
     await call(GET, "https://beta.paiflow.xyz/ingest/static/array.js", ["static", "array.js"]);
     const [url] = fetchMock.mock.calls[0] as [URL];

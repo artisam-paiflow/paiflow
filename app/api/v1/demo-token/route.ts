@@ -55,9 +55,9 @@ export async function POST(req: NextRequest) {
       throw new AppError("RATE_LIMITED", "Too many demo tokens from this address");
     }
     const global = await rateLimit("v1:demo-token:global", ...limitArgs("demoTokenGlobal"));
-    // `shared` is false when rateLimit() fell back to its per-process bucket. clientIp() trusts the
-    // first X-Forwarded-For entry, which an attacker sets freely, so the instance-wide cap is the
-    // only thing actually bounding how many live credentials this route can mint — and a
+    // `shared` is false when rateLimit() fell back to its per-process bucket. clientIp() is only as
+    // honest as the edge in front of the app (#433), so the instance-wide cap is the only thing
+    // that bounds how many live credentials this route can mint whatever proxy sits there — and a
     // per-process count does not bound it across replicas. This one fails closed.
     if (!global.shared) {
       log.warn({ ip }, "demo token refused: no shared rate limiter available");

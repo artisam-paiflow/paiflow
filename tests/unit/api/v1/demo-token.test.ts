@@ -217,8 +217,8 @@ describe("POST /api/v1/demo-token — abuse controls", () => {
   });
 
   it("refuses when the instance-wide cap has no shared limiter behind it", async () => {
-    // rateLimit() degrades to a per-process bucket when Redis is unreachable. clientIp() trusts
-    // the first X-Forwarded-For hop, so that cap is the only real bound on how many live
+    // rateLimit() degrades to a per-process bucket when Redis is unreachable. clientIp() is only
+    // as honest as the edge in front of the app (#433), so that cap is the only real bound on how many live
     // credentials this route can mint — it fails closed rather than trusting a per-replica count.
     mockRateLimit.mockImplementation(async (key: string) => ({
       ok: true,

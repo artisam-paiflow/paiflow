@@ -1,6 +1,7 @@
 import "server-only";
 import { redis } from "./redis";
 import { AppError } from "./errors";
+import { env } from "./env";
 
 /**
  * `shared` is true only when the count came from Redis, i.e. when the bucket is
@@ -71,10 +72,106 @@ export async function enforceRateLimit(opts: {
   }
 }
 
+/** What `clientIp()` returns when no usable address was presented. One shared bucket. */
+export const UNKNOWN_CLIENT_IP = "0.0.0.0";
+
+/**
+ * The caller's address, for per-IP rate-limit keys, `AuditLog.ip` and the
+ * `/ingest` proxy. Only as honest as the edge in front of the app (#433).
+ *
+ * Which `X-Forwarded-For` entry to believe is `TRUSTED_PROXY_HOPS`:
+ *
+ *  - 0 (default): the leftmost entry. Correct only behind an edge that replaces
+ *    the header rather than appending to it. Railway's does: on staging (19 Sep
+ *    2026, `server: railway-hikari`, no CDN) a client-sent `X-Forwarded-For:
+ *    198.51.100.77, 198.51.100.78` reached the app with the caller's real
+ *    address as the first entry (issue #433). That is observed, not documented;
+ *    Railway documents only `X-Real-IP`.
+ *  - N >= 1: the Nth entry from the right, for N proxies that each append the
+ *    peer they saw. Set it before putting a pass-through proxy (a CDN, a load
+ *    balancer) in front, or the leftmost entry becomes whatever the client sent.
+ *    A chain shorter than N, or no header at all, did not come through those
+ *    proxies (a direct hit on the origin), so nothing in it is trusted: the
+ *    caller gets the shared unknown bucket, and `X-Real-IP` is not consulted.
+ *
+ * Rightmost-minus-hops is not the default because Railway's header length is
+ * unobserved: the probe only saw its first entry, and if the edge ever sends
+ * `client, internal-hop` then hops=1 would put every caller in one bucket.
+ *
+ * With hops=0, `X-Real-IP` is read only when `X-Forwarded-For` is absent or
+ * empty, which never happens behind Railway. It is not preferred: whether the
+ * edge overwrites a client-supplied `X-Real-IP` is untested.
+ *
+ * Every value is normalised by `normalizeIp()` so a hostile header cannot mint
+ * arbitrary rate-limit keys or write junk into the audit log.
+ */
 export function clientIp(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]!.trim();
-  return req.headers.get("x-real-ip") ?? "0.0.0.0";
+  const hops = env().TRUSTED_PROXY_HOPS ?? 0;
+  const xff = req.headers.get("x-forwarded-for")?.trim();
+  if (hops > 0) {
+    const entries = xff ? xff.split(",") : [];
+    if (entries.length < hops) return UNKNOWN_CLIENT_IP;
+    return normalizeIp(entries[entries.length - hops]) ?? UNKNOWN_CLIENT_IP;
+  }
+  if (xff) return normalizeIp(xff.split(",")[0]) ?? UNKNOWN_CLIENT_IP;
+  return normalizeIp(req.headers.get("x-real-ip")) ?? UNKNOWN_CLIENT_IP;
+}
+
+// 45 chars is the longest textual IPv6 (IPv4-mapped); the slack covers brackets and a port.
+const MAX_IP_TEXT_LENGTH = 64;
+const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+const IPV4_WITH_PORT = /^(\d{1,3}(?:\.\d{1,3}){3}):\d{1,5}$/;
+const BRACKETED_IPV6 = /^\[([^\]]+)\](?::\d{1,5})?$/;
+const IPV4_MAPPED = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/;
+
+function canonicalIpv4(s: string): string | null {
+  const m = IPV4.exec(s);
+  if (!m) return null;
+  const octets = m.slice(1);
+  // "010" would be a second key for the same host; refuse rather than guess octal or decimal.
+  if (octets.some((o) => (o.length > 1 && o.startsWith("0")) || Number(o) > 255)) return null;
+  return octets.join(".");
+}
+
+/**
+ * One address, in one canonical spelling, or null. Trims, drops a port, IPv6
+ * brackets and a zone id, lower-cases and compresses IPv6 (via the WHATWG URL
+ * parser, which runs on every runtime), and unwraps IPv4-mapped IPv6 so
+ * `::ffff:1.2.3.4` and `1.2.3.4` share a bucket. Anything else is null.
+ */
+export function normalizeIp(raw: string | null | undefined): string | null {
+  if (raw == null) return null;
+  let s = raw.trim();
+  if (s.length === 0 || s.length > MAX_IP_TEXT_LENGTH) return null;
+
+  const bracketed = BRACKETED_IPV6.exec(s);
+  if (bracketed) s = bracketed[1]!;
+  else {
+    const withPort = IPV4_WITH_PORT.exec(s);
+    if (withPort) s = withPort[1]!;
+  }
+
+  const v4 = canonicalIpv4(s);
+  if (v4) return v4;
+  if (!s.includes(":")) return null;
+
+  const zone = s.indexOf("%");
+  if (zone !== -1) s = s.slice(0, zone);
+  if (!/^[0-9a-fA-F:.]+$/.test(s)) return null;
+
+  let host: string;
+  try {
+    host = new URL(`http://[${s}]/`).hostname.slice(1, -1);
+  } catch {
+    return null;
+  }
+  const mapped = IPV4_MAPPED.exec(host);
+  if (mapped) {
+    const hi = parseInt(mapped[1]!, 16);
+    const lo = parseInt(mapped[2]!, 16);
+    return `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+  }
+  return host;
 }
 
 /**

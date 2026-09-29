@@ -3,8 +3,8 @@
 
 /** Per token, per route. `openapi` and `demoToken` are the public routes, so they are keyed on the
  * caller's IP; `apiTokens` is the owner-session token routes, keyed on the signed-in user and shared
- * by all three. `demoTokenGlobal` is instance-wide: `clientIp()` trusts the first X-Forwarded-For
- * hop, so the per-IP cap alone cannot bound an anonymous caller who sets that header. */
+ * by all three. `demoTokenGlobal` is instance-wide: `clientIp()` is only as honest as the edge in
+ * front (#433), so the per-IP cap alone is not a ceiling the route relies on. */
 export const V1_RATE_LIMITS = {
   execute: { limit: 30, windowSeconds: 60 },
   executeSubmit: { limit: 30, windowSeconds: 60 },
