@@ -5,6 +5,7 @@ import type { TemplateKind } from "@prisma/client";
 import type { FlowNode } from "@/lib/flows/schema";
 import { isTrigger } from "@/lib/flows/schema";
 import { TEMPLATE_LABELS, TEMPLATE_DESCRIPTIONS } from "@/lib/flows/template-labels";
+import type { FeatureFlags, FeatureSurface } from "@/lib/feature-flags";
 
 type Props = {
   onAdd: (node: FlowNode) => void;
@@ -14,6 +15,8 @@ type Props = {
   collapsed?: boolean;
   onToggleCollapse?: () => void;
   devMode?: boolean;
+  /** Surface switches from the server (#722); an entry whose surface is off is not offered. */
+  features: FeatureFlags;
 };
 
 function makeId(prefix: string) {
@@ -27,6 +30,8 @@ type Template = {
   // Hidden templates stay in source (typechecked, easy to re-enable) but are
   // filtered out of the palette. Use this instead of commenting entries out.
   hidden?: boolean;
+  /** The switchable surface this block belongs to; off on the server hides it. */
+  feature?: FeatureSurface;
   make: () => FlowNode;
 };
 
@@ -98,6 +103,7 @@ export const TEMPLATES: Template[] = [
     group: "Triggers",
     label: "Payroll",
     icon: "group",
+    feature: "payroll",
     make: () => ({
       id: makeId("payroll"),
       type: "payroll",
@@ -228,6 +234,7 @@ export const TEMPLATES: Template[] = [
     label: "Cash Out",
     icon: "payments",
     hidden: true,
+    feature: "offramp",
     make: () => ({
       id: makeId("cashout"),
       type: "cash_out",
@@ -240,6 +247,11 @@ export const TEMPLATES: Template[] = [
     }),
   },
 ];
+
+/** The palette entries offered under these switches: not `hidden`, and their surface on. */
+export function visibleTemplates(features: FeatureFlags): Template[] {
+  return TEMPLATES.filter((t) => !t.hidden && (!t.feature || features[t.feature]));
+}
 
 const GROUP_TONE: Record<Template["group"], { tone: string; dot: string }> = {
   Triggers: { tone: "text-secondary", dot: "bg-secondary" },
@@ -256,6 +268,7 @@ export default function Palette({
   collapsed,
   onToggleCollapse,
   devMode,
+  features,
 }: Props) {
   // Dev-only palette items (nodes with no immutable counterpart) appear only
   // when at least one exists. Currently Cash Out lives under Actions, so no
@@ -355,46 +368,48 @@ export default function Palette({
               {g.toUpperCase()}
             </div>
             <div className="mt-2 grid gap-1.5">
-              {TEMPLATES.filter((tpl) => tpl.group === g && !tpl.hidden).map((tpl) => {
-                const isTriggerBlock = g === "Triggers";
-                const disabled = isTriggerBlock && hasTrigger;
+              {visibleTemplates(features)
+                .filter((tpl) => tpl.group === g)
+                .map((tpl) => {
+                  const isTriggerBlock = g === "Triggers";
+                  const disabled = isTriggerBlock && hasTrigger;
 
-                return (
-                  <div key={tpl.label} className="group relative">
-                    <button
-                      data-testid={`palette-${tpl.label.toLowerCase().replace(/\s+/g, "-")}`}
-                      onClick={() => !disabled && onAdd(tpl.make())}
-                      disabled={disabled}
-                      className={`group inline-flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left font-mono transition-all ${
-                        disabled
-                          ? "border-outline-variant/20 bg-surface-container-low/40 cursor-not-allowed opacity-40"
-                          : "border-outline-variant/20 bg-surface-container-low/40 text-label-md text-on-surface-variant hover:border-primary/40 hover:bg-surface-container-high/50 hover:text-on-surface"
-                      }`}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={`material-symbols-outlined text-[16px] ${t.tone} opacity-90`}
+                  return (
+                    <div key={tpl.label} className="group relative">
+                      <button
+                        data-testid={`palette-${tpl.label.toLowerCase().replace(/\s+/g, "-")}`}
+                        onClick={() => !disabled && onAdd(tpl.make())}
+                        disabled={disabled}
+                        className={`group inline-flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left font-mono transition-all ${
+                          disabled
+                            ? "border-outline-variant/20 bg-surface-container-low/40 cursor-not-allowed opacity-40"
+                            : "border-outline-variant/20 bg-surface-container-low/40 text-label-md text-on-surface-variant hover:border-primary/40 hover:bg-surface-container-high/50 hover:text-on-surface"
+                        }`}
                       >
-                        {tpl.icon}
-                      </span>
-                      {tpl.label}
-                      <span
-                        aria-hidden="true"
-                        className="material-symbols-outlined text-outline-variant group-hover:text-primary ml-auto text-[14px] transition-colors"
-                      >
-                        add
-                      </span>
-                    </button>
-                    {disabled && (
-                      <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden -translate-x-1/2 group-hover:block">
-                        <div className="rounded bg-zinc-800 px-2 py-1 text-[11px] whitespace-nowrap text-zinc-300 shadow-lg ring-1 ring-zinc-700">
-                          A flow can only have one trigger
+                        <span
+                          aria-hidden="true"
+                          className={`material-symbols-outlined text-[16px] ${t.tone} opacity-90`}
+                        >
+                          {tpl.icon}
+                        </span>
+                        {tpl.label}
+                        <span
+                          aria-hidden="true"
+                          className="material-symbols-outlined text-outline-variant group-hover:text-primary ml-auto text-[14px] transition-colors"
+                        >
+                          add
+                        </span>
+                      </button>
+                      {disabled && (
+                        <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden -translate-x-1/2 group-hover:block">
+                          <div className="rounded bg-zinc-800 px-2 py-1 text-[11px] whitespace-nowrap text-zinc-300 shadow-lg ring-1 ring-zinc-700">
+                            A flow can only have one trigger
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           </div>
         );

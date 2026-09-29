@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { env, soroswapRouterAddress } from "@/lib/env";
+import { serverFeatures } from "@/lib/features";
 import Topbar from "@/components/app/topbar";
 import BuilderClient from "@/components/builder/builder-client";
 import { FlowGraphSchema } from "@/lib/flows/schema";
@@ -24,6 +25,7 @@ export default async function FlowBuilderPage({ params }: { params: Promise<{ fl
         initialGraph={graph.success ? graph.data : { nodes: [], edges: [] }}
         network={env().STELLAR_NETWORK}
         routerContractId={soroswapRouterAddress()}
+        features={serverFeatures()}
       />
     </>
   );

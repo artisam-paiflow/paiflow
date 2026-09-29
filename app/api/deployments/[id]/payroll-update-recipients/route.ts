@@ -4,6 +4,7 @@ import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { refuseIfFeatureOff } from "@/lib/features";
 import { preparePayrollUpdateRecipientsInvocation } from "@/lib/stellar/invoke";
 import {
   submitUpdateRecipientsByRelayer,
@@ -58,6 +59,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
     const body = PostSchema.parse(await req.json());
+    // A fiat recipient deploys or re-points a CASH_OUT_DEV sink and queues
+    // off-ramp jobs: new off-ramp use, refused while it is switched off (#722).
+    // Crypto recipients of an existing deployment keep updating.
+    if (body.recipients.some((r) => r.payoutMode === "fiat")) {
+      refuseIfFeatureOff("offramp", "recipients");
+    }
 
     const d = await db.deployment.findFirst({
       where: { id, ownerId: user.id },

@@ -17,6 +17,7 @@ import { payoutRecipients } from "@/lib/flows/payout-recipients";
 import { checkPayoutTrustlines } from "@/lib/stellar/trustline-check";
 import DeployReview from "@/components/deploy/deploy-review";
 import { env } from "@/lib/env";
+import { serverFeatures } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,9 @@ export default async function DeployReviewPage({
   if (!flow) notFound();
 
   const graph = FlowGraphSchema.safeParse(flow.graph);
-  const validation = graph.success ? validateFlow(graph.data) : null;
+  const validation = graph.success
+    ? validateFlow(graph.data, { features: serverFeatures() })
+    : null;
   const english = graph.success ? flowToEnglish(graph.data) : "(invalid graph)";
   const pipeline = validation?.ok ? validation.pipeline : null;
   // Not awaited: the Horizon lookups stream into the review behind a Suspense

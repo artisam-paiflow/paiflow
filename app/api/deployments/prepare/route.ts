@@ -16,6 +16,7 @@ import { getWasmHashes } from "@/lib/stellar/config";
 import { stellarRelayerAddress, offRampTreasuryAddress } from "@/lib/env";
 import { Role } from "@prisma/client";
 import { SANDBOX_TEMPLATE_KINDS } from "@/lib/sandbox";
+import { assertNoHiddenSurfaces, serverFeatures } from "@/lib/features";
 
 const PrepareSchema = z.object({
   flowId: z.string().uuid(),
@@ -39,7 +40,10 @@ export async function POST(req: NextRequest) {
     if (!flow) throw new AppError("NOT_FOUND", "Flow not found");
 
     const graph = FlowGraphSchema.parse(flow.graph);
-    const v = validateFlow(graph);
+    // Switched-off surfaces (#722) are refused on their node here, so an old
+    // flow, an AI edit or a crafted save cannot deploy a hidden block.
+    const features = serverFeatures();
+    const v = validateFlow(graph, { features });
     if (!v.ok) {
       throw new AppError("VALIDATION", "Flow is invalid", issuesToFields(v.errors));
     }
@@ -89,6 +93,13 @@ export async function POST(req: NextRequest) {
     }
 
     const pipeline = flowToPipeline(v.graph, relayerAddress, offRampTreasuryAddress());
+    // Second line behind the graph check above: the contract kinds actually
+    // being deployed, the way the sandbox guard reads every pipeline node.
+    assertNoHiddenSurfaces(
+      v.graph,
+      pipeline.map((n) => n.templateKind),
+      features,
+    );
 
     // Ensure every pipeline node has a corresponding WASM template on-chain.
     const wasmHashes = await getWasmHashes(network);

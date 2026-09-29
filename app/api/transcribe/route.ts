@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { transcribeAudio } from "@/lib/ai/groq";
+import { requireFeature } from "@/lib/features";
 
 const MAX_BYTES = 25 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["audio/webm", "audio/mp4", "audio/wav"]);
@@ -10,6 +11,7 @@ const ALLOWED_MIME = new Set(["audio/webm", "audio/mp4", "audio/wav"]);
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireSession();
+    requireFeature("aiAssistant");
 
     await enforceRateLimit({
       key: `transcribe:${user.id}`,

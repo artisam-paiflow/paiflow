@@ -45,6 +45,7 @@ import { track } from "@/lib/analytics/client";
 import { IN_SCOPE_NODE_TYPES } from "@/lib/analytics/events";
 import { useValidationTracking } from "@/lib/analytics/validation-tracking";
 import { NARROW_VIEWPORT_QUERY, useMediaQuery } from "@/lib/hooks/use-media-query";
+import type { FeatureFlags } from "@/lib/feature-flags";
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -79,6 +80,12 @@ type BuilderProps = {
   network: StellarNetwork;
   /** The Soroswap router this environment resolves to, shown read-only on the swap panel. */
   routerContractId?: string;
+  /**
+   * Surface switches read from the server's env at request time (#722), so a
+   * restart flips them. Hides the palette entry, panel control and assistant,
+   * and makes the in-builder validation match the server's refusal.
+   */
+  features: FeatureFlags;
 };
 
 function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["positions"]): Node {
@@ -213,7 +220,14 @@ export default function BuilderClient(props: BuilderProps) {
   );
 }
 
-function Builder({ flowId, initialName, initialGraph, network, routerContractId }: BuilderProps) {
+function Builder({
+  flowId,
+  initialName,
+  initialGraph,
+  network,
+  routerContractId,
+  features,
+}: BuilderProps) {
   const [name, setName] = useState(initialName);
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>(initialGraph.nodes);
   const [rfNodes, setRfNodes] = useState<Node[]>(
@@ -315,9 +329,14 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
 
   // Same predicate as the validation rule: the sender KYC toolbar button only
   // appears when the flow off-ramps to fiat somewhere.
-  const hasFiatPayout = useMemo(() => flowHasFiatPayout(graph), [graph]);
+  // With the off-ramp switched off there is no KYC to collect: a fiat step is
+  // refused on its node instead.
+  const hasFiatPayout = useMemo(
+    () => features.offramp && flowHasFiatPayout(graph),
+    [graph, features.offramp],
+  );
 
-  const validation = useMemo(() => validateFlow(graph), [graph]);
+  const validation = useMemo(() => validateFlow(graph, { features }), [graph, features]);
 
   const english = useMemo(() => {
     const v = FlowGraphSchema.safeParse(graph);
@@ -790,6 +809,7 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
           pipeline={pipeline}
           collapsed={sidebarCollapsed}
           devMode={devMode}
+          features={features}
           onToggleCollapse={() => {
             setSidebarCollapsed((v) => {
               const next = !v;
@@ -927,6 +947,7 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
                   errors={errors}
                   network={network}
                   routerContractId={routerContractId}
+                  features={features}
                   onChange={updateNode}
                   onDelete={deleteNode}
                   addressBook={addressBook}
@@ -944,27 +965,29 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
         </div>
       </div>
 
-      {/* Railway-style slide-in chat panel */}
-      <RaftLog
-        messages={messages}
-        onSend={sendChat}
-        loading={chatLoading}
-        pendingAddresses={pendingAddresses}
-        onResolveAddress={handleResolveAddress}
-        onSkipAddresses={handleSkipAddresses}
-        collapsed={chatCollapsed}
-        // Below md the docked sheet sits over the tab's corner; hiding it keeps
-        // it out of the tab order instead of focusable but unseen.
-        hideTab={narrow && !!selectedId && !!selectedNode}
-        onToggleCollapse={() => {
-          // Opening the chat below md dismisses the docked panel (see selectNode).
-          if (chatCollapsed && narrow) setSelectedId(null);
-          setChatCollapsed((v) => !v);
-        }}
-      />
+      {/* Railway-style slide-in chat panel; absent when the assistant is off (#722). */}
+      {features.aiAssistant && (
+        <RaftLog
+          messages={messages}
+          onSend={sendChat}
+          loading={chatLoading}
+          pendingAddresses={pendingAddresses}
+          onResolveAddress={handleResolveAddress}
+          onSkipAddresses={handleSkipAddresses}
+          collapsed={chatCollapsed}
+          // Below md the docked sheet sits over the tab's corner; hiding it keeps
+          // it out of the tab order instead of focusable but unseen.
+          hideTab={narrow && !!selectedId && !!selectedNode}
+          onToggleCollapse={() => {
+            // Opening the chat below md dismisses the docked panel (see selectNode).
+            if (chatCollapsed && narrow) setSelectedId(null);
+            setChatCollapsed((v) => !v);
+          }}
+        />
+      )}
 
       {/* Sender KYC dialog — design-time capture of the PDAX sender profile */}
-      {kycDialogOpen && (
+      {kycDialogOpen && features.offramp && (
         <SenderKycDialog
           initial={senderKyc}
           onSave={(kyc) => {
