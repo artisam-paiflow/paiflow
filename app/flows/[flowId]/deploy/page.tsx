@@ -13,6 +13,8 @@ import {
   getPayrollPreviewFromPipeline,
 } from "@/lib/flows/to-params";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
+import { payoutRecipients } from "@/lib/flows/payout-recipients";
+import { checkPayoutTrustlines } from "@/lib/stellar/trustline-check";
 import DeployReview from "@/components/deploy/deploy-review";
 import { env } from "@/lib/env";
 
@@ -32,6 +34,12 @@ export default async function DeployReviewPage({
   const validation = graph.success ? validateFlow(graph.data) : null;
   const english = graph.success ? flowToEnglish(graph.data) : "(invalid graph)";
   const pipeline = validation?.ok ? validation.pipeline : null;
+  // Not awaited: the Horizon lookups stream into the review behind a Suspense
+  // boundary, so a slow Horizon never holds up the page (#574).
+  const trustlineCheck =
+    validation?.ok && graph.success
+      ? checkPayoutTrustlines(payoutRecipients(graph.data))
+      : undefined;
 
   let streamerPreview: {
     totalStroops: string;
@@ -313,6 +321,7 @@ export default async function DeployReviewPage({
             flowId={flow.id}
             network={env().STELLAR_NETWORK}
             swapPreviews={swapPreviews}
+            trustlineCheck={trustlineCheck}
           />
         )}
       </main>

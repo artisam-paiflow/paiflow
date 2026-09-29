@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import SwapQuotePreview from "@/components/builder/swap-quote-preview";
+import TrustlineWarnings from "@/components/deploy/trustline-warnings";
 import type { Asset } from "@/lib/flows/schema";
+import type { TrustlineCheck } from "@/lib/stellar/trustline-check";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
@@ -21,6 +23,8 @@ type WalletKit = {
 };
 
 type StellarNetwork = "testnet" | "mainnet";
+
+const CHECK_WAIT_CAP_MS = 15_000;
 
 const PASSPHRASE_BY_NETWORK: Record<StellarNetwork, string> = {
   testnet: "Test SDF Network ; September 2015",
@@ -50,11 +54,14 @@ export default function DeployReview({
   flowId,
   network,
   swapPreviews,
+  trustlineCheck,
 }: {
   flowId: string;
   network: StellarNetwork;
   /** One entry per swap node in the flow: drives the live Soroswap previews. */
   swapPreviews?: Array<{ id: string; assetIn: Asset; assetOut: Asset; slippageBps: number }>;
+  /** Streamed from the server: payout recipients' trustlines, looked up on Horizon. */
+  trustlineCheck?: Promise<TrustlineCheck[]>;
 }) {
   const [busy, setBusy] = useState(false);
   const [pipeline, setPipeline] = useState<
@@ -67,7 +74,30 @@ export default function DeployReview({
     track("deploy_review_viewed", { flow_id: flowId, swap_count: swapCount });
   }, [flowId, swapCount]);
 
+  // #574 asks for the warning before the user signs, so Deploy waits for the
+  // trustline check. It never rejects and Horizon times out at 10s; the cap
+  // only stops a stalled stream from locking Deploy for good.
+  const [checkSettled, setCheckSettled] = useState(!trustlineCheck);
+  useEffect(() => {
+    if (!trustlineCheck) {
+      setCheckSettled(true);
+      return;
+    }
+    let live = true;
+    setCheckSettled(false);
+    const settle = () => {
+      if (live) setCheckSettled(true);
+    };
+    const cap = setTimeout(settle, CHECK_WAIT_CAP_MS);
+    trustlineCheck.then(settle, settle);
+    return () => {
+      live = false;
+      clearTimeout(cap);
+    };
+  }, [trustlineCheck]);
+
   async function onDeploy() {
+    if (!checkSettled) return;
     setBusy(true);
     track("deploy_started", { flow_id: flowId });
     let stage: "wallet" | "prepare" | "sign" | "submit" = "wallet";
@@ -156,6 +186,17 @@ export default function DeployReview({
           />
         ))}
       </div>
+      {trustlineCheck && (
+        <Suspense
+          fallback={
+            <p role="status" className="text-on-surface-variant px-1 font-mono text-xs">
+              Checking recipient trustlines…
+            </p>
+          }
+        >
+          <TrustlineWarnings check={trustlineCheck} network={network} context="deploy" />
+        </Suspense>
+      )}
       {pipeline.length > 0 && (
         <div className="grid gap-2">
           <span className="text-label-sm text-on-surface-variant font-mono uppercase">
@@ -182,7 +223,7 @@ export default function DeployReview({
       )}
       <button
         onClick={onDeploy}
-        disabled={busy}
+        disabled={busy || !checkSettled}
         className="bg-primary px-md text-label-md text-on-primary inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >
         {busy ? (
@@ -191,6 +232,13 @@ export default function DeployReview({
               progress_activity
             </span>
             DEPLOYING…
+          </>
+        ) : !checkSettled ? (
+          <>
+            <span className="material-symbols-outlined animate-spin text-[16px]">
+              progress_activity
+            </span>
+            CHECKING RECIPIENTS…
           </>
         ) : (
           <>
