@@ -53,9 +53,9 @@ function describeCondition(c: Extract<FlowNode, { type: "condition" }>, asset?: 
   const suffix = asset ? ` ${assetLabel(asset)}` : "";
   switch (cfg.kind) {
     case "amount_gt":
-      return `only if amount ≥ ${formatStroops(cfg.amountStroops)}${suffix}`;
+      return `only if the amount is more than ${formatStroops(cfg.amountStroops)}${suffix}`;
     case "amount_lt":
-      return `only if amount < ${formatStroops(cfg.amountStroops)}${suffix}`;
+      return `only if the amount is less than ${formatStroops(cfg.amountStroops)}${suffix}`;
     case "oracle_gte":
       return `only if oracle ${shortAddr(cfg.oracle)}:${cfg.key} ≥ ${cfg.threshold}`;
     case "time_after":

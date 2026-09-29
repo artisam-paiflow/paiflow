@@ -1491,7 +1491,8 @@ describe("flowToPipeline", () => {
     expect(pipeline[1]!.templateKind).toBe("ROUTER");
     expect(pipeline[1]!.params.kind).toBe("router");
     expect(pipeline[1]!.params).toMatchObject({
-      threshold: "50000000",
+      // amount_gt is strict: the router's `>=` is fed threshold + 1 stroop.
+      threshold: "50000001",
       pathANodeIds: ["a"],
       pathBNodeIds: [],
     });

@@ -1,6 +1,7 @@
 import { TemplateKind } from "@prisma/client";
 import { StrKey } from "@stellar/stellar-sdk";
 import type { ZodIssue } from "zod";
+import { formatStroops } from "@/lib/utils";
 import {
   FlowGraphSchema,
   type FlowGraph,
@@ -74,6 +75,8 @@ const FRIENDLY = {
     `The ${label} step wouldn't reach the chain, so this flow would deploy as something you didn't draw. Rebuilding the steps in the order the money moves usually fixes it. If it doesn't, this trigger or condition can't carry that step and it has to go.`,
   YIELD_PARENT: (label: string) =>
     `A Yield step can only come straight after a Webhook, HTTP Webhook, or Oracle trigger for now, not after ${label}. Move it, or use a Pay or Split step here.`,
+  ROUTER_EMPTY_PATH: (unmatched: string) =>
+    `A payment of ${unmatched} doesn't meet this amount condition, and nothing comes after the condition for that case, so the money would be stuck in the contract with no way to get it back. An amount condition needs a step on both sides before it can deploy, and the builder can't draw the second side yet, so remove the condition or use a time condition for now.`,
   YIELD_TERMINAL:
     "A Yield step is the end of the line for now — nothing can come after it except an email notification. Remove the connections coming out of it.",
 } as const;
@@ -1203,6 +1206,40 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       path: `nodes.${a.id}`,
       message: `Action ${a.id} (${a.type}) is not represented in the deployed pipeline`,
       friendlyMessage: FRIENDLY.ACTION_NOT_DEPLOYED(nodeLabels.get(a.id) ?? a.type),
+    });
+  }
+
+  // The router picks path A or path B and forwards the whole amount down it. An
+  // empty path is a silent no-op on chain: the funds already sit in the router,
+  // which has no withdraw, so they are lost. Refuse any router the pipeline
+  // would deploy with a path it could take and nothing on it (#719). Today the
+  // graph only ever fills one side, so this refuses every amount condition;
+  // once conditions carry true/false branches it fires only on a missing one.
+  for (const n of pipelineNodes) {
+    const p = n.params;
+    if (p.kind !== "router") continue;
+    const { pathANodeIds, pathBNodeIds } = p;
+    if (pathANodeIds.length > 0 && pathBNodeIds.length > 0) continue;
+    const cond = graph.nodes.find((g) => g.id === n.nodeId);
+    const threshold =
+      cond?.type === "condition" &&
+      (cond.config.kind === "amount_gt" || cond.config.kind === "amount_lt")
+        ? cond.config
+        : null;
+    const amount = threshold
+      ? `${formatStroops(threshold.amountStroops)} ${assetLabel(p.asset)}`
+      : "some amounts";
+    const unmatched = !threshold
+      ? amount
+      : threshold.kind === "amount_gt"
+        ? `${amount} or less`
+        : `${amount} or more`;
+    errors.push({
+      path: `nodes.${n.nodeId}`,
+      code: "ROUTER_EMPTY_PATH",
+      nodeId: n.nodeId,
+      message: `Router ${n.nodeId} has an empty path ${pathANodeIds.length === 0 ? "A" : "B"}; funds routed there would be stranded`,
+      friendlyMessage: FRIENDLY.ROUTER_EMPTY_PATH(unmatched),
     });
   }
 

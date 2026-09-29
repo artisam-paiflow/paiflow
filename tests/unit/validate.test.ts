@@ -1266,7 +1266,9 @@ describe("validateFlow", () => {
         {
           id: "c",
           type: "condition",
-          config: { kind: "amount_gt", amountStroops: "50000000" },
+          // Not an amount condition: those are refused until both router paths
+          // can be wired (#719); see tests/unit/flows/validate-router-paths.test.ts.
+          config: { kind: "time_after", at: "2030-06-01T00:00:00.000Z" },
         },
         {
           id: "a",
@@ -1290,7 +1292,7 @@ describe("validateFlow", () => {
       expect(r.templateKind).toBe(TemplateKind.CONDITIONAL);
       expect(r.pipeline).toEqual([
         TemplateKind.DEPOSIT_TRIGGER,
-        TemplateKind.ROUTER,
+        TemplateKind.TIMELOCK,
         TemplateKind.SPLITTER,
       ]);
     }
@@ -1457,7 +1459,11 @@ describe("validateFlow", () => {
     const r = validateFlow({
       nodes: [
         { id: "t", type: "on_receive", config: { asset: { kind: "known", symbol: "USDC" } } },
-        { id: "c", type: "condition", config: { kind: "amount_gt", amountStroops: "10000000" } },
+        {
+          id: "c",
+          type: "condition",
+          config: { kind: "time_after", at: "2030-06-01T00:00:00.000Z" },
+        },
         {
           id: "a",
           type: "split",
@@ -1489,7 +1495,7 @@ describe("validateFlow", () => {
     if (r.ok) {
       expect(r.pipeline).toEqual([
         TemplateKind.DEPOSIT_TRIGGER,
-        TemplateKind.ROUTER,
+        TemplateKind.TIMELOCK,
         TemplateKind.SPLITTER,
       ]);
     }

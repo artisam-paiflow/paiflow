@@ -135,7 +135,7 @@ export function buildEmailContext(params: {
     switch (cfg.kind) {
       case "amount_gt":
         ctx.threshold = String(cfg.amountStroops);
-        ctx.condition = `amount ≥ ${cfg.amountStroops}`;
+        ctx.condition = `amount > ${cfg.amountStroops}`;
         break;
       case "amount_lt":
         ctx.threshold = String(cfg.amountStroops);

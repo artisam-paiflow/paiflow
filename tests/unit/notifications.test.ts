@@ -113,7 +113,7 @@ describe("buildEmailContext", () => {
     });
     expect(ctx.amount).toBe("2");
     expect(ctx.threshold).toBe("10000000");
-    expect(ctx.condition).toBe("amount ≥ 10000000");
+    expect(ctx.condition).toBe("amount > 10000000");
     expect(ctx.walletAddress).toBe("GAAA");
   });
 
