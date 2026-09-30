@@ -7,9 +7,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Keypair, TransactionBuilder, Networks, type Transaction } from "@stellar/stellar-sdk";
 
-const { mockRpc, mockInvoke, RELAYER } = vi.hoisted(() => ({
+const { mockRpc, mockInvoke, mockChannels, RELAYER } = vi.hoisted(() => ({
   mockRpc: { getTransaction: vi.fn(), sendTransaction: vi.fn() },
-  mockInvoke: { prepareWebhookExecuteInvocation: vi.fn() },
+  mockInvoke: { webhookExecuteOperation: vi.fn(), webhookEscrowOperation: vi.fn() },
+  mockChannels: { buildRelayerTx: vi.fn(), trackPending: vi.fn() },
   RELAYER: { secret: "", address: "" },
 }));
 
@@ -20,6 +21,11 @@ vi.mock("@/lib/stellar/client", () => ({
   withRelayerLock: <T>(fn: () => Promise<T>) => fn(),
 }));
 vi.mock("@/lib/stellar/invoke", () => mockInvoke);
+vi.mock("@/lib/stellar/relayer-channels", () => ({
+  withRelayerChannel: <T>(fn: (channel: unknown) => Promise<T>) =>
+    fn({ trackPending: mockChannels.trackPending }),
+  buildRelayerTx: mockChannels.buildRelayerTx,
+}));
 vi.mock("@/lib/env", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/env")>()),
   stellarRelayerSecretKey: () => RELAYER.secret,
@@ -40,7 +46,8 @@ beforeEach(() => {
   const relayer = Keypair.random();
   RELAYER.secret = relayer.secret();
   RELAYER.address = relayer.publicKey();
-  mockInvoke.prepareWebhookExecuteInvocation.mockResolvedValue({ tx: { sign: vi.fn() } });
+  mockInvoke.webhookExecuteOperation.mockReturnValue({});
+  mockChannels.buildRelayerTx.mockResolvedValue({});
 });
 
 describe("classifySend", () => {
@@ -118,6 +125,8 @@ describe("submitWebhookExecuteTx", () => {
       txHash: "h",
       duplicate: false,
     });
+    // The channel is told about the unfinished transaction, so its next holder waits for it.
+    expect(mockChannels.trackPending).toHaveBeenCalledWith("h");
 
     mockRpc.sendTransaction.mockResolvedValueOnce({ status: "DUPLICATE", hash: "h" });
     expect(await submitWebhookExecuteTx(opts)).toEqual({

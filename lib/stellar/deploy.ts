@@ -11,7 +11,8 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 import { randomBytes } from "node:crypto";
-import { sorobanRpc, horizon, withRelayerLock } from "./client";
+import { sorobanRpc, horizon } from "./client";
+import { buildRelayerTx, withRelayerChannel, type RelayerChannel } from "./relayer-channels";
 import { getFactoryAddress } from "@/lib/stellar/config";
 import {
   stellarPassphrase,
@@ -116,6 +117,8 @@ function buildPipelinePlan(
 async function preparePipelineDeployTxFromPlan(
   sourceAccount: string,
   plan: PipelinePlan,
+  /** Set for a relayer deploy: it then builds and signs the whole envelope. */
+  channel?: RelayerChannel,
 ): Promise<PreparedPipelineDeploy> {
   const server = sorobanRpc();
   const factoryAddress = await getFactoryAddress();
@@ -125,8 +128,6 @@ async function preparePipelineDeployTxFromPlan(
       "Pipeline factory address is not configured. Run pnpm contracts:deploy-factory --network=<network>.",
     );
   }
-
-  const sourceAcct = await server.getAccount(sourceAccount);
 
   const blueprintVals: xdr.ScVal[] = [];
   for (const p of plan.nodes) {
@@ -178,6 +179,31 @@ async function preparePipelineDeployTxFromPlan(
     args: [new Address(sourceAccount).toScVal(), xdr.ScVal.scvVec(blueprintVals)],
   });
 
+  const pipeline = plan.nodes.map((p) => ({
+    nodeId: p.nodeId,
+    contractAddress: p.contractAddress,
+    salt: p.salt,
+    templateKind: p.templateKind,
+  }));
+  // The diagnostic event log names the contract address that rejected —
+  // map it back to the pipeline node's template for a precise message.
+  const failure = (raw: string) => {
+    const addressMap: Record<string, ContractErrorKey> = {};
+    for (const n of plan.nodes) {
+      const key = contractKeyForTemplate(n.templateKind);
+      if (key) addressMap[n.contractAddress] = key;
+    }
+    return simulationFailure(raw, { addressMap });
+  };
+
+  if (channel) {
+    // `sourceAccount` is the relayer here (deployer/admin in the factory call),
+    // which is an auth entry on a channel, not the transaction source.
+    const signed = await buildRelayerTx({ channel, operation: op, onSimulationError: failure });
+    return { xdr: signed.toXDR(), pipeline };
+  }
+
+  const sourceAcct = await server.getAccount(sourceAccount);
   const tx = new TransactionBuilder(sourceAcct, {
     fee: BASE_FEE,
     networkPassphrase: stellarPassphrase(),
@@ -187,27 +213,10 @@ async function preparePipelineDeployTxFromPlan(
     .build();
 
   const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    // The diagnostic event log names the contract address that rejected —
-    // map it back to the pipeline node's template for a precise message.
-    const addressMap: Record<string, ContractErrorKey> = {};
-    for (const n of plan.nodes) {
-      const key = contractKeyForTemplate(n.templateKind);
-      if (key) addressMap[n.contractAddress] = key;
-    }
-    throw simulationFailure(sim.error, { addressMap });
-  }
+  if (rpc.Api.isSimulationError(sim)) throw failure(sim.error);
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
-  return {
-    xdr: assembled.toXDR(),
-    pipeline: plan.nodes.map((p) => ({
-      nodeId: p.nodeId,
-      contractAddress: p.contractAddress,
-      salt: p.salt,
-      templateKind: p.templateKind,
-    })),
-  };
+  return { xdr: assembled.toXDR(), pipeline };
 }
 
 /** Build & simulate a pipeline deployment tx via the on-chain factory. */
@@ -340,18 +349,15 @@ export async function deployPipelineByRelayer(opts: {
   // not retain the request-scoped graph or the relayer keypair.
   const plan = buildPipelinePlan(relayerAddress, opts.graph, opts.nodes);
 
-  // Serialize the relayer's sequence-number lifecycle (fetch → sign → submit)
-  // against every other relayer-signing path (auto-charge crons, auto-release,
-  // streamer jobs, webhook execute). Without this lock, two concurrent deploys
-  // — or a deploy racing a cron — reuse the same sequence number and one gets
-  // txBadSeq.
-  return withRelayerLock(async () => {
-    const prepared = await preparePipelineDeployTxFromPlan(relayerAddress, plan);
+  // One channel for fetch -> sign -> submit -> finality, so two concurrent
+  // deploys, or a deploy racing a cron, never share a source sequence number.
+  // With channels off this is the single relayer lock, as before. The factory
+  // needs `relayerAddress.require_auth()`; on a channel that is a signed auth
+  // entry (buildRelayerTx), not the transaction source.
+  return withRelayerChannel(async (channel) => {
+    const prepared = await preparePipelineDeployTxFromPlan(relayerAddress, plan, channel);
 
-    const tx = TransactionBuilder.fromXDR(prepared.xdr, stellarPassphrase());
-    tx.sign(Keypair.fromSecret(secret));
-
-    const result = await submitDeployTx(tx.toXDR());
+    const result = await submitDeployTx(prepared.xdr);
     if (result.status === "NOT_ACCEPTED") {
       // Nothing to resubmit here: the envelope lives only inside this lock, and
       // a retry re-prepares with a fresh sequence number. An empty hash is how

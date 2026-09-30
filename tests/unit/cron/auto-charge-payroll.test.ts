@@ -81,6 +81,9 @@ vi.mock("@/lib/log", () => ({ log: { warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/stellar/relayer", () => mockRelayer);
 vi.mock("@/lib/stellar/invoke", () => mockInvoke);
 vi.mock("@/lib/stellar/client", () => mockClient);
+vi.mock("@/lib/stellar/relayer-channels", () => ({
+  withRelayerChannel: (fn: (channel: unknown) => unknown) => fn({}),
+}));
 vi.mock("@/lib/offramp/jobs", () => mockJobs);
 // The guard resolves DNS for real, and these fixtures use reserved `.example`
 // hostnames that never resolve. `importActual` keeps the real `UnsafeUrlError`,

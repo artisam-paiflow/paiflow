@@ -33,6 +33,9 @@ vi.mock("@/lib/stellar/client", () => ({
   withRelayerLock: vi.fn((fn: () => unknown) => fn()),
   TENANT_RELAYER_TIMEOUT_MS: 25,
 }));
+vi.mock("@/lib/stellar/relayer-channels", () => ({
+  withRelayerChannel: (fn: (channel: unknown) => unknown) => fn({}),
+}));
 vi.mock("@/lib/offramp/jobs", () => ({ createOffRampJobsForPayrollRun: vi.fn() }));
 vi.mock("@/lib/cron/config", () => ({ CRON_LIMITS: limits }));
 vi.mock("@/lib/cron/lease", async () => {

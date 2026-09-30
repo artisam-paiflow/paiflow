@@ -3,7 +3,7 @@ import { Prisma, Role, TemplateKind, TimelockMode, type TimelockRelease } from "
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
-import { withRelayerLock } from "@/lib/stellar/client";
+import { withRelayerChannel } from "@/lib/stellar/relayer-channels";
 import { cronDeadline, type CronDeadline } from "@/lib/cron/deadline";
 import { CRON_LIMITS } from "@/lib/cron/config";
 import { sendReleaseByRelayer, simulateReleaseByRelayer } from "@/lib/stellar/relayer";
@@ -388,13 +388,13 @@ async function probe(row: TimelockRelease, now: Date): Promise<AutoReleaseDetail
       }
     }
 
-    const send = await withRelayerLock(async () => {
+    const send = await withRelayerChannel(async (channel) => {
       // The lock can be queued behind other relayer work; a Before lock whose
       // deadline passed meanwhile would only revert on-chain for a fee.
       if (!windowOpen(row, new Date())) return null;
       return side
-        ? sendReleaseByRelayer(row.contractAddress, sim.sim, side)
-        : sendReleaseByRelayer(row.contractAddress, sim.sim);
+        ? sendReleaseByRelayer(row.contractAddress, sim.sim, side, channel)
+        : sendReleaseByRelayer(row.contractAddress, sim.sim, undefined, channel);
     });
 
     if (!send) {

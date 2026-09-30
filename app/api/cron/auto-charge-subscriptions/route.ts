@@ -18,7 +18,8 @@ import {
   readTokenAllowance,
 } from "@/lib/stellar/relayer";
 import { prepareSubscriptionChargeByRelayerUnsigned } from "@/lib/stellar/invoke";
-import { TENANT_RELAYER_TIMEOUT_MS, withRelayerLock } from "@/lib/stellar/client";
+import { TENANT_RELAYER_TIMEOUT_MS } from "@/lib/stellar/client";
+import { withRelayerChannel } from "@/lib/stellar/relayer-channels";
 import { stellarPassphrase, stellarRelayerAddress } from "@/lib/env";
 import { ChargeRelayerMode } from "@prisma/client";
 import { requireCronSecret } from "@/lib/auth/cron-secret";
@@ -306,8 +307,8 @@ async function runSubscriptionCharges() {
       let chargedCount = 0;
       if (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM) {
         for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
-          const submit = await withRelayerLock(async () => {
-            const { xdr } = await prepareSubscriptionChargeByRelayerTx(contractAddress);
+          const submit = await withRelayerChannel(async (channel) => {
+            const { xdr } = await prepareSubscriptionChargeByRelayerTx(contractAddress, channel);
             return submitSubscriptionChargeByRelayerTx(xdr);
           });
 

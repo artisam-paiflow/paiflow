@@ -1,17 +1,19 @@
 import "server-only";
 import { type SorobanErrorHint } from "./soroban-errors";
-import { Keypair, TransactionBuilder } from "@stellar/stellar-sdk";
-import { sorobanRpc, withRelayerLock } from "./client";
+import { TransactionBuilder } from "@stellar/stellar-sdk";
+import { sorobanRpc } from "./client";
+import { buildRelayerTx, withRelayerChannel } from "./relayer-channels";
+import { simulationFailure } from "./sim-error";
 import { signerFromTransaction, type SignerInfo } from "./signer";
 import { classifySend, SEND_NOT_ACCEPTED_MESSAGE } from "./send-status";
-import { stellarPassphrase, stellarRelayerSecretKey, stellarRelayerAddress } from "@/lib/env";
+import { stellarPassphrase } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import {
   prepareDistributeInvocation,
   prepareDepositInvocation,
-  prepareWebhookExecuteInvocation,
   prepareWebhookDepositInvocation,
-  prepareWebhookEscrowInvocation,
+  webhookExecuteOperation,
+  webhookEscrowOperation,
 } from "./invoke";
 
 export async function prepareTriggerTx(opts: {
@@ -95,17 +97,7 @@ export async function submitWebhookExecuteTx(opts: {
   auth?: string[];
   escrow?: boolean;
 }): Promise<SubmitTriggerResult> {
-  return withRelayerLock(async () => {
-    const relayerSecret = stellarRelayerSecretKey();
-    if (!relayerSecret) {
-      throw new Error("STELLAR_RELAYER_SECRET_KEY is not configured");
-    }
-
-    const relayerAddress = stellarRelayerAddress();
-    if (!relayerAddress) {
-      throw new Error("STELLAR_RELAYER_ADDRESS is not configured");
-    }
-
+  return withRelayerChannel(async (channel) => {
     if (!opts.escrow && !opts.amount) {
       throw new Error("Amount is required for non-escrow triggers");
     }
@@ -115,22 +107,19 @@ export async function submitWebhookExecuteTx(opts: {
     let lastTxHash = "";
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const { tx } = opts.escrow
-        ? await prepareWebhookEscrowInvocation({
-            contractAddress: opts.contractAddress,
-            amount: opts.amount,
-            relayerAddress,
-          })
-        : await prepareWebhookExecuteInvocation({
+      const operation = opts.escrow
+        ? webhookEscrowOperation({ contractAddress: opts.contractAddress, amount: opts.amount })
+        : webhookExecuteOperation({
             contractAddress: opts.contractAddress,
             from: opts.from!,
             amount: opts.amount!,
-            relayerAddress,
             auth: opts.auth,
           });
-
-      const keypair = Keypair.fromSecret(relayerSecret);
-      tx.sign(keypair);
+      const tx = await buildRelayerTx({
+        channel,
+        operation,
+        onSimulationError: (message) => simulationFailure(message, { contract: "webhook" }),
+      });
 
       const server = sorobanRpc();
       const send = await server.sendTransaction(tx);
@@ -147,6 +136,9 @@ export async function submitWebhookExecuteTx(opts: {
         );
       }
       if (sent.outcome === "QUEUED") {
+        // The caller does not wait for finality; the next holder of this
+        // channel does, so its sequence number is current when it builds.
+        channel.trackPending(send.hash);
         return { status: "PENDING", txHash: send.hash, duplicate: sent.duplicate };
       }
 

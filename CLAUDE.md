@@ -124,16 +124,24 @@ The factory is **kind-agnostic** — `contracts/factory/src/lib.rs` is 37 lines,
 type means a new contract crate plus `to-params.ts`, `scval.ts`, the `TemplateKind` enum, and
 `scripts/update-hashes.ts` — **not** the factory. See `docs/soroban-smart-contracts.md` §5.
 
-### The one server-held key is the relayer
+### The one server-held key is the relayer (plus its derived channels)
 
 `STELLAR_RELAYER_SECRET_KEY` is Paiflow's own key, used in `lib/stellar/relayer.ts` and
 `lib/stellar/dev-mutate.ts` to sign `*_by_relayer` contract calls so scheduled charges and claims
 run without the user signing each time. Contracts enforce dual auth (admin **or** relayer).
 
-Relayer submissions are serialized through `withRelayerLock()` in `lib/stellar/client.ts` to avoid
-`txBadSeq` from concurrent sequence-number use. **That lock is in-process only** — a multi-replica
-deployment or a separate cron process can still race it. `sorobanRpc()` also validates at startup
-that the relayer's sequence number hasn't exceeded `MAX_SAFE_INTEGER`.
+With `STELLAR_RELAYER_CHANNELS=N` (default `0`) the relayer also has N **channel accounts**, keypairs
+derived deterministically from the relayer secret (`lib/stellar/relayer-channel-keys.ts`). They are
+not a second secret: no new key is stored, and each is exactly as sensitive as the relayer secret
+itself, so never log one. A channel is the transaction **source and fee payer**; the relayer key
+signs only the Soroban authorization entries. Contracts check `relayer.require_auth()`, not the
+transaction source, so no contract changes. See [§7.6](#76-relayer-channels).
+
+Relayer submissions are serialized to avoid `txBadSeq` from concurrent sequence-number use: one lock
+per channel through `withRelayerChannel()` (`lib/stellar/relayer-channels.ts`), or, with channels
+off, the single `withRelayerLock()` in `lib/stellar/client.ts`. **These locks are in-process only** —
+a multi-replica deployment or a separate cron process can still race them (#202). `sorobanRpc()`
+also validates at startup that the relayer's sequence number hasn't exceeded `MAX_SAFE_INTEGER`.
 
 ### Config resolves env → DB; network is pinned per environment
 
@@ -405,6 +413,32 @@ keep-alive`, plus an `AbortSignal` cleanup that unsubscribes Redis listeners. He
   No in-app override, no per-user allowlist, no "I understand" confirmation. **The kill switch is
   scaling the prod service to zero.**
 - Runbook: [`docs/mainnet-cutover.md`](docs/mainnet-cutover.md).
+
+### 7.6 Relayer channels
+
+- Stellar applies one transaction per source account per ledger, so a relayer that is its own source
+  is capped at a few transactions a minute. Channels lift that: N sources, one lock each.
+- Wrap every relayer-signed Soroban call in `withRelayerChannel(async (channel) => …)` and build it
+  with `buildRelayerTx({ channel, operation, onSimulationError })`. Never sign a relayer transaction
+  by hand with `Keypair.fromSecret(relayerSecret)`. `buildRelayerTx` simulates without auth to record
+  every address that must authorize, signs the relayer's entries with `authorizeEntry`, keeps any
+  caller-supplied signed entry for another address (a webhook user's), re-simulates so the footprint
+  and fee cover the signatures, then has the channel sign the envelope.
+- **A source-account credential authorizes the source, which on a channel is not the relayer.** Any
+  new call whose contract does `relayer.require_auth()` must go through `buildRelayerTx`; don't
+  reuse a simulation taken with the relayer as source (`sendReleaseByRelayer` re-simulates on a
+  channel for this reason).
+- Keep the whole load-account → sign → send (→ finality) sequence inside the callback. A caller that
+  returns before finality calls `channel.trackPending(hash)` so the next holder of that channel waits
+  for it first.
+- Not everything moves to a channel: `depositNativeToProvider` (a classic payment whose source is the
+  treasury account) and `refundFromTreasury` (a token transfer out of the relayer account) stay on
+  the relayer-source lane, `withRelayerLock()`. The lane is also the fallback when no channel is
+  funded, and the whole system when `STELLAR_RELAYER_CHANNELS=0`.
+- An unfunded channel is skipped with a warning and retried after a minute. Fund them with
+  `pnpm relayer:channels` (Friendbot on testnet; on mainnet it prints the addresses to send XLM to).
+  `/api/health` reports `relayerChannels: "funded/configured"`; per-channel balances go to the log.
+- Rolling back is setting `STELLAR_RELAYER_CHANNELS=0`.
 
 ---
 

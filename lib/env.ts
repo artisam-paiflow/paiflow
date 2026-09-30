@@ -287,6 +287,12 @@ const EnvSchema = z.object({
   // as the relayer, disabling the relayer path.
   STELLAR_RELAYER_SECRET_KEY: optionalString,
   STELLAR_RELAYER_ADDRESS: optionalString,
+  // Channel accounts derived from STELLAR_RELAYER_SECRET_KEY. Each channel is
+  // the source and fee payer of relayer transactions so they can land in the
+  // same ledger; the relayer key only signs the Soroban auth entries. 0 keeps
+  // the relayer as its own source behind one lock. Capped so a typo cannot
+  // ask for thousands of accounts to fund.
+  STELLAR_RELAYER_CHANNELS: z.coerce.number().int().min(0).max(50).default(0),
 
   // ---- Off-ramp treasury ----
   // Relayer-controlled holding address that cash_out nodes sink USDC to before
@@ -535,6 +541,10 @@ export function stellarFactoryAddress(): string | undefined {
 
 export function stellarRelayerSecretKey(): string | undefined {
   return env().STELLAR_RELAYER_SECRET_KEY;
+}
+
+export function stellarRelayerChannelCount(): number {
+  return env().STELLAR_RELAYER_CHANNELS;
 }
 
 export function stellarRelayerAddress(): string | undefined {

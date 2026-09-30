@@ -8,7 +8,7 @@ import {
   readStreamerAvailable,
   submitStreamerClaimByRelayerTx,
 } from "@/lib/stellar/relayer";
-import { withRelayerLock } from "@/lib/stellar/client";
+import { withRelayerChannel } from "@/lib/stellar/relayer-channels";
 import {
   cancelPendingStreamerJobs,
   getDueStreamerJobs,
@@ -96,8 +96,8 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const submit = await withRelayerLock(async () => {
-          const { xdr } = await prepareStreamerClaimByRelayerTx(job.contractAddress);
+        const submit = await withRelayerChannel(async (channel) => {
+          const { xdr } = await prepareStreamerClaimByRelayerTx(job.contractAddress, channel);
           return submitStreamerClaimByRelayerTx(xdr);
         });
 
