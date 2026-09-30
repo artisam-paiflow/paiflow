@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
+import { clientIp } from "@/lib/rate-limit";
 import { popChallenge } from "@/lib/passkey/challenges";
 import { rp } from "@/lib/passkey/rp";
 import { audit } from "@/lib/audit";
@@ -20,6 +22,7 @@ import { audit } from "@/lib/audit";
  */
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
+    await enforceWriteRateLimit("passkeyLoginVerify", clientIp(req));
     const body = await req.json();
     const scope = String(body._scope ?? "anonymous");
     const expectedChallenge = await popChallenge("auth", scope);

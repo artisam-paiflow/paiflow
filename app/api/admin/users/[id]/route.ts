@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { hashPassword, requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { audit } from "@/lib/audit";
 import { Role } from "@prisma/client";
 
@@ -16,6 +17,7 @@ const PatchSchema = z.object({
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const admin = await requireSession({ role: Role.ADMIN });
+    await enforceWriteRateLimit("adminWrite", admin.id);
     const { id } = await ctx.params;
     const body = PatchSchema.parse(await req.json());
     const target = await db.user.findUnique({ where: { id } });

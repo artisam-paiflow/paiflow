@@ -169,9 +169,21 @@ export async function enforceRateLimit(opts: {
   message?: string;
 }): Promise<void> {
   const r = await rateLimit(opts.key, opts.limit, opts.windowSeconds);
-  if (!r.ok) {
-    throw new AppError("RATE_LIMITED", opts.message ?? "Too many requests");
-  }
+  if (!r.ok) throw rateLimitedError(r, opts.message);
+}
+
+/** Whole seconds until a refused `rateLimit()` bucket lets the caller back in; at least 1. */
+export function retryAfterSeconds(r: Pick<RateLimitResult, "resetAt">): number {
+  const seconds = Math.ceil((r.resetAt - Date.now()) / 1000);
+  return Number.isFinite(seconds) ? Math.max(1, seconds) : 1;
+}
+
+/** The `RATE_LIMITED` error for a refused bucket, carrying the `Retry-After` it maps to. */
+export function rateLimitedError(
+  r: Pick<RateLimitResult, "resetAt">,
+  message = "Too many requests",
+): AppError {
+  return new AppError("RATE_LIMITED", message, undefined, undefined, retryAfterSeconds(r));
 }
 
 /** What `clientIp()` returns when no usable address was presented. One shared bucket. */

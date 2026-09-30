@@ -1,7 +1,6 @@
 import "server-only";
-import { AppError } from "@/lib/errors";
 import { log } from "@/lib/log";
-import { noteLimiterFallback, peekRateLimit, rateLimit } from "@/lib/rate-limit";
+import { noteLimiterFallback, peekRateLimit, rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { redis } from "@/lib/redis";
 import { refusedDeploymentToken } from "./auth";
 import { V1_PRE_AUTH_LIMITS } from "./limits";
@@ -218,7 +217,7 @@ export async function guardBeforeAuth(
         "v1: per-address backstop on unseen-token lookups reached",
       );
     }
-    throw new AppError("RATE_LIMITED", "Too many requests from this address");
+    throw rateLimitedError(backstop, "Too many requests from this address");
   }
 
   const failures = await peekRateLimit(failedAuthKey(ip));
@@ -228,5 +227,5 @@ export async function guardBeforeAuth(
   const lookups = await rateLimit(blockedLookupsKey(ip), budget.limit, budget.windowSeconds);
   if (lookups.ok) return;
   await countFailure(ip, route, "blocked");
-  throw new AppError("RATE_LIMITED", BLOCKED_MESSAGE);
+  throw rateLimitedError(lookups, BLOCKED_MESSAGE);
 }

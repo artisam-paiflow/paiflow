@@ -3,7 +3,13 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { AppError, errorResponse } from "@/lib/errors";
-import { rateLimit, clientIp, rateLimitSubject, CALLER_RATE_LIMITS } from "@/lib/rate-limit";
+import {
+  rateLimit,
+  clientIp,
+  rateLimitSubject,
+  CALLER_RATE_LIMITS,
+  retryAfterSeconds,
+} from "@/lib/rate-limit";
 import { getWorkflowBalances } from "@/lib/stellar/balances";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +33,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       ipBackstop.windowSeconds,
     );
     if (!backstop.ok) {
-      return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        { status: 429, headers: { "Retry-After": String(retryAfterSeconds(backstop)) } },
+      );
     }
 
     const { id } = await ctx.params;
@@ -54,7 +63,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       perCaller.windowSeconds,
     );
     if (!limit.ok) {
-      return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        { status: 429, headers: { "Retry-After": String(retryAfterSeconds(limit)) } },
+      );
     }
 
     if (deployment.status !== "CONFIRMED" || !deployment.contractAddress) {

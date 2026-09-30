@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { refuseIfFeatureOff } from "@/lib/features";
 
 const PostSchema = z.object({
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params;
     const rlKey = `offramp-enable:${user.id}`;
     const rl = await rateLimit(rlKey, 30, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many off-ramp toggles");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many off-ramp toggles");
     const d = await requirePayrollDeployment(id, user.id);
 
     const body = PostSchema.parse(await req.json());

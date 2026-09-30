@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { env, soroswapRouterAddress, SWAP_ROUTER_UNSET_MESSAGE } from "@/lib/env";
 import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const rl = await rateLimit(`deploy:${user.id}`, 10, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many deploys");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many deploys");
 
     const body = PrepareSchema.parse(await req.json());
     const network = env().STELLAR_NETWORK;

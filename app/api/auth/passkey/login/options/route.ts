@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateAuthenticationOptions } from "@simplewebauthn/server";
 import { db } from "@/lib/db";
 import { withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
+import { clientIp } from "@/lib/rate-limit";
 import { saveChallenge } from "@/lib/passkey/challenges";
 import { rp } from "@/lib/passkey/rp";
 import { z } from "zod";
@@ -10,6 +12,7 @@ const Body = z.object({ username: z.string().min(1).max(64).optional() });
 
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
+    await enforceWriteRateLimit("passkeyLoginOptions", clientIp(req));
     const body = Body.parse(await req.json().catch(() => ({})));
     const { rpID } = rp();
 

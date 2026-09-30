@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { requireFeature, serverFeatures } from "@/lib/features";
@@ -263,7 +263,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params;
 
     const rl = await rateLimit(`flow:edit:${user.id}`, 10, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many editing requests. Slow down.");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many editing requests. Slow down.");
 
     const flow = await db.flow.findFirst({ where: { id, ownerId: user.id } });
     if (!flow) throw new AppError("NOT_FOUND", "Flow not found");

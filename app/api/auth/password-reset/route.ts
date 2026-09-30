@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitedError } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
 import { generateResetToken, hashResetToken, resetTokenExpiresAt } from "@/lib/auth/password-reset";
@@ -31,8 +31,8 @@ export async function POST(req: NextRequest) {
     // targeted attempts at a single account.
     const ipBucket = await rateLimit(`pwreset:ip:${ip}`, 10, 60 * 60);
     if (!ipBucket.ok) {
-      throw new AppError(
-        "RATE_LIMITED",
+      throw rateLimitedError(
+        ipBucket,
         "Too many reset requests from this network. Try again in an hour.",
       );
     }

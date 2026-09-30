@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitedError } from "@/lib/rate-limit";
 import { FlowSaveSchema } from "@/lib/flows/schema";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const rl = await rateLimit(`flow:write:${user.id}`, 30, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many writes");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many writes");
 
     const body = FlowSaveSchema.parse(await req.json());
     const v = validateFlow(body.graph);
