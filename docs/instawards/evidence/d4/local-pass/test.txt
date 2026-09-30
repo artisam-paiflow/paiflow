@@ -1,0 +1,13 @@
+
+> paiflow@0.1.0 test <repo>
+> vitest run
+
+
+ RUN  v4.1.11 <repo>
+
+
+ Test Files  128 passed (128)
+      Tests  1800 passed (1800)
+   Start at  16:15:48
+   Duration  21.05s (transform 10.19s, setup 77.76s, import 29.22s, tests 43.15s, environment 16.73s)
+
