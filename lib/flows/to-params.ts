@@ -21,7 +21,7 @@ import {
   TOTAL_BPS,
 } from "./schema";
 import { inFlowOrder } from "./graph";
-import { conditionBranchTargets, routerPaths } from "./branches";
+import { conditionBranchTargets, routerPaths, timelockLists } from "./branches";
 
 export type PipelineRecipient = {
   address: string;
@@ -108,6 +108,20 @@ export type TimelockNodeParams = {
   unlockTime: number;
   mode: "after" | "before";
   nextStepNodeIds: string[];
+  relayer?: string;
+};
+
+/**
+ * A timelock with two outcomes (#721): released strictly before `unlockTime` it
+ * pays the `before` step, at or after it the `after` step. See timelockLists()
+ * for how a condition's True/False outputs map onto the two.
+ */
+export type TimelockBranchNodeParams = {
+  kind: "timelock_branch";
+  asset: Asset;
+  unlockTime: number;
+  beforeNodeIds: string[];
+  afterNodeIds: string[];
   relayer?: string;
 };
 
@@ -261,6 +275,7 @@ export type PipelineNodeParams =
   | ConditionalNodeParams
   | RouterNodeParams
   | TimelockNodeParams
+  | TimelockBranchNodeParams
   | WebhookTriggerNodeParams
   | SubscriptionTriggerNodeParams
   | PayrollTriggerNodeParams
@@ -985,21 +1000,31 @@ export function flowToPipeline(
 
   // Conditions
   let terminal = false;
-  const routerBranchActions: ContractActionNode[] = [];
+  const branchActions: ContractActionNode[] = [];
   for (const cond of conditions) {
     if (cond.config.kind === "time_after" || cond.config.kind === "time_before") {
+      // Always the two-outcome timelock, never the older single-list one: a
+      // side left empty is refused by validateFlow (TIMELOCK_EMPTY_SIDE)
+      // rather than stranding the funds. Contracts already deployed as
+      // TIMELOCK are untouched.
       const ts = Math.floor(new Date(cond.config.at).getTime() / 1000);
+      const targets = conditionBranchTargets(graph, cond.id);
+      const { beforeNodeIds, afterNodeIds } = timelockLists(cond.config.kind, targets);
       pipeline.push({
         nodeId: cond.id,
-        templateKind: TemplateKind.TIMELOCK,
+        templateKind: TemplateKind.TIMELOCK_BRANCH,
         params: {
-          kind: "timelock",
+          kind: "timelock_branch",
           asset,
           unlockTime: ts,
-          mode: cond.config.kind === "time_after" ? "after" : "before",
-          nextStepNodeIds: children.get(cond.id) ?? [],
+          beforeNodeIds,
+          afterNodeIds,
         },
       });
+      for (const id of [...beforeNodeIds, ...afterNodeIds]) {
+        const node = graph.nodes.find((n) => n.id === id);
+        if (node && isContractAction(node)) branchActions.push(node);
+      }
     } else if (cond.config.kind === "amount_gt" || cond.config.kind === "amount_lt") {
       // The true/false branches map onto the router's two paths per kind; see
       // routerPaths(). A missing branch leaves its path empty, which
@@ -1021,7 +1046,7 @@ export function flowToPipeline(
       // reaches first (`action`), which is where the action loop starts.
       for (const id of [...pathANodeIds, ...pathBNodeIds]) {
         const node = graph.nodes.find((n) => n.id === id);
-        if (node && isContractAction(node)) routerBranchActions.push(node);
+        if (node && isContractAction(node)) branchActions.push(node);
       }
     } else if (cond.config.kind === "oracle_gte") {
       const amount =
@@ -1065,7 +1090,7 @@ export function flowToPipeline(
   if (!terminal) {
     const cashOutNodes: PipelineNode[] = [];
     const seenActions = new Set<string>();
-    const actionQueue: ContractActionNode[] = [action, ...routerBranchActions];
+    const actionQueue: ContractActionNode[] = [action, ...branchActions];
 
     while (actionQueue.length > 0) {
       const current = actionQueue.shift()!;

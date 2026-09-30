@@ -73,6 +73,8 @@ async function makeTimelockDeployment(opts: {
   mode?: "after" | "before";
   role?: Role;
   address?: string;
+  /** The two-outcome timelock (#721), which the relayer can only release at or after the deadline. */
+  branch?: boolean;
 }) {
   const address = opts.address ?? contractId();
   const user = await db.user.create({
@@ -83,7 +85,13 @@ async function makeTimelockDeployment(opts: {
     },
   });
   const flow = await db.flow.create({
-    data: { ownerId: user.id, name: "tl", templateKind: "TIMELOCK", graph: {}, parameters: {} },
+    data: {
+      ownerId: user.id,
+      name: "tl",
+      templateKind: opts.branch ? "TIMELOCK_BRANCH" : "TIMELOCK",
+      graph: {},
+      parameters: {},
+    },
   });
   const deployment = await db.deployment.create({
     data: {
@@ -94,20 +102,35 @@ async function makeTimelockDeployment(opts: {
       graphSnapshot: {},
       paramsSnapshot: [
         { nodeId: "trigger", templateKind: "DEPOSIT_TRIGGER", params: { kind: "deposit_trigger" } },
-        {
-          nodeId: "lock",
-          templateKind: "TIMELOCK",
-          params: {
-            kind: "timelock",
-            unlockTime: Math.floor(opts.unlockAt.getTime() / 1000),
-            mode: opts.mode ?? "after",
-            nextStepNodeIds: [],
-          },
-        },
+        opts.branch
+          ? {
+              nodeId: "lock",
+              templateKind: "TIMELOCK_BRANCH",
+              params: {
+                kind: "timelock_branch",
+                unlockTime: Math.floor(opts.unlockAt.getTime() / 1000),
+                beforeNodeIds: [],
+                afterNodeIds: [],
+              },
+            }
+          : {
+              nodeId: "lock",
+              templateKind: "TIMELOCK",
+              params: {
+                kind: "timelock",
+                unlockTime: Math.floor(opts.unlockAt.getTime() / 1000),
+                mode: opts.mode ?? "after",
+                nextStepNodeIds: [],
+              },
+            },
       ],
       pipelineSnapshot: [
         { nodeId: "trigger", contractAddress: contractId(), templateKind: "DEPOSIT_TRIGGER" },
-        { nodeId: "lock", contractAddress: address, templateKind: "TIMELOCK" },
+        {
+          nodeId: "lock",
+          contractAddress: address,
+          templateKind: opts.branch ? "TIMELOCK_BRANCH" : "TIMELOCK",
+        },
       ],
     },
   });
@@ -145,6 +168,69 @@ describe("cron/auto-release", () => {
       unsupportedReason: null,
     });
     expect(row.nextProbeAt).toEqual(row.unlockAt);
+  });
+
+  describe("two-outcome timelock (#721)", () => {
+    it("tracks it as an AFTER lock, so it is not probed before the deadline", async () => {
+      const { address } = await makeTimelockDeployment({ unlockAt: future(), branch: true });
+
+      const summary = await runAutoRelease();
+
+      expect(summary.discovered).toBe(1);
+      expect(mockSimulate).not.toHaveBeenCalled();
+      const row = await db.timelockRelease.findUniqueOrThrow({
+        where: { contractAddress: address },
+      });
+      expect(row).toMatchObject({
+        templateKind: "TIMELOCK_BRANCH",
+        mode: TimelockMode.AFTER,
+        unsupportedReason: null,
+      });
+      expect(row.nextProbeAt).toEqual(row.unlockAt);
+    });
+
+    it("releases it once the deadline has passed", async () => {
+      const { address } = await makeTimelockDeployment({ unlockAt: past(), branch: true });
+      mockSimulate.mockResolvedValue(okSim);
+      mockSend.mockResolvedValue({ status: "SUCCESS", txHash: "tx1", ledger: 100 });
+
+      const summary = await runAutoRelease();
+
+      expect(summary.released).toBe(1);
+      // The cron only ever intends the "after" side.
+      expect(mockSimulate).toHaveBeenCalledWith(address, "after");
+      expect(mockSend).toHaveBeenCalledWith(address, okSim.sim, "after");
+    });
+
+    it("retries later when the ledger has not reached the deadline yet, and never sends", async () => {
+      // The contract refuses the relayer before unlock_time (ConditionNotMet),
+      // so a ledger clock trailing the wall clock costs a retry, not a payout
+      // to the wrong side.
+      const { address } = await makeTimelockDeployment({ unlockAt: past(), branch: true });
+      mockSimulate.mockResolvedValue({
+        ok: false,
+        latestLedger: 90,
+        error: simError(address, 3),
+      });
+
+      const summary = await runAutoRelease();
+
+      expect(summary.skipped).toBe(1);
+      expect(mockSend).not.toHaveBeenCalled();
+      const row = await db.timelockRelease.findUniqueOrThrow({
+        where: { contractAddress: address },
+      });
+      expect(row.nextProbeAt!.getTime()).toBeGreaterThan(Date.now());
+    });
+
+    it("never loads one owned by a sandbox user", async () => {
+      await makeTimelockDeployment({ unlockAt: past(), branch: true, role: Role.SANDBOX });
+
+      const summary = await runAutoRelease();
+
+      expect(summary.discovered).toBe(0);
+      expect(mockSimulate).not.toHaveBeenCalled();
+    });
   });
 
   it("releases a due timelock, and the next run does not probe it again", async () => {

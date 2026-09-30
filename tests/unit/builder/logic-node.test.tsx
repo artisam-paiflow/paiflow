@@ -73,15 +73,36 @@ describe("LogicNode outputs", () => {
     );
   });
 
-  it("gives a time condition its single True output and no labels", () => {
-    const { container } = renderCondition({ kind: "time_after", at: "2030-06-01T00:00:00.000Z" });
+  it("gives a time condition a True and a False handle, and says which release each is", () => {
+    const { container } = renderCondition({
+      kind: "time_before",
+      at: "2030-06-01T00:00:00.000Z",
+    });
+    expect(sourceHandleIds(container)).toEqual(["true", "false"]);
+    const node = container.querySelector('.react-flow__node[data-id="c"]');
+    expect(node?.textContent).toContain(
+      "True: the funds are released before June 1, 2030 at 12:00 AM (UTC). False: the funds are released at or after June 1, 2030 at 12:00 AM (UTC).",
+    );
+  });
+
+  it("gives a multisig condition its single True output and no labels", () => {
+    const { container } = renderCondition({
+      kind: "multisig",
+      signers: ["GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"],
+      threshold: 1,
+    });
     expect(sourceHandleIds(container)).toEqual(["true"]);
     const node = container.querySelector('.react-flow__node[data-id="c"]');
     expect(node?.textContent).not.toContain("False");
   });
 
-  it("keeps a False handle on a time condition while an edge still uses it", () => {
-    const { container } = renderCondition({ kind: "time_after", at: "2030-06-01T00:00:00.000Z" }, [
+  it("keeps a False handle on a multisig condition while an edge still uses it", () => {
+    const multisig: Extract<FlowNode, { type: "condition" }>["config"] = {
+      kind: "multisig",
+      signers: ["GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"],
+      threshold: 1,
+    };
+    const { container } = renderCondition(multisig, [
       { id: "e", source: "c", target: "p", sourceHandle: "false" },
     ]);
     expect(sourceHandleIds(container)).toEqual(["true", "false"]);

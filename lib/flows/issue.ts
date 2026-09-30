@@ -9,6 +9,7 @@ export type SwapIssueCode =
 export type ValidationIssueCode =
   | SwapIssueCode
   | "ROUTER_EMPTY_PATH"
+  | "TIMELOCK_EMPTY_SIDE"
   | "BRANCH_NOT_SUPPORTED"
   | "BRANCH_FAN_OUT"
   | "BRANCH_EMAIL"

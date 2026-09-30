@@ -1,4 +1,4 @@
-import { BRANCH_LABEL, branchAmountText, isBranchingCondition } from "@/lib/flows/branches";
+import { BRANCH_LABEL, branchTestText, isBranchingCondition } from "@/lib/flows/branches";
 import type { EdgeBranch, LogicNode } from "@/lib/flows/schema";
 
 export type ConditionOutput = {
@@ -34,5 +34,5 @@ export function conditionOutputs(node: LogicNode, hasFalseEdge: boolean): Condit
  */
 export function conditionOutputsDescription(node: LogicNode): string | null {
   if (!isBranchingCondition(node)) return null;
-  return `Two outputs. True: the amount is ${branchAmountText(node.config, "true")}. False: the amount is ${branchAmountText(node.config, "false")}.`;
+  return `Two outputs. True: ${branchTestText(node, "true")}. False: ${branchTestText(node, "false")}.`;
 }

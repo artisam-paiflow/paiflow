@@ -163,8 +163,20 @@ does not count toward that one. The router is environment config, never part of 
 `multisig` is a condition kind, not a block of its own.
 
 An amount condition (`amount_gt`, `amount_lt`) has two outputs: **True** leads to the steps for a
-payment that meets the test, **False** to the steps for one that doesn't. Every other kind has only
-the True output. An edge saved without a branch is the True branch.
+payment that meets the test, **False** to the steps for one that doesn't.
+
+A time condition (`time_after`, `time_before`) also has two outputs, but it does not test a payment:
+it holds the funds and the release time picks the side. Released strictly before the deadline, the
+funds go to the "before" step; released at or after it, to the "after" step. `time_before` names
+the before side as True and the after side as False; `time_after` the other way round. Before the
+deadline the before side can be chosen by the deploying wallet, and the contract also lets the
+relayer release it on an authorised request (the owner's session or a deployment API token; that
+request is not built yet, #751). The scheduled auto-release always asks
+for the after side, which the contract only allows at or after the deadline ("pay the freelancer on
+delivery, refund the client after the deadline"). A release that names the wrong side for the
+ledger time is refused, never redirected.
+
+Every other kind has only the True output. An edge saved without a branch is the True branch.
 
 ### 3.4 Invariants
 
@@ -186,6 +198,14 @@ Money:
   two paths, and both must lead to a step: money routed to an empty path would sit in a contract
   that cannot release it. So both the True and the False output must be connected, each to one
   step, before an amount condition can deploy.
+- A time condition holds the funds until they are released, and both sides must lead to a step for
+  the same reason: a side with nothing on it would leave the funds in a contract that cannot
+  release them. So both the True and the False output must be connected, each to one step, before
+  a time condition can deploy. The deploying wallet can release at any time, and the relayer can
+  release the before side on an authorised request, so who chooses the before side is a trust
+  property of the flow's owner, not of the contract's counterparties.
+  The deadline itself belongs to the after side: `time_before` is
+  strict, `time_after` inclusive.
 - Amounts are stroops as decimal strings end to end. See [`CLAUDE.md` §3.3](./CLAUDE.md#33-typescript).
 
 Fiat payouts:

@@ -103,6 +103,7 @@ function makeGraph(kind: TemplateKind): Prisma.InputJsonValue {
         ],
       };
     case TemplateKind.TIMELOCK:
+    case TemplateKind.TIMELOCK_BRANCH:
       return {
         nodes: [
           { id: triggerId, type: "on_receive", config: { asset } },
@@ -335,6 +336,7 @@ function makeEvents(kind: TemplateKind, deploymentId: string) {
       ];
     case TemplateKind.CONDITIONAL:
     case TemplateKind.TIMELOCK:
+    case TemplateKind.TIMELOCK_BRANCH:
       return [
         {
           ...base(1234567, 30),

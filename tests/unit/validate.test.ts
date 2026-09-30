@@ -1266,8 +1266,8 @@ describe("validateFlow", () => {
         {
           id: "c",
           type: "condition",
-          // Not an amount condition: those are refused until both router paths
-          // can be wired (#719); see tests/unit/flows/validate-router-paths.test.ts.
+          // Both outputs are wired: a time condition with a side left empty is
+          // refused; see tests/unit/flows/time-condition-branches.test.ts.
           config: { kind: "time_after", at: "2030-06-01T00:00:00.000Z" },
         },
         {
@@ -1281,10 +1281,21 @@ describe("validateFlow", () => {
             ],
           },
         },
+        {
+          id: "b",
+          type: "pay",
+          config: {
+            asset: { kind: "known", symbol: "USDC" },
+            recipient: ADDR_A,
+            mode: "fixed",
+            fullAmount: true,
+          },
+        },
       ],
       edges: [
         { id: "e1", source: "t", target: "c" },
-        { id: "e2", source: "c", target: "a" },
+        { id: "e2", source: "c", target: "a", sourceHandle: "true" },
+        { id: "e3", source: "c", target: "b", sourceHandle: "false" },
       ],
     });
     expect(r.ok).toBe(true);
@@ -1292,8 +1303,9 @@ describe("validateFlow", () => {
       expect(r.templateKind).toBe(TemplateKind.CONDITIONAL);
       expect(r.pipeline).toEqual([
         TemplateKind.DEPOSIT_TRIGGER,
-        TemplateKind.TIMELOCK,
+        TemplateKind.TIMELOCK_BRANCH,
         TemplateKind.SPLITTER,
+        TemplateKind.PAYER,
       ]);
     }
   });
@@ -1333,10 +1345,11 @@ describe("validateFlow", () => {
         { id: "e2", source: "c", target: "a" },
       ],
     });
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.templateKind).toBe(TemplateKind.CONDITIONAL);
-      expect(r.pipeline).toEqual([TemplateKind.STREAMER]);
+    // A schedule flow never compiles a timelock, so the deadline the user drew
+    // would silently not exist and every payment would go out at once (#721).
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.map((e) => e.code)).toContain("BRANCH_TRIGGER");
     }
   });
 
@@ -1462,7 +1475,9 @@ describe("validateFlow", () => {
         {
           id: "c",
           type: "condition",
-          config: { kind: "time_after", at: "2030-06-01T00:00:00.000Z" },
+          // A time or amount condition refuses an email (BRANCH_EMAIL); multisig
+          // is a single-output condition, where the decorator is still fine.
+          config: { kind: "multisig", signers: [ADDR_A, ADDR_B], threshold: 1 },
         },
         {
           id: "a",
@@ -1495,7 +1510,7 @@ describe("validateFlow", () => {
     if (r.ok) {
       expect(r.pipeline).toEqual([
         TemplateKind.DEPOSIT_TRIGGER,
-        TemplateKind.TIMELOCK,
+        TemplateKind.MULTISIG,
         TemplateKind.SPLITTER,
       ]);
     }

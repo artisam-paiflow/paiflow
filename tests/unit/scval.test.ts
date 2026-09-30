@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { Address, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
-import { constructorArgs, pipelineNodeConstructorArgs } from "@/lib/stellar/scval";
+import { constructorArgs, pipelineNodeConstructorArgs, timelockSideArg } from "@/lib/stellar/scval";
 
 vi.mock("@/lib/stellar/assets", () => ({
   assetContractId: vi.fn(() => "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"),
@@ -93,6 +93,53 @@ describe("pipelineNodeConstructorArgs", () => {
     expect(args).toHaveLength(7);
     // When relayer is omitted it falls back to admin.
     expect(args[6]!).toEqual(new Address(ADDR).toScVal());
+  });
+
+  it("encodes timelock_branch: unlock time, then the before list, the after list, parent and relayer", () => {
+    const args = pipelineNodeConstructorArgs(
+      {
+        kind: "timelock_branch",
+        asset: { kind: "native" },
+        unlockTime: 1_000_000,
+        beforeNodeIds: ["freelancer"],
+        afterNodeIds: ["client"],
+        relayer: ADDR2,
+      },
+      ADDR,
+      ADDR2,
+      { freelancer: ADDR, client: ADDR2 },
+    );
+    // (admin, asset, unlock_time, before_steps, after_steps, parent, relayer)
+    expect(args).toHaveLength(7);
+    expect(args[0]!).toEqual(new Address(ADDR).toScVal());
+    expect(scValToNative(args[2]!)).toBe(1_000_000n);
+    const target = (i: number) =>
+      scValToNative(args[i]!) as Array<{ address: string; data: string }>;
+    expect(target(3).map((t) => t.address)).toEqual([ADDR]);
+    expect(target(4).map((t) => t.address)).toEqual([ADDR2]);
+    expect(args[5]!).toEqual(new Address(ADDR2).toScVal());
+    expect(args[6]!).toEqual(new Address(ADDR2).toScVal());
+  });
+
+  it("encodes the release side as the Side enum's fieldless variant", () => {
+    expect(scValToNative(timelockSideArg("before"))).toEqual(["Before"]);
+    expect(scValToNative(timelockSideArg("after"))).toEqual(["After"]);
+  });
+
+  it("refuses a timelock_branch with no parent or with a side whose step has no address", () => {
+    const params = {
+      kind: "timelock_branch" as const,
+      asset: { kind: "native" as const },
+      unlockTime: 1,
+      beforeNodeIds: ["a"],
+      afterNodeIds: ["b"],
+    };
+    expect(() =>
+      pipelineNodeConstructorArgs(params, ADDR, undefined, { a: ADDR, b: ADDR }),
+    ).toThrow("requires a parent");
+    expect(() => pipelineNodeConstructorArgs(params, ADDR, ADDR2, { a: ADDR })).toThrow(
+      "Missing computed address for node b",
+    );
   });
 
   it("encodes router with threshold and paths", () => {

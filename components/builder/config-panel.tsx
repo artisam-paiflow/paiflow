@@ -1692,6 +1692,14 @@ export default function ConfigPanel({
                       ))}
                     </select>
                   </Field>
+                  <p className="text-on-surface-variant text-[11px] leading-snug">
+                    The funds are held until released.{" "}
+                    {cfg.kind === "time_before"
+                      ? "True is released before this time; False at or after it."
+                      : "True is released at or after this time; False before it."}{" "}
+                    Connect a step to both outputs. The before side can be released early by your
+                    wallet; the automatic release runs at or after this time.
+                  </p>
                 </>
               );
             })()}

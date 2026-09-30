@@ -13,6 +13,10 @@ import { sorobanRpc, decodeContractAddress } from "./client";
 import { stellarPassphrase, stellarRelayerAddress, stellarRelayerSecretKey } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { simulationFailure } from "./sim-error";
+import { timelockSideArg } from "./scval";
+
+/** Which list a timelock_branch release intends to pay; absent for the old timelock. */
+export type ReleaseSide = "before" | "after";
 
 function relayerReleaseKeypair(): Keypair {
   const secret = stellarRelayerSecretKey();
@@ -36,6 +40,7 @@ async function loadRelayerAccount(server: rpc.Server, relayerAddress: string) {
 function buildReleaseTx(
   source: Awaited<ReturnType<rpc.Server["getAccount"]>>,
   contractAddress: string,
+  side?: ReleaseSide,
 ) {
   const contractIdBytes = decodeContractAddress(contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -43,7 +48,7 @@ function buildReleaseTx(
     new xdr.InvokeContractArgs({
       contractAddress: scAddress,
       functionName: "release_by_relayer",
-      args: [],
+      args: side ? [timelockSideArg(side)] : [],
     }),
   );
   return new TransactionBuilder(source, {
@@ -60,17 +65,19 @@ export type ReleaseSimulation =
   | { ok: false; latestLedger: number; error: string };
 
 /**
- * Simulate a timelock's `release_by_relayer()` without signing anything, so the
- * caller learns whether a release would go through before it takes the relayer
- * lock. A contract revert is returned, not thrown; an RPC that cannot be
+ * Simulate a timelock's `release_by_relayer()` (with the intended `side` for a
+ * timelock_branch, which reverts with ConditionNotMet if the ledger time is on
+ * the other side) without signing anything, so the caller learns whether a
+ * release would go through before it takes the relayer lock. A contract revert is returned, not thrown; an RPC that cannot be
  * reached still throws.
  */
 export async function simulateReleaseByRelayer(
   contractAddress: string,
+  side?: ReleaseSide,
 ): Promise<ReleaseSimulation> {
   const server = sorobanRpc();
   const source = await loadRelayerAccount(server, relayerReleaseKeypair().publicKey());
-  const sim = await server.simulateTransaction(buildReleaseTx(source, contractAddress));
+  const sim = await server.simulateTransaction(buildReleaseTx(source, contractAddress, side));
   if (rpc.Api.isSimulationError(sim)) {
     return { ok: false, latestLedger: sim.latestLedger, error: sim.error };
   }
@@ -100,6 +107,7 @@ export async function simulateReleaseByRelayer(
 export async function sendReleaseByRelayer(
   contractAddress: string,
   sim: rpc.Api.SimulateTransactionSuccessResponse,
+  side?: ReleaseSide,
 ): Promise<{
   status: "SUCCESS" | "FAILED";
   txHash: string;
@@ -109,7 +117,9 @@ export async function sendReleaseByRelayer(
   const server = sorobanRpc();
   const kp = relayerReleaseKeypair();
   const source = await loadRelayerAccount(server, kp.publicKey());
-  const assembled = rpc.assembleTransaction(buildReleaseTx(source, contractAddress), sim).build();
+  const assembled = rpc
+    .assembleTransaction(buildReleaseTx(source, contractAddress, side), sim)
+    .build();
   assembled.sign(kp);
 
   const send = await server.sendTransaction(assembled);

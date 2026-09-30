@@ -9,6 +9,7 @@ members = [
   "conditions/conditional",
   "conditions/router",
   "conditions/timelock",
+  "conditions/timelock_branch",
   "conditions/multisig",
   "actions/splitter",
   "actions/splitter_dev",

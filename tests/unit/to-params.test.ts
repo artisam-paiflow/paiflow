@@ -1458,7 +1458,7 @@ describe("flowToPipeline", () => {
     });
   });
 
-  it("produces deposit_trigger → timelock → splitter for time_after condition", () => {
+  it("produces deposit_trigger → timelock_branch → splitter for time_after condition", () => {
     const graph = splitGraph() as Parameters<typeof flowToPipeline>[0];
     graph.nodes.push({
       id: "c",
@@ -1473,8 +1473,14 @@ describe("flowToPipeline", () => {
     const pipeline = flowToPipeline(graph);
     expect(pipeline).toHaveLength(3);
     expect(pipeline[0]!.templateKind).toBe("DEPOSIT_TRIGGER");
-    expect(pipeline[1]!.templateKind).toBe("TIMELOCK");
-    expect(pipeline[1]!.params.kind).toBe("timelock");
+    expect(pipeline[1]!.templateKind).toBe("TIMELOCK_BRANCH");
+    expect(pipeline[1]!.params).toMatchObject({
+      kind: "timelock_branch",
+      // A handle-less edge is the True branch, which for time_after is the
+      // "after" list; the "before" list is empty and validateFlow refuses it.
+      afterNodeIds: ["a"],
+      beforeNodeIds: [],
+    });
     expect(pipeline[2]!.templateKind).toBe("SPLITTER");
   });
 

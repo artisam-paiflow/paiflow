@@ -26,6 +26,7 @@ export type ContractErrorKey =
   | "conditional"
   | "router"
   | "timelock"
+  | "timelock_branch"
   | "multisig"
   | "deposit_trigger"
   | "webhook"
@@ -391,6 +392,27 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
       friendly: "The amount overflowed — try a smaller amount.",
     },
   },
+  timelock_branch: {
+    1: ALREADY_INITIALIZED,
+    2: { name: "Unauthorized", friendly: "This action isn't authorized." },
+    3: {
+      name: "ConditionNotMet",
+      friendly:
+        "That side isn't open at this time: before the deadline only the before side is, from it on only the after side.",
+    },
+    4: {
+      name: "NothingToRelease",
+      friendly: "There's no balance to release.",
+    },
+    5: {
+      name: "Overflow",
+      friendly: "The amount overflowed — try a smaller amount.",
+    },
+    6: {
+      name: "InvalidBranch",
+      friendly: "Each side of a time condition needs exactly one step connected.",
+    },
+  },
   multisig: {
     1: ALREADY_INITIALIZED,
     2: {
@@ -514,6 +536,8 @@ export function contractKeyForTemplate(templateKind: string): ContractErrorKey |
       return "deposit_trigger";
     case "ROUTER":
       return "router";
+    case "TIMELOCK_BRANCH":
+      return "timelock_branch";
     case "TIMELOCK":
       return "timelock";
     case "WEBHOOK":
