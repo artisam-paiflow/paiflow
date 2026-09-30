@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitedError } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
 import { hashPassword } from "@/lib/auth";
 import { hashResetToken } from "@/lib/auth/password-reset";
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     // Per-IP bucket catches anyone brute-forcing token values.
     const ipBucket = await rateLimit(`pwreset:consume:ip:${ip}`, 20, 60 * 60);
     if (!ipBucket.ok) {
-      throw new AppError("RATE_LIMITED", "Too many attempts. Try again in an hour.");
+      throw rateLimitedError(ipBucket, "Too many attempts. Try again in an hour.");
     }
 
     const body = Body.parse(await req.json());

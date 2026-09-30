@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import type { TemplateKind } from "@prisma/client";
 
 const SenderSchema = z.object({
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params;
     const rlKey = `offramp-sender:${user.id}`;
     const rl = await rateLimit(rlKey, 30, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many sender profile updates");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many sender profile updates");
     await requireOffRampDeployment(id, user.id);
 
     const body = PostSchema.parse(await req.json());

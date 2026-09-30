@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { demoApiDeploymentId, env } from "@/lib/env";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { log } from "@/lib/log";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { resolveSwapperPipeline } from "@/lib/api/v1/execute";
 import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
 import { markTokenKnown } from "@/lib/api/v1/pre-auth";
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     const ip = clientIp(req);
     const perIp = await rateLimit(`v1:demo-token:${ip}`, ...limitArgs("demoToken"));
     if (!perIp.ok) {
-      throw new AppError("RATE_LIMITED", "Too many demo tokens from this address");
+      throw rateLimitedError(perIp, "Too many demo tokens from this address");
     }
     const global = await rateLimit("v1:demo-token:global", ...limitArgs("demoTokenGlobal"));
     // `shared` is false when rateLimit() fell back to its per-process bucket. clientIp() is only as
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       throw new AppError("RATE_LIMITED", "The demo API is unavailable right now. Try again later.");
     }
     if (!global.ok) {
-      throw new AppError("RATE_LIMITED", "The demo API is busy right now. Try again shortly.");
+      throw rateLimitedError(global, "The demo API is busy right now. Try again shortly.");
     }
 
     const deployment = await db.deployment.findUnique({
