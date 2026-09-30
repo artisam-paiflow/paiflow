@@ -24,7 +24,7 @@ import { ChargeRelayerMode } from "@prisma/client";
 import { requireCronSecret } from "@/lib/auth/cron-secret";
 import { CRON_LIMITS } from "@/lib/cron/config";
 import { cronDeadline } from "@/lib/cron/deadline";
-import { CRON_SKIPPED_REASON, withCronLease } from "@/lib/cron/lease";
+import { withCronLease } from "@/lib/cron/lease";
 
 export const dynamic = "force-dynamic";
 
@@ -117,7 +117,17 @@ export async function POST(req: NextRequest) {
     );
     if (!lease.acquired) {
       log.info("auto-charge-subscriptions cron skipped: previous run still active");
-      return NextResponse.json({ data: { skipped: CRON_SKIPPED_REASON } });
+      return NextResponse.json({
+        data: {
+          platformCharged: 0,
+          userCharged: 0,
+          skipped: 0,
+          failed: 0,
+          details: [],
+          truncated: false,
+          leaseHeld: true,
+        },
+      });
     }
     return NextResponse.json({ data: lease.value });
   });

@@ -158,7 +158,7 @@ heartbeats with `: ping`, and unsubscribes on abort. The other `cron/*` routes d
 `auto-charge-payroll`, `auto-charge-subscriptions`, `auto-release`, `finalize-deployments`,
 `process-offramp-jobs`, `process-streamer-jobs`. `poll-events`, `auto-charge-payroll`,
 `auto-charge-subscriptions` and `auto-release` run under `withCronLease()` (`lib/cron/lease.ts`, a
-Redis `SET NX PX`; a held lease answers `{ skipped }`, and without Redis they run unguarded), read
+Redis `SET NX PX`; a held lease answers the normal zeroed shape with `leaseHeld: true`, and without Redis they run unguarded), read
 a bounded, oldest-first batch, and stop at the time budget in `lib/cron/config.ts`, reporting
 `truncated: true`.
 

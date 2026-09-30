@@ -7,7 +7,7 @@ import { requireCronSecret } from "@/lib/auth/cron-secret";
 import { cronPollableDeploymentWhere } from "@/lib/sandbox";
 import { CRON_LIMITS } from "@/lib/cron/config";
 import { cronDeadline } from "@/lib/cron/deadline";
-import { CRON_SKIPPED_REASON, withCronLease } from "@/lib/cron/lease";
+import { withCronLease } from "@/lib/cron/lease";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -87,7 +87,16 @@ export async function POST(req: NextRequest) {
 
     if (!lease.acquired) {
       log.info("poll-events cron skipped: previous run still active");
-      return NextResponse.json({ data: { skipped: CRON_SKIPPED_REASON } });
+      return NextResponse.json({
+        data: {
+          polled: 0,
+          written: 0,
+          errors: 0,
+          deployments: 0,
+          truncated: false,
+          leaseHeld: true,
+        },
+      });
     }
     return NextResponse.json({ data: lease.value });
   });

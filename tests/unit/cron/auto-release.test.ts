@@ -360,14 +360,24 @@ describe("cron/auto-release", () => {
     expect(next).toMatchObject({ released: 1, truncated: false });
   });
 
-  it("returns skipped and does no work while the previous run holds the lease", async () => {
+  it("reports leaseHeld and does no work while the previous run holds the lease", async () => {
     const { address } = await makeTimelockDeployment({ unlockAt: past() });
     leaseStore.set("cron:auto-release", "previous-run");
 
     const res = await POST(new NextRequest("http://localhost/api/cron/auto-release"));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: { skipped: "previous run still active" } });
+    expect(await res.json()).toEqual({
+      data: {
+        discovered: 0,
+        released: 0,
+        skipped: 0,
+        failed: 0,
+        details: [],
+        truncated: false,
+        leaseHeld: true,
+      },
+    });
     expect(mockSimulate).not.toHaveBeenCalled();
     expect(await db.timelockRelease.findUnique({ where: { contractAddress: address } })).toBeNull();
     expect(leaseStore.get("cron:auto-release")).toBe("previous-run");

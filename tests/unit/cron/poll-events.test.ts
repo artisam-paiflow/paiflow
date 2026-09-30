@@ -7,7 +7,7 @@ const { mockDb, mockPoll, limits, redisState } = vi.hoisted(() => {
   return {
     mockDb: { deployment: { findMany: vi.fn() } },
     mockPoll: vi.fn(),
-    limits: { pollEvents: { budgetMs: 50_000, ttlMs: 150_000, batch: 200 } },
+    limits: { pollEvents: { budgetMs: 20_000, ttlMs: 60_000, batch: 200 } },
     redisState: {
       store,
       client: {
@@ -68,7 +68,7 @@ describe("cron/poll-events", () => {
     mockPoll.mockReset();
     redisState.store.clear();
     redisState.enabled = true;
-    limits.pollEvents.budgetMs = 50_000;
+    limits.pollEvents.budgetMs = 20_000;
     limits.pollEvents.batch = 200;
   });
   afterEach(() => {
@@ -151,13 +151,15 @@ describe("cron/poll-events", () => {
     });
   });
 
-  it("returns skipped and touches no deployment while the previous run holds the lease", async () => {
+  it("reports leaseHeld and touches no deployment while the previous run holds the lease", async () => {
     redisState.store.set("cron:poll-events", "previous-run");
 
     const res = await post();
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: { skipped: "previous run still active" } });
+    expect(await res.json()).toEqual({
+      data: { polled: 0, written: 0, errors: 0, deployments: 0, truncated: false, leaseHeld: true },
+    });
     expect(mockDb.deployment.findMany).not.toHaveBeenCalled();
     expect(mockPoll).not.toHaveBeenCalled();
     expect(redisState.store.get("cron:poll-events")).toBe("previous-run");

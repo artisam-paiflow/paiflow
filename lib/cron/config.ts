@@ -7,7 +7,7 @@
  * start while this run is still going.
  */
 export const CRON_LIMITS = {
-  pollEvents: { budgetMs: 50_000, ttlMs: 150_000, batch: 200 },
+  pollEvents: { budgetMs: 20_000, ttlMs: 60_000, batch: 200 },
   autoChargePayroll: { budgetMs: 240_000, ttlMs: 600_000, batch: 100 },
   autoChargeSubscriptions: { budgetMs: 240_000, ttlMs: 600_000, batch: 100 },
   autoRelease: { budgetMs: 240_000, ttlMs: 600_000 },

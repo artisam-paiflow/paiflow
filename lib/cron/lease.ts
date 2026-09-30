@@ -3,9 +3,6 @@ import { randomUUID } from "node:crypto";
 import { log } from "@/lib/log";
 import { redis } from "@/lib/redis";
 
-/** Value of `skipped` in the body a cron route returns when the previous run still holds its lease. */
-export const CRON_SKIPPED_REASON = "previous run still active";
-
 export type CronLeaseResult<T> = { acquired: true; value: T } | { acquired: false };
 
 // Delete the key only if it still holds our id, so a run whose lease expired

@@ -63,13 +63,22 @@ describe.each(crons)("cron/$name", ({ name, post, cfg }) => {
     cfg.budgetMs = 240_000;
   });
 
-  it("returns skipped and touches no deployment while the previous run holds the lease", async () => {
+  it("reports leaseHeld and touches no deployment while the previous run holds the lease", async () => {
     lease.held = true;
 
     const res = await call();
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: { skipped: "previous run still active" } });
+    expect(await res.json()).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          skipped: 0,
+          details: [],
+          truncated: false,
+          leaseHeld: true,
+        }),
+      }),
+    );
     expect(mockDb.deployment.findMany).not.toHaveBeenCalled();
   });
 
