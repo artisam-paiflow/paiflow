@@ -205,6 +205,11 @@ describe("cron/poll-events", () => {
     expect(await res.json()).toEqual({
       data: { polled: 2, written: 2, errors: 0, deployments: 4, truncated: true },
     });
+    // The unstarted tail is left unstamped so it leads the next tick.
+    expect(mockDb.deployment.updateMany.mock.calls.map(([q]) => q.where.id).sort()).toEqual([
+      "d1",
+      "d2",
+    ]);
   });
 
   it("one failing deployment does not stop the others under concurrency", async () => {

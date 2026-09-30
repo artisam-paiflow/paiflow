@@ -75,6 +75,8 @@ export async function POST(req: NextRequest) {
             log.warn({ deploymentId: d.id, err }, "poll-events cron failed for deployment");
             errors.push({ deploymentId: d.id, error: message });
           }
+          // One small write per attempt, deliberately not batched at the end: a run killed
+          // mid-way would otherwise lose every stamp.
           try {
             await db.deployment.updateMany({
               where: { id: d.id },
