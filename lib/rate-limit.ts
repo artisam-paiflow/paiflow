@@ -174,7 +174,8 @@ export async function enforceRateLimit(opts: {
 
 /** Whole seconds until a refused `rateLimit()` bucket lets the caller back in; at least 1. */
 export function retryAfterSeconds(r: Pick<RateLimitResult, "resetAt">): number {
-  return Math.max(1, Math.ceil((r.resetAt - Date.now()) / 1000));
+  const seconds = Math.ceil((r.resetAt - Date.now()) / 1000);
+  return Number.isFinite(seconds) ? Math.max(1, seconds) : 1;
 }
 
 /** The `RATE_LIMITED` error for a refused bucket, carrying the `Retry-After` it maps to. */

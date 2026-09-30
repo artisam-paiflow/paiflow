@@ -39,14 +39,20 @@ const { mockDb, mockRateLimit, mockAudit, mockLog } = vi.hoisted(() => {
 // drags NextAuth into the runtime. The route itself never calls it — this is an anonymous
 // endpoint. Same stub the sibling token tests use.
 vi.mock("@/lib/auth", () => ({ requireSession: vi.fn() }));
+// Errors are built with the AppError of the registry the route was just imported into.
+const errs = vi.hoisted(() => ({ make: (m: string): Error => new Error(m) }));
+
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/audit", () => ({ audit: mockAudit }));
 vi.mock("@/lib/log", () => ({ log: mockLog }));
-vi.mock("@/lib/rate-limit", () => ({
-  rateLimit: mockRateLimit,
-  clientIp: vi.fn(() => "203.0.113.9"),
-  noteLimiterFallback: vi.fn(),
-}));
+vi.mock("@/lib/rate-limit", () => {
+  return {
+    rateLimitedError: (_r: unknown, message: string) => errs.make(message),
+    rateLimit: mockRateLimit,
+    clientIp: vi.fn(() => "203.0.113.9"),
+    noteLimiterFallback: vi.fn(),
+  };
+});
 
 /** A CONFIRMED swapper pipeline, the shape `resolveSwapperPipeline` accepts. */
 function swapperDeployment(overrides: Record<string, unknown> = {}) {
@@ -69,6 +75,8 @@ function swapperDeployment(overrides: Record<string, unknown> = {}) {
 async function post(body?: unknown) {
   vi.resetModules();
   const { POST } = await import("@/app/api/v1/demo-token/route");
+  const { AppError } = await import("@/lib/errors");
+  errs.make = (m) => new AppError("RATE_LIMITED", m);
   const init: RequestInit = { method: "POST" };
   if (body !== undefined) {
     init.body = JSON.stringify(body);
