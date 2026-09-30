@@ -19,7 +19,7 @@ import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import { computeAssetFlow, type ValidationIssue } from "@/lib/flows/validate";
-import { nodeIssues } from "@/lib/flows/issue-paths";
+import { fieldErrorUnder, nodeIssues } from "@/lib/flows/issue-paths";
 import type { FeatureFlags } from "@/lib/feature-flags";
 import { AssetField, Field } from "./panels/asset-fields";
 import { defaultShares } from "./panels/split-shares.utils";
@@ -167,6 +167,9 @@ export default function ConfigPanel({
   );
 
   const fieldError = (name: string): string | null => nodeErrors.field.get(name) ?? null;
+  // Every AssetField edits `config.asset`; a Zod issue lands under it
+  // (`asset.code`, `asset.issuer`), validateFlow's mismatch on it (#407).
+  const assetError = fieldErrorUnder(nodeErrors.field, "asset");
 
   if (!node) {
     return (
@@ -284,6 +287,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -515,6 +519,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -807,6 +812,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -918,6 +924,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -946,6 +953,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -961,6 +969,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -1166,6 +1175,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -1351,6 +1361,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -1390,6 +1401,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -1468,6 +1480,7 @@ export default function ConfigPanel({
           </div>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
