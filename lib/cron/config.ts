@@ -6,13 +6,15 @@
  * for finality, and a deployment may catch up several periods. A lapsed lease lets the next tick
  * start while this run is still going (the holder also renews the lease while it runs).
  *
- * pollEvents' 20s budget is for an external scheduler that gives up at 30s (#486). It is checked
- * between deployments only, so a single slow deployment (several contracts, each `getEvents`
- * timing out at 10s) can still push one response past 30s; the lease and the run are unaffected.
+ * Every budget is 20s because all four crons are called each minute by cron-job.org, which gives
+ * up at 30s (#486) and stops calling after a run of failures. The budget is checked between items
+ * only, so one slow item (a relayer charge waiting on the lock and finality, or a deployment whose
+ * `getEvents` calls each time out at 10s) can still push a response past 30s; the run finishes
+ * server-side and the next tick picks up the rest.
  */
 export const CRON_LIMITS = {
   pollEvents: { budgetMs: 20_000, ttlMs: 60_000, batch: 200 },
-  autoChargePayroll: { budgetMs: 240_000, ttlMs: 600_000, batch: 100 },
-  autoChargeSubscriptions: { budgetMs: 240_000, ttlMs: 600_000, batch: 100 },
-  autoRelease: { budgetMs: 240_000, ttlMs: 600_000 },
+  autoChargePayroll: { budgetMs: 20_000, ttlMs: 600_000, batch: 100 },
+  autoChargeSubscriptions: { budgetMs: 20_000, ttlMs: 600_000, batch: 100 },
+  autoRelease: { budgetMs: 20_000, ttlMs: 600_000 },
 } as const;
