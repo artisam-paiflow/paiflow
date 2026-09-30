@@ -477,6 +477,85 @@
       ]
     },
     {
+      "name": "Release early",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/release-early",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "release-early"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nodeId\": \"timelock-branch-1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Release a timelock branch's before side now (work delivered). Omit `nodeId` when the deployment has one timelock branch. Rate limit: 10 requests per 60 seconds per token."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('releases the before side', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().data.txHash).to.be.a('string');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/release-early",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "release-early"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nodeId\": \"timelock-branch-1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"nodeId\": \"timelock-branch-1\",\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"ledger\": 1842917\n  }\n}"
+        }
+      ]
+    },
+    {
       "name": "List events",
       "request": {
         "method": "GET",

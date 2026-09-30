@@ -17,6 +17,10 @@
       "description": "Run a swapper flow: prepare, sign on your side, submit."
     },
     {
+      "name": "Release",
+      "description": "Signal that work was delivered: release a timelock branch's before side ahead of its deadline."
+    },
+    {
       "name": "Events",
       "description": "Cursor-based polling of a deployment's decoded events."
     },
@@ -312,6 +316,132 @@
                   "error": {
                     "code": "VALIDATION",
                     "message": "The envelope does not invoke this flow's trigger contract"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/release-early": {
+      "post": {
+        "tags": ["Release"],
+        "operationId": "releaseEarly",
+        "summary": "Release a timelock branch's before side now",
+        "description": "Release a timelock branch's before side now (work delivered), ahead of its deadline.\n\nFor a flow like 'pay on delivery, refund the client after the deadline': call this when the work is delivered and the relayer pays the before side. Nothing is signed on your side; the token is the authorisation. Unlike `execute`, this sends a transaction and returns once it is final.\n\nAfter the deadline the contract refuses the before side and this returns `VALIDATION` (422): the condition then releases to its after side automatically. It also returns `VALIDATION` when the condition holds no funds, or when the deployment has several timelock branches and `nodeId` is missing or unknown. The body may be omitted when there is exactly one branch.\n\nRate limit: 10 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseBeforeRequest"
+              },
+              "example": {
+                "nodeId": "timelock-branch-1"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The confirmed release.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Released"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "nodeId": "timelock-branch-1",
+                    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                    "ledger": 1842917
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "The deadline has passed; this condition now releases to its after side automatically."
                   }
                 }
               }
@@ -1087,6 +1217,38 @@
                 "type": "string"
               }
             }
+          }
+        }
+      },
+      "ReleaseBeforeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Release a timelock branch's before side now (work delivered), ahead of its deadline.",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "The timelock branch to release. Required when the deployment has more than one; otherwise it may be omitted."
+          }
+        }
+      },
+      "Released": {
+        "type": "object",
+        "required": ["nodeId", "txHash"],
+        "description": "A confirmed early release of a timelock branch's before side.",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The timelock branch node that was released."
+          },
+          "txHash": {
+            "type": "string",
+            "description": "Hash of the confirmed release transaction, hex."
+          },
+          "ledger": {
+            "type": "integer",
+            "description": "Ledger the transaction was final in."
           }
         }
       },

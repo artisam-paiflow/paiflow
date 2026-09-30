@@ -44,3 +44,20 @@ export function findPipelineNode(
   }
   return node;
 }
+
+/** Every well-formed node of `templateKind` in a snapshot; a malformed entry is skipped. */
+export function pipelineNodesOfKind(
+  snapshot: unknown,
+  templateKind: TemplateKind,
+): PipelineSnapshotNode[] {
+  if (!Array.isArray(snapshot)) return [];
+  return snapshot.filter(
+    (n): n is PipelineSnapshotNode =>
+      typeof n === "object" &&
+      n !== null &&
+      (n as PipelineSnapshotNode).templateKind === templateKind &&
+      typeof (n as PipelineSnapshotNode).nodeId === "string" &&
+      typeof (n as PipelineSnapshotNode).contractAddress === "string" &&
+      (n as PipelineSnapshotNode).contractAddress.length > 0,
+  );
+}

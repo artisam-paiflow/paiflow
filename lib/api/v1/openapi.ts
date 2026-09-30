@@ -6,6 +6,8 @@ import {
   ExecuteSubmitQuerySchema,
   ExecuteSubmitSchema,
   ExecuteSubmittedSchema,
+  ReleaseBeforeSchema,
+  ReleasedSchema,
 } from "./schema";
 import { V1_PRE_AUTH_LIMITS, V1_RATE_LIMITS, V1_WAIT_SLOTS } from "./limits";
 
@@ -49,6 +51,17 @@ export const examples = {
       networkPassphrase: "Test SDF Network ; September 2015",
       network: "testnet",
       expiresAt: "2026-09-15T09:03:00.000Z",
+    },
+  },
+  releaseRequest: { nodeId: "timelock-branch-1" },
+  releaseResponse: {
+    data: { nodeId: "timelock-branch-1", txHash: EXAMPLE_TX_HASH, ledger: 1842917 },
+  },
+  releaseError422: {
+    error: {
+      code: "VALIDATION",
+      message:
+        "The deadline has passed; this condition now releases to its after side automatically.",
     },
   },
   submitRequest: {
@@ -269,6 +282,8 @@ const executeShape = ExecutePrepareSchema.shape;
 const preparedShape = ExecutePreparedSchema.shape;
 const submittedShape = ExecuteSubmittedSchema.shape;
 const demoShape = DemoTokenSchema.shape;
+const releasedShape = ReleasedSchema.shape;
+const releaseShape = ReleaseBeforeSchema.shape;
 
 export const openApiDocument = {
   openapi: "3.1.0",
@@ -313,6 +328,11 @@ export const openApiDocument = {
   servers: [{ url: "https://paiflow.xyz", description: "Public instance (Stellar testnet)" }],
   tags: [
     { name: "Execute", description: "Run a swapper flow: prepare, sign on your side, submit." },
+    {
+      name: "Release",
+      description:
+        "Signal that work was delivered: release a timelock branch's before side ahead of its deadline.",
+    },
     { name: "Events", description: "Cursor-based polling of a deployment's decoded events." },
     { name: "Spec", description: "This document." },
     {
@@ -429,6 +449,51 @@ export const openApiDocument = {
             },
           },
           ...errorsFor({ VALIDATION: examples.submitError422 })(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "VALIDATION",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+          ),
+        },
+      },
+    },
+    "/api/v1/deployments/{id}/release-early": {
+      post: {
+        tags: ["Release"],
+        operationId: "releaseEarly",
+        summary: "Release a timelock branch's before side now",
+        description: [
+          ReleaseBeforeSchema.description,
+          "",
+          "For a flow like 'pay on delivery, refund the client after the deadline': call this when " +
+            "the work is delivered and the relayer pays the before side. Nothing is signed on " +
+            "your side; the token is the authorisation. Unlike `execute`, this sends a " +
+            "transaction and returns once it is final.",
+          "",
+          "After the deadline the contract refuses the before side and this returns `VALIDATION` " +
+            "(422): the condition then releases to its after side automatically. It also returns " +
+            "`VALIDATION` when the condition holds no funds, or when the deployment has several " +
+            "timelock branches and `nodeId` is missing or unknown. The body may be omitted when " +
+            "there is exactly one branch.",
+          "",
+          rate(V1_RATE_LIMITS.releaseBefore, "per token"),
+        ].join("\n"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        requestBody: {
+          required: false,
+          content: json(
+            { $ref: "#/components/schemas/ReleaseBeforeRequest" },
+            examples.releaseRequest,
+          ),
+        },
+        responses: {
+          "200": {
+            description: "The confirmed release.",
+            content: json(dataEnvelope("#/components/schemas/Released"), examples.releaseResponse),
+          },
+          ...errorsFor({ VALIDATION: examples.releaseError422 })(
             "UNAUTHENTICATED",
             "NOT_FOUND",
             "VALIDATION",
@@ -756,6 +821,29 @@ export const openApiDocument = {
             description: "Present when `status` is `FAILED`.",
             properties: { code: { type: "string" }, message: { type: "string" } },
           },
+        },
+      },
+      ReleaseBeforeRequest: {
+        type: "object",
+        additionalProperties: false,
+        description: ReleaseBeforeSchema.description,
+        properties: {
+          nodeId: {
+            type: "string",
+            minLength: 1,
+            maxLength: 128,
+            description: releaseShape.nodeId.description,
+          },
+        },
+      },
+      Released: {
+        type: "object",
+        required: ["nodeId", "txHash"],
+        description: ReleasedSchema.description,
+        properties: {
+          nodeId: { type: "string", description: releasedShape.nodeId.description },
+          txHash: { type: "string", description: releasedShape.txHash.description },
+          ledger: { type: "integer", description: "Ledger the transaction was final in." },
         },
       },
       ContractEvent: {

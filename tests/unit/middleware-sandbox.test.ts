@@ -90,6 +90,9 @@ const BLOCKED = [
   "/api/v1",
   `/api/v1/deployments/${DEPLOYMENT}/execute`,
   `/api/v1/deployments/${DEPLOYMENT}/events`,
+  // Relayer-signed early release of a timelock branch (#751).
+  `/api/deployments/${DEPLOYMENT}/release-early`,
+  `/api/v1/deployments/${DEPLOYMENT}/release-early`,
   // File upload and storage.
   "/api/files",
   `/api/files/${DEPLOYMENT}`,
