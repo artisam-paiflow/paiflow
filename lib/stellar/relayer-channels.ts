@@ -196,7 +196,12 @@ async function acquire(pool: Pool): Promise<Slot | null> {
       }
       return free;
     }
-    if (pool.slots.every((s) => s.disabledUntil > now && !s.busy)) return null;
+    if (pool.slots.every((s) => s.disabledUntil > now && !s.busy)) {
+      // Nothing will ever release: pass the wake on so every queued caller
+      // reaches this same conclusion instead of waiting for a release.
+      wake(pool);
+      return null;
+    }
     await new Promise<void>((resolve) => pool.waiters.push(resolve));
   }
 }
@@ -251,6 +256,16 @@ export async function withRelayerChannel<T>(
   try {
     await waitForPending(slot);
     return await fn(slot.channel);
+  } catch (err) {
+    if (err instanceof AppError && err.code === "INSUFFICIENT_FUNDS") {
+      slot.disabledUntil = Date.now() + DISABLE_MS;
+      slot.verifiedAt = 0;
+      log.warn(
+        { channel: slot.index, address: slot.channel.publicKey },
+        "relayer channel ran out of funds; skipping it for a minute",
+      );
+    }
+    throw err;
   } finally {
     release(pool, slot);
   }
@@ -374,8 +389,10 @@ export async function relayerChannelBalances(): Promise<RelayerChannelBalance[]>
       const acct = await server.loadAccount(address);
       const native = acct.balances.find((b) => b.asset_type === "native");
       out.push({ index: i, address, funded: true, balanceXlm: native?.balance ?? "0" });
-    } catch {
-      out.push({ index: i, address, funded: false, balanceXlm: null });
+    } catch (err) {
+      const status = (err as { response?: { status?: number } }).response?.status;
+      // Only a 404 means the account does not exist; anything else is unknown.
+      out.push({ index: i, address, funded: status !== 404, balanceXlm: null });
     }
   }
   return out;
@@ -383,6 +400,7 @@ export async function relayerChannelBalances(): Promise<RelayerChannelBalance[]>
 
 const LOW_BALANCE_XLM = 5;
 let healthCache: { at: number; value: { configured: number; funded: number } } | null = null;
+let healthInflight: Promise<{ configured: number; funded: number }> | null = null;
 
 /**
  * Cheap summary for /api/health, cached so a busy probe cannot fan out to
@@ -394,12 +412,20 @@ export async function relayerChannelHealth(): Promise<{ configured: number; fund
   if (configured === 0) return { configured: 0, funded: 0 };
   const now = Date.now();
   if (healthCache && now - healthCache.at < VERIFY_TTL_MS) return healthCache.value;
+  healthInflight ??= refreshHealth(configured).finally(() => {
+    healthInflight = null;
+  });
+  return healthInflight;
+}
+
+async function refreshHealth(configured: number): Promise<{ configured: number; funded: number }> {
+  const now = Date.now();
   const balances = await relayerChannelBalances();
   const funded = balances.filter((b) => b.funded).length;
   for (const b of balances) {
     if (!b.funded) {
       log.warn({ channel: b.index, address: b.address }, "relayer channel is not funded");
-    } else if (Number(b.balanceXlm) < LOW_BALANCE_XLM) {
+    } else if (b.balanceXlm !== null && Number(b.balanceXlm) < LOW_BALANCE_XLM) {
       log.warn(
         { channel: b.index, address: b.address, balanceXlm: b.balanceXlm },
         "relayer channel balance is low",

@@ -25,6 +25,7 @@ import {
 } from "@/lib/env";
 import { getWasmHash } from "@/lib/stellar/config";
 import { AppError } from "@/lib/errors";
+import { classifySend } from "@/lib/stellar/send-status";
 
 /**
  * Relayer-signed mutations for the dev (`_DEV`) contracts. The setters are
@@ -137,7 +138,7 @@ async function buildAndSendByRelayer(
     const sent = await server.sendTransaction(signed);
     // Finality is awaited by the caller, outside the lock; the next holder of
     // this channel waits for it before building.
-    if (sent.status !== "ERROR") channel.trackPending(sent.hash);
+    if (classifySend(sent).outcome === "QUEUED") channel.trackPending(sent.hash);
     return sent;
   });
 
@@ -400,7 +401,7 @@ export async function deployCashOutDevByRelayer(opts: {
         new AppError("UPSTREAM_RPC", `CASH_OUT_DEV deploy simulation failed: ${message}`),
     });
     const sent = await server.sendTransaction(signed);
-    if (sent.status !== "ERROR") channel.trackPending(sent.hash);
+    if (classifySend(sent).outcome === "QUEUED") channel.trackPending(sent.hash);
     return sent;
   });
 

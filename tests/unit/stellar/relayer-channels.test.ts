@@ -174,6 +174,28 @@ describe("withRelayerChannel", () => {
     expect(seen).toEqual({ key: RELAYER.publicKey(), isRelayerSource: true });
   });
 
+  it("does not strand queued callers when the only channel turns out unfunded", async () => {
+    const { withRelayerChannel } = await load(1);
+    mockRpc.getAccount.mockRejectedValue(new Error("Account not found"));
+    const seen = await Promise.race([
+      Promise.all(Array.from({ length: 4 }, () => withRelayerChannel(async (c) => c.publicKey))),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error("stranded")), 1000)),
+    ]);
+    expect(new Set(seen)).toEqual(new Set([RELAYER.publicKey()]));
+  });
+
+  it("takes a channel out of the pool when a call on it fails for lack of funds", async () => {
+    const { withRelayerChannel } = await load(1);
+    const { AppError } = await import("@/lib/errors");
+    await expect(
+      withRelayerChannel(async () => {
+        throw new AppError("INSUFFICIENT_FUNDS", "drained");
+      }),
+    ).rejects.toThrow("drained");
+    const next = await withRelayerChannel(async (c) => c.isRelayerSource);
+    expect(next).toBe(true);
+  });
+
   it("does not hold an RPC hiccup against a channel", async () => {
     const { withRelayerChannel } = await load(1);
     mockRpc.getAccount.mockRejectedValue(new Error("socket hang up"));
