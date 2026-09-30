@@ -58,6 +58,14 @@ describe("rateLimit reports the count and says when it falls back (#524)", () =>
     expect(mockLog.warn.mock.calls[0]![0]).toMatchObject({ reason: "error" });
   });
 
+  it("repairs a counter left without an expiry, so its bucket cannot refuse forever", async () => {
+    const expire = vi.fn(async () => 1);
+    mockRedis.mockReturnValue({ incr: vi.fn(async () => 9), expire, ttl: vi.fn(async () => -1) });
+    const r = await rateLimit("orphan", 5, 60);
+    expect(r.ok).toBe(false);
+    expect(expire).toHaveBeenCalledWith("rl:orphan", 60);
+  });
+
   it("stays quiet about an unset REDIS_URL outside production", async () => {
     resetLimiterFallbackWarning();
     mockRedis.mockReturnValue(null);

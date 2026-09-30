@@ -23,10 +23,17 @@ const memBuckets = new Map<string, { count: number; resetAt: number }>();
 // Per-IP keys (the v1 pre-auth buckets among them) would otherwise grow the map
 // for as long as the process runs on the fallback.
 const MEM_BUCKETS_PRUNE_AT = 10_000;
+// Past this even after pruning, the oldest live buckets go: forgetting a few counts is better
+// than a process that grows until it dies.
+const MEM_BUCKETS_MAX = 50_000;
 
 function pruneMemBuckets(now: number): void {
   if (memBuckets.size < MEM_BUCKETS_PRUNE_AT) return;
   for (const [k, b] of memBuckets) if (b.resetAt < now) memBuckets.delete(k);
+  for (const k of memBuckets.keys()) {
+    if (memBuckets.size < MEM_BUCKETS_MAX) break;
+    memBuckets.delete(k);
+  }
 }
 
 function memPeek(key: string): number {
@@ -112,7 +119,14 @@ export async function rateLimit(
   try {
     const count = await client.incr(k);
     if (count === 1) await client.expire(k, windowSeconds);
-    const ttl = await client.ttl(k);
+    let ttl = await client.ttl(k);
+    // -1 is a key with no expiry: the EXPIRE after the first INCR failed or never ran (a crash
+    // between the two). Left alone, that bucket would never reset and its caller would be refused
+    // for good, so any later call repairs it.
+    if (ttl === -1) {
+      await client.expire(k, windowSeconds);
+      ttl = windowSeconds;
+    }
     const resetAt = Date.now() + Math.max(ttl, 0) * 1000;
     return {
       ok: count <= limit,

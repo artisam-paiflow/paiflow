@@ -2,8 +2,8 @@
  * #524: the per-address guards `v1Route` runs before a token is looked up.
  *
  * The case they are designed around is ten hackathon teams behind one venue IP: one team's script
- * looping on a bad token must be counted, logged and eventually cut off from the database, without
- * costing any other team (or that team's own working token) a single request.
+ * looping on a bad token must be counted, logged and kept off the database, without costing any
+ * other team (or that team's own working token) a single request.
  *
  * Auth runs for real (`requireDeploymentToken` against a mocked token table), so "no DB lookup" is
  * asserted on `findUnique` itself.
@@ -22,13 +22,16 @@ vi.mock("@/lib/log", () => ({ log: mockLog }));
 
 import { v1Route } from "@/lib/api/v1/handler";
 import { V1_PRE_AUTH_LIMITS } from "@/lib/api/v1/limits";
-import { BLOCKED_MESSAGE, markTokenKnown } from "@/lib/api/v1/pre-auth";
+import { BLOCKED_MESSAGE, REFUSED_TOKEN_TTL_SECONDS, markTokenKnown } from "@/lib/api/v1/pre-auth";
 import { hashApiToken } from "@/lib/auth/api-token";
 import { resetLimiterFallbackWarning } from "@/lib/rate-limit";
 import { DEPLOYMENT_ID, ctx, newToken, tokenRow } from "./execute-fixtures";
 
 const FAIL_LIMIT = V1_PRE_AUTH_LIMITS.failedAuth.limit;
+const BUDGET = V1_PRE_AUTH_LIMITS.blockedLookups.limit;
+const BACKSTOP = V1_PRE_AUTH_LIMITS.ipBackstop.limit;
 const PATH = `/api/v1/deployments/${DEPLOYMENT_ID}/events`;
+const GENERIC_401 = "A valid API token for this deployment is required";
 
 /** Tokens the mocked table holds, by hash; anything else is unknown. */
 const table = new Map<string, Record<string, unknown>>();
@@ -40,7 +43,7 @@ function issue(overrides: Record<string, unknown> = {}) {
 }
 
 let ipSeq = 0;
-const nextIp = () => `203.0.113.${++ipSeq}`;
+const nextIp = () => `203.0.${Math.floor(++ipSeq / 250)}.${ipSeq % 250}`;
 
 function req(ip: string, authorization?: string): NextRequest {
   const headers = new Headers({ "x-forwarded-for": ip });
@@ -60,17 +63,20 @@ const call = (ip: string, token?: { plaintext: string } | string) =>
 
 const badToken = () => newToken(); // well-formed, never issued
 
+/** Push an address past the failed-auth threshold with missing tokens, which cost no lookup. */
 async function blockAddress(ip: string) {
-  for (let i = 0; i < FAIL_LIMIT; i++) {
-    const res = await call(ip, badToken());
-    expect(res.status).toBe(401);
-  }
+  for (let i = 0; i < FAIL_LIMIT; i++) expect((await call(ip)).status).toBe(401);
+}
+
+/** Spend a blocked address's lookup budget with distinct guessed tokens. */
+async function spendBudget(ip: string) {
+  for (let i = 0; i < BUDGET; i++) expect((await call(ip, badToken())).status).toBe(401);
 }
 
 const lookups = () => mockDb.deploymentApiToken.findUnique.mock.calls.length;
 const warnings = (re: RegExp) => mockLog.warn.mock.calls.filter(([, msg]) => re.test(String(msg)));
 
-/** incr/expire/ttl/get/set/exists over a Map, enough for the limiter and the known-token set. */
+/** incr/expire/ttl/get/set/exists/del over a Map, enough for the limiter and the token flags. */
 function fakeRedis() {
   const store = new Map<string, string>();
   return {
@@ -85,6 +91,7 @@ function fakeRedis() {
     get: vi.fn(async (k: string) => store.get(k) ?? null),
     set: vi.fn(async (k: string, v: string) => (store.set(k, v), "OK")),
     exists: vi.fn(async (k: string) => (store.has(k) ? 1 : 0)),
+    del: vi.fn(async (k: string) => (store.delete(k) ? 1 : 0)),
   };
 }
 
@@ -99,10 +106,12 @@ beforeEach(() => {
   );
 });
 
-describe("failed authentications per address", () => {
-  it("counts an unauthenticated flood and logs it: the first refusal, then the threshold", async () => {
+describe("failed authentications are counted and logged", () => {
+  it("logs the first refusal and the threshold, never the token", async () => {
     const ip = nextIp();
-    await blockAddress(ip);
+    for (let i = 0; i < FAIL_LIMIT; i++) {
+      expect((await call(ip, i % 2 ? badToken() : undefined)).status).toBe(401);
+    }
 
     const info = mockLog.info.mock.calls.filter(([, m]) => m === "v1: authentication refused");
     expect(info).toHaveLength(1);
@@ -110,31 +119,77 @@ describe("failed authentications per address", () => {
     const threshold = warnings(/failed-auth threshold reached/);
     expect(threshold).toHaveLength(1);
     expect(threshold[0]![0]).toMatchObject({ ip, failures: FAIL_LIMIT });
-    // Every one of those was a real lookup: nothing was blocked before the threshold.
-    expect(lookups()).toBe(FAIL_LIMIT);
-    // The token itself is never logged.
-    expect(JSON.stringify(mockLog.info.mock.calls)).not.toContain("pfk_");
+    expect(JSON.stringify([mockLog.info.mock.calls, mockLog.warn.mock.calls])).not.toMatch(
+      /pfk_|[0-9a-f]{32}/,
+    );
   });
 
-  it("counts missing and malformed tokens too, which never reach the database", async () => {
+  it("missing and malformed tokens never reach the database", async () => {
     const ip = nextIp();
-    for (let i = 0; i < FAIL_LIMIT / 2; i++) {
-      expect((await call(ip)).status).toBe(401);
-      expect((await call(ip, "Bearer pkdev_abc")).status).toBe(401);
-    }
+    expect((await call(ip)).status).toBe(401);
+    expect((await call(ip, "Bearer pkdev_abc")).status).toBe(401);
     expect(lookups()).toBe(0);
-    expect((await call(ip, badToken())).status).toBe(429);
+  });
+});
+
+describe("a script looping on one bad token", () => {
+  it("costs one lookup a minute, still answered with the generic 401", async () => {
+    const ip = nextIp();
+    const bad = badToken();
+    for (let i = 0; i < 50; i++) {
+      const res = await call(ip, bad);
+      expect(res.status).toBe(401);
+      expect((await res.json()).error.message).toBe(GENERIC_401);
+    }
+    expect(lookups()).toBe(1);
   });
 
-  it("past the threshold, refuses an unknown token with 429 and no DB lookup", async () => {
+  it("gets its lookup again once the refusal lapses", async () => {
+    const ip = nextIp();
+    const bad = badToken();
+    const start = Date.now();
+    const now = vi.spyOn(Date, "now").mockReturnValue(start);
+    await call(ip, bad);
+    await call(ip, bad);
+    expect(lookups()).toBe(1);
+    now.mockReturnValue(start + REFUSED_TOKEN_TTL_SECONDS * 1000 + 1);
+    await call(ip, bad);
+    expect(lookups()).toBe(2);
+  });
+
+  it("a revoked token that used to work is forgotten, then answered without a lookup", async () => {
+    const ip = nextIp();
+    const token = issue();
+    expect((await call(ip, token)).status).toBe(200);
+    table.set(hashApiToken(token.plaintext), { ...tokenRow(token), revokedAt: new Date() });
+
+    const before = lookups();
+    for (let i = 0; i < 20; i++) expect((await call(ip, token)).status).toBe(401);
+    expect(lookups()).toBe(before + 1);
+  });
+
+  it("never touches the other teams on the address", async () => {
+    const venue = nextIp();
+    const working = issue();
+    expect((await call(venue, working)).status).toBe(200);
+    const bad = badToken();
+    for (let i = 0; i < FAIL_LIMIT * 2; i++) await call(venue, bad);
+    expect((await call(venue, working)).status).toBe(200);
+    // Even a working token never seen before still gets through: the loop spent no budget.
+    expect((await call(venue, issue())).status).toBe(200);
+  });
+});
+
+describe("a random-token flood from one address", () => {
+  it("past the threshold, gets a budget of lookups and then 429s with none", async () => {
     const ip = nextIp();
     await blockAddress(ip);
+    await spendBudget(ip);
     const before = lookups();
 
     const res = await call(ip, badToken());
     expect(res.status).toBe(429);
     expect(await res.json()).toEqual({ error: { code: "RATE_LIMITED", message: BLOCKED_MESSAGE } });
-    expect((await call(ip)).status).toBe(429);
     expect(lookups()).toBe(before);
     expect(handler).not.toHaveBeenCalled();
   });
@@ -142,14 +197,12 @@ describe("failed authentications per address", () => {
   it("never costs a freshly minted token from the same address", async () => {
     const ip = nextIp();
     await blockAddress(ip);
+    await spendBudget(ip);
     const minted = issue();
     // What both mint routes do before handing the plaintext out.
     await markTokenKnown(hashApiToken(minted.plaintext), null);
 
-    const res = await call(ip, minted);
-    expect(res.status).toBe(200);
-    expect(handler).toHaveBeenCalledTimes(1);
-    // The block is still there for the bad script.
+    expect((await call(ip, minted)).status).toBe(200);
     expect((await call(ip, badToken())).status).toBe(429);
   });
 
@@ -159,45 +212,40 @@ describe("failed authentications per address", () => {
     expect((await call(nextIp(), working)).status).toBe(200);
 
     await blockAddress(venue);
-    expect((await call(venue, working)).status).toBe(200);
+    await spendBudget(venue);
     expect((await call(venue, working)).status).toBe(200);
   });
 
-  it("still looks up a known token and refuses it once it is revoked", async () => {
+  it("a real token never seen by this instance gets through while budget remains", async () => {
     const ip = nextIp();
-    const token = issue();
-    expect((await call(ip, token)).status).toBe(200);
     await blockAddress(ip);
-
-    table.set(hashApiToken(token.plaintext), { ...tokenRow(token), revokedAt: new Date() });
-    const before = lookups();
-    expect((await call(ip, token)).status).toBe(401);
-    expect(lookups()).toBe(before + 1);
+    expect((await call(ip, issue())).status).toBe(200);
   });
 
-  it("documents the residual: a real token neither minted nor used since this shipped is refused while its address is blocked", async () => {
+  it("documents the residual: a never-seen real token is caught once the flood spends the budget", async () => {
     const ip = nextIp();
     const legacy = issue();
     await blockAddress(ip);
+    await spendBudget(ip);
     expect((await call(ip, legacy)).status).toBe(429);
-    // From an unblocked address it authenticates, which makes it known everywhere.
+    // From anywhere else it authenticates, which makes it known everywhere.
     expect((await call(nextIp(), legacy)).status).toBe(200);
     expect((await call(ip, legacy)).status).toBe(200);
   });
 
-  it("is per address: a blocked address does not block another", async () => {
+  it("is per address", async () => {
     const blocked = nextIp();
     await blockAddress(blocked);
-    const before = lookups();
+    await spendBudget(blocked);
     expect((await call(nextIp(), badToken())).status).toBe(401);
-    expect(lookups()).toBe(before + 1);
   });
 
-  it("lapses with its window", async () => {
+  it("lapses with the failed-auth window", async () => {
     const ip = nextIp();
     const start = Date.now();
     const now = vi.spyOn(Date, "now").mockReturnValue(start);
     await blockAddress(ip);
+    await spendBudget(ip);
     expect((await call(ip, badToken())).status).toBe(429);
 
     now.mockReturnValue(start + V1_PRE_AUTH_LIMITS.failedAuth.windowSeconds * 1000 + 1);
@@ -210,27 +258,37 @@ describe("failed authentications per address", () => {
       const res = await GET(req(ip, `Bearer ${badToken().plaintext}`), ctx("not-a-uuid"));
       expect(res.status).toBe(404);
     }
+    await spendBudget(ip);
     expect((await call(ip, badToken())).status).toBe(401);
   });
 });
 
-describe("per-address backstop", () => {
-  it(`admits ${V1_PRE_AUTH_LIMITS.ipBackstop.limit} requests a window from one address, then 429s and logs once`, async () => {
+describe("per-address backstop on lookups of unseen tokens", () => {
+  it(`admits ${BACKSTOP} a window, then 429s without a lookup and logs once`, async () => {
     const ip = nextIp();
-    const token = issue();
-    for (let i = 0; i < V1_PRE_AUTH_LIMITS.ipBackstop.limit; i++) {
-      expect((await call(ip, token)).status).toBe(200);
-    }
+    // Fresh real tokens: each is unseen until its own first success, and none fails, so this
+    // exercises the backstop alone, not the failed-auth threshold.
+    for (let i = 0; i < BACKSTOP; i++) expect((await call(ip, issue())).status).toBe(200);
     const before = lookups();
-    const res = await call(ip, token);
+    const res = await call(ip, issue());
     expect(res.status).toBe(429);
     expect((await res.json()).error.message).toBe("Too many requests from this address");
-    await call(ip, token);
+    await call(ip, badToken());
     expect(lookups()).toBe(before);
-    expect(warnings(/per-address backstop reached/)).toHaveLength(1);
+    expect(warnings(/per-address backstop/)).toHaveLength(1);
+  });
 
-    // Another address is untouched.
-    expect((await call(nextIp(), token)).status).toBe(200);
+  it("a flood that spends the backstop never refuses a known token on the same address", async () => {
+    const ip = nextIp();
+    const working = issue();
+    expect((await call(ip, working)).status).toBe(200);
+    // One script, a tight loop, a fresh unseen token each time: spends the backstop and the
+    // failed-auth threshold together.
+    for (let i = 0; i <= BACKSTOP; i++) await call(ip, badToken());
+    expect((await call(ip, badToken())).status).toBe(429);
+
+    const res = await call(ip, working);
+    expect(res.status).toBe(200);
   });
 });
 
@@ -249,7 +307,7 @@ describe("per-token limit is unchanged", () => {
 });
 
 describe("with Redis", () => {
-  it("keeps the failed-auth count and the known-token set in Redis", async () => {
+  it("keeps the counts and the token flags in Redis, keyed on a hash prefix", async () => {
     const client = fakeRedis();
     mockRedis.mockReturnValue(client);
     const ip = nextIp();
@@ -264,14 +322,18 @@ describe("with Redis", () => {
       expect.any(Number),
     );
 
+    const bad = badToken();
+    await call(ip, bad);
+    expect([...client.store.keys()]).toContainEqual(
+      expect.stringMatching(new RegExp(`^v1:tok-refused:[0-9a-f]{32}:${DEPLOYMENT_ID}$`)),
+    );
     await blockAddress(ip);
-    expect(client.store.get(`rl:v1:authfail:${ip}`)).toBe(String(FAIL_LIMIT));
-    expect((await call(ip, badToken())).status).toBe(429);
+    expect(Number(client.store.get(`rl:v1:authfail:${ip}`))).toBe(FAIL_LIMIT + 1);
     expect((await call(ip, token)).status).toBe(200);
     expect(warnings(/no shared Redis/)).toHaveLength(0);
   });
 
-  it("when Redis is down, serves on per-process counts and says so, never failing closed", async () => {
+  it("when Redis is down, serves on per-process state and says so, never failing closed", async () => {
     const down = async () => {
       throw new Error("connection refused");
     };
@@ -282,12 +344,14 @@ describe("with Redis", () => {
       get: down,
       set: down,
       exists: down,
+      del: down,
     });
     const ip = nextIp();
     const token = issue();
 
     expect((await call(ip, token)).status).toBe(200);
     await blockAddress(ip);
+    await spendBudget(ip);
     expect((await call(ip, badToken())).status).toBe(429);
     // Known from its earlier success in this process.
     expect((await call(ip, token)).status).toBe(200);

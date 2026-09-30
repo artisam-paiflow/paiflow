@@ -194,10 +194,8 @@ const ERROR_DESCRIPTIONS: Record<ErrorCode, string> = {
   VALIDATION:
     "The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
   RATE_LIMITED:
-    "Too many requests in the window: the per-token limit, or one of the per-address guards that " +
-    "run before the token is checked (a high backstop on all traffic from one address, and a " +
-    "block on unknown tokens from an address with too many failed authentications, which never " +
-    "applies to a valid token).",
+    "Too many requests in the window: the per-token limit, or, for a token not issued or used in " +
+    "the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
   INTERNAL: "Unexpected server error.",
   UPSTREAM_RPC: "The Soroban RPC request failed or the network was busy; retry.",
 };
@@ -294,14 +292,16 @@ export const openApiDocument = {
       "| --- | --- |",
       errorTable,
       "",
-      "Rate limits are per token and per endpoint (each operation lists its own). Before the token " +
-        "is checked, two guards apply per client address, sized so many teams behind one network " +
-        `can share it: ${V1_PRE_AUTH_LIMITS.ipBackstop.limit} requests per ` +
-        `${V1_PRE_AUTH_LIMITS.ipBackstop.windowSeconds} seconds across all token routes, and, ` +
-        `after ${V1_PRE_AUTH_LIMITS.failedAuth.limit} failed authentications in ` +
-        `${V1_PRE_AUTH_LIMITS.failedAuth.windowSeconds} seconds from an address, \`429\` for any ` +
-        "request from it whose token was not issued or used successfully in the last 30 days. A " +
-        "working token is not refused by that block, so one caller's bad token does not lock out " +
+      "Rate limits are per token and per endpoint (each operation lists its own). A token that " +
+        "has been issued or has worked in the last 30 days is subject to nothing else. Any other " +
+        "token is limited per client address before it is looked up: " +
+        `${V1_PRE_AUTH_LIMITS.ipBackstop.limit} lookups per ` +
+        `${V1_PRE_AUTH_LIMITS.ipBackstop.windowSeconds} seconds, and, after ` +
+        `${V1_PRE_AUTH_LIMITS.failedAuth.limit} failed authentications in ` +
+        `${V1_PRE_AUTH_LIMITS.failedAuth.windowSeconds} seconds from the address, ` +
+        `${V1_PRE_AUTH_LIMITS.blockedLookups.limit} per ` +
+        `${V1_PRE_AUTH_LIMITS.blockedLookups.windowSeconds} seconds. A token refused in the last ` +
+        "minute is refused again without a lookup. So one caller's bad token does not lock out " +
         "others on the same network.",
       "",
       "No account? `POST /api/v1/demo-token` hands you a short-lived token for a shared demo " +

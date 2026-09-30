@@ -42,10 +42,11 @@ export function isV1Route(handler: unknown): boolean {
 /**
  * The guard every `/api/v1/deployments/{id}/…` handler is wrapped in, in this
  * order: error envelope, UUID check on `id` (a malformed id is a 404, never a
- * Prisma 500), the per-IP guards that run before any DB work
- * (`guardBeforeAuth`: a high backstop, and a block on unknown tokens from an
- * address with too many failed authentications), deployment-token auth (each
- * refusal counted against the address), then a rate limit keyed on the token id.
+ * Prisma 500), the per-address guards that run before any DB work
+ * (`guardBeforeAuth`: a recently refused token is answered without a lookup,
+ * and lookups of tokens never seen are bounded per address, tighter once it has
+ * too many failed authentications), deployment-token auth (each refusal
+ * counted against the address), then a rate limit keyed on the token id.
  *
  * The real limit is keyed on the token, not the caller's IP, because many
  * partners can share an address and `clientIp` is only as honest as the edge in
@@ -68,14 +69,14 @@ export function v1Route<P extends V1Params>(
       const ip = clientIp(req);
       const raw = bearerDeploymentToken(req);
       const tokenHash = raw ? hashApiToken(raw) : null;
-      await guardBeforeAuth(ip, route, tokenHash);
+      await guardBeforeAuth(ip, route, params.id, tokenHash);
 
       let auth: DeploymentTokenAuth;
       try {
         auth = await requireDeploymentToken(req, params.id);
       } catch (err) {
         if (err instanceof AppError && err.code === "UNAUTHENTICATED") {
-          await recordAuthFailure(ip, route, "refused");
+          await recordAuthFailure(ip, route, params.id, tokenHash);
         }
         throw err;
       }

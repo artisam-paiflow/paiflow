@@ -17,9 +17,11 @@ export type DeploymentTokenAuth = {
 
 // One message for every refusal: a caller probing with a stolen or guessed
 // token must not learn whether it was unknown, revoked, expired or bound to
-// another deployment.
-const refused = () =>
+// another deployment. Also what `lib/api/v1/pre-auth.ts` answers a recently
+// refused token with, so a cached refusal reads the same as a looked-up one.
+export const refusedDeploymentToken = () =>
   new AppError("UNAUTHENTICATED", "A valid API token for this deployment is required");
+const refused = refusedDeploymentToken;
 
 /** The request's `Authorization: Bearer pfk_…` token when it is well-formed, else null. No DB. */
 export function bearerDeploymentToken(req: NextRequest): string | null {
