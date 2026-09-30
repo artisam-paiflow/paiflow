@@ -8,6 +8,7 @@ import { audit } from "@/lib/audit";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { findPipelineNode } from "@/lib/flows/pipeline-snapshot";
 import { updatePaymentByRelayer } from "@/lib/stellar/dev-mutate";
+import { graphNodeAsset, trustlineWarnings } from "@/lib/stellar/trustline-warnings";
 
 const BodySchema = z
   .object({
@@ -59,6 +60,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           ? "0"
           : undefined;
 
+    // Advisory (#723): started before the write, never rejects, never blocks it.
+    const asset = graphNodeAsset(d.graphSnapshot, node.nodeId, "pay");
+    const warningsPromise =
+      body.recipient && asset
+        ? trustlineWarnings([{ nodeId: node.nodeId, address: body.recipient, asset }])
+        : Promise.resolve([]);
+
     const result = await updatePaymentByRelayer(node.contractAddress, {
       recipient: body.recipient,
       amountStroops,
@@ -75,7 +83,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
 
     return NextResponse.json({
-      data: { txHash: result.txHash, contractAddress: node.contractAddress },
+      data: {
+        txHash: result.txHash,
+        contractAddress: node.contractAddress,
+        warnings: await warningsPromise,
+      },
     });
   });
 }

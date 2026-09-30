@@ -12,6 +12,7 @@ import {
   updateRecipientsByRelayer,
   submitUpdateRecipientsByRelayer,
 } from "@/lib/stellar/dev-mutate";
+import { graphNodeAsset, trustlineWarnings } from "@/lib/stellar/trustline-warnings";
 import { prepareDevCashOutRecipients } from "@/lib/stellar/cash-out";
 import { syncEmployees, deriveFiatPlaceholderAddress } from "@/lib/employees";
 import { assetContractId } from "@/lib/stellar/assets";
@@ -105,6 +106,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return r as NormalizedRecipient;
     });
 
+    // Advisory (#723): every crypto recipient, started before the write, never
+    // rejects, never blocks it. Fiat recipients are paid via a cash-out sink.
+    const payoutAsset = graphNodeAsset(d.graphSnapshot, node.nodeId, "split");
+    const warningsPromise = payoutAsset
+      ? trustlineWarnings(
+          normalizedRecipients
+            .filter((r) => r.payoutMode !== "fiat")
+            .map((r) => ({
+              nodeId: node.nodeId,
+              address: r.address,
+              ...(r.label ? { label: r.label } : {}),
+              asset: payoutAsset,
+            })),
+        )
+      : Promise.resolve([]);
+
     const hasFiat = normalizedRecipients.some((r) => r.payoutMode === "fiat");
 
     if (!hasFiat) {
@@ -132,6 +149,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           txHashes: [result.txHash],
           contractAddress: node.contractAddress,
           cashOutContracts: {},
+          warnings: await warningsPromise,
         },
       });
     }
@@ -236,6 +254,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         txHashes,
         contractAddress: node.contractAddress,
         cashOutContracts,
+        warnings: await warningsPromise,
       },
     });
   });
