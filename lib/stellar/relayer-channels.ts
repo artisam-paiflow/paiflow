@@ -1,5 +1,4 @@
 import "server-only";
-import { createHash } from "node:crypto";
 import {
   Address,
   BASE_FEE,
@@ -13,6 +12,7 @@ import {
 import { horizon, sorobanRpc, withRelayerLock } from "./client";
 import { stellarPassphrase, stellarRelayerChannelCount, stellarRelayerSecretKey } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { deriveChannelKeypair } from "./relayer-channel-keys";
 import { log } from "@/lib/log";
 
 /**
@@ -32,7 +32,6 @@ import { log } from "@/lib/log";
  * and can still collide with this one (#202).
  */
 
-const KEY_DOMAIN = "paiflow-relayer-channel:";
 /** How long a funded check is trusted before the next acquire re-checks it. */
 const VERIFY_TTL_MS = 60_000;
 /** How long an unfunded channel stays out of the pool before it is retried. */
@@ -41,6 +40,8 @@ const PENDING_WAIT_MS = 30_000;
 const PENDING_POLL_MS = 1_000;
 /** ~5 s per ledger, so this outlives the 180 s transaction timeout. */
 const AUTH_LEDGER_MARGIN = 60;
+
+export { deriveChannelKeypair };
 
 export type RelayerChannel = {
   /** Transaction source and fee payer, and the key that signs the envelope. */
@@ -58,24 +59,6 @@ export type RelayerChannel = {
    */
   trackPending(txHash: string): void;
 };
-
-/**
- * Deterministic channel key: a raw ed25519 seed from
- * sha256(relayerSeed || domain || index). No new secret to store or rotate;
- * the channel keys are exactly as sensitive as the relayer secret itself.
- */
-export function deriveChannelKeypair(relayerSecret: string, index: number): Keypair {
-  if (!Number.isInteger(index) || index < 0) {
-    throw new AppError("INTERNAL", "Relayer channel index must be a non-negative integer");
-  }
-  const seed = Keypair.fromSecret(relayerSecret).rawSecretKey();
-  const digest = createHash("sha256")
-    .update(seed)
-    .update(KEY_DOMAIN)
-    .update(String(index))
-    .digest();
-  return Keypair.fromRawEd25519Seed(digest);
-}
 
 function requireRelayerKeypair(): Keypair {
   const secret = stellarRelayerSecretKey();

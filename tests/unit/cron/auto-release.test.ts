@@ -3,16 +3,17 @@ import { NextRequest } from "next/server";
 import { Role, TimelockMode } from "@prisma/client";
 import { db } from "@/lib/db";
 
+const CHANNEL = { index: 0 };
 const { mockSimulate, mockSend, mockLock } = vi.hoisted(() => ({
   mockSimulate: vi.fn(),
   mockSend: vi.fn(),
-  mockLock: vi.fn(<T>(fn: () => Promise<T>) => fn()),
+  mockLock: vi.fn(<T>(fn: (channel: unknown) => Promise<T>) => fn(CHANNEL)),
 }));
 vi.mock("@/lib/stellar/relayer", () => ({
   simulateReleaseByRelayer: mockSimulate,
   sendReleaseByRelayer: mockSend,
 }));
-vi.mock("@/lib/stellar/client", () => ({ withRelayerLock: mockLock }));
+vi.mock("@/lib/stellar/relayer-channels", () => ({ withRelayerChannel: mockLock }));
 
 const { leaseStore } = vi.hoisted(() => ({ leaseStore: new Map<string, string>() }));
 vi.mock("@/lib/redis", () => ({
@@ -199,7 +200,7 @@ describe("cron/auto-release", () => {
       expect(summary.released).toBe(1);
       // The cron only ever intends the "after" side.
       expect(mockSimulate).toHaveBeenCalledWith(address, "after");
-      expect(mockSend).toHaveBeenCalledWith(address, okSim.sim, "after");
+      expect(mockSend).toHaveBeenCalledWith(address, okSim.sim, "after", CHANNEL);
     });
 
     it("retries later when the ledger has not reached the deadline yet, and never sends", async () => {
@@ -243,7 +244,7 @@ describe("cron/auto-release", () => {
     expect(first.released).toBe(1);
     expect(mockSimulate).toHaveBeenCalledWith(address);
     expect(mockLock).toHaveBeenCalledTimes(1);
-    expect(mockSend).toHaveBeenCalledWith(address, okSim.sim);
+    expect(mockSend).toHaveBeenCalledWith(address, okSim.sim, undefined, CHANNEL);
     const row = await db.timelockRelease.findUniqueOrThrow({ where: { contractAddress: address } });
     // One short of the release ledger, so a refill later in it still wakes it.
     expect(row.settledLedger).toBe(99);

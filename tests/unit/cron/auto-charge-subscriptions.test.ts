@@ -54,6 +54,9 @@ vi.mock("@/lib/log", () => ({ log: { warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/stellar/relayer", () => mockRelayer);
 vi.mock("@/lib/stellar/invoke", () => mockInvoke);
 vi.mock("@/lib/stellar/client", () => mockClient);
+vi.mock("@/lib/stellar/relayer-channels", () => ({
+  withRelayerChannel: (fn: (channel: unknown) => unknown) => fn({}),
+}));
 // `importActual` keeps the real `UnsafeUrlError`, so `instanceof` in the route
 // still holds when a case throws one.
 vi.mock("@/lib/net/assert-public-url", async () => {
