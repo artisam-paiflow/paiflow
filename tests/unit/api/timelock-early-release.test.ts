@@ -220,6 +220,28 @@ describe("POST /api/deployments/:id/release-early (owner session)", () => {
     expect((await errorOf(res)).message).toBe(DEADLINE_PASSED_MESSAGE);
   });
 
+  it("explains a send that failed on chain because the deadline passed after the probe", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(deployment(ONE_BRANCH));
+    mockSend.mockResolvedValue({ status: "FAILED", txHash: TX_HASH, errorMessage: "failed" });
+    mockSimulate
+      .mockResolvedValueOnce(simOk)
+      .mockResolvedValueOnce({ ok: false, latestLedger: 102, error: contractError(BRANCH_A, 3) });
+    const res = await sessionCall();
+    expect(res.status).toBe(422);
+    expect((await errorOf(res)).message).toBe(DEADLINE_PASSED_MESSAGE);
+    expect(audit).not.toHaveBeenCalled();
+  });
+
+  it("reports a relayer that cannot release this condition as a server-side error", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(deployment(ONE_BRANCH));
+    mockSimulate.mockResolvedValue({
+      ok: false,
+      latestLedger: 100,
+      error: contractError(BRANCH_A, 2),
+    });
+    expect((await sessionCall()).status).toBe(502);
+  });
+
   it("reports a transaction that failed on the network, without auditing a release", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(deployment(ONE_BRANCH));
     mockSend.mockResolvedValue({ status: "FAILED", txHash: TX_HASH, errorMessage: "boom" });

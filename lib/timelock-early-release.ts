@@ -87,8 +87,9 @@ function refusal(contractAddress: string, error: string): AppError {
     case "empty":
       return new AppError("VALIDATION", NOTHING_TO_RELEASE_MESSAGE);
     case "unsupported":
+      // Server-side (older WASM, no dedicated relayer), not the caller's mistake.
       return new AppError(
-        "VALIDATION",
+        "UPSTREAM_RPC",
         `The relayer cannot release this condition: ${verdict.reason}`,
       );
     case "error":
@@ -135,6 +136,14 @@ export async function releaseTimelockBranchBefore(
       { deploymentId: deployment.id, nodeId: node.nodeId, txHash: send.txHash },
       "early-release: transaction failed",
     );
+    // On the relayer-source lane the send reuses the probe's simulation, so a
+    // deadline or a balance that moved in between only shows up on chain. Ask
+    // again to tell the caller why, rather than a bare failure.
+    const again = await simulateReleaseByRelayer(node.contractAddress, "before").catch(() => null);
+    if (again && !again.ok) {
+      const kind = classifySimulationError(node.contractAddress, again.error).kind;
+      if (kind === "not_yet" || kind === "empty") throw refusal(node.contractAddress, again.error);
+    }
     throw new AppError(
       "UPSTREAM_RPC",
       send.errorMessage ?? "The release transaction failed",
