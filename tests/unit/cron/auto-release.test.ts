@@ -197,7 +197,9 @@ describe("cron/auto-release", () => {
       const summary = await runAutoRelease();
 
       expect(summary.released).toBe(1);
-      expect(mockSend).toHaveBeenCalledWith(address, okSim.sim);
+      // The cron only ever intends the "after" side.
+      expect(mockSimulate).toHaveBeenCalledWith(address, "after");
+      expect(mockSend).toHaveBeenCalledWith(address, okSim.sim, "after");
     });
 
     it("retries later when the ledger has not reached the deadline yet, and never sends", async () => {

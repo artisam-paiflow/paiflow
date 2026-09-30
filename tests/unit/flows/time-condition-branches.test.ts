@@ -383,7 +383,7 @@ describe("flowToEnglish: time branches", () => {
     expect(text).toContain("hold the funds");
     expect(text).toContain("if they are released before June 1, 2030 at 12:00 AM (UTC), pay");
     expect(text).toContain("otherwise, split USDC");
-    expect(text).toContain("Only the deploying wallet can release early");
+    expect(text).toContain("released early by the deploying wallet or on an authorised request");
     expect(text).toContain("automatic release runs only at or after the deadline");
   });
 

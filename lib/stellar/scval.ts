@@ -32,6 +32,14 @@ function bool(b: boolean): xdr.ScVal {
 
 // Mode is a #[contracttype] enum; in Soroban SDK v26 it serializes as
 // ScVal::Vec([ScVal::Symbol(variant_name)]) for fieldless variants.
+/**
+ * The `Side` argument of timelock_branch's `release_by_relayer`: the list the
+ * caller intends to pay, which the contract checks against the ledger time.
+ */
+export function timelockSideArg(side: "before" | "after"): xdr.ScVal {
+  return enumVariant(side === "before" ? "Before" : "After");
+}
+
 function enumVariant(name: string): xdr.ScVal {
   const variants = ["After", "Before"];
   if (!variants.includes(name)) throw new Error(`Unknown enum variant: ${name}`);

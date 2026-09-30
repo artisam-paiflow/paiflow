@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { Address, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
-import { constructorArgs, pipelineNodeConstructorArgs } from "@/lib/stellar/scval";
+import { constructorArgs, pipelineNodeConstructorArgs, timelockSideArg } from "@/lib/stellar/scval";
 
 vi.mock("@/lib/stellar/assets", () => ({
   assetContractId: vi.fn(() => "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"),
@@ -119,6 +119,11 @@ describe("pipelineNodeConstructorArgs", () => {
     expect(target(4).map((t) => t.address)).toEqual([ADDR2]);
     expect(args[5]!).toEqual(new Address(ADDR2).toScVal());
     expect(args[6]!).toEqual(new Address(ADDR2).toScVal());
+  });
+
+  it("encodes the release side as the Side enum's fieldless variant", () => {
+    expect(scValToNative(timelockSideArg("before"))).toEqual(["Before"]);
+    expect(scValToNative(timelockSideArg("after"))).toEqual(["After"]);
   });
 
   it("refuses a timelock_branch with no parent or with a side whose step has no address", () => {

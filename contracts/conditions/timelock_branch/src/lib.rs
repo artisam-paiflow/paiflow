@@ -6,12 +6,17 @@
 //! from that one keep their ABI.
 //!
 //! Who may pick which side:
-//! - the admin can release at any time, so an early release (a client approving
-//!   delivered work, say) pays the "before" list;
-//! - the relayer can release only at or after `unlock_time`, so the scheduled
-//!   auto-release can never pay the "before" list. If its transaction lands in
-//!   a ledger closed before the deadline it reverts with `ConditionNotMet`
-//!   rather than paying the wrong side.
+//! - the admin's `release()` works at any time and the ledger time picks the
+//!   side, so an early release (a client approving delivered work, say) pays
+//!   the "before" list;
+//! - the relayer's `release_by_relayer(side)` names the side it intends, and the
+//!   contract checks it against the ledger time: `Before` needs
+//!   `now < unlock_time`, `After` needs `now >= unlock_time`. On a mismatch it
+//!   reverts with `ConditionNotMet` and moves nothing. So the scheduled
+//!   auto-release, which asks for `After`, can never pay the "before" list if
+//!   its transaction lands in a ledger closed just before the deadline, and a
+//!   "work delivered" signal, which asks for `Before`, can never pay the
+//!   "after" list once the deadline has passed.
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
@@ -23,6 +28,14 @@ use soroban_sdk::{
 pub struct WorkflowTarget {
     pub address: Address,
     pub data: String,
+}
+
+/// Which list a relayer release intends to pay.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Side {
+    Before,
+    After,
 }
 
 #[contracttype]
@@ -121,12 +134,12 @@ impl TimelockBranch {
     pub fn release(env: Env) {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
-        perform_release(&env, &admin, false);
+        perform_release(&env, &admin, None);
     }
 
-    /// Relayer release, only at or after `unlock_time`, so it always pays the
-    /// "after" list.
-    pub fn release_by_relayer(env: Env) {
+    /// Relayer release of the named side, which must be the side the ledger
+    /// time is on; otherwise `ConditionNotMet`.
+    pub fn release_by_relayer(env: Env, side: Side) {
         let relayer: Address = env.storage().instance().get(&Key::Relayer).unwrap();
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         // When relayer == admin there is no dedicated relayer; only the admin
@@ -135,7 +148,7 @@ impl TimelockBranch {
             panic_with_error!(&env, Error::Unauthorized);
         }
         relayer.require_auth();
-        perform_release(&env, &admin, true);
+        perform_release(&env, &admin, Some(side));
     }
 
     pub fn relayer(env: Env) -> Address {
@@ -159,14 +172,17 @@ impl TimelockBranch {
     }
 }
 
-fn perform_release(env: &Env, event_source: &Address, after_only: bool) {
+fn perform_release(env: &Env, event_source: &Address, required: Option<Side>) {
     bump_ttl(env);
 
     let now = env.ledger().timestamp();
     let unlock_time: u64 = env.storage().instance().get(&Key::UnlockTime).unwrap();
     let is_after = now >= unlock_time;
-    if after_only && !is_after {
-        panic_with_error!(env, Error::ConditionNotMet);
+    let actual = if is_after { Side::After } else { Side::Before };
+    if let Some(side) = required {
+        if side != actual {
+            panic_with_error!(env, Error::ConditionNotMet);
+        }
     }
 
     let balance: i128 = env.storage().instance().get(&Key::Balance).unwrap_or(0);
@@ -364,7 +380,7 @@ mod test {
         let s = setup();
         assert_eq!(s.client().relayer(), s.relayer);
         s.env.ledger().set_timestamp(UNLOCK + 1);
-        s.client().release_by_relayer();
+        s.client().release_by_relayer(&Side::After);
 
         assert_eq!(s.client().balance(), 0);
         assert_eq!(s.tok().balance(&s.before), 0);
@@ -375,29 +391,88 @@ mod test {
     fn relayer_release_at_deadline_pays_after_list() {
         let s = setup();
         s.env.ledger().set_timestamp(UNLOCK);
-        s.client().release_by_relayer();
+        s.client().release_by_relayer(&Side::After);
 
         assert_eq!(s.tok().balance(&s.after), 500);
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #3)")]
-    fn relayer_release_before_deadline_is_refused() {
+    fn relayer_release_before_side_before_deadline_pays_before_list() {
         let s = setup();
         s.env.ledger().set_timestamp(UNLOCK - 1);
-        s.client().release_by_relayer();
+        s.client().release_by_relayer(&Side::Before);
+
+        assert_eq!(s.client().balance(), 0);
+        assert_eq!(s.tok().balance(&s.before), 500);
+        assert_eq!(s.tok().balance(&s.after), 0);
     }
 
     #[test]
-    fn relayer_refusal_before_deadline_leaves_the_funds() {
+    #[should_panic(expected = "Error(Contract, #3)")]
+    fn relayer_after_side_before_deadline_is_refused() {
         let s = setup();
         s.env.ledger().set_timestamp(UNLOCK - 1);
-        assert!(s.client().try_release_by_relayer().is_err());
+        s.client().release_by_relayer(&Side::After);
+    }
 
-        assert_eq!(s.client().balance(), 500);
-        assert_eq!(s.tok().balance(&s.contract), 500);
-        assert_eq!(s.tok().balance(&s.before), 0);
-        assert_eq!(s.tok().balance(&s.after), 0);
+    #[test]
+    #[should_panic(expected = "Error(Contract, #3)")]
+    fn relayer_before_side_at_the_deadline_is_refused() {
+        let s = setup();
+        s.env.ledger().set_timestamp(UNLOCK);
+        s.client().release_by_relayer(&Side::Before);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #3)")]
+    fn relayer_before_side_after_the_deadline_is_refused() {
+        let s = setup();
+        s.env.ledger().set_timestamp(UNLOCK + 1);
+        s.client().release_by_relayer(&Side::Before);
+    }
+
+    #[test]
+    fn relayer_side_mismatch_either_way_leaves_the_funds() {
+        let s = setup();
+        for (now, wrong) in [
+            (UNLOCK - 1, Side::After),
+            (UNLOCK, Side::Before),
+            (UNLOCK + 1, Side::Before),
+        ] {
+            s.env.ledger().set_timestamp(now);
+            assert!(s.client().try_release_by_relayer(&wrong).is_err());
+            assert_eq!(s.client().balance(), 500);
+            assert_eq!(s.tok().balance(&s.contract), 500);
+            assert_eq!(s.tok().balance(&s.before), 0);
+            assert_eq!(s.tok().balance(&s.after), 0);
+        }
+    }
+
+    #[test]
+    fn relayer_release_needs_the_relayers_signature() {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let relayer = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let parent = Address::generate(&env);
+        let before = env.register(Dummy, ());
+        let after = env.register(Dummy, ());
+        let contract = env.register(
+            TimelockBranch,
+            (
+                admin,
+                asset.address(),
+                UNLOCK,
+                target(&env, &before),
+                target(&env, &after),
+                parent,
+                relayer,
+            ),
+        );
+        // No mock_all_auths: a dedicated relayer exists but has not signed.
+        let client = TimelockBranchClient::new(&env, &contract);
+        assert!(client.try_release_by_relayer(&Side::Before).is_err());
+        assert!(client.try_release_by_relayer(&Side::After).is_err());
     }
 
     #[test]
@@ -407,7 +482,7 @@ mod test {
         env.mock_all_auths();
         let contract = empty_without_relayer(&env);
         env.ledger().set_timestamp(UNLOCK);
-        TimelockBranchClient::new(&env, &contract).release_by_relayer();
+        TimelockBranchClient::new(&env, &contract).release_by_relayer(&Side::After);
     }
 
     #[test]
@@ -422,7 +497,7 @@ mod test {
 
         token::StellarAssetClient::new(&s.env, &s.asset).mint(&s.contract, &10);
         s.client().execute_step(&s.asset, &10);
-        s.client().release_by_relayer();
+        s.client().release_by_relayer(&Side::After);
         let auths = s.env.auths();
         assert!(auths.iter().any(|(who, _)| *who == s.relayer));
         assert!(!auths.iter().any(|(who, _)| *who == s.admin));
@@ -435,7 +510,7 @@ mod test {
         let contract = empty_without_relayer(&env);
         let client = TimelockBranchClient::new(&env, &contract);
         assert!(client.try_release().is_err());
-        assert!(client.try_release_by_relayer().is_err());
+        assert!(client.try_release_by_relayer(&Side::After).is_err());
     }
 
     #[test]
@@ -466,7 +541,7 @@ mod test {
         token::StellarAssetClient::new(&s.env, &s.asset).mint(&s.contract, &200);
         s.client().execute_step(&s.asset, &200);
         s.env.ledger().set_timestamp(UNLOCK);
-        s.client().release_by_relayer();
+        s.client().release_by_relayer(&Side::After);
 
         assert_eq!(s.tok().balance(&s.before), 500);
         assert_eq!(s.tok().balance(&s.after), 200);

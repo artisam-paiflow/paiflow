@@ -257,7 +257,7 @@ export function flowToEnglish(graph: FlowGraph): string {
     // The timelock holds the money and picks a side when it is released, so
     // the preview says who can release and when, not only what each side pays.
     const test = branchTimeText(condition.config, "true");
-    return `${triggerText}: hold the funds; if they are released ${test}, ${onTrue}; otherwise, ${onFalse}${emailTail}. Only the deploying wallet can release early; the automatic release runs only at or after the deadline.`;
+    return `${triggerText}: hold the funds; if they are released ${test}, ${onTrue}; otherwise, ${onFalse}${emailTail}. The before side can be released early by the deploying wallet or on an authorised request; the automatic release runs only at or after the deadline.`;
   }
 
   const tail = condition ? `, ${describeCondition(condition, conditionAsset)}` : "";

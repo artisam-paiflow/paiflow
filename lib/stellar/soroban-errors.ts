@@ -397,7 +397,8 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     2: { name: "Unauthorized", friendly: "This action isn't authorized." },
     3: {
       name: "ConditionNotMet",
-      friendly: "The automatic release only runs once the deadline has passed.",
+      friendly:
+        "The release names a side that doesn't match the deadline: the before side is only open until it, the after side from it on.",
     },
     4: {
       name: "NothingToRelease",

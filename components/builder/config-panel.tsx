@@ -1697,8 +1697,9 @@ export default function ConfigPanel({
                     {cfg.kind === "time_before"
                       ? "True is released before this time; False at or after it."
                       : "True is released at or after this time; False before it."}{" "}
-                    Connect a step to both outputs. Only your wallet can release early; the
-                    automatic release runs at or after this time.
+                    Connect a step to both outputs. The before side can be released early by your
+                    wallet or on an authorised request; the automatic release runs at or after this
+                    time.
                   </p>
                 </>
               );

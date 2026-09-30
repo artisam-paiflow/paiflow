@@ -23,10 +23,11 @@ import { sendReleaseByRelayer, simulateReleaseByRelayer } from "@/lib/stellar/re
 
 /**
  * Template kinds the relayer releases. TIMELOCK_BRANCH (#721) is tracked as an
- * AFTER lock: its `release_by_relayer` reverts with ConditionNotMet before the
- * deadline and otherwise pays the "after" list, so the relayer never picks the
- * "before" side. Releasing early, which pays the "before" list, is the
- * admin's call and is never automatic.
+ * AFTER lock: the cron calls `release_by_relayer(After)`, which the contract
+ * refuses with ConditionNotMet while the ledger is still before the deadline,
+ * so a trailing ledger clock cannot make it pay the "before" list. Paying the
+ * "before" list through the relayer is a separate, authorised request (#751),
+ * never automatic.
  */
 export const AUTO_RELEASE_TEMPLATE_KINDS: TemplateKind[] = [
   TemplateKind.TIMELOCK,
@@ -347,7 +348,12 @@ async function probe(row: TimelockRelease, now: Date): Promise<AutoReleaseDetail
     db.timelockRelease.update({ where: { id: row.id }, data: { ...data, leaseUntil: null } });
 
   try {
-    const sim = await simulateReleaseByRelayer(row.contractAddress);
+    // The old timelock's release_by_relayer takes no argument; the two-outcome
+    // one takes the side it intends, and the cron only ever intends "after".
+    const side = row.templateKind === TemplateKind.TIMELOCK_BRANCH ? ("after" as const) : undefined;
+    const sim = side
+      ? await simulateReleaseByRelayer(row.contractAddress, side)
+      : await simulateReleaseByRelayer(row.contractAddress);
 
     if (!sim.ok) {
       const verdict = classifySimulationError(row.contractAddress, sim.error);
@@ -386,7 +392,9 @@ async function probe(row: TimelockRelease, now: Date): Promise<AutoReleaseDetail
       // The lock can be queued behind other relayer work; a Before lock whose
       // deadline passed meanwhile would only revert on-chain for a fee.
       if (!windowOpen(row, new Date())) return null;
-      return sendReleaseByRelayer(row.contractAddress, sim.sim);
+      return side
+        ? sendReleaseByRelayer(row.contractAddress, sim.sim, side)
+        : sendReleaseByRelayer(row.contractAddress, sim.sim);
     });
 
     if (!send) {
