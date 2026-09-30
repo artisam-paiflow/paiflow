@@ -7,7 +7,7 @@ import {
   ExecuteSubmitSchema,
   ExecuteSubmittedSchema,
 } from "./schema";
-import { V1_RATE_LIMITS } from "./limits";
+import { V1_PRE_AUTH_LIMITS, V1_RATE_LIMITS, V1_WAIT_SLOTS } from "./limits";
 
 // The OpenAPI 3.1 document for `/api/v1`, hand-written because no generator is installed (no new
 // dependency, CLAUDE.md §10). No server-only import: `scripts/print-openapi.ts` prints it to
@@ -193,7 +193,9 @@ const ERROR_DESCRIPTIONS: Record<ErrorCode, string> = {
   CONFLICT: "The request conflicts with current state.",
   VALIDATION:
     "The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
-  RATE_LIMITED: "Too many requests in the window.",
+  RATE_LIMITED:
+    "Too many requests in the window: the per-token limit, or, for a token not issued or used in " +
+    "the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
   INTERNAL: "Unexpected server error.",
   UPSTREAM_RPC: "The Soroban RPC request failed or the network was busy; retry.",
 };
@@ -290,6 +292,18 @@ export const openApiDocument = {
       "| --- | --- |",
       errorTable,
       "",
+      "Rate limits are per token and per endpoint (each operation lists its own). A token that " +
+        "has been issued or has worked in the last 30 days is subject to nothing else. Any other " +
+        "token is limited per client address before it is looked up: " +
+        `${V1_PRE_AUTH_LIMITS.ipBackstop.limit} lookups per ` +
+        `${V1_PRE_AUTH_LIMITS.ipBackstop.windowSeconds} seconds, and, after ` +
+        `${V1_PRE_AUTH_LIMITS.failedAuth.limit} failed authentications in ` +
+        `${V1_PRE_AUTH_LIMITS.failedAuth.windowSeconds} seconds from the address, ` +
+        `${V1_PRE_AUTH_LIMITS.blockedLookups.limit} per ` +
+        `${V1_PRE_AUTH_LIMITS.blockedLookups.windowSeconds} seconds. A token refused in the last ` +
+        "minute is refused again without a lookup. So one caller's bad token does not lock out " +
+        "others on the same network.",
+      "",
       "No account? `POST /api/v1/demo-token` hands you a short-lived token for a shared demo " +
         "flow, so every call above can be tried straight away.",
       "",
@@ -384,7 +398,9 @@ export const openApiDocument = {
             name: "wait",
             in: "query",
             required: false,
-            description: `${ExecuteSubmitQuerySchema.shape.wait.description} Default \`true\`: wait up to about 25 seconds for a final status, then return \`PENDING\` if there is none yet.`,
+            description:
+              `${ExecuteSubmitQuerySchema.shape.wait.description} Default \`true\`: wait up to about 25 seconds for a final status, then return \`PENDING\` if there is none yet. ` +
+              `At most ${V1_WAIT_SLOTS.perToken} calls per token wait at once; a call over that still sends the transaction and returns \`PENDING\` straight away, as \`wait=false\` does. Resubmit the same \`signedXdr\` to check it.`,
             schema: { type: "string", enum: ["true", "false"], default: "true" },
           },
         ],

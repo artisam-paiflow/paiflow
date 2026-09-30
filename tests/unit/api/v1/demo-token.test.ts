@@ -45,6 +45,7 @@ vi.mock("@/lib/log", () => ({ log: mockLog }));
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: mockRateLimit,
   clientIp: vi.fn(() => "203.0.113.9"),
+  noteLimiterFallback: vi.fn(),
 }));
 
 /** A CONFIRMED swapper pipeline, the shape `resolveSwapperPipeline` accepts. */

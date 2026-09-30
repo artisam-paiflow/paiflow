@@ -19,6 +19,7 @@ vi.mock("@/lib/redis", () => ({ redis: () => null }));
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: mockRateLimit,
   clientIp: () => "203.0.113.9",
+  noteLimiterFallback: vi.fn(),
 }));
 
 import { db } from "@/lib/db";

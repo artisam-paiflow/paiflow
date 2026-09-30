@@ -15,7 +15,10 @@ const mocks = vi.hoisted(() => ({
   redisClient: null as null | { set: ReturnType<typeof vi.fn> },
 }));
 
-vi.mock("@/lib/api/v1/auth", () => ({ requireDeploymentToken: mocks.requireDeploymentToken }));
+vi.mock("@/lib/api/v1/auth", () => ({
+  requireDeploymentToken: mocks.requireDeploymentToken,
+  bearerDeploymentToken: () => null,
+}));
 vi.mock("@/lib/stellar/events", () => ({ pollEventsFor: mocks.pollEventsFor }));
 vi.mock("@/lib/redis", () => ({ redis: () => mocks.redisClient }));
 vi.mock("@/lib/db", () => ({

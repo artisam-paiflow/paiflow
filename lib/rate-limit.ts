@@ -2,6 +2,7 @@ import "server-only";
 import { redis } from "./redis";
 import { AppError } from "./errors";
 import { env } from "./env";
+import { log } from "./log";
 
 /**
  * `shared` is true only when the count came from Redis, i.e. when the bucket is
@@ -12,33 +13,97 @@ import { env } from "./env";
 export type RateLimitResult = {
   ok: boolean;
   remaining: number;
+  /** Requests counted in this window, this one included. */
+  count: number;
   resetAt: number;
   shared: boolean;
 };
 
 const memBuckets = new Map<string, { count: number; resetAt: number }>();
+// Per-IP keys (the v1 pre-auth buckets among them) would otherwise grow the map
+// for as long as the process runs on the fallback.
+const MEM_BUCKETS_PRUNE_AT = 10_000;
+// Past this even after pruning, the oldest live buckets go: forgetting a few counts is better
+// than a process that grows until it dies.
+const MEM_BUCKETS_MAX = 50_000;
+
+function pruneMemBuckets(now: number): void {
+  if (memBuckets.size < MEM_BUCKETS_PRUNE_AT) return;
+  for (const [k, b] of memBuckets) if (b.resetAt < now) memBuckets.delete(k);
+  for (const k of memBuckets.keys()) {
+    if (memBuckets.size < MEM_BUCKETS_MAX) break;
+    memBuckets.delete(k);
+  }
+}
+
+function memPeek(key: string): number {
+  const bucket = memBuckets.get(key);
+  return bucket && bucket.resetAt >= Date.now() ? bucket.count : 0;
+}
+
+/** At most one fallback warning per this long, carrying how many it stands for. */
+export const FALLBACK_WARN_INTERVAL_MS = 60_000;
+const fallbackWarn = { lastAt: 0, suppressed: 0 };
+
+/**
+ * Say, loudly but not once per request, that a count just came from this
+ * process's memory instead of Redis (#524). Without shared Redis every limit is
+ * per replica, so N replicas allow N times the limit; that used to happen with
+ * nothing in the logs. An unset `REDIS_URL` outside production is the expected
+ * local setup and stays quiet. Also used by the other Redis-backed guards that
+ * fall back to memory (`lib/api/v1/pre-auth.ts`, `lib/api/v1/wait-slots.ts`).
+ */
+export function noteLimiterFallback(reason: "unconfigured" | "error", err?: unknown): void {
+  if (reason === "unconfigured" && env().NODE_ENV !== "production") return;
+  const now = Date.now();
+  if (now - fallbackWarn.lastAt < FALLBACK_WARN_INTERVAL_MS) {
+    fallbackWarn.suppressed += 1;
+    return;
+  }
+  const suppressed = fallbackWarn.suppressed;
+  fallbackWarn.lastAt = now;
+  fallbackWarn.suppressed = 0;
+  log.warn(
+    { reason, err, suppressedSinceLastWarning: suppressed },
+    "rate limit: no shared Redis, counting in this process only",
+  );
+}
+
+/** Test hook: forget when the last fallback warning was logged. */
+export function resetLimiterFallbackWarning(): void {
+  fallbackWarn.lastAt = 0;
+  fallbackWarn.suppressed = 0;
+}
 
 function memRateLimit(key: string, limit: number, windowSeconds: number): RateLimitResult {
   const now = Date.now();
   const bucket = memBuckets.get(key);
   if (!bucket || bucket.resetAt < now) {
+    pruneMemBuckets(now);
     const resetAt = now + windowSeconds * 1000;
     memBuckets.set(key, { count: 1, resetAt });
-    return { ok: true, remaining: limit - 1, resetAt, shared: false };
+    return { ok: true, remaining: limit - 1, count: 1, resetAt, shared: false };
   }
   bucket.count += 1;
   return {
     ok: bucket.count <= limit,
     remaining: Math.max(0, limit - bucket.count),
+    count: bucket.count,
     resetAt: bucket.resetAt,
     shared: false,
   };
 }
 
 /**
- * Sliding-window-ish token bucket using Redis INCR with TTL.
- * Falls back to an in-memory bucket when Redis is unavailable so the auth
- * routes are still protected within a single instance.
+ * Fixed-window counter using Redis INCR with TTL.
+ *
+ * Falls back to an in-memory bucket when Redis is unavailable, so every limit
+ * still holds within one process, and logs that it did (`noteLimiterFallback`).
+ * Whether to refuse instead is the caller's decision, made on `shared`: the
+ * sandbox and demo-token mints do, because their instance-wide caps are the
+ * only bound on rows an anonymous caller creates. Everything else, `/api/v1`
+ * included, keeps serving on the per-process count rather than taking every
+ * caller down on a Redis blip (#524).
  */
 export async function rateLimit(
   key: string,
@@ -46,16 +111,54 @@ export async function rateLimit(
   windowSeconds: number,
 ): Promise<RateLimitResult> {
   const client = redis();
-  if (!client) return memRateLimit(key, limit, windowSeconds);
+  if (!client) {
+    noteLimiterFallback("unconfigured");
+    return memRateLimit(key, limit, windowSeconds);
+  }
   const k = `rl:${key}`;
   try {
     const count = await client.incr(k);
     if (count === 1) await client.expire(k, windowSeconds);
-    const ttl = await client.ttl(k);
+    let ttl = await client.ttl(k);
+    // -1 is a key with no expiry: the EXPIRE after the first INCR failed or never ran (a crash
+    // between the two). Left alone, that bucket would never reset and its caller would be refused
+    // for good, so any later call repairs it.
+    if (ttl === -1) {
+      await client.expire(k, windowSeconds);
+      ttl = windowSeconds;
+    }
     const resetAt = Date.now() + Math.max(ttl, 0) * 1000;
-    return { ok: count <= limit, remaining: Math.max(0, limit - count), resetAt, shared: true };
-  } catch {
+    return {
+      ok: count <= limit,
+      remaining: Math.max(0, limit - count),
+      count,
+      resetAt,
+      shared: true,
+    };
+  } catch (err) {
+    noteLimiterFallback("error", err);
     return memRateLimit(key, limit, windowSeconds);
+  }
+}
+
+/**
+ * The current count of a `rateLimit` bucket without adding to it: 0 when it is
+ * empty or its window has lapsed. Reads the store `rateLimit` would write, and
+ * falls back to memory the same way.
+ */
+export async function peekRateLimit(key: string): Promise<{ count: number; shared: boolean }> {
+  const client = redis();
+  if (!client) {
+    noteLimiterFallback("unconfigured");
+    return { count: memPeek(key), shared: false };
+  }
+  try {
+    const raw = await client.get(`rl:${key}`);
+    const count = raw === null ? 0 : Number.parseInt(raw, 10);
+    return { count: Number.isFinite(count) ? count : 0, shared: true };
+  } catch (err) {
+    noteLimiterFallback("error", err);
+    return { count: memPeek(key), shared: false };
   }
 }
 
@@ -63,7 +166,6 @@ export async function enforceRateLimit(opts: {
   key: string;
   limit: number;
   windowSeconds: number;
-  failOpenOnRedisError?: boolean;
   message?: string;
 }): Promise<void> {
   const r = await rateLimit(opts.key, opts.limit, opts.windowSeconds);

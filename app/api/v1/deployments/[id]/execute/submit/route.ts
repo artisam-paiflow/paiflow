@@ -5,6 +5,7 @@ import { AppError } from "@/lib/errors";
 import { log } from "@/lib/log";
 import { v1Route } from "@/lib/api/v1/handler";
 import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
+import { acquireWaitSlot } from "@/lib/api/v1/wait-slots";
 import {
   assertDepositEnvelope,
   explainFailedTx,
@@ -107,7 +108,21 @@ export const POST = v1Route(
       }
 
       if (!wait) return respond({ txHash, status: "PENDING" });
-      got = await viaRpc(() => waitForFinal(txHash));
+      // The transaction is already sent, so a caller over its concurrent-wait cap gets the
+      // `wait=false` answer rather than an error it might answer by preparing a new deposit.
+      const slot = await acquireWaitSlot(token.id);
+      if (!slot) {
+        log.info(
+          { deploymentId: params.id, tokenId: token.id, txHash },
+          "v1 execute submit: wait slots full, answering PENDING without waiting",
+        );
+        return respond({ txHash, status: "PENDING" });
+      }
+      try {
+        got = await viaRpc(() => waitForFinal(txHash));
+      } finally {
+        await slot.release();
+      }
     }
 
     if (got.status === rpc.Api.GetTransactionStatus.SUCCESS) {

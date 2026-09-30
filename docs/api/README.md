@@ -235,7 +235,9 @@ curl -sS -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute/submit" \
 What to expect:
 
 - **It waits.** By default the call waits up to about 25 seconds for a final result. Add
-  `?wait=false` to get `PENDING` back as soon as the network accepts the transaction.
+  `?wait=false` to get `PENDING` back as soon as the network accepts the transaction. At most three
+  waiting calls per token are held open at once; a fourth still sends its transaction but returns
+  `PENDING` straight away, exactly as `?wait=false` would. Resubmit the same `signedXdr` to check it.
 - **A `502` here does not mean the transaction was not sent.** Each RPC call times out at ten
   seconds, so a stalled RPC during the wait ends the call with `502 UPSTREAM_RPC` even though the
   envelope was already broadcast. Treat it like `PENDING`: submit the same `signedXdr` again, or
@@ -396,6 +398,19 @@ token also has an instance-wide hourly cap. Going over returns `429 RATE_LIMITED
 instance-wide cap fails closed: on an instance without a shared rate limiter it refuses every
 request with `429`, because a per-process count cannot bound how many live credentials the route
 hands out across replicas.
+
+A token that was issued, or has worked, in the last 30 days is subject only to the per-token limits
+below, whatever else is happening on your network. Other tokens (guesses, typos, revoked ones) are
+limited per client address before they are looked up, so a room of teams sharing one network (a
+hackathon venue's Wi-Fi) does not pay for one broken script:
+
+- A token refused in the last minute is refused again with the same `401`, without a lookup.
+- **6,000 lookups per minute** of tokens not seen before, from one address.
+- **After 300 failed authentications in 10 minutes** from one address (a missing, malformed,
+  unknown, revoked or expired token, or one for another deployment), **60 lookups per minute** of
+  tokens not seen before, and `429` for the rest. If you see
+  `Too many failed authentication attempts from this address`, the token you are sending is the one
+  to check.
 
 | Endpoint                                      | Limit                                                     |
 | --------------------------------------------- | --------------------------------------------------------- |
