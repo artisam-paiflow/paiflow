@@ -442,6 +442,8 @@ USDC with a `10490132` minimum at 1 % slippage, through pair `CCBX3NZT…7RQS` o
 | 26 Sep | [`swapper-flows-live-2026-09-26.json`](swapper-flows-live-2026-09-26.json)     | `--flows` against it: 17 executed swapper flows, 24 swap transactions, D3's recorded run among them         |
 | 26 Sep | [`alpha-metrics-2026-09-26.json`](alpha-metrics-2026-09-26.json)               | The cohort snapshot after all three group A testers had run a session                                       |
 | 26 Sep | [`alpha-metrics-2026-09-26-groups.json`](alpha-metrics-2026-09-26-groups.json) | The same, with group B (tester-8, tester-10) added: five accounts, both protocols                           |
+| 30 Sep | [`metrics-live-2026-09-30.json`](metrics-live-2026-09-30.json)                 | The live database after the D4 testers' sessions                                                            |
+| 30 Sep | [`swapper-flows-live-2026-09-30.json`](swapper-flows-live-2026-09-30.json)     | `--flows` against it: 23 executed swapper flows, 33 swap transactions                                       |
 | 30 Sep | [`alpha-metrics-2026-09-30.json`](alpha-metrics-2026-09-30.json)               | Nine accounts in three waves: D3's two group A testers added, D4's four added, the two who withdrew removed |
 
 The `metrics-*` files are the output of `pnpm instawards:metrics` and the `alpha-metrics-*` files

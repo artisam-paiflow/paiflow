@@ -37,10 +37,10 @@ reach, the third measures depth.
 
 | Metric                                   | Target | Archive (to 16 Sep)                                                                                 | Live (since 15 Sep) | Alpha testers (9 active / 9 issued / 9 planned) |
 | ---------------------------------------- | ------ | --------------------------------------------------------------------------------------------------- | ------------------- | ----------------------------------------------- |
-| Unique flows deployed                    | ≥ 5    | 26 ✓                                                                                                | 64 ✓                | 42 ✓                                            |
-| Contract executions / events published   | ≥ 60   | 61 ✓                                                                                                | 128 ✓               | — (not cohort-filterable)                       |
-| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                                                                                                | 17 ✓                | 7 ✓                                             |
-| Distinct wallets deploying               | ≥ 6    | 7 ✓                                                                                                 | 20 ✓                | 15 ✓ (addresses, from seven people)             |
+| Unique flows deployed                    | ≥ 5    | 26 ✓                                                                                                | 86 ✓                | 42 ✓                                            |
+| Contract executions / events published   | ≥ 60   | 61 ✓                                                                                                | 177 ✓               | — (not cohort-filterable)                       |
+| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                                                                                                | 23 ✓                | 7 ✓                                             |
+| Distinct wallets deploying               | ≥ 6    | 7 ✓                                                                                                 | 28 ✓                | 15 ✓ (addresses, from seven people)             |
 | Contract WASM uploaded                   | ≥ 1    | 1 ✓                                                                                                 | 1 ✓                 | 1 ✓ (the same binary)                           |
 | Public testnet URL live and accessible   | Yes    | Yes ✓                                                                                               | Yes ✓               | Yes ✓                                           |
 | Demo video published                     | Yes    | Yes ✓ ([video](https://drive.google.com/file/d/1_Yg08RncK7eNUM4p4pVVfIGujGrRdV6A/view?usp=sharing)) | Yes ✓               | Yes ✓                                           |
@@ -51,20 +51,23 @@ artefact, not a count, so it reads the same in every column: the 3:49
 [end-to-end wallet run](evidence/d4/README.md#the-freighter-run-28-september).
 On the archive, executions cleared the target on 12 September; the 11 September snapshot had them
 at 43. On the live database every target was already clear when it was first read on 18 September
-([`evidence/metrics-live-2026-09-18.json`](evidence/metrics-live-2026-09-18.json)), and the
+([`evidence/metrics-live-2026-09-18.json`](evidence/metrics-live-2026-09-18.json)), the
 26 September read roughly doubled each figure
-([`evidence/metrics-live-2026-09-26.json`](evidence/metrics-live-2026-09-26.json)).
+([`evidence/metrics-live-2026-09-26.json`](evidence/metrics-live-2026-09-26.json)), and the
+30 September read added about a third again
+([`evidence/metrics-live-2026-09-30.json`](evidence/metrics-live-2026-09-30.json)).
 
-The live column's swapper flows now pass the archive's, 17 against 16, and they are a different
-kind of figure. The archive's 16 include 13 run by anonymous sandbox visitors. All 17 on the live
-database belong to registered accounts: 24 swap transactions from 9 distinct signers. They include
+The live column's swapper flows now pass the archive's, 23 against 16, and they are a different
+kind of figure. The archive's 16 include 13 run by anonymous sandbox visitors. All 23 on the live
+database belong to registered accounts: 33 swap transactions from 14 distinct signers. They include
 both of D2's API-executed swaps and D3's recorded run, deployment `a0072403`
-([`evidence/swapper-flows-live-2026-09-26.json`](evidence/swapper-flows-live-2026-09-26.json)).
-On 18 September the live figure was 11, from 17 swap transactions and 5 signers.
+([`evidence/swapper-flows-live-2026-09-30.json`](evidence/swapper-flows-live-2026-09-30.json)).
+On 18 September the live figure was 11, from 17 swap transactions and 5 signers; on 26 September,
+17 from 24 and 9.
 
 **Contract executions cannot be given per cohort.** PostHog has no counterpart to a `ContractEvent`
-row, and `scripts/instawards-metrics.ts` counts rows without filtering by user. So the 128 above is
-every execution on the live database, by 44 users of whom 31 are sandbox sessions, not the testers'
+row, and `scripts/instawards-metrics.ts` counts rows without filtering by user. So the 177 above is
+every execution on the live database, by 62 users of whom 44 are sandbox sessions, not the testers'
 share of it. The alpha cell stays blank rather than borrowing a number that means something else.
 
 **The alpha-tester column is nine accounts' work, unevenly split**, and should be read that way.
@@ -134,21 +137,22 @@ That is a real demonstration of a public, working application — anyone could o
 flow without an account, and 17 people did. It is not a demonstration that identified users came
 back and used it.
 
-**The live column has the opposite shape**, which is the more interesting result. It reports 44
-users against 31 sandbox sessions, so thirteen registered accounts rather than two. Every one of
-its 17 executed swapper flows belongs to a registered account rather than an anonymous visitor.
+**The live column has the opposite shape**, which is the more interesting result. It reports 62
+users against 44 sandbox sessions, so eighteen registered accounts rather than two. Every one of
+its 23 executed swapper flows belongs to a registered account rather than an anonymous visitor.
 Those accounts are the alpha testers and the project's own. The round is young enough that the
 distinction between "identified users" and "people we know" has not yet opened up; the
-alpha-tester column is where that is tracked honestly. Deploying wallets went from 7 to 20 in the
-same week that 17 new sandbox sessions appeared, and a sandbox session signs with the visitor's own
-wallet. The snapshot does not split wallets by account type, so how much of the rise they account
-for is not measured.
+alpha-tester column is where that is tracked honestly. Deploying wallets went from 7 to 20 in
+week 3 and to 28 by 30 September, while sandbox sessions went from 14 to 31 and then 44, and a
+sandbox session signs with the visitor's own wallet. The snapshot does not split wallets by account
+type, so how much of the rise they account for is not measured.
 
-_Last updated: 30 September (the alpha-tester figures). Archive figures are the 12 September snapshot
+_Last updated: 30 September. Archive figures are the 12 September snapshot
 ([`evidence/metrics-2026-09-12.json`](evidence/metrics-2026-09-12.json)); earlier snapshot:
-[11 September](evidence/metrics-2026-09-11.json). Live figures are the 26 September snapshot
-([`evidence/metrics-live-2026-09-26.json`](evidence/metrics-live-2026-09-26.json)); earlier
-snapshot: [18 September](evidence/metrics-live-2026-09-18.json). Alpha-tester figures are the
+[11 September](evidence/metrics-2026-09-11.json). Live figures are the 30 September snapshot
+([`evidence/metrics-live-2026-09-30.json`](evidence/metrics-live-2026-09-30.json)); earlier
+snapshots: [18 September](evidence/metrics-live-2026-09-18.json),
+[26 September](evidence/metrics-live-2026-09-26.json). Alpha-tester figures are the
 30 September cohort snapshot, all three waves
 ([`evidence/alpha-metrics-2026-09-30.json`](evidence/alpha-metrics-2026-09-30.json)); earlier
 snapshots, each on the cohort file as it then stood:

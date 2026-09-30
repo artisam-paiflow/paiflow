@@ -11,8 +11,7 @@ the builder, deployed and triggered with Freighter, and then run again from a ba
 developer API, all on one deployment, once on camera and once by a script that keeps every
 transaction in full. The package a reviewer needs to check the sprint is now public: a 3:49
 technical walkthrough video, an integration guide that takes a newcomer from the builder to the
-API, a generated list of every swap the public app settled up to the 26 September snapshot
-(refreshed from the final one on 3 October), and a [handoff page](handoff.md) that maps each row of
+API, a generated list of every swap the public app settled up to the 30 September snapshot, and a [handoff page](handoff.md) that maps each row of
 the Statement of Work's checklist to its evidence. For a user, a payout to a wallet that does not
 trust the right USDC now says so, naming the asset and its issuer, instead of failing as "error
 #13".
@@ -60,16 +59,25 @@ _[evidence index](evidence/README.md#transactions)._
 
 See [metrics](metrics.md) for the running totals and how each number is measured.
 
-Filled in from the 3 October snapshot. Until then, [metrics](metrics.md) holds the 26 September figures,
-with every target met.
+| Metric                        | Target | Archive (to 16 Sep) | Live (since 15 Sep) | Alpha testers (9 active / 9 issued / 9 planned) |
+| ----------------------------- | ------ | ------------------- | ------------------- | ----------------------------------------------- |
+| Unique flows deployed         | ≥ 5    | 26                  | 86 (was 64)         | 42                                              |
+| Contract executions / events  | ≥ 60   | 61                  | 177 (was 128)       | — (not cohort-filterable)                       |
+| Unique swapper flows executed | ≥ 5    | 16                  | 23 (was 17)         | 7                                               |
+| Distinct deploying wallets    | ≥ 6    | 7                   | 28 (was 20)         | 15                                              |
+| Contract WASM uploaded        | ≥ 1    | 1                   | 1                   | 1 (the same binary)                             |
 
-| Metric                        | Target | At end of week 4 | Change |
-| ----------------------------- | ------ | ---------------- | ------ |
-| Unique flows deployed         | ≥ 5    |                  |        |
-| Contract executions / events  | ≥ 60   |                  |        |
-| Unique swapper flows executed | ≥ 5    |                  |        |
-| Distinct deploying wallets    | ≥ 6    |                  |        |
-| Contract WASM uploaded        | ≥ 1    |                  |        |
+The figures are the 30 September snapshots, taken once every tester had run a session. "Was" is the
+26 September snapshot, the last one in week 3. The archive column is frozen at the 16 September
+cutover and does not move. The alpha column has no "was": its cohort changed on 30 September, when
+D3's two group A testers were added, D4's four were added and two D2 testers who withdrew were
+removed, so the 26 September figures count different people
+([metrics](metrics.md#results) explains).
+
+All 23 live swapper flows belong to registered accounts: 33 swap transactions from 14 distinct
+signers ([`evidence/swapper-flows-live-2026-09-30.json`](evidence/swapper-flows-live-2026-09-30.json)).
+Six are new since 26 September; alpha testers signed four of them and the project's own internal
+account the other two.
 
 ## Decisions
 
