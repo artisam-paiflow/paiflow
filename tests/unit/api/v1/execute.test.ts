@@ -40,6 +40,8 @@ vi.mock("@/lib/signed-tx", () => ({ recordSignedTransaction: vi.fn(async () => u
 import { POST as prepare } from "@/app/api/v1/deployments/[id]/execute/route";
 import { POST as submit } from "@/app/api/v1/deployments/[id]/execute/submit/route";
 import { CONFIRM_POLL_INTERVAL_MS, ONLY_SWAPPER_FLOWS, waitForFinal } from "@/lib/api/v1/execute";
+import { V1_WAIT_SLOTS } from "@/lib/api/v1/limits";
+import { acquireWaitSlot } from "@/lib/api/v1/wait-slots";
 import { AppError } from "@/lib/errors";
 import { SimulationError, simulationFailure } from "@/lib/stellar/sim-error";
 import { audit, wasTxConfirmedFor } from "@/lib/audit";
@@ -582,6 +584,88 @@ describe("POST …/execute/submit", () => {
     const res = await callSubmit(signedEnvelope());
     expect(res.status).toBe(502);
     expect((await res.json()).error.code).toBe("UPSTREAM_RPC");
+  });
+
+  describe("concurrent wait=true cap (#524)", () => {
+    async function holdAllSlots() {
+      const held = [];
+      for (let i = 0; i < V1_WAIT_SLOTS.perToken; i++) {
+        const slot = await acquireWaitSlot(token.id);
+        expect(slot).not.toBeNull();
+        held.push(slot!);
+      }
+      return held;
+    }
+
+    async function expectNoSlotLeaked() {
+      const held = await holdAllSlots();
+      await Promise.all(held.map((s) => s.release()));
+    }
+
+    it("over the cap, still sends and answers PENDING at once instead of waiting", async () => {
+      const held = await holdAllSlots();
+      try {
+        const signed = signedEnvelope();
+        const txHash = hashOf(signed);
+        mockRpc.getTransaction.mockResolvedValue({
+          status: rpc.Api.GetTransactionStatus.NOT_FOUND,
+        });
+        mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: txHash });
+
+        const res = await callSubmit(signed);
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ data: { txHash, status: "PENDING" } });
+        expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(1);
+        // Only the pre-send lookup: no polling.
+        expect(mockRpc.getTransaction).toHaveBeenCalledTimes(1);
+        expect(auditActions()).toEqual(["API_EXECUTE_SUBMITTED"]);
+      } finally {
+        await Promise.all(held.map((s) => s.release()));
+      }
+    });
+
+    it("the cap is per token: another token still waits", async () => {
+      const held = await holdAllSlots();
+      try {
+        token = newToken();
+        authorize();
+        const signed = signedEnvelope();
+        const txHash = hashOf(signed);
+        mockRpc.getTransaction
+          .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.NOT_FOUND })
+          .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.SUCCESS, ledger: 7 });
+        mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: txHash });
+
+        expect(await (await callSubmit(signed)).json()).toEqual({
+          data: { txHash, status: "SUCCESS", ledger: 7 },
+        });
+      } finally {
+        await Promise.all(held.map((s) => s.release()));
+      }
+    });
+
+    it("releases the slot when the wait completes", async () => {
+      const signed = signedEnvelope();
+      mockRpc.getTransaction
+        .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.NOT_FOUND })
+        .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.SUCCESS, ledger: 8 });
+      mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: hashOf(signed) });
+
+      expect((await callSubmit(signed)).status).toBe(200);
+      await expectNoSlotLeaked();
+    });
+
+    it("releases the slot when the wait fails", async () => {
+      const signed = signedEnvelope();
+      mockRpc.getTransaction
+        .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.NOT_FOUND })
+        .mockRejectedValueOnce(new Error("ECONNRESET"));
+      mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: hashOf(signed) });
+
+      expect((await callSubmit(signed)).status).toBe(502);
+      await expectNoSlotLeaked();
+    });
   });
 
   it("502 when the network asks to try again later", async () => {

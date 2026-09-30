@@ -30,6 +30,8 @@ vi.mock("@/lib/rate-limit", () => ({
   enforceRateLimit: mockEnforceRateLimit,
   clientIp: () => "203.0.113.7",
 }));
+const mockMarkTokenKnown = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock("@/lib/api/v1/pre-auth", () => ({ markTokenKnown: mockMarkTokenKnown }));
 
 import { GET, POST } from "@/app/api/deployments/[id]/api-tokens/route";
 import { DELETE } from "@/app/api/deployments/[id]/api-tokens/[tokenId]/route";
@@ -99,6 +101,12 @@ describe("POST /api/deployments/:id/api-tokens", () => {
     const days = (created.data.expiresAt.getTime() - Date.now()) / 86_400_000;
     expect(days).toBeGreaterThan(29.9);
     expect(days).toBeLessThanOrEqual(30);
+  });
+
+  it("marks the new token known, so a failed-auth block on its address never refuses it (#524)", async () => {
+    const res = await POST(req("POST", { expiresInDays: 30 }), ctx());
+    const { data } = await res.json();
+    expect(mockMarkTokenKnown).toHaveBeenCalledWith(hashApiToken(data.token), expect.any(Date));
   });
 
   it("audits the creation without the plaintext or the hash", async () => {

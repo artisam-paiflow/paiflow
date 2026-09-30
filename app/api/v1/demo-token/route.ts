@@ -8,6 +8,7 @@ import { log } from "@/lib/log";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { resolveSwapperPipeline } from "@/lib/api/v1/execute";
 import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
+import { markTokenKnown } from "@/lib/api/v1/pre-auth";
 import {
   API_TOKEN_SELECT,
   DEMO_MAX_ACTIVE_TOKENS,
@@ -147,6 +148,9 @@ export async function POST(req: NextRequest) {
       });
       return { token: created, evicted: stale.map((t) => t.id) };
     });
+
+    // So a failed-auth block on a shared address (a venue's Wi-Fi) never refuses this token (#524).
+    await markTokenKnown(tokenHash, expiresAt);
 
     await audit({
       action: "API_DEMO_TOKEN_ISSUED",
