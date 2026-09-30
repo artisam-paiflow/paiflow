@@ -11,9 +11,14 @@
  * only, so one slow item (a relayer charge waiting on the lock and finality, or a deployment whose
  * `getEvents` calls each time out at 10s) can still push a response past 30s; the run finishes
  * server-side and the next tick picks up the rest.
+ *
+ * poll-events polls `concurrency` deployments at once (#486). Each poll is a chain of sequential
+ * `getEvents` calls (~0.7s per deployment), so 6 workers cover roughly 35 deployments per 5s and
+ * about 8 to 10 RPC requests a second against a shared, rate-limited endpoint. Raise it only after
+ * checking the provider's limits. No poll takes the relayer lock.
  */
 export const CRON_LIMITS = {
-  pollEvents: { budgetMs: 20_000, ttlMs: 60_000, batch: 200 },
+  pollEvents: { budgetMs: 20_000, ttlMs: 60_000, batch: 200, concurrency: 6 },
   autoChargePayroll: { budgetMs: 20_000, ttlMs: 600_000, batch: 100 },
   autoChargeSubscriptions: { budgetMs: 20_000, ttlMs: 600_000, batch: 100 },
   autoRelease: { budgetMs: 20_000, ttlMs: 600_000 },

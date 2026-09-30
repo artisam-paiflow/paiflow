@@ -16,28 +16,31 @@ export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     requireCronSecret(req);
 
-    const { budgetMs, ttlMs, batch } = CRON_LIMITS.pollEvents;
+    const { budgetMs, ttlMs, batch, concurrency } = CRON_LIMITS.pollEvents;
     const lease = await withCronLease("poll-events", ttlMs, async () => {
       log.info("poll-events cron started");
       const deadline = cronDeadline(budgetMs);
 
-      // Least recently polled first, so a backlog rotates instead of the same
-      // deployments taking every tick's budget. Prisma cannot put NULLs first
-      // through a relation, so deployments with no cursor yet (never polled)
-      // are read separately and lead, but only up to half the batch: a
+      // Least recently attempted first, so a backlog rotates instead of the
+      // same deployments taking every tick's budget. Prisma cannot put NULLs
+      // first through a relation, so deployments with no cursor yet (never
+      // polled) are read separately and lead, but only up to half the batch: a
       // deployment whose first poll can never write a cursor (no deploy
       // ledger, RPC retention passed) would otherwise fill every slot forever.
+      // eventsPolledAt is stamped on failures too, so a scan that always
+      // throws rotates to the back; cursor age breaks ties for unstamped rows.
       const where = cronPollableDeploymentWhere(new Date());
+      const attemptOrder = { eventsPolledAt: { sort: "asc", nulls: "first" } } as const;
       const unpolled = await db.deployment.findMany({
         where: { AND: [where, { cursor: null }] },
         select: { id: true },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        orderBy: [attemptOrder, { createdAt: "asc" }, { id: "asc" }],
         take: Math.ceil(batch / 2),
       });
       const polledBefore = await db.deployment.findMany({
         where: { AND: [where, { cursor: { isNot: null } }] },
         select: { id: true },
-        orderBy: [{ cursor: { updatedAt: "asc" } }, { id: "asc" }],
+        orderBy: [attemptOrder, { cursor: { updatedAt: "asc" } }, { id: "asc" }],
         take: batch - unpolled.length,
       });
       const deployments = [...unpolled, ...polledBefore];
@@ -48,27 +51,51 @@ export async function POST(req: NextRequest) {
       let truncated = false;
       const errors: Array<{ deploymentId: string; error: string }> = [];
 
-      for (const d of deployments) {
-        if (deadline.expired()) {
-          truncated = true;
-          log.warn(
-            { budgetMs, attempted: polled + errors.length, deploymentCount: deployments.length },
-            "poll-events cron out of time; the rest waits for the next run",
-          );
-          break;
-        }
-        try {
-          const count = await pollEventsFor(d.id);
-          polled += 1;
-          written += count;
-          if (count > 0) {
-            log.info({ deploymentId: d.id, written: count }, "poll-events cron wrote events");
+      // `concurrency` workers pull from one shared queue. The deadline is checked before a
+      // worker takes an item, never mid-item, so once the budget is spent nothing new starts and
+      // in-flight polls finish. Each item catches its own error: one failure never stops a worker.
+      let next = 0;
+      const worker = async () => {
+        while (true) {
+          if (deadline.expired()) {
+            if (next < deployments.length) truncated = true;
+            return;
           }
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          log.warn({ deploymentId: d.id, err }, "poll-events cron failed for deployment");
-          errors.push({ deploymentId: d.id, error: message });
+          const d = deployments[next++];
+          if (!d) return;
+          try {
+            const count = await pollEventsFor(d.id);
+            polled += 1;
+            written += count;
+            if (count > 0) {
+              log.info({ deploymentId: d.id, written: count }, "poll-events cron wrote events");
+            }
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            log.warn({ deploymentId: d.id, err }, "poll-events cron failed for deployment");
+            errors.push({ deploymentId: d.id, error: message });
+          }
+          // One small write per attempt, deliberately not batched at the end: a run killed
+          // mid-way would otherwise lose every stamp.
+          try {
+            await db.deployment.updateMany({
+              where: { id: d.id },
+              data: { eventsPolledAt: new Date() },
+            });
+          } catch (err) {
+            log.warn({ deploymentId: d.id, err }, "poll-events cron could not stamp attempt time");
+          }
         }
+      };
+      await Promise.all(
+        Array.from({ length: Math.max(1, Math.min(concurrency, deployments.length)) }, worker),
+      );
+
+      if (truncated) {
+        log.warn(
+          { budgetMs, attempted: polled + errors.length, deploymentCount: deployments.length },
+          "poll-events cron out of time; the rest waits for the next run",
+        );
       }
 
       log.info(
