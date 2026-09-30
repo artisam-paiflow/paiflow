@@ -69,16 +69,18 @@ describe.each(crons)("cron/$name", ({ name, post, cfg }) => {
     const res = await call();
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          skipped: 0,
-          details: [],
-          truncated: false,
-          leaseHeld: true,
-        }),
-      }),
-    );
+    const { data } = await res.json();
+    // The success shape with everything zeroed; payroll alone reports `processed`.
+    expect(data).toEqual({
+      platformCharged: 0,
+      userCharged: 0,
+      skipped: 0,
+      failed: 0,
+      ...(name === "auto-charge-payroll" ? { processed: 0 } : {}),
+      details: [],
+      truncated: false,
+      leaseHeld: true,
+    });
     expect(mockDb.deployment.findMany).not.toHaveBeenCalled();
   });
 
