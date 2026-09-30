@@ -13,6 +13,7 @@ export type TrustlineWarning = {
   code: "MISSING_TRUSTLINE" | "MISSING_ACCOUNT";
   nodeId: string;
   recipient: string;
+  label?: string;
   asset: { code: string; issuer: string };
   /** Issuers the recipient trusts for the same code; a different asset. */
   otherIssuers?: string[];
@@ -37,17 +38,19 @@ export async function trustlineWarnings(
           code: "MISSING_TRUSTLINE",
           nodeId: c.nodeId,
           recipient: c.address,
+          ...(c.label ? { label: c.label } : {}),
           asset: { code: c.assetCode, issuer: c.assetIssuer },
           ...(c.otherIssuers.length > 0 ? { otherIssuers: c.otherIssuers } : {}),
-          message: `${c.address} has no ${c.assetCode} trustline from issuer ${c.assetIssuer}. Payouts to it will fail until it adds one.`,
+          message: `${c.address} has no ${c.assetCode} trustline from issuer ${c.assetIssuer}. Transfers of this asset involving it will fail until it adds one.`,
         });
       } else if (c.status === "no_account") {
         out.push({
           code: "MISSING_ACCOUNT",
           nodeId: c.nodeId,
           recipient: c.address,
+          ...(c.label ? { label: c.label } : {}),
           asset: { code: c.assetCode, issuer: c.assetIssuer },
-          message: `${c.address} does not exist on this network yet, so it cannot hold ${c.assetCode} from issuer ${c.assetIssuer}. Fund it and add the trustline before payouts.`,
+          message: `${c.address} does not exist on this network yet, so it cannot hold ${c.assetCode} from issuer ${c.assetIssuer}. Fund it and add the trustline before any transfer.`,
         });
       }
     }

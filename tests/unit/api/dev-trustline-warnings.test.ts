@@ -1,13 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { mockDb, mockRelayer, horizonMock } = vi.hoisted(() => ({
-  mockDb: { deployment: { findFirst: vi.fn(), update: vi.fn() } },
+  mockDb: {
+    deployment: { findFirst: vi.fn(), update: vi.fn() },
+    employee: { findMany: vi.fn(async () => []) },
+  },
   mockRelayer: {
     updatePaymentByRelayer: vi.fn(),
     updateRecipientsByRelayer: vi.fn(),
     updateSubscriberByRelayer: vi.fn(),
     setSubscriptionAmountByRelayer: vi.fn(),
     updateScheduleByRelayer: vi.fn(),
+    submitUpdateRecipientsByRelayer: vi.fn(),
   },
   horizonMock: { loadAccount: vi.fn() },
 }));
@@ -24,6 +28,18 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: vi.fn(async () => ({ ok: true })) }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
 vi.mock("@/lib/stellar/dev-mutate", () => mockRelayer);
+vi.mock("@/lib/features", () => ({ refuseNewFiatRecipients: vi.fn() }));
+vi.mock("@/lib/employees", () => ({
+  syncEmployees: vi.fn(),
+  deriveFiatPlaceholderAddress: () => "GFIATPLACEHOLDER",
+}));
+vi.mock("@/lib/stellar/cash-out", () => ({
+  prepareDevCashOutRecipients: vi.fn(async () => ({
+    onChainRecipients: [],
+    txHashes: [],
+    cashOutByInputAddress: new Map(),
+  })),
+}));
 vi.mock("@/lib/stellar/client", () => ({ horizon: () => horizonMock }));
 
 import { NotFoundError } from "@stellar/stellar-sdk";
@@ -114,6 +130,13 @@ describe("dev-payer trustline warning", () => {
     expect(horizonMock.loadAccount).not.toHaveBeenCalled();
   });
 
+  it("surfaces a failed mutation while the lookup is still pending, with no unhandled rejection", async () => {
+    horizonMock.loadAccount.mockReturnValue(new Promise(() => {}));
+    mockRelayer.updatePaymentByRelayer.mockRejectedValue(new Error("rpc down"));
+    const res = await payer(req({ recipient: NO_LINE, mode: "fixed", amountStroops: "1" }), ctx);
+    expect(res.status).toBeGreaterThanOrEqual(400);
+  });
+
   it("still surfaces a failed mutation as an error", async () => {
     accountsByAddress();
     mockRelayer.updatePaymentByRelayer.mockResolvedValue({ status: "FAILED", txHash: "x" });
@@ -160,6 +183,30 @@ describe("dev-splitter trustline warning", () => {
     expect(data.warnings.map((w: { recipient: string }) => w.recipient).sort()).toEqual(
       [HAS_LINE, NO_LINE].sort(),
     );
+  });
+
+  it("looks up only crypto recipients on a mixed crypto and fiat update", async () => {
+    accountsByAddress();
+    mockRelayer.submitUpdateRecipientsByRelayer.mockResolvedValue({ txHash: "tx-fiat" });
+    const res = await splitter(
+      req({
+        recipients: [
+          { address: NO_LINE, mode: "fixed", amountStroops: "1" },
+          {
+            mode: "fixed",
+            amountStroops: "1",
+            payoutMode: "fiat",
+            bankDetail: { accountName: "A", accountNumber: "1", bankCode: "BASECPH" },
+          },
+        ],
+      }),
+      ctx,
+    );
+    const { data } = await res.json();
+    expect(res.status).toBe(200);
+    expect(horizonMock.loadAccount).toHaveBeenCalledTimes(1);
+    expect(horizonMock.loadAccount).toHaveBeenCalledWith(NO_LINE);
+    expect(data.warnings).toHaveLength(1);
   });
 
   it("does not fail the mutation when the check errors", async () => {
