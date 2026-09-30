@@ -54,7 +54,16 @@ function hasFlag(flag: string): boolean {
   return process.argv.slice(2).includes(flag);
 }
 
-type Tester = { label: string; userId: string | null; wallets: string[] };
+type Tester = {
+  label: string;
+  /** "A" = full session with interview, "B" = quick test. */
+  group?: "A" | "B";
+  /** The deliverable week the tester was onboarded for, e.g. "D3". Figures are
+   *  still counted across the whole round; this only groups the breakdown. */
+  wave?: string;
+  userId: string | null;
+  wallets: string[];
+};
 type Cohort = {
   cohort: string;
   windowStart: string;
@@ -294,6 +303,8 @@ async function main() {
               const one = scope([t.userId as string], since);
               return {
                 label: t.label,
+                group: t.group ?? null,
+                wave: t.wave ?? null,
                 deployments: await scalar(
                   `select count(distinct properties.deployment_id) from events
                     where ${one} and event = 'deploy_confirmed'`,

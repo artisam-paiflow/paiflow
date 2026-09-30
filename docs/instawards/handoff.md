@@ -64,14 +64,14 @@ SOW §6.1: "Demo video (technical walkthrough). Usage guide. Tx hash list for al
 Stellar Expert." Section 5.1's week 4 adds an end-to-end test with an external wallet and a final
 CI pass.
 
-| Evidence                               | Link                                                                                                                                                                          | What to look for                                                                                                                                                              |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Demo video (technical walkthrough)     | [Google Drive](https://drive.google.com/file/d/1_Yg08RncK7eNUM4p4pVVfIGujGrRdV6A/view?usp=sharing), 3:49                                                                      | How a drawn flow becomes contracts, a swap traced on chain, the builder's guard rails, and the API on the same deployment                                                     |
-| Usage guide                            | [Integration guide](../guide/README.md)                                                                                                                                       | One flow from the builder to a backend, with the real transaction payloads decoded                                                                                            |
-| Tx hash list for all settlements       | [Transaction list](evidence/transactions.md)                                                                                                                                  | Every swap the public app settled up to the 26 September snapshot, and the deployment behind each, linked to stellar.expert; regenerated from the final snapshot on 3 October |
-| End-to-end run with an external wallet | [Recording](https://drive.google.com/file/d/1DofVikDrm_Vq5Lm40Dt_PZUlyx8Euait/view?usp=sharing) (9:44) and [its record](evidence/d4/README.md#the-freighter-run-28-september) | One unedited take: build, deploy and trigger signed in **Freighter**, then the same deployment run twice through the API                                                      |
-| Scripted end-to-end run                | [D4 evidence pack](evidence/d4/README.md#the-scripted-run-28-september)                                                                                                       | The same three steps on one deployment, with every transaction envelope kept in full                                                                                          |
-| Final CI and typecheck pass            | [Validation package](deliverables/d4.md#final-ci-and-typecheck-pass)                                                                                                          | The report on the final commit                                                                                                                                                |
+| Evidence                               | Link                                                                                                                                                                          | What to look for                                                                                                            |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Demo video (technical walkthrough)     | [Google Drive](https://drive.google.com/file/d/1_Yg08RncK7eNUM4p4pVVfIGujGrRdV6A/view?usp=sharing), 3:49                                                                      | How a drawn flow becomes contracts, a swap traced on chain, the builder's guard rails, and the API on the same deployment   |
+| Usage guide                            | [Integration guide](../guide/README.md)                                                                                                                                       | One flow from the builder to a backend, with the real transaction payloads decoded                                          |
+| Tx hash list for all settlements       | [Transaction list](evidence/transactions.md)                                                                                                                                  | Every swap the public app settled up to the 30 September snapshot, and the deployment behind each, linked to stellar.expert |
+| End-to-end run with an external wallet | [Recording](https://drive.google.com/file/d/1DofVikDrm_Vq5Lm40Dt_PZUlyx8Euait/view?usp=sharing) (9:44) and [its record](evidence/d4/README.md#the-freighter-run-28-september) | One unedited take: build, deploy and trigger signed in **Freighter**, then the same deployment run twice through the API    |
+| Scripted end-to-end run                | [D4 evidence pack](evidence/d4/README.md#the-scripted-run-28-september)                                                                                                       | The same three steps on one deployment, with every transaction envelope kept in full                                        |
+| Final CI and typecheck pass            | [Validation package](deliverables/d4.md#final-ci-and-typecheck-pass)                                                                                                          | The report on the final commit                                                                                              |
 
 ## Contract addresses and WASM hash
 
@@ -93,15 +93,15 @@ recompute it.
 
 | Metric                                   | Target | Archive (to 16 Sep) | Live (since 15 Sep) | Alpha testers |
 | ---------------------------------------- | ------ | ------------------- | ------------------- | ------------- |
-| Unique flows deployed                    | ≥ 5    | 26 ✓                | 64 ✓                | 26 ✓          |
-| Contract executions / events published   | ≥ 60   | 61 ✓                | 128 ✓               | —             |
-| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 17 ✓                | 5 ✓           |
+| Unique flows deployed                    | ≥ 5    | 26 ✓                | 86 ✓                | 42 ✓          |
+| Contract executions / events published   | ≥ 60   | 61 ✓                | 177 ✓               | —             |
+| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 23 ✓                | 7 ✓           |
 | Contract WASM uploaded                   | ≥ 1    | 1 ✓                 | 1 ✓                 | 1 ✓           |
 | Public testnet URL live and accessible   | Yes    | Yes ✓               | Yes ✓               | Yes ✓         |
 | Demo video published                     | Yes    | Yes ✓               | Yes ✓               | Yes ✓         |
 
 The SOW's adoption target in §3.8 also asks for ≥ 6 distinct deploying wallets: 7 on the archive,
-20 live, 7 among the alpha testers. The live and alpha figures are from 26 September.
+28 live, 15 among the alpha testers. The live and alpha figures are from 30 September.
 
 ## Checking it yourself
 
