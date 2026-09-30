@@ -1,5 +1,4 @@
 import "server-only";
-import { AppError } from "@/lib/errors";
 import { log } from "@/lib/log";
 import { noteLimiterFallback, peekRateLimit, rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { redis } from "@/lib/redis";

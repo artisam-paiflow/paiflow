@@ -24,6 +24,12 @@ describe("retryAfterSeconds / rateLimitedError", () => {
     expect(retryAfterSeconds({ resetAt: Date.now() - 5_000 })).toBe(1);
   });
 
+  it("falls back to 1 for a non-finite resetAt and uses the default message", () => {
+    expect(retryAfterSeconds({ resetAt: NaN })).toBe(1);
+    expect(retryAfterSeconds({ resetAt: Infinity })).toBe(1);
+    expect(rateLimitedError({ resetAt: NaN }).message).toBe("Too many requests");
+  });
+
   it("builds a RATE_LIMITED error that becomes a Retry-After header", () => {
     const err = rateLimitedError({ resetAt: Date.now() + 41_000 }, "slow down");
     expect(err.code).toBe("RATE_LIMITED");

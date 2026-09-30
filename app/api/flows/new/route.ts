@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
-import { AppError, withErrorHandler } from "@/lib/errors";
+import { withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit, clientIp, rateLimitedError } from "@/lib/rate-limit";
 import { TemplateKind } from "@prisma/client";
