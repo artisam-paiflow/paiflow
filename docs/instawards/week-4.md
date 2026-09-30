@@ -90,8 +90,8 @@ how the SOW's week-4 items are met:
 - **Code only where the video or the guide would hit it.** The missing-trustline message and the
   low-severity follow-ups from D2's QA run were fixed. Other findings stay open and are listed as
   [known limitations](handoff.md#known-limitations) rather than fixed in a hurry at the end.
-- **The metrics keep their three bases.** The final snapshot on 3 October reports archive, live and
-  alpha-tester figures side by side, never summed, as in every earlier week.
+- **The metrics keep their three bases.** The final snapshot, taken on 30 September once every tester
+  had run a session, reports archive, live and alpha-tester figures side by side, never summed, as in every earlier week.
 
 ## Issues found and fixed
 
@@ -116,6 +116,6 @@ ledger 7756749 and has to be extended before then, since it has no `extend_ttl` 
 
 ## Next week
 
-The sprint ends with this week. On 3 October the final metrics snapshot and CI report are added, and
+The sprint ends with this week. On 3 October the final CI report is added, and
 on 4 October the package is promoted to the public app, published to the public repository and
 sent to the Ambassador Chapter Lead.
