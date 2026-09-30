@@ -34,6 +34,9 @@ enum TemplateKind {
   SUBSCRIPTION_DEV
   CASH_OUT_DEV
   CASH_OUT
+  /// A timelock with a "before" and an "after" next step (#721). Its own kind,
+  /// so TIMELOCK contracts already deployed keep their ABI.
+  TIMELOCK_BRANCH
 }
 
 enum DeploymentStatus {
@@ -353,7 +356,9 @@ model TimelockRelease {
   nodeId            String
   contractAddress   String        @unique
   templateKind      TemplateKind
-  /// Null only on an unsupported row whose parameters could not be read.
+  /// Null only on an unsupported row whose parameters could not be read. A
+  /// TIMELOCK_BRANCH row is AFTER: the relayer can only release it at or after
+  /// the deadline, when it pays the contract's "after" list.
   mode              TimelockMode?
   /// The contract's `unlock_time`. AFTER releases from this instant on; BEFORE
   /// releases up to and including it and never after.

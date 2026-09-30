@@ -147,7 +147,7 @@ async function preparePipelineDeployTxFromPlan(
     // cron can auto-release them. When no relayer is configured we fall back
     // to the admin (sourceAccount) which disables the relayer path.
     let params = p.params;
-    if (params.kind === "timelock") {
+    if (params.kind === "timelock" || params.kind === "timelock_branch") {
       params = {
         ...params,
         relayer: stellarRelayerAddress() ?? sourceAccount,

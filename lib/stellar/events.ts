@@ -473,6 +473,20 @@ const TIMELOCK_REGISTRY: EventRegistry = {
   },
 };
 
+const TIMELOCK_BRANCH_REGISTRY: EventRegistry = {
+  receive: TIMELOCK_REGISTRY.receive!,
+  release: {
+    kind: EventKind.PAYOUT,
+    // The third topic names the list the release paid: "before" or "after".
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      const branch = topics[2] ?? null;
+      const balance = value ?? null;
+      return admin && branch && balance !== null ? { admin, branch, balance } : null;
+    },
+  },
+};
+
 const MULTISIG_REGISTRY: EventRegistry = {
   receive: {
     kind: EventKind.RECEIVE,
@@ -526,6 +540,8 @@ function getRegistry(templateKind: TemplateKind): EventRegistry {
       return ROUTER_REGISTRY;
     case TemplateKind.TIMELOCK:
       return TIMELOCK_REGISTRY;
+    case TemplateKind.TIMELOCK_BRANCH:
+      return TIMELOCK_BRANCH_REGISTRY;
     case TemplateKind.MULTISIG:
       return MULTISIG_REGISTRY;
     case TemplateKind.CASH_OUT_DEV:

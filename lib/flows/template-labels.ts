@@ -7,6 +7,7 @@ export const TEMPLATE_LABELS: Record<TemplateKind, string> = {
   DEPOSIT_TRIGGER: "Deposit Trigger",
   ROUTER: "Router",
   TIMELOCK: "Timelock",
+  TIMELOCK_BRANCH: "Timelock (two outcomes)",
   FACTORY: "Factory",
   WEBHOOK: "Webhook",
   SUBSCRIPTION: "Subscription",
@@ -30,6 +31,8 @@ export const TEMPLATE_DESCRIPTIONS: Record<TemplateKind, string> = {
   DEPOSIT_TRIGGER: "Entry point that receives a user deposit and kicks off a chain.",
   ROUTER: "Routes funds to different paths based on a threshold amount.",
   TIMELOCK: "Holds funds until a specific timestamp is reached.",
+  TIMELOCK_BRANCH:
+    "Holds funds and pays one next step before a deadline and another at or after it.",
   FACTORY: "Deploys pipeline contracts on-chain.",
   WEBHOOK: "Relayer-authorized trigger for off-chain events.",
   SUBSCRIPTION: "Recurring billing puller using pre-authorized funds.",

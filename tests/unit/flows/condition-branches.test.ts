@@ -37,7 +37,8 @@ type Edge = { id: string; source: string; target: string; sourceHandle?: string 
 type CondConfig =
   | { kind: "amount_gt"; amountStroops: string }
   | { kind: "amount_lt"; amountStroops: string }
-  | { kind: "time_after"; at: string };
+  | { kind: "time_after"; at: string }
+  | { kind: "multisig"; signers: string[]; threshold: number };
 
 const trigger = { id: "t", type: "on_receive", config: { asset: USDC } };
 const pay = {
@@ -126,13 +127,19 @@ describe("edgeBranch: the legacy rule", () => {
     expect(edgeBranch({ sourceHandle: "false" }, g.nodes[0])).toBeNull();
   });
 
-  it("only amount conditions branch, for now (#721 adds time)", () => {
+  it("amount and time conditions branch; oracle and multisig do not", () => {
     expect(isBranchingCondition(cond)).toBe(true);
+    for (const config of [
+      { kind: "time_after", at: "2030-01-01T00:00:00.000Z" },
+      { kind: "time_before", at: "2030-01-01T00:00:00.000Z" },
+    ] as const) {
+      expect(isBranchingCondition({ id: "x", type: "condition", config })).toBe(true);
+    }
     expect(
       isBranchingCondition({
         id: "x",
         type: "condition",
-        config: { kind: "time_after", at: "2030-01-01T00:00:00.000Z" },
+        config: { kind: "multisig", signers: [ADDR_A], threshold: 1 },
       }),
     ).toBe(false);
   });
@@ -319,9 +326,9 @@ describe("validateFlow: branches", () => {
     expect(r.errors.map((e) => e.message)).toContain("Flow contains a cycle");
   });
 
-  it("refuses a False branch on a time condition, which has one output", () => {
+  it("refuses a False branch on a multisig condition, which has one output", () => {
     const r = validateFlow(
-      graph({ kind: "time_after", at: "2030-06-01T00:00:00.000Z" }, [
+      graph({ kind: "multisig", signers: [ADDR_A, ADDR_B], threshold: 1 }, [
         { id: "e1", source: "c", target: "p", sourceHandle: "true" },
         { id: "e2", source: "c", target: "s", sourceHandle: "false" },
       ]),
@@ -330,17 +337,17 @@ describe("validateFlow: branches", () => {
     if (r.ok) return;
     const issue = r.errors.find((e) => e.code === "BRANCH_NOT_SUPPORTED");
     expect(issue?.nodeId).toBe("c");
-    expect(issue?.friendlyMessage).toContain("Only an amount condition has a False output");
+    expect(issue?.friendlyMessage).toContain("Only amount and time conditions have a False output");
   });
 
-  it("accepts an explicit True edge on a time condition, its one output", () => {
+  it("accepts an explicit True edge on a multisig condition, its one output", () => {
     const r = validateFlow({
       nodes: [
         trigger,
         {
           id: "c",
           type: "condition",
-          config: { kind: "time_after", at: "2030-06-01T00:00:00.000Z" },
+          config: { kind: "multisig", signers: [ADDR_A, ADDR_B], threshold: 1 },
         },
         pay,
       ],

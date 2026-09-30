@@ -79,9 +79,11 @@ describe("validateFlow: a router path with nothing on it", () => {
     expect(issue?.friendlyMessage).toContain("False output");
   });
 
-  it("leaves a time condition alone, which compiles to a timelock, not a router", () => {
+  it("reports a time condition's empty side as a timelock one, not a router path", () => {
     const r = validateFlow(conditionFlow({ kind: "time_after", at: "2030-06-01T00:00:00.000Z" }));
-    expect(r.ok).toBe(true);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors.map((e) => e.code)).toEqual(["TIMELOCK_EMPTY_SIDE"]);
   });
 });
 

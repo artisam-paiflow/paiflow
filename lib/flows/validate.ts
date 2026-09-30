@@ -30,9 +30,15 @@ import { flowToPipeline, absorbedActionIds, type PipelineNode } from "./to-param
 import {
   BRANCH_LABEL,
   branchAmountText,
+  branchTimeText,
+  branchingNoun,
   conditionBranchTargets,
+  isAmountCondition,
   isBranchingCondition,
+  isTimeCondition,
   routerPathBranch,
+  timelockSideBranch,
+  type BranchingNoun as BranchNoun,
 } from "./branches";
 
 export type { ValidationIssue };
@@ -91,20 +97,22 @@ const FRIENDLY = {
     `A Yield step can only come straight after a Webhook, HTTP Webhook, or Oracle trigger for now, not after ${label}. Move it, or use a Pay or Split step here.`,
   ROUTER_EMPTY_PATH: (amounts: string, branch: EdgeBranch) =>
     `A payment of ${amounts} ${branch === "true" ? "meets" : "doesn't meet"} this amount condition, but nothing is connected to the condition's ${BRANCH_LABEL[branch]} output, so the money would be stuck in the contract with no way to get it back. Connect a step to the ${BRANCH_LABEL[branch]} output, or remove the condition.`,
+  TIMELOCK_EMPTY_SIDE: (when: string, branch: EdgeBranch) =>
+    `If the funds are released ${when}, this time condition would send them down its ${BRANCH_LABEL[branch]} output, but nothing is connected there, so the money would be stuck in the contract with no way to get it back. Connect a step to the ${BRANCH_LABEL[branch]} output, or remove the condition.`,
   BRANCH_FALSE_ON_SINGLE_OUTPUT:
-    "Only an amount condition has a False output, and a step is still connected to this condition's. Remove that connection, or switch the condition back to an amount condition.",
+    "Only amount and time conditions have a False output, and a step is still connected to this condition's. Remove that connection, or switch the condition back to an amount or time condition.",
   BRANCH_ON_NON_CONDITION: (label: string) =>
     `A connection out of ${label} is marked as a True or False branch, but only a condition has branches. Remove the connection and draw it again.`,
-  BRANCH_FAN_OUT: (branch: EdgeBranch, count: number) =>
-    `The ${BRANCH_LABEL[branch]} output of this amount condition connects to ${count} steps. The condition sends the whole payment to every step on a side, so each side can lead to one step only. Keep one, and put a Split there to pay several recipients.`,
-  BRANCH_EMAIL:
-    "An email notification can't hang off an amount condition: the condition reports every payment, whichever side it takes, so the email couldn't say which side ran. Attach the email to the step on that side instead.",
-  BRANCH_TRIGGER: (label: string) =>
-    `An amount condition can't follow ${label} yet: a scheduled payment has no amount condition contract, so the condition would be skipped and every payment would go out. Remove the condition, or use a Receive trigger.`,
-  BRANCH_TARGET:
-    "An amount condition's output can't lead straight into another condition. Connect each output to a Pay or Split step.",
-  BRANCH_MERGE: (label: string) =>
-    `${label} is reached from both sides of an amount condition through different steps. A step only accepts money from the one step before it, so one of the two sides would always fail. Give each side its own step.`,
+  BRANCH_FAN_OUT: (branch: EdgeBranch, count: number, noun: BranchNoun) =>
+    `The ${BRANCH_LABEL[branch]} output of this ${noun} condition connects to ${count} steps. The condition sends the whole payment to every step on a side, so each side can lead to one step only. Keep one, and put a Split there to pay several recipients.`,
+  BRANCH_EMAIL: (noun: BranchNoun) =>
+    `An email notification can't hang off ${noun === "amount" ? "an amount" : "a time"} condition: the condition reports every payment, whichever side it takes, so the email couldn't say which side ran. Attach the email to the step on that side instead.`,
+  BRANCH_TRIGGER: (label: string, noun: BranchNoun) =>
+    `${noun === "amount" ? "An amount" : "A time"} condition can't follow ${label} yet: a scheduled payment has no ${noun} condition contract, so the condition would be skipped and every payment would go out. Remove the condition, or use a Receive trigger.`,
+  BRANCH_TARGET: (noun: BranchNoun) =>
+    `${noun === "amount" ? "An amount" : "A time"} condition's output can't lead straight into another condition. Connect each output to a Pay or Split step.`,
+  BRANCH_MERGE: (label: string, noun: BranchNoun) =>
+    `${label} is reached from both sides of ${noun === "amount" ? "an amount" : "a time"} condition through different steps. A step only accepts money from the one step before it, so one of the two sides would always fail. Give each side its own step.`,
   YIELD_TERMINAL:
     "A Yield step is the end of the line for now — nothing can come after it except an email notification. Remove the connections coming out of it.",
 } as const;
@@ -359,6 +367,7 @@ function branchIssues(
 
   for (const cond of graph.nodes) {
     if (!isBranchingCondition(cond)) continue;
+    const noun = branchingNoun(cond.config.kind);
 
     // Schedule-like flows compile to a streamer or subscription and never emit
     // the router, so the gate the user drew would silently not exist.
@@ -367,8 +376,8 @@ function branchIssues(
         path: `nodes.${cond.id}`,
         code: "BRANCH_TRIGGER",
         nodeId: cond.id,
-        message: `Amount condition ${cond.id} under a ${trigger.type} trigger is not compiled`,
-        friendlyMessage: FRIENDLY.BRANCH_TRIGGER(nodeLabels.get(trigger.id) ?? trigger.type),
+        message: `${noun} condition ${cond.id} under a ${trigger.type} trigger is not compiled`,
+        friendlyMessage: FRIENDLY.BRANCH_TRIGGER(nodeLabels.get(trigger.id) ?? trigger.type, noun),
       });
     }
 
@@ -379,8 +388,8 @@ function branchIssues(
         path: `nodes.${cond.id}`,
         code: "BRANCH_TARGET",
         nodeId: cond.id,
-        message: `Condition ${id} is a direct branch target of amount condition ${cond.id}`,
-        friendlyMessage: FRIENDLY.BRANCH_TARGET,
+        message: `Condition ${id} is a direct branch target of ${noun} condition ${cond.id}`,
+        friendlyMessage: FRIENDLY.BRANCH_TARGET(noun),
       });
     }
 
@@ -393,8 +402,8 @@ function branchIssues(
         path: `nodes.${cond.id}`,
         code: "BRANCH_EMAIL",
         nodeId: cond.id,
-        message: `Email notify node attached to amount condition ${cond.id}`,
-        friendlyMessage: FRIENDLY.BRANCH_EMAIL,
+        message: `Email notify node attached to ${noun} condition ${cond.id}`,
+        friendlyMessage: FRIENDLY.BRANCH_EMAIL(noun),
       });
     }
 
@@ -404,8 +413,8 @@ function branchIssues(
           path: `nodes.${cond.id}`,
           code: "BRANCH_FAN_OUT",
           nodeId: cond.id,
-          message: `The ${branch} branch of condition ${cond.id} has ${targets[branch].length} next steps; the router forwards the whole amount to each`,
-          friendlyMessage: FRIENDLY.BRANCH_FAN_OUT(branch, targets[branch].length),
+          message: `The ${branch} branch of condition ${cond.id} has ${targets[branch].length} next steps; the contract forwards the whole amount to each`,
+          friendlyMessage: FRIENDLY.BRANCH_FAN_OUT(branch, targets[branch].length, noun),
         });
       }
     }
@@ -426,7 +435,7 @@ function branchIssues(
           code: "BRANCH_MERGE",
           nodeId: id,
           message: `Node ${id} downstream of condition ${cond.id} has more than one parent`,
-          friendlyMessage: FRIENDLY.BRANCH_MERGE(nodeLabels.get(id) ?? id),
+          friendlyMessage: FRIENDLY.BRANCH_MERGE(nodeLabels.get(id) ?? id, noun),
         });
       }
       stack.push(...(onChainChildren.get(id) ?? []));
@@ -1377,12 +1386,12 @@ function validateFlowStructure(rawGraph: unknown): ValidationResult {
       const ids = path === "A" ? p.pathANodeIds : p.pathBNodeIds;
       if (ids.length > 0) continue;
       // Only an amount condition compiles to a router; the fallback is defensive.
-      const branch: EdgeBranch = isBranchingCondition(cond)
+      const branch: EdgeBranch = isAmountCondition(cond)
         ? routerPathBranch(cond.config.kind, path)
         : path === "A"
           ? "true"
           : "false";
-      const amounts = isBranchingCondition(cond)
+      const amounts = isAmountCondition(cond)
         ? branchAmountText(cond.config, branch, ` ${assetLabel(p.asset)}`)
         : "some amounts";
       errors.push({
@@ -1391,6 +1400,37 @@ function validateFlowStructure(rawGraph: unknown): ValidationResult {
         nodeId: n.nodeId,
         message: `Router ${n.nodeId} has an empty path ${path} (the ${branch} branch); funds routed there would be stranded`,
         friendlyMessage: FRIENDLY.ROUTER_EMPTY_PATH(amounts, branch),
+      });
+    }
+  }
+
+  // The two-outcome timelock pays the whole balance to its "before" or "after"
+  // step, whichever the release time picks, and has no other way out. A side
+  // with nothing on it would leave the funds in the contract (#721), so refuse
+  // it, once per missing side, naming the output. The contract's constructor
+  // refuses the same shape; this reports it before anything is signed.
+  for (const n of pipelineNodes) {
+    const p = n.params;
+    if (p.kind !== "timelock_branch") continue;
+    const cond = graph.nodes.find((g) => g.id === n.nodeId);
+    for (const side of ["before", "after"] as const) {
+      const ids = side === "before" ? p.beforeNodeIds : p.afterNodeIds;
+      if (ids.length > 0) continue;
+      // Only a time condition compiles to this contract; the fallback is defensive.
+      const branch: EdgeBranch = isTimeCondition(cond)
+        ? timelockSideBranch(cond.config.kind, side)
+        : side === "before"
+          ? "true"
+          : "false";
+      const when = isTimeCondition(cond)
+        ? branchTimeText(cond.config, branch)
+        : `${side === "before" ? "before" : "at or after"} the deadline`;
+      errors.push({
+        path: `nodes.${n.nodeId}`,
+        code: "TIMELOCK_EMPTY_SIDE",
+        nodeId: n.nodeId,
+        message: `Timelock ${n.nodeId} has an empty ${side} list (the ${branch} branch); funds released ${side === "before" ? "before" : "at or after"} the deadline would be stranded`,
+        friendlyMessage: FRIENDLY.TIMELOCK_EMPTY_SIDE(when, branch),
       });
     }
   }
@@ -1408,11 +1448,15 @@ function validateFlowStructure(rawGraph: unknown): ValidationResult {
       nextStepNodeIds?: string[];
       pathANodeIds?: string[];
       pathBNodeIds?: string[];
+      beforeNodeIds?: string[];
+      afterNodeIds?: string[];
     };
     for (const ref of [
       ...(p.nextStepNodeIds ?? []),
       ...(p.pathANodeIds ?? []),
       ...(p.pathBNodeIds ?? []),
+      ...(p.beforeNodeIds ?? []),
+      ...(p.afterNodeIds ?? []),
     ]) {
       if (deployedNodeIds.has(ref)) continue;
       errors.push({

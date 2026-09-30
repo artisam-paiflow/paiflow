@@ -251,6 +251,18 @@ export function pipelineNodeConstructorArgs(
         addr(params.relayer ?? admin),
       ];
     }
+    case "timelock_branch": {
+      if (!parentAddress) throw new Error("Timelock branch requires a parent address");
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        u64(params.unlockTime),
+        workflowTargets(params.beforeNodeIds, nodeAddresses),
+        workflowTargets(params.afterNodeIds, nodeAddresses),
+        addr(parentAddress),
+        addr(params.relayer ?? admin),
+      ];
+    }
     case "webhook_trigger": {
       return [
         addr(admin),

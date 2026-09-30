@@ -39,6 +39,7 @@ type PipelineEntry = {
 const BALANCE_HOLDING_KINDS = new Set<TemplateKind>([
   "STREAMER",
   "TIMELOCK",
+  "TIMELOCK_BRANCH",
   "MULTISIG",
   "CONDITIONAL",
   "PAYER",

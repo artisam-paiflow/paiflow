@@ -21,8 +21,17 @@ import { sendReleaseByRelayer, simulateReleaseByRelayer } from "@/lib/stellar/re
  * round in case `cron/poll-events` missed one.
  */
 
-/** Template kinds the relayer releases. #721's branching timelock joins here. */
-export const AUTO_RELEASE_TEMPLATE_KINDS: TemplateKind[] = [TemplateKind.TIMELOCK];
+/**
+ * Template kinds the relayer releases. TIMELOCK_BRANCH (#721) is tracked as an
+ * AFTER lock: its `release_by_relayer` reverts with ConditionNotMet before the
+ * deadline and otherwise pays the "after" list, so the relayer never picks the
+ * "before" side. Releasing early, which pays the "before" list, is the
+ * admin's call and is never automatic.
+ */
+export const AUTO_RELEASE_TEMPLATE_KINDS: TemplateKind[] = [
+  TemplateKind.TIMELOCK,
+  TemplateKind.TIMELOCK_BRANCH,
+];
 
 /** Probes per run, so one tick stays bounded however many timelocks come due. */
 export const MAX_PROBES_PER_RUN = 50;
@@ -50,7 +59,8 @@ const FAILURE_BACKOFF_MAX_MS = 6 * 60 * 60 * 1000;
 // A Postgres timestamp, and a JS Date, stop well before u64 seconds do.
 const MAX_UNLOCK_SECONDS = 253_402_300_799; // 9999-12-31T23:59:59Z
 
-// Mirrors `Error` in contracts/conditions/timelock/src/lib.rs.
+// Mirrors `Error` in contracts/conditions/timelock/src/lib.rs, and the same
+// three codes in contracts/conditions/timelock_branch/src/lib.rs.
 const TIMELOCK_UNAUTHORIZED = 2;
 const TIMELOCK_CONDITION_NOT_MET = 3;
 const TIMELOCK_NOTHING_TO_RELEASE = 4;
@@ -84,6 +94,14 @@ const TimelockParamsNodeSchema = z.object({
     kind: z.literal("timelock"),
     unlockTime: z.number().int().nonnegative().max(MAX_UNLOCK_SECONDS),
     mode: z.enum(["after", "before"]),
+  }),
+});
+
+const TimelockBranchParamsNodeSchema = z.object({
+  nodeId: z.string(),
+  params: z.object({
+    kind: z.literal("timelock_branch"),
+    unlockTime: z.number().int().nonnegative().max(MAX_UNLOCK_SECONDS),
   }),
 });
 
@@ -169,7 +187,11 @@ export async function discoverTimelocks(now: Date): Promise<number> {
         templateKind: kind,
       };
       const parsed = params
-        .map((p) => TimelockParamsNodeSchema.safeParse(p))
+        .map((p) =>
+          kind === TemplateKind.TIMELOCK_BRANCH
+            ? TimelockBranchParamsNodeSchema.safeParse(p)
+            : TimelockParamsNodeSchema.safeParse(p),
+        )
         .find((p) => p.success && p.data.nodeId === node.data.nodeId);
 
       if (!parsed?.success) {
@@ -185,7 +207,10 @@ export async function discoverTimelocks(now: Date): Promise<number> {
       }
 
       const unlockAt = new Date(parsed.data.params.unlockTime * 1000);
-      const mode = parsed.data.params.mode === "after" ? TimelockMode.AFTER : TimelockMode.BEFORE;
+      const mode =
+        "mode" in parsed.data.params && parsed.data.params.mode === "before"
+          ? TimelockMode.BEFORE
+          : TimelockMode.AFTER;
       rows.push({
         ...base,
         mode,

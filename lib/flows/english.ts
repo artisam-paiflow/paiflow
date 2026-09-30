@@ -17,9 +17,12 @@ import {
   subscriptionAmountPerPeriodStroops,
 } from "./schema";
 import { inFlowOrder } from "./graph";
+import { formatScheduleStart } from "./format-time";
 import {
   BRANCH_LABEL,
   branchAmountText,
+  branchTimeText,
+  isAmountCondition,
   conditionBranchTargets,
   isBranchingCondition,
 } from "./branches";
@@ -39,32 +42,6 @@ function intervalLabel(amount: number, unit: string): string {
     return `every ${unit}`;
   }
   return `every ${amount} ${unit}s`;
-}
-
-/**
- * Format an On Schedule trigger's `startsAt` as human-readable text (e.g.
- * "June 25, 2026 at 1:25 PM") instead of leaking the raw ISO timestamp into the
- * English preview. Date and time are formatted separately and joined with "at"
- * so the wording is deterministic across ICU versions. Falls back to the raw
- * string if the value isn't a parseable date.
- */
-function formatScheduleStart(iso: string, timeZone?: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const tz = timeZone || "UTC";
-  const date = new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: tz,
-  }).format(d);
-  const time = new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZone: tz,
-  }).format(d);
-  return `${date} at ${time}`;
 }
 
 function describeCondition(c: Extract<FlowNode, { type: "condition" }>, asset?: Asset): string {
@@ -273,8 +250,14 @@ export function flowToEnglish(graph: FlowGraph): string {
     const targets = conditionBranchTargets(graph, condition.id);
     const onTrue = describeBranch(graph, targets.true, "true", trigger);
     const onFalse = describeBranch(graph, targets.false, "false", trigger);
-    const test = branchAmountText(condition.config, "true", ` ${assetLabel(conditionAsset)}`);
-    return `${triggerText}: if the amount is ${test}, ${onTrue}; otherwise, ${onFalse}${emailTail}.`;
+    if (isAmountCondition(condition)) {
+      const test = branchAmountText(condition.config, "true", ` ${assetLabel(conditionAsset)}`);
+      return `${triggerText}: if the amount is ${test}, ${onTrue}; otherwise, ${onFalse}${emailTail}.`;
+    }
+    // The timelock holds the money and picks a side when it is released, so
+    // the preview says who can release and when, not only what each side pays.
+    const test = branchTimeText(condition.config, "true");
+    return `${triggerText}: hold the funds; if they are released ${test}, ${onTrue}; otherwise, ${onFalse}${emailTail}. Only the deploying wallet can release early; the automatic release runs only at or after the deadline.`;
   }
 
   const tail = condition ? `, ${describeCondition(condition, conditionAsset)}` : "";
