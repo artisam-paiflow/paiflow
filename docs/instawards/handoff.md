@@ -93,15 +93,16 @@ recompute it.
 
 | Metric                                   | Target | Archive (to 16 Sep) | Live (since 15 Sep) | Alpha testers |
 | ---------------------------------------- | ------ | ------------------- | ------------------- | ------------- |
-| Unique flows deployed                    | ≥ 5    | 26 ✓                | 64 ✓                | 26 ✓          |
+| Unique flows deployed                    | ≥ 5    | 26 ✓                | 64 ✓                | 42 ✓          |
 | Contract executions / events published   | ≥ 60   | 61 ✓                | 128 ✓               | —             |
-| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 17 ✓                | 5 ✓           |
+| Unique swapper flows executed on testnet | ≥ 5    | 16 ✓                | 17 ✓                | 7 ✓           |
 | Contract WASM uploaded                   | ≥ 1    | 1 ✓                 | 1 ✓                 | 1 ✓           |
 | Public testnet URL live and accessible   | Yes    | Yes ✓               | Yes ✓               | Yes ✓         |
 | Demo video published                     | Yes    | Yes ✓               | Yes ✓               | Yes ✓         |
 
 The SOW's adoption target in §3.8 also asks for ≥ 6 distinct deploying wallets: 7 on the archive,
-20 live, 7 among the alpha testers. The live and alpha figures are from 26 September.
+20 live, 15 among the alpha testers. The live figures are from 26 September, the alpha figures
+from 30 September.
 
 ## Checking it yourself
 
