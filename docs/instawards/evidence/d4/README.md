@@ -59,6 +59,15 @@ rails, the developer API on the same deployment, and where to check it all on Gi
 segment shows the evidence index where the script names the handoff page, which was not yet written
 when the video was cut. sha256 `54a6ab68dd8b81d2653ffd2faaec842de625dacdb3b0475b5fbaee440c479ea4`.
 
+## The final CI and typecheck pass, 30 September
+
+Run on the handoff code, mirror commit
+[`0c77f54`](https://github.com/artisam-paiflow/paiflow/commit/0c77f546abea00ccd4a047148108cfe2cc84f0c8):
+[CI run 36688511995](https://github.com/artisam-paiflow/paiflow/actions/runs/36688511995), node and
+rust lanes both passing, 1,800 tests in 128 files. The same four checks were run locally on the
+same code. The [validation package page](../../deliverables/d4.md#final-ci-and-typecheck-pass)
+says what each covers.
+
 ## Files
 
 | File                    | What it is                                                                                          |
@@ -69,3 +78,7 @@ when the video was cut. sha256 `54a6ab68dd8b81d2653ffd2faaec842de625dacdb3b0475b
 | `04-e2e-wallet-run.*`   | The Freighter run's record: recording, segments, deployment, the four transactions; raw RPC         |
 | `e2e-run-checklist.md`  | The checklist for the end-to-end run with Freighter (the human half of the external-wallet test)    |
 | `walkthrough-script.md` | The technical walkthrough video's script: segments, narration, on-screen actions                    |
+| `05-vitest-junit.xml`   | The final CI run's `vitest-junit` artifact, byte for byte                                           |
+| `05-ci-summary.md`      | That run's job summary, regenerated from the report with the script CI uses                         |
+| `05-ci-meta.json`       | The run, commit, artifact digest, counts and how they were cross-checked                            |
+| `local-pass/`           | `pnpm typecheck`, `pnpm test`, `cargo test` and `clippy` on the same code, with the environment     |
