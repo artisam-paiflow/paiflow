@@ -198,7 +198,9 @@ Money:
 - A time condition holds the funds until they are released, and both sides must lead to a step for
   the same reason: a side with nothing on it would leave the funds in a contract that cannot
   release them. So both the True and the False output must be connected, each to one step, before
-  a time condition can deploy. The deadline itself belongs to the after side: `time_before` is
+  a time condition can deploy. The deploying wallet can release at any time and so chooses the
+  before side; that is a trust property of the flow's owner, not of the contract's counterparties.
+  The deadline itself belongs to the after side: `time_before` is
   strict, `time_after` inclusive.
 - Amounts are stroops as decimal strings end to end. See [`CLAUDE.md` §3.3](./CLAUDE.md#33-typescript).
 
