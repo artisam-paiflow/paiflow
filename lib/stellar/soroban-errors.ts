@@ -398,7 +398,7 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     3: {
       name: "ConditionNotMet",
       friendly:
-        "The release names a side that doesn't match the deadline: the before side is only open until it, the after side from it on.",
+        "That side isn't open at this time: before the deadline only the before side is, from it on only the after side.",
     },
     4: {
       name: "NothingToRelease",

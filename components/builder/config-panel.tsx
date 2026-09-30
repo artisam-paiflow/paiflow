@@ -1698,8 +1698,7 @@ export default function ConfigPanel({
                       ? "True is released before this time; False at or after it."
                       : "True is released at or after this time; False before it."}{" "}
                     Connect a step to both outputs. The before side can be released early by your
-                    wallet or on an authorised request; the automatic release runs at or after this
-                    time.
+                    wallet; the automatic release runs at or after this time.
                   </p>
                 </>
               );

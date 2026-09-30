@@ -169,8 +169,9 @@ A time condition (`time_after`, `time_before`) also has two outputs, but it does
 it holds the funds and the release time picks the side. Released strictly before the deadline, the
 funds go to the "before" step; released at or after it, to the "after" step. `time_before` names
 the before side as True and the after side as False; `time_after` the other way round. Before the
-deadline the before side can be chosen by the deploying wallet, or by the relayer on an authorised
-request (the owner's session, or a deployment API token); the scheduled auto-release always asks
+deadline the before side can be chosen by the deploying wallet, and the contract also lets the
+relayer release it on an authorised request (the owner's session or a deployment API token; that
+request is not built yet, #751). The scheduled auto-release always asks
 for the after side, which the contract only allows at or after the deadline ("pay the freelancer on
 delivery, refund the client after the deadline"). A release that names the wrong side for the
 ledger time is refused, never redirected.

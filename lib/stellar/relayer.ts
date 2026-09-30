@@ -67,9 +67,8 @@ export type ReleaseSimulation =
 /**
  * Simulate a timelock's `release_by_relayer()` (with the intended `side` for a
  * timelock_branch, which reverts with ConditionNotMet if the ledger time is on
- * the other side) without signing anything, so the
- * caller learns whether a release would go through before it takes the relayer
- * lock. A contract revert is returned, not thrown; an RPC that cannot be
+ * the other side) without signing anything, so the caller learns whether a
+ * release would go through before it takes the relayer lock. A contract revert is returned, not thrown; an RPC that cannot be
  * reached still throws.
  */
 export async function simulateReleaseByRelayer(
