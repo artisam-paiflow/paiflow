@@ -3,7 +3,7 @@
   "info": {
     "title": "Paiflow API v1",
     "version": "1.0.0",
-    "description": "Execute a deployed swapper flow and poll its on-chain events from your own backend.\n\nEvery `/api/v1/deployments/{id}/…` call authenticates with a deployment API token (`Authorization: Bearer pfk_…`) that the deployment's owner mints in the **API access** panel on the deployment page. A token reaches exactly one deployment.\n\n**The API never signs.** `execute` returns an unsigned envelope; you sign it with the `from` key, which stays on your side, and post it to `execute/submit`. A leaked token can only prepare and relay what you signed.\n\nSuccessful responses are `{ \"data\": … }`. Errors are `{ \"error\": { code, message, fields?, details? } }`:\n\n| Code | HTTP status |\n| --- | --- |\n| `UNAUTHENTICATED` | 401 |\n| `INSUFFICIENT_FUNDS` | 402 |\n| `FORBIDDEN` | 403 |\n| `NOT_FOUND` | 404 |\n| `CONFLICT` | 409 |\n| `VALIDATION` | 422 |\n| `RATE_LIMITED` | 429 |\n| `INTERNAL` | 500 |\n| `UPSTREAM_RPC` | 502 |\n\nRate limits are per token and per endpoint (each operation lists its own). A token that has been issued or has worked in the last 30 days is subject to nothing else. Any other token is limited per client address before it is looked up: 6000 lookups per 60 seconds, and, after 300 failed authentications in 600 seconds from the address, 60 per 60 seconds. A token refused in the last minute is refused again without a lookup. So one caller's bad token does not lock out others on the same network.\n\nNo account? `POST /api/v1/demo-token` hands you a short-lived token for a shared demo flow, so every call above can be tried straight away.\n\nThe public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`."
+    "description": "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.\n\nEvery `/api/v1/deployments/{id}/…` call authenticates with a deployment API token (`Authorization: Bearer pfk_…`) that the deployment's owner mints in the **API access** panel on the deployment page. A token reaches exactly one deployment.\n\n**The API never signs.** `execute` returns an unsigned envelope; you sign it with the `from` key, which stays on your side, and post it to `execute/submit`. A leaked token can only prepare and relay what you signed.\n\nSuccessful responses are `{ \"data\": … }`. Errors are `{ \"error\": { code, message, fields?, details? } }`:\n\n| Code | HTTP status |\n| --- | --- |\n| `UNAUTHENTICATED` | 401 |\n| `INSUFFICIENT_FUNDS` | 402 |\n| `FORBIDDEN` | 403 |\n| `NOT_FOUND` | 404 |\n| `CONFLICT` | 409 |\n| `VALIDATION` | 422 |\n| `RATE_LIMITED` | 429 |\n| `INTERNAL` | 500 |\n| `UPSTREAM_RPC` | 502 |\n\nRate limits are per token and per endpoint (each operation lists its own). A token that has been issued or has worked in the last 30 days is subject to nothing else. Any other token is limited per client address before it is looked up: 6000 lookups per 60 seconds, and, after 300 failed authentications in 600 seconds from the address, 60 per 60 seconds. A token refused in the last minute is refused again without a lookup. So one caller's bad token does not lock out others on the same network.\n\nNo account? `POST /api/v1/demo-token` hands you a short-lived token for a shared demo flow, so every call above can be tried straight away.\n\nThe public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`."
   },
   "servers": [
     {
@@ -14,7 +14,7 @@
   "tags": [
     {
       "name": "Execute",
-      "description": "Run a swapper flow: prepare, sign on your side, submit."
+      "description": "Run a deposit-triggered flow: prepare, sign on your side, submit."
     },
     {
       "name": "Events",
@@ -38,8 +38,8 @@
       "post": {
         "tags": ["Execute"],
         "operationId": "prepareExecute",
-        "summary": "Prepare the unsigned deposit that executes a swapper flow",
-        "description": "Prepare the deposit that executes a swapper flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the swapper executes as the next pipeline step. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only swapper flows can be executed.\n\nRate limit: 30 requests per 60 seconds per token.",
+        "summary": "Prepare the unsigned deposit that executes a deposit-triggered flow",
+        "description": "Prepare the deposit that executes a deposit-triggered flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run as part of the same transaction. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`. A Pay or Split step with no recipient yet (dev mode) reverts with a plain message.\n\nRate limit: 30 requests per 60 seconds per token.",
         "security": [
           {
             "bearerAuth": []
@@ -180,7 +180,7 @@
         "tags": ["Execute"],
         "operationId": "submitExecute",
         "summary": "Submit the signed deposit and wait for the result",
-        "description": "Submit a signed deposit that executes a swapper flow.\n\nThe envelope must be the one `execute` returned, signed by `from`: anything but a single `deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a fee-bump envelope.\n\nIdempotent on the envelope hash: submitting the same `signedXdr` again never sends a second transaction, it reports the one already on the network. That is also how to check a `PENDING` result. A transaction that reached the network and failed is a `200` with `status: FAILED` and an `error`, not an HTTP error.\n\nRate limit: 30 requests per 60 seconds per token.",
+        "description": "Submit a signed deposit that executes a deposit-triggered flow.\n\nThe envelope must be the one `execute` returned, signed by `from`: anything but a single `deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a fee-bump envelope.\n\nIdempotent on the envelope hash: submitting the same `signedXdr` again never sends a second transaction, it reports the one already on the network. That is also how to check a `PENDING` result. A transaction that reached the network and failed is a `200` with `status: FAILED` and an `error`, not an HTTP error.\n\nRate limit: 30 requests per 60 seconds per token.",
         "security": [
           {
             "bearerAuth": []
@@ -591,7 +591,7 @@
             }
           },
           "500": {
-            "description": "`INTERNAL`: The demo deployment is not configured, confirmed or swapper-shaped. One message for every case; the operator is alerted.",
+            "description": "`INTERNAL`: The demo deployment is not configured, confirmed or deposit-triggered. One message for every case; the operator is alerted.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1011,7 +1011,7 @@
           "amount": {
             "type": "string",
             "pattern": "^\\d{1,39}$",
-            "description": "Amount to deposit into the swapper flow, in stroops of its input asset. Greater than zero."
+            "description": "Amount to deposit into the flow's deposit trigger, in stroops of the flow's input asset. Greater than zero."
           },
           "from": {
             "type": "string",
@@ -1023,7 +1023,7 @@
       "ExecutePrepared": {
         "type": "object",
         "required": ["xdr", "networkPassphrase", "network", "expiresAt"],
-        "description": "An unsigned deposit that executes a swapper flow.",
+        "description": "An unsigned deposit that executes a deposit-triggered flow.",
         "properties": {
           "xdr": {
             "type": "string",
@@ -1060,7 +1060,7 @@
       "ExecuteSubmitted": {
         "type": "object",
         "required": ["txHash", "status"],
-        "description": "The outcome of executing a swapper flow.",
+        "description": "The outcome of executing a deposit-triggered flow.",
         "properties": {
           "txHash": {
             "type": "string",

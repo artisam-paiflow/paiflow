@@ -33,7 +33,7 @@ let flowId: string;
 let demoDeployment: string;
 let otherDeployment: string;
 
-/** A CONFIRMED swapper pipeline: what `resolveSwapperPipeline` requires. */
+/** A CONFIRMED swapper pipeline: what `resolveExecutablePipeline` requires. */
 const SWAPPER_SNAPSHOT = [
   { nodeId: "trigger-1", templateKind: "DEPOSIT_TRIGGER", contractAddress: `C${"A".repeat(55)}` },
   { nodeId: "action-1", templateKind: "SWAPPER", contractAddress: `C${"B".repeat(55)}` },

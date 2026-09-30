@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Paiflow API v1",
-    "description": "Execute a deployed swapper flow and poll its events. Fill in the collection variables `deploymentId`, `apiToken` (minted by the deployment's owner in the API access panel), `from` and `amount`.\n\nThe API never signs. Run **Prepare execute**, sign the `unsignedXdr` variable it stores with the `from` key on your side (`stellar tx sign --sign-with-key S… --network testnet`), paste the result into `signedXdr`, then run **Submit execute**. Guide: docs/api/README.md in the repository.",
+    "description": "Execute a deployed deposit-triggered flow and poll its events. Fill in the collection variables `deploymentId`, `apiToken` (minted by the deployment's owner in the API access panel), `from` and `amount`.\n\nThe API never signs. Run **Prepare execute**, sign the `unsignedXdr` variable it stores with the `from` key on your side (`stellar tx sign --sign-with-key S… --network testnet`), paste the result into `signedXdr`, then run **Submit execute**. Guide: docs/api/README.md in the repository.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -194,7 +194,7 @@
             }
           }
         },
-        "description": "Prepare the deposit that executes a swapper flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the swapper executes as the next pipeline step. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only swapper flows can be executed.\n\nRate limit: 30 requests per 60 seconds per token."
+        "description": "Prepare the deposit that executes a deposit-triggered flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run in the same transaction. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`.\n\nRate limit: 30 requests per 60 seconds per token."
       },
       "event": [
         {
@@ -347,7 +347,7 @@
             }
           }
         },
-        "description": "Submit a signed deposit that executes a swapper flow.\n\nThe envelope must be the one `execute` returned, signed by `from`: anything but a single `deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a fee-bump envelope.\n\nIdempotent on the envelope hash: submitting the same `signedXdr` again never sends a second transaction, it reports the one already on the network. That is also how to check a `PENDING` result. A transaction that reached the network and failed is a `200` with `status: FAILED` and an `error`, not an HTTP error.\n\nRate limit: 30 requests per 60 seconds per token."
+        "description": "Submit a signed deposit that executes a deposit-triggered flow.\n\nThe envelope must be the one `execute` returned, signed by `from`: anything but a single `deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a fee-bump envelope.\n\nIdempotent on the envelope hash: submitting the same `signedXdr` again never sends a second transaction, it reports the one already on the network. That is also how to check a `PENDING` result. A transaction that reached the network and failed is a `200` with `status: FAILED` and an `error`, not an HTTP error.\n\nRate limit: 30 requests per 60 seconds per token."
       },
       "event": [
         {

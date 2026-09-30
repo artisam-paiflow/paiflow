@@ -39,7 +39,12 @@ vi.mock("@/lib/signed-tx", () => ({ recordSignedTransaction: vi.fn(async () => u
 
 import { POST as prepare } from "@/app/api/v1/deployments/[id]/execute/route";
 import { POST as submit } from "@/app/api/v1/deployments/[id]/execute/submit/route";
-import { CONFIRM_POLL_INTERVAL_MS, ONLY_SWAPPER_FLOWS, waitForFinal } from "@/lib/api/v1/execute";
+import {
+  CONFIRM_POLL_INTERVAL_MS,
+  NOT_EXECUTABLE_FLOW,
+  explainFailedTx,
+  waitForFinal,
+} from "@/lib/api/v1/execute";
 import { V1_WAIT_SLOTS } from "@/lib/api/v1/limits";
 import { acquireWaitSlot } from "@/lib/api/v1/wait-slots";
 import { AppError } from "@/lib/errors";
@@ -53,6 +58,7 @@ import {
   OWNER_ID,
   PAYER,
   ROUTER,
+  SWAPPER_PIPELINE,
   SWAPPER,
   TRIGGER,
   contractErrorEvent,
@@ -200,33 +206,141 @@ describe("pipeline scope", () => {
   });
 
   it.each([
-    ["no pipeline", null],
-    ["a splitter pipeline", [{ nodeId: "t", contractAddress: TRIGGER, templateKind: "SPLITTER" }]],
+    ["no pipeline", null, NOT_EXECUTABLE_FLOW],
+    ["an empty pipeline", [], NOT_EXECUTABLE_FLOW],
     [
-      "a deposit trigger without a swapper",
+      "a splitter head",
+      [{ nodeId: "t", contractAddress: TRIGGER, templateKind: "SPLITTER" }],
+      "starts with a splitter step",
+    ],
+    [
+      "a swapper behind a webhook head",
+      [
+        { nodeId: "w", contractAddress: TRIGGER, templateKind: "WEBHOOK" },
+        { nodeId: "s", contractAddress: SWAPPER, templateKind: "SWAPPER" },
+      ],
+      "starts with a webhook step",
+    ],
+    [
+      "a subscription head",
+      [
+        { nodeId: "s", contractAddress: TRIGGER, templateKind: "SUBSCRIPTION" },
+        { nodeId: "p", contractAddress: PAYER, templateKind: "PAYER" },
+      ],
+      "starts with a subscription step",
+    ],
+    [
+      "a dev subscription head",
+      [{ nodeId: "s", contractAddress: TRIGGER, templateKind: "SUBSCRIPTION_DEV" }],
+      "starts with a subscription step",
+    ],
+    [
+      "a payroll head",
+      [{ nodeId: "s", contractAddress: TRIGGER, templateKind: "PAYROLL" }],
+      "starts with a payroll step",
+    ],
+    [
+      "a head kind this release has never heard of",
+      [{ nodeId: "s", contractAddress: TRIGGER, templateKind: "FUTURE_KIND" }],
+      "starts with a FUTURE_KIND step",
+    ],
+    [
+      "a deposit trigger head with no address",
+      [{ nodeId: "t", contractAddress: "", templateKind: "DEPOSIT_TRIGGER" }],
+      NOT_EXECUTABLE_FLOW,
+    ],
+  ])("422 for %s, on both routes", async (_label, pipelineSnapshot, expected) => {
+    authorize({ pipelineSnapshot });
+    const p = await callPrepare();
+    expect(p.status).toBe(422);
+    expect((await p.json()).error.message).toContain(expected);
+
+    const s = await callSubmit(signedEnvelope());
+    expect(s.status).toBe(422);
+    expect((await s.json()).error.message).toContain(expected);
+    expect(mockPrepareTriggerTx).not.toHaveBeenCalled();
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+  });
+
+  // #756: every flow that starts with a deposit trigger is executable, not only swappers.
+  it.each([
+    [
+      "a Pay flow",
       [
         { nodeId: "t", contractAddress: TRIGGER, templateKind: "DEPOSIT_TRIGGER" },
         { nodeId: "p", contractAddress: PAYER, templateKind: "PAYER" },
       ],
     ],
     [
-      "a swapper behind a non-deposit head",
+      "a Split flow",
       [
-        { nodeId: "w", contractAddress: TRIGGER, templateKind: "WEBHOOK" },
-        { nodeId: "s", contractAddress: SWAPPER, templateKind: "SWAPPER" },
+        { nodeId: "t", contractAddress: TRIGGER, templateKind: "DEPOSIT_TRIGGER" },
+        { nodeId: "s", contractAddress: OTHER_CONTRACT, templateKind: "SPLITTER" },
       ],
     ],
-  ])("422 for %s, on both routes", async (_label, pipelineSnapshot) => {
+    [
+      "an amount-condition flow",
+      [
+        { nodeId: "t", contractAddress: TRIGGER, templateKind: "DEPOSIT_TRIGGER" },
+        { nodeId: "r", contractAddress: OTHER_CONTRACT, templateKind: "ROUTER" },
+        { nodeId: "p", contractAddress: PAYER, templateKind: "PAYER" },
+        { nodeId: "s", contractAddress: SWAPPER, templateKind: "PAYER_DEV" },
+      ],
+    ],
+    ["a swap flow", SWAPPER_PIPELINE],
+  ])("prepares and submits %s through its trigger", async (_label, pipelineSnapshot) => {
     authorize({ pipelineSnapshot });
-    const p = await callPrepare();
-    expect(p.status).toBe(422);
-    expect((await p.json()).error.message).toBe(ONLY_SWAPPER_FLOWS);
+    const signed = signedEnvelope();
+    mockPrepareTriggerTx.mockResolvedValue({ xdr: signed });
 
-    const s = await callSubmit(signedEnvelope());
-    expect(s.status).toBe(422);
-    expect((await s.json()).error.message).toBe(ONLY_SWAPPER_FLOWS);
-    expect(mockPrepareTriggerTx).not.toHaveBeenCalled();
+    const p = await callPrepare();
+    expect(p.status).toBe(200);
+    expect(mockPrepareTriggerTx).toHaveBeenCalledWith(
+      expect.objectContaining({ contractAddress: TRIGGER, isPipeline: true }),
+    );
+
+    // The envelope check is the same for every head: only a deposit on this trigger.
+    const wrong = await callSubmit(signedEnvelope({ contract: OTHER_CONTRACT }));
+    expect(wrong.status).toBe(422);
     expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("a Pay or Split step with nothing configured (#756)", () => {
+  const DEV_PIPELINE = (kind: "PAYER_DEV" | "SPLITTER_DEV") => [
+    { nodeId: "t", contractAddress: TRIGGER, templateKind: "DEPOSIT_TRIGGER" },
+    { nodeId: "p", contractAddress: PAYER, templateKind: kind },
+  ];
+
+  it.each([
+    ["PAYER_DEV", "payer_dev", "Pay step has no recipient yet"],
+    ["SPLITTER_DEV", "splitter_dev", "Split step has no recipients yet"],
+  ] as const)("%s NotConfigured is a plain 422 on prepare", async (kind, key, text) => {
+    authorize({ pipelineSnapshot: DEV_PIPELINE(kind) });
+    mockBuildHint.mockResolvedValue({ addressMap: { [TRIGGER]: "deposit_trigger", [PAYER]: key } });
+    mockPrepareTriggerTx.mockImplementation(async (opts: { hint: () => Promise<unknown> }) => {
+      const hint = (await opts.hint()) as Parameters<typeof simulationFailure>[1];
+      // payer_dev NotConfigured is #4; splitter_dev's is #8.
+      const code = kind === "PAYER_DEV" ? 4 : 8;
+      throw simulationFailure(`contract:${PAYER}, topics:[error, Error(Contract, #${code})]`, hint);
+    });
+
+    const res = await callPrepare();
+
+    expect(res.status).toBe(422);
+    const { error } = await res.json();
+    expect(error.message).toContain(text);
+    expect(error.message).toContain("dev API");
+  });
+
+  it("is a plain message on a reverted submit too", async () => {
+    mockBuildHint.mockResolvedValue({ addressMap: { [PAYER]: "payer_dev" } });
+    const failure = await explainFailedTx(
+      { diagnosticEventsXdr: [contractErrorEvent(PAYER, 4)] },
+      DEV_PIPELINE("PAYER_DEV"),
+    );
+    expect(failure.code).toBe("NotConfigured");
+    expect(failure.message).toContain("Pay step has no recipient yet");
   });
 });
 
