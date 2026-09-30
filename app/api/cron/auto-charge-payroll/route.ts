@@ -28,7 +28,8 @@ import {
   readPayerRecipients,
 } from "@/lib/stellar/relayer";
 import { preparePayrollChargeByRelayerUnsigned } from "@/lib/stellar/invoke";
-import { TENANT_RELAYER_TIMEOUT_MS, withRelayerLock } from "@/lib/stellar/client";
+import { TENANT_RELAYER_TIMEOUT_MS } from "@/lib/stellar/client";
+import { withRelayerChannel } from "@/lib/stellar/relayer-channels";
 import { readTokenAllowance } from "@/lib/stellar/relayer";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode, EmployeePayoutMode, PayrollRunStatus } from "@prisma/client";
@@ -255,8 +256,11 @@ async function chargeSubscriptionPayrollDeployment(
     const currentNext = await readSubscriptionNextChargeAt(subscriptionContractAddress);
     if (new Date(Number(currentNext) * 1000) > now) break;
 
-    const submit = await withRelayerLock(async () => {
-      const { xdr } = await prepareSubscriptionChargeByRelayerTx(subscriptionContractAddress);
+    const submit = await withRelayerChannel(async (channel) => {
+      const { xdr } = await prepareSubscriptionChargeByRelayerTx(
+        subscriptionContractAddress,
+        channel,
+      );
       return submitSubscriptionChargeByRelayerTx(xdr);
     });
 
@@ -634,8 +638,8 @@ async function runPayrollCharges() {
 
       if (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM) {
         for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
-          const submit = await withRelayerLock(async () => {
-            const { xdr } = await preparePayrollChargeByRelayerTx(contractAddress);
+          const submit = await withRelayerChannel(async (channel) => {
+            const { xdr } = await preparePayrollChargeByRelayerTx(contractAddress, channel);
             return submitPayrollChargeByRelayerTx(xdr);
           });
 
