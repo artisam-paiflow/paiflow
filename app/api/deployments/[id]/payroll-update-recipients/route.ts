@@ -4,6 +4,7 @@ import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { refuseNewFiatRecipients } from "@/lib/features";
 import { preparePayrollUpdateRecipientsInvocation } from "@/lib/stellar/invoke";
 import {
@@ -57,6 +58,7 @@ type NormalizedRecipient = Omit<Recipient, "address"> & { address: string };
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
+    await enforceWriteRateLimit("payrollWrite", user.id);
     const { id } = await ctx.params;
     const body = PostSchema.parse(await req.json());
     const d = await db.deployment.findFirst({

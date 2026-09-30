@@ -4,6 +4,7 @@ import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { FlowGraphSchema, isPendingAddress } from "@/lib/flows/schema";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
@@ -21,6 +22,7 @@ const ResolveSchema = z.object({
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
+    await enforceWriteRateLimit("flowValidate", user.id);
     const { id } = await ctx.params;
     const body = ResolveSchema.parse(await req.json());
 

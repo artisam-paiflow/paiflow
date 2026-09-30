@@ -15,7 +15,10 @@ const { mockDb } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/auth", () => ({ requireSession: vi.fn(async () => ({ id: "user-1" })) }));
-vi.mock("@/lib/rate-limit", () => ({ rateLimit: vi.fn(async () => ({ ok: true })) }));
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimit: vi.fn(async () => ({ ok: true })),
+  enforceRateLimit: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
 vi.mock("@/lib/stellar/deploy", () => ({
   preparePipelineDeployTx: vi.fn(),

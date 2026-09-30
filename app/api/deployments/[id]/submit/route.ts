@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { assertPreparedDeploymentAllowed } from "@/lib/features";
 import { audit } from "@/lib/audit";
 import { redis, eventChannel } from "@/lib/redis";
@@ -50,6 +51,7 @@ function confirmedDeploymentResponse(deployment: {
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
+    await enforceWriteRateLimit("deploymentSubmit", user.id);
     const { id } = await ctx.params;
     const body = SubmitSchema.parse(await req.json());
 

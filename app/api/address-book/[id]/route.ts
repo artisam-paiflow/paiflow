@@ -4,6 +4,7 @@ import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 
 const UpdateSchema = z
   .object({
@@ -28,6 +29,7 @@ async function requireOwnedEntry(userId: string, id: string) {
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
+    await enforceWriteRateLimit("addressBookWrite", user.id);
     const { id } = await ctx.params;
     const body = UpdateSchema.parse(await req.json());
 
@@ -69,6 +71,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
+    await enforceWriteRateLimit("addressBookWrite", user.id);
     const { id } = await ctx.params;
 
     await requireOwnedEntry(user.id, id);

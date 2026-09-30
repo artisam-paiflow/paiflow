@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { hashPassword, requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { audit } from "@/lib/audit";
 import { Role } from "@prisma/client";
 import { pwnedCount } from "@/lib/hibp";
@@ -43,6 +44,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const admin = await requireSession({ role: Role.ADMIN });
+    await enforceWriteRateLimit("adminWrite", admin.id);
     const body = CreateSchema.parse(await req.json());
     if (body.password.toLowerCase().includes(body.username.toLowerCase())) {
       throw new AppError("VALIDATION", "Password must not contain the username");
