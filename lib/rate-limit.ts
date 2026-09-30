@@ -170,7 +170,14 @@ export async function enforceRateLimit(opts: {
 }): Promise<void> {
   const r = await rateLimit(opts.key, opts.limit, opts.windowSeconds);
   if (!r.ok) {
-    throw new AppError("RATE_LIMITED", opts.message ?? "Too many requests");
+    const retryAfter = Math.max(1, Math.ceil((r.resetAt - Date.now()) / 1000));
+    throw new AppError(
+      "RATE_LIMITED",
+      opts.message ?? "Too many requests",
+      undefined,
+      undefined,
+      retryAfter,
+    );
   }
 }
 

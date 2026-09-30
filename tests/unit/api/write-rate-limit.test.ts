@@ -13,6 +13,7 @@ describe("enforceWriteRateLimit", () => {
     const err = await enforceWriteRateLimit("revokeAllSessions", subject).catch((e) => e);
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe("RATE_LIMITED");
+    expect((err as AppError).retryAfterSeconds).toBeGreaterThanOrEqual(1);
   });
 
   it("keeps subjects and names apart", async () => {

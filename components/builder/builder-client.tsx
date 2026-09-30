@@ -1,5 +1,6 @@
 "use client";
 
+import { sendWithRateLimitRetry } from "./autosave-retry.utils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
@@ -405,21 +406,30 @@ function Builder({
   // Autosave with 800ms debounce (from develop)
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
   const pendingSave = useRef<Promise<void> | null>(null);
+  // What the next attempt sends: a retry after a 429 must carry the newest graph, not the one that
+  // was current when the first attempt went out.
+  const latestSave = useRef<{ graph: FlowGraph; name: string }>({ graph, name });
   function saveGraph(
     currentGraph: FlowGraph,
     currentName: string,
     immediate = false,
   ): Promise<void> {
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    latestSave.current = { graph: currentGraph, name: currentName };
 
     const doSave = async () => {
       let res: Response;
       try {
-        res = await fetch(`/api/flows/${flowId}`, {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ name: currentName, graph: currentGraph }),
-        });
+        res = await sendWithRateLimitRetry(() =>
+          fetch(`/api/flows/${flowId}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: latestSave.current.name,
+              graph: latestSave.current.graph,
+            }),
+          }),
+        );
       } catch (err) {
         track("flow_autosave_failed", { status: null });
         toastError(err, "Save failed");
