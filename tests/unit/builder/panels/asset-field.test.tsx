@@ -84,7 +84,7 @@ describe("AssetField shows the node's asset error (#407)", () => {
           error={error}
         />,
       );
-      const select = screen.getByRole("combobox", { name: /^Asset/ });
+      const select = screen.getByRole("combobox", { name: "Asset" });
       expect(select.getAttribute("aria-invalid")).toBe("true");
       const describedBy = select.getAttribute("aria-describedby") ?? "";
       const described = describedBy
@@ -107,10 +107,16 @@ describe("AssetField shows the node's asset error (#407)", () => {
     expect(validateFlow(graph).ok).toBe(true);
     expect(assetErrorFor(graph, "a")).toBeNull();
 
-    render(<AssetField asset={XLM} onChange={() => {}} error={null} />);
-    const select = screen.getByRole("combobox", { name: /^Asset/ });
+    const { container } = render(<AssetField asset={XLM} onChange={() => {}} error={null} />);
+    const select = screen.getByRole("combobox", { name: "Asset" });
     expect(select.getAttribute("aria-invalid")).toBeNull();
     expect(select.getAttribute("aria-describedby")).toBeNull();
+    // The label names the control by id, and the error region is mounted
+    // (empty, polite) before any error, so one that appears is announced.
+    expect(container.querySelector("label")?.getAttribute("for")).toBe(select.id);
+    const region = container.querySelector('p[aria-live="polite"]');
+    expect(region?.textContent).toBe("");
+    expect(region?.id).toMatch(/-error$/);
   });
 
   it("a Zod issue on a custom asset's code or issuer lands on the asset field", () => {
@@ -135,7 +141,7 @@ describe("AssetField shows the node's asset error (#407)", () => {
     expect(error).not.toBeNull();
 
     render(<AssetField asset={XLM} onChange={() => {}} error={error} />);
-    const select = screen.getByRole("combobox", { name: /^Asset/ });
+    const select = screen.getByRole("combobox", { name: "Asset" });
     expect(select.getAttribute("aria-invalid")).toBe("true");
   });
 

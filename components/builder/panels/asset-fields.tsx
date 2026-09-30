@@ -27,7 +27,10 @@ export function Field({
 
 export function AssetOptionInfoIcon({ expectedAsset }: { expectedAsset: Asset }) {
   return (
+    // Hidden from AT: the ligature text "info" would otherwise join the
+    // select's accessible name ("Asset info").
     <span
+      aria-hidden="true"
       className="material-symbols-outlined cursor-help text-[14px] text-zinc-500"
       title={`Only ${assetLabel(expectedAsset)} can be picked here — that's the asset flowing into this step. Add or change a swap node upstream to use a different asset.`}
     >
