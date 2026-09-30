@@ -137,7 +137,7 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     8: {
       name: "NotConfigured",
       friendly:
-        "This flow's Split step has no recipients yet; use /payouts or set them first (a dev-mode flow takes them after deploy).",
+        "This flow's Split step has no recipients yet; set them first (a dev-mode flow takes them after deploy, through the dev API).",
     },
   },
   swapper: {
@@ -279,7 +279,7 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     4: {
       name: "NotConfigured",
       friendly:
-        "This flow's Pay step has no recipient yet; use /payouts or set one first (a dev-mode flow takes it after deploy).",
+        "This flow's Pay step has no recipient yet; set one first (a dev-mode flow takes it after deploy, through the dev API).",
     },
   },
   payroll: {

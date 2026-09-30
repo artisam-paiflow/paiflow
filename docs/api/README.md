@@ -2,7 +2,7 @@
 
 Paiflow's `/api/v1` lets your backend run a deployed **deposit-triggered flow** (Pay, Split, condition or swap) and watch what it did on
 chain, with no browser and no wallet integration on Paiflow's side. You send the deposit, the flow
-swaps it on a real DEX and pays the proceeds out, and you poll the events.
+runs (paying, splitting, routing or swapping on a real DEX) and you poll the events.
 
 | Artefact                  | Where                                                                                                                                                                                                                                                                                               |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -41,7 +41,7 @@ flow takes three steps:
 3. **Submit.** `POST /api/v1/deployments/{id}/execute/submit` checks the envelope, sends it to the
    network, waits for the result and records it.
 
-Then `GET /api/v1/deployments/{id}/events` returns the deposit, swap and payout events.
+Then `GET /api/v1/deployments/{id}/events` returns the deposit and whatever the flow's later steps emit (payout, split, swap).
 
 {% hint style="info" %}
 **The API never signs.** Paiflow is non-custodial: your secret key never leaves your side and is

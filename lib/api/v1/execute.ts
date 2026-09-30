@@ -46,6 +46,13 @@ function refusedHeadLabel(kind: TemplateKind): string | null {
       return "timelock";
     case "SPLITTER":
     case "SPLITTER_DEV":
+      return "splitter";
+    case "PAYER":
+    case "PAYER_DEV":
+      return "payer";
+    case "CASH_OUT":
+    case "CASH_OUT_DEV":
+      return "cash out";
     case "STREAMER":
     case "CONDITIONAL":
     case "ROUTER":
@@ -53,10 +60,6 @@ function refusedHeadLabel(kind: TemplateKind): string | null {
     case "MULTISIG":
     case "SWAPPER":
     case "YIELD":
-    case "PAYER":
-    case "PAYER_DEV":
-    case "CASH_OUT":
-    case "CASH_OUT_DEV":
       return kind.toLowerCase().replaceAll("_", " ");
     default: {
       const unreachable: never = kind;

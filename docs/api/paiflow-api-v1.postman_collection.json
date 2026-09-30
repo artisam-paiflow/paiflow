@@ -194,7 +194,7 @@
             }
           }
         },
-        "description": "Prepare the deposit that executes a deposit-triggered flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the swapper executes as the next pipeline step. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`.\n\nRate limit: 30 requests per 60 seconds per token."
+        "description": "Prepare the deposit that executes a deposit-triggered flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run in the same transaction. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`.\n\nRate limit: 30 requests per 60 seconds per token."
       },
       "event": [
         {

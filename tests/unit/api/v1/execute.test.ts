@@ -330,7 +330,7 @@ describe("a Pay or Split step with nothing configured (#756)", () => {
     expect(res.status).toBe(422);
     const { error } = await res.json();
     expect(error.message).toContain(text);
-    expect(error.message).toContain("/payouts");
+    expect(error.message).toContain("dev API");
   });
 
   it("is a plain message on a reverted submit too", async () => {
