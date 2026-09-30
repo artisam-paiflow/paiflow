@@ -56,7 +56,7 @@ jobs:
       - run: pnpm db:seed
       - run: pnpm build
       - name: pnpm audit
-        run: pnpm audit --prod || true
+        run: pnpm audit --prod
 
   rust:
     runs-on: ubuntu-latest
