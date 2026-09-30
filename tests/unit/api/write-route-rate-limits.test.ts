@@ -38,10 +38,14 @@ const ALLOWLIST: Record<string, string> = {
 /** Cron routes are gated by the shared CRON_SECRET (fail-closed in production), not by a bucket. */
 const CRON_GUARD = /\brequireCronSecret\(/;
 
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+}
+
 function handlers(source: string): Array<{ method: string; body: string }> {
   const starts: Array<{ method: string; index: number }> = [];
   for (const m of source.matchAll(
-    /^export\s+(?:async\s+function|const)\s+(POST|PATCH|PUT|DELETE|GET|HEAD|OPTIONS)\b/gm,
+    /^export\s+(?:(?:async\s+)?function|const|let)\s+(POST|PATCH|PUT|DELETE|GET|HEAD|OPTIONS)\b/gm,
   )) {
     starts.push({ method: m[1]!, index: m.index! });
   }
@@ -62,15 +66,29 @@ function handlers(source: string): Array<{ method: string; body: string }> {
 
 describe("mutating API routes are rate limited (#371)", () => {
   const files = routeFiles(API_DIR);
+  const seenAllowlisted = new Set<string>();
 
   it("finds the route files", () => {
     expect(files.length).toBeGreaterThan(50);
   });
 
+  it("refuses re-exported handlers it cannot inspect", () => {
+    for (const file of files) {
+      expect(
+        readFileSync(file, "utf8"),
+        `${file}: export { x as POST } hides the handler from this guard`,
+      ).not.toMatch(/^export\s*\{[^}]*\bas\s+(POST|PATCH|PUT|DELETE)\b/m);
+    }
+  });
+
   for (const file of files) {
     const rel = path.relative(process.cwd(), file);
-    const source = readFileSync(file, "utf8");
-    for (const h of handlers(source)) {
+    const source = stripComments(readFileSync(file, "utf8"));
+    const found = handlers(source);
+    for (const key of Object.keys(ALLOWLIST)) {
+      if (key.endsWith(` ${rel}`)) seenAllowlisted.add(key);
+    }
+    for (const h of found) {
       if (!(MUTATING as readonly string[]).includes(h.method)) continue;
       it(`${h.method} ${rel}`, () => {
         if (ALLOWLIST[`${h.method} ${rel}`]) return;
@@ -82,4 +100,10 @@ describe("mutating API routes are rate limited (#371)", () => {
       });
     }
   }
+
+  it("has no stale allowlist entries", () => {
+    for (const key of Object.keys(ALLOWLIST)) {
+      expect(seenAllowlisted.has(key), `${key} names no route file`).toBe(true);
+    }
+  });
 });

@@ -8,8 +8,8 @@ import { enforceRateLimit } from "@/lib/rate-limit";
  * Each limit is per window per subject. The subject is the signed-in user (or the
  * user a machine token maps to), never the address: ten hackathon teams share one
  * venue IP, and a per-address bucket would lock them out of each other. The two
- * `ip` rows are for callers with no identity yet (passkey login) and are sized for
- * a whole room signing in at once.
+ * `ip` rows are for callers with no identity yet (passkey login) and are sized so a room
+ * signing in at once fits and one person's curl loop takes long to exhaust it.
  *
  * The numbers are ceilings for abuse, well above what a person clicking fast
  * reaches. Builder autosave and validate are the chattiest human-driven callers.
@@ -23,15 +23,19 @@ export const WRITE_RATE_LIMITS = {
   deploymentPatch: { limit: 60, windowSeconds: 60 },
   // `deployments/prepare` is 10/min; a submit follows each prepare, with headroom for retries.
   deploymentSubmit: { limit: 30, windowSeconds: 60 },
-  flowMutate: { limit: 120, windowSeconds: 60 },
+  // Builder autosave (800 ms debounce, whole graph, last write wins) shares this with delete; a 429
+  // there is not retried by the client, so keep it far above what a few open tabs reach.
+  flowMutate: { limit: 300, windowSeconds: 60 },
   flowValidate: { limit: 120, windowSeconds: 60 },
   fileDelete: { limit: 60, windowSeconds: 60 },
   payrollWrite: { limit: 60, windowSeconds: 60 },
   // The deployment page polls this every 2 s (30/min per tab); 90 covers three tabs.
   deploymentStatus: { limit: 90, windowSeconds: 60 },
+  // The same poll across every deployment id, so a caller cannot mint fresh per-deployment buckets.
+  deploymentStatusUser: { limit: 300, windowSeconds: 60 },
   // ---- no identity yet, keyed on address ----
-  passkeyLoginOptions: { limit: 120, windowSeconds: 60 },
-  passkeyLoginVerify: { limit: 120, windowSeconds: 60 },
+  passkeyLoginOptions: { limit: 600, windowSeconds: 60 },
+  passkeyLoginVerify: { limit: 600, windowSeconds: 60 },
 } as const;
 
 export type WriteRateLimitName = keyof typeof WRITE_RATE_LIMITS;

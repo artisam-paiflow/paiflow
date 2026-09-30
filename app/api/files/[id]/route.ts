@@ -38,10 +38,10 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     const session = await getSessionUser();
-    if (!session) return new Response("Unauthorized", { status: 401 });
+    if (!session) throw new AppError("UNAUTHENTICATED", "Authentication required");
     await enforceWriteRateLimit("fileDelete", session.id);
     const f = await db.fileAsset.findFirst({ where: { id, ownerId: session.id } });
-    if (!f) return new Response("Not found", { status: 404 });
+    if (!f) throw new AppError("NOT_FOUND", "File not found");
     await storage().remove(f.storageKey);
     await db.fileAsset.delete({ where: { id } });
     return new Response(null, { status: 204 });

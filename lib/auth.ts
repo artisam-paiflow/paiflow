@@ -12,7 +12,6 @@ import { audit } from "./audit";
 import { AppError } from "./errors";
 import { hashApiToken } from "./auth/api-token";
 import { isSessionCurrent } from "./auth/session-version";
-import { clientIp, enforceRateLimit } from "./rate-limit";
 import { captureServer } from "./analytics/server";
 import { Role } from "@prisma/client";
 import { authConfig as edgeConfig } from "@/auth.config";
@@ -206,9 +205,6 @@ export async function requireDevAuth(req: NextRequest): Promise<{ user: SessionU
   }
 }
 
-/** Unknown developer tokens one address may present per 10 minutes before it is answered 429. */
-const DEV_TOKEN_FAILURES_PER_WINDOW = 30;
-
 /**
  * Resolve a per-developer API token to the Paiflow user that owns it. Every
  * machine caller must carry an owner, so that endpoints which CREATE owned rows
@@ -252,15 +248,6 @@ export async function requireDevApiToken(req: NextRequest): Promise<SessionUser>
         .catch(() => {});
       return { id: token.user.id, username: token.user.username, role: token.user.role };
     }
-    // Only a presented-but-unknown token counts. The lookup above has already run, so a working
-    // token from the same shared address is never refused; what the bucket stops is a guessing
-    // flood, which starts getting 429 instead of 401 past the threshold.
-    await enforceRateLimit({
-      key: `dev-token-fail:${clientIp(req)}`,
-      limit: DEV_TOKEN_FAILURES_PER_WINDOW,
-      windowSeconds: 10 * 60,
-      message: "Too many failed developer token attempts from this address",
-    });
   }
 
   throw new AppError("UNAUTHENTICATED", "A valid developer API token is required");
