@@ -24,7 +24,8 @@ export const WRITE_RATE_LIMITS = {
   // `deployments/prepare` is 10/min; a submit follows each prepare, with headroom for retries.
   deploymentSubmit: { limit: 30, windowSeconds: 60 },
   // Builder autosave (800 ms debounce, whole graph, last write wins) shares this with delete; a 429
-  // there is not retried by the client, so keep it far above what a few open tabs reach.
+  // there is retried by the client after Retry-After (at most 3 times), so keep it far above
+  // what a few open tabs reach.
   flowMutate: { limit: 300, windowSeconds: 60 },
   flowValidate: { limit: 120, windowSeconds: 60 },
   fileDelete: { limit: 60, windowSeconds: 60 },

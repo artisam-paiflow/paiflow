@@ -1,6 +1,5 @@
 "use client";
 
-import { sendWithRateLimitRetry } from "./autosave-retry.utils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
@@ -32,6 +31,7 @@ import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import AnimatedStraightEdge from "@/components/nodes/animated-edge";
+import { sendWithRateLimitRetry } from "./autosave-retry.utils";
 import CanvasConfigPanel from "./canvas-config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
@@ -409,6 +409,15 @@ function Builder({
   // What the next attempt sends: a retry after a 429 must carry the newest graph, not the one that
   // was current when the first attempt went out.
   const latestSave = useRef<{ graph: FlowGraph; name: string }>({ graph, name });
+  // Bumped by every save that starts; a save still waiting out a 429 yields to a newer one.
+  const saveSeq = useRef(0);
+  const unmounted = useRef(false);
+  useEffect(() => {
+    unmounted.current = false;
+    return () => {
+      unmounted.current = true;
+    };
+  }, []);
   function saveGraph(
     currentGraph: FlowGraph,
     currentName: string,
@@ -417,28 +426,40 @@ function Builder({
     if (saveTimer.current) clearTimeout(saveTimer.current);
     latestSave.current = { graph: currentGraph, name: currentName };
 
-    const doSave = async () => {
-      let res: Response;
+    const doSave = async (): Promise<void> => {
+      const seq = ++saveSeq.current;
+      let res: Response | null;
       try {
-        res = await sendWithRateLimitRetry(() =>
-          fetch(`/api/flows/${flowId}`, {
-            method: "PATCH",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              name: latestSave.current.name,
-              graph: latestSave.current.graph,
+        res = await sendWithRateLimitRetry(
+          () =>
+            fetch(`/api/flows/${flowId}`, {
+              method: "PATCH",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                name: latestSave.current.name,
+                graph: latestSave.current.graph,
+              }),
             }),
-          }),
+          {
+            superseded: () => saveSeq.current !== seq || unmounted.current,
+            // The deploy click waits on this save, so it gets one retry, not the full budget.
+            maxRetries: immediate ? 1 : undefined,
+          },
         );
       } catch (err) {
         track("flow_autosave_failed", { status: null });
-        toastError(err, "Save failed");
+        if (!unmounted.current) toastError(err, "Save failed");
+        return;
+      }
+      // Superseded: the newer save carries the latest graph and reports its own outcome.
+      if (res === null) {
+        if (!unmounted.current) await pendingSave.current;
         return;
       }
       if (!res.ok) {
         track("flow_autosave_failed", { status: res.status });
         const body = await res.json().catch(() => ({}));
-        toastError(body, `Save failed (${res.status})`);
+        if (!unmounted.current) toastError(body, `Save failed (${res.status})`);
       }
     };
 

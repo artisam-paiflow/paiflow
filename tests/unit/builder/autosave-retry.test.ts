@@ -21,6 +21,7 @@ describe("retryAfterMs", () => {
     expect(retryAfterMs(null)).toBe(RETRY_FALLBACK_MS);
     expect(retryAfterMs("soon")).toBe(RETRY_FALLBACK_MS);
     expect(retryAfterMs("-3")).toBe(RETRY_FALLBACK_MS);
+    expect(retryAfterMs("")).toBe(RETRY_FALLBACK_MS);
   });
 });
 
@@ -28,14 +29,14 @@ describe("sendWithRateLimitRetry", () => {
   it("returns a success without sleeping", async () => {
     const sleep = vi.fn(async () => {});
     const send = vi.fn(async () => res(200));
-    expect((await sendWithRateLimitRetry(send, sleep)).status).toBe(200);
+    expect((await sendWithRateLimitRetry(send, { sleep }))?.status).toBe(200);
     expect(sleep).not.toHaveBeenCalled();
   });
 
   it("waits Retry-After on 429, then succeeds, calling send afresh", async () => {
     const sleep = vi.fn(async () => {});
     const send = vi.fn().mockResolvedValueOnce(res(429, "2")).mockResolvedValueOnce(res(200));
-    expect((await sendWithRateLimitRetry(send, sleep)).status).toBe(200);
+    expect((await sendWithRateLimitRetry(send, { sleep }))?.status).toBe(200);
     expect(sleep).toHaveBeenCalledWith(2000);
     expect(send).toHaveBeenCalledTimes(2);
   });
@@ -43,14 +44,28 @@ describe("sendWithRateLimitRetry", () => {
   it("gives up after the bounded attempts and returns the 429", async () => {
     const sleep = vi.fn(async () => {});
     const send = vi.fn(async () => res(429, "1"));
-    expect((await sendWithRateLimitRetry(send, sleep)).status).toBe(429);
+    expect((await sendWithRateLimitRetry(send, { sleep }))?.status).toBe(429);
     expect(send).toHaveBeenCalledTimes(MAX_RATE_LIMIT_RETRIES + 1);
+  });
+
+  it("stops without sending when superseded during the wait", async () => {
+    const sleep = vi.fn(async () => {});
+    const send = vi.fn(async () => res(429, "1"));
+    expect(await sendWithRateLimitRetry(send, { sleep, superseded: () => true })).toBeNull();
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("honours a smaller retry budget", async () => {
+    const sleep = vi.fn(async () => {});
+    const send = vi.fn(async () => res(429, "1"));
+    await sendWithRateLimitRetry(send, { sleep, maxRetries: 1 });
+    expect(send).toHaveBeenCalledTimes(2);
   });
 
   it.each([400, 401, 409, 422, 500])("does not retry %i", async (status) => {
     const sleep = vi.fn(async () => {});
     const send = vi.fn(async () => res(status));
-    expect((await sendWithRateLimitRetry(send, sleep)).status).toBe(status);
+    expect((await sendWithRateLimitRetry(send, { sleep }))?.status).toBe(status);
     expect(send).toHaveBeenCalledTimes(1);
   });
 });
