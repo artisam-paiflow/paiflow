@@ -10,7 +10,7 @@ import {
   assertDepositEnvelope,
   explainFailedTx,
   ingestEventsBounded,
-  resolveSwapperPipeline,
+  resolveExecutablePipeline,
   waitForFinal,
 } from "@/lib/api/v1/execute";
 import {
@@ -35,7 +35,7 @@ async function viaRpc<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Submit a signed deposit that executes a swapper flow, wait for it to be
+ * Submit a signed deposit that executes a deposit-triggered flow, wait for it to be
  * final, ingest its events and record it.
  *
  * Idempotent on the hash of the signed envelope: the chain is asked first, and
@@ -53,7 +53,7 @@ export const POST = v1Route(
     const { wait } = ExecuteSubmitQuerySchema.parse({
       wait: new URL(req.url).searchParams.get("wait") ?? undefined,
     });
-    const { nodes, triggerAddress } = resolveSwapperPipeline(deployment);
+    const { nodes, triggerAddress } = resolveExecutablePipeline(deployment);
     const tx = assertDepositEnvelope(input.signedXdr, triggerAddress);
     const txHash = tx.hash().toString("hex");
     const signer = signerFromTransaction(tx);

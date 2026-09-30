@@ -6,7 +6,7 @@ import { demoApiDeploymentId, env } from "@/lib/env";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { log } from "@/lib/log";
 import { clientIp, rateLimit, rateLimitedError } from "@/lib/rate-limit";
-import { resolveSwapperPipeline } from "@/lib/api/v1/execute";
+import { resolveExecutablePipeline } from "@/lib/api/v1/execute";
 import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
 import { markTokenKnown } from "@/lib/api/v1/pre-auth";
 import {
@@ -83,8 +83,8 @@ export async function POST(req: NextRequest) {
     // Every check below collapses to one identical refusal. These are operator misconfigurations,
     // not caller input, and an anonymous prober must not learn the demo deployment's state from
     // the difference between "missing", "still pending" and "wrong shape". The reason goes to the
-    // log instead. `resolveSwapperPipeline` throws its own codes, so it is caught here too —
-    // ONLY_SWAPPER_FLOWS must not leak out of this route.
+    // log instead. `resolveExecutablePipeline` throws its own codes, so it is caught here too —
+    // NOT_EXECUTABLE_FLOW must not leak out of this route.
     const reason = ((): string | null => {
       if (!deployment) return "deployment row not found";
       if (deployment.network !== env().STELLAR_NETWORK) {
@@ -95,9 +95,9 @@ export async function POST(req: NextRequest) {
       // so issuing one would hand out a credential that is dead on arrival.
       if (deployment.owner.role === Role.SANDBOX) return "deployment owner is a sandbox identity";
       try {
-        resolveSwapperPipeline(deployment);
+        resolveExecutablePipeline(deployment);
       } catch (err) {
-        return `not a confirmed swapper pipeline: ${err instanceof AppError ? err.message : String(err)}`;
+        return `not a confirmed executable pipeline: ${err instanceof AppError ? err.message : String(err)}`;
       }
       return null;
     })();
