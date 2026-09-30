@@ -1,0 +1,46 @@
+{
+  "capturedAt": "2026-09-30",
+  "run": "https://github.com/artisam-paiflow/paiflow/actions/runs/36688511995",
+  "workflow": "CI (.github/workflows/ci.yml), run #76, success: jobs node and rust both success",
+  "ranAt": "2026-09-30T08:14:45Z",
+  "commit": {
+    "mirror": "0c77f546abea00ccd4a047148108cfe2cc84f0c8",
+    "origin": "2ddc9e8",
+    "tree": "9855adcec20cfe0bf11d8475a61098f7af7c5a0e",
+    "what": "Merge pull request #738 on develop, the handoff code. The mirror and origin SHAs differ for the same tree. Later commits change only docs/instawards."
+  },
+  "node": {
+    "resolved": "v22.23.2",
+    "pin": "setup-node reads node-version-file: package.json; the log line is 'Resolved package.json as >=22.22.2 <23'"
+  },
+  "artifact": {
+    "name": "vitest-junit",
+    "zipDigest": "sha256:fa7c26910179eaa3195cd11655c137c5496a01a327655724d977b884702a844c",
+    "expiresAt": "2026-12-29T08:14:45Z",
+    "file": "05-vitest-junit.xml is the zip's only entry, byte for byte"
+  },
+  "counts": {
+    "files": 128,
+    "tests": 1800,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "byProject": {
+      "dom": {
+        "files": 12,
+        "tests": 98
+      },
+      "node": {
+        "files": 116,
+        "tests": 1702
+      }
+    }
+  },
+  "crossCheck": {
+    "testcaseElements": "1800 <testcase> elements in the XML, equal to <testsuites tests> and the log's 'Tests 1800 passed (1800)'",
+    "files": "128 <testsuite> elements: all 12 *.test.tsx and all 116 *.test.ts under tests/unit at this tree",
+    "digest": "sha256 of the zip downloaded through the API equals the artifact digest GitHub reports"
+  },
+  "summary": "05-ci-summary.md is the node job's summary regenerated from 05-vitest-junit.xml with the script CI runs for it (scripts/vitest-junit-summary.ts), not a screenshot. GitHub shows the job summary on the run page only to signed-in viewers.",
+  "localPass": "local-pass/ holds typecheck, unit tests, cargo test and clippy run on the same commit on a developer machine; see local-pass/environment.txt"
+}

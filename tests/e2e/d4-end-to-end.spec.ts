@@ -141,6 +141,12 @@ test("one deployment: deploy, trigger in the app, then execute through /api/v1 w
   const baseURL = test.info().project.use.baseURL;
   const explorer = (h: string) => `https://stellar.expert/explorer/testnet/tx/${h}`;
 
+  // The build this run exercised, so the record names it without matching dates
+  // to deploys. `/api/health` returns it bare, not in the { data } envelope.
+  const health = (await (await request.get("/api/health")).json()) as { version?: string };
+  expect(health.version, "the target app reports its build on /api/health").toBeTruthy();
+  const build = { version: health.version, ranAt: new Date().toISOString() };
+
   // ── D1: deploy ──────────────────────────────────────────────────────────
   const flow = await ok<{ id: string }>(
     await request.post("/api/flows", { data: { name: "D4 end-to-end", graph } }),
@@ -176,6 +182,7 @@ test("one deployment: deploy, trigger in the app, then execute through /api/v1 w
 
   await write("01-e2e-deploy.json", {
     baseUrl: baseURL,
+    build,
     flowId: flow.id,
     graph,
     deploymentId,
@@ -207,6 +214,7 @@ test("one deployment: deploy, trigger in the app, then execute through /api/v1 w
   expect(triggerEmitters).toContain(swapper!.contractAddress);
 
   await write("02-e2e-trigger.json", {
+    build,
     deploymentId,
     amountStroops: AMOUNT,
     unsignedXdr: trigger.xdr,
@@ -284,6 +292,7 @@ test("one deployment: deploy, trigger in the app, then execute through /api/v1 w
     const execEvents = await eventsFor(submitted.txHash);
 
     await write("03-e2e-api-execute.json", {
+      build,
       deploymentId,
       token: { id: created.id, tokenPrefix: created.tokenPrefix, expiresAt: created.expiresAt },
       from: depositor!.publicKey(),

@@ -164,6 +164,13 @@ is met by addresses from four people, as the [metrics page](metrics.md) explains
 counterpart for two records, one of tester-3's deployments and one of tester-10's; the figures are
 reported as generated rather than corrected by hand.
 
+> **Correction, 30 September 2026.** The paragraph above undercounts D3. D3 onboarded two group A
+> testers, tester-5 and tester-9, as well as the two group B testers. Both ran their sessions in D3,
+> but they were missing from the cohort file, so no figure in this report includes them. The two
+> group A testers named above, tester-2 and tester-3, were onboarded in D2 and have since withdrawn
+> from the round. They are no longer in the cohort. The 26 September snapshot is left as generated.
+> Corrected alpha-tester figures come from the final snapshot on the [metrics page](metrics.md).
+
 ## Decisions
 
 - **No blockers to the deliverable.** D3's code is merged, and the promotion that put it on the
