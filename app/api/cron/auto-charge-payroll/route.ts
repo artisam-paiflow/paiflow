@@ -404,9 +404,10 @@ async function runPayrollCharges() {
       nextChargeAt: true,
       pipelineSnapshot: true,
     },
-    // Most overdue first (never-scheduled rows lead), so a backlog drains
-    // oldest-first across ticks instead of the same rows winning every time.
-    orderBy: [{ nextChargeAt: { sort: "asc", nulls: "first" } }, { id: "asc" }],
+    // Most overdue first, so a backlog drains
+    // oldest-first. Rows with no date (stopped or never automated, written as
+    // MANUAL + null) sort last so they cannot fill the batch ahead of due ones.
+    orderBy: [{ nextChargeAt: { sort: "asc", nulls: "last" } }, { id: "asc" }],
     take: CRON_LIMITS.autoChargePayroll.batch,
   });
 
@@ -968,7 +969,7 @@ async function runPayrollCharges() {
     userCharged,
     skipped: results.filter((r) => r.status === "skipped").length,
     failed: results.filter((r) => r.status === "failed").length,
-    processed: deployments.length,
+    processed: attempted,
     details: results,
     truncated,
   };

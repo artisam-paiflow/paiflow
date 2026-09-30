@@ -86,7 +86,7 @@ describe("cron/poll-events", () => {
       where: { AND: [where, { cursor: null }] },
       select: { id: true },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      take: 200,
+      take: 100,
     });
     expect(mockDb.deployment.findMany).toHaveBeenNthCalledWith(2, {
       where: { AND: [where, { cursor: { isNot: null } }] },
@@ -100,15 +100,15 @@ describe("cron/poll-events", () => {
     });
   });
 
-  it("skips the second read when never-polled deployments fill the batch", async () => {
-    limits.pollEvents.batch = 2;
-    primeSelection([{ id: "d1" }, { id: "d2" }], []);
+  it("caps never-polled deployments at half the batch so polled ones always get slots", async () => {
+    limits.pollEvents.batch = 4;
+    primeSelection([{ id: "u1" }, { id: "u2" }], [{ id: "p1" }, { id: "p2" }]);
     mockPoll.mockResolvedValue(0);
 
     await post();
 
-    expect(mockDb.deployment.findMany).toHaveBeenCalledTimes(1);
-    expect(mockPoll).toHaveBeenCalledTimes(2);
+    expect(mockDb.deployment.findMany.mock.calls.map(([q]) => q.take)).toEqual([2, 2]);
+    expect(mockPoll.mock.calls.map(([id]) => id)).toEqual(["u1", "u2", "p1", "p2"]);
   });
 
   it("keeps going when one deployment fails to poll", async () => {

@@ -80,7 +80,7 @@ describe.each(crons)("cron/$name", ({ name, post, cfg }) => {
 
     expect(mockDb.deployment.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        orderBy: [{ nextChargeAt: { sort: "asc", nulls: "first" } }, { id: "asc" }],
+        orderBy: [{ nextChargeAt: { sort: "asc", nulls: "last" } }, { id: "asc" }],
         take: 100,
       }),
     );

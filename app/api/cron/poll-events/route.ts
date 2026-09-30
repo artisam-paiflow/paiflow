@@ -24,23 +24,22 @@ export async function POST(req: NextRequest) {
       // Least recently polled first, so a backlog rotates instead of the same
       // deployments taking every tick's budget. Prisma cannot put NULLs first
       // through a relation, so deployments with no cursor yet (never polled)
-      // are read separately and lead.
+      // are read separately and lead, but only up to half the batch: a
+      // deployment whose first poll can never write a cursor (no deploy
+      // ledger, RPC retention passed) would otherwise fill every slot forever.
       const where = cronPollableDeploymentWhere(new Date());
       const unpolled = await db.deployment.findMany({
         where: { AND: [where, { cursor: null }] },
         select: { id: true },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        take: batch,
+        take: Math.ceil(batch / 2),
       });
-      const polledBefore =
-        unpolled.length >= batch
-          ? []
-          : await db.deployment.findMany({
-              where: { AND: [where, { cursor: { isNot: null } }] },
-              select: { id: true },
-              orderBy: [{ cursor: { updatedAt: "asc" } }, { id: "asc" }],
-              take: batch - unpolled.length,
-            });
+      const polledBefore = await db.deployment.findMany({
+        where: { AND: [where, { cursor: { isNot: null } }] },
+        select: { id: true },
+        orderBy: [{ cursor: { updatedAt: "asc" } }, { id: "asc" }],
+        take: batch - unpolled.length,
+      });
       const deployments = [...unpolled, ...polledBefore];
       log.info({ deploymentCount: deployments.length }, "poll-events cron found deployments");
 

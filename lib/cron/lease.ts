@@ -12,6 +12,8 @@ export type CronLeaseResult<T> = { acquired: true; value: T } | { acquired: fals
 // cannot release the lease of the run that replaced it.
 const RELEASE_SCRIPT = `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`;
 
+const RENEW_SCRIPT = `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("pexpire", KEYS[1], ARGV[2]) else return 0 end`;
+
 const leaseKey = (name: string) => `cron:${name}`;
 
 let warnedNoRedis = false;
@@ -50,9 +52,23 @@ export async function withCronLease<T>(
     return { acquired: true, value: await fn() };
   }
 
+  // A run can outlast the TTL (one item may wait on the relayer lock and 30s of finality per
+  // catch-up period), and a lapsed lease lets the next tick start alongside it. So the holder
+  // keeps extending it while it lives; the TTL then only matters when the process dies.
+  const renew = setInterval(
+    () => {
+      client.eval(RENEW_SCRIPT, 1, key, id, String(ttlMs)).catch((err: unknown) => {
+        log.warn({ err, cron: name }, "cron lease: could not renew the lease");
+      });
+    },
+    Math.max(1_000, Math.floor(ttlMs / 3)),
+  );
+  renew.unref();
+
   try {
     return { acquired: true, value: await fn() };
   } finally {
+    clearInterval(renew);
     try {
       await client.eval(RELEASE_SCRIPT, 1, key, id);
     } catch (err) {

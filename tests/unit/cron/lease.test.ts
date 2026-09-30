@@ -9,8 +9,9 @@ const { store, fake, holder } = vi.hoisted(() => {
       store.set(key, value);
       return "OK";
     }),
-    eval: vi.fn(async (_script: string, _n: number, key: string, id: string) => {
+    eval: vi.fn(async (script: string, _n: number, key: string, id: string) => {
       if (store.get(key) !== id) return 0;
+      if (script.includes("pexpire")) return 1;
       store.delete(key);
       return 1;
     }),
@@ -87,6 +88,28 @@ describe("withCronLease", () => {
     });
     expect(result).toEqual({ acquired: true, value: "done" });
     expect(store.get("cron:demo")).toBe("someone-elses-id");
+  });
+
+  it("keeps extending the lease while the run is alive, and stops afterwards", async () => {
+    vi.useFakeTimers();
+    try {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const run = withCronLease("demo", 3_000, () => gate);
+      await vi.advanceTimersByTimeAsync(3_500);
+      const renewals = () =>
+        fake.eval.mock.calls.filter(([script]) => String(script).includes("pexpire"));
+      expect(renewals().length).toBeGreaterThanOrEqual(3);
+      expect(renewals()[0]?.slice(1)).toEqual([1, "cron:demo", expect.any(String), "3000"]);
+
+      release();
+      await run;
+      const after = renewals().length;
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(renewals().length).toBe(after);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("runs without a lease when Redis is not configured", async () => {
