@@ -5,6 +5,35 @@ reproduced in that week's report. Commit links open on the public repository.
 
 Generated with `pnpm instawards:changelog` — see [week 1](week-1.md) for the exact invocation.
 
+## Week 4 — 28 September–4 October 2026
+
+The validation package: the end-to-end run with a real wallet and by script, the technical
+walkthrough video, the integration guide, the transaction list, the final metrics and CI report,
+and the handoff page. Reported in full in [week 4](week-4.md).
+
+Covers 28–30 September, the extent of the public mirror when this was last generated on
+30 September. Anything merged later is added when the mirror next syncs.
+
+| Date       | Change                                                                                                                                     | Issues | Commit                                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------- |
+| 2026-09-30 | docs(instawards): list the D3 and D4 alpha testers, drop the two who withdrew                                                              | #738   | [`0c77f54`](https://github.com/artisam-paiflow/paiflow/commit/0c77f546abea00ccd4a047148108cfe2cc84f0c8) |
+| 2026-09-29 | docs(instawards): evidence handoff page, validation package page, week-4 report (#697)                                                     | #715   | [`dc9939c`](https://github.com/artisam-paiflow/paiflow/commit/dc9939cdf6bcb655164416b15f74b0e0ce02424e) |
+| 2026-09-29 | fix(deploy): warn before signing when a payout recipient lacks the asset's trustline (#574)                                                | #574   | [`d8f889e`](https://github.com/artisam-paiflow/paiflow/commit/d8f889e49eb8372f70de325d4d96cbc80008a3cd) |
+| 2026-09-29 | docs(instawards): the D4 Freighter run and the walkthrough video (#693)                                                                    | #693   | [`605fd79`](https://github.com/artisam-paiflow/paiflow/commit/605fd797af05e1f78b553bfb8f534edab8a9679e) |
+| 2026-09-29 | docs(alpha): bring both tester guides up to D3                                                                                             | #709   | [`eb87f2b`](https://github.com/artisam-paiflow/paiflow/commit/eb87f2bfa6377eb609c8df8db6a77ebdb20e12f2) |
+| 2026-09-29 | docs(instawards): split the week-4 video into a walkthrough script and an end-to-end wallet checklist (#693)                               | #712   | [`b274392`](https://github.com/artisam-paiflow/paiflow/commit/b2743927776e2dbd5acbca25b0c3a6254879b98a) |
+| 2026-09-28 | docs(instawards): link the D4 evidence pack, point D2's unrun spec row at the D4 API run, and call 08-openapi "as served" (#697, #548)     | #711   | [`aafbe51`](https://github.com/artisam-paiflow/paiflow/commit/aafbe51908d7de9298b7074e8a22a57855b993cc) |
+| 2026-09-28 | docs(instawards): the D4 end-to-end run on paiflow.xyz at d850197: deploy, trigger and /api/v1 execute on one deployment (#692)            | #692   | [`ca0e688`](https://github.com/artisam-paiflow/paiflow/commit/ca0e68866f6da8bcf485d61fb5512fb8d0d12702) |
+| 2026-09-28 | test(e2e): record the build the D4 run exercised, from /api/health (#692)                                                                  | #708   | [`7d2ef46`](https://github.com/artisam-paiflow/paiflow/commit/7d2ef464f5938fbe07d8cdc923eec408ba961595) |
+| 2026-09-28 | docs(guide): an integration guide from the builder to the API, with the sample XDR decoded (#694)                                          | #706   | [`b07b884`](https://github.com/artisam-paiflow/paiflow/commit/b07b884958a959c05564d3c28f8efced5432542f) |
+| 2026-09-28 | docs(instawards): D3 is complete on the book's home page, and week 4 has its own row (#697)                                                | #705   | [`ee0ee47`](https://github.com/artisam-paiflow/paiflow/commit/ee0ee475bb5cc5f0796630c1bbd73a96ae3b9b5a) |
+| 2026-09-28 | docs(instawards): the transaction list, every settlement and deployment on stellar.expert, generated from the snapshots (#695)             | #704   | [`1d1f6ab`](https://github.com/artisam-paiflow/paiflow/commit/1d1f6ab9eed6b57414fdc768ad564bf99f86088d) |
+| 2026-09-28 | docs(instawards): the week-4 demo video's script, shot list and test data (#693)                                                           | #703   | [`f01fc83`](https://github.com/artisam-paiflow/paiflow/commit/f01fc83349e551901dc1541b870617cd6f21c670) |
+| 2026-09-28 | test(e2e): the three deliverables end to end on one deployment of the public app (#692)                                                    | #702   | [`314023d`](https://github.com/artisam-paiflow/paiflow/commit/314023da5d377b95ff1d984a9f2bf62c9c13b614) |
+| 2026-09-28 | fix(api): classify a /api/v1 simulation revert by its class, not its details; report the build on /api/health (#553)                       | #701   | [`67f4c04`](https://github.com/artisam-paiflow/paiflow/commit/67f4c04c8f8950d1097539ffa111352177893fdf) |
+| 2026-09-28 | docs(api): working links on the published guide, accurate audit wording, the canonical host, and docs links on the API access panel (#553) | #700   | [`311fff4`](https://github.com/artisam-paiflow/paiflow/commit/311fff45e7790a57e63b4b0f46e8521b036cb8a7) |
+| 2026-09-28 | fix(stellar): name the asset and issuer when a payout fails on a missing trustline (#574)                                                  | #699   | [`fd6d095`](https://github.com/artisam-paiflow/paiflow/commit/fd6d095d699f5b5d2b2828e37b15b42312997c50) |
+
 ## Week 3 — 21–27 September 2026
 
 D3: the Swapper panel rebuilt on four shared input components, with one swap rule set and error
