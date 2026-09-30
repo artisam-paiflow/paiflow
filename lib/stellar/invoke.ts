@@ -74,16 +74,12 @@ export async function prepareDistributeTx(opts: {
   });
 }
 
-export async function prepareWebhookExecuteInvocation(opts: {
+export function webhookExecuteOperation(opts: {
   contractAddress: string;
   from: string;
   amount: string;
-  relayerAddress: string;
   auth?: string[];
-}): Promise<PreparedInvokeTx> {
-  const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.relayerAddress);
-
+}): xdr.Operation {
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
   const fromScVal = new Address(opts.from).toScVal();
@@ -100,7 +96,20 @@ export async function prepareWebhookExecuteInvocation(opts: {
   const sorobanAuth =
     opts.auth?.map((a) => xdr.SorobanAuthorizationEntry.fromXDR(a, "base64")) ?? [];
 
-  const op = Operation.invokeHostFunction({ func: hostFunction, auth: sorobanAuth });
+  return Operation.invokeHostFunction({ func: hostFunction, auth: sorobanAuth });
+}
+
+export async function prepareWebhookExecuteInvocation(opts: {
+  contractAddress: string;
+  from: string;
+  amount: string;
+  relayerAddress: string;
+  auth?: string[];
+}): Promise<PreparedInvokeTx> {
+  const server = sorobanRpc();
+  const sourceAcct = await server.getAccount(opts.relayerAddress);
+
+  const op = webhookExecuteOperation(opts);
 
   const tx = new TransactionBuilder(sourceAcct, {
     fee: BASE_FEE,
@@ -160,14 +169,10 @@ export async function prepareWebhookDepositInvocation(opts: {
   return { xdr: assembled.toXDR(), tx: assembled };
 }
 
-export async function prepareWebhookEscrowInvocation(opts: {
+export function webhookEscrowOperation(opts: {
   contractAddress: string;
   amount?: string;
-  relayerAddress: string;
-}): Promise<PreparedInvokeTx> {
-  const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.relayerAddress);
-
+}): xdr.Operation {
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
 
@@ -183,7 +188,18 @@ export async function prepareWebhookEscrowInvocation(opts: {
     }),
   );
 
-  const op = Operation.invokeHostFunction({ func: hostFunction });
+  return Operation.invokeHostFunction({ func: hostFunction });
+}
+
+export async function prepareWebhookEscrowInvocation(opts: {
+  contractAddress: string;
+  amount?: string;
+  relayerAddress: string;
+}): Promise<PreparedInvokeTx> {
+  const server = sorobanRpc();
+  const sourceAcct = await server.getAccount(opts.relayerAddress);
+
+  const op = webhookEscrowOperation(opts);
 
   const tx = new TransactionBuilder(sourceAcct, {
     fee: BASE_FEE,

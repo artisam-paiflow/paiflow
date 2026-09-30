@@ -282,18 +282,10 @@ export type BuildRelayerTxOptions = {
   presimulated?: rpc.Api.SimulateTransactionSuccessResponse;
 };
 
-function relayerAuthIndexes(
-  entries: xdr.SorobanAuthorizationEntry[],
-  relayerAddress: string,
-): number[] {
-  const out: number[] = [];
-  entries.forEach((entry, i) => {
-    const creds = entry.credentials();
-    if (creds.switch().name !== "sorobanCredentialsAddress") return;
-    const who = Address.fromScAddress(creds.address().address()).toString();
-    if (who === relayerAddress) out.push(i);
-  });
-  return out;
+function credentialAddress(entry: xdr.SorobanAuthorizationEntry): string | null {
+  const creds = entry.credentials();
+  if (creds.switch().name !== "sorobanCredentialsAddress") return null;
+  return Address.fromScAddress(creds.address().address()).toString();
 }
 
 /**
@@ -339,35 +331,37 @@ export async function buildRelayerTx(opts: BuildRelayerTxOptions): Promise<Trans
     return assembled;
   }
 
-  const sim1 = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim1)) throw opts.onSimulationError(sim1.error);
-
+  // Simulate with no auth attached so the RPC records every address that must
+  // authorize, the relayer included. On the relayer lane an implicit
+  // source-account credential covers `relayer.require_auth()`; here it does
+  // not, so a caller-supplied list (a webhook's user-signed entry for `from`)
+  // cannot be simulated as-is: it would fail for the missing relayer entry.
   const envelope = tx.toEnvelope();
   const invokeOp = envelope.v1().tx().operations()[0]?.body().invokeHostFunctionOp();
   if (!invokeOp) {
     throw new AppError("INTERNAL", "Relayer channel transactions must be a single contract call");
   }
-  // A caller-supplied auth list (a webhook's user-signed entries) wins; the
-  // simulation only fills in an empty one.
-  const supplied = invokeOp.auth();
-  const entries = supplied.length > 0 ? supplied : (sim1.result?.auth ?? []);
+  const supplied = [...invokeOp.auth()];
+  invokeOp.auth([]);
+  const sim1 = await server.simulateTransaction(new Transaction(envelope, passphrase));
+  if (rpc.Api.isSimulationError(sim1)) throw opts.onSimulationError(sim1.error);
+
   const relayerAddress = channel.relayerSigner.publicKey();
-  const toSign = new Set(relayerAuthIndexes(entries, relayerAddress));
-  if (toSign.size > 0) {
-    const validUntil = sim1.latestLedger + AUTH_LEDGER_MARGIN;
-    const signed: xdr.SorobanAuthorizationEntry[] = [];
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i]!;
-      signed.push(
-        toSign.has(i)
-          ? await authorizeEntry(entry, channel.relayerSigner, validUntil, passphrase)
-          : entry,
+  const validUntil = sim1.latestLedger + AUTH_LEDGER_MARGIN;
+  const finalAuth: xdr.SorobanAuthorizationEntry[] = [];
+  for (const recorded of sim1.result?.auth ?? []) {
+    const who = credentialAddress(recorded);
+    if (who !== null && who === relayerAddress) {
+      finalAuth.push(await authorizeEntry(recorded, channel.relayerSigner, validUntil, passphrase));
+    } else {
+      // Another address: use the caller's already-signed entry for it if there
+      // is one, otherwise keep the unsigned recording and let simulation reject it.
+      finalAuth.push(
+        supplied.find((e) => who !== null && credentialAddress(e) === who) ?? recorded,
       );
     }
-    invokeOp.auth(signed);
-  } else if (supplied.length === 0) {
-    invokeOp.auth(entries);
   }
+  invokeOp.auth(finalAuth);
 
   const authorized = new Transaction(envelope, passphrase);
   const sim2 = await server.simulateTransaction(authorized);

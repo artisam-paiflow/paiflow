@@ -16,6 +16,7 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 import { horizon, sorobanRpc, withRelayerLock } from "@/lib/stellar/client";
+import { buildRelayerTx, withRelayerChannel } from "@/lib/stellar/relayer-channels";
 import {
   offRampTreasuryAddress,
   stellarPassphrase,
@@ -116,48 +117,28 @@ async function buildAndSendByRelayer(
   args: xdr.ScVal[],
 ): Promise<PendingTx> {
   const server = sorobanRpc();
-  const kp = relayerKeypair();
 
-  // Serialize account-load -> sign -> submit against the shared relayer account
-  // so concurrent invocations in this process don't race the same sequence
-  // number (txBadSeq). See withRelayerLock for its in-process-only scope.
-  const send = await withRelayerLock(async () => {
-    let sourceAcct;
-    try {
-      sourceAcct = await server.getAccount(kp.publicKey());
-    } catch {
-      throw new AppError(
-        "INSUFFICIENT_FUNDS",
-        `Relayer account ${kp.publicKey()} is not funded or does not exist`,
-      );
-    }
-
-    const op = Operation.invokeContractFunction({
-      contract: contractAddress,
-      function: functionName,
-      args,
+  // One channel for the whole build -> sign -> send; on the relayer lane this
+  // is the single lock it always was (see withRelayerChannel).
+  const send = await withRelayerChannel(async (channel) => {
+    const signed = await buildRelayerTx({
+      channel,
+      operation: Operation.invokeContractFunction({
+        contract: contractAddress,
+        function: functionName,
+        args,
+      }),
+      onSimulationError: (message) =>
+        new AppError(
+          "UPSTREAM_RPC",
+          `${functionName}() simulation failed for ${contractAddress}: ${message}`,
+        ),
     });
-
-    const tx = new TransactionBuilder(sourceAcct, {
-      fee: BASE_FEE,
-      networkPassphrase: stellarPassphrase(),
-    })
-      .addOperation(op)
-      .setTimeout(180)
-      .build();
-
-    const sim = await server.simulateTransaction(tx);
-    if (rpc.Api.isSimulationError(sim)) {
-      throw new AppError(
-        "UPSTREAM_RPC",
-        `${functionName}() simulation failed for ${contractAddress}: ${sim.error}`,
-      );
-    }
-
-    const assembled = rpc.assembleTransaction(tx, sim).build();
-    assembled.sign(kp);
-
-    return server.sendTransaction(assembled);
+    const sent = await server.sendTransaction(signed);
+    // Finality is awaited by the caller, outside the lock; the next holder of
+    // this channel waits for it before building.
+    if (sent.status !== "ERROR") channel.trackPending(sent.hash);
+    return sent;
   });
 
   if (send.status === "ERROR") {
@@ -403,42 +384,24 @@ export async function deployCashOutDevByRelayer(opts: {
     string(opts.bankCode ?? ""),
   ];
 
-  // Serialize account-load -> sign -> submit against the shared relayer account.
-  const send = await withRelayerLock(async () => {
-    let sourceAcct;
-    try {
-      sourceAcct = await server.getAccount(kp.publicKey());
-    } catch {
-      throw new AppError(
-        "INSUFFICIENT_FUNDS",
-        `Relayer account ${kp.publicKey()} is not funded or does not exist`,
-      );
-    }
-
-    const op = Operation.createCustomContract({
-      address: new Address(kp.publicKey()),
-      wasmHash: Buffer.from(wasmHash, "hex"),
-      salt,
-      constructorArgs: args,
+  // The deployer address in the preimage and the constructor's relayer argument
+  // are the relayer, not the transaction source. On a channel the relayer's
+  // deployer authorization becomes a signed address-credential entry.
+  const send = await withRelayerChannel(async (channel) => {
+    const signed = await buildRelayerTx({
+      channel,
+      operation: Operation.createCustomContract({
+        address: new Address(kp.publicKey()),
+        wasmHash: Buffer.from(wasmHash, "hex"),
+        salt,
+        constructorArgs: args,
+      }),
+      onSimulationError: (message) =>
+        new AppError("UPSTREAM_RPC", `CASH_OUT_DEV deploy simulation failed: ${message}`),
     });
-
-    const tx = new TransactionBuilder(sourceAcct, {
-      fee: BASE_FEE,
-      networkPassphrase: stellarPassphrase(),
-    })
-      .addOperation(op)
-      .setTimeout(180)
-      .build();
-
-    const sim = await server.simulateTransaction(tx);
-    if (rpc.Api.isSimulationError(sim)) {
-      throw new AppError("UPSTREAM_RPC", `CASH_OUT_DEV deploy simulation failed: ${sim.error}`);
-    }
-
-    const assembled = rpc.assembleTransaction(tx, sim).build();
-    assembled.sign(kp);
-
-    return server.sendTransaction(assembled);
+    const sent = await server.sendTransaction(signed);
+    if (sent.status !== "ERROR") channel.trackPending(sent.hash);
+    return sent;
   });
 
   if (send.status === "ERROR") {
@@ -612,6 +575,8 @@ export async function depositNativeToProvider(opts: {
   let builtTxHash: string | undefined;
 
   try {
+    // Relayer-source lane, not a channel: a classic payment whose source is the
+    // treasury account itself (there is no Soroban auth entry to move to a channel).
     const submitResult = await withRelayerLock(async () => {
       const account = await server.loadAccount(source);
       const tx = new TransactionBuilder(account, {
@@ -683,7 +648,9 @@ export async function refundFromTreasury(opts: {
   const kp = relayerKeypair();
   const server = sorobanRpc();
 
-  // Serialize account-load -> sign -> submit against the shared relayer account.
+  // Stays on the relayer-source lane, not a channel: this moves the treasury's
+  // own funds out of the relayer account, so the relayer stays the transaction
+  // source and its authorization stays the envelope signature. Low volume.
   const send = await withRelayerLock(async () => {
     let sourceAcct;
     try {
