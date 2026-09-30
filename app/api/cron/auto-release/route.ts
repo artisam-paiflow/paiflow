@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withErrorHandler } from "@/lib/errors";
+import { log } from "@/lib/log";
 import { requireCronSecret } from "@/lib/auth/cron-secret";
+import { CRON_LIMITS } from "@/lib/cron/config";
+import { CRON_SKIPPED_REASON, withCronLease } from "@/lib/cron/lease";
 import { runAutoRelease } from "@/lib/timelock-release";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +15,14 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     requireCronSecret(req);
-    return NextResponse.json({ data: await runAutoRelease() });
+    const lease = await withCronLease("auto-release", CRON_LIMITS.autoRelease.ttlMs, () =>
+      runAutoRelease(),
+    );
+    if (!lease.acquired) {
+      log.info("auto-release cron skipped: previous run still active");
+      return NextResponse.json({ data: { skipped: CRON_SKIPPED_REASON } });
+    }
+    return NextResponse.json({ data: lease.value });
   });
 }
 

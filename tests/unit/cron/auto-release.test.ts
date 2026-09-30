@@ -14,7 +14,24 @@ vi.mock("@/lib/stellar/relayer", () => ({
 }));
 vi.mock("@/lib/stellar/client", () => ({ withRelayerLock: mockLock }));
 
+const { leaseStore } = vi.hoisted(() => ({ leaseStore: new Map<string, string>() }));
+vi.mock("@/lib/redis", () => ({
+  redis: () => ({
+    set: async (key: string, value: string) => {
+      if (leaseStore.has(key)) return null;
+      leaseStore.set(key, value);
+      return "OK";
+    },
+    eval: async (_script: string, _n: number, key: string, id: string) => {
+      if (leaseStore.get(key) !== id) return 0;
+      leaseStore.delete(key);
+      return 1;
+    },
+  }),
+}));
+
 import { POST } from "@/app/api/cron/auto-release/route";
+import { cronDeadline } from "@/lib/cron/deadline";
 import {
   classifySimulationError,
   runAutoRelease,
@@ -106,6 +123,7 @@ describe("cron/auto-release", () => {
     mockSimulate.mockReset();
     mockSend.mockReset();
     mockLock.mockClear();
+    leaseStore.clear();
     await cleanup();
   });
   afterAll(cleanup);
@@ -324,6 +342,42 @@ describe("cron/auto-release", () => {
     await runAutoRelease();
 
     expect(mockSimulate).not.toHaveBeenCalled();
+  });
+
+  it("with an expired budget probes nothing, leaves the row due, and reports truncated", async () => {
+    const { address } = await makeTimelockDeployment({ unlockAt: past() });
+    mockSimulate.mockResolvedValue(okSim);
+    mockSend.mockResolvedValue({ status: "SUCCESS", txHash: "tx1", ledger: 100 });
+
+    const summary = await runAutoRelease(new Date(), cronDeadline(0));
+
+    expect(summary).toMatchObject({ discovered: 1, released: 0, details: [], truncated: true });
+    expect(mockSimulate).not.toHaveBeenCalled();
+    const row = await db.timelockRelease.findUniqueOrThrow({ where: { contractAddress: address } });
+    expect(row.leaseUntil).toBeNull();
+
+    const next = await runAutoRelease();
+    expect(next).toMatchObject({ released: 1, truncated: false });
+  });
+
+  it("returns skipped and does no work while the previous run holds the lease", async () => {
+    const { address } = await makeTimelockDeployment({ unlockAt: past() });
+    leaseStore.set("cron:auto-release", "previous-run");
+
+    const res = await POST(new NextRequest("http://localhost/api/cron/auto-release"));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ data: { skipped: "previous run still active" } });
+    expect(mockSimulate).not.toHaveBeenCalled();
+    expect(await db.timelockRelease.findUnique({ where: { contractAddress: address } })).toBeNull();
+    expect(leaseStore.get("cron:auto-release")).toBe("previous-run");
+  });
+
+  it("takes the lease for a run and releases it afterwards", async () => {
+    const res = await POST(new NextRequest("http://localhost/api/cron/auto-release"));
+
+    expect((await res.json()).data).toMatchObject({ truncated: false });
+    expect(leaseStore.has("cron:auto-release")).toBe(false);
   });
 });
 

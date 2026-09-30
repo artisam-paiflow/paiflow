@@ -4,6 +4,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
 import { withRelayerLock } from "@/lib/stellar/client";
+import { cronDeadline, type CronDeadline } from "@/lib/cron/deadline";
+import { CRON_LIMITS } from "@/lib/cron/config";
 import { sendReleaseByRelayer, simulateReleaseByRelayer } from "@/lib/stellar/relayer";
 
 /**
@@ -66,6 +68,8 @@ export type AutoReleaseSummary = {
   skipped: number;
   failed: number;
   details: AutoReleaseDetail[];
+  /** True when the run stopped at its time budget with due timelocks unprobed. */
+  truncated: boolean;
 };
 
 const SnapshotNodeSchema = z.object({
@@ -396,7 +400,10 @@ async function probe(row: TimelockRelease, now: Date): Promise<AutoReleaseDetail
   }
 }
 
-export async function runAutoRelease(now: Date = new Date()): Promise<AutoReleaseSummary> {
+export async function runAutoRelease(
+  now: Date = new Date(),
+  deadline: CronDeadline = cronDeadline(CRON_LIMITS.autoRelease.budgetMs),
+): Promise<AutoReleaseSummary> {
   let discovered = 0;
   try {
     discovered = await discoverTimelocks(now);
@@ -407,7 +414,17 @@ export async function runAutoRelease(now: Date = new Date()): Promise<AutoReleas
 
   const due = await selectDueTimelocks(now);
   const details: AutoReleaseDetail[] = [];
+  let truncated = false;
   for (const row of due) {
+    // Unprobed rows stay unclaimed, so the next run finds them still due.
+    if (deadline.expired()) {
+      truncated = true;
+      log.warn(
+        { budgetMs: deadline.budgetMs, probed: details.length, due: due.length },
+        "auto-release: out of time; the rest waits for the next run",
+      );
+      break;
+    }
     // A run can take minutes; backoff and leases are measured from each probe.
     details.push(await probe(row, new Date(Math.max(now.getTime(), Date.now()))));
   }
@@ -418,5 +435,6 @@ export async function runAutoRelease(now: Date = new Date()): Promise<AutoReleas
     skipped: details.filter((d) => d.status === "skipped").length,
     failed: details.filter((d) => d.status === "failed").length,
     details,
+    truncated,
   };
 }
