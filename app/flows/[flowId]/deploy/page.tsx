@@ -6,12 +6,7 @@ import Topbar from "@/components/app/topbar";
 import { FlowGraphSchema, type Asset, type FlowGraph, assetLabel } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToEnglish } from "@/lib/flows/english";
-import {
-  flowToPipeline,
-  getStreamerPreviewFromPipeline,
-  getSubscriptionPreviewFromPipeline,
-  getPayrollPreviewFromPipeline,
-} from "@/lib/flows/to-params";
+import { deployPreviewFromGraph } from "@/lib/flows/deploy-preview";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
 import { payoutRecipients } from "@/lib/flows/payout-recipients";
 import { checkPayoutTrustlines } from "@/lib/stellar/trustline-check";
@@ -74,10 +69,7 @@ export default async function DeployReviewPage({
   const isSubscriptionTrigger = graph.data!.nodes.some((n) => n.type === "subscription");
   const isPayrollTrigger = graph.data!.nodes.some((n) => n.type === "payroll");
   if (pipeline) {
-    const sp =
-      getStreamerPreviewFromPipeline(flowToPipeline(graph.data!)) ??
-      getSubscriptionPreviewFromPipeline(flowToPipeline(graph.data!)) ??
-      getPayrollPreviewFromPipeline(flowToPipeline(graph.data!));
+    const sp = deployPreviewFromGraph(graph.data!);
     if (sp) {
       const triggerNode = graph.data!.nodes.find(
         (n) => n.type === "on_schedule" || n.type === "subscription" || n.type === "payroll",
