@@ -1,6 +1,9 @@
 import {
   DemoTokenSchema,
   EXECUTE_PREREQUISITES,
+  PayoutPrepareSchema,
+  PayoutPreparedSchema,
+  PayoutSubmitSchema,
   ExecutePrepareSchema,
   ExecutePreparedSchema,
   ExecuteSubmitQuerySchema,
@@ -44,6 +47,12 @@ const XLM_SAC_TESTNET = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYS
 const USDC_SAC_TESTNET = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
 
 export const examples = {
+  payoutRequest: {
+    amount: "1000000000",
+    from: EXAMPLE_FROM,
+    recipient: EXAMPLE_FROM,
+    nodeId: "pay",
+  },
   executeRequest: { amount: "1000000000", from: EXAMPLE_FROM },
   executeResponse: {
     data: {
@@ -328,6 +337,10 @@ export const openApiDocument = {
   servers: [{ url: "https://paiflow.xyz", description: "Public instance (Stellar testnet)" }],
   tags: [
     {
+      name: "Payouts",
+      description: "Coordinate immediate deposits to one mutable Pay with a per-payment recipient.",
+    },
+    {
       name: "Execute",
       description: "Run a deposit-triggered flow: prepare, sign on your side, submit.",
     },
@@ -353,6 +366,87 @@ export const openApiDocument = {
     },
   ],
   paths: {
+    "/api/v1/deployments/{id}/payouts": {
+      post: {
+        tags: ["Payouts"],
+        operationId: "preparePayout",
+        summary: "Prepare a deposit with a per-payment recipient",
+        description: [
+          PayoutPrepareSchema.description,
+          "Requires a confirmed deposit-triggered dev flow and one selected PAYER_DEV. Only immediate paths through amount conditions and fixed Split are supported. Current on-chain connectivity and values are checked against the deployed graph. Split must have zero token and accumulated balances, a fixed crypto roster and a deposit greater than its total; it forwards the surplus immediately and resets its accumulator. Percentage Split, shortfalls, delayed/unsupported paths and deposits that miss this Pay are refused.",
+          "For fillValueViaApi, Pay is set to 100%. Otherwise its current configured value is preserved: percentage must consume all incoming funds, or fixed incoming funds must be at most its fixed cap (Pay pays min(incoming, cap)). Pay must start with zero balance. Recipient account/trustline checks must succeed before mutation; unchanged configuration skips the relayer transaction.",
+          "Requires functioning Redis. Concurrent preparation returns CONFLICT. Coordination records retain uncertain configuration transactions and the exact prepared deposit through finality or ledger-time expiry; wall-clock expiry does not release protection. Sign this xdr and post it to payouts/submit using the same token. Direct deposits, execute, legacy dev mutations and owner transactions bypass this coordination. Never flush payout coordination records while transactions may still land.",
+          rate(V1_RATE_LIMITS.payouts, "per token"),
+        ].join("\n\n"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        requestBody: {
+          required: true,
+          content: json(
+            { $ref: "#/components/schemas/PayoutPrepareRequest" },
+            examples.payoutRequest,
+          ),
+        },
+        responses: {
+          "200": {
+            description: "Sign the unsigned envelope with from.",
+            content: json(dataEnvelope("#/components/schemas/PayoutPrepared"), {
+              data: { ...examples.executeResponse.data, nodeId: "pay" },
+            }),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "INSUFFICIENT_FUNDS",
+            "NOT_FOUND",
+            "CONFLICT",
+            "VALIDATION",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+          ),
+        },
+      },
+    },
+    "/api/v1/deployments/{id}/payouts/submit": {
+      post: {
+        tags: ["Payouts"],
+        operationId: "submitPayout",
+        summary: "Submit exactly the prepared payout",
+        description: [
+          PayoutSubmitSchema.description,
+          "The hash must match the exact prepared deposit for this deployment and API token. Changing amount, source, operations, bounds or authorization entries is refused; add envelope signatures only. Fee-bump envelopes are refused. PENDING or uncertain RPC outcomes retain recipient protection. Confirmed finality releases only this holder, never a newer payout's protection. A network submission refusal can return FAILED while protection remains until finality or ledger-time expiry. Retry the same signedXdr to obtain status; final retries remain available for seven days. An expired unconfirmed envelope cannot be resubmitted after a successor acquires protection.",
+          rate(V1_RATE_LIMITS.payoutsSubmit, "per token"),
+        ].join("\n\n"),
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          deploymentIdParam,
+          {
+            name: "wait",
+            in: "query",
+            required: false,
+            description: `Default true: bounded wait, as execute/submit; false answers PENDING immediately. At most ${V1_WAIT_SLOTS.perToken} concurrent waits per token.`,
+            schema: { type: "string", enum: ["true", "false"], default: "true" },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: json(
+            { $ref: "#/components/schemas/PayoutSubmitRequest" },
+            examples.submitRequest,
+          ),
+        },
+        responses: {
+          "200": {
+            description:
+              "SUCCESS, PENDING or FAILED; retries are idempotent on the exact prepared hash.",
+            content: json(
+              dataEnvelope("#/components/schemas/ExecuteSubmitted"),
+              examples.submitSuccess,
+            ),
+          },
+          ...errors("UNAUTHENTICATED", "NOT_FOUND", "VALIDATION", "RATE_LIMITED", "UPSTREAM_RPC"),
+        },
+      },
+    },
     "/api/v1/deployments/{id}/execute": {
       post: {
         tags: ["Execute"],
@@ -754,6 +848,61 @@ export const openApiDocument = {
                 description: "Raw technical detail, e.g. a Soroban simulation diagnostic.",
               },
             },
+          },
+        },
+      },
+      PayoutPrepareRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["amount", "from", "recipient"],
+        description: PayoutPrepareSchema.description,
+        properties: {
+          amount: {
+            type: "string",
+            pattern: "^\\d{1,39}$",
+            description:
+              "Positive integer stroops, bounded by i128 and the selected percentage payment's multiplication range.",
+          },
+          from: {
+            type: "string",
+            pattern: "^G[A-Z2-7]{55}$",
+            description: executeShape.from.description,
+          },
+          recipient: {
+            type: "string",
+            pattern: "^G[A-Z2-7]{55}$",
+            description: PayoutPrepareSchema.shape.recipient.description,
+          },
+          nodeId: {
+            type: "string",
+            minLength: 1,
+            maxLength: 128,
+            description: PayoutPrepareSchema.shape.nodeId.description,
+          },
+        },
+      },
+      PayoutPrepared: {
+        description: PayoutPreparedSchema.description,
+        allOf: [
+          { $ref: "#/components/schemas/ExecutePrepared" },
+          {
+            type: "object",
+            required: ["nodeId"],
+            properties: { nodeId: { type: "string", description: "The selected Pay node." } },
+          },
+        ],
+      },
+      PayoutSubmitRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["signedXdr"],
+        description: PayoutSubmitSchema.description,
+        properties: {
+          signedXdr: {
+            type: "string",
+            minLength: 10,
+            maxLength: 200000,
+            description: "Exactly the prepared deposit with envelope signatures added.",
           },
         },
       },

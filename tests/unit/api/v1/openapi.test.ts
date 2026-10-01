@@ -20,6 +20,9 @@ import {
   DemoTokenSchema,
   CreateApiTokenSchema,
   CreatedApiTokenSchema,
+  PayoutPrepareSchema,
+  PayoutPreparedSchema,
+  PayoutSubmitSchema,
   ExecutePrepareSchema,
   ExecutePreparedSchema,
   ExecuteSubmitSchema,
@@ -105,6 +108,9 @@ describe("OpenAPI document", () => {
   });
 
   const parses: Array<[string, z.ZodTypeAny, unknown]> = [
+    ["payout request", PayoutPrepareSchema, examples.payoutRequest],
+    ["payout response", PayoutPreparedSchema, { ...examples.executeResponse.data, nodeId: "pay" }],
+    ["payout submit", PayoutSubmitSchema, examples.submitRequest],
     ["execute request", ExecutePrepareSchema, examples.executeRequest],
     ["execute response", ExecutePreparedSchema, examples.executeResponse.data],
     ["submit request", ExecuteSubmitSchema, examples.submitRequest],

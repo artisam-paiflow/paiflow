@@ -7,6 +7,8 @@
  * front (#433), so the per-IP cap alone is not a ceiling the route relies on. */
 export const V1_RATE_LIMITS = {
   execute: { limit: 30, windowSeconds: 60 },
+  payouts: { limit: 10, windowSeconds: 60 },
+  payoutsSubmit: { limit: 30, windowSeconds: 60 },
   executeSubmit: { limit: 30, windowSeconds: 60 },
   releaseBefore: { limit: 10, windowSeconds: 60 },
   events: { limit: 120, windowSeconds: 60 },

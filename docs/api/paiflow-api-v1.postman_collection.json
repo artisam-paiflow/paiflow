@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Paiflow API v1",
-    "description": "Execute a deployed deposit-triggered flow and poll its events. Fill in the collection variables `deploymentId`, `apiToken` (minted by the deployment's owner in the API access panel), `from` and `amount`.\n\nThe API never signs. Run **Prepare execute**, sign the `unsignedXdr` variable it stores with the `from` key on your side (`stellar tx sign --sign-with-key S… --network testnet`), paste the result into `signedXdr`, then run **Submit execute**. Guide: docs/api/README.md in the repository.",
+    "description": "Execute a deployed deposit-triggered flow and poll its events. Fill in the collection variables `deploymentId`, `apiToken` (minted by the deployment's owner in the API access panel), `from` and `amount`.\n\nThe API never signs. Run **Prepare execute**, sign the `unsignedXdr` variable it stores with the `from` key on your side (`stellar tx sign --sign-with-key S\u2026 --network testnet`), paste the result into `signedXdr`, then run **Submit execute**. Guide: docs/api/README.md in the repository.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -50,6 +50,16 @@
     {
       "key": "cursor",
       "value": ""
+    },
+    {
+      "key": "recipient",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payoutNodeId",
+      "value": "pay",
+      "type": "string"
     }
   ],
   "item": [
@@ -166,7 +176,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"openapi\": \"3.1.0\",\n  \"info\": {\n    \"title\": \"Paiflow API v1\"\n  },\n  \"…\": \"…\"\n}"
+          "body": "{\n  \"openapi\": \"3.1.0\",\n  \"info\": {\n    \"title\": \"Paiflow API v1\"\n  },\n  \"\u2026\": \"\u2026\"\n}"
         }
       ]
     },
@@ -247,7 +257,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"data\": {\n    \"xdr\": \"AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAAAAAAAAAAAABmxy2kAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB…(truncated)\",\n    \"networkPassphrase\": \"Test SDF Network ; September 2015\",\n    \"network\": \"testnet\",\n    \"expiresAt\": \"2026-09-15T09:03:00.000Z\"\n  }\n}"
+          "body": "{\n  \"data\": {\n    \"xdr\": \"AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAAAAAAAAAAAABmxy2kAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB\u2026(truncated)\",\n    \"networkPassphrase\": \"Test SDF Network ; September 2015\",\n    \"network\": \"testnet\",\n    \"expiresAt\": \"2026-09-15T09:03:00.000Z\"\n  }\n}"
         },
         {
           "name": "401 Unauthorized",
@@ -641,6 +651,318 @@
             }
           ],
           "body": "{\n  \"data\": {\n    \"items\": [\n      {\n        \"id\": \"0c9d7a3e-5b1f-4e2a-8d6c-7f4b3a2e1d0c\",\n        \"eventId\": \"0007915171594088448-0000000001\",\n        \"kind\": \"RECEIVE\",\n        \"topic\": \"deposit\",\n        \"ledger\": 1842917,\n        \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n        \"occurredAt\": \"2026-09-15T09:00:12.000Z\",\n        \"data\": {\n          \"from\": \"GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY\",\n          \"amount\": \"1000000000\"\n        }\n      },\n      {\n        \"id\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n        \"eventId\": \"0007915171594088448-0000000004\",\n        \"kind\": \"PAYOUT\",\n        \"topic\": \"swap\",\n        \"ledger\": 1842917,\n        \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n        \"occurredAt\": \"2026-09-15T09:00:12.000Z\",\n        \"data\": {\n          \"assetIn\": \"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC\",\n          \"assetOut\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n          \"amountIn\": \"1000000000\",\n          \"amountOut\": \"105594796\"\n        }\n      }\n    ],\n    \"nextCursor\": \"MTg0MjkxN3wwMDA3OTE1MTcxNTk0MDg4NDQ4LTAwMDAwMDAwMDQ\",\n    \"hasMore\": false\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Prepare payout",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\",\n  \"recipient\": \"{{recipient}}\",\n  \"nodeId\": \"{{payoutNodeId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns an unsigned envelope', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const { data } = pm.response.json();",
+              "  pm.expect(data.xdr).to.be.a('string');",
+              "  pm.collectionVariables.set('unsignedXdr', data.xdr);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\",\n  \"recipient\": \"{{recipient}}\",\n  \"nodeId\": \"{{payoutNodeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"xdr\": \"AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAAAAAAAAAAAABmxy2kAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB\\u2026(truncated)\",\n    \"networkPassphrase\": \"Test SDF Network ; September 2015\",\n    \"network\": \"testnet\",\n    \"expiresAt\": \"2026-09-15T09:03:00.000Z\",\n    \"nodeId\": \"pay\"\n  }\n}"
+        },
+        {
+          "name": "401 Unauthorized",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\",\n  \"recipient\": \"{{recipient}}\",\n  \"nodeId\": \"{{payoutNodeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination."
+          },
+          "status": "Unauthorized",
+          "code": 401,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"A valid API token for this deployment is required\"\n  }\n}"
+        },
+        {
+          "name": "422 Validation",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\",\n  \"recipient\": \"{{recipient}}\",\n  \"nodeId\": \"{{payoutNodeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination."
+          },
+          "status": "Unprocessable Entity",
+          "code": 422,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"error\": {\n    \"code\": \"VALIDATION\",\n    \"message\": \"Invalid input\",\n    \"fields\": {\n      \"amount\": [\n        \"Must be a whole number of stroops\"\n      ]\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Submit payout",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts/submit",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts", "submit"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Only the exact prepared deposit for this deployment and token is accepted, with envelope signatures added. Retry the same signedXdr on PENDING. Protection remains through uncertain outcomes and can only be replaced after finality or ledger-time expiry. Final retries cannot release newer holders."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('reports the outcome', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const { data } = pm.response.json();",
+              "  pm.expect(['SUCCESS', 'PENDING', 'FAILED']).to.include(data.status);",
+              "  pm.collectionVariables.set('txHash', data.txHash);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "200 SUCCESS",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts", "submit"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Only the exact prepared deposit for this deployment and token is accepted, with envelope signatures added. Retry the same signedXdr on PENDING. Protection remains through uncertain outcomes and can only be replaced after finality or ledger-time expiry. Final retries cannot release newer holders."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"status\": \"SUCCESS\",\n    \"ledger\": 1842917\n  }\n}"
+        },
+        {
+          "name": "200 PENDING",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts", "submit"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Only the exact prepared deposit for this deployment and token is accepted, with envelope signatures added. Retry the same signedXdr on PENDING. Protection remains through uncertain outcomes and can only be replaced after finality or ledger-time expiry. Final retries cannot release newer holders."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"status\": \"PENDING\"\n  }\n}"
+        },
+        {
+          "name": "200 FAILED",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts", "submit"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Only the exact prepared deposit for this deployment and token is accepted, with envelope signatures added. Retry the same signedXdr on PENDING. Protection remains through uncertain outcomes and can only be replaced after finality or ledger-time expiry. Final retries cannot release newer holders."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"status\": \"FAILED\",\n    \"ledger\": 1842917,\n    \"error\": {\n      \"code\": \"txTooLate\",\n      \"message\": \"The transaction's 180-second window expired before it reached the network. Prepare it again.\"\n    }\n  }\n}"
         }
       ]
     }
