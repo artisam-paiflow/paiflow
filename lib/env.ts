@@ -281,6 +281,9 @@ const EnvSchema = z.object({
   STELLAR_SOROSWAP_ROUTER_TESTNET: optionalContractAddress,
   STELLAR_SOROSWAP_ROUTER_MAINNET: optionalContractAddress,
 
+  // Local event provisioning only; never set this on the Paiflow service.
+  HACKATHON_ORGANISER_SECRET: optionalString,
+
   // ---- Relayer ----
   // Used for auto-releasing timelock contracts and for signing webhook
   // trigger transactions. Optional; when unset the admin address is used
@@ -579,4 +582,14 @@ export function offRampPdaxDepositConfig(): {
     address: e[addressKey] as string | undefined,
     memo: e[memoKey] as string | undefined,
   };
+}
+
+/** Script-only config: no app database/auth configuration is needed. */
+export function hackathonOrganiserSecret(): string {
+  if (process.env.STELLAR_NETWORK !== "testnet")
+    throw new Error("STELLAR_NETWORK must explicitly be testnet");
+  const secret = process.env.HACKATHON_ORGANISER_SECRET;
+  if (!secret || !StrKey.isValidEd25519SecretSeed(secret))
+    throw new Error("HACKATHON_ORGANISER_SECRET must be a valid testnet organiser key");
+  return secret;
 }
