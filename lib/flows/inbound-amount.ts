@@ -62,6 +62,8 @@ function consumption(node: FlowNode): bigint | "variable" | "none" {
     case "swap":
     case "yield":
     case "cash_out":
+    case "return_to_owner":
+    case "hold":
       return "variable";
     // A gate can stop the flow outright, so nothing past it is guaranteed.
     case "condition":

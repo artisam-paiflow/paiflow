@@ -1,3 +1,5 @@
+import { StrKey } from "@stellar/stellar-sdk";
+import { DEPLOYING_WALLET, resolveOwnerReturns, terminalOutcomeIssues } from "./terminal-outcomes";
 import { TemplateKind } from "@prisma/client";
 import type {
   ActionNode,
@@ -661,7 +663,21 @@ export function flowToPipeline(
   graph: FlowGraph,
   relayerAddress?: string,
   treasuryAddress?: string,
+  options: { ownerAddress?: string; forValidation?: boolean } = {},
 ): PipelineNode[] {
+  const outcomeIssues = terminalOutcomeIssues(graph);
+  if (outcomeIssues.length) throw new Error(outcomeIssues[0]!.message);
+  const ownerReturns = new Set(
+    graph.nodes.filter((n) => n.type === "return_to_owner").map((n) => n.id),
+  );
+  if (
+    ownerReturns.size &&
+    !options.forValidation &&
+    !StrKey.isValidEd25519PublicKey(options.ownerAddress ?? "")
+  ) {
+    throw new Error("Return to owner requires the deploying wallet address");
+  }
+  graph = resolveOwnerReturns(graph, options.ownerAddress ?? DEPLOYING_WALLET);
   const trigger = graph.nodes.find(isTrigger)!;
   const actions = graph.nodes.filter(isAction);
   // In flow order, not canvas order: every consumer of contractActions[0]
@@ -1003,24 +1019,41 @@ export function flowToPipeline(
   const branchActions: ContractActionNode[] = [];
   for (const cond of conditions) {
     if (cond.config.kind === "time_after" || cond.config.kind === "time_before") {
-      // Always the two-outcome timelock, never the older single-list one: a
-      // side left empty is refused by validateFlow (TIMELOCK_EMPTY_SIDE)
-      // rather than stranding the funds. Contracts already deployed as
-      // TIMELOCK are untouched.
       const ts = Math.floor(new Date(cond.config.at).getTime() / 1000);
       const targets = conditionBranchTargets(graph, cond.id);
       const { beforeNodeIds, afterNodeIds } = timelockLists(cond.config.kind, targets);
-      pipeline.push({
-        nodeId: cond.id,
-        templateKind: TemplateKind.TIMELOCK_BRANCH,
-        params: {
-          kind: "timelock_branch",
-          asset,
-          unlockTime: ts,
-          beforeNodeIds,
-          afterNodeIds,
-        },
-      });
+      const holds = beforeNodeIds.some(
+        (id) => graph.nodes.find((n) => n.id === id)?.type === "hold",
+      );
+      if (holds && afterNodeIds.length !== 1)
+        throw new Error("Hold requires one after destination");
+      pipeline.push(
+        holds
+          ? {
+              nodeId: cond.id,
+              templateKind: TemplateKind.TIMELOCK,
+              params: {
+                kind: "timelock",
+                asset,
+                unlockTime: ts,
+                mode: "after",
+                nextStepNodeIds: afterNodeIds,
+                relayer: relayerAddress,
+              },
+            }
+          : {
+              nodeId: cond.id,
+              templateKind: TemplateKind.TIMELOCK_BRANCH,
+              params: {
+                kind: "timelock_branch",
+                asset,
+                unlockTime: ts,
+                beforeNodeIds,
+                afterNodeIds,
+                relayer: relayerAddress,
+              },
+            },
+      );
       for (const id of [...beforeNodeIds, ...afterNodeIds]) {
         const node = graph.nodes.find((n) => n.id === id);
         if (node && isContractAction(node)) branchActions.push(node);
@@ -1109,7 +1142,7 @@ export function flowToPipeline(
           synthesized.action,
           trigger,
           children,
-          devMode,
+          devMode && !ownerReturns.has(current.id),
           relayerAddress,
           treasuryAddress,
         ),

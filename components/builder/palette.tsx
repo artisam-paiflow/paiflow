@@ -37,6 +37,18 @@ type Template = {
 
 export const TEMPLATES: Template[] = [
   {
+    group: "Actions",
+    label: "Hold",
+    icon: "lock",
+    make: () => ({ id: makeId("hold"), type: "hold", config: {} }),
+  },
+  {
+    group: "Actions",
+    label: "Return to owner",
+    icon: "undo",
+    make: () => ({ id: makeId("return"), type: "return_to_owner", config: {} }),
+  },
+  {
     group: "Triggers",
     label: "On Receive",
     icon: "toll",

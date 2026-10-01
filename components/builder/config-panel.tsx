@@ -1427,6 +1427,13 @@ export default function ConfigPanel({
         </>
       )}
 
+      {(node.type === "hold" || node.type === "return_to_owner") && (
+        <p className="text-on-surface-variant text-body-sm">
+          {node.type === "hold"
+            ? "Connect Hold to the before side of a time condition. Funds stay strictly locked until the deadline, then follow the after destination. Early release is impossible."
+            : "Returns 100% of the incoming amount to the wallet that signs deployment. The recipient is resolved during preparation and stays immutable, including in dev mode. Connect directly after an amount, time, or multisig condition."}
+        </p>
+      )}
       {node.type === "email_notify" && (
         <>
           <EmailRecipientsField

@@ -335,6 +335,10 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
           } as FlowNode);
           break;
         }
+        case "hold":
+        case "return_to_owner":
+          nodes.push({ id, type, config: {} });
+          break;
         case "pay": {
           const mode = (data.mode === "percentage" ? "percentage" : "fixed") as
             | "fixed"

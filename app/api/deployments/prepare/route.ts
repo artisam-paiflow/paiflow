@@ -92,7 +92,9 @@ export async function POST(req: NextRequest) {
       throw new AppError("VALIDATION", SWAP_ROUTER_UNSET_MESSAGE);
     }
 
-    const pipeline = flowToPipeline(v.graph, relayerAddress, offRampTreasuryAddress());
+    const pipeline = flowToPipeline(v.graph, relayerAddress, offRampTreasuryAddress(), {
+      ownerAddress: body.sourceAccount,
+    });
     // Second line behind the graph check above: the contract kinds actually
     // being deployed, the way the sandbox guard reads every pipeline node.
     assertNoHiddenSurfaces(

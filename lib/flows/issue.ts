@@ -10,6 +10,7 @@ export type ValidationIssueCode =
   | SwapIssueCode
   | "ROUTER_EMPTY_PATH"
   | "TIMELOCK_EMPTY_SIDE"
+  | "TERMINAL_OUTCOME"
   | "BRANCH_NOT_SUPPORTED"
   | "BRANCH_FAN_OUT"
   | "BRANCH_EMAIL"

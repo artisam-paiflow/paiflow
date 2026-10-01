@@ -1,3 +1,5 @@
+import { DEPLOYING_WALLET, resolveOwnerReturns } from "./terminal-outcomes";
+import { timelockLists } from "./branches";
 import { shortAddr, formatStroops } from "@/lib/utils";
 import type {
   Asset,
@@ -65,6 +67,8 @@ function describeCondition(c: Extract<FlowNode, { type: "condition" }>, asset?: 
 
 function describeAction(action: ContractActionNode, trigger: TriggerNode): string {
   if (action.type === "pay") {
+    if (action.config.recipient === DEPLOYING_WALLET)
+      return "return the full incoming amount to the deploying wallet (resolved when preparing deployment)";
     const who = isApiFillAddress(action.config.recipient)
       ? "(recipient set via API)"
       : needsAddress(action.config.recipient)
@@ -144,6 +148,10 @@ function describeBranch(
   }
   const parts: string[] = [];
   for (const id of targetIds) {
+    if (graph.nodes.find((n) => n.id === id)?.type === "hold") {
+      parts.push("keep the funds strictly locked until the deadline");
+      continue;
+    }
     const reachable = new Set<string>();
     const stack = [id];
     while (stack.length) {
@@ -162,6 +170,11 @@ function describeBranch(
 }
 
 export function flowToEnglish(graph: FlowGraph): string {
+  try {
+    graph = resolveOwnerReturns(graph, DEPLOYING_WALLET);
+  } catch {
+    return "(incomplete flow)";
+  }
   const trigger = graph.nodes.find(isTrigger);
   const action = inFlowOrder(graph, graph.nodes.filter(isContractAction))[0];
   const condition = graph.nodes.find(isLogic);
@@ -253,6 +266,10 @@ export function flowToEnglish(graph: FlowGraph): string {
     if (isAmountCondition(condition)) {
       const test = branchAmountText(condition.config, "true", ` ${assetLabel(conditionAsset)}`);
       return `${triggerText}: if the amount is ${test}, ${onTrue}; otherwise, ${onFalse}${emailTail}.`;
+    }
+    const lists = timelockLists(condition.config.kind, targets);
+    if (lists.beforeNodeIds.some((id) => graph.nodes.find((n) => n.id === id)?.type === "hold")) {
+      return `${triggerText}: keep the funds strictly locked until the deadline; no early release is possible. At or after the deadline, ${describeBranch(graph, lists.afterNodeIds, condition.config.kind === "time_after" ? "true" : "false", trigger)}${emailTail}.`;
     }
     // The timelock holds the money and picks a side when it is released, so
     // the preview says who can release and when, not only what each side pays.

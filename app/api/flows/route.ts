@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     if (!v.ok) {
       throw new AppError("VALIDATION", "Invalid flow graph", issuesToFields(v.errors));
     }
-    const pipeline = flowToPipeline(v.graph);
+    const pipeline = flowToPipeline(v.graph, undefined, undefined, { forValidation: true });
 
     const flow = await db.flow.create({
       data: {

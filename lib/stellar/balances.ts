@@ -2,6 +2,7 @@ import "server-only";
 import type { Deployment, TemplateKind } from "@prisma/client";
 import type { Asset, FlowGraph } from "@/lib/flows/schema";
 import { assetLabel, isContractAction } from "@/lib/flows/schema";
+import { DEPLOYING_WALLET, resolveOwnerReturns } from "@/lib/flows/terminal-outcomes";
 import { inFlowOrder } from "@/lib/flows/graph";
 import { log } from "@/lib/log";
 import { fetchTokenBalance } from "./balance";
@@ -58,7 +59,8 @@ function isBalanceHolding(kind: TemplateKind): boolean {
  * actions. For swapper flows the flow asset is assetIn.
  */
 function getFlowAsset(graph: FlowGraph): Asset | null {
-  const action = inFlowOrder(graph, graph.nodes.filter(isContractAction))[0];
+  const resolved = resolveOwnerReturns(graph, DEPLOYING_WALLET);
+  const action = inFlowOrder(resolved, resolved.nodes.filter(isContractAction))[0];
   if (!action) return null;
   if (action.type === "swap") return action.config.assetIn;
   return action.config.asset;
