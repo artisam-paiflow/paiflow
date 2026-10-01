@@ -27,6 +27,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "dev-token:create": "tsx scripts/create-dev-api-token.ts",
+    "hackathon:wallets": "tsx --conditions=react-server scripts/hackathon-wallets.ts",
     "testers:seed-sql": "tsx scripts/seed-testers.ts",
     "testers:seed-flow-sql": "tsx scripts/seed-tester-flows.ts",
     "api:openapi": "tsx scripts/print-openapi.ts > docs/api/openapi.json && prettier --write docs/api/openapi.json",
