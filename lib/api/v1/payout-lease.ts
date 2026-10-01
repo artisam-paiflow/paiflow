@@ -29,10 +29,14 @@ export type PayoutLeaseRecord = z.infer<typeof RecordSchema>;
 const LEASE_MS = 45_000;
 const keyFor = (id: string) => `v1:payout:${id}`;
 const historyKey = (id: string, hash: string) => `v1:payout:${id}:tx:${hash}`;
-const conflict = () =>
+const conflict = (tx?: PayoutTransaction) =>
   new AppError(
     "CONFLICT",
     "Another payout is preparing or can still execute; submit its prepared envelope or retry after finality",
+    undefined,
+    undefined,
+    // Advisory only: a successor still needs proof of finality or ledger-time expiry.
+    tx ? Math.max(1, Math.ceil(Number(tx.maxTime) - Date.now() / 1000)) : undefined,
   );
 const unavailable = () =>
   new AppError("UPSTREAM_RPC", "Payout coordination requires functioning Redis; try again");
@@ -85,8 +89,8 @@ export async function acquirePayoutLease(deploymentId: string, tokenId: string) 
     const previous = decode(raw);
     if (previous.deploymentId !== deploymentId) throw unavailable();
     const tx = previous.deposit ?? previous.configTx;
-    if (previous.stage === "preparing" && previous.ownerExpires > Date.now()) throw conflict();
-    if (tx && !(await payoutTransactionFinished(tx))) throw conflict();
+    if (previous.stage === "preparing" && previous.ownerExpires > Date.now()) throw conflict(tx);
+    if (tx && !(await payoutTransactionFinished(tx))) throw conflict(tx);
     if (previous.stage === "ready" && !previous.deposit) throw unavailable();
     if (Number(await safely(() => c.eval(REPLACE, 1, key, raw, JSON.stringify(record)))) !== 1)
       throw conflict();

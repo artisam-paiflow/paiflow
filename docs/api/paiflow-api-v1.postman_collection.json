@@ -678,7 +678,7 @@
             }
           }
         },
-        "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination."
+        "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination. Payout deposits expire after 60 seconds; execute keeps 180 seconds. Sign and submit before expiresAt. A 409 includes Retry-After when a held transaction is known: seconds until maxTime, rounded up (minimum 1). It is advisory; ledger-time expiry or finality is still required and a retry may return 409 again."
       },
       "event": [
         {
@@ -721,7 +721,7 @@
                 }
               }
             },
-            "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination."
+            "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination. Payout deposits expire after 60 seconds; execute keeps 180 seconds. Sign and submit before expiresAt. A 409 includes Retry-After when a held transaction is known: seconds until maxTime, rounded up (minimum 1). It is advisory; ledger-time expiry or finality is still required and a retry may return 409 again."
           },
           "status": "OK",
           "code": 200,
@@ -758,7 +758,7 @@
                 }
               }
             },
-            "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination."
+            "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination. Payout deposits expire after 60 seconds; execute keeps 180 seconds. Sign and submit before expiresAt. A 409 includes Retry-After when a held transaction is known: seconds until maxTime, rounded up (minimum 1). It is advisory; ledger-time expiry or finality is still required and a retry may return 409 again."
           },
           "status": "Unauthorized",
           "code": 401,
@@ -795,7 +795,7 @@
                 }
               }
             },
-            "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination."
+            "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination. Payout deposits expire after 60 seconds; execute keeps 180 seconds. Sign and submit before expiresAt. A 409 includes Retry-After when a held transaction is known: seconds until maxTime, rounded up (minimum 1). It is advisory; ledger-time expiry or finality is still required and a retry may return 409 again."
           },
           "status": "Unprocessable Entity",
           "code": 422,
@@ -807,6 +807,47 @@
             }
           ],
           "body": "{\n  \"error\": {\n    \"code\": \"VALIDATION\",\n    \"message\": \"Invalid input\",\n    \"fields\": {\n      \"amount\": [\n        \"Must be a whole number of stroops\"\n      ]\n    }\n  }\n}"
+        },
+        {
+          "name": "409 Payout held",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\",\n  \"recipient\": \"{{recipient}}\",\n  \"nodeId\": \"{{payoutNodeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination. Payout deposits expire after 60 seconds; execute keeps 180 seconds. Sign and submit before expiresAt. A 409 includes Retry-After when a held transaction is known: seconds until maxTime, rounded up (minimum 1). It is advisory; ledger-time expiry or finality is still required and a retry may return 409 again."
+          },
+          "status": "Conflict",
+          "code": 409,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Retry-After",
+              "value": "60"
+            }
+          ],
+          "body": "{\n  \"error\": {\n    \"code\": \"CONFLICT\",\n    \"message\": \"Another payout is preparing or can still execute; submit its prepared envelope or retry after finality\"\n  }\n}"
         }
       ]
     },

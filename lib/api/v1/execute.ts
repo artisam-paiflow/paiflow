@@ -150,7 +150,7 @@ export function assertDepositEnvelope(signedXdr: string, triggerAddress: string)
   return parsed;
 }
 
-/** The transaction's `maxTime` — prepare sets `setTimeout(180)` (CLAUDE.md §7.2). */
+/** The transaction's `maxTime` — execute uses 180 seconds; payout deposits use 60. */
 export function envelopeExpiresAt(unsignedXdr: string): string {
   const tx = TransactionBuilder.fromXDR(unsignedXdr, stellarPassphrase());
   const max = Number((tx as Transaction).timeBounds?.maxTime ?? 0);

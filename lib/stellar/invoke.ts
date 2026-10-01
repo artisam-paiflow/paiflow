@@ -267,6 +267,7 @@ export async function prepareDepositInvocation(opts: {
   contractAddress: string;
   amount: string;
   invokerAddress: string;
+  timeoutSeconds?: 60 | 180;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
   const sourceAcct = await server.getAccount(opts.invokerAddress);
@@ -291,7 +292,7 @@ export async function prepareDepositInvocation(opts: {
     networkPassphrase: stellarPassphrase(),
   })
     .addOperation(op)
-    .setTimeout(180)
+    .setTimeout(opts.timeoutSeconds ?? 180)
     .build();
 
   const sim = await server.simulateTransaction(tx);
