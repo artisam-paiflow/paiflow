@@ -1,4 +1,4 @@
-Generated from pinkraft `hackathon` @ b5e7491. Testnet only.
+Generated from pinkraft `hackathon` @ 18b89d56625ef562ea9b0458f6ccc6d19f0f6efe. Testnet only.
 
 # 1. What Paiflow is
 
@@ -118,7 +118,7 @@ Email is a flow setting, not a block: optional `notify: { mode, sendTo }`, with 
 
 # 3. Hosted pages
 
-Use the organiser-provided Paiflow testnet origin for every URL below. `deploymentId` is the deployment UUID, not a flow id or `C…` contract address. These pages require a confirmed deployment with the appropriate contract type; an unavailable page returns 404.
+Use `https://beta.app.paiflow.xyz` as the Paiflow testnet origin for every URL below. `deploymentId` is the deployment UUID, not a flow id or `C…` contract address. These pages require a confirmed deployment with the appropriate contract type; an unavailable page returns 404.
 
 | Page      | URL shape                           | What the team's app uses it for                                                                                                                                                                                                                                                                                               |
 | --------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -181,10 +181,10 @@ Submission data has `txHash`, `status: "SUCCESS" | "PENDING" | "FAILED"`, option
 
 ### Copy-paste curl
 
-Run from a trusted terminal, not from a browser. Set the origin given by organisers and your real deployment UUID/token/customer public key. `jq` constructs JSON safely. No secret seed is used in these calls.
+Run from a trusted terminal, not from a browser. Set the Paiflow testnet origin shown below and your real deployment UUID/token/customer public key. `jq` constructs JSON safely. No secret seed is used in these calls.
 
 ```bash
-export PAIFLOW='https://YOUR-ORGANISER-TESTNET-HOST'
+export PAIFLOW='https://beta.app.paiflow.xyz'
 export DEPLOYMENT_ID='YOUR-DEPLOYMENT-UUID'
 export PAIFLOW_TOKEN='pfk_YOUR_64_LOWERCASE_HEX_CHARACTERS'
 export FROM='YOUR_CUSTOMER_PUBLIC_G_ADDRESS'
@@ -206,7 +206,7 @@ curl -sS --fail-with-body -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/ex
 
 ### Copy-paste TypeScript fetch
 
-The following implementation belongs in the starter's server-only module. All six operations below use this helper. Use the organiser's testnet origin as `PAIFLOW_BASE_URL` in your own app's server configuration. The error class retains status and retry information; callers must handle these rather than retrying every error.
+The following implementation belongs in the starter's server-only module. All six operations below use this helper. Set `PAIFLOW_BASE_URL=https://beta.app.paiflow.xyz` in your own app's server configuration. The error class retains status and retry information; callers must handle these rather than retrying every error.
 
 ```ts
 import "server-only";
@@ -261,16 +261,23 @@ async function call<T>(
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  const result = (await response.json()) as { data: T } | { error: ApiFailure };
+  const requestId = response.headers.get("x-request-id");
+  const unexpected = `Unexpected Paiflow HTTP ${response.status}${requestId ? ` (x-request-id: ${requestId})` : ""}`;
+  let result: { data: T } | { error: ApiFailure };
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error(unexpected);
+  }
   if ("error" in result) {
     throw new PaiflowError(
       response.status,
       result.error,
       response.headers.get("Retry-After"),
-      response.headers.get("x-request-id"),
+      requestId,
     );
   }
-  if (!response.ok) throw new Error(`Unexpected Paiflow HTTP ${response.status}`);
+  if (!response.ok) throw new Error(unexpected);
   return result.data;
 }
 export const prepareExecute = (input: { from: string; amount: string }) =>
@@ -331,7 +338,7 @@ export function listEvents(input: { cursor?: string; limit?: number; txHash?: st
 
 ## Per-payment payouts
 
-`payouts` prepares a deposit **after configuring one mutable Pay for its recipient**. Requires a confirmed deposit-triggered Dev flow and a selected `PAYER_DEV`. Body is `{ from, amount, recipient, nodeId? }`; `nodeId` is required when multiple deployed mutable Pay nodes exist. `recipient` is a valid account address, amount is positive stroops bounded by i128 (and percentage multiplication range). Account/trustline checks must succeed before recipient mutation. Preparation returns Execute's fields plus `nodeId`; its deposit has a **60-second validity window**, so sign promptly. Submit through `payouts/submit` using the same token and deployment.
+`payouts` prepares a deposit **after configuring one mutable Pay for its recipient**. Requires a confirmed deposit-triggered flow and a Pay block with **Fill value via API** on, in a Dev mode flow. Body is `{ from, amount, recipient, nodeId? }`; `nodeId` is required when multiple deployed mutable Pay nodes exist. `recipient` is a valid account address, amount is positive stroops bounded by i128 (and percentage multiplication range). Account/trustline checks must succeed before recipient mutation. Preparation returns Execute's fields plus `nodeId`; its deposit has a **60-second validity window**, so sign promptly. Submit through `payouts/submit` using the same token and deployment.
 
 Supported routes to that Pay are immediate amount conditions or fixed Split. A fixed Split must have zero token/accumulated balances, positive fixed recipients, one next step, and incoming amount greater than its fixed total; surplus reaches Pay. Percentage Split consumes everything; a shortfall accumulates; neither qualifies. Time holds, Swap and other delayed/unsupported paths are refused. Pay must have no existing pooled balance. Deferred value sets Pay to 100%; otherwise current configuration is preserved: percentage must consume all incoming funds, or incoming must not exceed a fixed cap. These checks concern the amount reaching Pay after upstream payouts.
 

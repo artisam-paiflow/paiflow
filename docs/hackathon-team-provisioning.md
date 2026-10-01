@@ -17,10 +17,14 @@ USDC per wallet. Keys never go to the Paiflow server.
    pnpm --silent testers:seed-sql --prefix team --from 1 --to 12 --pad 2 --credentials-dir hackathon-teams > /tmp/hackathon-seed.sql
    ```
 
-   Paste the SQL statement into the **hackathon service's Railway data console**. Compare
-   returned `hash_md5` values with the handouts before sharing passwords. Existing accounts
+   Paste the SQL statement into the Railway data console of the **staging environment's app service**
+   (the service serving `beta.app.paiflow.xyz`). Compare returned `hash_md5` values with
+   the organiser's verification list printed to stderr before sharing passwords. Existing accounts
    are skipped and keep their old passwords. The command refuses to overwrite existing
-   handouts; retain those files on subsequent runs. Without `--credentials-dir`, credentials
+   handouts; retain those files on subsequent runs. Each login header contains only the
+   username, password, and “Log in at https://beta.app.paiflow.xyz”; hash checks stay with
+   the organiser. With `--credentials-dir`, stderr contains usernames and `hash_md5` values,
+   without passwords. Without `--credentials-dir`, credentials
    still print to stderr; without `--pad`, numbering stays unpadded.
 
 3. Provision wallets into the same directory:

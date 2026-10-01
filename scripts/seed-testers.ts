@@ -7,7 +7,8 @@
  *
  * stdout is the SQL (hashes only — safe to paste anywhere). stderr is the one-time credential
  * list: username, generated password, and md5 of the stored hash to compare with the `hash_md5`
- * column the statement returns. With --credentials-dir, credentials go only to private files instead.
+ * column the statement returns. With --credentials-dir, passwords go only to private handouts;
+ * the username/hash_md5 verification list still prints to stderr.
  *
  * A password printed here is only a candidate until the statement returns that username with a
  * matching `hash_md5`. A username that already existed is skipped by `on conflict do nothing`,
@@ -78,25 +79,26 @@ function generatePassword(username: string): string {
   if (credentialsDir) {
     await mkdir(credentialsDir, { recursive: true, mode: 0o700 });
     for (const a of accounts) {
-      const md5 = createHash("md5").update(a.passwordHash).digest("hex");
       await writeFile(
         join(credentialsDir, `${a.username}.md`),
-        `# ${a.username}\n\nUsername: ${a.username}\nPassword: ${a.password}\nHash MD5: ${md5}\n\nUse this password only if the SQL returns this username with the matching hash_md5.\n`,
+        `# ${a.username}\n\nUsername: ${a.username}\nPassword: ${a.password}\n\nLog in at https://beta.app.paiflow.xyz\n`,
         { mode: 0o600, flag: "wx" },
       );
     }
-    process.stdout.write(sql);
-    return;
   }
   process.stdout.write(sql);
 
-  console.error("\nusername    password                    hash_md5");
+  console.error(
+    credentialsDir
+      ? "\nusername    hash_md5"
+      : "\nusername    password                    hash_md5",
+  );
   for (const a of accounts) {
     const md5 = createHash("md5").update(a.passwordHash).digest("hex");
-    console.error(`${a.username.padEnd(12)}${a.password.padEnd(28)}${md5}`);
+    console.error(`${a.username.padEnd(12)}${credentialsDir ? "" : a.password.padEnd(28)}${md5}`);
   }
   console.error(
-    "\nShown once. Hand out a password only for a username the SQL returns with this hash_md5:\n" +
+    "\nHand out a password only for a username the SQL returns with this hash_md5:\n" +
       "a username missing from the result already existed, was skipped, and keeps its old password.",
   );
 })().catch((err) => {
