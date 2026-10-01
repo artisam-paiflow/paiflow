@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { StrKey } from "@stellar/stellar-sdk";
+import { DevSplitterSchema, type DevSplitRecipient } from "@/lib/dev/schema";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -20,50 +19,7 @@ import { offRampTreasuryAddress } from "@/lib/env";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { TemplateKind } from "@prisma/client";
 
-const RecipientSchema = z
-  .object({
-    address: z
-      .string()
-      .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address")
-      .optional(),
-    label: z.string().max(64).optional(),
-    mode: z.enum(["percentage", "fixed"]),
-    bps: z.number().int().min(1).max(10_000).optional(),
-    amountStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string").optional(),
-    payoutMode: z.enum(["crypto", "fiat"]).default("crypto"),
-    bankDetail: z
-      .object({
-        accountName: z.string(),
-        accountNumber: z.string(),
-        bankCode: z.string(),
-      })
-      .optional(),
-  })
-  .refine((r) => (r.mode === "percentage" ? r.bps !== undefined : !!r.amountStroops), {
-    message: "percentage recipients need bps; fixed recipients need amountStroops",
-  })
-  .refine((r) => !(r.payoutMode === "crypto" && !r.address), {
-    message: "crypto recipients require a valid Stellar address",
-  })
-  .refine(
-    (r) => {
-      if (r.payoutMode !== "fiat") return true;
-      return (
-        !!r.bankDetail?.accountName && !!r.bankDetail?.accountNumber && !!r.bankDetail?.bankCode
-      );
-    },
-    { message: "fiat recipients require bankDetail (accountName, accountNumber, bankCode)" },
-  )
-  .refine((r) => !(r.payoutMode === "fiat" && r.mode === "percentage"), {
-    message: "fiat cash-out recipients must use fixed mode",
-  });
-
-const BodySchema = z.object({
-  nodeId: z.string().optional(),
-  recipients: z.array(RecipientSchema).min(1).max(20),
-});
-
-type Recipient = z.infer<typeof RecipientSchema>;
+type Recipient = DevSplitRecipient;
 type NormalizedRecipient = Omit<Recipient, "address"> & { address: string };
 
 /**
@@ -82,7 +38,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const rlKey = `dev-mutate:${user.id}`;
     const rl = await rateLimit(rlKey, 30, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many dev mutations");
-    const body = BodySchema.parse(await req.json());
+    const body = DevSplitterSchema.parse(await req.json());
     const d = await db.deployment.findFirst({ where: { id, ownerId: user.id } });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
     // A new fiat recipient deploys a CASH_OUT_DEV sink and queues off-ramp
