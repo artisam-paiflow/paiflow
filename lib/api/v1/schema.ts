@@ -186,3 +186,31 @@ export const DemoTokenSchema = z
   })
   .describe("A short-lived token for the shared demo deployment on testnet.");
 export type DemoToken = z.infer<typeof DemoTokenSchema>;
+
+export const PayoutPrepareSchema = ExecutePrepareSchema.extend({
+  amount: ExecutePrepareSchema.shape.amount.refine(
+    (s) => !/^\d{1,39}$/.test(s) || BigInt(s) <= (1n << 127n) - 1n,
+    "Amount exceeds the contract i128 range",
+  ),
+  recipient: z
+    .string()
+    .refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar recipient account")
+    .describe("Account paid by the selected Pay; checked before any relayer mutation."),
+  nodeId: z
+    .string()
+    .min(1)
+    .max(128)
+    .optional()
+    .describe("Select one PAYER_DEV when the pipeline contains several."),
+})
+  .strict()
+  .describe("Configure one immediate dev Pay for this recipient, then prepare its deposit.");
+export type PayoutPrepare = z.infer<typeof PayoutPrepareSchema>;
+export const PayoutPreparedSchema = ExecutePreparedSchema.extend({ nodeId: z.string() });
+export type PayoutPrepared = z.infer<typeof PayoutPreparedSchema>;
+export const PayoutSubmitSchema = ExecuteSubmitSchema.describe(
+  "Submit exactly the transaction prepared by payouts for this token and deployment, with envelope signatures added.",
+);
+export type PayoutSubmit = z.infer<typeof PayoutSubmitSchema>;
+export const PayoutSubmittedSchema = ExecuteSubmittedSchema;
+export type PayoutSubmitted = z.infer<typeof PayoutSubmittedSchema>;

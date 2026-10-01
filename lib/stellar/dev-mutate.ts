@@ -14,6 +14,7 @@ import {
   rpc,
   scValToNative,
   xdr,
+  type Transaction,
 } from "@stellar/stellar-sdk";
 import { horizon, sorobanRpc, withRelayerLock } from "@/lib/stellar/client";
 import { buildRelayerTx, withRelayerChannel } from "@/lib/stellar/relayer-channels";
@@ -109,6 +110,8 @@ function relayerKeypair(): Keypair {
   return Keypair.fromSecret(secret);
 }
 
+export type MutationCoordination = { beforeSubmit: (tx: Transaction) => Promise<void> };
+
 type PendingTx = { status: "PENDING"; txHash: string };
 
 /** Build, simulate, sign (relayer) and submit a contract invocation. */
@@ -116,6 +119,7 @@ async function buildAndSendByRelayer(
   contractAddress: string,
   functionName: string,
   args: xdr.ScVal[],
+  coordination?: MutationCoordination,
 ): Promise<PendingTx> {
   const server = sorobanRpc();
 
@@ -135,11 +139,13 @@ async function buildAndSendByRelayer(
           `${functionName}() simulation failed for ${contractAddress}: ${message}`,
         ),
     });
+    await coordination?.beforeSubmit(signed);
     const sent = await server.sendTransaction(signed);
     // Finality is awaited by the caller, outside the lock; the next holder of
     // this channel waits for it before building.
-    if (classifySend(sent).outcome === "QUEUED") channel.trackPending(sent.hash);
-    return sent;
+    if (classifySend(sent).outcome === "QUEUED")
+      channel.trackPending(coordination ? signed.hash().toString("hex") : sent.hash);
+    return coordination ? { ...sent, hash: signed.hash().toString("hex") } : sent;
   });
 
   if (send.status === "ERROR") {
@@ -157,8 +163,9 @@ async function invokeByRelayer(
   contractAddress: string,
   functionName: string,
   args: xdr.ScVal[],
+  coordination?: MutationCoordination,
 ): Promise<DevMutateResult> {
-  const { txHash } = await buildAndSendByRelayer(contractAddress, functionName, args);
+  const { txHash } = await buildAndSendByRelayer(contractAddress, functionName, args, coordination);
   const server = sorobanRpc();
 
   const deadline = Date.now() + 30_000;
@@ -253,6 +260,7 @@ async function readPayerDevPayment(contractAddress: string): Promise<{
 export async function updatePaymentByRelayer(
   contractAddress: string,
   opts: { recipient?: string; amountStroops?: string; percentageBps?: number; isCashOut?: boolean },
+  coordination?: MutationCoordination,
 ): Promise<DevMutateResult> {
   const current = await readPayerDevPayment(contractAddress);
   const recipient = opts.recipient ?? current.recipient;
@@ -265,13 +273,12 @@ export async function updatePaymentByRelayer(
   }
 
   const caller = relayerAddressOrThrow();
-  return invokeByRelayer(contractAddress, "update_payment", [
-    addr(caller),
-    addr(recipient),
-    i128(amountStroops),
-    u32(percentageBps),
-    bool(isCashOut),
-  ]);
+  return invokeByRelayer(
+    contractAddress,
+    "update_payment",
+    [addr(caller), addr(recipient), i128(amountStroops), u32(percentageBps), bool(isCashOut)],
+    coordination,
+  );
 }
 
 export function setPayerAssetByRelayer(

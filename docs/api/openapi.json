@@ -13,6 +13,10 @@
   ],
   "tags": [
     {
+      "name": "Payouts",
+      "description": "Coordinate immediate deposits to one mutable Pay with a per-payment recipient."
+    },
+    {
       "name": "Execute",
       "description": "Run a deposit-triggered flow: prepare, sign on your side, submit."
     },
@@ -38,6 +42,300 @@
     }
   ],
   "paths": {
+    "/api/v1/deployments/{id}/payouts": {
+      "post": {
+        "tags": ["Payouts"],
+        "operationId": "preparePayout",
+        "summary": "Prepare a deposit with a per-payment recipient",
+        "description": "Configure one immediate dev Pay for this recipient, then prepare its deposit.\n\nRequires a confirmed deposit-triggered dev flow and one selected PAYER_DEV. Only immediate paths through amount conditions and fixed Split are supported. Current on-chain connectivity and values are checked against the deployed graph. Split must have zero token and accumulated balances, a fixed crypto roster and a deposit greater than its total; it forwards the surplus immediately and resets its accumulator. Percentage Split, shortfalls, delayed/unsupported paths and deposits that miss this Pay are refused.\n\nFor fillValueViaApi, Pay is set to 100%. Otherwise its current configured value is preserved: percentage must consume all incoming funds, or fixed incoming funds must be at most its fixed cap (Pay pays min(incoming, cap)). Pay must start with zero balance. Recipient account/trustline checks must succeed before mutation; unchanged configuration skips the relayer transaction.\n\nRequires functioning Redis. Concurrent preparation returns CONFLICT. Coordination records retain uncertain configuration transactions and the exact prepared deposit through finality or ledger-time expiry; wall-clock expiry does not release protection. Sign this xdr and post it to payouts/submit using the same token. Direct deposits, execute, legacy dev mutations and owner transactions bypass this coordination. Never flush payout coordination records while transactions may still land.\n\nRate limit: 10 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutPrepareRequest"
+              },
+              "example": {
+                "amount": "1000000000",
+                "from": "GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY",
+                "recipient": "GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY",
+                "nodeId": "pay"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sign the unsigned envelope with from.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PayoutPrepared"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "xdr": "AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAAAAAAAAAAAABmxy2kAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB…(truncated)",
+                    "networkPassphrase": "Test SDF Network ; September 2015",
+                    "network": "testnet",
+                    "expiresAt": "2026-09-15T09:03:00.000Z",
+                    "nodeId": "pay"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "`INSUFFICIENT_FUNDS`: The `from` account does not exist on this network.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deployments/{id}/payouts/submit": {
+      "post": {
+        "tags": ["Payouts"],
+        "operationId": "submitPayout",
+        "summary": "Submit exactly the prepared payout",
+        "description": "Submit exactly the transaction prepared by payouts for this token and deployment, with envelope signatures added.\n\nThe hash must match the exact prepared deposit for this deployment and API token. Changing amount, source, operations, bounds or authorization entries is refused; add envelope signatures only. Fee-bump envelopes are refused. PENDING or uncertain RPC outcomes retain recipient protection. Confirmed finality releases only this holder, never a newer payout's protection. A network submission refusal can return FAILED while protection remains until finality or ledger-time expiry. Retry the same signedXdr to obtain status; final retries remain available for seven days. An expired unconfirmed envelope cannot be resubmitted after a successor acquires protection.\n\nRate limit: 30 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "description": "Default true: bounded wait, as execute/submit; false answers PENDING immediately. At most 3 concurrent waits per token.",
+            "schema": {
+              "type": "string",
+              "enum": ["true", "false"],
+              "default": "true"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutSubmitRequest"
+              },
+              "example": {
+                "signedXdr": "AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAAAAAAAAAAAABmxy2kAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB…(truncated)"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SUCCESS, PENDING or FAILED; retries are idempotent on the exact prepared hash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ExecuteSubmitted"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                    "status": "SUCCESS",
+                    "ledger": 1842917
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/deployments/{id}/execute": {
       "post": {
         "tags": ["Execute"],
@@ -1129,6 +1427,67 @@
                 "description": "Raw technical detail, e.g. a Soroban simulation diagnostic."
               }
             }
+          }
+        }
+      },
+      "PayoutPrepareRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["amount", "from", "recipient"],
+        "description": "Configure one immediate dev Pay for this recipient, then prepare its deposit.",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "pattern": "^\\d{1,39}$",
+            "description": "Positive integer stroops, bounded by i128 and the selected percentage payment's multiplication range."
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^G[A-Z2-7]{55}$",
+            "description": "G-address that deposits, pays the fee and signs the returned envelope."
+          },
+          "recipient": {
+            "type": "string",
+            "pattern": "^G[A-Z2-7]{55}$",
+            "description": "Account paid by the selected Pay; checked before any relayer mutation."
+          },
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Select one PAYER_DEV when the pipeline contains several."
+          }
+        }
+      },
+      "PayoutPrepared": {
+        "description": "An unsigned deposit that executes a deposit-triggered flow.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ExecutePrepared"
+          },
+          {
+            "type": "object",
+            "required": ["nodeId"],
+            "properties": {
+              "nodeId": {
+                "type": "string",
+                "description": "The selected Pay node."
+              }
+            }
+          }
+        ]
+      },
+      "PayoutSubmitRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["signedXdr"],
+        "description": "Submit exactly the transaction prepared by payouts for this token and deployment, with envelope signatures added.",
+        "properties": {
+          "signedXdr": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 200000,
+            "description": "Exactly the prepared deposit with envelope signatures added."
           }
         }
       },

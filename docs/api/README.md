@@ -527,3 +527,47 @@ The OpenAPI document is a TypeScript object in `lib/api/v1/openapi.ts`. After ch
 `pnpm api:openapi` to regenerate `docs/api/openapi.json`. `tests/unit/api/v1/openapi.test.ts` fails
 if the committed copy falls behind, if a route under `app/api/v1` has no entry, if an example stops
 matching its Zod schema, or if the Postman collection misses a v1 request.
+
+## Per-payment payouts
+
+For a deposit-triggered dev flow, `POST /api/v1/deployments/:id/payouts` accepts
+`{ "from": "G…", "amount": "1000000000", "recipient": "G…", "nodeId": "pay" }`.
+`nodeId` is optional when there is only one deployed `PAYER_DEV`. Sign the returned `xdr` with
+`from` and the supplied network passphrase, then post `{ "signedXdr": "…" }` to
+`POST /api/v1/deployments/:id/payouts/submit` with the same deployment token. The response adds
+`nodeId` to execute's preparation fields. Submission keeps execute's bounded wait, `?wait=false`,
+and `SUCCESS | PENDING | FAILED` conventions.
+
+The selected Pay must receive this deposit through immediate amount conditions or fixed Split,
+with no delayed or unsupported steps. Eligibility uses the deployed graph and current on-chain
+configuration, resolving every address through `pipelineSnapshot`. A fixed Split is accepted only
+with zero token and accumulated balances, positive fixed crypto recipients, exactly one next
+step, and an incoming deposit greater than its fixed total. It pays its roster and immediately
+forwards the surplus to the next step, resetting its accumulator. Percentage Split consumes the
+deposit; shortfalls accumulate; neither reaches the selected Pay and both are refused.
+
+If Pay uses **Fill value via API**, payouts configures it to 100%. Otherwise its current value is
+preserved. Fixed Pay pays `min(incoming, configured cap)`, so incoming must be at most that cap;
+percentage Pay must consume all incoming funds. This refers to the amount that reaches Pay after
+upstream fixed payouts. Pay must have zero existing balance. Any account/trustline refusal or
+inconclusive check blocks recipient mutation, including missing accounts for native XLM. Matching
+recipient and payment configuration skip mutation.
+
+Functioning Redis is required. A unique holder protects each deployment while preparing,
+configuring and awaiting the exact prepared deposit. Configuration hashes are saved before
+submission. A timeout, network error or `PENDING` result retains protection: another request
+cannot change the recipient until the configuration/deposit is final or a closed ledger's time
+passes its transaction validity window. **Wall-clock Redis expiry is insufficient.** `CONFLICT`
+means an earlier payout may still execute. Retry its same signed envelope rather than preparing
+another payout. Signature changes are allowed; transaction-body changes are refused. Confirmed
+retries remain available for seven days and cannot release a newer holder. A send refusal can
+return `FAILED` without releasing protection if finality is still uncertain.
+
+Coordination covers these payout endpoints only. **Direct deposits, `execute`, legacy dev mutation
+routes and owner-signed transactions bypass it** and must not run concurrently with payouts.
+Keep Redis coordination records durable; never flush or evict them while transactions can still
+land. This feature adds no coordination to those other surfaces.
+
+Maintainer staging check: run two successive payouts to different recipients and verify both
+recipient destinations and all pipeline balances. No staging transaction was performed by these
+tests.
