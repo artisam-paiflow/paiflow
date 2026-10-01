@@ -43,6 +43,7 @@ pnpm dev
 | **One unit test by name**                 | `pnpm test -- -t "<test name substring>"`                      |
 | Component tests only                      | `pnpm test --project dom`                                      |
 | As CI runs it (junit to `reports/`)       | `pnpm test:ci`                                                 |
+| Watch                                     | `pnpm test:watch`                                              |
 | E2E (boots `pnpm dev` itself)             | `pnpm test:e2e` / `pnpm test:e2e tests/e2e/happy-path.spec.ts` |
 | Screenshots (committed to `screenshots/`) | `pnpm screenshots` / `pnpm screenshots:mobile`                 |
 
@@ -65,7 +66,8 @@ CI (`.github/workflows/ci.yml`): a **node** lane (`db:generate` → `db:migrate:
 Stack and directory tree: [`README.md` → "Stack at a glance"](README.md#stack-at-a-glance) and
 [→ "Project layout"](README.md#project-layout). This repo deliberately has **no** component
 library, **no** client-state library, and **no** Server Actions — adding one is an architectural
-change; raise it first. Before adding a dependency: justify it in the PR and keep `pnpm audit` clean.
+change; raise it first. Before adding a dependency: justify it in the PR, keep `pnpm audit` clean,
+and check the README's "things people expect to find and won't" list.
 
 ---
 
@@ -135,7 +137,8 @@ your local app, never a deployed service. `update-hashes` has no `--network` fla
 `/api/deployments/[id]/events` is the only SSE handler. The other `app/api/cron/*` routes drive
 automation (charges, releases, finalization, off-ramp and streamer jobs). `poll-events` and the
 relayer crons (`auto-charge-*`, `auto-release`) run under `withCronLease()` (`lib/cron/lease.ts`,
-Redis `SET NX PX`; unguarded without Redis), take a bounded oldest-first batch, and stop at the time
+Redis `SET NX PX`; a held lease returns the normal zeroed shape with `leaseHeld: true`; unguarded
+without Redis), take a bounded oldest-first batch, and stop at the time
 budget in `lib/cron/config.ts`, reporting `truncated: true`.
 
 Rows also arrive on demand: the `/api/v1` execute submit and `tx-status` ingest what they just sent,
@@ -147,8 +150,8 @@ the cursor directly**.
 ### Other subsystems
 
 - **Fiat off-ramp** — `OffRampPayoutJob` state machine driven by `cron/process-offramp-jobs`
-  against `lib/offramp/provider.ts`; mock by default, `OFFRAMP_PROVIDER=pdax` for real. See
-  `docs/pdax-institution-api.md`.
+  against `lib/offramp/provider.ts`; mock by default, `OFFRAMP_PROVIDER=pdax` for real, with credentials stored in the DB via `/admin/offramp` (env is
+  the fallback). See `docs/pdax-institution-api.md`.
 - **Dev mode** — per-flow `devMode` swaps nodes for `_DEV` on-chain-mutable variants, filled after
   deploy via `/api/deployments/[id]/dev-*` (auth: `DevApiToken`). See
   `docs/design/2026-06-24-dev-mode-mutable-flows.md`.
@@ -218,7 +221,8 @@ Absolute via `@/*`. Order: node built-ins → external → `@/lib` → `@/compon
   `lib/prisma.ts`); don't add a second client. Use `db.$transaction` when write order matters. Never
   accept a `where` clause from user input.
 - Caching: **none at the framework level** — no `revalidateTag`, no `cache:` option; keep it that
-  way. The one deliberate cache is `lib/contract-read-cache.ts`.
+  way. Freshness after a mutation comes from re-rendering or the polling hooks in `lib/hooks/`. The
+  one deliberate cache is `lib/contract-read-cache.ts`.
 - SSE: a `ReadableStream` `Response` with `Content-Type: text/event-stream`, `Cache-Control:
 no-cache, no-transform`, `Connection: keep-alive`, a 25s heartbeat, and an `AbortSignal` cleanup
   that unsubscribes Redis. Reference: `app/api/deployments/[id]/events/route.ts`.
@@ -239,9 +243,10 @@ no-cache, no-transform`, `Connection: keep-alive`, a 25s heartbeat, and an `Abor
 - `Role.SANDBOX` is a disposable user anyone can mint, and `requireSession()` accepts it. Only
   `lib/sandbox-paths.ts` keeps it out of a route — add routes there deliberately, and never add a
   relayer-signed template kind to `SANDBOX_TEMPLATE_KINDS`.
-- `/api/cron/*` uses `requireCronSecret(req)`, never `requireSession()`. It fails **closed** in
-  production when `CRON_SECRET` is unset or under 32 chars — these routes are public in
-  `middleware.ts` and several sign with the relayer key.
+- `/api/cron/*` uses `requireCronSecret(req)` (the `x-cron-secret` header), never
+  `requireSession()`. It fails **closed** in production when `CRON_SECRET` is unset or under 32
+  chars — these routes are public in `middleware.ts` and several sign with the relayer key. Off
+  production an unset secret leaves them open, which local dev relies on.
 - Compare a presented secret with `timingSafeEqualString()` (`lib/auth/timing-safe.ts`), never
   `===`, and don't hand-roll another.
 - `/api/v1/deployments/:id/*` handlers are `v1Route({ rateLimit }, fn)` (`lib/api/v1/handler.ts`):
