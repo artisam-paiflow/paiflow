@@ -375,7 +375,7 @@ export const openApiDocument = {
           PayoutPrepareSchema.description,
           "Requires a confirmed deposit-triggered dev flow and one selected PAYER_DEV. Only immediate paths through amount conditions and fixed Split are supported. Current on-chain connectivity and values are checked against the deployed graph. Split must have zero token and accumulated balances, a fixed crypto roster and a deposit greater than its total; it forwards the surplus immediately and resets its accumulator. Percentage Split, shortfalls, delayed/unsupported paths and deposits that miss this Pay are refused.",
           "For fillValueViaApi, Pay is set to 100%. Otherwise its current configured value is preserved: percentage must consume all incoming funds, or fixed incoming funds must be at most its fixed cap (Pay pays min(incoming, cap)). Pay must start with zero balance. Recipient account/trustline checks must succeed before mutation; unchanged configuration skips the relayer transaction.",
-          "Requires functioning Redis. Concurrent preparation returns CONFLICT. Coordination records retain uncertain configuration transactions and the exact prepared deposit through finality or ledger-time expiry; wall-clock expiry does not release protection. Sign this xdr and post it to payouts/submit using the same token. Direct deposits, execute, legacy dev mutations and owner transactions bypass this coordination. Never flush payout coordination records while transactions may still land.",
+          "Requires functioning Redis. Concurrent preparation returns CONFLICT. Coordination records retain uncertain configuration transactions and the exact prepared deposit through finality or ledger-time expiry; wall-clock expiry does not release protection. Payout deposits have a 60-second validity window; execute retains 180 seconds. Sign this xdr before expiresAt and post it to payouts/submit using the same token. Direct deposits, execute, legacy dev mutations and owner transactions bypass this coordination. Never flush payout coordination records while transactions may still land.",
           rate(V1_RATE_LIMITS.payouts, "per token"),
         ].join("\n\n"),
         security: [{ bearerAuth: [] }],
@@ -403,6 +403,17 @@ export const openApiDocument = {
             "RATE_LIMITED",
             "UPSTREAM_RPC",
           ),
+          "409": {
+            ...errorResponse("`CONFLICT`: Another payout is preparing or can still execute."),
+            headers: {
+              "Retry-After": {
+                description:
+                  "Present when a held transaction is known: whole seconds until its maxTime, rounded up with a minimum of 1. Advisory only; finality or ledger-time expiry is still required, so a retry may return 409 again.",
+                schema: { type: "integer", minimum: 1 },
+                example: 60,
+              },
+            },
+          },
         },
       },
     },
