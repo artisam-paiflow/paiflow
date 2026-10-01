@@ -3,7 +3,7 @@ import { TemplateKind, type Deployment } from "@prisma/client";
 import { AppError } from "@/lib/errors";
 import { ReleaseBeforeSchema, type ReleaseBefore } from "@/lib/api/v1/schema";
 import { log } from "@/lib/log";
-import { pipelineNodesOfKind } from "@/lib/flows/pipeline-snapshot";
+import { pipelineNodesOfKind } from "@/lib/pipeline-snapshot";
 import { withRelayerChannel } from "@/lib/stellar/relayer-channels";
 import { sendReleaseByRelayer, simulateReleaseByRelayer } from "@/lib/stellar/relayer";
 import { classifySimulationError } from "@/lib/timelock-release";

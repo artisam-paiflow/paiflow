@@ -23,6 +23,11 @@ import { Role } from "@prisma/client";
 import { SANDBOX_TEMPLATE_KINDS } from "@/lib/sandbox";
 import { assertNoHiddenSurfaces, serverFeatures } from "@/lib/features";
 
+const PrepareInputSchema = z.object({
+  flowId: z.string().uuid(),
+  sourceAccount: z.string().optional(),
+});
+
 const PrepareSchema = z.object({
   flowId: z.string().uuid(),
   sourceAccount: z
@@ -36,16 +41,24 @@ export async function POST(req: NextRequest) {
     const rl = await rateLimit(`deploy:${user.id}`, 10, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many deploys");
 
-    const body = PrepareSchema.parse(await req.json());
+    const input = PrepareInputSchema.parse(await req.json());
     const network = env().STELLAR_NETWORK;
 
     const flow = await db.flow.findFirst({
-      where: { id: body.flowId, ownerId: user.id },
+      where: { id: input.flowId, ownerId: user.id },
     });
     if (!flow) throw new AppError("NOT_FOUND", "Flow not found");
 
     const parsedGraph = FlowGraphSchema.parse(migrateFlowGraph(flow.graph));
     const graph = user.role === "SANDBOX" ? sandboxNotifications(parsedGraph) : parsedGraph;
+    if (
+      graph.nodes.some((node) => node.type === "return_to_owner") &&
+      !StrKey.isValidEd25519PublicKey(input.sourceAccount ?? "")
+    ) {
+      throw new AppError("VALIDATION", "Return to owner requires the deploying wallet address");
+    }
+    const body = PrepareSchema.parse(input);
+
     // Switched-off surfaces (#722) are refused on their node here, so an old
     // flow, an AI edit or a crafted save cannot deploy a hidden block.
     const features = serverFeatures();

@@ -307,7 +307,7 @@ When a user hits "Deploy" on a flow:
    - Returns unsigned **XDR** plus the pre-computed pipeline (`nodeId`, `contractAddress`, `salt`,
      `templateKind`). `/api/deployments/prepare` stores that as `Deployment.pipelineSnapshot` — the
      durable `nodeId → contractAddress → templateKind` map everything downstream resolves through
-     (`lib/flows/pipeline-snapshot.ts`), rather than re-deriving it from the graph.
+     (`lib/pipeline-snapshot.ts`), rather than re-deriving it from the graph.
 
 2. **User signs** — Client-side via stellar-wallets-kit (Freighter, xBull, Albedo, etc.)
 

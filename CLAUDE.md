@@ -90,7 +90,7 @@ Flow.graph (JSON)
 
 `pipelineSnapshot` (`nodeId → contractAddress → templateKind`) is the durable map. Anything that
 talks to a deployed contract (event polling, balances, dev-mode mutation, relayer charges) resolves
-through `lib/flows/pipeline-snapshot.ts`, **not** by re-deriving from the graph.
+through `lib/pipeline-snapshot.ts`, **not** by re-deriving from the graph.
 `lib/flows/english.ts` renders the graph as prose for the builder's preview pane.
 
 ### Deploys go through a factory, atomically

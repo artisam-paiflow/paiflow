@@ -62,3 +62,40 @@ it("binds Return to the preparing wallet and persists the original graph", async
   });
   expect(mockDb.deployment.create.mock.calls[0]?.[0].data.graphSnapshot).toEqual(graph);
 });
+
+it.each([undefined, "PENDING:owner", "invalid"])(
+  "returns 422 VALIDATION for Return to owner with deploying wallet %s",
+  async (sourceAccount) => {
+    const payrollGraph = {
+      ...graph,
+      nodes: [
+        {
+          id: "t",
+          type: "payroll",
+          config: {
+            asset: { kind: "native" },
+            employer: SOURCE,
+            fillScheduleViaApi: false,
+            intervalAmount: 1,
+            intervalUnit: "month",
+          },
+        },
+        ...graph.nodes.slice(1),
+      ],
+    };
+    mockDb.flow.findFirst.mockResolvedValue({ id: FLOW, ownerId: "u", graph: payrollGraph });
+    const res = await POST({
+      json: async () => ({ flowId: FLOW, sourceAccount }),
+    } as unknown as import("next/server").NextRequest);
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({
+      error: {
+        code: "VALIDATION",
+        message: "Return to owner requires the deploying wallet address",
+      },
+    });
+    expect(hashes).not.toHaveBeenCalled();
+    expect(mockDb.deployment.create).not.toHaveBeenCalled();
+    expect(prepare).not.toHaveBeenCalled();
+  },
+);

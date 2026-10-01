@@ -1,3 +1,4 @@
+import "server-only";
 import { AppError } from "@/lib/errors";
 import type { TemplateKind } from "@prisma/client";
 

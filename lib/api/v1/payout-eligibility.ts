@@ -6,7 +6,7 @@ import { AppError } from "@/lib/errors";
 import { FlowGraphSchema, migrateFlowGraph } from "@/lib/flows/schema";
 import { assetsEqual } from "@/lib/flows/validate";
 import { conditionBranchTargets, routerPathBranch } from "@/lib/flows/branches";
-import { findPipelineNode } from "@/lib/flows/pipeline-snapshot";
+import { findPipelineNode } from "@/lib/pipeline-snapshot";
 import { assetContractId } from "@/lib/stellar/assets";
 import { fetchTokenBalance } from "@/lib/stellar/balance";
 import { readPayoutState } from "@/lib/stellar/payout-state";

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { FlowGraphSchema, type FlowGraph } from "@/lib/flows/schema";
-import { AppError, errorResponse } from "@/lib/errors";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToEnglish } from "@/lib/flows/english";
@@ -76,7 +75,7 @@ describe("terminal outcomes", () => {
       flowToPipeline(g, undefined, undefined, { ownerAddress: "PENDING:owner" }),
     ).toThrow(/deploying wallet/);
   });
-  it("returns VALIDATION for a dev payroll Return to owner without ownerAddress", async () => {
+  it("rejects a dev payroll Return to owner without ownerAddress with a plain Error", () => {
     const g = locked("time_after", true);
     g.nodes[0] = {
       id: "t",
@@ -89,21 +88,9 @@ describe("terminal outcomes", () => {
         intervalUnit: "month",
       },
     };
-    let failure: unknown;
-    try {
-      flowToPipeline(g, OWNER);
-    } catch (err) {
-      failure = err;
-    }
-    expect(failure).toBeInstanceOf(AppError);
-    const response = errorResponse(failure);
-    expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({
-      error: {
-        code: "VALIDATION",
-        message: "Return to owner requires the deploying wallet address",
-      },
-    });
+    expect(() => flowToPipeline(g, OWNER)).toThrow(
+      new Error("Return to owner requires the deploying wallet address"),
+    );
   });
   it("stays immutable in dev mode", () => {
     expect(prepare(locked("time_after", true))[2]?.templateKind).toBe("PAYER");
