@@ -9,6 +9,7 @@ import LiveBalances from "./live-balances";
 import ContractCallButton from "./contract-call-button";
 import SubscriptionRelayerPanel from "./subscription-relayer-panel";
 import PayrollPanel from "./payroll-panel";
+import DevValuesPanel from "./dev-values-panel";
 import ReleaseNowPanel from "./release-now-panel";
 import OffRampSenderForm from "@/components/payroll/offramp-sender-form";
 import type { FlowGraph } from "@/lib/flows/schema";
@@ -34,6 +35,7 @@ export default function DeploymentView({
   pipeline,
   templateKind,
   errorMessage,
+  canEditDevValues = false,
 }: {
   deploymentId: string;
   contractAddress: string | null;
@@ -46,6 +48,7 @@ export default function DeploymentView({
   pipeline?: Array<{ nodeId: string; contractAddress: string; templateKind: string }> | null;
   templateKind?: string | null;
   errorMessage: string | null;
+  canEditDevValues?: boolean;
 }) {
   const explorerUrl =
     contractAddress && network ? stellarExpertContractUrl(contractAddress, network) : null;
@@ -699,6 +702,13 @@ export default function DeploymentView({
               nodeIds={timelockBranchIds}
             />
           )}
+          <DevValuesPanel
+            deploymentId={deploymentId}
+            network={network}
+            graph={graph}
+            status={status}
+            canEdit={canEditDevValues}
+          />
           {status === "FAILED" ? (
             <div className="mt-md border-error/30 bg-error-container/20 flex items-start gap-2 rounded-lg border p-3">
               <span className="material-symbols-outlined text-error mt-0.5 shrink-0 text-[16px]">
