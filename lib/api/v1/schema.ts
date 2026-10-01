@@ -105,6 +105,32 @@ export const ExecuteSubmittedSchema = z
   .describe("The outcome of executing a deposit-triggered flow.");
 export type ExecuteSubmitted = z.infer<typeof ExecuteSubmittedSchema>;
 
+export const ReleaseBeforeSchema = z
+  .object({
+    nodeId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(128)
+      .optional()
+      .describe(
+        "The timelock branch to release. Required when the deployment has more than one; " +
+          "otherwise it may be omitted.",
+      ),
+  })
+  .strict()
+  .describe("Release a timelock branch's before side now (work delivered), ahead of its deadline.");
+export type ReleaseBefore = z.infer<typeof ReleaseBeforeSchema>;
+
+export const ReleasedSchema = z
+  .object({
+    nodeId: z.string().describe("The timelock branch node that was released."),
+    txHash: z.string().describe("Hash of the confirmed release transaction, hex."),
+    ledger: z.number().int().optional(),
+  })
+  .describe("A confirmed early release of a timelock branch's before side.");
+export type Released = z.infer<typeof ReleasedSchema>;
+
 /** `GET /api/v1/deployments/{id}/events` query. Every value arrives as a string. */
 export const ListEventsQuerySchema = z
   .object({

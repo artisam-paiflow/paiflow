@@ -365,6 +365,30 @@ done
 Treat the cursor as opaque. An empty `cursor=` or a cursor that has been modified gets a `422`; it
 never silently starts again from the first event.
 
+### 5. Release a timelock branch early
+
+A flow with a **timelock branch** ("pay on delivery, refund the client after the deadline") pays
+its _after_ side by itself once the deadline passes. To pay the _before_ side when the work is
+delivered, call:
+
+```bash
+curl -sS -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/release-early" \
+  -H "Authorization: Bearer $PAIFLOW_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "nodeId": "timelock-branch-1" }'
+```
+
+Nothing is signed on your side: the token authorises the call and Paiflow's relayer sends the
+release. The response returns once the transaction is final:
+`{ "data": { "nodeId": "…", "txHash": "…", "ledger": 1842917 } }`.
+
+- `nodeId` names the branch. It is required when the deployment has more than one and may be
+  omitted (or the body left empty) when it has one.
+- **After the deadline** the contract refuses the before side and you get a `422 VALIDATION`
+  ("The deadline has passed; this condition now releases to its after side automatically"). A
+  condition that holds no funds is also a `422`.
+- The deployment's owner can do the same from the **Release now** button on the deployment page.
+
 ## Errors
 
 Successful responses are `{ "data": … }`. Errors use one shape on every route:
@@ -422,6 +446,7 @@ hackathon venue's Wi-Fi) does not pay for one broken script:
 | --------------------------------------------- | --------------------------------------------------------- |
 | `POST …/execute`                              | 30 per minute                                             |
 | `POST …/execute/submit`                       | 30 per minute                                             |
+| `POST …/release-early`                        | 10 per minute                                             |
 | `GET …/events`                                | 120 per minute                                            |
 | `GET /api/v1/openapi.json`                    | 60 per minute per client IP (no token)                    |
 | `POST /api/v1/demo-token`                     | 3 per hour per client IP, 60 per hour instance-wide       |

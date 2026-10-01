@@ -9,6 +9,7 @@ import LiveBalances from "./live-balances";
 import ContractCallButton from "./contract-call-button";
 import SubscriptionRelayerPanel from "./subscription-relayer-panel";
 import PayrollPanel from "./payroll-panel";
+import ReleaseNowPanel from "./release-now-panel";
 import OffRampSenderForm from "@/components/payroll/offramp-sender-form";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { assetLabel, isTrigger } from "@/lib/flows/schema";
@@ -238,6 +239,8 @@ export default function DeploymentView({
     (n) => n.templateKind === "CASH_OUT" || n.templateKind === "CASH_OUT_DEV",
   );
   const isCashOut = !!cashOutNode;
+  const timelockBranchIds =
+    pipeline?.filter((n) => n.templateKind === "TIMELOCK_BRANCH").map((n) => n.nodeId) ?? [];
   const triggerNode = graph?.nodes.find(isTrigger);
   const pauseAllowed =
     triggerNode?.type === "on_schedule" ? (triggerNode.config.pauseAllowed ?? true) : true;
@@ -688,6 +691,13 @@ export default function DeploymentView({
             <div className="mt-md text-label-sm text-on-surface-variant font-mono">
               Pause is disabled for this stream.
             </div>
+          )}
+          {status === "CONFIRMED" && network && timelockBranchIds.length > 0 && (
+            <ReleaseNowPanel
+              deploymentId={deploymentId}
+              network={network}
+              nodeIds={timelockBranchIds}
+            />
           )}
           {status === "FAILED" ? (
             <div className="mt-md border-error/30 bg-error-container/20 flex items-start gap-2 rounded-lg border p-3">
