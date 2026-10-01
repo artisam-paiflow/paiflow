@@ -1,6 +1,6 @@
 /** Local-only organiser provisioning. Secrets never enter the Paiflow server. */
 import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { config as dotenvConfig } from "dotenv";
 import {
@@ -14,6 +14,7 @@ import {
   TransactionBuilder,
   xdr,
 } from "@stellar/stellar-sdk";
+import { z } from "zod";
 import { testerUsernames } from "@/lib/auth/tester-usernames";
 import { hackathonOrganiserSecret } from "@/lib/env";
 import {
@@ -56,7 +57,7 @@ async function balance(address: string): Promise<Balance> {
     trustline: !!line,
   };
 }
-async function send(signer: Keypair, operations: xdr.Operation[]) {
+export async function send(signer: Keypair, operations: xdr.Operation[]) {
   const a = await server.loadAccount(signer.publicKey());
   const builder = new TransactionBuilder(a, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET });
   for (const op of operations) builder.addOperation(op);
@@ -64,9 +65,33 @@ async function send(signer: Keypair, operations: xdr.Operation[]) {
   tx.sign(signer);
   try {
     await server.submitTransaction(tx);
-  } catch {
+  } catch (error: unknown) {
+    // Parse only result codes; never include the SDK error message, envelope or keys.
+    const parsed = z
+      .object({
+        response: z.object({
+          extras: z.object({
+            result_codes: z.object({
+              transaction: z
+                .string()
+                .regex(/^tx_[a-z_]+$/)
+                .optional(),
+              operations: z.array(z.string().regex(/^op_[a-z_]+$/)).optional(),
+            }),
+          }),
+        }),
+      })
+      .safeParse(error);
+    const codes = parsed.success ? parsed.data.response.extras.result_codes : undefined;
+    const details = [
+      codes?.transaction ? `transaction: ${codes.transaction}` : "",
+      codes?.operations?.length ? `operations: ${codes.operations.join(", ")}` : "",
+    ]
+      .filter(Boolean)
+      .join("; ");
     throw new ProvisionError(
-      "Transaction failed or its outcome is unknown; retry the same command to reconcile chain balances",
+      "Transaction failed or its outcome is unknown; retry the same command to reconcile chain balances" +
+        (details ? ` (${details})` : ""),
     );
   }
 }
@@ -252,12 +277,14 @@ async function main() {
     await rm(lock, { recursive: true });
   }
 }
-main().catch((error: unknown) => {
-  // SDK/network errors may carry request envelopes. Never serialize them.
-  if (error instanceof ProvisionError) console.error(error.message);
-  else
-    console.error(
-      "Provisioning stopped: network, arguments or file operation failed. Check saved handouts and retry; raw error payloads are suppressed.",
-    );
-  process.exitCode = 1;
-});
+// Keep imports side-effect-free for unit tests; tsx runs this entry point as CommonJS.
+if (process.argv[1] && basename(process.argv[1]) === "hackathon-wallets.ts")
+  main().catch((error: unknown) => {
+    // SDK/network errors may carry request envelopes. Never serialize them.
+    if (error instanceof ProvisionError) console.error(error.message);
+    else
+      console.error(
+        "Provisioning stopped: network, arguments or file operation failed. Check saved handouts and retry; raw error payloads are suppressed.",
+      );
+    process.exitCode = 1;
+  });
