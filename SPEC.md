@@ -131,14 +131,16 @@ A trigger is the root of the graph and decides **when** money moves. Exactly one
 
 An action decides **where** money goes. A flow must contain at least one.
 
-|     | Block          | Does                                                | Notes that matter                                                                                                                                              |
-| --- | -------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ●   | `pay`          | Sends to one recipient                              | Fixed amount, a percentage of what arrived, or the full amount. Supports a fiat payout mode.                                                                   |
-| ●   | `split`        | Fans out to up to 20 recipients                     | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                                                          |
-| ●   | `swap`         | Exchanges `assetIn` for `assetOut` on Soroswap      | A real DEX swap with a slippage bound; forwards the whole output to exactly one next step. See below.                                                          |
-| ●   | `email_notify` | Emails recipients when the flow pays out            | Terminal only — it must have no outgoing edges, because it moves no money and nothing can be downstream of a notification.                                     |
-| ◦   | `cash_out`     | Sends to the off-ramp treasury against bank details | The bridge out of crypto: the contract holds the destination bank account, so the payout is as immutable as the on-chain leg. Not placed directly — see below. |
-| ◦   | `yield`        | Transfers the balance to a vault address            | A plain token transfer; it does not call a vault protocol's deposit function and nothing accrues. Downstream steps are then invoked with `amount=0`.           |
+|     | Block             | Does                                                     | Notes that matter                                                                                                                                              |
+| --- | ----------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ●   | `hold`            | Strictly locks funds until a time condition deadline     | Terminal before-side marker; after side must have a destination. No early release.                                                                             |
+| ●   | `return_to_owner` | Returns the full incoming amount to the deploying wallet | Terminal after amount, time, or multisig conditions; refused after `oracle_gte`. Recipient resolves during preparation, immutable even in dev mode.            |
+| ●   | `pay`             | Sends to one recipient                                   | Fixed amount, a percentage of what arrived, or the full amount. Supports a fiat payout mode.                                                                   |
+| ●   | `split`           | Fans out to up to 20 recipients                          | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                                                          |
+| ●   | `swap`            | Exchanges `assetIn` for `assetOut` on Soroswap           | A real DEX swap with a slippage bound; forwards the whole output to exactly one next step. See below.                                                          |
+| ●   | `email_notify`    | Emails recipients when the flow pays out                 | Terminal only — it must have no outgoing edges, because it moves no money and nothing can be downstream of a notification.                                     |
+| ◦   | `cash_out`        | Sends to the off-ramp treasury against bank details      | The bridge out of crypto: the contract holds the destination bank account, so the payout is as immutable as the on-chain leg. Not placed directly — see below. |
+| ◦   | `yield`           | Transfers the balance to a vault address                 | A plain token transfer; it does not call a vault protocol's deposit function and nothing accrues. Downstream steps are then invoked with `amount=0`.           |
 
 **`cash_out` is not dragged onto the canvas.** Setting a `pay` or `split` recipient to fiat payout
 generates a cash-out contract for that recipient at deploy time. The block exists so the pipeline
@@ -176,6 +178,10 @@ for the after side, which the contract only allows at or after the deadline ("pa
 delivery, refund the client after the deadline"). A release that names the wrong side for the
 ledger time is refused, never redirected.
 
+A `hold` marker on the before side changes a time condition to a strict lock: neither the wallet nor the relayer can release early. At or after the deadline the full balance follows the after destination. Hold is absorbed into that condition and has no contract of its own.
+
+`return_to_owner` pays 100% of the incoming amount to the wallet signing deployment, never an address guessed when saving. It stays immutable in dev mode. It can follow amount, time and multisig conditions, but not `oracle_gte`, whose fixed-amount release cannot express full-balance return. Both outcomes require exactly one incoming condition edge and no outgoing edges.
+
 Every other kind has only the True output. An edge saved without a branch is the True branch.
 
 ### 3.4 Invariants
@@ -204,6 +210,7 @@ Money:
   a time condition can deploy. The deploying wallet can release at any time, and the relayer can
   release the before side on an authorised request, so who chooses the before side is a trust
   property of the flow's owner, not of the contract's counterparties.
+  Exception: with Hold on the before side, both outputs are still connected but the before marker means strict locking rather than a destination. The after side must lead to one destination; no early release is possible.
   The deadline itself belongs to the after side: `time_before` is
   strict, `time_after` inclusive.
 - Amounts are stroops as decimal strings end to end. See [`CLAUDE.md` §3.3](./CLAUDE.md#33-typescript).

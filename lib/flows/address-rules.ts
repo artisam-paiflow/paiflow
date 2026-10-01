@@ -115,6 +115,8 @@ export function addressFields(node: FlowNode): AddressField[] {
     case "web2_webhook":
     case "oracle":
     case "swap":
+    case "hold":
+    case "return_to_owner":
     case "email_notify":
     case "cash_out":
       return [];

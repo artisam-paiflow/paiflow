@@ -105,6 +105,8 @@ function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["posi
     case "split":
     case "swap":
     case "yield":
+    case "hold":
+    case "return_to_owner":
     case "email_notify":
     case "cash_out":
       type = "action";
@@ -158,6 +160,8 @@ function nodeBorderColor(n: FlowNode | undefined): string {
     case "split":
     case "swap":
     case "yield":
+    case "hold":
+    case "return_to_owner":
     case "email_notify":
       return "#ffb1c4";
     case "condition":
@@ -1103,6 +1107,10 @@ function nodeLabel(n: FlowNode | undefined): string {
       return `Payroll (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "oracle":
       return `Oracle (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+    case "hold":
+      return "Hold";
+    case "return_to_owner":
+      return "Return to owner";
     case "pay":
       return `Pay`;
     case "split":

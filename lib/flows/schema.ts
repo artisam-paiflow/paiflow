@@ -454,6 +454,17 @@ export const ConditionLogic = z.object({
   ]),
 });
 
+export const HoldAction = z.object({
+  id: z.string().min(1),
+  type: z.literal("hold"),
+  config: z.object({}).strict(),
+});
+export const ReturnToOwnerAction = z.object({
+  id: z.string().min(1),
+  type: z.literal("return_to_owner"),
+  config: z.object({}).strict(),
+});
+
 export const FlowNodeSchema = z.discriminatedUnion("type", [
   OnReceiveTrigger,
   OnScheduleTrigger,
@@ -469,6 +480,8 @@ export const FlowNodeSchema = z.discriminatedUnion("type", [
   EmailNotifyAction,
   CashOutAction,
   ConditionLogic,
+  HoldAction,
+  ReturnToOwnerAction,
 ]);
 export type FlowNode = z.infer<typeof FlowNodeSchema>;
 
@@ -564,10 +577,15 @@ export type ActionNode =
   | z.infer<typeof SwapAction>
   | z.infer<typeof YieldAction>
   | z.infer<typeof EmailNotifyAction>
-  | z.infer<typeof CashOutAction>;
+  | z.infer<typeof CashOutAction>
+  | z.infer<typeof HoldAction>
+  | z.infer<typeof ReturnToOwnerAction>;
 export type LogicNode = z.infer<typeof ConditionLogic>;
 
-export type ContractActionNode = Exclude<ActionNode, { type: "email_notify" }>;
+export type ContractActionNode = Exclude<
+  ActionNode,
+  { type: "email_notify" | "hold" | "return_to_owner" }
+>;
 
 export function isTrigger(n: FlowNode): n is TriggerNode {
   return (
@@ -586,6 +604,8 @@ export function isAction(n: FlowNode): n is ActionNode {
     n.type === "split" ||
     n.type === "swap" ||
     n.type === "yield" ||
+    n.type === "hold" ||
+    n.type === "return_to_owner" ||
     n.type === "email_notify" ||
     n.type === "cash_out"
   );

@@ -84,7 +84,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     // Save the flow
     const templateKind = v.templateKind;
-    const pipeline = flowToPipeline(v.graph);
+    const pipeline = flowToPipeline(v.graph, undefined, undefined, { forValidation: true });
 
     await db.flow.update({
       where: { id },

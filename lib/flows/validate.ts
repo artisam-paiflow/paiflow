@@ -1,3 +1,4 @@
+import { DEPLOYING_WALLET, resolveOwnerReturns, terminalOutcomeIssues } from "./terminal-outcomes";
 import { TemplateKind } from "@prisma/client";
 import { StrKey } from "@stellar/stellar-sdk";
 import {
@@ -486,7 +487,24 @@ function validateFlowStructure(rawGraph: unknown): ValidationResult {
       })),
     };
   }
-  const graph = parsed.data;
+  const originalGraph = parsed.data;
+  const outcomeIssues = terminalOutcomeIssues(originalGraph);
+  if (outcomeIssues.length) return { ok: false, errors: outcomeIssues };
+  let graph: FlowGraph;
+  try {
+    graph = resolveOwnerReturns(originalGraph, DEPLOYING_WALLET);
+  } catch {
+    return {
+      ok: false,
+      errors: [
+        {
+          path: "nodes",
+          message: "Cannot resolve Return to owner incoming asset",
+          friendlyMessage: "Connect Return to owner to a condition with an incoming asset.",
+        },
+      ],
+    };
+  }
   const errors: ValidationIssue[] = [];
   const pendingLabels = new Set<string>();
 
@@ -717,7 +735,10 @@ function validateFlowStructure(rawGraph: unknown): ValidationResult {
       if (isPendingAddress(a.config.recipient)) {
         // Fiat pay recipients get an auto-generated cash-out contract at deploy
         // time, so a pending wallet address is not required up front.
-        if (a.config.payoutMode !== "fiat") {
+        if (
+          a.config.payoutMode !== "fiat" &&
+          originalGraph.nodes.find((n) => n.id === a.id)?.type !== "return_to_owner"
+        ) {
           pendingLabels.add(a.config.recipient.slice(8) || "unnamed");
         }
       }
@@ -1317,7 +1338,7 @@ function validateFlowStructure(rawGraph: unknown): ValidationResult {
   let pipelineNodes: PipelineNode[];
   let pipeline: TemplateKind[];
   try {
-    pipelineNodes = flowToPipeline(graph);
+    pipelineNodes = flowToPipeline(originalGraph, undefined, undefined, { forValidation: true });
     pipeline = pipelineNodes.map((n) => n.templateKind);
     if (pipeline.length === 0) {
       return {
@@ -1469,5 +1490,11 @@ function validateFlowStructure(rawGraph: unknown): ValidationResult {
 
   if (errors.length) return { ok: false, errors };
 
-  return { ok: true, templateKind, pipeline, graph, pendingLabels: [...pendingLabels] };
+  return {
+    ok: true,
+    templateKind,
+    pipeline,
+    graph: originalGraph,
+    pendingLabels: [...pendingLabels],
+  };
 }

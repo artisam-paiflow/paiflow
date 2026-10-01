@@ -38,7 +38,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       const v = validateFlow(body.graph);
       if (v.ok) {
         templateKind = v.templateKind;
-        parameters = flowToPipeline(v.graph) as object;
+        parameters = flowToPipeline(v.graph, undefined, undefined, {
+          forValidation: true,
+        }) as object;
       }
       // Always save the graph even if flow validation fails (intermediate editing state).
       graph = body.graph;

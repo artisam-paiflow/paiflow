@@ -26,7 +26,15 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
   let title: string;
   let detail: string;
 
-  if (n.type === "pay") {
+  if (n.type === "hold") {
+    icon = "lock";
+    title = "Hold";
+    detail = "Strict lock until the deadline";
+  } else if (n.type === "return_to_owner") {
+    icon = "undo";
+    title = "Return to owner";
+    detail = "100% to the deploying wallet";
+  } else if (n.type === "pay") {
     icon = "payments";
     title = "Pay";
     const label = assetLabel(n.config.asset);
@@ -71,7 +79,11 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
     }
   }
 
-  const canHaveChildren = n.type !== "email_notify" && n.type !== "cash_out";
+  const canHaveChildren =
+    n.type !== "email_notify" &&
+    n.type !== "cash_out" &&
+    n.type !== "hold" &&
+    n.type !== "return_to_owner";
 
   return (
     <div
