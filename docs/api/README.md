@@ -1,8 +1,8 @@
 # Developer API
 
-Paiflow's `/api/v1` lets your backend run a deployed **swapper flow** and watch what it did on
+Paiflow's `/api/v1` lets your backend run a deployed **deposit-triggered flow** (Pay, Split, condition or swap) and watch what it did on
 chain, with no browser and no wallet integration on Paiflow's side. You send the deposit, the flow
-swaps it on a real DEX and pays the proceeds out, and you poll the events.
+runs (paying, splitting, routing or swapping on a real DEX) and you poll the events.
 
 | Artefact                  | Where                                                                                                                                                                                                                                                                                               |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -21,10 +21,16 @@ in this guide works against either host.
 
 ## How it works
 
-A swapper flow starts at its **deposit trigger**: a contract that receives `deposit(from, amount)`
-and passes the funds down the pipeline, where the swapper exchanges them and the payer forwards the
-proceeds. The swapper can't be called directly (it only accepts calls from the step before it), so
-"executing a swapper flow" means depositing into its trigger.
+A flow that starts at a **deposit trigger** can be executed: a contract that receives
+`deposit(from, amount)` and passes the funds down the pipeline (a payer forwards them, a splitter
+divides them, a condition routes them, a swapper exchanges them first). The steps after the trigger
+can't be called directly (they only accept calls from the step before them), so "executing a flow"
+means depositing into its trigger.
+
+Flows that start with anything else (a subscription, webhook, payroll, timelock or oracle trigger)
+run on their own schedule or callback, which a deposit can't start. Execute refuses them with a
+`422` naming the step the flow starts with. A Pay or Split step in a dev-mode flow that has no
+recipient yet also reverts, with a plain message: set the recipient first, then execute.
 
 The deposit has to be authorized by the account the funds come from. That's you, so executing a
 flow takes three steps:
@@ -35,7 +41,7 @@ flow takes three steps:
 3. **Submit.** `POST /api/v1/deployments/{id}/execute/submit` checks the envelope, sends it to the
    network, waits for the result and records it.
 
-Then `GET /api/v1/deployments/{id}/events` returns the deposit, swap and payout events.
+Then `GET /api/v1/deployments/{id}/events` returns the deposit and whatever the flow's later steps emit (payout, split, swap).
 
 {% hint style="info" %}
 **The API never signs.** Paiflow is non-custodial: your secret key never leaves your side and is
@@ -47,8 +53,8 @@ move funds on its own.
 
 ## Prerequisites
 
-- **A confirmed swapper deployment.** Build and deploy a flow such as `Receive XLM → Swap → Pay
-USDC` in the builder; its status must be `CONFIRMED`. Its id is in the deployment page URL
+- **A confirmed deployment whose flow starts with a deposit trigger.** Build and deploy a flow such
+  as `Receive XLM → Swap → Pay USDC` or `Receive USDC → Split` in the builder; its status must be `CONFIRMED`. Its id is in the deployment page URL
   (`/deployments/<id>`), where the **API access** panel also lives.
 - **A deployment API token**, minted by the deployment's owner (see below).
 - **A funded Stellar account** to deposit from. It pays the deposit and the transaction fee, and
@@ -400,17 +406,17 @@ Successful responses are `{ "data": … }`. Errors use one shape on every route:
 `fields` appears on validation errors. `details`, when present, carries raw technical detail such
 as a Soroban simulation diagnostic.
 
-| `code`               | HTTP | When                                                                                                                              |
-| -------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `UNAUTHENTICATED`    | 401  | Token missing, unknown, revoked, expired, or for another deployment (token management: no signed-in session)                      |
-| `INSUFFICIENT_FUNDS` | 402  | The `from` account doesn't exist on this network (prepare)                                                                        |
-| `FORBIDDEN`          | 403  | Not allowed for this caller (sandbox), or the public demo is not enabled on this instance (demo token)                            |
-| `NOT_FOUND`          | 404  | A malformed deployment id, or (execute) a deployment that isn't confirmed                                                         |
-| `CONFLICT`           | 409  | Token management only: already 10 active tokens                                                                                   |
-| `VALIDATION`         | 422  | Bad body or query; a deposit the simulation rejects; a flow that isn't a swapper flow; an envelope that isn't this flow's deposit |
-| `RATE_LIMITED`       | 429  | Too many requests in the window (see below); on the demo token, also when the instance has no shared rate limiter                 |
-| `INTERNAL`           | 500  | Unexpected server error; on the demo token, also a deliberate refusal when the demo flow is misconfigured, with the reason logged |
-| `UPSTREAM_RPC`       | 502  | The Stellar RPC call failed, or the network was too busy to accept the transaction; retry, resubmitting the same envelope         |
+| `code`               | HTTP | When                                                                                                                                              |
+| -------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `UNAUTHENTICATED`    | 401  | Token missing, unknown, revoked, expired, or for another deployment (token management: no signed-in session)                                      |
+| `INSUFFICIENT_FUNDS` | 402  | The `from` account doesn't exist on this network (prepare)                                                                                        |
+| `FORBIDDEN`          | 403  | Not allowed for this caller (sandbox), or the public demo is not enabled on this instance (demo token)                                            |
+| `NOT_FOUND`          | 404  | A malformed deployment id, or (execute) a deployment that isn't confirmed                                                                         |
+| `CONFLICT`           | 409  | Token management only: already 10 active tokens                                                                                                   |
+| `VALIDATION`         | 422  | Bad body or query; a deposit the simulation rejects; a flow that doesn't start with a deposit trigger; an envelope that isn't this flow's deposit |
+| `RATE_LIMITED`       | 429  | Too many requests in the window (see below); on the demo token, also when the instance has no shared rate limiter                                 |
+| `INTERNAL`           | 500  | Unexpected server error; on the demo token, also a deliberate refusal when the demo flow is misconfigured, with the reason logged                 |
+| `UPSTREAM_RPC`       | 502  | The Stellar RPC call failed, or the network was too busy to accept the transaction; retry, resubmitting the same envelope                         |
 
 Every response carries an `x-request-id` header. Include it when you report a problem.
 

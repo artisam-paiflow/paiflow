@@ -13,6 +13,7 @@ import {
   updateSubscriberByRelayer,
   type DevMutateResult,
 } from "@/lib/stellar/dev-mutate";
+import { graphNodeAsset, trustlineWarnings } from "@/lib/stellar/trustline-warnings";
 
 const BodySchema = z
   .object({
@@ -58,6 +59,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const node = findPipelineNode(d.pipelineSnapshot, "SUBSCRIPTION_DEV", body.nodeId);
     const addr = node.contractAddress;
 
+    // Advisory (#723): the subscriber is charged in the asset, so it must hold
+    // the trustline. Started before the writes, never rejects, never blocks them.
+    const asset = graphNodeAsset(d.graphSnapshot, node.nodeId, "subscription");
+    const warningsPromise =
+      body.subscriber && asset
+        ? trustlineWarnings([{ nodeId: node.nodeId, address: body.subscriber, asset }])
+        : Promise.resolve([]);
+
     const applied: Array<{ field: string; txHash: string }> = [];
     const fail = (label: string, r: DevMutateResult) => {
       if (r.status !== "SUCCESS") {
@@ -99,6 +108,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       metadata: { deploymentId: d.id, nodeId: node.nodeId, applied },
     });
 
-    return NextResponse.json({ data: { applied, contractAddress: addr } });
+    return NextResponse.json({
+      data: { applied, contractAddress: addr, warnings: await warningsPromise },
+    });
   });
 }

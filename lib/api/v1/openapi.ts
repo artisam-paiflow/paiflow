@@ -233,7 +233,7 @@ const DEMO_ERROR_DESCRIPTIONS: Record<ErrorCode, string> = {
   FORBIDDEN: "The public demo is not enabled on this instance.",
   RATE_LIMITED: "Too many demo tokens from this address, or the instance is at its hourly cap.",
   INTERNAL:
-    "The demo deployment is not configured, confirmed or swapper-shaped. One message for every case; the operator is alerted.",
+    "The demo deployment is not configured, confirmed or deposit-triggered. One message for every case; the operator is alerted.",
 };
 
 const errorsWith =
@@ -291,7 +291,7 @@ export const openApiDocument = {
     title: "Paiflow API v1",
     version: "1.0.0",
     description: [
-      "Execute a deployed swapper flow and poll its on-chain events from your own backend.",
+      "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.",
       "",
       "Every `/api/v1/deployments/{id}/…` call authenticates with a deployment API token " +
         "(`Authorization: Bearer pfk_…`) that the deployment's owner mints in the **API access** " +
@@ -327,7 +327,10 @@ export const openApiDocument = {
   },
   servers: [{ url: "https://paiflow.xyz", description: "Public instance (Stellar testnet)" }],
   tags: [
-    { name: "Execute", description: "Run a swapper flow: prepare, sign on your side, submit." },
+    {
+      name: "Execute",
+      description: "Run a deposit-triggered flow: prepare, sign on your side, submit.",
+    },
     {
       name: "Release",
       description:
@@ -354,13 +357,13 @@ export const openApiDocument = {
       post: {
         tags: ["Execute"],
         operationId: "prepareExecute",
-        summary: "Prepare the unsigned deposit that executes a swapper flow",
+        summary: "Prepare the unsigned deposit that executes a deposit-triggered flow",
         description: [
           ExecutePrepareSchema.description,
           "",
-          "The flow runs through its deposit trigger; the swapper executes as the next pipeline " +
-            "step. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before " +
-            "`expiresAt`, and post it to `execute/submit`. Only swapper flows can be executed.",
+          "The flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run as part of the same transaction. " +
+            "Sign the returned `xdr` with the `from` key using `networkPassphrase`, before " +
+            "`expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`. A Pay or Split step with no recipient yet (dev mode) reverts with a plain message.",
           "",
           rate(V1_RATE_LIMITS.execute, "per token"),
         ].join("\n"),

@@ -8,7 +8,7 @@ import {
   xdr,
   type Transaction,
 } from "@stellar/stellar-sdk";
-import type { Deployment } from "@prisma/client";
+import type { Deployment, TemplateKind } from "@prisma/client";
 import { AppError } from "@/lib/errors";
 import { stellarPassphrase } from "@/lib/env";
 import { log } from "@/lib/log";
@@ -18,27 +18,71 @@ import { pollEventsFor } from "@/lib/stellar/events";
 import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
 import { translateSorobanError } from "@/lib/stellar/soroban-errors";
 
-export const ONLY_SWAPPER_FLOWS =
-  "Only swapper flows can be executed through the v1 API in this release";
+export const NOT_EXECUTABLE_FLOW =
+  "Only flows that start with a deposit trigger can be executed through the v1 API";
 
-export type SwapperPipeline = {
+export type ExecutablePipeline = {
   nodes: PipelineSnapshotNode[];
   /** The deposit trigger at the head of the pipeline: the only contract execute may invoke. */
   triggerAddress: string;
 };
 
+/** How each head kind reads in a refusal; null for the one kind execute drives. Exhaustive. */
+function refusedHeadLabel(kind: TemplateKind): string | null {
+  switch (kind) {
+    case "DEPOSIT_TRIGGER":
+      return null;
+    case "SUBSCRIPTION":
+    case "SUBSCRIPTION_DEV":
+      return "subscription";
+    case "WEBHOOK":
+      return "webhook";
+    case "PAYROLL":
+      return "payroll";
+    case "ORACLE":
+      return "oracle";
+    case "TIMELOCK":
+    case "TIMELOCK_BRANCH":
+      return "timelock";
+    case "SPLITTER":
+    case "SPLITTER_DEV":
+      return "splitter";
+    case "PAYER":
+    case "PAYER_DEV":
+      return "payer";
+    case "CASH_OUT":
+    case "CASH_OUT_DEV":
+      return "cash out";
+    case "STREAMER":
+    case "CONDITIONAL":
+    case "ROUTER":
+    case "FACTORY":
+    case "MULTISIG":
+    case "SWAPPER":
+    case "YIELD":
+      return kind.toLowerCase().replaceAll("_", " ");
+    default: {
+      const unreachable: never = kind;
+      return String(unreachable);
+    }
+  }
+}
+
 /**
  * Resolve the pipeline a v1 execute runs through, from the deployment's
  * `pipelineSnapshot` rather than its graph (CLAUDE.md §2).
  *
- * The SOW scopes `/api/v1` to the swapper, and this check is what keeps that
- * true: the head must be a deposit trigger and a swapper must be downstream.
- * The swapper itself is never invoked directly — its `execute_step` requires
- * the parent's auth — so "execute" means depositing into the flow's trigger.
+ * Any confirmed flow whose head is a deposit trigger can be executed: Pay,
+ * Split, condition and swap flows all start with a deposit. Flows that start
+ * with a subscription, webhook, payroll or any other head are driven by their
+ * own schedule or callback, which a deposit cannot start, so they are refused
+ * with the head named. Downstream contracts are never invoked directly (their
+ * `execute_step` requires the parent's auth), so "execute" means depositing
+ * into the flow's trigger.
  */
-export function resolveSwapperPipeline(
+export function resolveExecutablePipeline(
   deployment: Pick<Deployment, "status" | "pipelineSnapshot">,
-): SwapperPipeline {
+): ExecutablePipeline {
   if (deployment.status !== "CONFIRMED") {
     throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
   }
@@ -46,13 +90,15 @@ export function resolveSwapperPipeline(
     ? (deployment.pipelineSnapshot as unknown as PipelineSnapshotNode[])
     : [];
   const head = nodes[0];
-  if (
-    head?.templateKind !== "DEPOSIT_TRIGGER" ||
-    !head.contractAddress ||
-    !nodes.some((n) => n.templateKind === "SWAPPER")
-  ) {
-    throw new AppError("VALIDATION", ONLY_SWAPPER_FLOWS);
+  if (!head) throw new AppError("VALIDATION", NOT_EXECUTABLE_FLOW);
+  const label = refusedHeadLabel(head.templateKind as TemplateKind);
+  if (label !== null) {
+    throw new AppError(
+      "VALIDATION",
+      `${NOT_EXECUTABLE_FLOW}. This flow starts with a ${label} step, which a deposit cannot start`,
+    );
   }
+  if (!head.contractAddress) throw new AppError("VALIDATION", NOT_EXECUTABLE_FLOW);
   return { nodes, triggerAddress: head.contractAddress };
 }
 

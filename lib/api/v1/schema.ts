@@ -43,14 +43,16 @@ export const ExecutePrepareSchema = z
       .regex(/^\d{1,39}$/, "Must be a whole number of stroops")
       // Zod still runs this after the regex fails, and BigInt("1.5") throws.
       .refine((s) => !/^\d{1,39}$/.test(s) || BigInt(s) > 0n, "Must be greater than zero")
-      .describe("Amount to deposit into the swapper flow, in stroops of its input asset."),
+      .describe(
+        "Amount to deposit into the flow's deposit trigger, in stroops of the flow's input asset.",
+      ),
     from: z
       .string()
       .refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar address")
       .describe("G-address that deposits, pays the fee and signs the returned envelope."),
   })
   .strict()
-  .describe(`Prepare the deposit that executes a swapper flow. ${EXECUTE_PREREQUISITES}`);
+  .describe(`Prepare the deposit that executes a deposit-triggered flow. ${EXECUTE_PREREQUISITES}`);
 export type ExecutePrepare = z.infer<typeof ExecutePrepareSchema>;
 
 export const ExecutePreparedSchema = z
@@ -62,7 +64,7 @@ export const ExecutePreparedSchema = z
       .string()
       .describe("ISO time after which the network refuses the envelope; prepare again."),
   })
-  .describe("An unsigned deposit that executes a swapper flow.");
+  .describe("An unsigned deposit that executes a deposit-triggered flow.");
 export type ExecutePrepared = z.infer<typeof ExecutePreparedSchema>;
 
 export const ExecuteSubmitSchema = z
@@ -77,7 +79,7 @@ export const ExecuteSubmitSchema = z
       ),
   })
   .strict()
-  .describe("Submit a signed deposit that executes a swapper flow.");
+  .describe("Submit a signed deposit that executes a deposit-triggered flow.");
 export type ExecuteSubmit = z.infer<typeof ExecuteSubmitSchema>;
 
 export const ExecuteSubmitQuerySchema = z.object({
@@ -100,7 +102,7 @@ export const ExecuteSubmittedSchema = z
     ledger: z.number().int().optional(),
     error: z.object({ code: z.string(), message: z.string() }).optional(),
   })
-  .describe("The outcome of executing a swapper flow.");
+  .describe("The outcome of executing a deposit-triggered flow.");
 export type ExecuteSubmitted = z.infer<typeof ExecuteSubmittedSchema>;
 
 export const ReleaseBeforeSchema = z

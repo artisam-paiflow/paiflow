@@ -262,16 +262,17 @@ describe("POST /api/v1/demo-token — an unusable demo deployment", () => {
     expect(mockDb.deploymentApiToken.create).not.toHaveBeenCalled();
   });
 
-  it("refuses a non-swapper pipeline without leaking the internal reason", async () => {
+  it("refuses a pipeline that does not start with a deposit trigger without leaking the internal reason", async () => {
     const { status, body } = await refusal(
       swapperDeployment({
         pipelineSnapshot: [
-          { nodeId: "trigger-1", templateKind: "DEPOSIT_TRIGGER", contractAddress: "C".repeat(56) },
-          { nodeId: "action-1", templateKind: "SPLITTER", contractAddress: "D".repeat(56) },
+          { nodeId: "trigger-1", templateKind: "SUBSCRIPTION", contractAddress: "C".repeat(56) },
+          { nodeId: "action-1", templateKind: "SWAPPER", contractAddress: "D".repeat(56) },
         ],
       }),
     );
     expect(status).toBe(500);
+    expect(JSON.stringify(body)).not.toContain("subscription");
     expect(JSON.stringify(body)).not.toContain("swapper");
     expect(JSON.stringify(body)).not.toContain("SWAPPER");
     // The operator still gets the real reason.

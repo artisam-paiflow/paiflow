@@ -25,6 +25,9 @@ const BodySchema = z.object({
  * The relayer signs the on-chain `update_bank` call, and we persist the bank
  * details into the deployment's saved graph snapshot so the event indexer can
  * snapshot them when it creates the OffRampPayoutJob.
+ *
+ * No trustline warning (#723): this sets bank details, not a wallet, and the
+ * sink pays the off-ramp treasury rather than a recipient account.
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
