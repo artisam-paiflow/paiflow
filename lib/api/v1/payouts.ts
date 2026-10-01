@@ -91,6 +91,7 @@ export async function preparePayout(
       amount: input.amount,
       fromAddress: input.from,
       isPipeline: true,
+      timeoutSeconds: 60,
       hint: () => buildPipelineErrorHint(eligible.nodes),
     });
     const tx = assertDepositEnvelope(xdr, eligible.triggerAddress);

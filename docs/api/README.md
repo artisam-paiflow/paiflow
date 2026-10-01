@@ -412,7 +412,7 @@ as a Soroban simulation diagnostic.
 | `INSUFFICIENT_FUNDS` | 402  | The `from` account doesn't exist on this network (prepare)                                                                                        |
 | `FORBIDDEN`          | 403  | Not allowed for this caller (sandbox), or the public demo is not enabled on this instance (demo token)                                            |
 | `NOT_FOUND`          | 404  | A malformed deployment id, or (execute) a deployment that isn't confirmed                                                                         |
-| `CONFLICT`           | 409  | Token management only: already 10 active tokens                                                                                                   |
+| `CONFLICT`           | 409  | Already 10 active tokens, or a payout is preparing or can still execute                                                                           |
 | `VALIDATION`         | 422  | Bad body or query; a deposit the simulation rejects; a flow that doesn't start with a deposit trigger; an envelope that isn't this flow's deposit |
 | `RATE_LIMITED`       | 429  | Too many requests in the window (see below); on the demo token, also when the instance has no shared rate limiter                                 |
 | `INTERNAL`           | 500  | Unexpected server error; on the demo token, also a deliberate refusal when the demo flow is misconfigured, with the reason logged                 |
@@ -535,7 +535,9 @@ For a deposit-triggered dev flow, `POST /api/v1/deployments/:id/payouts` accepts
 `nodeId` is optional when there is only one deployed `PAYER_DEV`. Sign the returned `xdr` with
 `from` and the supplied network passphrase, then post `{ "signedXdr": "…" }` to
 `POST /api/v1/deployments/:id/payouts/submit` with the same deployment token. The response adds
-`nodeId` to execute's preparation fields. Submission keeps execute's bounded wait, `?wait=false`,
+`nodeId` to execute's preparation fields. Payout deposits have a **60-second validity window**;
+`execute` keeps 180 seconds. Sign and submit before `expiresAt`. Submission keeps execute's bounded wait,
+`?wait=false`,
 and `SUCCESS | PENDING | FAILED` conventions.
 
 The selected Pay must receive this deposit through immediate amount conditions or fixed Split,
@@ -558,8 +560,11 @@ configuring and awaiting the exact prepared deposit. Configuration hashes are sa
 submission. A timeout, network error or `PENDING` result retains protection: another request
 cannot change the recipient until the configuration/deposit is final or a closed ledger's time
 passes its transaction validity window. **Wall-clock Redis expiry is insufficient.** `CONFLICT`
-means an earlier payout may still execute. Retry its same signed envelope rather than preparing
-another payout. Signature changes are allowed; transaction-body changes are refused. Confirmed
+means an earlier payout may still execute. When a held transaction is known, the 409 includes
+`Retry-After`: seconds until its `maxTime`, rounded up with a minimum of 1. This is advisory;
+ledger time can lag, so retrying may still return 409. An abandoned deposit permits a new prepare
+only once ledger-time expiry is proved. For a submitted payout, retry its same signed envelope.
+Signature changes are allowed; transaction-body changes are refused. Confirmed
 retries remain available for seven days and cannot release a newer holder. A send refusal can
 return `FAILED` without releasing protection if finality is still uncertain.
 

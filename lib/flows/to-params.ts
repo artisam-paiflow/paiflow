@@ -1,6 +1,7 @@
 import { StrKey } from "@stellar/stellar-sdk";
-import { DEPLOYING_WALLET, resolveOwnerReturns, terminalOutcomeIssues } from "./terminal-outcomes";
 import { TemplateKind } from "@prisma/client";
+import { AppError } from "@/lib/errors";
+import { DEPLOYING_WALLET, resolveOwnerReturns, terminalOutcomeIssues } from "./terminal-outcomes";
 import type {
   ActionNode,
   Asset,
@@ -678,7 +679,7 @@ export function flowToPipeline(
     !options.forValidation &&
     !StrKey.isValidEd25519PublicKey(options.ownerAddress ?? "")
   ) {
-    throw new Error("Return to owner requires the deploying wallet address");
+    throw new AppError("VALIDATION", "Return to owner requires the deploying wallet address");
   }
   graph = resolveOwnerReturns(graph, options.ownerAddress ?? DEPLOYING_WALLET);
   const trigger = graph.nodes.find(isTrigger)!;

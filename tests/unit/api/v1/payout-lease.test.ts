@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import Redis from "ioredis";
+import { errorResponse } from "@/lib/errors";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 const { holder, finished, status } = vi.hoisted(() => ({
   holder: { client: null as Redis | null },
@@ -122,6 +123,40 @@ describe("payout ownership on real Redis Lua", () => {
     expect(await client.ttl(key())).toBe(-1);
     expect(await client.ttl(`${key()}:tx:${tx.txHash}`)).toBeGreaterThan(604000);
   });
+  it.each(["configuration", "deposit"] as const)(
+    "reports Retry-After from the held %s maxTime without weakening protection",
+    async (stage) => {
+      const now = 2000000000000;
+      vi.spyOn(Date, "now").mockReturnValue(now);
+      const l = await acquire();
+      const held = { ...tx, maxTime: String(now / 1000 + 60) };
+      if (stage === "deposit") await l.ready(held);
+      else await l.checkpointConfiguration(held);
+      await l.close();
+      await expireOwner();
+      for (const [elapsed, retryAfter] of [
+        [0, "60"],
+        [1500, "59"],
+        [61000, "1"],
+      ] as const) {
+        vi.spyOn(Date, "now").mockReturnValue(now + elapsed);
+        let failure: unknown;
+        try {
+          await acquire("next");
+        } catch (err) {
+          failure = err;
+        }
+        const response = errorResponse(failure);
+        expect(response.status).toBe(409);
+        expect(response.headers.get("Retry-After")).toBe(retryAfter);
+        expect(await response.json()).toMatchObject({ error: { code: "CONFLICT" } });
+        expect(JSON.parse((await client.get(key()))!).owner).toBe(l.record.owner);
+      }
+      expect(finished).toHaveBeenCalledWith(held);
+      finished.mockResolvedValue(true);
+      expect((await acquire("next")).record.owner).not.toBe(l.record.owner);
+    },
+  );
   it("binds the exact hash to both deployment and token", async () => {
     const l = await acquire();
     await l.ready(tx);

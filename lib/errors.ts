@@ -33,7 +33,7 @@ export class AppError extends Error {
   /** Raw technical detail (e.g. a Soroban diagnostic dump) for the UI to
    * expose behind a "show details" affordance. Never shown by default. */
   readonly details?: string;
-  /** Whole seconds until a RATE_LIMITED caller may retry; sent as `Retry-After`. */
+  /** Advisory whole seconds until a caller may retry; sent as `Retry-After`. */
   readonly retryAfterSeconds?: number;
 
   constructor(

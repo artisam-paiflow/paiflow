@@ -109,6 +109,7 @@ describe("payout preparation", () => {
       [{ nodeId: "p", address: recipient, asset: { kind: "native" } }],
       { fresh: true, requireAccount: true },
     );
+    expect(prepare).toHaveBeenCalledWith(expect.objectContaining({ timeoutSeconds: 60 }));
     expect(result.nodeId).toBe("p");
     expect(lease.close).toHaveBeenCalled();
   });

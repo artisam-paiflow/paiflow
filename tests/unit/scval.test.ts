@@ -85,14 +85,16 @@ describe("pipelineNodeConstructorArgs", () => {
         unlockTime: 1_000_000,
         mode: "after",
         nextStepNodeIds: ["splitter"],
+        relayer: ADDR2,
       },
       ADDR,
       ADDR2,
       { splitter: ADDR },
     );
     expect(args).toHaveLength(7);
-    // When relayer is omitted it falls back to admin.
-    expect(args[6]!).toEqual(new Address(ADDR).toScVal());
+    expect(args[0]!).toEqual(new Address(ADDR).toScVal());
+    expect(args[6]!).toEqual(new Address(ADDR2).toScVal());
+    expect(args[6]!).not.toEqual(args[0]!);
   });
 
   it("encodes timelock_branch: unlock time, then the before list, the after list, parent and relayer", () => {

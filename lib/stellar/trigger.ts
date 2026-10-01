@@ -21,6 +21,7 @@ export async function prepareTriggerTx(opts: {
   amount: string;
   fromAddress: string;
   isPipeline?: boolean;
+  timeoutSeconds?: 60 | 180;
   hint?: SorobanErrorHint | (() => Promise<SorobanErrorHint>);
 }): Promise<{ xdr: string }> {
   const result = opts.isPipeline
@@ -29,6 +30,7 @@ export async function prepareTriggerTx(opts: {
         amount: opts.amount,
         invokerAddress: opts.fromAddress,
         hint: opts.hint,
+        timeoutSeconds: opts.timeoutSeconds,
       })
     : await prepareDistributeInvocation({
         contractAddress: opts.contractAddress,
