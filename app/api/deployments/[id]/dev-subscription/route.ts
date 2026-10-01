@@ -6,7 +6,7 @@ import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
-import { findPipelineNode } from "@/lib/flows/pipeline-snapshot";
+import { findPipelineNode } from "@/lib/pipeline-snapshot";
 import {
   setSubscriptionAmountByRelayer,
   updateScheduleByRelayer,

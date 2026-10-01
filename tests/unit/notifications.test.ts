@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildEmailContext } from "@/lib/flows/notifications";
+import { buildEmailContext } from "@/lib/flow-notifications";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 
 const graph: FlowGraph = {

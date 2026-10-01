@@ -6,7 +6,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { refuseNewFiatRecipients } from "@/lib/features";
-import { findPipelineNode, type PipelineSnapshotNode } from "@/lib/flows/pipeline-snapshot";
+import { findPipelineNode, type PipelineSnapshotNode } from "@/lib/pipeline-snapshot";
 import {
   updateRecipientsByRelayer,
   submitUpdateRecipientsByRelayer,

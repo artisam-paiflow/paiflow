@@ -12,7 +12,7 @@ import type { Deployment, TemplateKind } from "@prisma/client";
 import { AppError } from "@/lib/errors";
 import { stellarPassphrase } from "@/lib/env";
 import { log } from "@/lib/log";
-import type { PipelineSnapshotNode } from "@/lib/flows/pipeline-snapshot";
+import type { PipelineSnapshotNode } from "@/lib/pipeline-snapshot";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { pollEventsFor } from "@/lib/stellar/events";
 import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";

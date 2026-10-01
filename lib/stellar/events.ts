@@ -9,7 +9,7 @@ import { log } from "@/lib/log";
 import { assetContractId } from "@/lib/stellar/assets";
 import { assetLabel, FlowGraphSchema, migrateFlowGraph, type FlowGraph } from "@/lib/flows/schema";
 import { stellarPassphrase } from "@/lib/env";
-import { sendEmailNotificationsForTransactions } from "@/lib/flows/notifications";
+import { sendEmailNotificationsForTransactions } from "@/lib/flow-notifications";
 import { inboundAssetForContract, type PipelineNodeSnapshot } from "@/lib/flows/event-assets";
 import { createCashOutJob } from "@/lib/offramp/jobs";
 import { bankDetailsFromGraph, eventCreatesOffRampJob } from "@/lib/offramp/cash-out-bank";

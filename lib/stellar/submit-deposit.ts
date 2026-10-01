@@ -7,7 +7,7 @@ import { log } from "@/lib/log";
 import { acquireWaitSlot } from "@/lib/api/v1/wait-slots";
 import { explainFailedTx, ingestEventsBounded, waitForFinal } from "@/lib/api/v1/execute";
 import type { ExecuteSubmitted } from "@/lib/api/v1/schema";
-import type { PipelineSnapshotNode } from "@/lib/flows/pipeline-snapshot";
+import type { PipelineSnapshotNode } from "@/lib/pipeline-snapshot";
 import { recordSignedTransaction } from "@/lib/signed-tx";
 import { sorobanRpc } from "./client";
 import { signerFromTransaction } from "./signer";

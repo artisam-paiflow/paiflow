@@ -6,9 +6,18 @@ import { env } from "@/lib/env";
 import { stellarExpertTxUrl, isStellarNetwork } from "@/lib/stellar/explorer";
 import { log } from "@/lib/log";
 import { formatStroops } from "@/lib/utils";
-import type { FlowGraph, FlowNode } from "./schema";
-import { assetLabel, FlowGraphSchema, migrateFlowGraph, isValidEmailAddress } from "./schema";
-import { inboundAsset, resolveEmittingNode, type PipelineNodeSnapshot } from "./event-assets";
+import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
+import {
+  assetLabel,
+  FlowGraphSchema,
+  migrateFlowGraph,
+  isValidEmailAddress,
+} from "@/lib/flows/schema";
+import {
+  inboundAsset,
+  resolveEmittingNode,
+  type PipelineNodeSnapshot,
+} from "@/lib/flows/event-assets";
 
 export type EmailContext = Record<string, string>;
 
@@ -189,7 +198,7 @@ function formatAmountValue(value: unknown): string | undefined {
   return formatStroops(raw);
 }
 
-export type { PipelineNodeSnapshot } from "./event-assets";
+export type { PipelineNodeSnapshot } from "@/lib/flows/event-assets";
 
 /** Dispatch only after the poll pass has persisted every contract through this ledger. */
 export async function sendEmailNotificationsForTransactions(params: {

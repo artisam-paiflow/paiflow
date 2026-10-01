@@ -19,7 +19,7 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/mail", () => ({ sendEmail: mocks.send }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: mocks.limit }));
-import { sendEmailNotificationsForTransactions } from "@/lib/flows/notifications";
+import { sendEmailNotificationsForTransactions } from "@/lib/flow-notifications";
 
 let graph: FlowGraph;
 let rows: ReturnType<typeof event>[];
