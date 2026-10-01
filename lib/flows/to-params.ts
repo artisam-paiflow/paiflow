@@ -13,6 +13,8 @@ import type {
   TriggerNode,
 } from "./schema";
 import {
+  FlowGraphSchema,
+  migrateFlowGraph,
   isAction,
   isLogic,
   isTrigger,
@@ -666,6 +668,7 @@ export function flowToPipeline(
   treasuryAddress?: string,
   options: { ownerAddress?: string; forValidation?: boolean } = {},
 ): PipelineNode[] {
+  graph = FlowGraphSchema.parse(migrateFlowGraph(graph));
   const outcomeIssues = terminalOutcomeIssues(graph);
   if (outcomeIssues.length) throw new Error(outcomeIssues[0]!.message);
   const ownerReturns = new Set(

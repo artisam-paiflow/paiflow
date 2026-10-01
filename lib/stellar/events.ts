@@ -7,9 +7,9 @@ import { db } from "@/lib/db";
 import { redis, eventChannel } from "@/lib/redis";
 import { log } from "@/lib/log";
 import { assetContractId } from "@/lib/stellar/assets";
-import { assetLabel, type FlowGraph } from "@/lib/flows/schema";
+import { assetLabel, FlowGraphSchema, migrateFlowGraph, type FlowGraph } from "@/lib/flows/schema";
 import { stellarPassphrase } from "@/lib/env";
-import { sendEmailNotificationsForEvent } from "@/lib/flows/notifications";
+import { sendEmailNotificationsForTransactions } from "@/lib/flows/notifications";
 import { inboundAssetForContract, type PipelineNodeSnapshot } from "@/lib/flows/event-assets";
 import { createCashOutJob } from "@/lib/offramp/jobs";
 import { bankDetailsFromGraph, eventCreatesOffRampJob } from "@/lib/offramp/cash-out-bank";
@@ -1069,7 +1069,7 @@ async function ingestEventPage(
       pipeline,
       contractAddress,
     });
-    const safePayload = convertBigInts({ topics, value }) as object;
+    const safePayload = convertBigInts({ topics, value, contractAddress }) as object;
     const safeDecodedData = convertBigInts(resolvedData) as Prisma.InputJsonValue | null;
 
     try {
@@ -1188,24 +1188,6 @@ async function ingestEventPage(
           );
         }
       }
-
-      // Fire-and-forget: email notify decorators attached to this pipeline node.
-      sendEmailNotificationsForEvent({
-        deploymentId,
-        contractEventId: created.id,
-        event: {
-          kind,
-          ledger: ev.ledger,
-          txHash: ev.txHash,
-          eventId: ev.id,
-          decodedData: resolvedData as Record<string, unknown> | null,
-        },
-        graph,
-        pipeline,
-        contractAddress,
-      }).catch((err) => {
-        log.warn({ err, deploymentId, eventId: created.id }, "email notification dispatch failed");
-      });
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code !== "P2002") log.warn({ err, deploymentId }, "event upsert failed");
@@ -1279,7 +1261,8 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
     return 0;
   }
 
-  const symbolMap = buildAssetSymbolMap(deployment.graphSnapshot as FlowGraph | null);
+  const graph = FlowGraphSchema.safeParse(migrateFlowGraph(deployment.graphSnapshot)).data ?? null;
+  const symbolMap = buildAssetSymbolMap(graph);
 
   const contracts: PipelineNode[] = [];
   const seen = new Set<string>();
@@ -1347,7 +1330,7 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
       node.templateKind,
       startLedger,
       symbolMap,
-      deployment.graphSnapshot as FlowGraph | null,
+      graph,
       (deployment.pipelineSnapshot as PipelineNodeSnapshot[] | null) ?? [],
       flowTemplateKind,
     );
@@ -1355,7 +1338,16 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
     scannedThrough = Math.min(scannedThrough, result.ok ? result.scannedThrough : emptySetSentinel);
   }
 
-  if (scannedThrough > emptySetSentinel) await advanceEventCursor(deploymentId, scannedThrough);
+  if (scannedThrough > emptySetSentinel) {
+    await advanceEventCursor(deploymentId, scannedThrough);
+    void sendEmailNotificationsForTransactions({
+      deploymentId,
+      startLedger,
+      throughLedger: scannedThrough,
+    }).catch((err) => {
+      log.warn({ err, deploymentId }, "email notification dispatch failed");
+    });
+  }
 
   return totalWritten;
 }

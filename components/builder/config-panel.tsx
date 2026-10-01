@@ -15,6 +15,7 @@ import {
 } from "@/lib/flows/schema";
 import { cn, formatStroops, shortAddr } from "@/lib/utils";
 import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
+import { RecipientEmailField } from "./notification-settings";
 import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
@@ -131,6 +132,7 @@ type Props = {
   hideHeader?: boolean;
   /** Surface switches from the server (#722). */
   features: FeatureFlags;
+  sandbox?: boolean;
 };
 
 export default function ConfigPanel({
@@ -148,6 +150,7 @@ export default function ConfigPanel({
   routerContractId,
   hideHeader = false,
   features,
+  sandbox = false,
 }: Props) {
   const expectedAsset = useMemo(
     () => (node ? (computeAssetFlow(graph).get(node.id) ?? null) : null),
@@ -517,6 +520,12 @@ export default function ConfigPanel({
 
       {node.type === "pay" && (
         <>
+          {!sandbox && (
+            <RecipientEmailField
+              value={node.config.email}
+              onChange={(email) => onChange({ ...node, config: { ...node.config, email } })}
+            />
+          )}
           <AssetField
             asset={node.config.asset}
             error={assetError}
@@ -915,6 +924,7 @@ export default function ConfigPanel({
               fieldErrors={nodeErrors.field}
               onChange={onChange}
               offrampEnabled={features.offramp}
+              sandbox={sandbox}
             />
           )}
         </>
@@ -1434,44 +1444,6 @@ export default function ConfigPanel({
             : "Returns 100% of the incoming amount to the wallet that signs deployment. The recipient is resolved during preparation and stays immutable, including in dev mode. Connect directly after an amount, time, or multisig condition."}
         </p>
       )}
-      {node.type === "email_notify" && (
-        <>
-          <EmailRecipientsField
-            node={node}
-            graph={graph}
-            onChange={onChange}
-            error={fieldError("recipients")}
-          />
-          <Field label="Subject" error={fieldError("subject")}>
-            <input
-              className="input"
-              value={node.config.subject}
-              placeholder="Payment notification"
-              onChange={(e) =>
-                onChange({
-                  ...node,
-                  config: { ...node.config, subject: e.target.value },
-                } as FlowNode)
-              }
-            />
-          </Field>
-          <Field label="Body" error={fieldError("body")}>
-            <textarea
-              className="input"
-              rows={5}
-              value={node.config.body}
-              placeholder="A payment of {{amount}} {{asset}} was received."
-              onChange={(e) =>
-                onChange({
-                  ...node,
-                  config: { ...node.config, body: e.target.value },
-                } as FlowNode)
-              }
-            />
-          </Field>
-          <EmailVariablesHint graph={graph} nodeId={node.id} />
-        </>
-      )}
 
       {node.type === "cash_out" && (
         <>
@@ -1815,6 +1787,7 @@ function SplitRecipientsEditor({
   fieldErrors,
   onChange,
   offrampEnabled,
+  sandbox,
 }: {
   node: Extract<FlowNode, { type: "split" }>;
   trigger: FlowNode | undefined;
@@ -1829,6 +1802,7 @@ function SplitRecipientsEditor({
   onChange: (n: FlowNode) => void;
   /** Off on this server (#722): fiat is not offered, only switched away from. */
   offrampEnabled: boolean;
+  sandbox?: boolean;
 }) {
   const onAddressBookChange = refreshAddressBook ?? (() => {});
   const listError = fieldErrors?.get("recipients") ?? null;
@@ -2303,6 +2277,12 @@ function SplitRecipientsEditor({
                       </>
                     )}
 
+                    {!sandbox && (
+                      <RecipientEmailField
+                        value={r.email}
+                        onChange={(email) => updateRecipient(i, { ...r, email })}
+                      />
+                    )}
                     {fiatPayoutAvailable && r.payoutMode === "fiat" && devMode && (
                       <div className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-300">
                         Bank details configured via API after deploy.
@@ -2453,147 +2433,6 @@ function ApiFillField({
 function ApiFillHint({ show, children }: { show: boolean; children: React.ReactNode }) {
   if (!show) return null;
   return <div className="mt-0.5 text-[11px] text-amber-400/80">{children}</div>;
-}
-
-function EmailVariablesHint({ graph, nodeId }: { graph: FlowGraph; nodeId: string }) {
-  const parentEdge = graph.edges.find((e) => e.target === nodeId);
-  const parent = parentEdge ? graph.nodes.find((n) => n.id === parentEdge.source) : undefined;
-
-  const variables = ["kind", "ledger", "txHash", "eventId", "walletAddress"];
-  if (parent?.type === "condition") {
-    if (parent.config.kind === "amount_gt" || parent.config.kind === "amount_lt") {
-      variables.push("amount", "threshold", "condition");
-    } else if (parent.config.kind === "oracle_gte") {
-      variables.push("price", "amount", "threshold", "condition");
-    } else if (parent.config.kind === "multisig") {
-      variables.push("signer", "condition");
-    } else {
-      variables.push("condition");
-    }
-  } else {
-    variables.push("amount", "asset", "from", "recipient");
-    if (parent?.type === "split" && parent.config.recipients[0]?.mode === "fixed") {
-      variables.push("balance", "needed", "remaining", "shortfall");
-    }
-  }
-
-  return (
-    <div className="rounded border border-zinc-800 bg-zinc-900/50 p-2 text-xs text-zinc-400">
-      <div className="mb-1 font-medium text-zinc-300">Available variables</div>
-      <div className="flex flex-wrap gap-1">
-        {variables.map((v) => (
-          <code key={v} className="rounded bg-zinc-800 px-1 py-0.5 text-[10px]">
-            {"{{"}
-            {v}
-            {"}}"}
-          </code>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function EmailRecipientsField({
-  node,
-  graph,
-  onChange,
-  error,
-}: {
-  node: Extract<FlowNode, { type: "email_notify" }>;
-  graph: FlowGraph;
-  onChange: (n: FlowNode) => void;
-  error?: string | null;
-}) {
-  const parentEdge = graph.edges.find((e) => e.target === node.id);
-  const parent = parentEdge ? graph.nodes.find((n) => n.id === parentEdge.source) : undefined;
-  const isSplit = parent?.type === "split";
-  // A pay parent's recipient is "" while its address field is cleared, and a row
-  // written then would fail `EmailRecipient.address` on every later save, long
-  // after the pay node itself was fixed.
-  const placeholderAddress = (parent?.type === "pay" && parent.config.recipient) || "_";
-
-  let rows: { address: string; email: string }[];
-  if (isSplit) {
-    rows = parent.config.recipients.map((r) => ({
-      address: r.address,
-      email: node.config.recipients.find((e) => e.address === r.address)?.email ?? "",
-    }));
-  } else {
-    rows = node.config.recipients.length
-      ? node.config.recipients.map((r) => ({
-          address: r.address || placeholderAddress,
-          email: r.email,
-        }))
-      : [{ address: placeholderAddress, email: "" }];
-  }
-
-  const updateEmail = (idx: number, email: string) => {
-    const next = rows.map((r, i) => (i === idx ? { ...r, email: email.trim() } : r));
-    onChange({ ...node, config: { ...node.config, recipients: next } } as FlowNode);
-  };
-
-  const addRow = () => {
-    onChange({
-      ...node,
-      config: { ...node.config, recipients: [...rows, { address: placeholderAddress, email: "" }] },
-    } as FlowNode);
-  };
-
-  const removeRow = (idx: number) => {
-    onChange({
-      ...node,
-      config: { ...node.config, recipients: rows.filter((_, i) => i !== idx) },
-    } as FlowNode);
-  };
-
-  return (
-    <Field label="Recipients" error={error}>
-      <div className="space-y-2">
-        {rows.map((r, idx) => (
-          <div key={idx} className="flex items-center gap-2">
-            {isSplit && (
-              <input
-                className="input flex-1 font-mono text-xs"
-                value={r.address}
-                placeholder="G..."
-                readOnly
-              />
-            )}
-            <input
-              type="email"
-              className="input flex-1 text-xs"
-              value={r.email}
-              placeholder="alice@example.com"
-              onChange={(e) => updateEmail(idx, e.target.value)}
-            />
-            {!isSplit && rows.length > 1 && (
-              <button
-                type="button"
-                className="px-1 text-zinc-500 hover:text-red-400"
-                onClick={() => removeRow(idx)}
-              >
-                ×
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-      {!isSplit && (
-        <button
-          type="button"
-          className="mt-2 rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
-          onClick={addRow}
-        >
-          + Add recipient
-        </button>
-      )}
-      {isSplit && (
-        <div className="mt-1 text-xs text-zinc-500">
-          One email is required for each split recipient.
-        </div>
-      )}
-    </Field>
-  );
 }
 
 function remainingPct(recipients: SplitRecipient[]): number {

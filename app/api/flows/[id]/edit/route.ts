@@ -7,7 +7,7 @@ import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { requireFeature, serverFeatures } from "@/lib/features";
-import { isPendingAddress } from "@/lib/flows/schema";
+import { FlowGraphSchema, sandboxNotifications, isPendingAddress } from "@/lib/flows/schema";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { applyPatch, autoConnectOrphans, stripZeroBpsRecipients } from "@/lib/ai/normalize";
 import { callGroq } from "@/lib/ai/groq";
@@ -269,7 +269,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!flow) throw new AppError("NOT_FOUND", "Flow not found");
 
     const body = BodySchema.parse(await req.json());
-    const graph = flow.graph as FlowGraph;
+    const graph = FlowGraphSchema.parse(flow.graph);
     const addressBook = await getAddressBook(user.id);
 
     let result: Awaited<ReturnType<typeof tryEdit>>;
@@ -344,6 +344,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       });
     }
 
+    if (user.role === "SANDBOX") result.patchedGraph = sandboxNotifications(result.patchedGraph);
     const v = validateFlow(result.patchedGraph, { features: serverFeatures() });
     if (!v.ok) {
       const fieldErrors = issuesToFields(v.errors);

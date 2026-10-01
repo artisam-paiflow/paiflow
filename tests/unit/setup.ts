@@ -23,6 +23,10 @@ const passthrough = {
   LOG_LEVEL: process.env.LOG_LEVEL ?? "silent",
 };
 
+// Prisma loads .env internally on first construction, even with the dotenv stub.
+// Load it after preserving caller settings and before scrubbing local secrets.
+await import("@/lib/prisma");
+
 for (const name of ENV_VAR_NAMES) delete process.env[name];
 
 // Object.assign rather than a NODE_ENV member assignment: Next's types mark

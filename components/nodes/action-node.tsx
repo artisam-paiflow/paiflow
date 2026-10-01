@@ -19,7 +19,7 @@ type ActionNodeData = {
 function ActionNodeComponent({ data, selected }: NodeProps) {
   const d = data as ActionNodeData;
   const n = d.node;
-  if (!isAction(n)) return null;
+  if (!isAction(n) || n.type === "email_notify") return null;
   const isMutable = d.isMutable === true;
 
   let icon: string;
@@ -60,10 +60,6 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
     icon = "savings";
     title = "Yield";
     detail = `deposit ${assetLabel(n.config.asset)}`;
-  } else if (n.type === "email_notify") {
-    icon = "mail";
-    title = "Email Notify";
-    detail = `${n.config.recipients.length} recipient${n.config.recipients.length === 1 ? "" : "s"}`;
   } else if (n.type === "cash_out") {
     icon = "payments";
     title = "Cash Out";
@@ -80,10 +76,7 @@ function ActionNodeComponent({ data, selected }: NodeProps) {
   }
 
   const canHaveChildren =
-    n.type !== "email_notify" &&
-    n.type !== "cash_out" &&
-    n.type !== "hold" &&
-    n.type !== "return_to_owner";
+    n.type !== "cash_out" && n.type !== "hold" && n.type !== "return_to_owner";
 
   return (
     <div

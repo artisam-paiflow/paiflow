@@ -10,6 +10,7 @@ import type {
   TriggerNode,
 } from "./schema";
 import {
+  isValidEmailAddress,
   isContractAction,
   isLogic,
   isTrigger,
@@ -178,7 +179,7 @@ export function flowToEnglish(graph: FlowGraph): string {
   const trigger = graph.nodes.find(isTrigger);
   const action = inFlowOrder(graph, graph.nodes.filter(isContractAction))[0];
   const condition = graph.nodes.find(isLogic);
-  const emailNodes = graph.nodes.filter((n) => n.type === "email_notify");
+
   if (!trigger || !action) return "(incomplete flow)";
 
   let triggerText: string;
@@ -251,13 +252,27 @@ export function flowToEnglish(graph: FlowGraph): string {
           : action.type === "yield"
             ? action.config.asset
             : action.config.asset;
-  // A freshly dropped email node has no recipients, and the panel keeps rows
-  // whose email is still blank; neither may leave a dangling "to ." behind.
-  const emails = emailNodes
-    .flatMap((n) => n.config.recipients.map((r) => r.email.trim()))
-    .filter((email) => email !== "");
-  const emailTail =
-    emails.length > 0 ? `, and send email notifications to ${emails.join(", ")}` : "";
+  const notifications: string[] = [];
+  if (
+    graph.notify?.mode !== "off" &&
+    graph.notify?.sendTo.trim() &&
+    isValidEmailAddress(graph.notify.sendTo.trim())
+  ) {
+    notifications.push(
+      `emails you at ${graph.notify.sendTo} ${graph.notify.mode === "shortfalls_only" ? "only when a deposit falls short" : "each time money moves"}`,
+    );
+  }
+  for (const n of graph.nodes) {
+    const rows =
+      n.type === "pay"
+        ? [{ address: n.config.recipient, email: n.config.email }]
+        : n.type === "split"
+          ? n.config.recipients
+          : [];
+    for (const r of rows)
+      if (r.email?.trim()) notifications.push(`emails ${shortAddr(r.address)} when paid`);
+  }
+  const emailTail = notifications.length ? `; ${notifications.join("; ")}` : "";
 
   if (isBranchingCondition(condition)) {
     const targets = conditionBranchTargets(graph, condition.id);

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { FlowGraphSchema } from "@/lib/flows/schema";
+import { FlowGraphSchema, migrateFlowGraph, withoutNotificationEmails } from "@/lib/flows/schema";
 import DeploymentView from "@/components/deploy/deployment-view";
 import Logo from "@/components/app/logo";
 import { isStellarNetwork, type StellarNetwork } from "@/lib/stellar/explorer";
@@ -18,9 +18,9 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
     },
   });
   if (!d || d.status !== "CONFIRMED" || !d.contractAddress) notFound();
-  const graphResult = FlowGraphSchema.safeParse(d.graphSnapshot);
+  const graphResult = FlowGraphSchema.safeParse(migrateFlowGraph(d.graphSnapshot));
   if (!graphResult.success) notFound();
-  const graph = graphResult.data;
+  const graph = withoutNotificationEmails(graphResult.data);
 
   const network: StellarNetwork | null = isStellarNetwork(d.network) ? d.network : null;
   if (!network && d.network) {

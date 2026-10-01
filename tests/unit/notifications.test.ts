@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildEmailContext,
-  interpolateTemplate,
-  resolvePerRecipientAmount,
-} from "@/lib/flows/notifications";
+import { buildEmailContext } from "@/lib/flows/notifications";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 
 const graph: FlowGraph = {
@@ -199,61 +195,6 @@ describe("buildEmailContext", () => {
     expect(ctx.recipient).toBe("GBBB");
   });
 
-  it("estimates a non-matching splitter recipient's share from the known payment", () => {
-    const amount = resolvePerRecipientAmount({
-      address: "GAAA",
-      parentNode: splitGraph.nodes[1],
-      event: { kind: "PAYOUT", decodedData: { recipient: "GBBB", payment: "10000000" } },
-    });
-    // GBBB got 1 XLM at 40% bps, so total ≈ 2.5 XLM and GAAA's 60% share ≈ 1.5 XLM.
-    expect(amount).toBe("15000000");
-  });
-
-  it("returns configured fixed amount for fixed split recipients", () => {
-    const fixedSplit: FlowNode = {
-      id: "s",
-      type: "split",
-      config: {
-        asset: { kind: "known", symbol: "USDC" },
-        recipients: [
-          { address: "GAAA", mode: "fixed", amountStroops: "10000000" },
-          { address: "GBBB", mode: "fixed", amountStroops: "5000000" },
-        ],
-      },
-    } as FlowNode;
-    const amount = resolvePerRecipientAmount({
-      address: "GAAA",
-      parentNode: fixedSplit,
-      event: { kind: "PAYOUT", decodedData: { recipient: "GAAA", payment: "10000000" } },
-    });
-    expect(amount).toBe("10000000");
-  });
-
-  it("returns null for shortfall events", () => {
-    const fixedSplit: FlowNode = {
-      id: "s",
-      type: "split",
-      config: {
-        asset: { kind: "known", symbol: "USDC" },
-        recipients: [{ address: "GAAA", mode: "fixed", amountStroops: "10000000" }],
-      },
-    } as FlowNode;
-    const amount = resolvePerRecipientAmount({
-      address: "GAAA",
-      parentNode: fixedSplit,
-      event: {
-        kind: "SHORTFALL",
-        decodedData: {
-          amount: "3000000",
-          balance: "3000000",
-          needed: "10000000",
-          remaining: "7000000",
-        },
-      },
-    });
-    expect(amount).toBeNull();
-  });
-
   it("builds shortfall context with balance, needed, and remaining", () => {
     const fixedSplit: FlowNode = {
       id: "s",
@@ -288,25 +229,5 @@ describe("buildEmailContext", () => {
     expect(ctx.remaining).toBe("0.7");
     expect(ctx.asset).toBe("USDC");
     expect(ctx.shortfall).toContain("Insufficient funds");
-  });
-});
-
-describe("interpolateTemplate", () => {
-  it("replaces known variables", () => {
-    const out = interpolateTemplate("Amount: {{amount}} {{asset}}", {
-      amount: "100",
-      asset: "USDC",
-    });
-    expect(out).toBe("Amount: 100 USDC");
-  });
-
-  it("interpolates walletAddress", () => {
-    const out = interpolateTemplate("Sent to {{walletAddress}}", { walletAddress: "GAAA" });
-    expect(out).toBe("Sent to GAAA");
-  });
-
-  it("leaves unknown variables intact", () => {
-    const out = interpolateTemplate("{{amount}} {{missing}}", { amount: "100" });
-    expect(out).toBe("100 {{missing}}");
   });
 });

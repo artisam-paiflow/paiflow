@@ -7,7 +7,12 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { env, soroswapRouterAddress, SWAP_ROUTER_UNSET_MESSAGE } from "@/lib/env";
-import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
+import {
+  FlowGraphSchema,
+  migrateFlowGraph,
+  sandboxNotifications,
+  getPendingLabels,
+} from "@/lib/flows/schema";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
@@ -39,11 +44,12 @@ export async function POST(req: NextRequest) {
     });
     if (!flow) throw new AppError("NOT_FOUND", "Flow not found");
 
-    const graph = FlowGraphSchema.parse(flow.graph);
+    const parsedGraph = FlowGraphSchema.parse(migrateFlowGraph(flow.graph));
+    const graph = user.role === "SANDBOX" ? sandboxNotifications(parsedGraph) : parsedGraph;
     // Switched-off surfaces (#722) are refused on their node here, so an old
     // flow, an AI edit or a crafted save cannot deploy a hidden block.
     const features = serverFeatures();
-    const v = validateFlow(graph, { features });
+    const v = validateFlow(graph, { features, ignoreOwnerEmail: true });
     if (!v.ok) {
       throw new AppError("VALIDATION", "Flow is invalid", issuesToFields(v.errors));
     }
