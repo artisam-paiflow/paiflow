@@ -443,7 +443,7 @@ describe("pollEventsFor: the inbound asset of a RECEIVE", () => {
         config: { assetIn: XLM, assetOut: USDC, slippageBps: 100, deadlineSecs: 300 },
       },
     ],
-    edges: [{ source: "t", target: "s" }],
+    edges: [{ id: "ts", source: "t", target: "s" }],
   };
 
   function mockDeployment(over: Record<string, unknown>) {
@@ -531,7 +531,7 @@ describe("pollEventsFor: the inbound asset of a RECEIVE", () => {
           { id: "t", type: "on_receive", config: { asset: XLM } },
           { id: "y", type: "yield", config: { asset: USDC, vault: ADDR_B } },
         ],
-        edges: [{ source: "t", target: "y" }],
+        edges: [{ id: "ty", source: "t", target: "y" }],
       },
       pipelineSnapshot: [
         { nodeId: "y", contractAddress: TRIGGER_ADDR, templateKind: TemplateKind.YIELD },

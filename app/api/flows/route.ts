@@ -5,7 +5,7 @@ import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit, clientIp, rateLimitedError } from "@/lib/rate-limit";
-import { FlowSaveSchema } from "@/lib/flows/schema";
+import { FlowSaveSchema, sandboxNotifications } from "@/lib/flows/schema";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
@@ -46,7 +46,12 @@ export async function POST(req: NextRequest) {
     if (!rl.ok) throw rateLimitedError(rl, "Too many writes");
 
     const body = FlowSaveSchema.parse(await req.json());
-    const v = validateFlow(body.graph);
+    if (user.role === "SANDBOX") body.graph = sandboxNotifications(body.graph);
+    else if (!body.graph.notify) {
+      const account = await db.user.findUnique({ where: { id: user.id }, select: { email: true } });
+      body.graph.notify = { mode: "every_transaction", sendTo: account?.email ?? "" };
+    }
+    const v = validateFlow(body.graph, { ignoreOwnerEmail: true });
     if (!v.ok) {
       throw new AppError("VALIDATION", "Invalid flow graph", issuesToFields(v.errors));
     }

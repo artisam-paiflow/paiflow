@@ -370,7 +370,7 @@ describe("validateFlow: branches", () => {
     expect(issue?.nodeId).toBe("t");
   });
 
-  it("refuses an email notification hanging off an amount condition", () => {
+  it("converts an old email notification hanging off an amount condition", () => {
     const email = {
       id: "m",
       type: "email_notify",
@@ -388,7 +388,7 @@ describe("validateFlow: branches", () => {
           [email],
         ),
       ),
-    ).toContain("BRANCH_EMAIL");
+    ).not.toContain("BRANCH_EMAIL");
   });
 });
 

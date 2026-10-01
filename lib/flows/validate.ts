@@ -394,20 +394,6 @@ function branchIssues(
       });
     }
 
-    if (
-      graph.edges.some(
-        (e) => e.source === cond.id && nodesById.get(e.target)?.type === "email_notify",
-      )
-    ) {
-      issues.push({
-        path: `nodes.${cond.id}`,
-        code: "BRANCH_EMAIL",
-        nodeId: cond.id,
-        message: `Email notify node attached to ${noun} condition ${cond.id}`,
-        friendlyMessage: FRIENDLY.BRANCH_EMAIL(noun),
-      });
-    }
-
     for (const branch of ["true", "false"] as const) {
       if (targets[branch].length > 1) {
         issues.push({
@@ -454,10 +440,12 @@ export type ValidateFlowOptions = {
    * handed down) so a hidden block is refused on its node.
    */
   features?: FeatureFlags;
+  /** Owner email is advisory on save and deploy; recipients still validate. */
+  ignoreOwnerEmail?: boolean;
 };
 
 export function validateFlow(rawGraph: unknown, opts: ValidateFlowOptions = {}): ValidationResult {
-  const result = validateFlowStructure(rawGraph);
+  const result = validateFlowStructure(rawGraph, opts.ignoreOwnerEmail);
   if (!opts.features) return result;
   // A graph that fails to parse has no nodes to check; its schema errors stand.
   const graph = result.ok
@@ -473,7 +461,7 @@ export function validateFlow(rawGraph: unknown, opts: ValidateFlowOptions = {}):
   return { ok: false, errors: [...gated, ...rest] };
 }
 
-function validateFlowStructure(rawGraph: unknown): ValidationResult {
+function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): ValidationResult {
   const migrated = migrateFlowGraph(rawGraph);
   const parsed = FlowGraphSchema.safeParse(migrated);
   if (!parsed.success) {
@@ -895,95 +883,21 @@ function validateFlowStructure(rawGraph: unknown): ValidationResult {
     }
   }
 
-  // Email notify nodes are decorator leaves — they cannot have children.
+  const checkEmail = (email: string | undefined, path: string) => {
+    if (email?.trim() && !isValidEmailAddress(email.trim()))
+      errors.push({
+        path,
+        message: "Invalid email address",
+        friendlyMessage: "Enter a valid email address or leave it empty.",
+      });
+  };
+  if (!ignoreOwnerEmail) checkEmail(graph.notify?.sendTo, "notify.sendTo");
   for (const n of graph.nodes) {
-    if (n.type === "email_notify") {
-      const hasOutgoing = graph.edges.some((e) => e.source === n.id);
-      if (hasOutgoing) {
-        errors.push({
-          path: `nodes.${n.id}`,
-          message: "Email notify node cannot have outgoing edges",
-          friendlyMessage:
-            "Email notify nodes can't be connected to other steps. Remove any connections coming out of it.",
-        });
-      }
-
-      const parentEdge = graph.edges.find((e) => e.target === n.id);
-      const parent = parentEdge ? nodesById.get(parentEdge.source) : undefined;
-
-      // The schema lets a row through with its email still blank or half typed
-      // (the config panel writes one row per split recipient before any email
-      // is entered), so this block is the only thing standing between such a
-      // row and the Resend call in notifications.ts. A blank row reads as "not
-      // filled in yet" and is reported once, under whichever rule names it best.
-      const filledRows = n.config.recipients.filter((r) => r.email.trim() !== "");
-      let unreportedBlankRows = n.config.recipients.filter((r) => r.email.trim() === "");
-
-      if (parent?.type === "split") {
-        const parentAddresses = parent.config.recipients.map((r) => r.address);
-        const emailAddresses = n.config.recipients.map((r) => r.address);
-        const filledAddresses = filledRows.map((r) => r.address);
-        // When the split is in dev mode and its recipients are left empty to be
-        // filled via API, we can't validate a 1:1 address mapping yet.
-        const splitFilledViaApi = graph.devMode === true && parentAddresses.length === 0;
-        if (!splitFilledViaApi && emailAddresses.length !== parentAddresses.length) {
-          errors.push({
-            path: `nodes.${n.id}.config.recipients`,
-            message: "Email notify node must have exactly one email per split recipient",
-            friendlyMessage:
-              "Add exactly one email for each address in the split. Remove or fill any blank rows.",
-          });
-        }
-        if (!splitFilledViaApi) {
-          for (const addr of parentAddresses) {
-            if (!filledAddresses.includes(addr)) {
-              errors.push({
-                path: `nodes.${n.id}.config.recipients`,
-                message: `Missing email for split recipient ${addr}`,
-                friendlyMessage: `Add an email for split recipient ${addr}.`,
-              });
-            }
-          }
-          const missingAddresses = parentAddresses.filter((a) => !filledAddresses.includes(a));
-          unreportedBlankRows = unreportedBlankRows.filter(
-            (r) => !missingAddresses.includes(r.address),
-          );
-        }
-      } else if (filledRows.length === 0) {
-        errors.push({
-          path: `nodes.${n.id}.config.recipients`,
-          message: "Email notify node requires at least one recipient",
-          friendlyMessage: "Add at least one recipient email to the email notify node.",
-        });
-        unreportedBlankRows = [];
-      }
-
-      if (unreportedBlankRows.length > 0) {
-        errors.push({
-          path: `nodes.${n.id}.config.recipients`,
-          message: "Email notify node has a recipient with no email address",
-          friendlyMessage: "Fill in or remove the blank recipient row on the email notify node.",
-        });
-      }
-
-      for (const r of filledRows) {
-        if (!isValidEmailAddress(r.email)) {
-          errors.push({
-            path: `nodes.${n.id}.config.recipients`,
-            message: `Invalid email address: ${r.email}`,
-            friendlyMessage: `"${r.email}" isn't a valid email address. Check it for typos.`,
-          });
-        }
-      }
-
-      if (!n.config.subject.trim()) {
-        errors.push({
-          path: `nodes.${n.id}.config.subject`,
-          message: "Email notify node requires a subject",
-          friendlyMessage: "Add a subject line to the email notify node.",
-        });
-      }
-    }
+    if (n.type === "pay") checkEmail(n.config.email, `nodes.${n.id}.config.email`);
+    if (n.type === "split")
+      n.config.recipients.forEach((r, i) =>
+        checkEmail(r.email, `nodes.${n.id}.config.recipients.${i}.email`),
+      );
   }
 
   // The conditional contract (oracle_gte) pays recipients directly and cannot

@@ -31,8 +31,8 @@ function getClient(): Resend | null {
  *
  * Behavior:
  * - When `RESEND_API_KEY` is set, sends through the Resend API.
- * - When unset (dev), logs the payload to stdout and returns success with a
- *   mock id, so feature code can run end-to-end without external dependencies.
+ * - When unset (dev), logs only a delivery-disabled marker and returns success with a
+ *   mock id, so feature code can run end-to-end without exposing personal data.
  *
  * Returns a discriminated union; callers should branch on `ok` rather than
  * relying on truthiness checks.
@@ -40,23 +40,10 @@ function getClient(): Resend | null {
 export async function sendEmail(opts: SendEmailOptions): Promise<SendEmailResult> {
   const e = env();
   const from = e.EMAIL_FROM;
-  const recipients = Array.isArray(opts.to) ? opts.to.join(", ") : opts.to;
 
   const c = getClient();
   if (!c) {
-    log.info(
-      {
-        from,
-        to: recipients,
-        subject: opts.subject,
-        replyTo: opts.replyTo,
-      },
-      "[mail:dev-fallback] RESEND_API_KEY unset — email not delivered, logging instead",
-    );
-    // eslint-disable-next-line no-console
-    console.log(
-      `\n==== [DEV EMAIL] ====\nFrom: ${from}\nTo: ${recipients}\nSubject: ${opts.subject}\n${opts.replyTo ? `Reply-To: ${opts.replyTo}\n` : ""}--- HTML ---\n${opts.html}\n${opts.text ? `\n--- TEXT ---\n${opts.text}\n` : ""}=====================\n`,
-    );
+    log.info("[mail:dev-fallback] RESEND_API_KEY unset — email not delivered");
     return { ok: true, id: "dev-fallback" };
   }
 
@@ -71,7 +58,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<SendEmailResult
     });
 
     if (error) {
-      log.error({ err: error, to: recipients, subject: opts.subject }, "resend send failed");
+      log.error("resend send failed");
       return { ok: false, error: { message: error.message ?? "Resend rejected the email" } };
     }
 
@@ -80,7 +67,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<SendEmailResult
     }
     return { ok: true, id: data.id };
   } catch (err) {
-    log.error({ err, to: recipients, subject: opts.subject }, "resend transport exception");
+    log.error("resend transport exception");
     return { ok: false, error: { message: "Email transport error", cause: err } };
   }
 }

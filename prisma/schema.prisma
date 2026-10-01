@@ -589,6 +589,10 @@ model ContractEvent {
 }
 
 model EmailNotification {
+  deploymentId    String?  @db.Uuid
+  txHash          String?
+  kind            String?
+  deliveryKey     String?  @unique
   id              String   @id @default(uuid()) @db.Uuid
   contractEventId String   @db.Uuid
   nodeId          String
@@ -602,6 +606,7 @@ model EmailNotification {
 
   @@unique([contractEventId, nodeId, address])
   @@index([contractEventId])
+  @@index([deploymentId, txHash])
 }
 
 model EventCursor {

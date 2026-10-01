@@ -31,6 +31,7 @@ import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import AnimatedStraightEdge from "@/components/nodes/animated-edge";
+import { NotificationSettingsDialog } from "./notification-settings";
 import { sendWithRateLimitRetry } from "./autosave-retry.utils";
 import CanvasConfigPanel from "./canvas-config-panel";
 import Palette from "./palette";
@@ -74,6 +75,8 @@ function hasFiatPayoutConfig(node: FlowNode | undefined): boolean {
 const MINIMAP_NODE_LABELS = NODE_TYPE_LABELS;
 
 type BuilderProps = {
+  sandbox?: boolean;
+  accountEmail?: string | null;
   flowId: string;
   initialName: string;
   initialGraph: FlowGraph;
@@ -90,6 +93,7 @@ type BuilderProps = {
 };
 
 function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["positions"]): Node {
+  if (n.type === "email_notify") throw new Error("Legacy graph must be migrated before rendering");
   let type: "trigger" | "action" | "logic";
   switch (n.type) {
     case "on_receive":
@@ -107,7 +111,6 @@ function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["posi
     case "yield":
     case "hold":
     case "return_to_owner":
-    case "email_notify":
     case "cash_out":
       type = "action";
       break;
@@ -162,7 +165,6 @@ function nodeBorderColor(n: FlowNode | undefined): string {
     case "yield":
     case "hold":
     case "return_to_owner":
-    case "email_notify":
       return "#ffb1c4";
     case "condition":
       return "#ffba20";
@@ -226,6 +228,8 @@ export default function BuilderClient(props: BuilderProps) {
 }
 
 function Builder({
+  sandbox = false,
+  accountEmail,
   flowId,
   initialName,
   initialGraph,
@@ -255,6 +259,11 @@ function Builder({
   const [addressBook, setAddressBook] = useState<AddressEntry[]>([]);
   const [addressBookLoading, setAddressBookLoading] = useState(false);
   const [addressBookError, setAddressBookError] = useState<string | null>(null);
+  const [notify, setNotify] = useState<NonNullable<FlowGraph["notify"]>>({
+    mode: initialGraph.notify?.mode ?? "off",
+    sendTo: initialGraph.notify?.sendTo ?? accountEmail ?? "",
+  });
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [devMode, setDevMode] = useState<boolean>(initialGraph.devMode ?? false);
   const [senderKyc, setSenderKyc] = useState<SenderKyc | undefined>(initialGraph.senderKyc);
   const [kycDialogOpen, setKycDialogOpen] = useState(false);
@@ -317,12 +326,13 @@ function Builder({
       nodes: flowNodes,
       edges: rfEdges.map(toFlowEdge),
       devMode,
+      notify: sandbox ? { mode: "off", sendTo: "" } : notify,
       senderKyc,
       // Persist canvas positions with the flow (autosave is debounced, so a
       // drag saves once it settles rather than on every frame).
       positions: Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
     }),
-    [flowNodes, rfEdges, devMode, senderKyc, rfNodes],
+    [flowNodes, rfEdges, devMode, notify, sandbox, senderKyc, rfNodes],
   );
 
   // Snapshot of the live canvas positions — used as a fallback when a
@@ -341,7 +351,10 @@ function Builder({
     [graph, features.offramp],
   );
 
-  const validation = useMemo(() => validateFlow(graph, { features }), [graph, features]);
+  const validation = useMemo(
+    () => validateFlow(graph, { features, ignoreOwnerEmail: true }),
+    [graph, features],
+  );
 
   const english = useMemo(() => {
     const v = FlowGraphSchema.safeParse(graph);
@@ -709,6 +722,7 @@ function Builder({
       if (applied && patchedGraph) {
         // Use server-normalized graph directly (Issue #6 fix)
         setFlowNodes(patchedGraph.nodes);
+        if (patchedGraph.notify) setNotify(patchedGraph.notify);
         setRfNodes(
           patchedGraph.nodes.map((n, i) =>
             nodeToReactFlow(n, i, patchedGraph.positions ?? currentPositions()),
@@ -876,6 +890,20 @@ function Builder({
               className="text-headline-sm max-md:text-body-lg text-on-surface max-w-[40ch] min-w-[12ch] flex-1 border-0 bg-transparent px-0 py-1 font-semibold tracking-[-0.01em] outline-none focus:outline-none max-md:min-w-0"
               style={{ fieldSizing: "content" } as React.CSSProperties}
             />
+            {!sandbox && (
+              <button
+                id="notification-settings-button"
+                type="button"
+                aria-expanded={notificationsOpen}
+                aria-label="Email notifications"
+                className="input min-h-11 min-w-11"
+                onClick={() => setNotificationsOpen((v) => !v)}
+              >
+                <span aria-hidden="true" className="material-symbols-outlined">
+                  mail
+                </span>
+              </button>
+            )}
             <button
               type="button"
               role="switch"
@@ -904,6 +932,16 @@ function Builder({
             </button>
           </div>
 
+          {!sandbox && notificationsOpen && (
+            <NotificationSettingsDialog
+              value={notify}
+              onChange={setNotify}
+              onClose={() => {
+                setNotificationsOpen(false);
+                document.getElementById("notification-settings-button")?.focus();
+              }}
+            />
+          )}
           {/* Row 2: English Preview */}
           <EnglishPreview
             english={english}
@@ -983,6 +1021,7 @@ function Builder({
                   network={network}
                   routerContractId={routerContractId}
                   features={features}
+                  sandbox={sandbox}
                   onChange={updateNode}
                   onDelete={deleteNode}
                   addressBook={addressBook}
@@ -1091,7 +1130,7 @@ function Builder({
 }
 
 function nodeLabel(n: FlowNode | undefined): string {
-  if (!n) return "?";
+  if (!n || n.type === "email_notify") return "?";
   switch (n.type) {
     case "on_receive":
       return `On Receive (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
@@ -1119,8 +1158,6 @@ function nodeLabel(n: FlowNode | undefined): string {
       return `Swap`;
     case "yield":
       return `Yield`;
-    case "email_notify":
-      return `Email (${n.config.recipients.length})`;
     case "cash_out":
       return `Cash Out${n.config.bankCode ? ` (${n.config.bankCode})` : ""}`;
     case "condition":

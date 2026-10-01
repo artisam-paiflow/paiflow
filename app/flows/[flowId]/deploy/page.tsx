@@ -33,7 +33,7 @@ export default async function DeployReviewPage({
 
   const graph = FlowGraphSchema.safeParse(flow.graph);
   const validation = graph.success
-    ? validateFlow(graph.data, { features: serverFeatures() })
+    ? validateFlow(graph.data, { features: serverFeatures(), ignoreOwnerEmail: true })
     : null;
   const english = graph.success ? flowToEnglish(graph.data) : "(invalid graph)";
   const pipeline = validation?.ok ? validation.pipeline : null;

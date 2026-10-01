@@ -32,6 +32,7 @@ type CanvasConfigPanelProps = {
   network: StellarNetwork;
   routerContractId?: string;
   features: FeatureFlags;
+  sandbox?: boolean;
 };
 
 const NODE_ANCHOR_OFFSET_X = 240;
@@ -54,6 +55,7 @@ export default function CanvasConfigPanel({
   network,
   routerContractId,
   features,
+  sandbox,
 }: CanvasConfigPanelProps) {
   const { getNode, screenToFlowPosition } = useReactFlow();
   const { x, y, zoom } = useViewport();
@@ -246,6 +248,7 @@ export default function CanvasConfigPanel({
         network={network}
         routerContractId={routerContractId}
         features={features}
+        sandbox={sandbox}
         hideHeader
         className="border-0"
       />

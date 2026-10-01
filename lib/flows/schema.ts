@@ -184,6 +184,7 @@ export const PayAction = z.object({
   config: z
     .object({
       recipient: stellarAccount,
+      email: z.string().max(254).optional(),
       asset: AssetSchema,
       mode: z.enum(["fixed", "percentage"]).optional(),
       amountStroops: z
@@ -211,6 +212,7 @@ export const PayAction = z.object({
 
 const SplitRecipientBase = z.object({
   address: splitRecipientAddress,
+  email: z.string().max(254).optional(),
   label: z.string().max(64).optional(),
   payoutMode: z.enum(["crypto", "fiat"]).optional(),
   // Bank destination for fiat payouts. Required at design time for immutable
@@ -250,68 +252,129 @@ function hydrateSplitRecipient(r: unknown): unknown {
 
 export function migrateFlowGraph(raw: unknown): unknown {
   if (!raw || typeof raw !== "object") return raw;
-  const graph = raw as { nodes?: unknown[] };
+  const graph = raw as {
+    nodes?: unknown[];
+    edges?: unknown[];
+    positions?: Record<string, unknown>;
+  };
   if (!Array.isArray(graph.nodes)) return raw;
+  const record = (value: unknown): Record<string, unknown> | undefined =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  const emailIds = new Set<string>();
+  const emails = new Map<string, string>();
+  for (const value of graph.nodes) {
+    const node = record(value);
+    if (node?.type !== "email_notify") continue;
+    if (typeof node.id === "string") emailIds.add(node.id);
+    const rows = record(node.config)?.recipients;
+    if (!Array.isArray(rows)) continue;
+    for (const value of rows) {
+      const row = record(value);
+      // Invalid legacy drafts are discarded rather than making a saved flow unloadable.
+      if (
+        typeof row?.address === "string" &&
+        typeof row.email === "string" &&
+        row.email.trim().length <= 254 &&
+        isValidEmailAddress(row.email.trim()) &&
+        !emails.has(row.address)
+      ) {
+        emails.set(row.address, row.email.trim());
+      }
+    }
+  }
+  const copyEmail = (value: unknown, addressKey: string): unknown => {
+    const row = record(value);
+    if (!row) return value;
+    const address = row[addressKey];
+    const email = typeof address === "string" ? emails.get(address) : undefined;
+    return email && !row.email ? { ...row, email } : value;
+  };
   return {
     ...graph,
-    nodes: graph.nodes.map((n) => {
-      if (!n || typeof n !== "object") return n;
-      const node = n as { type?: unknown; config?: { recipients?: unknown[] } };
-      if (node.type === "split" && Array.isArray(node.config?.recipients)) {
-        return {
-          ...node,
-          config: {
-            ...node.config,
-            recipients: node.config.recipients.map(hydrateSplitRecipient),
-          },
-        };
-      }
-      if (node.type === "subscription" && node.config && typeof node.config === "object") {
-        const cfg = node.config as { intervalAmount?: unknown; intervalUnit?: unknown };
-        if (cfg.intervalAmount === undefined || cfg.intervalUnit === undefined) {
+    ...(Array.isArray(graph.edges)
+      ? {
+          edges: graph.edges.filter((value) => {
+            const edge = record(value);
+            return !emailIds.has(String(edge?.source)) && !emailIds.has(String(edge?.target));
+          }),
+        }
+      : {}),
+    ...(graph.positions
+      ? {
+          positions: Object.fromEntries(
+            Object.entries(graph.positions).filter(([id]) => !emailIds.has(id)),
+          ),
+        }
+      : {}),
+    nodes: graph.nodes
+      .filter((value) => record(value)?.type !== "email_notify")
+      .map((value) => {
+        const original = record(value);
+        const n =
+          original?.type === "pay"
+            ? { ...original, config: copyEmail(original.config, "recipient") }
+            : value;
+        if (!n || typeof n !== "object") return n;
+        const node = n as { type?: unknown; config?: { recipients?: unknown[] } };
+        if (node.type === "split" && Array.isArray(node.config?.recipients)) {
           return {
             ...node,
             config: {
               ...node.config,
-              intervalAmount: 1,
-              intervalUnit: "day",
+              recipients: node.config.recipients.map((r) =>
+                hydrateSplitRecipient(copyEmail(r, "address")),
+              ),
             },
           };
         }
-      }
-      if (node.type === "payroll" && node.config && typeof node.config === "object") {
-        const cfg = node.config as { fillScheduleViaApi?: unknown };
-        if (cfg.fillScheduleViaApi === undefined) {
-          return {
-            ...node,
-            config: {
-              ...node.config,
-              fillScheduleViaApi: false,
-            },
-          };
+        if (node.type === "subscription" && node.config && typeof node.config === "object") {
+          const cfg = node.config as { intervalAmount?: unknown; intervalUnit?: unknown };
+          if (cfg.intervalAmount === undefined || cfg.intervalUnit === undefined) {
+            return {
+              ...node,
+              config: {
+                ...node.config,
+                intervalAmount: 1,
+                intervalUnit: "day",
+              },
+            };
+          }
         }
-      }
-      if (node.type === "pay" && node.config && typeof node.config === "object") {
-        const cfg = node.config as { fillValueViaApi?: unknown; mode?: unknown };
-        const updates: Record<string, unknown> = {};
-        if (cfg.fillValueViaApi === undefined) {
-          updates.fillValueViaApi = false;
+        if (node.type === "payroll" && node.config && typeof node.config === "object") {
+          const cfg = node.config as { fillScheduleViaApi?: unknown };
+          if (cfg.fillScheduleViaApi === undefined) {
+            return {
+              ...node,
+              config: {
+                ...node.config,
+                fillScheduleViaApi: false,
+              },
+            };
+          }
         }
-        if (cfg.mode === undefined) {
-          updates.mode = "fixed";
+        if (node.type === "pay" && node.config && typeof node.config === "object") {
+          const cfg = node.config as { fillValueViaApi?: unknown; mode?: unknown };
+          const updates: Record<string, unknown> = {};
+          if (cfg.fillValueViaApi === undefined) {
+            updates.fillValueViaApi = false;
+          }
+          if (cfg.mode === undefined) {
+            updates.mode = "fixed";
+          }
+          if (Object.keys(updates).length > 0) {
+            return {
+              ...node,
+              config: {
+                ...node.config,
+                ...updates,
+              },
+            };
+          }
         }
-        if (Object.keys(updates).length > 0) {
-          return {
-            ...node,
-            config: {
-              ...node.config,
-              ...updates,
-            },
-          };
-        }
-      }
-      return n;
-    }),
+        return n;
+      }),
   };
 }
 
@@ -537,7 +600,13 @@ export const SenderKycSchema = z.object({
 });
 export type SenderKyc = z.infer<typeof SenderKycSchema>;
 
-export const FlowGraphSchema = z.object({
+export const NotifySchema = z.object({
+  mode: z.enum(["off", "every_transaction", "shortfalls_only"]),
+  // Drafts autosave on each keystroke; validity is checked separately.
+  sendTo: z.string().max(254),
+});
+
+const FlowGraphShape = z.object({
   nodes: z.array(FlowNodeSchema).max(40),
   edges: z.array(FlowEdgeSchema).max(80),
   // Dev mode turns this flow into a parameterized one: nodes with a dev
@@ -545,12 +614,15 @@ export const FlowGraphSchema = z.object({
   // variant whose recipients / amounts / schedule can be left blank at design
   // time and filled or changed later via the API.
   devMode: z.boolean().optional(),
+  notify: NotifySchema.optional(),
   senderKyc: SenderKycSchema.optional(),
   // Canvas layout: node positions keyed by node id. UI-only state — ignored by
   // validation and pipeline compilation, but persisted with the flow so the
   // builder reopens with the same arrangement instead of re-cascading nodes.
   positions: z.record(z.string(), z.object({ x: z.number(), y: z.number() })).optional(),
 });
+// Every stored-graph reader and save boundary converts legacy nodes before parsing.
+export const FlowGraphSchema = z.preprocess(migrateFlowGraph, FlowGraphShape);
 export type FlowGraph = z.infer<typeof FlowGraphSchema>;
 
 export const FlowSaveSchema = z.object({
@@ -711,4 +783,38 @@ export function sourceAmountStroops(graph: FlowGraph): string | undefined {
     }
   }
   return undefined;
+}
+
+/** Strip personal notification data before handing a graph to a public surface. */
+export function withoutNotificationEmails(graph: FlowGraph): FlowGraph {
+  const { notify: _notify, senderKyc, ...rest } = graph;
+  const publicKyc = senderKyc ? (({ email: _email, ...kyc }) => kyc)(senderKyc) : undefined;
+  return {
+    ...rest,
+    ...(publicKyc ? { senderKyc: publicKyc } : {}),
+    nodes: graph.nodes
+      .filter((n) => n.type !== "email_notify")
+      .map((n) => {
+        if (n.type === "pay") {
+          const { email: _email, ...config } = n.config;
+          return { ...n, config };
+        }
+        if (n.type === "split")
+          return {
+            ...n,
+            config: {
+              ...n.config,
+              recipients: n.config.recipients.map((r) => {
+                const { email: _email, ...recipient } = r;
+                return recipient;
+              }),
+            },
+          };
+        return n;
+      }),
+  };
+}
+
+export function sandboxNotifications(graph: FlowGraph): FlowGraph {
+  return { ...withoutNotificationEmails(graph), notify: { mode: "off", sendTo: "" } };
 }

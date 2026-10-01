@@ -120,8 +120,10 @@ describe("pay percentage / amount left empty (#583, same bug class)", () => {
     expect(errorsOf(graph).map((e) => e.path)).toContain("nodes.p.config.amountStroops");
   });
 
-  it("still refuses a pay with no mode at parse time", () => {
-    expect(FlowGraphSchema.safeParse(payFlow({ amountStroops: "10" })).success).toBe(false);
+  it("hydrates a legacy pay with no mode before parsing", () => {
+    expect(FlowGraphSchema.parse(payFlow({ amountStroops: "10" })).nodes[1]?.config).toMatchObject({
+      mode: "fixed",
+    });
     expect(FlowGraphSchema.safeParse(payFlow({ fullAmount: true })).success).toBe(true);
   });
 });

@@ -1,10 +1,13 @@
 import "server-only";
 import { sendEmail } from "@/lib/mail";
 import { db } from "@/lib/db";
+import { rateLimit } from "@/lib/rate-limit";
+import { env } from "@/lib/env";
+import { stellarExpertTxUrl, isStellarNetwork } from "@/lib/stellar/explorer";
 import { log } from "@/lib/log";
 import { formatStroops } from "@/lib/utils";
-import type { FlowGraph, FlowNode, SplitRecipient } from "./schema";
-import { assetLabel } from "./schema";
+import type { FlowGraph, FlowNode } from "./schema";
+import { assetLabel, FlowGraphSchema, migrateFlowGraph, isValidEmailAddress } from "./schema";
 import { inboundAsset, resolveEmittingNode, type PipelineNodeSnapshot } from "./event-assets";
 
 export type EmailContext = Record<string, string>;
@@ -32,6 +35,7 @@ function resolveAssetLabel(params: {
   const { rawAsset, parentNode, graph } = params;
   const keys = new Set<string>();
   const eventKey = extractAssetKey(rawAsset);
+  if (eventKey === "USDC" || eventKey === "XLM") return eventKey;
   if (eventKey) keys.add(eventKey);
 
   const parentAsset = inboundAsset(parentNode);
@@ -161,16 +165,6 @@ export function buildEmailContext(params: {
   return ctx;
 }
 
-/**
- * Replace `{{variable}}` placeholders in a template string with values from the
- * provided context. Unknown variables are left unchanged.
- */
-export function interpolateTemplate(template: string, ctx: EmailContext): string {
-  return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key) => {
-    return ctx[key] !== undefined ? String(ctx[key]) : match;
-  });
-}
-
 function textToHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -195,183 +189,193 @@ function formatAmountValue(value: unknown): string | undefined {
   return formatStroops(raw);
 }
 
-/**
- * Resolve the amount (in stroops) that the given wallet address should receive
- * for this event. Prefers per-recipient event data (e.g. splitter `pay` events),
- * then falls back to calculating a share from the total amount when the parent
- * is a splitter.
- */
-export function resolvePerRecipientAmount(params: {
-  address: string;
-  parentNode: FlowNode | undefined;
-  event: { kind: string; decodedData: Record<string, unknown> | null };
-}): string | null | undefined {
-  const { address, parentNode, event } = params;
-  const data = event.decodedData ?? {};
-
-  // Shortfall events have no payout yet.
-  if (
-    event.kind === "SHORTFALL" ||
-    (data.needed != null && data.remaining != null && data.balance != null)
-  ) {
-    return null;
-  }
-
-  // Fixed-amount split: return the configured amount for this recipient.
-  if (parentNode?.type === "split") {
-    const recipient = parentNode.config.recipients.find((r) => r.address === address);
-    if (recipient?.mode === "fixed") {
-      return recipient.amountStroops;
-    }
-  }
-
-  // Per-recipient event emitted by the contract (e.g. splitter "pay").
-  if (typeof data.recipient === "string") {
-    if (data.recipient === address) {
-      const payment = asIntegerString(data.payment);
-      if (payment !== undefined) return payment;
-      const amount = asIntegerString(data.amount);
-      if (amount !== undefined) return amount;
-    }
-
-    // For splitter parents, a per-recipient event for someone else should not
-    // leak that person's amount into this wallet's email. Estimate this
-    // wallet's share from the known payment and the source recipient's bps.
-    if (parentNode?.type === "split") {
-      const payment = asIntegerString(data.payment) ?? asIntegerString(data.amount);
-      const sourceShare = parentNode.config.recipients.find(
-        (r): r is Extract<SplitRecipient, { mode: "percentage" }> =>
-          r.mode === "percentage" && r.address === data.recipient,
-      );
-      const targetShare = parentNode.config.recipients.find(
-        (r): r is Extract<SplitRecipient, { mode: "percentage" }> =>
-          r.mode === "percentage" && r.address === address,
-      );
-      if (payment !== undefined && sourceShare && targetShare) {
-        try {
-          const estimatedTotal = (BigInt(payment) * 10000n) / BigInt(sourceShare.bps);
-          const estimated = (estimatedTotal * BigInt(targetShare.bps)) / 10000n;
-          return estimated.toString();
-        } catch {
-          return null;
-        }
-      }
-      return null;
-    }
-  }
-
-  // Total-amount event with a percentage splitter parent — calculate the address's share.
-  if (parentNode?.type === "split") {
-    const total = asIntegerString(data.amount);
-    const share = parentNode.config.recipients.find(
-      (r): r is Extract<SplitRecipient, { mode: "percentage" }> =>
-        r.mode === "percentage" && r.address === address,
-    );
-    if (total !== undefined && share) {
-      try {
-        const perRecipient = (BigInt(total) * BigInt(share.bps)) / 10000n;
-        return perRecipient.toString();
-      } catch {
-        return null;
-      }
-    }
-    // Splitter parent but we can't resolve a share — don't fall back to a
-    // random event field that may belong to another recipient.
-    return null;
-  }
-
-  return undefined;
-}
-
 export type { PipelineNodeSnapshot } from "./event-assets";
 
-/**
- * For a newly persisted contract event, find any `email_notify` decorator nodes
- * attached to the graph node that owns the emitting contract, render the email
- * with context variables, and send via Resend. Results are persisted in
- * EmailNotification rows with idempotency on (event, node, recipient).
- */
-export async function sendEmailNotificationsForEvent(params: {
+/** Dispatch only after the poll pass has persisted every contract through this ledger. */
+export async function sendEmailNotificationsForTransactions(params: {
   deploymentId: string;
-  contractEventId: string;
-  event: {
-    kind: string;
-    ledger: number;
-    txHash: string;
-    eventId: string;
-    decodedData: Record<string, unknown> | null;
-  };
-  graph: FlowGraph | null;
-  pipeline: PipelineNodeSnapshot[] | null;
-  contractAddress: string;
+  startLedger: number;
+  throughLedger: number;
 }): Promise<void> {
-  const { deploymentId, contractEventId, event, graph, pipeline, contractAddress } = params;
-  if (!graph) return;
-
-  const parentNode = resolveEmittingNode({ graph, pipeline, contractAddress });
-
-  const emailNodes = graph.nodes.filter((n): n is Extract<FlowNode, { type: "email_notify" }> => {
-    if (n.type !== "email_notify") return false;
-    return graph.edges.some((e) => e.source === (parentNode?.id ?? "") && e.target === n.id);
+  const { deploymentId, startLedger, throughLedger } = params;
+  const deployment = await db.deployment.findUnique({
+    where: { id: deploymentId },
+    include: { owner: { select: { role: true } }, flow: { select: { name: true } } },
   });
+  if (!deployment?.owner || deployment.owner.role === "SANDBOX") return;
+  const parsed = FlowGraphSchema.safeParse(migrateFlowGraph(deployment.graphSnapshot));
+  if (!parsed.success || !isStellarNetwork(deployment.network)) return;
+  const graph = parsed.data;
+  const recipientRows = graph.nodes.flatMap<{ address: string; email?: string }>((n) =>
+    n.type === "pay"
+      ? [{ address: n.config.recipient, email: n.config.email }]
+      : n.type === "split"
+        ? n.config.recipients
+        : [],
+  );
+  const ownerEnabled =
+    graph.notify?.mode !== "off" && isValidEmailAddress(graph.notify?.sendTo.trim() ?? "");
+  if (!ownerEnabled && !recipientRows.some((r) => isValidEmailAddress(r.email?.trim() ?? "")))
+    return;
+  const events = await db.contractEvent.findMany({
+    where: { deploymentId, ledger: { gte: startLedger, lte: throughLedger } },
+    orderBy: [{ ledger: "asc" }, { eventId: "asc" }],
+  });
+  const transactions = new Map<string, typeof events>();
+  for (const event of events) {
+    const rows = transactions.get(event.txHash) ?? [];
+    rows.push(event);
+    transactions.set(event.txHash, rows);
+  }
+  const network = deployment.network;
+  const short = (address: string) => `${address.slice(0, 5)}…${address.slice(-4)}`;
 
-  if (emailNodes.length === 0) return;
-
-  for (const node of emailNodes) {
-    for (const mapping of node.config.recipients) {
-      const { address, email } = mapping;
-
-      // For pay parents, the contract emits per-recipient events; skip the
-      // mapping if this event is clearly for a different wallet.
-      const data = event.decodedData ?? {};
-      if (
-        parentNode?.type === "pay" &&
-        typeof data.recipient === "string" &&
-        data.recipient !== address
-      ) {
-        continue;
+  for (const [txHash, rows] of transactions) {
+    const messages: {
+      kind: string;
+      address: string;
+      email: string;
+      summary: string;
+      owner: boolean;
+    }[] = [];
+    const summaries: string[] = [];
+    for (const row of rows) {
+      const data =
+        row.decodedData && typeof row.decodedData === "object" && !Array.isArray(row.decodedData)
+          ? (row.decodedData as Record<string, unknown>)
+          : {};
+      const payload = row.payload as { contractAddress?: string } | null;
+      const parentNode = resolveEmittingNode({
+        graph,
+        pipeline: deployment.pipelineSnapshot as PipelineNodeSnapshot[] | null,
+        contractAddress: payload?.contractAddress ?? "",
+      });
+      const held =
+        parentNode?.type === "condition" &&
+        (parentNode.config.kind === "time_before" || parentNode.config.kind === "time_after") &&
+        graph.edges.some(
+          (e) =>
+            e.source === parentNode.id &&
+            graph.nodes.find((h) => h.id === e.target)?.type === "hold",
+        );
+      const ctx = buildEmailContext({
+        event: { ...row, decodedData: data },
+        parentNode,
+        graph,
+        walletAddress: String(data.recipient ?? ""),
+      });
+      const asset =
+        ctx.asset ??
+        graph.nodes.flatMap((n) => ("asset" in n.config ? [assetLabel(n.config.asset)] : []))[0] ??
+        "asset";
+      const amount = ctx.amount ?? formatAmountValue(data.balance);
+      if (row.kind === "PAYOUT" && data.amountOut !== undefined) {
+        const output = formatAmountValue(data.amountOut);
+        const input = formatAmountValue(data.amountIn);
+        if (output)
+          summaries.push(
+            `Swapped ${input ?? "unknown"} ${String(data.assetIn ?? asset)} for ${output} ${String(data.assetOut ?? asset)}`,
+          );
       }
-
-      const amount = resolvePerRecipientAmount({ address, parentNode, event });
-      const ctx = buildEmailContext({ event, parentNode, graph, walletAddress: address, amount });
-
-      try {
-        const exists = await db.emailNotification.findUnique({
-          where: {
-            contractEventId_nodeId_address: {
-              contractEventId,
-              nodeId: node.id,
-              address,
-            },
-          },
-        });
-        if (exists) continue;
-
-        const subject = interpolateTemplate(node.config.subject, ctx);
-        const body = interpolateTemplate(node.config.body, ctx);
-        const result = await sendEmail({
-          to: email,
-          subject,
-          html: textToHtml(body),
-          text: body,
-        });
-
-        await db.emailNotification.create({
-          data: {
-            contractEventId,
-            nodeId: node.id,
-            address,
-            recipient: email,
-            status: result.ok ? "sent" : "failed",
-            error: result.ok ? null : result.error.message,
-          },
-        });
-      } catch (err) {
-        log.warn(
-          { err, deploymentId, contractEventId, nodeId: node.id, address, email },
-          "sendEmailNotificationsForEvent failed for recipient",
+      if (
+        (row.kind === "CLAIM" ||
+          row.kind === "RETRIEVE" ||
+          row.kind === "CANCEL" ||
+          row.kind === "CASH_OUT") &&
+        amount
+      ) {
+        summaries.push(
+          `${row.kind === "CASH_OUT" ? "Sent for fiat payout" : row.kind === "CLAIM" ? "Claimed" : "Returned"} ${amount} ${asset}`,
         );
       }
+      if (row.kind === "PAYOUT" && typeof data.recipient !== "string" && amount && data.branch)
+        summaries.push(`Released ${amount} ${asset} (${String(data.branch)})`);
+      if (row.kind === "RECEIVE" && amount) {
+        if (held && parentNode?.type === "condition" && "at" in parentNode.config)
+          summaries.push(`${amount} ${asset} held until ${parentNode.config.at}`);
+        else if (parentNode?.type !== "condition") summaries.push(`Received ${amount} ${asset}`);
+      }
+      if (row.kind === "SHORTFALL")
+        summaries.push(`Deposit falls short: ${ctx.remaining ?? "unknown"} ${asset} still needed`);
+      if (row.kind === "PAYOUT" && typeof data.recipient === "string" && amount) {
+        const summary = `Paid ${amount} ${asset} to ${short(data.recipient)}`;
+        summaries.push(summary);
+        const nodeRows =
+          parentNode?.type === "pay"
+            ? [{ address: parentNode.config.recipient, email: parentNode.config.email }]
+            : parentNode?.type === "split"
+              ? parentNode.config.recipients
+              : parentNode
+                ? []
+                : recipientRows;
+        const mapping = nodeRows.find((r) => r.address === data.recipient && r.email?.trim());
+        if (mapping?.email && isValidEmailAddress(mapping.email.trim()))
+          messages.push({
+            kind: "recipient",
+            address: `${row.eventId}:${data.recipient}`,
+            email: mapping.email.trim(),
+            summary,
+            owner: false,
+          });
+      }
+    }
+    const notify = graph.notify;
+    if (
+      notify &&
+      notify.mode !== "off" &&
+      isValidEmailAddress(notify.sendTo.trim()) &&
+      (notify.mode === "every_transaction"
+        ? summaries.length > 0
+        : rows.some((r) => r.kind === "SHORTFALL"))
+    ) {
+      messages.unshift({
+        kind: "owner",
+        address: "",
+        email: notify.sendTo.trim(),
+        summary: summaries.join(". "),
+        owner: true,
+      });
+    }
+    for (const message of messages) {
+      const deliveryKey = `${deploymentId}:${txHash}:${message.kind}:${message.address}`;
+      // Claim before sending: concurrent polls and retries cannot send twice.
+      const claim = await db.emailNotification.createMany({
+        data: [
+          {
+            contractEventId: rows[0]!.id,
+            nodeId: message.kind,
+            address: message.address,
+            recipient: message.email,
+            deploymentId,
+            txHash,
+            kind: message.kind,
+            deliveryKey,
+            status: "pending",
+          },
+        ],
+        skipDuplicates: true,
+      });
+      if (claim.count === 0) continue;
+      const limit = await rateLimit(`email:deployment:${deploymentId}`, 30, 3600);
+      if (!limit.ok || (env().NODE_ENV === "production" && !limit.shared)) {
+        await db.emailNotification.update({ where: { deliveryKey }, data: { status: "skipped" } });
+        log.info({ deploymentId, txHash }, "Notification email skipped by deployment limit");
+        continue;
+      }
+      const text = `${message.summary}.\n\n${network.toUpperCase()}\n${stellarExpertTxUrl(txHash, network)}${message.owner ? `\n${env().NEXT_PUBLIC_APP_URL}/deployments/${deploymentId}` : ""}`;
+      const result = await sendEmail({
+        to: message.email,
+        subject: `${deployment.flow.name}: ${message.owner ? (rows.some((r) => r.kind === "SHORTFALL") ? "Deposit falls short" : `${summaries[0] ?? "Money moved"}${summaries.some((summary) => summary.startsWith("Paid ")) ? " and paid out" : ""}`) : message.summary}`,
+        text,
+        html: textToHtml(text),
+      });
+      await db.emailNotification.update({
+        where: { deliveryKey },
+        data: {
+          status: result.ok ? "sent" : "failed",
+          error: result.ok ? null : "Email delivery failed",
+        },
+      });
     }
   }
 }

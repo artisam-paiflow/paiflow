@@ -278,7 +278,7 @@ describe("validateFlow: time branches", () => {
     expect(issue?.friendlyMessage).toContain("True output of this time condition connects to 2");
   });
 
-  it("refuses an email hung off a time condition", () => {
+  it("converts an old email hung off a time condition", () => {
     const codesFound = codes(
       graph(
         before,
@@ -300,7 +300,7 @@ describe("validateFlow: time branches", () => {
         ],
       ),
     );
-    expect(codesFound).toContain("BRANCH_EMAIL");
+    expect(codesFound).not.toContain("BRANCH_EMAIL");
   });
 
   it("refuses a time condition under a schedule trigger, which would drop the deadline", () => {

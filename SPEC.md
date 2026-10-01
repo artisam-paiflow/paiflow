@@ -138,7 +138,6 @@ An action decides **where** money goes. A flow must contain at least one.
 | ●   | `pay`             | Sends to one recipient                                   | Fixed amount, a percentage of what arrived, or the full amount. Supports a fiat payout mode.                                                                   |
 | ●   | `split`           | Fans out to up to 20 recipients                          | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                                                          |
 | ●   | `swap`            | Exchanges `assetIn` for `assetOut` on Soroswap           | A real DEX swap with a slippage bound; forwards the whole output to exactly one next step. See below.                                                          |
-| ●   | `email_notify`    | Emails recipients when the flow pays out                 | Terminal only — it must have no outgoing edges, because it moves no money and nothing can be downstream of a notification.                                     |
 | ◦   | `cash_out`        | Sends to the off-ramp treasury against bank details      | The bridge out of crypto: the contract holds the destination bank account, so the payout is as immutable as the on-chain leg. Not placed directly — see below. |
 | ◦   | `yield`           | Transfers the balance to a vault address                 | A plain token transfer; it does not call a vault protocol's deposit function and nothing accrues. Downstream steps are then invoked with `amount=0`.           |
 
@@ -155,8 +154,16 @@ bound as its own backstop, so a failed swap moves nothing downstream. `assetIn` 
 differ: Soroswap has no pair for an asset against itself, so a same-asset swap would deploy and then
 revert on its first trigger. A swap node must have exactly one outgoing edge that carries money:
 splitting is the splitter's job, and a swap with nowhere to send its output would strand it in a
-contract that has no way to release it. An `email_notify` edge is a decorator, moves nothing, and
-does not count toward that one. The router is environment config, never part of the graph. Instawards Phase 1 Deliverable 1, [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md).
+contract that has no way to release it. The router is environment config, never part of the graph. Instawards Phase 1 Deliverable 1, [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md).
+
+Email is a flow setting, not a block. New flows default to "Every time money moves";
+existing graphs without `notify` stay off. "Only when a deposit falls short" and "Off" are
+also available. Send to is pre-filled from the account email and never blocks save or deploy.
+Owners receive one generated summary per transaction. Pay and Split recipient rows have an
+optional email for that recipient's own payout only. Hold and Return to owner use the owner
+summary. Legacy Email Notify nodes are converted on load by matching recipient addresses, then
+removed with their edges; custom subjects and bodies are discarded. Sandbox notifications are
+forced off. Notification addresses are private and never appear on public surfaces or in logs.
 
 ### 3.3 Logic
 

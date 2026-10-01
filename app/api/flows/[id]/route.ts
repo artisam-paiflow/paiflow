@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { audit } from "@/lib/audit";
-import { FlowPatchSchema } from "@/lib/flows/schema";
+import { FlowPatchSchema, sandboxNotifications } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 
@@ -35,7 +35,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     let parameters = flow.parameters;
     let graph = flow.graph;
     if (body.graph) {
-      const v = validateFlow(body.graph);
+      if (user.role === "SANDBOX") body.graph = sandboxNotifications(body.graph);
+      const v = validateFlow(body.graph, { ignoreOwnerEmail: true });
       if (v.ok) {
         templateKind = v.templateKind;
         parameters = flowToPipeline(v.graph, undefined, undefined, {

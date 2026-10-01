@@ -213,20 +213,6 @@ export const TEMPLATES: Template[] = [
     }),
   },
   {
-    group: "Actions",
-    label: "Email Notify",
-    icon: "mail",
-    make: () => ({
-      id: makeId("email"),
-      type: "email_notify",
-      config: {
-        recipients: [],
-        subject: "",
-        body: "",
-      },
-    }),
-  },
-  {
     group: "Logic",
     label: "Condition",
     icon: "rule",
