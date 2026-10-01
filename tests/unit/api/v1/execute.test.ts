@@ -313,8 +313,16 @@ describe("a Pay or Split step with nothing configured (#756)", () => {
   ];
 
   it.each([
-    ["PAYER_DEV", "payer_dev", "Pay step has no recipient yet"],
-    ["SPLITTER_DEV", "splitter_dev", "Split step has no recipients yet"],
+    [
+      "PAYER_DEV",
+      "payer_dev",
+      "This flow's Pay step has no recipient yet. Set it in Dev values on the deployment page, or per payment through POST /api/v1/deployments/:id/payouts.",
+    ],
+    [
+      "SPLITTER_DEV",
+      "splitter_dev",
+      "This flow's Split step has no recipients yet. Set them in Dev values on the deployment page.",
+    ],
   ] as const)("%s NotConfigured is a plain 422 on prepare", async (kind, key, text) => {
     authorize({ pipelineSnapshot: DEV_PIPELINE(kind) });
     mockBuildHint.mockResolvedValue({ addressMap: { [TRIGGER]: "deposit_trigger", [PAYER]: key } });
@@ -330,8 +338,9 @@ describe("a Pay or Split step with nothing configured (#756)", () => {
     expect(res.status).toBe(422);
     const { error } = await res.json();
     expect(error.message).toContain(text);
-    expect(error.message).toContain("dev API");
-    expect(error.message).toContain("POST /api/v1/deployments/:id/payouts");
+    if (kind === "SPLITTER_DEV") {
+      expect(error.message).not.toContain("/payouts");
+    }
   });
 
   it("is a plain message on a reverted submit too", async () => {
@@ -341,7 +350,9 @@ describe("a Pay or Split step with nothing configured (#756)", () => {
       DEV_PIPELINE("PAYER_DEV"),
     );
     expect(failure.code).toBe("NotConfigured");
-    expect(failure.message).toContain("Pay step has no recipient yet");
+    expect(failure.message).toBe(
+      "This flow's Pay step has no recipient yet. Set it in Dev values on the deployment page, or per payment through POST /api/v1/deployments/:id/payouts.",
+    );
   });
 });
 
