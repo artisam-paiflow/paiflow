@@ -32,6 +32,7 @@ import type { StellarNetwork } from "@/lib/stellar/explorer";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import AnimatedStraightEdge from "@/components/nodes/animated-edge";
 import { sendWithRateLimitRetry } from "./autosave-retry.utils";
+import { createSaveCoordinator, type SaveOutcome } from "./save-outcome.utils";
 import CanvasConfigPanel from "./canvas-config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
@@ -408,30 +409,32 @@ function Builder({
   );
 
   // Autosave with 800ms debounce (from develop)
-  const saveTimer = useRef<NodeJS.Timeout | null>(null);
-  const pendingSave = useRef<Promise<void> | null>(null);
+  const [saves] = useState(createSaveCoordinator);
+  const [deployPending, setDeployPending] = useState(false);
+  const deployPendingRef = useRef(false);
   // What the next attempt sends: a retry after a 429 must carry the newest graph, not the one that
   // was current when the first attempt went out.
   const latestSave = useRef<{ graph: FlowGraph; name: string }>({ graph, name });
-  // Bumped by every save that starts; a save still waiting out a 429 yields to a newer one.
+  // Bumped by every save scheduled; a save still waiting out a 429 yields to a newer one.
   const saveSeq = useRef(0);
   const unmounted = useRef(false);
   useEffect(() => {
     unmounted.current = false;
     return () => {
       unmounted.current = true;
+      saves.cancel();
     };
-  }, []);
+  }, [saves]);
   function saveGraph(
     currentGraph: FlowGraph,
     currentName: string,
     immediate = false,
-  ): Promise<void> {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
+  ): Promise<SaveOutcome> {
     latestSave.current = { graph: currentGraph, name: currentName };
+    const seq = ++saveSeq.current;
 
-    const doSave = async (): Promise<void> => {
-      const seq = ++saveSeq.current;
+    const doSave = async (): Promise<SaveOutcome> => {
+      if (unmounted.current) return { ok: false };
       let res: Response | null;
       try {
         res = await sendWithRateLimitRetry(
@@ -453,32 +456,19 @@ function Builder({
       } catch (err) {
         track("flow_autosave_failed", { status: null });
         if (!unmounted.current) toastError(err, "Save failed");
-        return;
+        return { ok: false };
       }
-      // Superseded: the newer save carries the latest graph and reports its own outcome.
-      if (res === null) {
-        if (!unmounted.current) await pendingSave.current;
-        return;
-      }
+      // Navigation follows the newer save through the coordinator.
+      if (res === null) return { ok: false };
       if (!res.ok) {
         track("flow_autosave_failed", { status: res.status });
         const body = await res.json().catch(() => ({}));
         if (!unmounted.current) toastError(body, `Save failed (${res.status})`);
       }
+      return { ok: res.ok && !unmounted.current };
     };
 
-    if (immediate) {
-      pendingSave.current = doSave();
-      return pendingSave.current;
-    }
-
-    pendingSave.current = new Promise((resolve) => {
-      saveTimer.current = setTimeout(async () => {
-        await doSave();
-        resolve();
-      }, 800);
-    });
-    return pendingSave.current;
+    return saves.schedule(doSave, immediate ? 0 : 800);
   }
 
   useEffect(() => {
@@ -861,12 +851,21 @@ function Builder({
             <DeployButton
               flowId={flowId}
               disabled={!isValid}
+              pending={deployPending}
               errorCount={errors.length}
               onClick={async (e) => {
                 e.preventDefault();
-                if (!isValid) return;
-                await saveGraph(graph, name, true);
-                window.location.href = `/flows/${flowId}/deploy`;
+                if (!isValid || deployPendingRef.current) return;
+                deployPendingRef.current = true;
+                setDeployPending(true);
+                try {
+                  await saves.navigateAfterSave(saveGraph(graph, name, true), () => {
+                    if (!unmounted.current) window.location.href = `/flows/${flowId}/deploy`;
+                  });
+                } finally {
+                  deployPendingRef.current = false;
+                  if (!unmounted.current) setDeployPending(false);
+                }
               }}
             />
             <input
