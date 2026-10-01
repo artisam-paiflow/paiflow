@@ -48,6 +48,21 @@ every segment's timestamp and the pipeline's contract addresses, is
 [`04-e2e-wallet-run.getTransaction.json`](04-e2e-wallet-run.getTransaction.json). The take does not
 open the deploy or the two API transactions on stellar.expert; they are linked above.
 
+### Stills from the recording
+
+Frames taken from the recording at the time shown, cropped to the window; nothing else is changed.
+
+| File                                                               | At   | What it shows                                                                                                   |
+| ------------------------------------------------------------------ | ---- | --------------------------------------------------------------------------------------------------------------- |
+| [`06-deploy-review.png`](06-deploy-review.png)                     | 2:43 | Review & deploy: the English preview, three contracts in one transaction, the TESTNET chip and the live quote   |
+| [`07-deployment-active.png`](07-deployment-active.png)             | 2:59 | The deployment page after the Freighter-signed deploy: ACTIVE on TESTNET, with its live flow                    |
+| [`08-freighter-trigger.png`](08-freighter-trigger.png)             | 3:35 | Freighter asking to confirm the trigger transaction from paiflow.xyz, on Test Net                               |
+| [`09-trigger-live-events.png`](09-trigger-live-events.png)         | 3:52 | Live events: RECEIVE 25 XLM, then PAYOUT "Swapped 25 XLM → 2.6412 USDC", ledger 4,915,682                       |
+| [`10-trigger-invocation-tree.png`](10-trigger-invocation-tree.png) | 4:15 | The trigger transaction on stellar.expert: deposit → `execute_step` → the Soroswap router's swap → the transfer |
+| [`11-api-prepare-postman.png`](11-api-prepare-postman.png)         | 6:20 | Postman, `POST /api/v1/deployments/{id}/execute`: 200 OK with the unsigned envelope                             |
+| [`12-api-submit-postman.png`](12-api-submit-postman.png)           | 7:56 | Postman, `POST …/execute/submit` with the envelope signed by the Stellar CLI: 200, `SUCCESS`, ledger 4915750    |
+| [`13-api-execute-live-events.png`](13-api-execute-live-events.png) | 8:02 | The same deployment's live events in the app: "Swapped 1 XLM → 0.1056 USDC" from the API execution              |
+
 ## The technical walkthrough video
 
 SOW §5.1 week 4, "Record and publish 3–5 min technical demo video", and §6.3 "Demo video
@@ -76,6 +91,7 @@ says what each covers.
 | `02-e2e-trigger.*`      | The trigger envelope, unsigned and signed; the contracts that emitted events; raw RPC               |
 | `03-e2e-api-execute.*`  | Prepare and submit responses, the signed envelope, both legs' swap events from `/events`; raw RPC   |
 | `04-e2e-wallet-run.*`   | The Freighter run's record: recording, segments, deployment, the four transactions; raw RPC         |
+| `06`–`13-*.png`         | Stills from the Freighter run's recording, listed [above](#stills-from-the-recording)               |
 | `e2e-run-checklist.md`  | The checklist for the end-to-end run with Freighter (the human half of the external-wallet test)    |
 | `walkthrough-script.md` | The technical walkthrough video's script: segments, narration, on-screen actions                    |
 | `05-vitest-junit.xml`   | The final CI run's `vitest-junit` artifact, byte for byte                                           |
