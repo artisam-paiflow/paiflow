@@ -31,8 +31,8 @@ function getClient(): Resend | null {
  *
  * Behavior:
  * - When `RESEND_API_KEY` is set, sends through the Resend API.
- * - When unset (dev), logs only a delivery-disabled marker and returns success with a
- *   mock id, so feature code can run end-to-end without exposing personal data.
+ * - When unset, returns success with a mock id and logs a delivery-disabled marker.
+ *   Only development also logs the body so local password resets can be tested.
  *
  * Returns a discriminated union; callers should branch on `ok` rather than
  * relying on truthiness checks.
@@ -44,6 +44,9 @@ export async function sendEmail(opts: SendEmailOptions): Promise<SendEmailResult
   const c = getClient();
   if (!c) {
     log.info("[mail:dev-fallback] RESEND_API_KEY unset — email not delivered");
+    if (e.NODE_ENV === "development") {
+      log.info({ html: opts.html, text: opts.text }, "[mail:dev-fallback] email body");
+    }
     return { ok: true, id: "dev-fallback" };
   }
 

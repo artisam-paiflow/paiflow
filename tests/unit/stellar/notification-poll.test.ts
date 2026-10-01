@@ -12,6 +12,7 @@ const mock = vi.hoisted(() => ({
   cursor: vi.fn(),
   getEvents: vi.fn(),
   send: vi.fn(),
+  warn: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -26,6 +27,7 @@ vi.mock("@/lib/stellar/client", () => ({
 }));
 vi.mock("@/lib/redis", () => ({ redis: () => null, eventChannel: () => "events" }));
 vi.mock("@/lib/mail", () => ({ sendEmail: mock.send }));
+vi.mock("@/lib/log", () => ({ log: { info: vi.fn(), warn: mock.warn } }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: async () => ({ ok: true, shared: true }) }));
 import { pollEventsFor } from "@/lib/stellar/events";
 
@@ -100,19 +102,59 @@ describe("email dispatch after persisted event polling", () => {
   it("waits for all pipeline contracts before sending a single transaction summary", async () => {
     expect(await pollEventsFor("dep")).toBe(3);
     expect(saved.size).toBe(3);
+    await vi.waitFor(() => expect(mock.update).toHaveBeenCalledTimes(1));
     expect(mock.send).toHaveBeenCalledTimes(1);
     expect(mock.send.mock.calls[0]![0].text).toContain("40 USDC");
     expect(mock.send.mock.calls[0]![0].text).toContain("60 USDC");
     expect(mock.send.mock.invocationCallOrder[0]).toBeGreaterThan(
       mock.create.mock.invocationCallOrder.at(-1)!,
     );
-    expect(mock.cursor.mock.invocationCallOrder[0]).toBeGreaterThan(
-      mock.send.mock.invocationCallOrder[0]!,
+    expect(mock.send.mock.invocationCallOrder[0]).toBeGreaterThan(
+      mock.cursor.mock.invocationCallOrder[0]!,
     );
+  });
+  it("resolves and advances the cursor when notification dispatch rejects", async () => {
+    const err = new Error("notification query failed");
+    mock.find.mockRejectedValueOnce(err);
+
+    await expect(pollEventsFor("dep")).resolves.toBe(3);
+    expect(mock.cursor).toHaveBeenCalledWith({
+      where: { deploymentId: "dep", lastLedger: { lte: 10 } },
+      data: { lastLedger: 10 },
+    });
+    await vi.waitFor(() =>
+      expect(mock.warn).toHaveBeenCalledWith(
+        { err, deploymentId: "dep" },
+        "email notification dispatch failed",
+      ),
+    );
+    expect(mock.find.mock.invocationCallOrder[0]).toBeGreaterThan(
+      mock.cursor.mock.invocationCallOrder[0]!,
+    );
+    expect(mock.send).not.toHaveBeenCalled();
+  });
+  it("resolves while email delivery is still pending", async () => {
+    let finishDelivery!: (result: { ok: true; id: string }) => void;
+    mock.send.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishDelivery = resolve;
+      }),
+    );
+
+    try {
+      await expect(pollEventsFor("dep")).resolves.toBe(3);
+      await vi.waitFor(() => expect(mock.send).toHaveBeenCalledTimes(1));
+      expect(mock.cursor).toHaveBeenCalled();
+      expect(mock.update).not.toHaveBeenCalled();
+    } finally {
+      finishDelivery({ ok: true, id: "sent" });
+    }
+    await vi.waitFor(() => expect(mock.update).toHaveBeenCalledTimes(1));
   });
   it("re-polling existing rows sends no duplicate", async () => {
     await pollEventsFor("dep");
     expect(await pollEventsFor("dep")).toBe(0);
+    await vi.waitFor(() => expect(mock.update).toHaveBeenCalledTimes(1));
     expect(mock.send).toHaveBeenCalledTimes(1);
   });
   it("a failed contract scan sends nothing until a complete retry", async () => {
@@ -126,6 +168,7 @@ describe("email dispatch after persisted event polling", () => {
     expect(mock.cursor).not.toHaveBeenCalled();
     mock.getEvents.mockImplementation(original);
     expect(await pollEventsFor("dep")).toBe(2);
+    await vi.waitFor(() => expect(mock.update).toHaveBeenCalledTimes(1));
     expect(mock.send).toHaveBeenCalledTimes(1);
   });
 });

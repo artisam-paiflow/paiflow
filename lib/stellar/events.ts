@@ -1339,12 +1339,14 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
   }
 
   if (scannedThrough > emptySetSentinel) {
-    await sendEmailNotificationsForTransactions({
+    await advanceEventCursor(deploymentId, scannedThrough);
+    void sendEmailNotificationsForTransactions({
       deploymentId,
       startLedger,
       throughLedger: scannedThrough,
+    }).catch((err) => {
+      log.warn({ err, deploymentId }, "email notification dispatch failed");
     });
-    await advanceEventCursor(deploymentId, scannedThrough);
   }
 
   return totalWritten;
