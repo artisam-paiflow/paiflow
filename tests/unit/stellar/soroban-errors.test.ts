@@ -72,6 +72,55 @@ describe("translateSorobanError", () => {
   });
 });
 
+describe("Stellar Asset Contract errors on the payout leg (#574)", () => {
+  const TRIGGER = "CCH3TIPZCI35FM3BOOBQA4JLLTU6KYOPQEFKWQMYMR5P2J47G3BZDWWN";
+  const SWAPPER = "CDLLYSUI3U4BZBQXQJENHZUHTO4PQ2X54LSVSPQ3SQXC6RAGJYIKGKV6";
+  const PAYER = "CBWGUCYLFBALLEC6GPSJBPSRYVLLBHCC7DEQJIB2T2TG4INW4AQ5LI7M";
+  const USDC_SAC = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
+  const LABEL = "USDC issued by GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+
+  // Newest first, as the host logs it: the trigger, swapper and payer each trap
+  // with the #13 the asset contract raised, and the asset contract comes last.
+  const frame = (address: string) =>
+    `[Diagnostic Event] contract:${address}, topics:[error, Error(Contract, #13)], data:"escalating error to VM trap"`;
+  const DUMP =
+    "HostError: Error(Contract, #13) Event log (newest first): " +
+    [TRIGGER, SWAPPER, PAYER, USDC_SAC].map((a, i) => `${i}: ${frame(a)}`).join(" ");
+
+  const hint = {
+    addressMap: {
+      [TRIGGER]: "deposit_trigger",
+      [SWAPPER]: "swapper",
+      [PAYER]: "payer",
+      [USDC_SAC]: "stellar_asset",
+    } as const,
+    assetLabels: { [USDC_SAC]: LABEL },
+  };
+
+  it("names the asset and its issuer instead of 'error #13'", () => {
+    const t = translateSorobanError(DUMP, hint);
+    expect(t.matched).toBe(true);
+    expect(t.errorName).toBe("TrustlineMissingError");
+    expect(t.friendly).toContain("trustline");
+    expect(t.friendly).toContain(LABEL);
+    expect(t.friendly).not.toMatch(/error #13|\{asset\}/);
+  });
+
+  it("says 'this asset' when the asset contract has no label", () => {
+    const t = translateSorobanError(DUMP, { addressMap: hint.addressMap });
+    expect(t.friendly).toMatch(/no trustline for this asset/);
+  });
+
+  it("does not read the re-raised #13 in the payer's or swapper's table", () => {
+    // Without the asset contract mapped, the outer frames are re-raises of the
+    // same code and must not be explained by their own tables.
+    const { [USDC_SAC]: _, ...withoutAsset } = hint.addressMap;
+    const t = translateSorobanError(DUMP, { addressMap: withoutAsset });
+    expect(t.matched).toBe(false);
+    expect(t.friendly).toMatch(/error #13/);
+  });
+});
+
 describe("contract key mappings", () => {
   it("maps template kinds", () => {
     expect(contractKeyForTemplate("STREAMER")).toBe("streamer");

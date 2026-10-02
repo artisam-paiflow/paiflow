@@ -46,6 +46,10 @@ extends it again.
 
 ## Transactions
 
+The headline transactions of each deliverable are below. **Every** swap settlement and every flow
+deployment from the public app, on both reporting bases, is in the
+[transaction list](transactions.md), generated from the snapshots with `pnpm instawards:transactions`.
+
 | Date   | What it proves                                                                                                                                                                                                                 | Deliverable | Transaction                                                                                                                                                                                                                                              |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 9 Sep  | A swapper flow deployed from paiflow.xyz, through the app's own factory in one `deploy_pipeline` call                                                                                                                          | D1          | [`775af303…`](https://stellar.expert/explorer/testnet/tx/775af303e24ebd7f59923544df3963cc17fa05e1db66174f38f4c3ae10670943)                                                                                                                               |
@@ -59,6 +63,16 @@ extends it again.
 | 18 Sep | The same API driven from the Postman collection rather than curl: 1 XLM swapped to 0.1055731 USDC and paid on                                                                                                                  | D2          | [`27f68188…`](https://stellar.expert/explorer/testnet/tx/27f681889bfebdab92a4d9e6d70770ea5df72bd597c627bc5c0014d0d86bfbfb)                                                                                                                               |
 | 25 Sep | The D3 recorded run: a registered user's swap-and-split flow deployed from the builder with Freighter                                                                                                                          | D3          | [`f82d7486…`](https://stellar.expert/explorer/testnet/tx/f82d74863e90e36184bd7809b525fbf7f923843963b3c3178f94a1b576b33d63)                                                                                                                               |
 | 25 Sep | The D3 recorded run: 50 XLM swapped to 5.2731437 USDC through the Soroswap router and split 60/40                                                                                                                              | D3          | [`34048835…`](https://stellar.expert/explorer/testnet/tx/34048835187d7d4c66d496e35bbb4994caee88a82b362131ac5b260d52baeb31)                                                                                                                               |
+| 28 Sep | The D4 end-to-end run: a swap flow deployed on paiflow.xyz at build `d850197`                                                                                                                                                  | D4          | [`28b9624e…`](https://stellar.expert/explorer/testnet/tx/28b9624e4b9225619ff21ec46558dd10048fba3409b98bc5896afecc63b4acda)                                                                                                                               |
+| 28 Sep | The D4 end-to-end run: triggered from the app, 10 XLM swapped through the Soroswap router and paid on                                                                                                                          | D4          | [`750f64c1…`](https://stellar.expert/explorer/testnet/tx/750f64c1ac2e2e0085ffcc94aea1f15e2e3d5dcfc961625a92bb0cbf951db903)                                                                                                                               |
+| 28 Sep | The D4 end-to-end run: the same deployment executed through `/api/v1` with a token and no session, 10 XLM swapped and paid on                                                                                                  | D4          | [`56929533…`](https://stellar.expert/explorer/testnet/tx/569295336b906aaeb9538c519bd4d5f7020671a945ac39908fe46d2651803ae6)                                                                                                                               |
+| 28 Sep | The D4 Freighter run, recorded: the same kind of flow deployed from the builder, signed in Freighter                                                                                                                           | D4          | [`5bc90ab0…`](https://stellar.expert/explorer/testnet/tx/5bc90ab08ccf29ef827b59e5d8e24a28b649e12c67125c3858bb17f771cc5109)                                                                                                                               |
+| 28 Sep | The D4 Freighter run: triggered from the app in Freighter, 25 XLM swapped to 2.6412762 USDC through the Soroswap router and paid on                                                                                            | D4          | [`00acc386…`](https://stellar.expert/explorer/testnet/tx/00acc3862b13337fcb9f2289a97c3fb07075ba7d7b4db82a0ea4d8ce01a6eed1)                                                                                                                               |
+| 28 Sep | The D4 Freighter run: the same deployment executed twice through `/api/v1` from the Postman collection, 1 XLM and 10 XLM swapped and paid on                                                                                   | D4          | [`a759da4a…`](https://stellar.expert/explorer/testnet/tx/a759da4a6357a1ec0da071433a3588878ee995059b63ad7169bf87d9fdaa9e37), [`cf1f70f5…`](https://stellar.expert/explorer/testnet/tx/cf1f70f552f23c35351d83a47133bcdefe209e1bd4df676032509456b92ed524)   |
+
+The 28 September rows are two runs on two deployments: the scripted run (`516255e1`, full XDR in
+[`d4/01`–`03`](d4/README.md#the-scripted-run-28-september)) and the recorded Freighter run
+(`964e252f`, [`d4/04-e2e-wallet-run.json`](d4/04-e2e-wallet-run.json)).
 
 The two 9 September swaps are the same deployed flow triggered twice. [`d1/11-happy-path.json`](d1/11-happy-path.json)
 records the deployment, the three contracts the factory produced and the amounts in and out;
@@ -177,6 +191,8 @@ explained in the [D3 evidence pack](d3/README.md).
 | ---------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Screen recording of deploy and trigger** (11 Sep)                          | D1          | [Google Drive, `ScreenRec.mp4`](https://drive.google.com/file/d/1hcaNcojXrLmEYmTEHrNavQ_Wu9xgqaHL/view?usp=sharing)                                                                                                                                                                                                         |
 | **Screen recording of building a Swapper flow with the new inputs** (25 Sep) | D3          | [Google Drive, `D3`](https://drive.google.com/file/d/1bcZP0jpYhn_9kdQzs73kr01DpXBeXn2Y/view?usp=sharing) — record in [`d3/19-recording-run.json`](d3/19-recording-run.json)                                                                                                                                                 |
+| **Technical walkthrough video** (published 29 Sep, 3:49)                     | D4          | [Google Drive](https://drive.google.com/file/d/1_Yg08RncK7eNUM4p4pVVfIGujGrRdV6A/view?usp=sharing) — script in [`d4/walkthrough-script.md`](d4/walkthrough-script.md)                                                                                                                                                       |
+| **End-to-end run with an external wallet (Freighter)** (28 Sep, 9:44)        | D4          | [Google Drive](https://drive.google.com/file/d/1DofVikDrm_Vq5Lm40Dt_PZUlyx8Euait/view?usp=sharing) — record in [`d4/04-e2e-wallet-run.json`](d4/04-e2e-wallet-run.json)                                                                                                                                                     |
 | Swap block on the canvas, palette and English preview                        | D1          | [`d1/01-builder-swap-flow.png`](d1/01-builder-swap-flow.png)                                                                                                                                                                                                                                                                |
 | Swapper config panel: router, slippage, deadline                             | D1          | [`d1/02-swap-panel-after.png`](d1/02-swap-panel-after.png)                                                                                                                                                                                                                                                                  |
 | Error: `assetIn` does not match the incoming asset                           | D1          | [`d1/03-error-asset-mismatch.png`](d1/03-error-asset-mismatch.png)                                                                                                                                                                                                                                                          |
@@ -390,22 +406,23 @@ _CI: the node job summary for the public mirror run of the #670 merge, 1756 test
 
 Request and response pairs recorded against the public app, and D3's code and CI records.
 
-| Item                                                            | Deliverable | File                                                                 |
-| --------------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
-| `slippageBps` outside 0–10000 rejected at the API boundary      | D1          | [`d1/05-error-slippage-range.json`](d1/05-error-slippage-range.json) |
-| `deadlineSecs` below 1 rejected at the API boundary             | D1          | [`d1/06-error-deadline.json`](d1/06-error-deadline.json)             |
-| Live Soroswap quote endpoint response                           | D1          | [`d1/10-quote-endpoint.json`](d1/10-quote-endpoint.json)             |
-| curl transcript: prepare → local sign → submit → events         | D2          | [`d2/01-curl-transcript.md`](d2/01-curl-transcript.md)               |
-| Prepare response: the unsigned envelope                         | D2          | [`d2/02-prepare-response.json`](d2/02-prepare-response.json)         |
-| Submit response: `SUCCESS` and the swap hash                    | D2          | [`d2/03-submit-response.json`](d2/03-submit-response.json)           |
-| Raw RPC `getTransaction` for the API swap                       | D2          | [`d2/04-getTransaction.json`](d2/04-getTransaction.json)             |
-| Events response, then the feed paged with the cursor            | D2          | [`d2/05-events-response.json`](d2/05-events-response.json)           |
-| Audit rows: prepared, submitted, confirmed (redacted)           | D2          | [`d2/06-audit-rows.json`](d2/06-audit-rows.json)                     |
-| The OpenAPI document as committed on 18 September               | D2          | [`d2/08-openapi.json`](d2/08-openapi.json)                           |
-| Demo token minted with no account, then used on `/events`       | D2          | [`d2/11-demo-token.md`](d2/11-demo-token.md)                         |
-| The Swapper panel's change in code, each claim with its command | D3          | [`d3/20-code-diff.md`](d3/20-code-diff.md)                           |
-| Component tests: the CI junit report                            | D3          | [`d3/21-vitest-junit.xml`](d3/21-vitest-junit.xml)                   |
-| That CI run: URL, SHAs, Node version, artifact digest, counts   | D3          | [`d3/21-ci-meta.json`](d3/21-ci-meta.json)                           |
+| Item                                                                                 | Deliverable | File                                                                 |
+| ------------------------------------------------------------------------------------ | ----------- | -------------------------------------------------------------------- |
+| `slippageBps` outside 0–10000 rejected at the API boundary                           | D1          | [`d1/05-error-slippage-range.json`](d1/05-error-slippage-range.json) |
+| `deadlineSecs` below 1 rejected at the API boundary                                  | D1          | [`d1/06-error-deadline.json`](d1/06-error-deadline.json)             |
+| Live Soroswap quote endpoint response                                                | D1          | [`d1/10-quote-endpoint.json`](d1/10-quote-endpoint.json)             |
+| curl transcript: prepare → local sign → submit → events                              | D2          | [`d2/01-curl-transcript.md`](d2/01-curl-transcript.md)               |
+| Prepare response: the unsigned envelope                                              | D2          | [`d2/02-prepare-response.json`](d2/02-prepare-response.json)         |
+| Submit response: `SUCCESS` and the swap hash                                         | D2          | [`d2/03-submit-response.json`](d2/03-submit-response.json)           |
+| Raw RPC `getTransaction` for the API swap                                            | D2          | [`d2/04-getTransaction.json`](d2/04-getTransaction.json)             |
+| Events response, then the feed paged with the cursor                                 | D2          | [`d2/05-events-response.json`](d2/05-events-response.json)           |
+| Audit rows: prepared, submitted, confirmed (redacted)                                | D2          | [`d2/06-audit-rows.json`](d2/06-audit-rows.json)                     |
+| The OpenAPI document as served on 18 September                                       | D2          | [`d2/08-openapi.json`](d2/08-openapi.json)                           |
+| Demo token minted with no account, then used on `/events`                            | D2          | [`d2/11-demo-token.md`](d2/11-demo-token.md)                         |
+| End-to-end run: deploy, trigger, `/api/v1` execute on one deployment, full envelopes | D4          | [`d4/`](d4/README.md) (`01`–`03-e2e-*`)                              |
+| The Swapper panel's change in code, each claim with its command                      | D3          | [`d3/20-code-diff.md`](d3/20-code-diff.md)                           |
+| Component tests: the CI junit report                                                 | D3          | [`d3/21-vitest-junit.xml`](d3/21-vitest-junit.xml)                   |
+| That CI run: URL, SHAs, Node version, artifact digest, counts                        | D3          | [`d3/21-ci-meta.json`](d3/21-ci-meta.json)                           |
 
 The quote sample is a real answer from the public app: 10 XLM quotes at `10564278` stroops of
 USDC with a `10490132` minimum at 1 % slippage, through pair `CCBX3NZT…7RQS` on router
@@ -413,17 +430,21 @@ USDC with a `10490132` minimum at 1 % slippage, through pair `CCBX3NZT…7RQS` o
 
 ## Metrics snapshots
 
-| Date   | File                                                                       | Source                                                                                              |
-| ------ | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| 11 Sep | [`metrics-2026-09-11.json`](metrics-2026-09-11.json)                       | Read-only query on the public app's database; each figure carries its definition                    |
-| 12 Sep | [`metrics-2026-09-12.json`](metrics-2026-09-12.json)                       | Same query, re-run at the close of week 1; each figure also carries its target                      |
-| 17 Sep | [`alpha-metrics-2026-09-17.json`](alpha-metrics-2026-09-17.json)           | PostHog HogQL over the issued alpha-tester ids; first cohort snapshot                               |
-| 18 Sep | [`alpha-metrics-2026-09-18.json`](alpha-metrics-2026-09-18.json)           | The same, after the second tester finished                                                          |
-| 18 Sep | [`metrics-live-2026-09-18.json`](metrics-live-2026-09-18.json)             | The first read of the **live** database, the one the app has used since the 16 September cutover    |
-| 18 Sep | [`swapper-flows-live-2026-09-18.json`](swapper-flows-live-2026-09-18.json) | `--flows` against the same database: 11 executed swapper flows, 17 swap transactions                |
-| 26 Sep | [`metrics-live-2026-09-26.json`](metrics-live-2026-09-26.json)             | The live database at the close of week 3                                                            |
-| 26 Sep | [`swapper-flows-live-2026-09-26.json`](swapper-flows-live-2026-09-26.json) | `--flows` against it: 17 executed swapper flows, 24 swap transactions, D3's recorded run among them |
-| 26 Sep | [`alpha-metrics-2026-09-26.json`](alpha-metrics-2026-09-26.json)           | The cohort snapshot after all three issued testers had run a session                                |
+| Date   | File                                                                           | Source                                                                                                      |
+| ------ | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| 11 Sep | [`metrics-2026-09-11.json`](metrics-2026-09-11.json)                           | Read-only query on the public app's database; each figure carries its definition                            |
+| 12 Sep | [`metrics-2026-09-12.json`](metrics-2026-09-12.json)                           | Same query, re-run at the close of week 1; each figure also carries its target                              |
+| 17 Sep | [`alpha-metrics-2026-09-17.json`](alpha-metrics-2026-09-17.json)               | PostHog HogQL over the issued alpha-tester ids; first cohort snapshot                                       |
+| 18 Sep | [`alpha-metrics-2026-09-18.json`](alpha-metrics-2026-09-18.json)               | The same, after the second tester finished                                                                  |
+| 18 Sep | [`metrics-live-2026-09-18.json`](metrics-live-2026-09-18.json)                 | The first read of the **live** database, the one the app has used since the 16 September cutover            |
+| 18 Sep | [`swapper-flows-live-2026-09-18.json`](swapper-flows-live-2026-09-18.json)     | `--flows` against the same database: 11 executed swapper flows, 17 swap transactions                        |
+| 26 Sep | [`metrics-live-2026-09-26.json`](metrics-live-2026-09-26.json)                 | The live database at the close of week 3                                                                    |
+| 26 Sep | [`swapper-flows-live-2026-09-26.json`](swapper-flows-live-2026-09-26.json)     | `--flows` against it: 17 executed swapper flows, 24 swap transactions, D3's recorded run among them         |
+| 26 Sep | [`alpha-metrics-2026-09-26.json`](alpha-metrics-2026-09-26.json)               | The cohort snapshot after all three group A testers had run a session                                       |
+| 26 Sep | [`alpha-metrics-2026-09-26-groups.json`](alpha-metrics-2026-09-26-groups.json) | The same, with group B (tester-8, tester-10) added: five accounts, both protocols                           |
+| 30 Sep | [`metrics-live-2026-09-30.json`](metrics-live-2026-09-30.json)                 | The live database after the D4 testers' sessions                                                            |
+| 30 Sep | [`swapper-flows-live-2026-09-30.json`](swapper-flows-live-2026-09-30.json)     | `--flows` against it: 23 executed swapper flows, 33 swap transactions                                       |
+| 30 Sep | [`alpha-metrics-2026-09-30.json`](alpha-metrics-2026-09-30.json)               | Nine accounts in three waves: D3's two group A testers added, D4's four added, the two who withdrew removed |
 
 The `metrics-*` files are the output of `pnpm instawards:metrics` and the `alpha-metrics-*` files
 of `pnpm instawards:alpha-metrics`, so any figure here can be recomputed with the same definitions.

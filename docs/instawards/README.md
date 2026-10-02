@@ -29,15 +29,21 @@ opens on [stellar.expert](https://stellar.expert/explorer/testnet). No account i
 either. The [evidence index](evidence/README.md) is the single list of every contract
 address, WASM hash and transaction hash produced during the sprint.
 
-## The three deliverables
+## The deliverables
 
-|                          | Deliverable                                                                | Week | Status      |
-| ------------------------ | -------------------------------------------------------------------------- | ---- | ----------- |
-| [D1](deliverables/d1.md) | The swapper block executes a real swap through the Soroswap testnet router | 1    | Complete    |
-| [D2](deliverables/d2.md) | A developer API with deployment-scoped tokens and execute/events endpoints | 2    | Complete    |
-| [D3](deliverables/d3.md) | Reusable builder input components, adopted in the Swapper panel            | 3    | Not started |
+|                          | Deliverable                                                                   | Week | Status   |
+| ------------------------ | ----------------------------------------------------------------------------- | ---- | -------- |
+| [D1](deliverables/d1.md) | The swapper block executes a real swap through the Soroswap testnet router    | 1    | Complete |
+| [D2](deliverables/d2.md) | A developer API with deployment-scoped tokens and execute/events endpoints    | 2    | Complete |
+| [D3](deliverables/d3.md) | Reusable builder input components, adopted in the Swapper panel               | 3    | Complete |
+| [D4](deliverables/d4.md) | Validation package: demo video, usage guide, transaction list, end-to-end run | 4    | Complete |
 
-Week 4 is integration, the demo video, and the evidence handoff.
+**The [evidence handoff](handoff.md) is the page to start from to check the whole sprint**: one
+section per row of the Statement of Work's checklist, each with a link to every evidence item.
+
+The validation package is the SOW's week-4 work (§5.1) and the fourth row of the Ambassador Chapter
+Lead's checklist (§6.2): an end-to-end run with an external wallet, the demo video, the integration
+guide, the transaction list, and the evidence handoff.
 
 The [Statement of Work](../instawards-phase-1-sow.md) is reproduced here verbatim as
 approved on 24 July 2026. It is never edited — where the engineering work turned out to need

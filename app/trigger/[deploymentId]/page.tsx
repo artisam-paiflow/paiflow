@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { FlowGraphSchema, isTrigger, assetLabel, migrateFlowGraph } from "@/lib/flows/schema";
 import { inboundRequirement } from "@/lib/flows/inbound-amount";
+import { payoutRecipients } from "@/lib/flows/payout-recipients";
+import { checkPayoutTrustlines } from "@/lib/stellar/trustline-check";
 import TriggerClient from "./trigger-client";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +52,11 @@ export default async function TriggerPage({
   const requirement =
     isWebhook || isStreamer || !graph ? { kind: "variable" as const } : inboundRequirement(graph);
 
+  // Not awaited: streamed behind a Suspense boundary so a slow Horizon never
+  // holds up the page. Uses the graph as deployed; a dev-mode recipient changed
+  // on-chain after deploy is not reflected (#574).
+  const trustlineCheck = graph ? checkPayoutTrustlines(payoutRecipients(graph)) : undefined;
+
   return (
     <TriggerClient
       deploymentId={d.id}
@@ -59,6 +66,7 @@ export default async function TriggerPage({
       requirement={requirement}
       isDeposit={isWeb2Webhook || isStreamer}
       assetLabel={triggerAssetLabel}
+      trustlineCheck={trustlineCheck}
     />
   );
 }

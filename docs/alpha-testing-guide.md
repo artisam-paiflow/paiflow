@@ -1,7 +1,7 @@
 # Paiflow alpha testing guide
 
-Thanks for helping test Paiflow. This guide takes **about 70 minutes** end to end: around 20 minutes
-of setup, about 45 minutes of test cases, then the closing questions. You don't need to know how to
+Thanks for helping test Paiflow. This guide takes **about 75 minutes** end to end: around 20 minutes
+of setup, about 50 minutes of test cases, then the closing questions. You don't need to know how to
 code.
 
 **You'll send us three things at the end.** They're what makes you eligible for the **₱650**
@@ -177,7 +177,7 @@ as you go.
   [known issue](#6-known-issues). Two to rule out first: the live feed can lag up to a minute behind
   the chain, and the trigger page sometimes reports a failure even though the payment went through —
   so before reporting a failed trigger, check the feed and stellar.expert.
-- **Screenshots.** Your recording covers most of what we need, so there are only ten. Each is
+- **Screenshots.** Your recording covers most of what we need, so there are only eleven. Each is
   marked **Screenshot** with the exact name to save it under (for example `T1-2-live-feed.png`), in
   one folder that you'll zip at the end. **Win + Shift + S** on Windows, **Cmd + Shift + 4** on
   macOS.
@@ -198,10 +198,13 @@ pay it out to an account you control.
    **Recipient A**'s address.
    - [ ] The **English Preview** describes receiving XLM, swapping to USDC, and paying it to
          Recipient A's address (shortened).
-2. Click the **Swap** block.
-   - [ ] Router shows **Soroswap (testnet)** and can't be changed.
-   - [ ] A live quote appears, like _"10 XLM → ~1.05 USDC via Soroswap (live)"_, with a minimum
-         amount under it.
+2. Click the **Swap** block. In its **Preview** card, set **You send** to **20** — the amount
+   you'll trigger with in step 6.
+   - [ ] A live quote appears as a figure, like _"≈ 2.10 USDC"_, with a **Minimum** line under it
+         and _Live · Soroswap_.
+   - Open **Advanced**.
+   - [ ] The router reads **Router — Soroswap (testnet)**, shows a contract ID with a copy button
+         and a stellar.expert link, and can't be changed.
 3. Click **DEPLOY**. You're taken to **Review & deploy**.
    - [ ] A **TESTNET** chip is shown.
    - [ ] The page says how many contracts it will create, and shows the swap quote again.
@@ -216,7 +219,7 @@ pay it out to an account you control.
 7. Go back to the deployment page and watch the live event feed.
    - [ ] A **RECEIVE** row for 20 XLM appears.
    - [ ] A **PAYOUT** row for the swap shows amount in (XLM) and amount out (USDC), close to the
-         quote.
+         ≈ figure you saw for 20 XLM in step 2.
    - [ ] On stellar.expert, the trigger transaction shows a Soroswap **swap**.
    - **Screenshot** `T1-2-live-feed` — the feed showing the RECEIVE and PAYOUT rows together.
    - **Screenshot** `T1-3-stellar-expert` — the transaction on stellar.expert showing the swap.
@@ -237,23 +240,46 @@ test.
 
 Open **Swap XLM to USDC**, try each change below, and **undo it** before trying the next.
 
-| Try                                                                  | Expected                                                                  | How it's refused |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------- | ---------------- |
-| **a.** Set **Asset Out** to **XLM** (same as Asset In)               | An error saying a swap has to exchange two different assets               | Canvas error     |
-| **b.** Set **Max slippage** to **0.1**                               | Snaps back to **0.3**, the minimum; the note under the field explains why | Field refuses    |
-| **c.** Set **Deadline** to **0**, then to **100000**                 | The value is refused (the allowed range is 1–86,400 seconds)              | Field refuses    |
-| **d.** Delete the connection between **Swap** and **Pay**            | An error saying a swap needs one next step                                | Canvas error     |
-| **e.** Drag in a second **Pay** block and connect **Swap** to it too | An error saying a swap sends its output to only one next step             | Canvas error     |
+| Try                                                                  | Expected                                                                                           | How it's refused |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------- |
+| **a.** Set **Asset Out** to **XLM** (same as Asset In)               | An error saying a swap has to exchange two different assets, on the canvas and under **Asset Out** | Canvas error     |
+| **b.** Set **Max slippage** to **0.1**, then click out of the field  | Raised to **0.3**, the minimum, with a note under the field saying so                              | Field corrects   |
+| **c.** Open **Advanced**. Set **Deadline** to **0**, then **100000** | Raised to **1**, then lowered to **86,400** (the allowed range, in seconds), each time with a note | Field corrects   |
+| **d.** Delete the connection between **Swap** and **Pay**            | An error saying a swap needs one next step                                                         | Canvas error     |
+| **e.** Drag in a second **Pay** block and connect **Swap** to it too | An error saying a swap sends its output to only one next step                                      | Canvas error     |
 
 - [ ] **Canvas errors (a, d, e):** the message is easy to understand and says how to fix it,
       **DEPLOY** is greyed out while it's there, and it goes away once you undo the change.
-- [ ] **Field refusals (b, c):** it's clear the value was refused and what the allowed range is.
-      There's no canvas error, and DEPLOY stays available.
+- [ ] **Field corrections (b, c):** it's clear the value was changed, and why. There's no canvas
+      error, and DEPLOY stays available.
 - **Screenshot** `T2-1-error-deploy-greyed` — row **a**'s error with the greyed-out DEPLOY button
   in the same shot.
 
+**Then do it with the keyboard only.** Put your browser in full screen (**F11** on Windows,
+**Ctrl + Cmd + F** on macOS) and reload the page, then put the mouse aside **without clicking
+anything** — a click on the canvas starts the keyboard after the button you need. Use only **Tab**,
+**Enter** and **Escape**.
+
+1. Press **Tab** about 5–6 times. Focus passes the Paiflow logo, **Flows** and your account menu.
+   - [ ] A pink **Skip to canvas** button appears at the top centre of the screen. It's hidden
+         until you reach it. Press **Enter** on it, and a pink ring appears around the first block
+         (**On Receive**).
+2. Press **Tab** once more, then **Enter**.
+   - [ ] The ring moves to the **Swap** block, and Enter opens its settings with the keyboard focus
+         on the panel's heading.
+3. Keep pressing **Tab**. The first two stops are the panel's **Delete** and **Close** buttons —
+   don't press Enter on those.
+   - [ ] **Tab** then reaches Asset In, Asset Out, Max slippage, You send and **Advanced**, in that
+         order. **Enter** on Advanced opens it.
+   - **Screenshot** `T2-2-keyboard-focus` — the settings panel opened from the keyboard, with a
+     field's focus ring visible.
+4. Press **Escape** while you're still inside the panel (if you've tabbed past it, press
+   **Shift + Tab** to go back).
+   - [ ] The panel closes, and the pink ring is back on the Swap block.
+
 > **Interview — T2.** Were those error messages enough to fix the problem on your own, without
-> asking anyone? Which one was clearest, and which one left you guessing?
+> asking anyone? Which one was clearest, and which one left you guessing? With the keyboard alone,
+> was there a point where you lost track of where you were?
 
 ---
 
@@ -478,7 +504,7 @@ artifacts are in.
 Once you've finished T7, and **while the recording is still running**, work through the **CLOSING
 QUESTIONS** block of your answers file: say each answer out loud, then write it down. Take your
 time; these are the ones we read most carefully. Then fill in the **QUICK RATINGS** block near the
-top of the file — the four 1–5 scores. It's easy to miss, and it's the only place we ask for them.
+top of the file — the five 1–5 scores. It's easy to miss, and it's the only place we ask for them.
 
 Thank you — genuinely. An hour of somebody's real attention is the most valuable thing we get at
 this stage.
@@ -509,6 +535,7 @@ How easy was it to understand what Paiflow does at first glance?   [ ]
 How intuitive was the drag-and-drop canvas?                        [ ]
 How smooth was connecting your wallet and deploying?               [ ]
 How trustworthy does Paiflow feel for real money?                  [ ]
+How clear were the Swap block's settings?                          [ ]
 
 == DURING THE TESTS (answer each test's Interview box from the guide) ==
 T1 >

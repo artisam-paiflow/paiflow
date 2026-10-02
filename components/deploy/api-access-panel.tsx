@@ -33,6 +33,17 @@ const STATE_TONE = {
   REVOKED: "border-outline-variant/40 text-on-surface-variant",
 } as const;
 
+// The spec is served from this app; the guide and the collection are on the
+// public docs and the public mirror, so the links work from any host.
+const API_DOCS = [
+  { label: "Developer guide", href: "https://paiflow.gitbook.io/paiflow-docs/reference/api" },
+  { label: "OpenAPI spec", href: "/api/v1/openapi.json" },
+  {
+    label: "Postman collection",
+    href: "https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json",
+  },
+] as const;
+
 const fmt = (iso: string | null, empty: string) => (iso ? new Date(iso).toLocaleString() : empty);
 
 async function copy(text: string) {
@@ -163,6 +174,21 @@ export default function ApiAccessPanel({ deploymentId }: { deploymentId: string 
       <p className="text-label-md text-on-surface-variant mt-2">
         A token lets a backend call the Paiflow API for this deployment only. Every transaction is
         still signed with the depositor&apos;s own key, so a token cannot move funds by itself.
+      </p>
+      <p className="text-label-md text-on-surface-variant mt-1" data-testid="api-docs-links">
+        {API_DOCS.map((d, i) => (
+          <span key={d.href}>
+            {i > 0 ? " · " : "How to call it: "}
+            <a
+              href={d.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              {d.label}
+            </a>
+          </span>
+        ))}
       </p>
 
       <form onSubmit={create} className="mt-md gap-md grid md:grid-cols-[1fr_12rem_auto]">

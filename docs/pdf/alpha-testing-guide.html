@@ -291,7 +291,7 @@ pre.template {
     <h1>Alpha<br>Testing <em>Guide</em></h1>
     <p class="lede">Thanks for helping test Paiflow. This guide takes you from an empty wallet to deploying and running real payment flows — no coding needed.</p>
     <div class="facts">
-      <div><b>~70 min</b><span>End to end</span></div>
+      <div><b>~75 min</b><span>End to end</span></div>
       <div><b>20 min</b><span>Setup</span></div>
       <div><b>7</b><span>Test cases</span></div>
       <div><b>₱650</b><span>Incentive</span></div>
@@ -310,7 +310,7 @@ pre.template {
   <h2 class="display" style="font-size:24pt;margin:4pt 0 10pt;line-height:1.1">What Paiflow is</h2>
   <p class="lead">A visual builder for payments. You drag a trigger (“when money arrives”) and an action (“pay this person”, “split it”, “swap it”) onto a canvas, press <strong>Deploy</strong>, and Paiflow turns that into real smart contracts on the Stellar network.</p>
   <p class="lead">It is non-custodial: you sign every transaction yourself, in your own wallet, and Paiflow never holds your keys.</p>
-  <p>This guide takes <strong>about 70 minutes</strong> end to end: around 20 minutes of setup, about 45 minutes of test cases, then the closing questions. You don't need to know how to code.</p>
+  <p>This guide takes <strong>about 75 minutes</strong> end to end: around 20 minutes of setup, about 50 minutes of test cases, then the closing questions. You don't need to know how to code.</p>
 
   <div class="callout ask">
     <span class="label">You'll send us three things</span>
@@ -460,7 +460,7 @@ pre.template {
     <span class="label">How the tests work</span>
     <ul class="plain">
       <li><strong>If a box doesn't match what you see,</strong> take a screenshot and report it with the <a href="https://forms.gle/c7AmbU61XbGpCPVXA">bug report form</a>, unless it's a <a href="#s6">known issue</a>. Two to rule out first: the live feed can lag up to a minute behind the chain, and the trigger page sometimes reports a failure even though the payment went through — so before reporting a failed trigger, check the feed and stellar.expert.</li>
-      <li><strong>Screenshots.</strong> Your recording covers most of what we need, so there are only ten. Each is marked with a <strong>SHOT</strong> tag and the exact name to save it under (for example <code>T1-2-live-feed.png</code>), in one folder that you'll zip at the end. <strong>Win + Shift + S</strong> on Windows, <strong>Cmd + Shift + 4</strong> on macOS.</li>
+      <li><strong>Screenshots.</strong> Your recording covers most of what we need, so there are only eleven. Each is marked with a <strong>SHOT</strong> tag and the exact name to save it under (for example <code>T1-2-live-feed.png</code>), in one folder that you'll zip at the end. <strong>Win + Shift + S</strong> on Windows, <strong>Cmd + Shift + 4</strong> on macOS.</li>
       <li><strong>Interview boxes.</strong> Say your answer out loud, then write a line or two under that test's heading in your answers file. Your first reaction is what we're after, including “I have no idea”.</li>
       <li><strong>To check that money really moved:</strong> the <strong>live event feed</strong> on the deployment page; the recipient's balance in <strong>Freighter</strong>; and <a href="https://stellar.expert/explorer/testnet">stellar.expert</a>, which every deployment page links to.</li>
     </ul>
@@ -474,10 +474,10 @@ pre.template {
       <ol class="steps">
         <li>Open <strong>Swap XLM to USDC</strong>. Click the <strong>Pay</strong> block and replace the recipient with <strong>Recipient A</strong>'s address.
           <ul class="checks"><li>The <strong>English Preview</strong> describes receiving XLM, swapping to USDC, and paying it to Recipient A's address (shortened).</li></ul></li>
-        <li>Click the <strong>Swap</strong> block.
+        <li>Click the <strong>Swap</strong> block. In its <strong>Preview</strong> card, set <strong>You send</strong> to <strong>20</strong> — the amount you'll trigger with in step 6. Then open <strong>Advanced</strong>.
           <ul class="checks">
-            <li>Router shows <strong>Soroswap (testnet)</strong> and can't be changed.</li>
-            <li>A live quote appears, like <em>“10 XLM → ~1.05 USDC via Soroswap (live)”</em>, with a minimum amount under it.</li>
+            <li>A live quote appears as a figure, like <em>“≈ 2.10 USDC”</em>, with a <strong>Minimum</strong> line under it and <em>Live · Soroswap</em>.</li>
+            <li>Under Advanced, the router reads <strong>Router — Soroswap (testnet)</strong>, shows a contract ID with a copy button and a stellar.expert link, and can't be changed.</li>
           </ul></li>
         <li>Click <span class="ui">DEPLOY</span>. You're taken to <strong>Review &amp; deploy</strong>.
           <ul class="checks">
@@ -496,7 +496,7 @@ pre.template {
         <li>Go back to the deployment page and watch the live event feed.
           <ul class="checks">
             <li>A <strong>RECEIVE</strong> row for 20 XLM appears.</li>
-            <li>A <strong>PAYOUT</strong> row for the swap shows amount in (XLM) and amount out (USDC), close to the quote.</li>
+            <li>A <strong>PAYOUT</strong> row for the swap shows amount in (XLM) and amount out (USDC), close to the ≈ figure you saw for 20 XLM in step 2.</li>
             <li>On stellar.expert, the trigger transaction shows a Soroswap <strong>swap</strong>.</li>
           </ul>
           <ul class="shots">
@@ -519,18 +519,30 @@ pre.template {
       <p>Open <strong>Swap XLM to USDC</strong>, try each change below, and <strong>undo it</strong> before trying the next.</p>
       <div class="breakit">
         <div class="row hdr"><span></span><span>Try</span><span>Expected</span></div>
-        <div class="row"><span class="l">a</span><span>Set <strong>Asset Out</strong> to <strong>XLM</strong> (same as Asset In).</span><span class="exp">An error saying a swap has to exchange two different assets. <em>Canvas error.</em></span></div>
-        <div class="row"><span class="l">b</span><span>Set <strong>Max slippage</strong> to <strong>0.1</strong>.</span><span class="exp">Snaps back to <strong>0.3</strong>, the minimum; the note under the field explains why. <em>Field refuses.</em></span></div>
-        <div class="row"><span class="l">c</span><span>Set <strong>Deadline</strong> to <strong>0</strong>, then to <strong>100000</strong>.</span><span class="exp">The value is refused (the allowed range is 1–86,400 seconds). <em>Field refuses.</em></span></div>
+        <div class="row"><span class="l">a</span><span>Set <strong>Asset Out</strong> to <strong>XLM</strong> (same as Asset In).</span><span class="exp">An error saying a swap has to exchange two different assets, on the canvas and under <strong>Asset Out</strong>. <em>Canvas error.</em></span></div>
+        <div class="row"><span class="l">b</span><span>Set <strong>Max slippage</strong> to <strong>0.1</strong>, then click out of the field.</span><span class="exp">Raised to <strong>0.3</strong>, the minimum, with a note under the field saying so. <em>Field corrects.</em></span></div>
+        <div class="row"><span class="l">c</span><span>Open <strong>Advanced</strong>. Set <strong>Deadline</strong> to <strong>0</strong>, then to <strong>100000</strong>.</span><span class="exp">Raised to <strong>1</strong>, then lowered to <strong>86,400</strong> (the allowed range, in seconds), each time with a note. <em>Field corrects.</em></span></div>
         <div class="row"><span class="l">d</span><span>Delete the connection between <strong>Swap</strong> and <strong>Pay</strong>.</span><span class="exp">An error saying a swap needs one next step. <em>Canvas error.</em></span></div>
         <div class="row"><span class="l">e</span><span>Drag in a second <strong>Pay</strong> block and connect <strong>Swap</strong> to it too.</span><span class="exp">An error saying a swap sends its output to only one next step. <em>Canvas error.</em></span></div>
       </div>
       <div class="checks-block"><ul class="checks">
         <li><strong>Canvas errors (a, d, e):</strong> the message is easy to understand and says how to fix it, <strong>DEPLOY</strong> is greyed out while it's there, and it goes away once you undo the change.</li>
-        <li><strong>Field refusals (b, c):</strong> it's clear the value was refused and what the allowed range is. There's no canvas error, and DEPLOY stays available.</li>
+        <li><strong>Field corrections (b, c):</strong> it's clear the value was changed, and why. There's no canvas error, and DEPLOY stays available.</li>
       </ul></div>
       <ul class="shots"><li><code>T2-1-error-deploy-greyed</code> — row <strong>a</strong>'s error with the greyed-out DEPLOY button in the same shot.</li></ul>
-      <div class="callout ask"><span class="label">Interview — T2</span><p>Were those error messages enough to fix the problem on your own, without asking anyone? Which one was clearest, and which one left you guessing?</p></div>
+      <p><strong>Then do it with the keyboard only.</strong> Put your browser in full screen (<strong>F11</strong> on Windows, <strong>Ctrl + Cmd + F</strong> on macOS) and reload the page, then put the mouse aside <strong>without clicking anything</strong> — a click on the canvas starts the keyboard after the button you need. Use only <strong>Tab</strong>, <strong>Enter</strong> and <strong>Escape</strong>.</p>
+      <ol class="steps">
+        <li>Press <strong>Tab</strong> about 5–6 times. Focus passes the Paiflow logo, <strong>Flows</strong> and your account menu.
+          <ul class="checks"><li>A pink <span class="ui">Skip to canvas</span> button appears at the top centre of the screen. It's hidden until you reach it. Press <strong>Enter</strong> on it, and a pink ring appears around the first block (<strong>On Receive</strong>).</li></ul></li>
+        <li>Press <strong>Tab</strong> once more, then <strong>Enter</strong>.
+          <ul class="checks"><li>The ring moves to the <strong>Swap</strong> block, and Enter opens its settings with the keyboard focus on the panel's heading.</li></ul></li>
+        <li>Keep pressing <strong>Tab</strong>. The first two stops are the panel's <span class="ui">Delete</span> and <span class="ui">Close</span> buttons — don't press Enter on those.
+          <ul class="checks"><li><strong>Tab</strong> then reaches Asset In, Asset Out, Max slippage, You send and <strong>Advanced</strong>, in that order. <strong>Enter</strong> on Advanced opens it.</li></ul>
+          <ul class="shots"><li><code>T2-2-keyboard-focus</code> — the settings panel opened from the keyboard, with a field's focus ring visible.</li></ul></li>
+        <li>Press <strong>Escape</strong> while you're still inside the panel (if you've tabbed past it, press <strong>Shift + Tab</strong> to go back).
+          <ul class="checks"><li>The panel closes, and the pink ring is back on the Swap block.</li></ul></li>
+      </ol>
+      <div class="callout ask"><span class="label">Interview — T2</span><p>Were those error messages enough to fix the problem on your own, without asking anyone? Which one was clearest, and which one left you guessing? With the keyboard alone, was there a point where you lost track of where you were?</p></div>
     </div>
   </div>
 
@@ -727,7 +739,7 @@ pre.template {
 <!-- ================= 9 ================= -->
 <section id="s9" style="margin-top:22pt">
   <div class="section-head"><span class="num">09</span><h2>Closing interview questions</h2></div>
-  <p>Once you've finished T7, and <strong>while the recording is still running</strong>, work through the <strong>CLOSING QUESTIONS</strong> block of your answers file: say each answer out loud, then write it down. Take your time; these are the ones we read most carefully. Then fill in the <strong>QUICK RATINGS</strong> block near the top of the file — the four 1–5 scores. It's easy to miss, and it's the only place we ask for them.</p>
+  <p>Once you've finished T7, and <strong>while the recording is still running</strong>, work through the <strong>CLOSING QUESTIONS</strong> block of your answers file: say each answer out loud, then write it down. Take your time; these are the ones we read most carefully. Then fill in the <strong>QUICK RATINGS</strong> block near the top of the file — the five 1–5 scores. It's easy to miss, and it's the only place we ask for them.</p>
   <div class="thanks">Thank you<span>!</span></div>
   <p style="color:var(--muted)">Genuinely. An hour of somebody's real attention is the most valuable thing we get at this stage.</p>
 </section>
@@ -754,6 +766,7 @@ How easy was it to understand what Paiflow does at first glance?   [ ]
 How intuitive was the drag-and-drop canvas?                        [ ]
 How smooth was connecting your wallet and deploying?               [ ]
 How trustworthy does Paiflow feel for real money?                  [ ]
+How clear were the Swap block's settings?                          [ ]
 
 == DURING THE TESTS (answer each test&#x27;s Interview box from the guide) ==
 T1 &gt;

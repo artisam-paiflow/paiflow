@@ -40,7 +40,8 @@ vi.mock("@/lib/signed-tx", () => ({ recordSignedTransaction: vi.fn(async () => u
 import { POST as prepare } from "@/app/api/v1/deployments/[id]/execute/route";
 import { POST as submit } from "@/app/api/v1/deployments/[id]/execute/submit/route";
 import { CONFIRM_POLL_INTERVAL_MS, ONLY_SWAPPER_FLOWS, waitForFinal } from "@/lib/api/v1/execute";
-import { simulationFailure } from "@/lib/stellar/sim-error";
+import { AppError } from "@/lib/errors";
+import { SimulationError, simulationFailure } from "@/lib/stellar/sim-error";
 import { audit, wasTxConfirmedFor } from "@/lib/audit";
 import { recordSignedTransaction } from "@/lib/signed-tx";
 import { pollEventsFor } from "@/lib/stellar/events";
@@ -304,6 +305,40 @@ describe("POST …/execute (prepare)", () => {
     expect(error.message).toContain("trustline");
     expect(mockBuildHint).toHaveBeenCalledTimes(1);
     expect(audit).not.toHaveBeenCalled();
+  });
+
+  // #553: QA could not exercise these (TC-012), and the branch used to be
+  // chosen by the prefix of `details`.
+  it.each([
+    [
+      "a payout recipient without the trustline (an asset contract's #13)",
+      "contract:CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA, topics:[error, Error(Contract, #13)]",
+    ],
+    [
+      "a pair with no Soroswap pool (the factory's #205)",
+      "contract:CDGXPBJPUBLIB4IMEIJXWUJXBLHVK6X33UAHIVLXPHMEGYCHZWLYBLQY, topics:[error, Error(Contract, #205)]",
+    ],
+  ])("%s is a 422 with the prerequisites, not a 502", async (_, raw) => {
+    mockPrepareTriggerTx.mockImplementation(async () => {
+      throw simulationFailure(raw);
+    });
+    const res = await callPrepare();
+    expect(res.status).toBe(422);
+    const { error } = await res.json();
+    expect(error.code).toBe("VALIDATION");
+    expect(error.message).toContain("must be a funded account");
+  });
+
+  it("classifies by the error's class, not the wording of its details", async () => {
+    mockPrepareTriggerTx.mockImplementation(async () => {
+      throw new SimulationError("UPSTREAM_RPC", "reverted", undefined, "any wording at all");
+    });
+    expect((await callPrepare()).status).toBe(422);
+
+    mockPrepareTriggerTx.mockImplementation(async () => {
+      throw new AppError("UPSTREAM_RPC", "down", undefined, "Soroban simulate failed: look-alike");
+    });
+    expect((await callPrepare()).status).toBe(502);
   });
 
   it("402 when `from` does not exist on this network", async () => {

@@ -1,6 +1,7 @@
 # Table of contents
 
 - [Paiflow — Instawards Phase 1](instawards/README.md)
+- [Evidence handoff](instawards/handoff.md)
 - [Statement of Work](instawards-phase-1-sow.md)
 
 ## Weekly reports
@@ -15,12 +16,19 @@
 - [D1 — Real-DEX swapper](instawards/deliverables/d1.md)
 - [D2 — Developer API](instawards/deliverables/d2.md)
 - [D3 — Shared builder inputs](instawards/deliverables/d3.md)
+- [Validation package](instawards/deliverables/d4.md)
+
+## Guides
+
+- [Integration guide](guide/README.md)
 
 ## Reference
 
 - [Developer API](api/README.md)
 - [Metrics](instawards/metrics.md)
 - [Evidence index](instawards/evidence/README.md)
+  - [Transaction list](instawards/evidence/transactions.md)
   - [D2 evidence pack](instawards/evidence/d2/README.md)
   - [D3 evidence pack](instawards/evidence/d3/README.md)
+  - [D4 evidence pack](instawards/evidence/d4/README.md)
 - [Full changelog](instawards/changelog.md)
