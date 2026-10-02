@@ -60,8 +60,15 @@ cd contracts && cargo test --workspace && cargo clippy --all-targets -- -D warni
 ```
 
 CI (`.github/workflows/ci.yml`): a **node** lane (`db:generate` → `db:migrate:deploy` → `typecheck`
-→ `test:ci` → `db:seed` → `build` → `pnpm audit`) and a **rust** lane (`cargo fmt --check`,
-`clippy -D warnings`, `cargo test --workspace`). Both must be green. **There is no E2E job.**
+→ `test:ci`, which uploads the `vitest-junit` artifact and a job summary → `db:seed` → `build` →
+`pnpm audit`) and a **rust** lane (`cargo fmt --check`, `clippy -D warnings`,
+`cargo test --workspace`). Both must be green. **There is no E2E job.** The node lane's
+`setup-node` reads `engines.node` from `package.json`, so CI cannot resolve a Node below the floor.
+`pnpm audit` checks production and development dependencies and fails the node lane on any
+advisory, low included, except those listed in
+`pnpm.auditConfig.ignoreGhsas` in `package.json`. Each one there is an accepted risk whose reason is
+recorded in [#753](https://github.com/webnxt-2030/pinkraft/issues/753); add one only with a reason.
+A newly published advisory can turn an unrelated PR red — fix it with an override or accept it.
 
 Stack and directory tree: [`README.md` → "Stack at a glance"](README.md#stack-at-a-glance) and
 [→ "Project layout"](README.md#project-layout). This repo deliberately has **no** component

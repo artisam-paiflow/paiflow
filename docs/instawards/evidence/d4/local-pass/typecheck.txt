@@ -1,0 +1,4 @@
+
+> paiflow@0.1.0 typecheck <repo>
+> tsc --noEmit
+

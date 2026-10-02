@@ -1,0 +1,304 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.28s
+     Running unittests src/lib.rs (target/debug/deps/cash_out-e2a8719982a86eee)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/cash_out_dev-d7dc6288005a4cdf)
+
+running 8 tests
+test test::update_bank_rejects_blank_field - should panic ... ok
+test test::execute_step_rejects_zero_amount - should panic ... ok
+test test::stranger_cannot_update_bank - should panic ... ok
+test test::execute_step_sinks_prefunded_balance ... ok
+test test::relayer_can_update_bank ... ok
+test test::distribute_before_configured_panics - should panic ... ok
+test test::blank_construction_then_configure_and_sink ... ok
+test test::execute_step_rejects_wrong_asset - should panic ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running unittests src/lib.rs (target/debug/deps/deposit_trigger-8919802eb1c25d48)
+
+running 1 test
+test test::deposit_forwards_to_next ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/debug/deps/paiflow_conditional-2fe7a094f2b6effb)
+
+running 8 tests
+test test::double_release_panics - should panic ... ok
+test test::admin_releases_funds_with_timeout ... ok
+test test::oracle_gte_panics_when_price_not_met - should panic ... ok
+test test::condition_not_met_panics - should panic ... ok
+test test::execute_step_accepts_pipeline_funds ... ok
+test test::multisig_condition_allows_admin ... ok
+test test::oracle_gte_releases_when_price_met ... ok
+test test::admin_releases_funds_multi ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/lib.rs (target/debug/deps/paiflow_factory-94342df6efa2f73a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/paiflow_multisig-a381e64c4143917e)
+
+running 3 tests
+test test::non_signer_approve_panics - should panic ... ok
+test test::double_approve_panics - should panic ... ok
+test test::holds_until_threshold_met ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/lib.rs (target/debug/deps/paiflow_oracle-286bfd7c1454cd30)
+
+running 2 tests
+test test::below_threshold_panics - should panic ... ok
+test test::executes_when_price_meets_threshold ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/debug/deps/paiflow_payroll-4cd733f2314ea0ac)
+
+running 6 tests
+test test::charge_fails_after_end_time - should panic ... ok
+test test::charge_fails_before_due - should panic ... ok
+test test::unsubscribe_cancels_and_revokes_allowance ... ok
+test test::update_recipients_changes_distribution ... ok
+test test::charge_by_relayer ... ok
+test test::charge_pulls_and_distributes ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running unittests src/lib.rs (target/debug/deps/paiflow_splitter-e35fffeae8cbc541)
+
+running 18 tests
+test test::bad_bps_panics - should panic ... ok
+test test::constructor_rejects_mixed_mode - should panic ... ok
+test test::constructor_rejects_all_fixed_zero_total - should panic ... ok
+test test::distribute_fixed_emits_shortfall ... ok
+test test::fixed_splitter_below_threshold_does_not_forward ... ok
+test test::distribute_splits_60_30_10 ... ok
+test test::execute_step_fixed_accumulates ... ok
+test test::distribute_fixed_forwards_leftover ... ok
+test test::distribute_fixed_accumulates_until_total ... ok
+test test::percentage_split_sinks_cash_out_recipient ... ok
+test test::fixed_split_sinks_cash_out_recipient ... ok
+test test::receive_and_forward_forwards_leftover ... ok
+test test::receive_and_forward_respects_paused - should panic ... ok
+test test::percentage_splitter_does_not_forward_without_leftover ... ok
+test test::execute_step_splits_and_passes_leftover ... ok
+test test::fixed_splitter_forwards_leftover_to_payer ... ok
+test test::receive_and_forward_splits_60_30_10 ... ok
+test test::fixed_splitter_forwards_leftover_to_splitter ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running unittests src/lib.rs (target/debug/deps/paiflow_streamer-68743b9ca168c7b7)
+
+running 19 tests
+test test::bad_bps_panics - should panic ... ok
+test test::pause_not_allowed_rejects_pause - should panic ... ok
+test test::getters_expose_contract_state ... ok
+test test::pause_and_unpause ... ok
+test test::pause_allowed_getter_returns_expected_value ... ok
+test test::execute_step_accepts_pipeline_funds ... ok
+test test::pause_not_allowed_rejects_unpause - should panic ... ok
+test test::available_returns_vested_amount_when_paused ... ok
+test test::partial_interval_vests_nothing ... ok
+test test::pause_stops_future_vesting_but_allows_claiming_vested ... ok
+test test::retrieve_allowed_getter_returns_expected_value ... ok
+test test::claim_succeeds_for_vested_amount_when_paused ... ok
+test test::retrieve_unvested_rejected_when_not_allowed - should panic ... ok
+test test::retrieve_unvested_requires_paused - should panic ... ok
+test test::retrieve_unvested_panics_when_nothing_unvested - should panic ... ok
+test test::vest_and_claim_partial_matches_user_scenario ... ok
+test test::retrieve_unvested_returns_unvested_funds_to_admin ... ok
+test test::top_up_emits_deposit_event ... ok
+test test::vest_and_claim_multi ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running unittests src/lib.rs (target/debug/deps/paiflow_subscription-2ac2b04b75c49b28)
+
+running 11 tests
+test test::subscribe_fails_when_already_active - should panic ... ok
+test test::charge_fails_before_due - should panic ... ok
+test test::charge_does_not_advance_schedule_on_failure - should panic ... ok
+test test::charge_fails_after_unsubscribe - should panic ... ok
+test test::subscribe_re_enables_after_unsubscribe ... ok
+test test::charge_fails_after_end_time - should panic ... ok
+test test::charge_succeeds_when_due_and_advances_schedule ... ok
+test test::set_relayer_changes_relayer ... ok
+test test::charge_by_relayer_pulls_and_forwards ... ok
+test test::charge_pulls_and_forwards ... ok
+test test::unsubscribe_cancels_and_revokes_allowance ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running unittests src/lib.rs (target/debug/deps/paiflow_swapper-cc4f65e1e85a052b)
+
+running 17 tests
+test test::deadline_expiry_is_the_routers_inclusive_check - should panic ... ok
+test test::more_than_one_next_step_is_rejected_at_construction - should panic ... ok
+test test::slippage_above_100_percent_is_rejected_at_construction - should panic ... ok
+test test::unauthenticated_caller_cannot_execute_step ... ok
+test test::receive_and_forward_path_swaps_too ... ok
+test test::reserves_are_oriented_by_token_0_when_asset_in_is_token_1 ... ok
+test test::router_under_delivery_is_caught_by_the_swapper_backstop - should panic ... ok
+test test::happy_path_swaps_and_forwards_to_the_single_next_step ... ok
+test test::without_a_next_step_construction_is_rejected - should panic ... ok
+test test::receive_and_forward_requires_the_callers_auth ... ok
+test test::zero_deadline_is_rejected_at_construction - should panic ... ok
+test test::non_positive_amount_is_rejected - should panic ... ok
+test test::wrong_asset_is_rejected - should panic ... ok
+test test::large_trade_reverts_on_price_impact - should panic ... ok
+test test::zero_slippage_reverts_on_the_pool_fee_alone - should panic ... ok
+test test::zero_output_is_rejected - should panic ... ok
+test test::receive_and_forward_ignores_caller_supplied_next_steps ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running unittests src/lib.rs (target/debug/deps/paiflow_webhook-975e31c6aeeecc20)
+
+running 5 tests
+test test::execute_escrow_with_zero_amount_and_empty_balance_fails - should panic ... ok
+test test::relayer_executes_escrow_with_zero_amount_sends_full_balance ... ok
+test test::relayer_executes_escrow_with_explicit_amount ... ok
+test test::relayer_executes_and_forwards ... ok
+test test::deposit_holds_funds_and_emits_event ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running unittests src/lib.rs (target/debug/deps/paiflow_yield-dbda9b967822fd5c)
+
+running 1 test
+test test::deposits_to_vault_and_forwards ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/lib.rs (target/debug/deps/payer-b0c5023ee3d8f52e)
+
+running 13 tests
+test test::pays_partial_when_incoming_less_than_configured ... ok
+test test::pays_percentage_of_incoming_amount ... ok
+test test::receive_and_forward_pays_configured_amount ... ok
+test test::pays_configured_amount_when_incoming_exceeds ... ok
+test test::receive_and_forward_forwards_to_next_steps ... ok
+test test::cancel_returns_balance_to_admin ... ok
+test test::pays_full_amount_via_10000_bps ... ok
+test test::percentage_zero_falls_back_to_fixed_amount ... ok
+test test::cash_out_recipient_receives_payment_via_receive_and_forward ... ok
+test test::fixed_payer_forwards_leftover_to_payer ... ok
+test test::receive_and_forward_pays_percentage ... ok
+test test::percentage_payer_forwards_leftover_to_payer ... ok
+test test::fixed_payer_forwards_leftover_to_splitter ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running unittests src/lib.rs (target/debug/deps/payer_dev-7aba60d1e05dd4cf)
+
+running 8 tests
+test test::stranger_cannot_update_payment - should panic ... ok
+test test::execute_before_configured_panics - should panic ... ok
+test test::pays_configured_amount ... ok
+test test::update_payment_then_pays ... ok
+test test::pays_percentage_after_update ... ok
+test test::cash_out_recipient_receives_payment_via_receive_and_forward ... ok
+test test::update_payment_can_toggle_cash_out ... ok
+test test::relayer_can_update_payment ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running unittests src/lib.rs (target/debug/deps/router-366d9dd22791a723)
+
+running 2 tests
+test test::routes_below_threshold_to_path_b ... ok
+test test::routes_above_threshold_to_path_a ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/lib.rs (target/debug/deps/splitter_dev-6baf49a1eba183dc)
+
+running 7 tests
+test test::distribute_before_configured_panics - should panic ... ok
+test test::constructor_rejects_bad_bps - should panic ... ok
+test test::stranger_cannot_update_recipients - should panic ... ok
+test test::percentage_split_sinks_cash_out_recipient ... ok
+test test::relayer_can_update_recipients ... ok
+test test::fixed_split_sinks_cash_out_recipient ... ok
+test test::blank_construction_then_configure_and_split ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/lib.rs (target/debug/deps/subscription_dev-6d732259c7ed6834)
+
+running 6 tests
+test test::charge_before_configured_panics - should panic ... ok
+test test::configured_at_construction_charges ... ok
+test test::stranger_cannot_set_amount - should panic ... ok
+test test::reschedule_resets_next_charge ... ok
+test test::relayer_can_fill_blanks ... ok
+test test::fill_blanks_then_charge ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/lib.rs (target/debug/deps/timelock-080926a5bbc3c63f)
+
+running 6 tests
+test test::after_mode_panics_before_unlock - should panic ... ok
+test test::release_by_relayer_panics_without_relayer - should panic ... ok
+test test::before_mode_panics_after_deadline - should panic ... ok
+test test::releases_funds_before_deadline ... ok
+test test::relayer_releases_funds_after_unlock ... ok
+test test::holds_funds_until_unlock ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+   Doc-tests cash_out
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests cash_out_dev
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests paiflow_splitter
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests paiflow_swapper
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests payer
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests payer_dev
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests splitter_dev
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

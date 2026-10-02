@@ -1,20 +1,23 @@
 {
   "cohort": "instawards-alpha-round-1",
   "windowStart": "2026-09-16",
-  "plannedCohortSize": 5,
+  "plannedCohortSize": 9,
   "provenance": [
     "Accounts were issued out of band (docs/alpha-testing-guide.md §2); the person-to-account mapping lives in the feedback survey's 'Your name' answer (docs/user-feedback-survey.md:19-22).",
     "Accounts are provisioned in batches ahead of need -- five on 15 September 2026 and five more on 19 September, the second with pnpm testers:seed-sql (scripts/seed-testers.ts) -- so more accounts exist than are listed. Provisioned is not issued: an account gets an entry here only when it is handed to a person, and an account nobody holds is in no figure.",
     "userId is the User.id UUID, which is also the PostHog distinct_id (docs/analytics/alpha-tracking-plan.md:51).",
     "wallets are the G-addresses each tester signed with, read from SignedTransaction.signerAddress or the transaction_signed event. A tester signs with more than one, so this is a list. The per-tester walletAddresses field in the alpha-metrics snapshots carries the same addresses, so this list can be checked against a committed artefact rather than taken on trust.",
     "No real name, username or email belongs in this file. The labels are pseudonyms and the published pages use them.",
-    "group is the protocol the tester followed: \"A\" is the full session with a recorded interview (docs/alpha-testing-guide.md), \"B\" is the quick test (docs/alpha-testing-guide-lite.md), which has no wallet in its core tasks and makes deploying an optional bonus, so a group B tester adds little to the deploy and wallet figures by design. Group B was added to this file on 26 September 2026; before then every figure was group A only."
+    "group is the protocol the tester followed: \"A\" is the full session with a recorded interview (docs/alpha-testing-guide.md), \"B\" is the quick test (docs/alpha-testing-guide-lite.md), which has no wallet in its core tasks and makes deploying an optional bonus, so a group B tester adds little to the deploy and wallet figures by design. Group B was added to this file on 26 September 2026; before then every figure was group A only.",
+    "wave is the deliverable week the tester was onboarded for: \"D2\" (16-20 September), \"D3\" (21-27 September) or \"D4\" (28 September-4 October). Every figure is still counted across the whole round from windowStart; the wave only groups the per-tester breakdown. Waves were added on 30 September 2026.",
+    "Two accounts issued in the D2 wave, published until 30 September 2026 as tester-2 and tester-3, belong to testers who withdrew from the round. They are no longer listed, so nothing they did is in any figure from the 30 September file onwards; the 17, 18 and 26 September snapshots include them and are left as generated. Their accounts are not deleted or reset."
   ],
-  "note": "An entry appears when an account is issued, not when its session runs: a tester with no wallets and no events has been onboarded but has not yet worked through the guide, which was tester-3's state at the 18 September snapshot. tester-3 ran a session on 19 September, and its wallet was backfilled from the 26 September snapshot (alpha-metrics-2026-09-26.json, perTester). tester-10's wallet comes from alpha-metrics-2026-09-26-groups.json; tester-8's list is empty because the quick test's core tasks sign nothing and tester-8 did not take the optional deploy, not because this file is behind. A tester who has run a session carries the wallets they signed with; those are backfilled from the snapshot, so an empty list beside a non-zero figure means this file is behind, not that the tester used none. plannedCohortSize is what the round targets; testers.length is what has been issued. Every alpha-tester figure is filtered on these UUIDs explicitly -- the PostHog cohort named 'Alpha testers' is role = USER, which since the 16 September cutover matches both ordinary paiflow.xyz visitors and sandbox sessions signing on the beta, and is deliberately not used. One of the issued accounts (tester-1) belongs to a member of the project, who ran the first session as a pilot of the protocol; the other four are external. Two of them followed the interview protocol (group A: tester-2 on 18 September, tester-3) and two the quick test (group B: tester-8 on 22 September, tester-10 on 24 September). About half of every alpha-tester figure is therefore the project's own work, which docs/instawards/metrics.md states alongside the numbers. One further provisioned account is used internally by the project; it is deliberately not listed, so nothing done under it is in any alpha-tester figure. The project member behind tester-1 also tests internally under a separate account and one of the wallets listed here was used by both, so their three wallets are three addresses belonging to one human, not three people.",
+  "note": "An entry appears when an account is issued, not when its session runs. A tester with no wallets has either not run a session yet or, in group B, took no optional deploy: the quick test's core tasks sign nothing. The wallets are the snapshot's perTester walletAddresses, so an empty list beside a non-zero signed-transaction figure means this file is behind. plannedCohortSize is what the round targets; testers.length is what has been issued. Every alpha-tester figure is filtered on these UUIDs explicitly -- the PostHog cohort named 'Alpha testers' is role = USER, which since the 16 September cutover matches both ordinary paiflow.xyz visitors and sandbox sessions signing on the beta, and is deliberately not used. tester-1 belongs to a member of the project, who ran the D2 session as a pilot of the protocol; the other eight are external. D3 onboarded two group A testers (tester-5, tester-9) and two group B (tester-8, tester-10); D4 did the same (group A tester-6, tester-7; group B tester-11, tester-14). tester-5 and tester-9 ran their D3 sessions but were missing from this file until 30 September 2026, so the 26 September figures leave them out. Accounts used internally by the project are deliberately not listed, so nothing done under them is in any alpha-tester figure. The project member behind tester-1 also tests internally under a separate account and one of the wallets listed here was used by both, so their three wallets are three addresses belonging to one human, not three people.",
   "testers": [
     {
       "label": "tester-1",
       "group": "A",
+      "wave": "D2",
       "userId": "f2071aa2-8831-4e87-ab7d-0b31841244f6",
       "wallets": [
         "GDZ2BQPZQLLXTBFVKJX6UVZQAIZCIC4HDGT4XDLH5JOWO7WWP2KLIN37",
@@ -23,31 +26,76 @@
       ]
     },
     {
-      "label": "tester-2",
+      "label": "tester-5",
       "group": "A",
-      "userId": "515ee32a-b2b2-4bce-8e4a-8d1f452d4f94",
+      "wave": "D3",
+      "userId": "176ffbee-8f4d-4546-bd60-ad2602456935",
       "wallets": [
-        "GAG2RKFEKMLJCBJAZSKIKHTBH6TTWTDL44UX7IIP32NL75TWSQDVGQUX",
-        "GCU6O3RBR7F7KF662DMEXRJBDUVLOE4IYLTRVKEFIET2RJM5DIBD5ZIA"
+        "GAY3E7C6V73GFW2Q74QEGERDD4GVUVXGXNI7FE2NKX22NZSKJD4YPAYN",
+        "GB4GA6H2PI76U6QP3NOSHYAVNOFDA5W65ELW2REUVNVYFMK62MY2JY4E",
+        "GBF66QBDJIRCQIO6Y7Y73KSNG2WGQNGU4FYTIE55CLMXFLLYCYO3FACX",
+        "GD26BWCWY4WSOG2BBEXEKEQBXCIUVX3Q5SDYIAA2IWMFO6PTLS67LBHW"
       ]
     },
     {
-      "label": "tester-3",
+      "label": "tester-9",
       "group": "A",
-      "userId": "ec1c3f68-c116-4d81-a565-08205fae1aca",
-      "wallets": ["GANT57QOWIXHPVRLZ6RFKTH4FB46MVGEHUI6JBH3P4MIRZBJGQCKHMYZ"]
+      "wave": "D3",
+      "userId": "951ce4e7-4ae3-46c4-b1d4-c4d3aba044bb",
+      "wallets": [
+        "GAEZKEZXDIZ3NVIG2GSAMKL2KH5DJJXEKQETYKU5PKSRP72DZDPGTB4N",
+        "GAYDPNWCD25TBBF4NQEVDPHEP36IGCQDIYXLXMZOCAQ2WLEEO7PFAB7J",
+        "GDB7CQTZES4WAHAADXFLXBGSIIQATWTT4MF6VYP56PIAZ4VKGS45SITK"
+      ]
     },
     {
       "label": "tester-8",
       "group": "B",
+      "wave": "D3",
       "userId": "a3fe3533-527f-4bf9-b3cd-fe70058c378a",
       "wallets": []
     },
     {
       "label": "tester-10",
       "group": "B",
+      "wave": "D3",
       "userId": "2babab77-aeb7-4ce7-a5a7-ca1bb7556bcd",
       "wallets": ["GCGFCD66DNG6F5HSC4GDJCLYLFIJQRWDDZ4B7LXT7UKEGXEEFUFFTQJX"]
+    },
+    {
+      "label": "tester-6",
+      "group": "A",
+      "wave": "D4",
+      "userId": "15deb3e2-e4e7-4f6e-9792-10da77f037ef",
+      "wallets": [
+        "GB3KPJFIBZFLHGHWAUI6XNXKZABJVI5JQLJBE226XCSCBDHGJLOGITFA",
+        "GDUNTXT2IP7KLGMNMNDPZCM6KFOXFNSRYHSLWT35AQN3GG3HKVHYUB4G",
+        "GDVUI5EETKRJ7QX5OH3TVM4AWULIIXFUTK3Z3446FRG7SQF3LTER57GA"
+      ]
+    },
+    {
+      "label": "tester-7",
+      "group": "A",
+      "wave": "D4",
+      "userId": "db3236b2-36bf-4c12-b190-b6d92895178f",
+      "wallets": [
+        "GCXUS2WWFGYYQFMBD7M2AHCSRCNGWVAFI7HN4KVWMABAU5232DXRNO6Y",
+        "GCYL2SVR6BWOBSRG5SEWE4E2ZQY2RXHYV7I4HHX6DVVS3FJW6Q46VUC7"
+      ]
+    },
+    {
+      "label": "tester-11",
+      "group": "B",
+      "wave": "D4",
+      "userId": "33f2a928-77f6-434b-b72c-d92812d9d8e8",
+      "wallets": []
+    },
+    {
+      "label": "tester-14",
+      "group": "B",
+      "wave": "D4",
+      "userId": "41cf2ed7-ed2b-4811-a694-f06f3958b379",
+      "wallets": ["GBE3QG6E4QTJUC5L5SAE7FQ6SJYNVDYCJFWXUU25WUIJZ32YLRYUAGB2"]
     }
   ]
 }
