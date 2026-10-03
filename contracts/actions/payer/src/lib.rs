@@ -1,5 +1,8 @@
 #![no_std]
 #![allow(clippy::too_many_arguments)]
+#[path = "../../../payment-math.rs"]
+mod payment_math;
+
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
     vec, Address, Env, IntoVal, String, Vec,
@@ -32,9 +35,11 @@ pub enum Error {
     AlreadyInitialized = 1,
     Unauthorized = 2,
     InvalidAmount = 3,
+    ArithmeticOverflow = 4,
+    InvalidPercentage = 5,
 }
 
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 const TTL_THRESHOLD: u32 = 50_000;
 const TTL_EXTEND_TO: u32 = 500_000;
 
@@ -58,8 +63,11 @@ impl Payer {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
         }
-        if amount <= 0 && percentage_bps == 0 {
+        if amount < 0 || (amount == 0 && percentage_bps == 0) {
             panic_with_error!(&env, Error::InvalidAmount);
+        }
+        if percentage_bps > 10_000 {
+            panic_with_error!(&env, Error::InvalidPercentage);
         }
         env.storage().instance().set(&Key::Admin, &admin);
         env.storage().instance().set(&Key::Asset, &asset);
@@ -172,7 +180,8 @@ fn execute_payment(env: &Env, asset: &Address, amount: i128) {
         .unwrap_or(0);
     let recipient: Address = env.storage().instance().get(&Key::Recipient).unwrap();
     let payment = if percentage_bps > 0 {
-        (amount * i128::from(percentage_bps)) / 10_000
+        payment_math::percentage_share(amount, percentage_bps)
+            .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow))
     } else {
         let configured_amount: i128 = env.storage().instance().get(&Key::Amount).unwrap();
         if amount > configured_amount {
@@ -923,3 +932,7 @@ mod test {
         assert_eq!(tok.balance(&contract_id), 900);
     }
 }
+
+#[cfg(test)]
+#[path = "arithmetic-tests.rs"]
+mod arithmetic_tests;

@@ -224,7 +224,8 @@ Oracle/legacy yield, payroll/off-ramp, and dev variants are outside this optimiz
 
 **Compatibility and release.** Pay/Split preserve public function names, positional arguments,
 historical argument names (including Payer's `_from`), error discriminants, storage keys, and payout
-event shapes. New instances store template `Version = 2`; no new version getter is introduced.
+event shapes. #788 introduced template `Version = 2`; #795 advances the standard Pay/Split
+versions to 3 as described below. No new version getter is introduced.
 Requiring parent authorization is a behavior change even with an unchanged call signature.
 Direct integrations that used `receive_and_forward` as a public action now need the configured
 parent to invoke/authorize it and must supply that parent as `from`. Token receipt is still an
@@ -247,6 +248,50 @@ migration as a separately planned redeployment, including retained funds, allowa
 wiring, and durable pipeline snapshots. Existing instances remain on their previous policy until
 that migration occurs. This implementation does not upload WASM, change live hashes, or migrate
 deployed flows.
+
+### 4.1.2 Exact monetary arithmetic (#795)
+
+Standard Pay/Split versions 3 and Streamer version 5 replace failed monetary calculations with
+explicit contract errors. Existing error numbers remain unchanged; the appended errors are
+Payer `ArithmeticOverflow = 4`, `InvalidPercentage = 5`, Splitter `ArithmeticOverflow = 8`, and
+Streamer `ArithmeticOverflow = 12`. Public function signatures, storage keys, authorization,
+forwarding, and event shapes remain unchanged.
+
+Percentage shares use the exact identity
+`floor(amount * bps / 10000) = (amount / 10000) * bps + floor((amount % 10000) * bps / 10000)`
+for nonnegative integer amounts and `0 <= bps <= 10000`. This avoids an overflowing intermediate
+product while retaining integer rounding across the full i128 range. Split/Streamer still give
+the final recipient the remainder. A genuinely unrepresentable sum/product/subtraction aborts
+execution instead of substituting zero or keeping an old total. Tests verify that failures roll
+back prior token transfers and accounting; injected invalid legacy state in defensive tests is
+not a configuration that the new constructors accept.
+
+Payer rejects negative configured amounts and percentages above 100%. Fixed-mode payments still
+pay the smaller of the incoming and configured amounts. Splitter rejects negative minimums,
+negative recipient amounts, zero-valued recipients, mixed modes, and fixed totals exceeding i128.
+Streamer rejects a window whose maximum vested amount
+`floor((end_ts - start_ts) / interval_seconds) * amount_per_interval` exceeds i128. It retains its
+existing recipient weights, whole-interval vesting, public claim policy, and pause/retrieval
+behavior. Intentional time saturation and valid zero results remain; only failed monetary
+arithmetic becomes an explicit error. Fixed scheduled recipient amounts still compile to basis
+point weights with their existing rounding behavior; #795 does not redesign that compilation.
+
+Shared deployment validation checks standard payment amounts and fixed totals before encoding.
+Compiled Streamer parameters supply the lifetime bound, including default windows, occurrences,
+partial final intervals, and legacy rate conversion. Draft schemas still accept incomplete
+amounts for autosave. Mutable/dev contract improvements and payroll are deferred; deferred mutable
+values remain compatible. Schedule flows still use the standard Streamer even in dev mode, so
+the Streamer lifetime check applies there too.
+
+The shared Rust percentage helper is compiled into the three existing crates without a new crate
+or dependency. The test-only token exercises the full i128 range; it does not claim that classic
+Stellar assets support balances of that size. This is correctness work, with no measured throughput
+or capacity improvement claimed.
+
+Activation follows the release process in §4.3: upload the three new standard WASM artifacts and
+sync the intended environment's selected hashes only after testnet rehearsal. The factory needs
+no change. Existing immutable instances remain on their old WASM and require separately planned
+redeployment. This implementation does not change live hashes, flags, databases, or existing flows.
 
 ### 4.2 Contract build pipeline
 

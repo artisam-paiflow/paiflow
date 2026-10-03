@@ -1,4 +1,7 @@
 #![no_std]
+#[path = "../../../payment-math.rs"]
+mod payment_math;
+
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
     vec, Address, Env, IntoVal, String, Vec,
@@ -45,9 +48,10 @@ pub enum Error {
     Unauthorized = 5,
     InvalidAmount = 6,
     MixedModeNotAllowed = 7,
+    ArithmeticOverflow = 8,
 }
 
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 const TOTAL_BPS: u32 = 10_000;
 const TTL_THRESHOLD: u32 = 50_000;
 const TTL_EXTEND_TO: u32 = 500_000;
@@ -72,9 +76,18 @@ impl Splitter {
         if recipients.is_empty() {
             panic_with_error!(&env, Error::NoRecipients);
         }
+        if min_amount < 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
         let mut total_bps: u32 = 0;
         let mut total_fixed: i128 = 0;
         for r in recipients.iter() {
+            if r.amount < 0 || (r.bps == 0 && r.amount == 0) {
+                panic_with_error!(&env, Error::InvalidAmount);
+            }
+            if r.bps > TOTAL_BPS {
+                panic_with_error!(&env, Error::BpsSumInvalid);
+            }
             if r.bps > 0 && r.amount > 0 {
                 panic_with_error!(&env, Error::MixedModeNotAllowed);
             }
@@ -83,7 +96,7 @@ impl Splitter {
                 .unwrap_or_else(|| panic_with_error!(&env, Error::BpsSumInvalid));
             total_fixed = total_fixed
                 .checked_add(r.amount)
-                .unwrap_or_else(|| panic_with_error!(&env, Error::BpsSumInvalid));
+                .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
         }
 
         if total_fixed > 0 {
@@ -230,16 +243,18 @@ fn do_split(env: &Env, asset: &Address, recipients: &Vec<Recipient>, amount: i12
     while i < len {
         let r = recipients.get(i).unwrap();
         let share: i128 = if i == last_idx {
-            amount.checked_sub(distributed).unwrap_or(0)
-        } else {
             amount
-                .checked_mul(r.bps as i128)
-                .and_then(|v| v.checked_div(TOTAL_BPS as i128))
-                .unwrap_or(0)
+                .checked_sub(distributed)
+                .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow))
+        } else {
+            payment_math::percentage_share(amount, r.bps)
+                .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow))
         };
         if share > 0 {
             client.transfer(&env.current_contract_address(), &r.address, &share);
-            distributed = distributed.checked_add(share).unwrap_or(distributed);
+            distributed = distributed
+                .checked_add(share)
+                .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow));
             if r.is_cash_out {
                 invoke_receive_and_forward(env, &r.address, asset, &share);
             }
@@ -256,7 +271,7 @@ fn handle_fixed_deposit(env: &Env, asset: &Address, amount: i128) -> bool {
         .unwrap_or(0);
     let new_balance = balance
         .checked_add(amount)
-        .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAmount));
+        .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow));
     env.storage()
         .instance()
         .set(&Key::AccumulatedBalance, &new_balance);
@@ -269,7 +284,9 @@ fn handle_fixed_deposit(env: &Env, asset: &Address, amount: i128) -> bool {
     if new_balance >= total_fixed {
         let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
         do_split_fixed(env, asset, &recipients);
-        let remaining = new_balance.checked_sub(total_fixed).unwrap_or(0);
+        let remaining = new_balance
+            .checked_sub(total_fixed)
+            .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow));
         env.storage()
             .instance()
             .set(&Key::AccumulatedBalance, &remaining);
@@ -282,7 +299,9 @@ fn handle_fixed_deposit(env: &Env, asset: &Address, amount: i128) -> bool {
                 amount,
                 new_balance,
                 total_fixed,
-                total_fixed.checked_sub(new_balance).unwrap_or(0),
+                total_fixed
+                    .checked_sub(new_balance)
+                    .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow)),
             ),
         );
         false
@@ -925,7 +944,7 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #2)")]
+    #[should_panic(expected = "Error(Contract, #6)")]
     fn constructor_rejects_all_fixed_zero_total() {
         let env = Env::default();
         env.mock_all_auths();
@@ -1358,3 +1377,7 @@ mod test {
         assert_eq!(tok.balance(&contract_id), 0);
     }
 }
+
+#[cfg(test)]
+#[path = "arithmetic-tests.rs"]
+mod arithmetic_tests;
