@@ -63,7 +63,7 @@ function recipientsVec(
         new xdr.ScMapEntry({ key: symbol("bps"), val: nativeToScVal(r.bps, { type: "u32" }) }),
         new xdr.ScMapEntry({
           key: symbol("is_cash_out"),
-          val: nativeToScVal(r.isCashOut ?? false, { type: "bool" }),
+          val: xdr.ScVal.scvBool(r.isCashOut ?? false),
         }),
       ]),
     ),

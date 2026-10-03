@@ -84,7 +84,7 @@ beforeEach(async () => {
     hash: parsed(signed).hash().toString("hex"),
   });
   rpc.getLatestLedger.mockResolvedValue({ sequence: 42 });
-  rpc.getLedgers.mockResolvedValue({ ledgers: [{ ledgerCloseTime: "1" }] });
+  rpc.getLedgers.mockResolvedValue({ ledgers: [{ sequence: 42, ledgerCloseTime: "1" }] });
   await bind();
 });
 afterEach(async () => {

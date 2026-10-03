@@ -12,7 +12,8 @@ afterEach(() => vi.restoreAllMocks());
 
 function rejectSubmission(error: unknown) {
   vi.spyOn(Horizon.Server.prototype, "loadAccount").mockResolvedValue(
-    new Account(signer.publicKey(), "1") as Horizon.AccountResponse,
+    // send() only consumes the transaction-source interface of this response.
+    new Account(signer.publicKey(), "1") as unknown as Horizon.AccountResponse,
   );
   vi.spyOn(Horizon.Server.prototype, "submitTransaction").mockRejectedValue(error);
   return send(signer, operations);
