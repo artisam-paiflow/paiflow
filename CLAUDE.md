@@ -7,6 +7,26 @@ Guidance for coding agents working in this repository.
 > the code. When in doubt: stop and ask. Subdirectory guides load on demand: `tests/CLAUDE.md`,
 > `components/builder/CLAUDE.md`.
 
+### Cross-session memory
+
+[`temp-memory.md`](temp-memory.md) at the repository root is local, git-ignored working memory
+shared across sessions in this checkout. Read it at the start of each session; after a context
+compaction, consult it again when needed to recover decisions and progress. If it is missing,
+continue with the available context and mention that it is unavailable.
+
+- Record confirmed decisions, meaningful progress, outstanding work, blockers, and useful file or
+  issue references. Keep entries concise and dated; distinguish completed work from plans and
+  assumptions. Reconcile superseded entries so the current state stays clear.
+- When the user explicitly asks to create or update memory, do so without another confirmation.
+  Otherwise, when a decision or progress milestone merits an update, propose the concrete summary
+  in chat and wait for approval before editing the memory file. Silence is not approval. Continue
+  other authorised work while waiting, and acknowledge the update once saved.
+- Verify remembered state against the current branch, working tree, and source documents before
+  acting on it. Memory provides context; current user instructions, repository guidance, `SPEC.md`,
+  and the code remain authoritative in their respective scopes.
+- Keep the file ignored and local; never stage, commit, force-add, or publish it. Never record
+  passwords, tokens, private keys, signed XDR, or other secrets, even in this ignored file.
+
 ---
 
 ## 0. Mental model
