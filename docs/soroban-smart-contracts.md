@@ -225,7 +225,7 @@ Oracle/legacy yield, payroll/off-ramp, and dev variants are outside this optimiz
 **Compatibility and release.** Pay/Split preserve public function names, positional arguments,
 historical argument names (including Payer's `_from`), error discriminants, storage keys, and payout
 event shapes. #788 introduced template `Version = 2`; #795 advances the standard Pay/Split
-versions to 3 as described below. No new version getter is introduced.
+versions to 3 as described below; #797 advances them to 4 (§4.1.3). No new version getter is introduced.
 Requiring parent authorization is a behavior change even with an unchanged call signature.
 Direct integrations that used `receive_and_forward` as a public action now need the configured
 parent to invoke/authorize it and must supply that parent as `from`. Token receipt is still an
@@ -292,6 +292,78 @@ Activation follows the release process in §4.3: upload the three new standard W
 sync the intended environment's selected hashes only after testnet rehearsal. The factory needs
 no change. Existing immutable instances remain on their old WASM and require separately planned
 redeployment. This implementation does not change live hashes, flags, databases, or existing flows.
+
+### 4.1.3 Terminal Pay/Split forwarding (#797)
+
+Standard Pay/Split version 4 returns from `forward_remaining` immediately when stored `NextSteps`
+is empty, before constructing a token client or invoking `balance`. This removes one explicit
+on-chain token balance invocation per terminal helper execution, including Split's direct
+`distribute` after a fixed deposit below the payout threshold. The parent-driven Split entry
+points still call the helper only after a distribution. Dev variants are unchanged.
+
+For nonempty steps, the helper still reads the **entire current contract balance**, transfers a
+positive balance to the first stored target, emits `forward`, and invokes that target atomically.
+Earlier retained funds are included. Fixed Split clears its accumulator only after successful
+downstream execution, as before; removing a next step does not clear retained accounting. Payouts,
+last-recipient rounding, fixed shortfalls, parent/admin authorization, events, and TTL behavior
+are preserved. A terminal execution no longer depends on the removed balance call succeeding;
+required token transfers and their checks still run.
+
+The integration suite uses a test-only token with counted/rejectable explicit `balance` calls
+and separate internal transfer reads. It covers fixed/percentage modes, both parent execution
+entry points, direct Split distribution, partial Pay, accumulated Split shortfalls, zero balance,
+admin next-step changes, earlier retained funds, first-target routing, and rollback on balance or
+downstream failure. Parent-driven cases run with real contract authorization and no permissive
+auth mocks; direct deposits/admin setters use specific authorization trees. Existing real-token
+and trigger authorization regressions remain in the suite.
+
+**Comparable local measurements (2026-10-03).** Baseline `4bcdc958` (version 3) versus this change
+(version 4), Rust 1.95.0, locked `soroban-sdk` 26.0.1 / host 26.1.3. Each fresh fixture holds 118
+stroops and executes terminal `execute_step(asset, 101)`: Pay pays 100 fixed or 50 at 50%; Split
+pays 60/40 fixed or 60/41 at 60%/40%. The prior 17 stroops remain retained. Measurements cover
+only that invocation, excluding constructor and funding work, using the SDK's built-in Stellar
+asset contract and mocked account-parent authorization. Resource limits remain enabled.
+
+| Execution     | Native instructions before → after | Local release-WASM instructions before → after | Local WASM memory bytes before → after |
+| ------------- | ---------------------------------: | ---------------------------------------------: | -------------------------------------: |
+| Pay fixed     |                  337,035 → 272,817 |                              892,015 → 821,601 |                  1,266,531 → 1,257,840 |
+| Pay 50%       |                  333,752 → 269,534 |                              870,483 → 800,069 |                  1,266,403 → 1,257,712 |
+| Split fixed   |                  607,760 → 539,802 |                          1,274,272 → 1,200,118 |                  1,306,056 → 1,297,297 |
+| Split 60%/40% |                  540,721 → 472,763 |                          1,135,537 → 1,061,383 |                  1,295,861 → 1,287,102 |
+
+Native estimates exclude guest VM execution. The compiled-WASM figures execute the actual release
+artifacts in the local test host; they are **not network RPC simulations**. The SDK estimates do
+not model all transaction/XDR work. For these fixtures, disk reads (1), memory reads (Pay 7 /
+Split 8), writes (Pay 3 / fixed Split 5 / percentage Split 4), read/write bytes, and event sizes
+are unchanged. Removing a balance invocation does not imply fewer distinct ledger entries:
+payout transfers already access those balances. No network fee or capacity improvement is claimed.
+
+Reproduce with the ignored measurement test in `contracts/actions/payer/tests/support/terminal-forwarding.rs`:
+
+```bash
+cd contracts
+# Native implementation on the current source revision:
+cargo test --locked -p payer --test execution-auth profile_terminal_execution -- --ignored --nocapture
+# Build on each revision and copy payer.wasm / paiflow_splitter.wasm to separate directories:
+cargo build --locked --release --target wasm32v1-none -p payer -p paiflow-splitter
+# Repeat using each directory with the same measurement fixture:
+PAIFLOW_PROFILE_WASM_DIR=/path/to/artifacts cargo test --locked -p payer --test execution-auth profile_terminal_execution -- --ignored --nocapture
+```
+
+The baseline checkout needs the same test harness to reproduce native measurements; local WASM
+measurements can use this checkout's harness for both artifact sets. Compiled `contractspecv0`
+streams, extracted with `stellar contract info interface --output xdr-base64`, compare identical
+for each contract. Public signatures, error discriminants, and storage keys are unchanged. Only
+the stored template `Version` advances. Release WASM sizes are Pay 17,725 → 17,701 bytes and Split
+21,529 → 21,510 bytes with the existing workspace release profile.
+
+The [isolated public-testnet rehearsal](terminal-forwarding-testnet.md) verified deployed terminal
+and nonterminal trigger chains, retained funds, submitted failure rollback, genuine Freighter
+application deployment/signing, durable snapshots, and actual v3/v4 RPC simulation resources.
+Its uploaded WASM and disposable application database did not change shared runtime configuration.
+Activation follows §4.3 and the compatibility/redeployment boundaries in §4.1.1. Intended-environment
+template hash synchronization and existing-flow redeployment remain separate release work.
+Source changes do not upgrade deployed instances. The factory needs no change.
 
 ### 4.2 Contract build pipeline
 

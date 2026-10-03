@@ -12,6 +12,9 @@ use soroban_sdk::{
 
 type InvocationResult = Result<Result<(), ConversionError>, Result<Error, InvokeError>>;
 
+#[path = "support/terminal-forwarding.rs"]
+mod terminal_forwarding;
+
 fn execution_args(
     env: &Env,
     asset: &Address,
