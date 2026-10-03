@@ -50,8 +50,7 @@ export const TENANT_RELAYER_TIMEOUT_MS = 45_000;
 export function sorobanRpc(): rpc.Server {
   if (!g.__sorobanRpc) {
     g.__sorobanRpc = new rpc.Server(stellarRpcUrl(), { allowHttp: false });
-    // Set on the client, not passed as `{ timeout }`: stellar-sdk 15.1.0 declares
-    // that option on rpc.Server and its constructor never reads it.
+    // Set on the HTTP client: SDK 16.3.1 still ignores rpc.Server's timeout option.
     g.__sorobanRpc.httpClient.defaults.timeout = STELLAR_HTTP_TIMEOUT_MS;
     // Validate in background; don't block startup.
     validateRelayerSequence(g.__sorobanRpc).catch(() => {});

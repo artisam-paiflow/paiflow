@@ -86,7 +86,7 @@ function string(s: string): xdr.ScVal {
 }
 
 function bool(b: boolean): xdr.ScVal {
-  return nativeToScVal(b, { type: "bool" });
+  return xdr.ScVal.scvBool(b);
 }
 
 function recipientsVec(recipients: DevRecipient[]): xdr.ScVal {

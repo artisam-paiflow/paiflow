@@ -12,6 +12,7 @@ import {
 } from "@stellar/stellar-sdk";
 import { sorobanRpc, decodeContractAddress } from "./client";
 import { stellarPassphrase } from "@/lib/env";
+import { AppError } from "@/lib/errors";
 import { simulationFailure } from "./sim-error";
 
 export type PreparedInvoke = {
@@ -483,6 +484,13 @@ export async function prepareTokenApproveInvocation(opts: {
   // Using U32_MAX caused "live_until is greater than max".
   const expirationLedger =
     latestLedger.sequence + MAX_APPROVAL_LEDGER_DELTA - APPROVAL_LEDGER_BUFFER;
+  if (
+    !Number.isInteger(latestLedger.sequence) ||
+    latestLedger.sequence <= 0 ||
+    expirationLedger > 0xffff_ffff
+  ) {
+    throw new AppError("UPSTREAM_RPC", "Cannot establish a valid allowance expiration ledger");
+  }
   const expirationScVal = nativeToScVal(expirationLedger, { type: "u32" });
 
   const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(

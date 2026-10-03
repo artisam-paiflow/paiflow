@@ -114,7 +114,9 @@ export async function checkPayoutTrustlines(
       let ref: AssetRef;
       try {
         const a = resolveAsset(r.asset);
-        ref = { assetCode: a.getCode(), assetIssuer: a.getIssuer() };
+        const issuer = a.getIssuer();
+        if (!issuer) throw new Error("A credit asset must have an issuer");
+        ref = { assetCode: a.getCode(), assetIssuer: issuer };
       } catch (err) {
         log.warn({ err, asset: r.asset }, "Payout asset did not resolve; trustline check skipped");
         return { ...base, status: "skipped" };

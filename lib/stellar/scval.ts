@@ -27,7 +27,7 @@ function u64(n: number | bigint): xdr.ScVal {
 }
 
 function bool(b: boolean): xdr.ScVal {
-  return nativeToScVal(b, { type: "bool" });
+  return xdr.ScVal.scvBool(b);
 }
 
 /**

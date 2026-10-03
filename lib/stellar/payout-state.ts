@@ -31,12 +31,22 @@ export async function payoutTransactionFinished(tx: PayoutTransaction): Promise<
   const server = sorobanRpc();
   const got = await payoutTransactionStatus(tx.txHash);
   if (got.status === "SUCCESS" || got.status === "FAILED") return true;
+  if (got.status !== "NOT_FOUND")
+    throw new AppError("UPSTREAM_RPC", "Cannot establish payout finality; protection is retained");
   const latest = await payoutRpc(() => server.getLatestLedger());
+  if (!Number.isInteger(latest.sequence) || latest.sequence <= 0 || latest.sequence > 0xffff_ffff)
+    throw new AppError("UPSTREAM_RPC", "Cannot establish ledger-time expiry");
   const ledgers = await payoutRpc(() =>
     server.getLedgers({ startLedger: latest.sequence, pagination: { limit: 1 } }),
   );
-  const closeTime = ledgers.ledgers[0]?.ledgerCloseTime;
-  if (!closeTime || !/^\d+$/.test(closeTime))
+  const ledger = ledgers.ledgers[0];
+  const closeTime = ledger?.ledgerCloseTime;
+  if (
+    ledger?.sequence !== latest.sequence ||
+    typeof closeTime !== "string" ||
+    !/^\d+$/.test(closeTime) ||
+    BigInt(closeTime) > 0xffff_ffff_ffff_ffffn
+  )
     throw new AppError("UPSTREAM_RPC", "Cannot establish ledger-time expiry");
   return BigInt(closeTime) > BigInt(tx.maxTime);
 }

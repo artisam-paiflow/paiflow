@@ -207,7 +207,7 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 | Email         | Resend (transactional — password reset, notifications)                                       |
 | Off-ramp      | PDAX Institution API (fiat payout), mock provider by default                                 |
 | AI            | Groq — Whisper (STT, raft-log voice input) + Llama (text)                                    |
-| Blockchain    | Stellar / Soroban — `@stellar/stellar-sdk` 15, `@creit.tech/stellar-wallets-kit` 1.9         |
+| Blockchain    | Stellar / Soroban — `@stellar/stellar-sdk` 16, `@creit.tech/stellar-wallets-kit` 1.9         |
 | Contracts     | Rust (CI toolchain 1.95), `soroban-sdk` 26, target `wasm32v1-none`                           |
 | Tests         | vitest 4 (node + jsdom, Testing Library, axe-core), `@playwright/test` 1.59 (e2e, local)     |
 | Observability | pino (+ pino-pretty in dev). Sentry is stubbed out — see note below.                         |
