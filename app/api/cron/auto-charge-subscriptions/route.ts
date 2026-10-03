@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
-import { withErrorHandler } from "@/lib/errors";
+import { AppError, withErrorHandler } from "@/lib/errors";
 import { assertPublicUrl, UnsafeUrlError } from "@/lib/net/assert-public-url";
 import { createContractReadCache } from "@/lib/contract-read-cache";
 import {
@@ -18,6 +18,7 @@ import {
   readTokenAllowance,
 } from "@/lib/stellar/relayer";
 import { prepareSubscriptionChargeByRelayerUnsigned } from "@/lib/stellar/invoke";
+import { createSubscriptionStateReader } from "@/lib/stellar/subscription-state";
 import { TENANT_RELAYER_TIMEOUT_MS } from "@/lib/stellar/client";
 import { withRelayerChannel } from "@/lib/stellar/relayer-channels";
 import { stellarPassphrase, stellarRelayerAddress } from "@/lib/env";
@@ -45,6 +46,14 @@ type ResultDetail = {
  * reclassified as an expected skip (#581).
  */
 class RelayerResponseError extends Error {}
+
+function chargeDate(seconds: bigint): Date {
+  // u64 timestamps can exceed JS/DB date bounds. Never persist an Invalid Date.
+  if (seconds < 0n || seconds > 8_640_000_000_000n) {
+    throw new AppError("UPSTREAM_RPC", "Subscription schedule timestamp is out of range");
+  }
+  return new Date(Number(seconds) * 1000);
+}
 
 /**
  * The tenant's relayer response is untrusted input — `signedXdr` is handed
@@ -168,6 +177,7 @@ async function runSubscriptionCharges() {
   let userCharged = 0;
 
   const readCache = createContractReadCache();
+  const readSubscriptionState = createSubscriptionStateReader();
   // Only cache reads with no on-chain setters. NOTE: SUBSCRIPTION_DEV exposes
   // set_amount/update_subscriber, so for dev deployments these cached readers
   // are bypassed below in favor of fresh reads. Every subscription variant
@@ -223,11 +233,15 @@ async function runSubscriptionCharges() {
     }
 
     try {
+      const state =
+        node.templateKind === "SUBSCRIPTION" ? await readSubscriptionState(contractAddress) : null;
       // Stop scheduling cancelled or expired subscriptions.
-      const [cancelled, nextChargeAt] = await Promise.all([
-        readSubscriptionIsCancelled(contractAddress),
-        readSubscriptionNextChargeAt(contractAddress),
-      ]);
+      const [cancelled, nextChargeAt] = state
+        ? ([state.isCancelled, state.nextChargeAt] as const)
+        : await Promise.all([
+            readSubscriptionIsCancelled(contractAddress),
+            readSubscriptionNextChargeAt(contractAddress),
+          ]);
 
       if (cancelled) {
         await db.deployment.update({
@@ -248,7 +262,7 @@ async function runSubscriptionCharges() {
       }
 
       // Verify the on-chain schedule is actually due.
-      const nextChargeDate = new Date(Number(nextChargeAt) * 1000);
+      const nextChargeDate = chargeDate(nextChargeAt);
       if (nextChargeDate > now) {
         await db.deployment.update({
           where: { id: d.id },
@@ -262,16 +276,18 @@ async function runSubscriptionCharges() {
       // read them fresh for dev deployments; the immutable SUBSCRIPTION
       // variant can use the cached readers.
       const isDevSubscription = node.templateKind === "SUBSCRIPTION_DEV";
-      const [amountPerPeriod, subscriber, asset, onChainRelayer] = await Promise.all([
-        isDevSubscription
-          ? readSubscriptionAmountPerPeriod(contractAddress)
-          : readSubscriptionAmountPerPeriodCached(contractAddress),
-        isDevSubscription
-          ? readSubscriptionSubscriber(contractAddress)
-          : readSubscriptionSubscriberCached(contractAddress),
-        readSubscriptionAssetCached(contractAddress),
-        readSubscriptionRelayer(contractAddress),
-      ]);
+      const [amountPerPeriod, subscriber, asset, onChainRelayer] = state
+        ? ([BigInt(state.amountPerPeriod), state.subscriber, state.asset, state.relayer] as const)
+        : await Promise.all([
+            isDevSubscription
+              ? readSubscriptionAmountPerPeriod(contractAddress)
+              : readSubscriptionAmountPerPeriodCached(contractAddress),
+            isDevSubscription
+              ? readSubscriptionSubscriber(contractAddress)
+              : readSubscriptionSubscriberCached(contractAddress),
+            readSubscriptionAssetCached(contractAddress),
+            readSubscriptionRelayer(contractAddress),
+          ]);
 
       const allowance = await readTokenAllowance({
         tokenContractAddress: asset,
@@ -315,7 +331,7 @@ async function runSubscriptionCharges() {
           if (submit.status === "SUCCESS") {
             chargedCount++;
             const next = await readSubscriptionNextChargeAt(contractAddress);
-            if (new Date(Number(next) * 1000) > new Date()) break;
+            if (chargeDate(next) > new Date()) break;
           } else {
             throw new Error(submit.errorMessage ?? "Platform charge submission failed");
           }
@@ -455,7 +471,7 @@ async function runSubscriptionCharges() {
           }
 
           const next = await readSubscriptionNextChargeAt(contractAddress);
-          if (new Date(Number(next) * 1000) > new Date()) break;
+          if (chargeDate(next) > new Date()) break;
         }
         userCharged += chargedCount;
       }
@@ -466,7 +482,7 @@ async function runSubscriptionCharges() {
           where: { id: d.id },
           data: {
             lastChargedAt: new Date(),
-            nextChargeAt: new Date(Number(next) * 1000),
+            nextChargeAt: chargeDate(next),
           },
         });
         results.push({

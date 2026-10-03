@@ -365,6 +365,46 @@ Activation follows §4.3 and the compatibility/redeployment boundaries in §4.1.
 template hash synchronization and existing-flow redeployment remain separate release work.
 Source changes do not upgrade deployed instances. The factory needs no change.
 
+### 4.1.4 Combined Subscription preflight (#799)
+
+Standard Subscription **version 6** adds a read-only `state()` returning a `SubscriptionState`
+contract struct with `is_cancelled: bool`, `next_charge_at: u64`, `amount_per_period: i128`, and
+`subscriber`, `asset`, `relayer` addresses. All six fields are observed in one simulation. The
+getter does not write storage, extend TTL, emit events, or require authorization. Existing
+getters, constructor arguments, storage keys, authorization, events, cancellation/resubscription,
+amounts, and schedule advancement remain unchanged. Compiled ABI comparison adds only the getter
+and struct. Dev Subscription is unchanged.
+
+`lib/stellar/subscription-state.ts` checks exact map fields and ScVal types, valid account/contract
+addresses (asset must be a contract), positive i128 amount, and u64 schedule bounds. Amounts cross
+its boundary as decimal strings; the cron uses bigint for allowance comparison. The cron rejects
+schedule timestamps outside JavaScript Date bounds before persisting them.
+
+Only a matching WasmVm/MissingValue host diagnostic naming the missing `state` export on the
+requested contract selects legacy getters. Missing diagnostic evidence, missing storage, RPC
+outages, restoration requests, and malformed results fail preflight. Unsupported capability is
+remembered only within that cron run, then probed again next run. No persistent capability or
+combined-state cache is introduced. Legacy immutable amount/subscriber/asset caching remains,
+and Dev amount/subscriber/relayer reads stay fresh. Token allowance is a separate fresh read.
+
+The successful new-instance uncached preflight uses **4 RPC requests** (account + state,
+account + allowance), versus **14** for the original uncached getters. An old standard instance
+costs **16** on its first visit in a run, including the failed capability probe; later unsupported
+visits avoid that probe. Warm legacy immutable caches reduce the original preflight to **8**
+(**10** including an initial probe). Dev retains its original path. Cancelled/not-due new
+instances exit after **2**, compared with **4** on the original path (**6** with an initial probe).
+These counts exclude signing/building/submission/finality and post-charge schedule reads.
+
+Preflight is advisory. The charge still enforces auth, cancellation, due/end time and token rules
+on-chain; source loading under the relayer/channel lock and signing simulations are unchanged.
+Catch-up and final reconciliation still read `next_charge_at` fresh after execution.
+
+Release WASM SHA-256: `7f1a95be6bc08ccf147b098c2b110ae73ea9b89f9d97efa755e3a250e1103e88`.
+Activation follows §4.3 and requires separately authorized release work; immutable existing
+instances continue through legacy getters. This optimization does not claim lower transaction
+fees, universal latency gains, or production capacity. TESTNET evidence and limits are recorded in
+[`subscription-state-testnet.md`](subscription-state-testnet.md).
+
 ### 4.2 Contract build pipeline
 
 Prerequisite (once per machine):
