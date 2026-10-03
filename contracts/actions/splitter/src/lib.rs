@@ -51,7 +51,7 @@ pub enum Error {
     ArithmeticOverflow = 8,
 }
 
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 const TOTAL_BPS: u32 = 10_000;
 const TTL_THRESHOLD: u32 = 50_000;
 const TTL_EXTEND_TO: u32 = 500_000;
@@ -384,11 +384,12 @@ fn forward_remaining(env: &Env, asset: &Address) {
         .instance()
         .get(&Key::NextSteps)
         .unwrap_or_else(|| Vec::new(env));
-    let client = token::Client::new(env, asset);
-    let balance = client.balance(&env.current_contract_address());
+    if next_steps.is_empty() {
+        return;
+    }
 
-    let has_steps = !next_steps.is_empty();
-    let forward_amount = if has_steps && balance > 0 { balance } else { 0 };
+    let client = token::Client::new(env, asset);
+    let forward_amount = client.balance(&env.current_contract_address());
 
     if forward_amount > 0 {
         if let Some(step) = next_steps.first() {
