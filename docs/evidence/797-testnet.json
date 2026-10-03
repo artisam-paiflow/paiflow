@@ -1,0 +1,2172 @@
+{
+  "sourceCommit": "1fa6be742278c4b5d4143f0212b3441f709e51ea",
+  "baselineCommit": "4bcdc958",
+  "network": "testnet",
+  "rpc": "https://soroban-testnet.stellar.org",
+  "protocol": 29,
+  "factory": "CB4LFLKC725O42DJYOXPJCBOG264HU3CAHCIYNU7KAYSJIPCTWCFR5AB",
+  "wasmHashes": {
+    "payer": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+    "splitter": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+    "deposit": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+    "webhook": "232dca3682e469969614db0f40d955bee12175a49e9afd5a6175e067407291da",
+    "subscription": "1d9d2f5f4ae558b48c3701f1dc4c332b5fe318104c993dd6a400597b49d07221",
+    "factory": "3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023",
+    "payer-v3": "fb2fb73fca6d385a2bd8c6f8cddc47ef5653b29a1ddf69387b7d988eef54adce",
+    "splitter-v3": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91"
+  },
+  "chainRecords": [
+    {
+      "label": "preflight",
+      "status": "PASS",
+      "network": "public testnet",
+      "protocol": 29,
+      "health": "healthy",
+      "commit": "1fa6be742278c4b5d4143f0212b3441f709e51ea",
+      "startedAt": "2026-10-03T10:47:19.413Z"
+    },
+    {
+      "label": "fund admin",
+      "status": "funded",
+      "address": "GBVJZITBXWSP2FY2VDTSVIXINBBLYBN2QV2FZA4AWS45WKGVEGL5CYNG"
+    },
+    {
+      "label": "fund controller",
+      "status": "funded",
+      "address": "GDQFFA2XF3E3UYEHKFGSQZ3DYUBZWH7CKFEX4WQKCXV374GUVTVCMEAR"
+    },
+    {
+      "label": "fund recipient A",
+      "status": "funded",
+      "address": "GAOHUQMT62WQYEOYOB3K44CJYXLNF2NWCNUO6EJKUTIGMM2SCPD4X46C"
+    },
+    {
+      "label": "fund recipient B",
+      "status": "funded",
+      "address": "GD6GFYT6OLWCW7O6EXGVG57BL5AMU4DWD5TF37XIUAZS7FBQITVRHWCG"
+    },
+    {
+      "label": "upload isolated payer",
+      "status": "SUCCESS",
+      "hash": "9e1e03583774f6c2c3a33152466a3220eb495f24b65582113d4bd3ed531b57fe",
+      "ledger": 5000175,
+      "fee": "107422",
+      "result": "txSuccess"
+    },
+    {
+      "label": "artifact payer",
+      "status": "PASS",
+      "hash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+      "bytes": 17701
+    },
+    {
+      "label": "upload isolated splitter",
+      "status": "SUCCESS",
+      "hash": "b34def878bda7ede6141e3be8e75fe40d41d1b1ad85d583399b025079f853a39",
+      "ledger": 5000176,
+      "fee": "128024",
+      "result": "txSuccess"
+    },
+    {
+      "label": "artifact splitter",
+      "status": "PASS",
+      "hash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+      "bytes": 21510
+    },
+    {
+      "label": "upload isolated deposit",
+      "status": "SUCCESS",
+      "hash": "0e86bda1bf263e1e90d38db1c7ec6ef31f7e996549170634c269828066b9e3b2",
+      "ledger": 5000177,
+      "fee": "66785",
+      "result": "txSuccess"
+    },
+    {
+      "label": "artifact deposit",
+      "status": "PASS",
+      "hash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+      "bytes": 10189
+    },
+    {
+      "label": "upload isolated webhook",
+      "status": "SUCCESS",
+      "hash": "21f852bd2b38a44d65ef71ec03c4c1eacc049b24a910a72639042fd343d34330",
+      "ledger": 5000178,
+      "fee": "82170",
+      "result": "txSuccess"
+    },
+    {
+      "label": "artifact webhook",
+      "status": "PASS",
+      "hash": "232dca3682e469969614db0f40d955bee12175a49e9afd5a6175e067407291da",
+      "bytes": 13036
+    },
+    {
+      "label": "upload isolated subscription",
+      "status": "SUCCESS",
+      "hash": "93a423296c47213d678fcd1113b295c6bc86f90e09b7277df8b2478ed3ca30dd",
+      "ledger": 5000179,
+      "fee": "129495",
+      "result": "txSuccess"
+    },
+    {
+      "label": "artifact subscription",
+      "status": "PASS",
+      "hash": "1d9d2f5f4ae558b48c3701f1dc4c332b5fe318104c993dd6a400597b49d07221",
+      "bytes": 21784
+    },
+    {
+      "label": "upload isolated factory",
+      "status": "SUCCESS",
+      "hash": "04a4e49b4d5a4af19f25b0516f1b00023326398da832d84c53e651a25f384675",
+      "ledger": 5000180,
+      "fee": "19885",
+      "result": "txSuccess"
+    },
+    {
+      "label": "artifact factory",
+      "status": "PASS",
+      "hash": "3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023",
+      "bytes": 1388
+    },
+    {
+      "label": "upload isolated payer-v3",
+      "status": "SUCCESS",
+      "hash": "d232cbd04be97f0c7332d066b3374037a230a0ad54a5703df0888bbadad384ff",
+      "ledger": 5000181,
+      "fee": "107555",
+      "result": "txSuccess"
+    },
+    {
+      "label": "artifact payer-v3",
+      "status": "PASS",
+      "hash": "fb2fb73fca6d385a2bd8c6f8cddc47ef5653b29a1ddf69387b7d988eef54adce",
+      "bytes": 17725
+    },
+    {
+      "label": "upload isolated splitter-v3",
+      "status": "SUCCESS",
+      "hash": "f0da149edf663806ae37ba8c945e7abd74ff8e60fc4a1b68b5a3395bc284ea4a",
+      "ledger": 5000182,
+      "fee": "128131",
+      "result": "txSuccess"
+    },
+    {
+      "label": "artifact splitter-v3",
+      "status": "PASS",
+      "hash": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+      "bytes": 21529
+    },
+    {
+      "label": "deploy isolated factory",
+      "status": "SUCCESS",
+      "hash": "2ae1c776343f30d64ec44b61b481224006a05f43a311824d14add009bdbcc2a9",
+      "ledger": 5000183,
+      "fee": "79203",
+      "result": "txSuccess"
+    },
+    {
+      "label": "instance isolated factory",
+      "kind": "factory",
+      "address": "CB4LFLKC725O42DJYOXPJCBOG264HU3CAHCIYNU7KAYSJIPCTWCFR5AB"
+    },
+    {
+      "label": "factory compare payer-fixed",
+      "status": "SUCCESS",
+      "hash": "58ade3e7fa64fa3f659fa4cc53647ebac8df530ccca55f4b0e70a50e70d59586",
+      "ledger": 5000184,
+      "fee": "741427",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses compare payer-fixed",
+      "status": "PASS",
+      "addresses": [
+        "CCUMM2AERRIVF5MD7LX4SD7LADT2JOZPRWIEHV5AAHTK3XEHNFOHJTPP",
+        "CBPIXP6BUOGSK3C24C4BJDF5LK4L7M5M6URWIOOQ6JR7BXMT5S5BQQWL"
+      ],
+      "kinds": ["payer-v3", "payer"]
+    },
+    {
+      "label": "prefund v3 payer-fixed",
+      "status": "SUCCESS",
+      "hash": "5bc47e07905f42df3aa3c53d303e17b9481498f1d1b80b1d13e0dcbe8b308dbd",
+      "ledger": 5000185,
+      "fee": "577008",
+      "result": "txSuccess"
+    },
+    {
+      "label": "prefund v4 payer-fixed",
+      "status": "SUCCESS",
+      "hash": "421adb7f5f747ecf67d0575611c0d56e63d42baa07f1c9343e4c3648b453bc4e",
+      "ledger": 5000186,
+      "fee": "577008",
+      "result": "txSuccess"
+    },
+    {
+      "label": "v3 terminal payer-fixed",
+      "status": "RPC_SIMULATION",
+      "instructions": 1000383,
+      "diskReadBytes": 144,
+      "writeBytes": 368,
+      "readOnlyEntries": 3,
+      "readWriteEntries": 2,
+      "minResourceFee": "23740",
+      "cost": null,
+      "ledger": 5000186
+    },
+    {
+      "label": "v4 terminal payer-fixed",
+      "status": "RPC_SIMULATION",
+      "instructions": 955304,
+      "diskReadBytes": 144,
+      "writeBytes": 368,
+      "readOnlyEntries": 3,
+      "readWriteEntries": 2,
+      "minResourceFee": "23708",
+      "cost": null,
+      "ledger": 5000186
+    },
+    {
+      "label": "RPC instruction delta payer-fixed",
+      "status": "PASS",
+      "savedInstructions": 45079,
+      "before": {
+        "instructions": 1000383,
+        "diskReadBytes": 144,
+        "writeBytes": 368,
+        "readOnlyEntries": 3,
+        "readWriteEntries": 2,
+        "minResourceFee": "23740",
+        "cost": null,
+        "ledger": 5000186
+      },
+      "after": {
+        "instructions": 955304,
+        "diskReadBytes": 144,
+        "writeBytes": 368,
+        "readOnlyEntries": 3,
+        "readWriteEntries": 2,
+        "minResourceFee": "23708",
+        "cost": null,
+        "ledger": 5000186
+      }
+    },
+    {
+      "label": "factory compare payer-percentage",
+      "status": "SUCCESS",
+      "hash": "25ee5c0c92a0aefb6cc02005a47539ceb3e541e39c0118bf832820398e09e08e",
+      "ledger": 5000187,
+      "fee": "741427",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses compare payer-percentage",
+      "status": "PASS",
+      "addresses": [
+        "CCWLLIGMVZUAMPRUEEMHMIGFLPKCAG57UTVFSWCZI2GHCCBLJ3QS5JFJ",
+        "CBBRWRSFYJMYVDX6QTJJ66PQU7J7CDBGPQSGPE3CEYVSLARHF4BZ55FG"
+      ],
+      "kinds": ["payer-v3", "payer"]
+    },
+    {
+      "label": "prefund v3 payer-percentage",
+      "status": "SUCCESS",
+      "hash": "f19c0a126d1ec91ca94364947f24477635b62936e1178972c1eb09128809fcab",
+      "ledger": 5000188,
+      "fee": "577008",
+      "result": "txSuccess"
+    },
+    {
+      "label": "prefund v4 payer-percentage",
+      "status": "SUCCESS",
+      "hash": "fdb85bc872286e65c10ae3e1a437f4e39f7531339b1ad9a712fc037ccee75f7d",
+      "ledger": 5000189,
+      "fee": "577008",
+      "result": "txSuccess"
+    },
+    {
+      "label": "v3 terminal payer-percentage",
+      "status": "RPC_SIMULATION",
+      "instructions": 978923,
+      "diskReadBytes": 144,
+      "writeBytes": 368,
+      "readOnlyEntries": 3,
+      "readWriteEntries": 2,
+      "minResourceFee": "23725",
+      "cost": null,
+      "ledger": 5000189
+    },
+    {
+      "label": "v4 terminal payer-percentage",
+      "status": "RPC_SIMULATION",
+      "instructions": 933844,
+      "diskReadBytes": 144,
+      "writeBytes": 368,
+      "readOnlyEntries": 3,
+      "readWriteEntries": 2,
+      "minResourceFee": "23693",
+      "cost": null,
+      "ledger": 5000189
+    },
+    {
+      "label": "RPC instruction delta payer-percentage",
+      "status": "PASS",
+      "savedInstructions": 45079,
+      "before": {
+        "instructions": 978923,
+        "diskReadBytes": 144,
+        "writeBytes": 368,
+        "readOnlyEntries": 3,
+        "readWriteEntries": 2,
+        "minResourceFee": "23725",
+        "cost": null,
+        "ledger": 5000189
+      },
+      "after": {
+        "instructions": 933844,
+        "diskReadBytes": 144,
+        "writeBytes": 368,
+        "readOnlyEntries": 3,
+        "readWriteEntries": 2,
+        "minResourceFee": "23693",
+        "cost": null,
+        "ledger": 5000189
+      }
+    },
+    {
+      "label": "factory compare splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "4a4a49ee0124aaf35388060c25a7425b6f803c850390b6328dd34c6b9eb2674e",
+      "ledger": 5000190,
+      "fee": "1154350",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses compare splitter-fixed",
+      "status": "PASS",
+      "addresses": [
+        "CDPAIWU2ALSXEBV47QX6RQRX3KULKTN3ONTGYI2M6XCS334KB5VIOHYT",
+        "CBWDRUFTLE2V4HPZNK7JXSMUU4URYGJDRGWCHAKB5UVYOUCWESME35CE"
+      ],
+      "kinds": ["splitter-v3", "splitter"]
+    },
+    {
+      "label": "prefund v3 splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "334a838289bff955321b447380650721b78eb6760d53c26a2d2d1ec5fa5ec6b6",
+      "ledger": 5000191,
+      "fee": "577008",
+      "result": "txSuccess"
+    },
+    {
+      "label": "prefund v4 splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "f33bdbdbad217dcf871f3a74bda6868f78f895f3f0e4dfc42e4db3ce4ea78605",
+      "ledger": 5000192,
+      "fee": "577008",
+      "result": "txSuccess"
+    },
+    {
+      "label": "v3 terminal splitter-fixed",
+      "status": "RPC_SIMULATION",
+      "instructions": 1398121,
+      "diskReadBytes": 288,
+      "writeBytes": 1476,
+      "readOnlyEntries": 2,
+      "readWriteEntries": 4,
+      "minResourceFee": "34259",
+      "cost": null,
+      "ledger": 5000192
+    },
+    {
+      "label": "v4 terminal splitter-fixed",
+      "status": "RPC_SIMULATION",
+      "instructions": 1347321,
+      "diskReadBytes": 288,
+      "writeBytes": 1476,
+      "readOnlyEntries": 2,
+      "readWriteEntries": 4,
+      "minResourceFee": "34224",
+      "cost": null,
+      "ledger": 5000192
+    },
+    {
+      "label": "RPC instruction delta splitter-fixed",
+      "status": "PASS",
+      "savedInstructions": 50800,
+      "before": {
+        "instructions": 1398121,
+        "diskReadBytes": 288,
+        "writeBytes": 1476,
+        "readOnlyEntries": 2,
+        "readWriteEntries": 4,
+        "minResourceFee": "34259",
+        "cost": null,
+        "ledger": 5000192
+      },
+      "after": {
+        "instructions": 1347321,
+        "diskReadBytes": 288,
+        "writeBytes": 1476,
+        "readOnlyEntries": 2,
+        "readWriteEntries": 4,
+        "minResourceFee": "34224",
+        "cost": null,
+        "ledger": 5000192
+      }
+    },
+    {
+      "label": "factory compare splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "60d2be501d5c5658ecd638abd0afc6228352cbe73e5d7c1ab88aa24770fed6d8",
+      "ledger": 5000193,
+      "fee": "1153921",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses compare splitter-percentage",
+      "status": "PASS",
+      "addresses": [
+        "CAGELPO3YEZG2CLCBLGMA2SG67K677QSMANBUYBPC4NR4TYNZMKTROWA",
+        "CDUOUOAYDB65IJTUGIRTV6DFYPA6DMOM2C7H26FXNXNZEQSWOVBGTD34"
+      ],
+      "kinds": ["splitter-v3", "splitter"]
+    },
+    {
+      "label": "prefund v3 splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "f719943c766b4700271db7b3fe7257b7f0a25441047ca9c0aae302e2cf9c5289",
+      "ledger": 5000194,
+      "fee": "576793",
+      "result": "txSuccess"
+    },
+    {
+      "label": "prefund v4 splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "a0361336fd9d2f7aff1ae1684dfc523b1c328cdad55646692059bbf72f82eb81",
+      "ledger": 5000195,
+      "fee": "576793",
+      "result": "txSuccess"
+    },
+    {
+      "label": "v3 terminal splitter-percentage",
+      "status": "RPC_SIMULATION",
+      "instructions": 1213913,
+      "diskReadBytes": 288,
+      "writeBytes": 512,
+      "readOnlyEntries": 3,
+      "readWriteEntries": 3,
+      "minResourceFee": "30806",
+      "cost": null,
+      "ledger": 5000195
+    },
+    {
+      "label": "v4 terminal splitter-percentage",
+      "status": "RPC_SIMULATION",
+      "instructions": 1172516,
+      "diskReadBytes": 288,
+      "writeBytes": 512,
+      "readOnlyEntries": 3,
+      "readWriteEntries": 3,
+      "minResourceFee": "30777",
+      "cost": null,
+      "ledger": 5000195
+    },
+    {
+      "label": "RPC instruction delta splitter-percentage",
+      "status": "PASS",
+      "savedInstructions": 41397,
+      "before": {
+        "instructions": 1213913,
+        "diskReadBytes": 288,
+        "writeBytes": 512,
+        "readOnlyEntries": 3,
+        "readWriteEntries": 3,
+        "minResourceFee": "30806",
+        "cost": null,
+        "ledger": 5000195
+      },
+      "after": {
+        "instructions": 1172516,
+        "diskReadBytes": 288,
+        "writeBytes": 512,
+        "readOnlyEntries": 3,
+        "readWriteEntries": 3,
+        "minResourceFee": "30777",
+        "cost": null,
+        "ledger": 5000195
+      }
+    },
+    {
+      "label": "factory deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "98b4f2f99e5aea4c82754835f95ffadd733546753b4bf52f7ae39cea108171c0",
+      "ledger": 5000196,
+      "fee": "1348714",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses deposit payer-fixed",
+      "status": "PASS",
+      "addresses": [
+        "CC3RHEW4RB33O734LNYJTLYSFK3TZDCRBX6MF5RKNP5NDUTNIC4YLC7D",
+        "CBF2VE43CTA3FLCHCX7BNFJUNXWPRIVZ7PZBM3Z3KSANZARLFRJWHMMO",
+        "CBADELO3CBENY5HCZTSZGCQ757FRUNJS7UR3ZMYRQWJY4FQK3HZLBTVT",
+        "CCURVKAXL5YGRQFU3W2RVPXJ4PEICHS4VUMBGYPLONIHRSDFDUUZ5RPX"
+      ],
+      "kinds": ["deposit", "payer", "payer", "payer"]
+    },
+    {
+      "label": "prior retained funds deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "b40f78931090f821f19f7624e131a6f3e9300a122c665a07819e72bf79bfe211",
+      "ledger": 5000197,
+      "fee": "576793",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "1c2f395ed93f927f709470b819204437c0085114f93a3dcd5d92d216ef40cf43",
+      "ledger": 5000198,
+      "fee": "590421",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal deposit payer-fixed balances",
+      "status": "PASS",
+      "trigger": "CC3RHEW4RB33O734LNYJTLYSFK3TZDCRBX6MF5RKNP5NDUTNIC4YLC7D",
+      "action": "CBF2VE43CTA3FLCHCX7BNFJUNXWPRIVZ7PZBM3Z3KSANZARLFRJWHMMO",
+      "recipientA": "100",
+      "recipientB": "0",
+      "retained": "18"
+    },
+    {
+      "label": "enable downstream deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "febee1139ae92b409c2a926539cc2ae994883588859cc5ae61fb67a0560ac975",
+      "ledger": 5000199,
+      "fee": "119163",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal deposit payer-fixed",
+      "status": "RPC_SIMULATION",
+      "instructions": 2906468,
+      "diskReadBytes": 432,
+      "writeBytes": 1104,
+      "readOnlyEntries": 6,
+      "readWriteEntries": 6,
+      "minResourceFee": "602955",
+      "cost": null,
+      "ledger": 5000199
+    },
+    {
+      "label": "nonterminal deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "4db03ab633b0dc8654d4de9496365068c5ef9c6a48b9b00937f0a9cb508f23d3",
+      "ledger": 5000200,
+      "fee": "603055",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal first-target full-balance forwarding deposit payer-fixed",
+      "status": "PASS",
+      "forwarded": "19",
+      "unusedBalance": "0"
+    },
+    {
+      "label": "retained rollback balance deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "ae1af43b06fead060c84b439daeeea5f56ad29c51b3ac00b44994dc5bd146098",
+      "ledger": 5000201,
+      "fee": "22297",
+      "result": "txSuccess"
+    },
+    {
+      "label": "runner failure",
+      "status": "FAIL",
+      "error": "ASSERT pause downstream deposit payer-fixed simulate HostError: Error(WasmVm, MissingValue)"
+    },
+    {
+      "label": "preflight",
+      "status": "PASS",
+      "network": "public testnet",
+      "protocol": 29,
+      "health": "healthy",
+      "commit": "1fa6be742278c4b5d4143f0212b3441f709e51ea",
+      "startedAt": "2026-10-03T10:51:22.461Z"
+    },
+    {
+      "label": "fund admin",
+      "status": "funded",
+      "address": "GAFIR2IHYZSAJK4SIL5OTYI3KWNS6U7KGY44EK77UB7TG2SHCUVELVUB"
+    },
+    {
+      "label": "fund controller",
+      "status": "funded",
+      "address": "GBGM3WIOGZMCMTBTO5HQVBWXM3SND3S2SHITHQHLCXJH2SJTSUUNZHOR"
+    },
+    {
+      "label": "fund recipient A",
+      "status": "funded",
+      "address": "GACE4EZGSH7ZMMOW5QQV2E74ADVFHDHU5B36G3JMJGR2HMMD7R3SRAOL"
+    },
+    {
+      "label": "fund recipient B",
+      "status": "funded",
+      "address": "GC6LRUTGIXXMQ43YBRMNNIJBRHGPCLAVMEOLRTTH5KUCJLBRQN4D6J6L"
+    },
+    {
+      "label": "factory deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "f93541a73f8403c8683ceda6140241c4a117309485fea3f9ee3a5f8306fb6a9b",
+      "ledger": 5000224,
+      "fee": "1463319",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses deposit payer-fixed",
+      "status": "PASS",
+      "addresses": [
+        "CCU6BJKO2WAOMFSUWKPCWT34XACLXAULO6MB7ESFDR4Q22O754ONQM37",
+        "CAIGXYQCQ4IJFYMIUPPHGSXLNCINEMOBZBNRHDRVDPZCDM6QTKUMNVUG",
+        "CAYATQ7V27JODV5BKGZSFVSGWRWDY6IMIWYJWSFEHIBO3HS5UL74KNTB",
+        "CCXHTGQ7GVTJNYCNBMEMALHANLXK4SXOJ26ZMIG22ZEA7XINLVAT3TZP"
+      ],
+      "kinds": ["deposit", "payer", "splitter", "payer"]
+    },
+    {
+      "label": "prior retained funds deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "dff63d65798e7367b513a3f8d5f4649de8bec1da4e52dc6c9c8d63f5f671b929",
+      "ledger": 5000225,
+      "fee": "576793",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "8f397a2455893de7b2a6f19344c77c37581f1a04a8fc924f9cbb1031ea00c80b",
+      "ledger": 5000226,
+      "fee": "590421",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal deposit payer-fixed balances",
+      "status": "PASS",
+      "trigger": "CCU6BJKO2WAOMFSUWKPCWT34XACLXAULO6MB7ESFDR4Q22O754ONQM37",
+      "action": "CAIGXYQCQ4IJFYMIUPPHGSXLNCINEMOBZBNRHDRVDPZCDM6QTKUMNVUG",
+      "recipientA": "100",
+      "recipientB": "0",
+      "retained": "18"
+    },
+    {
+      "label": "enable downstream deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "b834775c2009a412665ed975dbb1cf229119b794ca8621ca0db5fabb87b17146",
+      "ledger": 5000227,
+      "fee": "119163",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal deposit payer-fixed",
+      "status": "RPC_SIMULATION",
+      "instructions": 2998601,
+      "diskReadBytes": 432,
+      "writeBytes": 1104,
+      "readOnlyEntries": 7,
+      "readWriteEntries": 6,
+      "minResourceFee": "603715",
+      "cost": null,
+      "ledger": 5000227
+    },
+    {
+      "label": "nonterminal deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "2ee9367defc40c25a0d8c545819782715def75c222822a7f6374faa0abdab145",
+      "ledger": 5000228,
+      "fee": "603815",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal first-target full-balance forwarding deposit payer-fixed",
+      "status": "PASS",
+      "forwarded": "19",
+      "unusedBalance": "0"
+    },
+    {
+      "label": "retained rollback balance deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "ae438305a114452b53b453c50d683aa2f8c2e0fb73b447912cdc74b4cfd3e4e3",
+      "ledger": 5000229,
+      "fee": "22297",
+      "result": "txSuccess"
+    },
+    {
+      "label": "pause downstream deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "fab8ed6f7e7706e3b305e02f912f24b16a2259b04a06bc9c1d93847e0bd5121c",
+      "ledger": 5000230,
+      "fee": "25376",
+      "result": "txSuccess"
+    },
+    {
+      "label": "submitted downstream rollback deposit payer-fixed",
+      "status": "FAILED",
+      "hash": "2d7333a5d7c8e87cb76cb6447732ab3cada62f2baae7d6e28074d696d03aaadb",
+      "ledger": 5000231,
+      "fee": "49320",
+      "result": "txFailed"
+    },
+    {
+      "label": "submitted funds rollback deposit payer-fixed",
+      "status": "PASS",
+      "balancesBefore": ["0", "17", "0", "0", "100000000200", "100000000019"],
+      "balancesAfter": ["0", "17", "0", "0", "100000000200", "100000000019"]
+    },
+    {
+      "label": "unpause downstream deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "b0d6e27ca7dad8fe2f9a6310f11666779d4c1e2b67e21ac2109182d51ca2b4b0",
+      "ledger": 5000232,
+      "fee": "16355",
+      "result": "txSuccess"
+    },
+    {
+      "label": "retry downstream deposit payer-fixed",
+      "status": "SUCCESS",
+      "hash": "f7f57097600c9bfffd1992a5d504cd6117267518e1c797a8fd25dcdeb561c27d",
+      "ledger": 5000233,
+      "fee": "49320",
+      "result": "txSuccess"
+    },
+    {
+      "label": "rollback and retry deposit payer-fixed",
+      "status": "PASS",
+      "accumulatorBefore": "0",
+      "action": "CAIGXYQCQ4IJFYMIUPPHGSXLNCINEMOBZBNRHDRVDPZCDM6QTKUMNVUG"
+    },
+    {
+      "label": "factory deposit payer-percentage",
+      "status": "SUCCESS",
+      "hash": "a08d9fa46d6d64e1929c7588e8113d125264c55c0a54429525e5b349ccc1510b",
+      "ledger": 5000234,
+      "fee": "1463322",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses deposit payer-percentage",
+      "status": "PASS",
+      "addresses": [
+        "CB3NNYEGI5336GYRQQXPGA3JYA2EIY2GNSR3JZ5FBFMPOKYYKIHFGI4P",
+        "CA5A5OGMY6WCOVDC7PVTLXHXBQVLB6XTK74LUKHYIIWVTEDIIMZ5OXL7",
+        "CD5DQRQJHAEKSUOVHHITHFS5IBRJOICA4RMN3KYQDD5XM7RHEZ4XQT6E",
+        "CA767KWIREPZJHF5KDKD2YJGKEF37P6YRBHCQ7LXSEXKNSCSJZ7UZCYJ"
+      ],
+      "kinds": ["deposit", "payer", "splitter", "payer"]
+    },
+    {
+      "label": "prior retained funds deposit payer-percentage",
+      "status": "SUCCESS",
+      "hash": "a2b3b8a9c29ef9bd609095a288c9bca1d416d024ff43663f3d748c3f4bc9d0d8",
+      "ledger": 5000235,
+      "fee": "576793",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal deposit payer-percentage",
+      "status": "SUCCESS",
+      "hash": "ad4a5b263cdb1c1ef5e145159b96267e3bfd348ea11b38fd05adf3cb3bace26c",
+      "ledger": 5000236,
+      "fee": "590405",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal deposit payer-percentage balances",
+      "status": "PASS",
+      "trigger": "CB3NNYEGI5336GYRQQXPGA3JYA2EIY2GNSR3JZ5FBFMPOKYYKIHFGI4P",
+      "action": "CA5A5OGMY6WCOVDC7PVTLXHXBQVLB6XTK74LUKHYIIWVTEDIIMZ5OXL7",
+      "recipientA": "50",
+      "recipientB": "0",
+      "retained": "68"
+    },
+    {
+      "label": "enable downstream deposit payer-percentage",
+      "status": "SUCCESS",
+      "hash": "9138ef9e238c0b1f908904987aa0bc864bfdd376d7842bd23b4e95adbc42b012",
+      "ledger": 5000237,
+      "fee": "119163",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal deposit payer-percentage",
+      "status": "RPC_SIMULATION",
+      "instructions": 2982544,
+      "diskReadBytes": 432,
+      "writeBytes": 1104,
+      "readOnlyEntries": 7,
+      "readWriteEntries": 6,
+      "minResourceFee": "603703",
+      "cost": null,
+      "ledger": 5000237
+    },
+    {
+      "label": "nonterminal deposit payer-percentage",
+      "status": "SUCCESS",
+      "hash": "3632b2458c3e8d7f0a0ea860a6cb9bce185b100cf1a1660e793936ae440c801c",
+      "ledger": 5000238,
+      "fee": "603803",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal first-target full-balance forwarding deposit payer-percentage",
+      "status": "PASS",
+      "forwarded": "119",
+      "unusedBalance": "0"
+    },
+    {
+      "label": "retained rollback balance deposit payer-percentage",
+      "status": "SUCCESS",
+      "hash": "3d7e4e2a06815daf78e015abbaa867c8961b637e39f391d4394b6a924081cca2",
+      "ledger": 5000239,
+      "fee": "22297",
+      "result": "txSuccess"
+    },
+    {
+      "label": "pause downstream deposit payer-percentage",
+      "status": "SUCCESS",
+      "hash": "3ea8c92ee7263a7f2bd4f73ded72cc56978aa58905cf113ddbcc9f89071961f3",
+      "ledger": 5000240,
+      "fee": "25376",
+      "result": "txSuccess"
+    },
+    {
+      "label": "submitted downstream rollback deposit payer-percentage",
+      "status": "FAILED",
+      "hash": "df6f7d12929d47bee32e6e4a40be758bc41ba92441e767f1f84f911198b425e9",
+      "ledger": 5000241,
+      "fee": "49311",
+      "result": "txFailed"
+    },
+    {
+      "label": "submitted funds rollback deposit payer-percentage",
+      "status": "PASS",
+      "balancesBefore": ["0", "17", "0", "0", "100000000400", "100000000156"],
+      "balancesAfter": ["0", "17", "0", "0", "100000000400", "100000000156"]
+    },
+    {
+      "label": "unpause downstream deposit payer-percentage",
+      "status": "SUCCESS",
+      "hash": "6f9b2646f5708781beea737900b0052d62b1eddd3dd287d8d34adc3fb8c4890c",
+      "ledger": 5000242,
+      "fee": "16355",
+      "result": "txSuccess"
+    },
+    {
+      "label": "retry downstream deposit payer-percentage",
+      "status": "SUCCESS",
+      "hash": "839a4ef8c9616d059900ca6349ac28acee259767009fb5792084438cecda31ba",
+      "ledger": 5000243,
+      "fee": "49311",
+      "result": "txSuccess"
+    },
+    {
+      "label": "rollback and retry deposit payer-percentage",
+      "status": "PASS",
+      "accumulatorBefore": "0",
+      "action": "CA5A5OGMY6WCOVDC7PVTLXHXBQVLB6XTK74LUKHYIIWVTEDIIMZ5OXL7"
+    },
+    {
+      "label": "factory deposit splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "e0ce10e71178b7239ce021b7cdc7a9ade9153294dbe537f1c51d664dccc59706",
+      "ledger": 5000244,
+      "fee": "1669789",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses deposit splitter-fixed",
+      "status": "PASS",
+      "addresses": [
+        "CBDXLEZH3IBVGQPR33WHKB5R4PPGAM4354GTOGOS5EOSUNJCHUD7ULQV",
+        "CD7LHEBNAWM4DXJ6ZIQIEHFFJP3YYIQCMXEE7RVFHTD7GJGO3LUEVKA2",
+        "CARZKT7N5IKSR4GJQSKNKXJTTAZZXRQQXAAVQNTL7UZKOP7Z43DDCJ6B",
+        "CB45LWICKEVPEA3KFSW3CXN7ZNYC2MHJEYTN34O3IRV5AIV4RN2YR6HK"
+      ],
+      "kinds": ["deposit", "splitter", "splitter", "payer"]
+    },
+    {
+      "label": "prior retained funds deposit splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "c9b656808e9864096ff40d21716bd3c61ac18d722851d0adc0f56ef2b352d437",
+      "ledger": 5000245,
+      "fee": "576793",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal deposit splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "7c29a9ebc03ffdc34965d5dcd6269416f2d459d22980a9f68bfde2a4ffc87d8c",
+      "ledger": 5000246,
+      "fee": "600915",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal deposit splitter-fixed balances",
+      "status": "PASS",
+      "trigger": "CBDXLEZH3IBVGQPR33WHKB5R4PPGAM4354GTOGOS5EOSUNJCHUD7ULQV",
+      "action": "CD7LHEBNAWM4DXJ6ZIQIEHFFJP3YYIQCMXEE7RVFHTD7GJGO3LUEVKA2",
+      "recipientA": "60",
+      "recipientB": "40",
+      "retained": "18"
+    },
+    {
+      "label": "enable downstream deposit splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "c7f07e43973050d28d6c54153e1b9332785352c0b280d4e4fcc5b2865d300b2b",
+      "ledger": 5000247,
+      "fee": "119513",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal deposit splitter-fixed",
+      "status": "RPC_SIMULATION",
+      "instructions": 3440394,
+      "diskReadBytes": 432,
+      "writeBytes": 2240,
+      "readOnlyEntries": 5,
+      "readWriteEntries": 7,
+      "minResourceFee": "609811",
+      "cost": null,
+      "ledger": 5000247
+    },
+    {
+      "label": "nonterminal deposit splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "69de2fcfb5c69a9ac0526b6546da2b294bf395b0a9678a2ad14bc91b944a7040",
+      "ledger": 5000248,
+      "fee": "609911",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal first-target full-balance forwarding deposit splitter-fixed",
+      "status": "PASS",
+      "forwarded": "19",
+      "unusedBalance": "0"
+    },
+    {
+      "label": "retained rollback balance deposit splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "c367d2ed910d6a26d433f5bd118bb95c57d6496dd20e71a54daa222f95fab92c",
+      "ledger": 5000249,
+      "fee": "22297",
+      "result": "txSuccess"
+    },
+    {
+      "label": "pause downstream deposit splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "609f6712116246c15870fcce370324f42bb5a0a0bfb1524e523d59d3d79fc0ec",
+      "ledger": 5000251,
+      "fee": "25376",
+      "result": "txSuccess"
+    },
+    {
+      "label": "submitted downstream rollback deposit splitter-fixed",
+      "status": "FAILED",
+      "hash": "dccb590d6e3fff660a29e3cd21aec13a7e8130602358933d949c71830fe6d169",
+      "ledger": 5000252,
+      "fee": "55417",
+      "result": "txFailed"
+    },
+    {
+      "label": "submitted funds rollback deposit splitter-fixed",
+      "status": "PASS",
+      "balancesBefore": ["0", "17", "0", "0", "100000000570", "100000000323"],
+      "balancesAfter": ["0", "17", "0", "0", "100000000570", "100000000323"]
+    },
+    {
+      "label": "unpause downstream deposit splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "19150a8e778a4ac0db8eda4f466aa669c9ede8b50fee1d777b584ce98786561f",
+      "ledger": 5000253,
+      "fee": "16355",
+      "result": "txSuccess"
+    },
+    {
+      "label": "retry downstream deposit splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "9466e34e9e0aa907e2674855cf706f21bac854ab71f6302c6126dc7605f0bf47",
+      "ledger": 5000254,
+      "fee": "55417",
+      "result": "txSuccess"
+    },
+    {
+      "label": "rollback and retry deposit splitter-fixed",
+      "status": "PASS",
+      "accumulatorBefore": "0",
+      "action": "CD7LHEBNAWM4DXJ6ZIQIEHFFJP3YYIQCMXEE7RVFHTD7GJGO3LUEVKA2"
+    },
+    {
+      "label": "factory deposit splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "1dcd8ceae8ca6bbca5c096ddce984968d96a400e631b18e5d17bf6e2b48ff12b",
+      "ledger": 5000255,
+      "fee": "1669783",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses deposit splitter-percentage",
+      "status": "PASS",
+      "addresses": [
+        "CCCLL2FNR4BHI77QNHDXKC3KJLUEY5L22ERHVJBVP2QYTQDIENCO7ISD",
+        "CA4WGKKLAZFA53ULCVIEEEOKECS7LQ43Y4PKU6YEDJZXW3AX3NCBLYUN",
+        "CDJQLZ6RFLZKZPPKM3BVORRLO5TR5Z3HGA2RWCZOOAJDZVE6EKMTZFKH",
+        "CDZA2ZA36CG7L2XGHFO6TYPXM2BKGT2QTFCWBBDRTJBVN67DSQ4PZJZJ"
+      ],
+      "kinds": ["deposit", "splitter", "splitter", "payer"]
+    },
+    {
+      "label": "prior retained funds deposit splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "fb12b156e9bed9b49796a5f08aef6593044bb9fe5c6391bdddcea7b19d744846",
+      "ledger": 5000256,
+      "fee": "576793",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal deposit splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "da8235dca46b2feca0499539539c3442e3aafb5bd570f2c01a1cb11e5e2d96ab",
+      "ledger": 5000257,
+      "fee": "597365",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal deposit splitter-percentage balances",
+      "status": "PASS",
+      "trigger": "CCCLL2FNR4BHI77QNHDXKC3KJLUEY5L22ERHVJBVP2QYTQDIENCO7ISD",
+      "action": "CA4WGKKLAZFA53ULCVIEEEOKECS7LQ43Y4PKU6YEDJZXW3AX3NCBLYUN",
+      "recipientA": "60",
+      "recipientB": "41",
+      "retained": "17"
+    },
+    {
+      "label": "enable downstream deposit splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "f0e957effa9c63b055428d138ab65c474a3f2d4fd2458e8bfae180c69d89ee82",
+      "ledger": 5000258,
+      "fee": "119494",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal deposit splitter-percentage",
+      "status": "RPC_SIMULATION",
+      "instructions": 3222601,
+      "diskReadBytes": 432,
+      "writeBytes": 1104,
+      "readOnlyEntries": 6,
+      "readWriteEntries": 6,
+      "minResourceFee": "606080",
+      "cost": null,
+      "ledger": 5000258
+    },
+    {
+      "label": "nonterminal deposit splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "09336c796000a036d24ce753356f23c820b51d1b4751180b7bb382c5a739eb00",
+      "ledger": 5000259,
+      "fee": "606180",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal first-target full-balance forwarding deposit splitter-percentage",
+      "status": "PASS",
+      "forwarded": "17",
+      "unusedBalance": "0"
+    },
+    {
+      "label": "retained rollback balance deposit splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "c382a746b879c95baf96bdf5c4cb1b3b40092cdb062b85e6018614466c34c7cd",
+      "ledger": 5000260,
+      "fee": "22297",
+      "result": "txSuccess"
+    },
+    {
+      "label": "pause downstream deposit splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "835efcde54f6a378bbd2b7d105a84ebefb8141fd08642be274783e43e24ae0df",
+      "ledger": 5000262,
+      "fee": "25375",
+      "result": "txSuccess"
+    },
+    {
+      "label": "submitted downstream rollback deposit splitter-percentage",
+      "status": "FAILED",
+      "hash": "6387c72c23e64fe459874512301da46bd29c8976986b68c63cb56f9d2a28a360",
+      "ledger": 5000263,
+      "fee": "51794",
+      "result": "txFailed"
+    },
+    {
+      "label": "submitted funds rollback deposit splitter-percentage",
+      "status": "PASS",
+      "balancesBefore": ["0", "17", "0", "0", "100000000750", "100000000480"],
+      "balancesAfter": ["0", "17", "0", "0", "100000000750", "100000000480"]
+    },
+    {
+      "label": "unpause downstream deposit splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "74400a12d2879a60bda685d56e25ad0da950efd3e6798c4c11e33fba410fe15a",
+      "ledger": 5000264,
+      "fee": "16355",
+      "result": "txSuccess"
+    },
+    {
+      "label": "retry downstream deposit splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "d5614b987f3fe59d9cfe999b06bb25bc6de848ef15f6b11353dfe6c7e653d336",
+      "ledger": 5000265,
+      "fee": "51794",
+      "result": "txSuccess"
+    },
+    {
+      "label": "rollback and retry deposit splitter-percentage",
+      "status": "PASS",
+      "accumulatorBefore": "0",
+      "action": "CA4WGKKLAZFA53ULCVIEEEOKECS7LQ43Y4PKU6YEDJZXW3AX3NCBLYUN"
+    },
+    {
+      "label": "factory webhook payer-fixed",
+      "status": "SUCCESS",
+      "hash": "ea8633dc2a9b66d5c051dc7bffe1672b04055d270e67d799ebdd171b8f573907",
+      "ledger": 5000266,
+      "fee": "1505144",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses webhook payer-fixed",
+      "status": "PASS",
+      "addresses": [
+        "CCIPFPAKXAMGCH5IPEKQMMHDSAUWGFTTXDYZQWHO5L6YY4YN2BZM6PP4",
+        "CCYAYJKBV4ZA5BGGK3NFIM3BNO2QJNB43C6B2ALGYX25UKGK66DIQGWQ",
+        "CATXQ5CV5ESCEUBK6777GIJULLOT6OARB3G7TTZ34I3VT7KMIMGSRMFL",
+        "CB3WLR6LTTHPGX6XXOXSAIXFADWSBBCQEQMQWMLWKL65UBTOOFHRQUSF"
+      ],
+      "kinds": ["webhook", "payer", "splitter", "payer"]
+    },
+    {
+      "label": "prior retained funds webhook payer-fixed",
+      "status": "SUCCESS",
+      "hash": "3637d68113e463c24ad9c0dfd99847a73a352a226ef5d1297816ba5c831f3249",
+      "ledger": 5000267,
+      "fee": "576686",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal webhook payer-fixed",
+      "status": "SUCCESS",
+      "hash": "70c5a41ecd1f52044c222433102a2cf5b79ba071cf621f8a5fe56ec1a1e639c4",
+      "ledger": 5000268,
+      "fee": "590890",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal webhook payer-fixed balances",
+      "status": "PASS",
+      "trigger": "CCIPFPAKXAMGCH5IPEKQMMHDSAUWGFTTXDYZQWHO5L6YY4YN2BZM6PP4",
+      "action": "CCYAYJKBV4ZA5BGGK3NFIM3BNO2QJNB43C6B2ALGYX25UKGK66DIQGWQ",
+      "recipientA": "100",
+      "recipientB": "0",
+      "retained": "18"
+    },
+    {
+      "label": "enable downstream webhook payer-fixed",
+      "status": "SUCCESS",
+      "hash": "353b526268a7e75c1f29b5743acc9791c0cd1fc882055b7ddeee31e3637fbb05",
+      "ledger": 5000269,
+      "fee": "119144",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal webhook payer-fixed",
+      "status": "RPC_SIMULATION",
+      "instructions": 3058265,
+      "diskReadBytes": 432,
+      "writeBytes": 1104,
+      "readOnlyEntries": 7,
+      "readWriteEntries": 6,
+      "minResourceFee": "604208",
+      "cost": null,
+      "ledger": 5000269
+    },
+    {
+      "label": "nonterminal webhook payer-fixed",
+      "status": "SUCCESS",
+      "hash": "582bef55b4457725b71978a8a99c086fc7d9b89e6b966fbf55db7014de34bdd5",
+      "ledger": 5000270,
+      "fee": "604308",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal first-target full-balance forwarding webhook payer-fixed",
+      "status": "PASS",
+      "forwarded": "19",
+      "unusedBalance": "0"
+    },
+    {
+      "label": "retained rollback balance webhook payer-fixed",
+      "status": "SUCCESS",
+      "hash": "36daf89b69eb2344047f02c86e4d688cc5a16d21ecd2f13172b646ed399b6824",
+      "ledger": 5000271,
+      "fee": "22297",
+      "result": "txSuccess"
+    },
+    {
+      "label": "pause downstream webhook payer-fixed",
+      "status": "SUCCESS",
+      "hash": "37319b4b2085ce376207d591a1eb804bfd0628611e6e471f65aa3f9ee821a024",
+      "ledger": 5000273,
+      "fee": "25375",
+      "result": "txSuccess"
+    },
+    {
+      "label": "submitted downstream rollback webhook payer-fixed",
+      "status": "FAILED",
+      "hash": "13d3e3fe6c28d73c62bcf583c107f3a3b3ebb445898ff3dcb1d5dd1d55cd7833",
+      "ledger": 5000274,
+      "fee": "49923",
+      "result": "txFailed"
+    },
+    {
+      "label": "submitted funds rollback webhook payer-fixed",
+      "status": "PASS",
+      "balancesBefore": ["0", "17", "0", "0", "100000001010", "100000000557"],
+      "balancesAfter": ["0", "17", "0", "0", "100000001010", "100000000557"]
+    },
+    {
+      "label": "unpause downstream webhook payer-fixed",
+      "status": "SUCCESS",
+      "hash": "a2f9bccfd36347e45c193daf966ddb9569926926874c7d2e6e0abf26d3fa9869",
+      "ledger": 5000275,
+      "fee": "16355",
+      "result": "txSuccess"
+    },
+    {
+      "label": "retry downstream webhook payer-fixed",
+      "status": "SUCCESS",
+      "hash": "7a30e035a62576dcb89b91a00f63ee70aa403b4fcfea820dc610fb3731390a5d",
+      "ledger": 5000276,
+      "fee": "49923",
+      "result": "txSuccess"
+    },
+    {
+      "label": "rollback and retry webhook payer-fixed",
+      "status": "PASS",
+      "accumulatorBefore": "0",
+      "action": "CCYAYJKBV4ZA5BGGK3NFIM3BNO2QJNB43C6B2ALGYX25UKGK66DIQGWQ"
+    },
+    {
+      "label": "factory webhook payer-percentage",
+      "status": "SUCCESS",
+      "hash": "93fd56961e4cc343a856c3f40fe3e433d09bc242cb2e71b57d0f646ce50c8518",
+      "ledger": 5000277,
+      "fee": "1505140",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses webhook payer-percentage",
+      "status": "PASS",
+      "addresses": [
+        "CDOPDLQWC65PFA4WXPG7WKMWT4ZOTMLPOTES2BJVENBMYCE3U44I3NCC",
+        "CCWDDF5QQM4USMWREZ36OYE4NZMU6G546APGJZLCHJ6JTK6KPJBEUAZN",
+        "CAQC7RTMP5ZA5O33H2DGCE2NZAQS4UCAYG2TFC5QOOHMY7Y6A5YR7ZNY",
+        "CDV3IANSX5STEQ6GIMBD5KZXOUWVSJCXX5BBWRWEPSB7BJ5NWJWGQGKY"
+      ],
+      "kinds": ["webhook", "payer", "splitter", "payer"]
+    },
+    {
+      "label": "prior retained funds webhook payer-percentage",
+      "status": "SUCCESS",
+      "hash": "e44b36b496d2169b8729c8e43fa638b930de7e6c3b1c07a55606423432d399ce",
+      "ledger": 5000278,
+      "fee": "576686",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal webhook payer-percentage",
+      "status": "SUCCESS",
+      "hash": "a05cf08cde2e2d40d1cb845317675829b61bdb353dc9959e9bff5c48113ed93c",
+      "ledger": 5000279,
+      "fee": "590879",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal webhook payer-percentage balances",
+      "status": "PASS",
+      "trigger": "CDOPDLQWC65PFA4WXPG7WKMWT4ZOTMLPOTES2BJVENBMYCE3U44I3NCC",
+      "action": "CCWDDF5QQM4USMWREZ36OYE4NZMU6G546APGJZLCHJ6JTK6KPJBEUAZN",
+      "recipientA": "50",
+      "recipientB": "0",
+      "retained": "68"
+    },
+    {
+      "label": "enable downstream webhook payer-percentage",
+      "status": "SUCCESS",
+      "hash": "7200b8525f857bbe901b55367b0ca761fdeae6f1278afb6264eaaf627a7dbe5d",
+      "ledger": 5000280,
+      "fee": "119144",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal webhook payer-percentage",
+      "status": "RPC_SIMULATION",
+      "instructions": 3059815,
+      "diskReadBytes": 432,
+      "writeBytes": 1104,
+      "readOnlyEntries": 7,
+      "readWriteEntries": 6,
+      "minResourceFee": "604209",
+      "cost": null,
+      "ledger": 5000280
+    },
+    {
+      "label": "nonterminal webhook payer-percentage",
+      "status": "SUCCESS",
+      "hash": "e8b36d16a08ae8f49bab25d9c9ee3c33a42286c4c98455f774223c247ce565f7",
+      "ledger": 5000281,
+      "fee": "604309",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal first-target full-balance forwarding webhook payer-percentage",
+      "status": "PASS",
+      "forwarded": "119",
+      "unusedBalance": "0"
+    },
+    {
+      "label": "retained rollback balance webhook payer-percentage",
+      "status": "SUCCESS",
+      "hash": "809f0f31f0154c4d3ceaf693b54cb2f76180891230e1963eb9e06e7fa425dc97",
+      "ledger": 5000282,
+      "fee": "22297",
+      "result": "txSuccess"
+    },
+    {
+      "label": "pause downstream webhook payer-percentage",
+      "status": "SUCCESS",
+      "hash": "a77b88bd4cf85fb88651da3cceca1ac38fcf050ca6f697a64777ea6980566dae",
+      "ledger": 5000283,
+      "fee": "25375",
+      "result": "txSuccess"
+    },
+    {
+      "label": "submitted downstream rollback webhook payer-percentage",
+      "status": "FAILED",
+      "hash": "89630ca9e6300618abf53810f8cde9cc18317fd5357b8c7d18d2b1141849be9b",
+      "ledger": 5000284,
+      "fee": "49927",
+      "result": "txFailed"
+    },
+    {
+      "label": "submitted funds rollback webhook payer-percentage",
+      "status": "PASS",
+      "balancesBefore": ["0", "17", "0", "0", "100000001210", "100000000694"],
+      "balancesAfter": ["0", "17", "0", "0", "100000001210", "100000000694"]
+    },
+    {
+      "label": "unpause downstream webhook payer-percentage",
+      "status": "SUCCESS",
+      "hash": "23e08e09ac61d40691c09f5ef752ef90d1292359d3ab03e3e392ac046dc85fa1",
+      "ledger": 5000285,
+      "fee": "16355",
+      "result": "txSuccess"
+    },
+    {
+      "label": "retry downstream webhook payer-percentage",
+      "status": "SUCCESS",
+      "hash": "6e77b9323371c8229c31e628e165f6c3954beafc3c563a07417fea8502d8b032",
+      "ledger": 5000286,
+      "fee": "49927",
+      "result": "txSuccess"
+    },
+    {
+      "label": "rollback and retry webhook payer-percentage",
+      "status": "PASS",
+      "accumulatorBefore": "0",
+      "action": "CCWDDF5QQM4USMWREZ36OYE4NZMU6G546APGJZLCHJ6JTK6KPJBEUAZN"
+    },
+    {
+      "label": "factory webhook splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "4ec129f549ef761eff5db421d2e44f4980fdaa3b65b9ebed08c843cd5d707151",
+      "ledger": 5000287,
+      "fee": "1711572",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses webhook splitter-fixed",
+      "status": "PASS",
+      "addresses": [
+        "CAVNO5K4C7XURMY2I2Z34EYHBQACFUA5PNTTPHSFKE27Q5Z5QWK7FMVA",
+        "CBUPWBM25XPROGVQJC4C3YF4H7KXML23QJA27WQSBOYUIOLDVDWMUL23",
+        "CB7AHU56RXLIEA5EHWOPYGDEMZYIJYVFFQWA3UNDSOUVGSSHGVTV4DND",
+        "CALVMLW2VWPC54I2KVPR4VRXBP2E276ZIMSAHY2OKXD6YGDKOSLLR3ZW"
+      ],
+      "kinds": ["webhook", "splitter", "splitter", "payer"]
+    },
+    {
+      "label": "prior retained funds webhook splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "616879eef06613f53c9fce63f657c447cd8c3284a5ed57c54ab35101cd1747b1",
+      "ledger": 5000288,
+      "fee": "576686",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal webhook splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "519c1488629c77a3c1a6e4bad6f410753591a40d656ee0c20f1a55a23a923efa",
+      "ledger": 5000289,
+      "fee": "601399",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal webhook splitter-fixed balances",
+      "status": "PASS",
+      "trigger": "CAVNO5K4C7XURMY2I2Z34EYHBQACFUA5PNTTPHSFKE27Q5Z5QWK7FMVA",
+      "action": "CBUPWBM25XPROGVQJC4C3YF4H7KXML23QJA27WQSBOYUIOLDVDWMUL23",
+      "recipientA": "60",
+      "recipientB": "40",
+      "retained": "18"
+    },
+    {
+      "label": "enable downstream webhook splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "f3c93bf8d7093f0b175dfaaad8eee33d22f1b746f204e4743204611e63356c28",
+      "ledger": 5000290,
+      "fee": "119494",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal webhook splitter-fixed",
+      "status": "RPC_SIMULATION",
+      "instructions": 3505931,
+      "diskReadBytes": 432,
+      "writeBytes": 2240,
+      "readOnlyEntries": 5,
+      "readWriteEntries": 7,
+      "minResourceFee": "610308",
+      "cost": null,
+      "ledger": 5000290
+    },
+    {
+      "label": "nonterminal webhook splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "9269ddde978fd768665e3f5f2feeb5ec15f1abd202b5a2e7db585ce96d46ce7e",
+      "ledger": 5000291,
+      "fee": "610408",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal first-target full-balance forwarding webhook splitter-fixed",
+      "status": "PASS",
+      "forwarded": "19",
+      "unusedBalance": "0"
+    },
+    {
+      "label": "retained rollback balance webhook splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "67eb86ab1d75b0f760732c272943a9ef840a2bf793ad87fa7b04b991c71e3a11",
+      "ledger": 5000292,
+      "fee": "22297",
+      "result": "txSuccess"
+    },
+    {
+      "label": "pause downstream webhook splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "eed13def38f36d1b93939a7fc0bbd2ff2c7838e48850e386de16068e9b561a69",
+      "ledger": 5000294,
+      "fee": "25375",
+      "result": "txSuccess"
+    },
+    {
+      "label": "submitted downstream rollback webhook splitter-fixed",
+      "status": "FAILED",
+      "hash": "b19132219539cd81dd05329eab3accf0379e123333a72d575246a06ddc89ae81",
+      "ledger": 5000295,
+      "fee": "56022",
+      "result": "txFailed"
+    },
+    {
+      "label": "submitted funds rollback webhook splitter-fixed",
+      "status": "PASS",
+      "balancesBefore": ["0", "17", "0", "0", "100000001380", "100000000861"],
+      "balancesAfter": ["0", "17", "0", "0", "100000001380", "100000000861"]
+    },
+    {
+      "label": "unpause downstream webhook splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "4a2b8a9c304d3f537370895355f3676e93d3a56b3b1cefad00cbaf06898d5d2b",
+      "ledger": 5000296,
+      "fee": "16355",
+      "result": "txSuccess"
+    },
+    {
+      "label": "retry downstream webhook splitter-fixed",
+      "status": "SUCCESS",
+      "hash": "2f21c78e5e7cd7ce1b74f7f25d776e66a627201e24e99d4c405e76afd5d43ef5",
+      "ledger": 5000297,
+      "fee": "56022",
+      "result": "txSuccess"
+    },
+    {
+      "label": "rollback and retry webhook splitter-fixed",
+      "status": "PASS",
+      "accumulatorBefore": "0",
+      "action": "CBUPWBM25XPROGVQJC4C3YF4H7KXML23QJA27WQSBOYUIOLDVDWMUL23"
+    },
+    {
+      "label": "factory webhook splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "b40e18c48616fde691f25b8a9118b6cedac3b335451a394fc0b3f95f3da90740",
+      "ledger": 5000298,
+      "fee": "1711573",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses webhook splitter-percentage",
+      "status": "PASS",
+      "addresses": [
+        "CDHU7CTEP3J3YRCQT6GTNN52DMJCXB55ISH2PSV7LMDOC3FX7RXOKVTE",
+        "CB2WOUOXDMTLORREAGR63SY6V53KU2KKTGRZZVPT6S4MVEGUMWEUBFHY",
+        "CANYEVGXEB77EF4NYG2IARO3RSP4K7ROVSSARQ5QO4JNWO2PAYCTFJWH",
+        "CBROIVGPW6X6CCOCRB5ZAVHGNEWYUP2OZ5JSYUSNGFBJ2F5FCBVSMYNQ"
+      ],
+      "kinds": ["webhook", "splitter", "splitter", "payer"]
+    },
+    {
+      "label": "prior retained funds webhook splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "1e80d03f96430e129245d65bbb6349a5b5135b71701b5e9e302ae2193e6daea1",
+      "ledger": 5000299,
+      "fee": "576686",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal webhook splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "e74b6d58725a9a857fb5e4dd11c45b30131dcd4fa430e839c57e8697acb57393",
+      "ledger": 5000300,
+      "fee": "597956",
+      "result": "txSuccess"
+    },
+    {
+      "label": "terminal webhook splitter-percentage balances",
+      "status": "PASS",
+      "trigger": "CDHU7CTEP3J3YRCQT6GTNN52DMJCXB55ISH2PSV7LMDOC3FX7RXOKVTE",
+      "action": "CB2WOUOXDMTLORREAGR63SY6V53KU2KKTGRZZVPT6S4MVEGUMWEUBFHY",
+      "recipientA": "60",
+      "recipientB": "41",
+      "retained": "17"
+    },
+    {
+      "label": "enable downstream webhook splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "0c9f2ebe9896f10d7e0c81ceeaa28f2d70d302f6f1f1898fca5d8caf8180779c",
+      "ledger": 5000301,
+      "fee": "119494",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal webhook splitter-percentage",
+      "status": "RPC_SIMULATION",
+      "instructions": 3254306,
+      "diskReadBytes": 432,
+      "writeBytes": 1104,
+      "readOnlyEntries": 6,
+      "readWriteEntries": 6,
+      "minResourceFee": "606661",
+      "cost": null,
+      "ledger": 5000301
+    },
+    {
+      "label": "nonterminal webhook splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "e38ca11527741ce5b7c02355ca67c7c0e8348492b5b538c06266b05e62bcf453",
+      "ledger": 5000302,
+      "fee": "606761",
+      "result": "txSuccess"
+    },
+    {
+      "label": "nonterminal first-target full-balance forwarding webhook splitter-percentage",
+      "status": "PASS",
+      "forwarded": "17",
+      "unusedBalance": "0"
+    },
+    {
+      "label": "retained rollback balance webhook splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "52661ab36fe2325e4afc75cae675b9e8bda974f976703ff92083cec69e057a41",
+      "ledger": 5000303,
+      "fee": "22297",
+      "result": "txSuccess"
+    },
+    {
+      "label": "pause downstream webhook splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "7a709519d9ac6fcf3a7dab8e0556a49fe761623f74bca7932faedef40a602c0c",
+      "ledger": 5000304,
+      "fee": "25375",
+      "result": "txSuccess"
+    },
+    {
+      "label": "submitted downstream rollback webhook splitter-percentage",
+      "status": "FAILED",
+      "hash": "cf8a884bd749bd2bbc6495d046fc18d03e4216fe21a928926a517958c0198258",
+      "ledger": 5000305,
+      "fee": "52372",
+      "result": "txFailed"
+    },
+    {
+      "label": "submitted funds rollback webhook splitter-percentage",
+      "status": "PASS",
+      "balancesBefore": ["0", "17", "0", "0", "100000001560", "100000001018"],
+      "balancesAfter": ["0", "17", "0", "0", "100000001560", "100000001018"]
+    },
+    {
+      "label": "unpause downstream webhook splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "8893780c7b1080f18ca664a859b60653060a85b5c18266c014127dd217fb8412",
+      "ledger": 5000306,
+      "fee": "16355",
+      "result": "txSuccess"
+    },
+    {
+      "label": "retry downstream webhook splitter-percentage",
+      "status": "SUCCESS",
+      "hash": "8a292ff9a6149f543763d4721615192e0bbfe0f215366d30541a62757b5aa62f",
+      "ledger": 5000307,
+      "fee": "52372",
+      "result": "txSuccess"
+    },
+    {
+      "label": "rollback and retry webhook splitter-percentage",
+      "status": "PASS",
+      "accumulatorBefore": "0",
+      "action": "CB2WOUOXDMTLORREAGR63SY6V53KU2KKTGRZZVPT6S4MVEGUMWEUBFHY"
+    },
+    {
+      "label": "factory direct fixed Split",
+      "status": "SUCCESS",
+      "hash": "2a9840173c92a6b7558dcc2f7d3c6ecfb86be45eeac32ce7b7b3a965eeab16c3",
+      "ledger": 5000308,
+      "fee": "583363",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses direct fixed Split",
+      "status": "PASS",
+      "addresses": ["CCUL4N3QXEMIFOJ7WCLKHSAHKGHE2TNHDOLRHA5GQ3IBVF557V65FF5K"],
+      "kinds": ["splitter"]
+    },
+    {
+      "label": "direct Split 30",
+      "status": "SUCCESS",
+      "hash": "164479a591ff6a16e3f6e7ce1060bb03330b75aa3becd4b2926f23eff013d067",
+      "ledger": 5000309,
+      "fee": "582543",
+      "result": "txSuccess"
+    },
+    {
+      "label": "direct Split 80",
+      "status": "SUCCESS",
+      "hash": "071e38d52735f09f0306ab847aadff4c4381dbed2a0b31f397ed323d8a876671",
+      "ledger": 5000310,
+      "fee": "40655",
+      "result": "txSuccess"
+    },
+    {
+      "label": "direct terminal Split accumulation",
+      "status": "PASS",
+      "address": "CCUL4N3QXEMIFOJ7WCLKHSAHKGHE2TNHDOLRHA5GQ3IBVF557V65FF5K",
+      "accumulated": "10",
+      "retained": "10"
+    },
+    {
+      "label": "factory subscription payer",
+      "status": "SUCCESS",
+      "hash": "02c3c5a93ac9f61b22d10a161f9f545bb0bcf549d73cec15703fa4e325ca2279",
+      "ledger": 5000312,
+      "fee": "869106",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses subscription payer",
+      "status": "PASS",
+      "addresses": [
+        "CCLHM2M53X7XGC5JJ53SJKUBLOM5FYZD27G2IW6EAPLVUHONKSWU5LN4",
+        "CDYAHFVH5IVSEPYVAGOLG3NXMQ3TPPKI75OLL25M6V2VU2P3QICRCHNC"
+      ],
+      "kinds": ["subscription", "payer"]
+    },
+    {
+      "label": "subscription allowance payer",
+      "status": "SUCCESS",
+      "hash": "92c8fc2755cac51a642e6185f80512425c2576d0174601a1ab3c9228e730f20b",
+      "ledger": 5000313,
+      "fee": "21909",
+      "result": "txSuccess"
+    },
+    {
+      "label": "subscription terminal payer",
+      "status": "SUCCESS",
+      "hash": "e38392c3913d207e1b2f5e7f404ca4dd9931f4c36216e25c797570ea06b8da82",
+      "ledger": 5000314,
+      "fee": "1150751",
+      "result": "txSuccess"
+    },
+    {
+      "label": "subscription real receiving path payer",
+      "status": "PASS",
+      "subscription": "CCLHM2M53X7XGC5JJ53SJKUBLOM5FYZD27G2IW6EAPLVUHONKSWU5LN4",
+      "action": "CDYAHFVH5IVSEPYVAGOLG3NXMQ3TPPKI75OLL25M6V2VU2P3QICRCHNC"
+    },
+    {
+      "label": "factory subscription splitter",
+      "status": "SUCCESS",
+      "hash": "d7e9c151748f625793b8114fe8d616f5f8d1502f7254aa55281df646f036a7ae",
+      "ledger": 5000315,
+      "fee": "1075502",
+      "result": "txSuccess"
+    },
+    {
+      "label": "factory deterministic addresses subscription splitter",
+      "status": "PASS",
+      "addresses": [
+        "CAF2QLXSCSF4LEZQUDNKQYGX7HNYE767JLFQKPHFXR7432IPYVMLIAIN",
+        "CCALA63IW7VHQPMO6RYNKCMGMW264OIC34KIB4CA2WKHVFZCG25IVS6M"
+      ],
+      "kinds": ["subscription", "splitter"]
+    },
+    {
+      "label": "subscription allowance splitter",
+      "status": "SUCCESS",
+      "hash": "907e5a8fb98e15a6bdda3205340f55cda26b79087ff5d80dba3d4e33aef17eb2",
+      "ledger": 5000316,
+      "fee": "21909",
+      "result": "txSuccess"
+    },
+    {
+      "label": "subscription terminal splitter",
+      "status": "SUCCESS",
+      "hash": "12549f72faa392f0ba837c93516a09453ae2718cef3c1558114aecbd9943219e",
+      "ledger": 5000317,
+      "fee": "1161268",
+      "result": "txSuccess"
+    },
+    {
+      "label": "subscription real receiving path splitter",
+      "status": "PASS",
+      "subscription": "CAF2QLXSCSF4LEZQUDNKQYGX7HNYE767JLFQKPHFXR7432IPYVMLIAIN",
+      "action": "CCALA63IW7VHQPMO6RYNKCMGMW264OIC34KIB4CA2WKHVFZCG25IVS6M"
+    },
+    {
+      "label": "rehearsal complete",
+      "status": "PASS",
+      "finishedAt": "2026-10-03T10:59:35.327Z"
+    }
+  ],
+  "applicationRecords": [
+    {
+      "label": "isolated application login",
+      "status": "PASS"
+    },
+    {
+      "label": "standard flow created through API",
+      "status": "PASS",
+      "flowId": "b8f0757b-f49a-42ba-87eb-a2173edcc35a"
+    },
+    {
+      "label": "unsigned application factory transaction checked",
+      "status": "PASS",
+      "deploymentId": "aa50fec0-012f-4261-be2b-5725346e29f3",
+      "source": "GBNQQ5MBWBFGNQYMTYM7MTPZ4XQYQHWHQ5MYVTIHKM2PY36CF3VZ3I5V",
+      "txHash": "bb9b8a8d75e0b8354c5d859ee3e663496c7195349a927c0991e1da67c690fadb",
+      "pipeline": [
+        {
+          "nodeId": "t",
+          "contractAddress": "CDTZI5GZWC443EOV7ZVLLBIF5INGNQMPLMPFYJNCXEZ4ZLZK6YT4USBO",
+          "templateKind": "DEPOSIT_TRIGGER"
+        },
+        {
+          "nodeId": "p",
+          "contractAddress": "CCDQSHCYURFLBDTIBIKYK3YD24EWOMLDL4ZV7ZG3X6MFV6QGNBAGAZT4",
+          "templateKind": "PAYER"
+        }
+      ]
+    },
+    {
+      "label": "real Freighter factory deploy and durable pipeline snapshot",
+      "status": "PASS",
+      "deploymentId": "aa50fec0-012f-4261-be2b-5725346e29f3",
+      "txHash": "bb9b8a8d75e0b8354c5d859ee3e663496c7195349a927c0991e1da67c690fadb",
+      "ledger": 5000348,
+      "sourceAccount": "GBNQQ5MBWBFGNQYMTYM7MTPZ4XQYQHWHQ5MYVTIHKM2PY36CF3VZ3I5V",
+      "network": "testnet",
+      "pipelineSnapshot": [
+        {
+          "nodeId": "t",
+          "contractAddress": "CDTZI5GZWC443EOV7ZVLLBIF5INGNQMPLMPFYJNCXEZ4ZLZK6YT4USBO",
+          "templateKind": "DEPOSIT_TRIGGER"
+        },
+        {
+          "nodeId": "p",
+          "contractAddress": "CCDQSHCYURFLBDTIBIKYK3YD24EWOMLDL4ZV7ZG3X6MFV6QGNBAGAZT4",
+          "templateKind": "PAYER"
+        }
+      ]
+    },
+    {
+      "label": "application prepared deposit verified",
+      "status": "PASS",
+      "txHash": "77b290700555390d35d056004cbca930fe67ee45d8bd432e464a4934e09b9a41",
+      "amountStroops": "100"
+    },
+    {
+      "label": "real Freighter application deposit and payout",
+      "status": "PASS",
+      "txHash": "77b290700555390d35d056004cbca930fe67ee45d8bd432e464a4934e09b9a41",
+      "ledger": 5000474,
+      "deploymentId": "aa50fec0-012f-4261-be2b-5725346e29f3",
+      "amountStroops": "100",
+      "recipientIncrease": "100",
+      "retainedIncrease": "0",
+      "wallet": "Freighter 5.48.0"
+    }
+  ],
+  "independentRpcVerification": {
+    "verifiedTransactions": 116,
+    "applicationTransactionsVerified": 2,
+    "instanceProof": [
+      {
+        "nodeId": "t",
+        "contractAddress": "CDTZI5GZWC443EOV7ZVLLBIF5INGNQMPLMPFYJNCXEZ4ZLZK6YT4USBO",
+        "templateKind": "DEPOSIT_TRIGGER",
+        "wasmHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+        "version": 1
+      },
+      {
+        "nodeId": "p",
+        "contractAddress": "CCDQSHCYURFLBDTIBIKYK3YD24EWOMLDL4ZV7ZG3X6MFV6QGNBAGAZT4",
+        "templateKind": "PAYER",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CCUMM2AERRIVF5MD7LX4SD7LADT2JOZPRWIEHV5AAHTK3XEHNFOHJTPP",
+        "templateKind": "payer-v3",
+        "wasmHash": "fb2fb73fca6d385a2bd8c6f8cddc47ef5653b29a1ddf69387b7d988eef54adce",
+        "version": 3
+      },
+      {
+        "contractAddress": "CBPIXP6BUOGSK3C24C4BJDF5LK4L7M5M6URWIOOQ6JR7BXMT5S5BQQWL",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CCWLLIGMVZUAMPRUEEMHMIGFLPKCAG57UTVFSWCZI2GHCCBLJ3QS5JFJ",
+        "templateKind": "payer-v3",
+        "wasmHash": "fb2fb73fca6d385a2bd8c6f8cddc47ef5653b29a1ddf69387b7d988eef54adce",
+        "version": 3
+      },
+      {
+        "contractAddress": "CBBRWRSFYJMYVDX6QTJJ66PQU7J7CDBGPQSGPE3CEYVSLARHF4BZ55FG",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CDPAIWU2ALSXEBV47QX6RQRX3KULKTN3ONTGYI2M6XCS334KB5VIOHYT",
+        "templateKind": "splitter-v3",
+        "wasmHash": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+        "version": 3
+      },
+      {
+        "contractAddress": "CBWDRUFTLE2V4HPZNK7JXSMUU4URYGJDRGWCHAKB5UVYOUCWESME35CE",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CAGELPO3YEZG2CLCBLGMA2SG67K677QSMANBUYBPC4NR4TYNZMKTROWA",
+        "templateKind": "splitter-v3",
+        "wasmHash": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+        "version": 3
+      },
+      {
+        "contractAddress": "CDUOUOAYDB65IJTUGIRTV6DFYPA6DMOM2C7H26FXNXNZEQSWOVBGTD34",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CC3RHEW4RB33O734LNYJTLYSFK3TZDCRBX6MF5RKNP5NDUTNIC4YLC7D",
+        "templateKind": "deposit",
+        "wasmHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+        "version": 1
+      },
+      {
+        "contractAddress": "CBF2VE43CTA3FLCHCX7BNFJUNXWPRIVZ7PZBM3Z3KSANZARLFRJWHMMO",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CBADELO3CBENY5HCZTSZGCQ757FRUNJS7UR3ZMYRQWJY4FQK3HZLBTVT",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CCURVKAXL5YGRQFU3W2RVPXJ4PEICHS4VUMBGYPLONIHRSDFDUUZ5RPX",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CCU6BJKO2WAOMFSUWKPCWT34XACLXAULO6MB7ESFDR4Q22O754ONQM37",
+        "templateKind": "deposit",
+        "wasmHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+        "version": 1
+      },
+      {
+        "contractAddress": "CAIGXYQCQ4IJFYMIUPPHGSXLNCINEMOBZBNRHDRVDPZCDM6QTKUMNVUG",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CAYATQ7V27JODV5BKGZSFVSGWRWDY6IMIWYJWSFEHIBO3HS5UL74KNTB",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CCXHTGQ7GVTJNYCNBMEMALHANLXK4SXOJ26ZMIG22ZEA7XINLVAT3TZP",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CB3NNYEGI5336GYRQQXPGA3JYA2EIY2GNSR3JZ5FBFMPOKYYKIHFGI4P",
+        "templateKind": "deposit",
+        "wasmHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+        "version": 1
+      },
+      {
+        "contractAddress": "CA5A5OGMY6WCOVDC7PVTLXHXBQVLB6XTK74LUKHYIIWVTEDIIMZ5OXL7",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CD5DQRQJHAEKSUOVHHITHFS5IBRJOICA4RMN3KYQDD5XM7RHEZ4XQT6E",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CA767KWIREPZJHF5KDKD2YJGKEF37P6YRBHCQ7LXSEXKNSCSJZ7UZCYJ",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CBDXLEZH3IBVGQPR33WHKB5R4PPGAM4354GTOGOS5EOSUNJCHUD7ULQV",
+        "templateKind": "deposit",
+        "wasmHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+        "version": 1
+      },
+      {
+        "contractAddress": "CD7LHEBNAWM4DXJ6ZIQIEHFFJP3YYIQCMXEE7RVFHTD7GJGO3LUEVKA2",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CARZKT7N5IKSR4GJQSKNKXJTTAZZXRQQXAAVQNTL7UZKOP7Z43DDCJ6B",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CB45LWICKEVPEA3KFSW3CXN7ZNYC2MHJEYTN34O3IRV5AIV4RN2YR6HK",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CCCLL2FNR4BHI77QNHDXKC3KJLUEY5L22ERHVJBVP2QYTQDIENCO7ISD",
+        "templateKind": "deposit",
+        "wasmHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+        "version": 1
+      },
+      {
+        "contractAddress": "CA4WGKKLAZFA53ULCVIEEEOKECS7LQ43Y4PKU6YEDJZXW3AX3NCBLYUN",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CDJQLZ6RFLZKZPPKM3BVORRLO5TR5Z3HGA2RWCZOOAJDZVE6EKMTZFKH",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CDZA2ZA36CG7L2XGHFO6TYPXM2BKGT2QTFCWBBDRTJBVN67DSQ4PZJZJ",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CCIPFPAKXAMGCH5IPEKQMMHDSAUWGFTTXDYZQWHO5L6YY4YN2BZM6PP4",
+        "templateKind": "webhook",
+        "wasmHash": "232dca3682e469969614db0f40d955bee12175a49e9afd5a6175e067407291da",
+        "version": 1
+      },
+      {
+        "contractAddress": "CCYAYJKBV4ZA5BGGK3NFIM3BNO2QJNB43C6B2ALGYX25UKGK66DIQGWQ",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CATXQ5CV5ESCEUBK6777GIJULLOT6OARB3G7TTZ34I3VT7KMIMGSRMFL",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CB3WLR6LTTHPGX6XXOXSAIXFADWSBBCQEQMQWMLWKL65UBTOOFHRQUSF",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CDOPDLQWC65PFA4WXPG7WKMWT4ZOTMLPOTES2BJVENBMYCE3U44I3NCC",
+        "templateKind": "webhook",
+        "wasmHash": "232dca3682e469969614db0f40d955bee12175a49e9afd5a6175e067407291da",
+        "version": 1
+      },
+      {
+        "contractAddress": "CCWDDF5QQM4USMWREZ36OYE4NZMU6G546APGJZLCHJ6JTK6KPJBEUAZN",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CAQC7RTMP5ZA5O33H2DGCE2NZAQS4UCAYG2TFC5QOOHMY7Y6A5YR7ZNY",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CDV3IANSX5STEQ6GIMBD5KZXOUWVSJCXX5BBWRWEPSB7BJ5NWJWGQGKY",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CAVNO5K4C7XURMY2I2Z34EYHBQACFUA5PNTTPHSFKE27Q5Z5QWK7FMVA",
+        "templateKind": "webhook",
+        "wasmHash": "232dca3682e469969614db0f40d955bee12175a49e9afd5a6175e067407291da",
+        "version": 1
+      },
+      {
+        "contractAddress": "CBUPWBM25XPROGVQJC4C3YF4H7KXML23QJA27WQSBOYUIOLDVDWMUL23",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CB7AHU56RXLIEA5EHWOPYGDEMZYIJYVFFQWA3UNDSOUVGSSHGVTV4DND",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CALVMLW2VWPC54I2KVPR4VRXBP2E276ZIMSAHY2OKXD6YGDKOSLLR3ZW",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CDHU7CTEP3J3YRCQT6GTNN52DMJCXB55ISH2PSV7LMDOC3FX7RXOKVTE",
+        "templateKind": "webhook",
+        "wasmHash": "232dca3682e469969614db0f40d955bee12175a49e9afd5a6175e067407291da",
+        "version": 1
+      },
+      {
+        "contractAddress": "CB2WOUOXDMTLORREAGR63SY6V53KU2KKTGRZZVPT6S4MVEGUMWEUBFHY",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CANYEVGXEB77EF4NYG2IARO3RSP4K7ROVSSARQ5QO4JNWO2PAYCTFJWH",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CBROIVGPW6X6CCOCRB5ZAVHGNEWYUP2OZ5JSYUSNGFBJ2F5FCBVSMYNQ",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CCUL4N3QXEMIFOJ7WCLKHSAHKGHE2TNHDOLRHA5GQ3IBVF557V65FF5K",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      },
+      {
+        "contractAddress": "CCLHM2M53X7XGC5JJ53SJKUBLOM5FYZD27G2IW6EAPLVUHONKSWU5LN4",
+        "templateKind": "subscription",
+        "wasmHash": "1d9d2f5f4ae558b48c3701f1dc4c332b5fe318104c993dd6a400597b49d07221",
+        "version": 5
+      },
+      {
+        "contractAddress": "CDYAHFVH5IVSEPYVAGOLG3NXMQ3TPPKI75OLL25M6V2VU2P3QICRCHNC",
+        "templateKind": "payer",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "version": 4
+      },
+      {
+        "contractAddress": "CAF2QLXSCSF4LEZQUDNKQYGX7HNYE767JLFQKPHFXR7432IPYVMLIAIN",
+        "templateKind": "subscription",
+        "wasmHash": "1d9d2f5f4ae558b48c3701f1dc4c332b5fe318104c993dd6a400597b49d07221",
+        "version": 5
+      },
+      {
+        "contractAddress": "CCALA63IW7VHQPMO6RYNKCMGMW264OIC34KIB4CA2WKHVFZCG25IVS6M",
+        "templateKind": "splitter",
+        "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5",
+        "version": 4
+      }
+    ],
+    "verifiedAt": "2026-10-03T11:16:09.535Z"
+  },
+  "limitations": [
+    "Initial chain harness attempted to pause a Payer, which has no pause entry point; resumed with a pausable percentage Split downstream and completed all eight cases.",
+    "Optional deployment-page screenshot crashed Chromium after deployment and snapshot verification; reopened the public trigger page and completed real wallet deposit signing.",
+    "Initial trigger automation tried to edit the fixed amount; corrected to respect the existing read-only 100-stroop amount.",
+    "Wallet coverage is Freighter 5.48.0 in Chromium, with a disposable extension-created testnet wallet.",
+    "Shared runtime template hashes, databases and existing deployments were not changed."
+  ]
+}

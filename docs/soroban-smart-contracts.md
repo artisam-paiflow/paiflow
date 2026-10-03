@@ -357,10 +357,13 @@ for each contract. Public signatures, error discriminants, and storage keys are 
 the stored template `Version` advances. Release WASM sizes are Pay 17,725 → 17,701 bytes and Split
 21,529 → 21,510 bytes with the existing workspace release profile.
 
-Activation follows §4.3 and the compatibility/redeployment boundaries in §4.1.1. Build/upload and
-testnet rehearsal, intended-environment template hash synchronization, and existing-flow
-redeployment are separate release work. Source changes do not upgrade deployed instances. The
-factory needs no change. This implementation does not upload WASM or change live hashes/databases.
+The [isolated public-testnet rehearsal](terminal-forwarding-testnet.md) verified deployed terminal
+and nonterminal trigger chains, retained funds, submitted failure rollback, genuine Freighter
+application deployment/signing, durable snapshots, and actual v3/v4 RPC simulation resources.
+Its uploaded WASM and disposable application database did not change shared runtime configuration.
+Activation follows §4.3 and the compatibility/redeployment boundaries in §4.1.1. Intended-environment
+template hash synchronization and existing-flow redeployment remain separate release work.
+Source changes do not upgrade deployed instances. The factory needs no change.
 
 ### 4.2 Contract build pipeline
 
