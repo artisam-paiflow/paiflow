@@ -23,6 +23,7 @@ import { isCatalogueAsset } from "./asset-catalogue";
 import { hiddenSurfaceIssues } from "./feature-gates";
 import type { ValidationIssue } from "./issue";
 import { checkHardLimits } from "./limits";
+import { paymentAmountIssues, scheduledPaymentIssues } from "./payment-bounds";
 import { swapConfigIssues, type SwapNode } from "./swap-rules";
 import { addressIssues, isAcceptedFlowAddress } from "./address-rules";
 import { SECRET_SEED_MESSAGE } from "./secret-seed";
@@ -520,6 +521,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
   // Any string parses as an address so autosave keeps a half-typed one (#588);
   // this is the check that keeps it from deploying.
   errors.push(...addressIssues(graph));
+  errors.push(...paymentAmountIssues(graph));
 
   const triggers = graph.nodes.filter(isTrigger);
   if (triggers.length !== 1) {
@@ -556,7 +558,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       if (
         triggers[0]?.type === "on_schedule" &&
         !allFixed &&
-        (!a.config.amountPerIntervalStroops || a.config.amountPerIntervalStroops === "0")
+        (!a.config.amountPerIntervalStroops || BigInt(a.config.amountPerIntervalStroops) === 0n)
       ) {
         errors.push({
           path: `nodes.${a.id}.config.amountPerIntervalStroops`,
@@ -592,9 +594,8 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
 
       if (mode === "percentage") {
         // The schema lets a 0 share parse so the panel can autosave a cleared
-        // field (#583). It must never reach the splitter: its constructor only
-        // checks the sum, so a 0 entry deploys, and as the last recipient it
-        // would be paid the rounding remainder of everyone else's share.
+        // field (#583). Reject it before deployment, matching the standard
+        // splitter constructor's positive-recipient checks (#795).
         const zeroShare = a.config.recipients.filter((r) => r.mode === "percentage" && r.bps <= 0);
         if (zeroShare.length > 0) {
           errors.push({
@@ -617,7 +618,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       } else {
         const zeroAmountRecipients: { label?: string; address: string }[] = [];
         for (const [idx, r] of a.config.recipients.entries()) {
-          if (r.mode === "fixed" && (!r.amountStroops || r.amountStroops === "0")) {
+          if (r.mode === "fixed" && (!r.amountStroops || BigInt(r.amountStroops) === 0n)) {
             zeroAmountRecipients.push(r);
             continue;
           }
@@ -771,7 +772,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
       if (!valueDeferred && !a.config.fullAmount) {
         if (
           a.config.mode === "fixed" &&
-          (!a.config.amountStroops || a.config.amountStroops === "0")
+          (!a.config.amountStroops || BigInt(a.config.amountStroops) === 0n)
         ) {
           errors.push({
             path: `nodes.${a.id}.config.amountStroops`,
@@ -1254,6 +1255,7 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
   try {
     pipelineNodes = flowToPipeline(originalGraph, undefined, undefined, { forValidation: true });
     pipeline = pipelineNodes.map((n) => n.templateKind);
+    errors.push(...scheduledPaymentIssues(pipelineNodes));
     if (pipeline.length === 0) {
       return {
         ok: false,
