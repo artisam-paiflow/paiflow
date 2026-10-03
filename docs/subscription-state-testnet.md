@@ -76,7 +76,7 @@ capability probe is remembered only inside one run; old instances are probed aga
 Getter equivalence passed initially, after a failed cancellation with full rollback, after
 relayer rotation, and after the actual successful charge. The live cancellation attempts failed
 authorization on the nested token `approve` call. The unchanged contract derives that call's
-expiration argument from execution ledger + 1, and the simulation-recorded authorization did not match at inclusion. A ledger-dependent
+expiration argument from execution ledger + 1, and the simulation-recorded authorization may not have matched at inclusion. A ledger-dependent
 authorization mismatch is a likely cause, but the precise root cause was not isolated. A bounded alternate zero-allowance authorization tree also failed in the
 second harness attempt. Neither change was made to application or contract cancellation code.
 
