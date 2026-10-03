@@ -157,14 +157,96 @@ here, because a copy of either goes stale silently.
 
 Two things are not obvious from reading one crate:
 
-- **How a crate joins a pipeline.** The inbound edge is `execute_step(env, asset, amount)`, invoked
-  by the upstream node — 11 crates implement it. The outbound edge is a stored
+- **How a crate joins a pipeline.** The inbound edge uses `execute_step(env, asset, amount)` or
+  `receive_and_forward(env, from, asset, amount, next_steps)`, depending on the caller and callee.
+  These are not universally interchangeable; see the execution policy below. The outbound edge is a stored
   `Vec<WorkflowTarget>` (`{ address, data }`), exposed by `next_steps()` on the 7 crates that
   forward, of which 4 also expose `set_next_steps()` for post-deploy rewiring. A crate with neither
   can only sit at the end of a pipeline.
 - **`_dev` variants.** `splitter_dev`, `payer_dev`, `subscription_dev` and `cash_out_dev` are
   on-chain-mutable counterparts of their siblings, swapped in when a flow has `devMode` set so that
   values left blank at design time can be filled after deploy. See `CLAUDE.md` §2.
+
+#### 4.1.1 Execution authorization and compatibility
+
+The policy agreed in [#788](https://github.com/webnxt-2030/pinkraft/issues/788) requires the stored
+parent's authorization for both standard Pay/Split pipeline entry points. Their receiving entry
+point also rejects a `from` different from that parent. Authenticating an arbitrary supplied caller
+would establish identity without establishing pipeline authority. Both wrappers use the same
+private execution logic within each contract; payout math, fixed accumulation, stored destinations,
+and nonterminal forwarding retain their existing semantics.
+
+This matrix describes standard execution paths at the #788 implementation. It does not claim that
+every template supports every inbound interface or that every mutating function is parent-only.
+Admin settings/refunds and subscriber consent retain their own authorization rules.
+
+| Contract/path                                | Authority required                                    | Execution semantics                                                                                                                                                                                                                    |
+| -------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Receive `deposit`                            | Depositor                                             | Pulls the depositor's tokens, transfers, then calls downstream `execute_step` atomically.                                                                                                                                              |
+| Subscription `charge` / `charge_by_relayer`  | Stored admin / stored relayer, respectively           | Uses subscriber allowance, transfers, then calls downstream `receive_and_forward` with the subscription as `from`. Schedule advances after success.                                                                                    |
+| Webhook `execute`                            | Stored relayer and funding sender                     | Pulls tokens and calls downstream `receive_and_forward` with the webhook as `from`.                                                                                                                                                    |
+| Webhook `execute_escrow`                     | Stored relayer                                        | Sends held funds and calls the same downstream receiving interface. `deposit` separately requires its depositor.                                                                                                                       |
+| Pay/Split `execute_step`                     | Stored parent                                         | Executes against already transferred funds.                                                                                                                                                                                            |
+| Pay/Split `receive_and_forward`              | Stored parent; supplied `from` must equal parent      | Same execution logic. Caller-supplied next steps are ignored; stored destinations control forwarding.                                                                                                                                  |
+| Split `distribute`                           | Funding sender                                        | Deliberately public funded entry: pulls the authorized sender's tokens rather than merely trusting a declared deposit. Existing accumulation/forwarding behavior is retained.                                                          |
+| Swap `execute_step`                          | Stored parent                                         | Swaps transferred input and invokes the one stored downstream `execute_step`.                                                                                                                                                          |
+| Swap `receive_and_forward`                   | Supplied caller                                       | Deliberately public exception; see the retained-funds review below.                                                                                                                                                                    |
+| Amount router `execute_step`                 | Stored parent                                         | Routes the transferred amount to a stored branch using `execute_step`.                                                                                                                                                                 |
+| Timelock / branching timelock `execute_step` | Stored parent                                         | Records incoming funds. Release requires the stored admin or a configured distinct relayer and the applicable time/side/Hold rules.                                                                                                    |
+| Multisig `receive_and_forward`               | No sender/parent authorization in current source      | Adds the declared amount to pending accounting. `approve_by` authenticates a configured signer; `release` is public after the approval threshold and forwards with `receive_and_forward`. This receiving policy needs separate review. |
+| Streamer `execute_step` / `top_up` / `claim` | Stored parent / funding sender / public, respectively | Public claims distribute only vested funds to stored recipients; pause/reclaim use admin authorization and configured gates.                                                                                                           |
+| Factory `deploy_pipeline`                    | Deploying source                                      | Deploys the supplied blueprints atomically; no execution-interface policy is imposed by the factory.                                                                                                                                   |
+
+A directly invoking contract satisfies authorization for its own address at the immediate callee.
+Deeper calls that consume that address's authority need explicit authorization; simulation and
+signing requirements remain. See [Stellar authorization](https://developers.stellar.org/docs/learn/fundamentals/contract-development/authorization).
+Native integration tests exercise real Receive, Subscription, and both Webhook paths with specific
+funding/relayer authorizations, real Pay/Split downstream chains, and unauthorized-call rollback.
+
+**Swap exception review.** A caller can authenticate itself and choose the amount and timing of a
+swap of input tokens already held by Swap, even without being its parent or depositing new funds.
+The asset, router, slippage setting, and destination come from storage; caller-supplied next steps
+cannot redirect the output. Partial swaps can leave input behind. The output bound uses current
+pool reserves and the deadline is relative to the invocation, so these checks do not bind an idle
+balance to its owner's chosen execution time or an independent market price. Fixed destinations
+alone do not establish that arbitrary timing is harmless. #788 preserves the agreed exception;
+the tests include a specifically authenticated stranger swapping part of an idle balance only to
+the stored destination. A stricter policy requires a separate agreed behavior change.
+
+**Follow-up findings from the interface review (#788).** Multisig currently lacks `execute_step`,
+so a Receive/upstream step that invokes that function cannot enter it. Its Rust constructor takes
+five arguments after `Env`, whereas `pipelineNodeConstructorArgs` in `lib/stellar/scval.ts` encodes
+six, including a parent absent from Multisig storage. Its unauthenticated receiving accounting also
+requires review. Subscription/Webhook cannot invoke a condition exposing only `execute_step` via
+their receiving interface without an adapter or compiler support. These are existing integration
+findings, not fixes included in the Pay/Split change; do not imply those combinations are supported.
+Oracle/legacy yield, payroll/off-ramp, and dev variants are outside this optimization scope.
+
+**Compatibility and release.** Pay/Split preserve public function names, positional arguments,
+historical argument names (including Payer's `_from`), error discriminants, storage keys, and payout
+event shapes. New instances store template `Version = 2`; no new version getter is introduced.
+Requiring parent authorization is a behavior change even with an unchanged call signature.
+Direct integrations that used `receive_and_forward` as a public action now need the configured
+parent to invoke/authorize it and must supply that parent as `from`. Token receipt is still an
+upstream invariant, not something the receiving function independently proves; normal callers
+must transfer and invoke atomically, and trusted parents must not report deposits twice.
+
+The three standard triggers expose a native `rlib` alongside their WASM artifact so the integration
+tests can register their actual implementations. Payer's added dependencies on them are local,
+test-only workspace dependencies; no third-party dependency or production call path is added.
+
+Release this change by building and uploading the new standard Payer/Splitter WASM for each intended
+environment, validating representative simulations/signing and deployments on testnet, then syncing
+the selected template hashes into that environment's database per §4.3. Preserve the existing
+factory; these constructors need no factory redeployment. Hash synchronization reads
+`STELLAR_NETWORK`, so verify the target environment before running it (see
+[`CLAUDE.md` §7.5](../CLAUDE.md#75-networks)). Record the previous hashes for a new-deployment rollback.
+New WASM and hash synchronization change which templates future deployments use; they do not
+upgrade existing instances. Existing standard Pay/Split have no upgrade entry point. Treat any
+migration as a separately planned redeployment, including retained funds, allowances, downstream
+wiring, and durable pipeline snapshots. Existing instances remain on their previous policy until
+that migration occurs. This implementation does not upload WASM, change live hashes, or migrate
+deployed flows.
 
 ### 4.2 Contract build pipeline
 

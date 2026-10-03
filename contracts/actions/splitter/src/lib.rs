@@ -47,7 +47,7 @@ pub enum Error {
     MixedModeNotAllowed = 7,
 }
 
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 const TOTAL_BPS: u32 = 10_000;
 const TTL_THRESHOLD: u32 = 50_000;
 const TTL_EXTEND_TO: u32 = 500_000;
@@ -198,48 +198,8 @@ impl Splitter {
     }
 
     pub fn execute_step(env: Env, asset: Address, amount: i128) {
-        bump_ttl(&env);
-        let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
-        parent.require_auth();
-
-        let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-        if asset != stored_asset {
-            panic_with_error!(&env, Error::Unauthorized);
-        }
-        if amount <= 0 {
-            panic_with_error!(&env, Error::InvalidAmount);
-        }
-        if env
-            .storage()
-            .instance()
-            .get::<_, bool>(&Key::Paused)
-            .unwrap_or(false)
-        {
-            panic_with_error!(&env, Error::Paused);
-        }
-
-        let total_fixed: i128 = env
-            .storage()
-            .instance()
-            .get(&Key::TotalFixedAmount)
-            .unwrap_or(0);
-        let distributed = if total_fixed > 0 {
-            handle_fixed_deposit(&env, &asset, amount)
-        } else {
-            let recipients: Vec<Recipient> =
-                env.storage().instance().get(&Key::Recipients).unwrap();
-            do_split(&env, &asset, &recipients, amount);
-            true
-        };
-
-        if distributed {
-            let recipients: Vec<Recipient> =
-                env.storage().instance().get(&Key::Recipients).unwrap();
-            #[allow(deprecated)]
-            env.events()
-                .publish((symbol_short!("payout"), parent.clone()), recipients);
-            forward_remaining(&env, &asset);
-        }
+        let parent = require_parent(&env, None);
+        execute_split(&env, &asset, amount, &parent);
     }
 
     /// Called by receive_and_forward triggers (webhook, oracle, subscription).
@@ -251,45 +211,8 @@ impl Splitter {
         amount: i128,
         _next_steps: Vec<WorkflowTarget>,
     ) {
-        bump_ttl(&env);
-        let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-        if asset != stored_asset {
-            panic_with_error!(&env, Error::Unauthorized);
-        }
-        if amount <= 0 {
-            panic_with_error!(&env, Error::InvalidAmount);
-        }
-        if env
-            .storage()
-            .instance()
-            .get::<_, bool>(&Key::Paused)
-            .unwrap_or(false)
-        {
-            panic_with_error!(&env, Error::Paused);
-        }
-
-        let total_fixed: i128 = env
-            .storage()
-            .instance()
-            .get(&Key::TotalFixedAmount)
-            .unwrap_or(0);
-        let distributed = if total_fixed > 0 {
-            handle_fixed_deposit(&env, &asset, amount)
-        } else {
-            let recipients: Vec<Recipient> =
-                env.storage().instance().get(&Key::Recipients).unwrap();
-            do_split(&env, &asset, &recipients, amount);
-            true
-        };
-
-        if distributed {
-            let recipients: Vec<Recipient> =
-                env.storage().instance().get(&Key::Recipients).unwrap();
-            #[allow(deprecated)]
-            env.events()
-                .publish((symbol_short!("payout"), from.clone()), recipients);
-            forward_remaining(&env, &asset);
-        }
+        let parent = require_parent(&env, Some(&from));
+        execute_split(&env, &asset, amount, &parent);
     }
 
     fn require_admin(env: &Env) {
@@ -375,6 +298,58 @@ fn do_split_fixed(env: &Env, asset: &Address, recipients: &Vec<Recipient>) {
                 invoke_receive_and_forward(env, &r.address, asset, &r.amount);
             }
         }
+    }
+}
+
+fn require_parent(env: &Env, from: Option<&Address>) -> Address {
+    let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
+    if let Some(from) = from {
+        if from != &parent {
+            panic_with_error!(env, Error::Unauthorized);
+        }
+    }
+    parent.require_auth();
+    parent
+}
+
+fn execute_split(env: &Env, asset: &Address, amount: i128, parent: &Address) {
+    bump_ttl(env);
+
+    let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+    if asset != &stored_asset {
+        panic_with_error!(env, Error::Unauthorized);
+    }
+    if amount <= 0 {
+        panic_with_error!(env, Error::InvalidAmount);
+    }
+    if env
+        .storage()
+        .instance()
+        .get::<_, bool>(&Key::Paused)
+        .unwrap_or(false)
+    {
+        panic_with_error!(env, Error::Paused);
+    }
+
+    let total_fixed: i128 = env
+        .storage()
+        .instance()
+        .get(&Key::TotalFixedAmount)
+        .unwrap_or(0);
+    let distributed = if total_fixed > 0 {
+        handle_fixed_deposit(env, asset, amount)
+    } else {
+        let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
+        do_split(env, asset, &recipients, amount);
+        true
+    };
+
+    if distributed {
+        let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("payout"), parent.clone()), recipients);
+        forward_remaining(env, asset);
     }
 }
 
@@ -666,7 +641,7 @@ mod test {
 
         tok.transfer(&predecessor, &contract_id, &10_000_000);
         client.receive_and_forward(
-            &predecessor,
+            &parent,
             &asset.address(),
             &10_000_000,
             &Vec::<WorkflowTarget>::new(&env),
@@ -712,7 +687,7 @@ mod test {
         client.pause();
         tok.transfer(&predecessor, &contract_id, &10_000_000);
         client.receive_and_forward(
-            &predecessor,
+            &parent,
             &asset.address(),
             &10_000_000,
             &Vec::<WorkflowTarget>::new(&env),
@@ -759,7 +734,7 @@ mod test {
 
         tok.transfer(&predecessor, &contract_id, &10_000_000);
         client.receive_and_forward(
-            &predecessor,
+            &parent,
             &asset.address(),
             &10_000_000,
             &Vec::<WorkflowTarget>::new(&env),
