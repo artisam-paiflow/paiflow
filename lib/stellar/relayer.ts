@@ -86,15 +86,9 @@ export async function simulateReleaseByRelayer(
   if (rpc.Api.isSimulationError(sim)) {
     return { ok: false, latestLedger: sim.latestLedger, error: sim.error };
   }
-  // Nothing in the relayer paths submits a restore first, and a release
-  // assembled from this simulation would fail; report it like a revert.
-  if (rpc.Api.isSimulationRestore(sim)) {
-    return {
-      ok: false,
-      latestLedger: sim.latestLedger,
-      error: `release_by_relayer needs archived state restored first (${contractAddress})`,
-    };
-  }
+  // Automatic restoration is carried in transactionData. Legacy restore
+  // preambles are handled under the relayer channel lock before rebuilding
+  // and simulating the release again, including its deadline/side checks.
   return { ok: true, latestLedger: sim.latestLedger, sim };
 }
 

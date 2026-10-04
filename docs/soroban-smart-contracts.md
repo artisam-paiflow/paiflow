@@ -55,7 +55,7 @@ The host exposes **host objects** (vectors, maps, addresses, big integers) and *
 | **Persistent** | Expensive | Independent TTL, can be restored   | User balances, long-term data            |
 | **Temporary**  | Cheap     | Deleted at TTL, cannot be restored | Oracles, signatures, ephemeral data      |
 
-All ledger entries have a **TTL (time-to-live)** and must be periodically "bumped" to stay alive. This is called **state archival**.
+All ledger entries have a **TTL (time-to-live)** and must be periodically "bumped" to stay alive. This is called **state archival**. Execution TTL maintenance and the bounded background inventory are documented in [Storage lifetime maintenance](storage-lifetime.md).
 
 ### 2.4 Authorization
 

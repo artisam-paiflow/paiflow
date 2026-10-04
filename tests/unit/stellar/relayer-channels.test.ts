@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Address,
+  Contract,
   Keypair,
   Operation,
   SorobanDataBuilder,
@@ -18,7 +19,9 @@ const { mockRpc, warn } = vi.hoisted(() => ({
   mockRpc: {
     getAccount: vi.fn(),
     getTransaction: vi.fn(),
+    getLatestLedger: vi.fn(),
     simulateTransaction: vi.fn(),
+    sendTransaction: vi.fn(),
   },
   warn: vi.fn(),
 }));
@@ -27,11 +30,19 @@ vi.mock("@/lib/log", () => ({ log: { warn, info: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/stellar/client", () => {
   // The same in-process promise chain as the real withRelayerLock.
   let queue: Promise<unknown> = Promise.resolve();
+  let barrier: (() => Promise<void>) | undefined;
   return {
     sorobanRpc: () => mockRpc,
+    decodeContractAddress: () => Buffer.alloc(32),
     horizon: vi.fn(),
+    registerRelayerPendingBarrier: (fn: () => Promise<void>) => {
+      barrier = fn;
+    },
     withRelayerLock: <T>(fn: () => Promise<T>): Promise<T> => {
-      const run = queue.then(() => fn());
+      const run = queue.then(async () => {
+        await barrier?.();
+        return fn();
+      });
       queue = run.then(
         () => {},
         () => {},
@@ -64,8 +75,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   delete process.env.STELLAR_RELAYER_SECRET_KEY;
   delete process.env.STELLAR_RELAYER_CHANNELS;
+  delete process.env.STELLAR_TTL_MAX_FEE_STROOPS;
 });
 
 describe("deriveChannelKeypair", () => {
@@ -214,6 +227,67 @@ describe("withRelayerChannel", () => {
       expect(mockRpc.getTransaction).toHaveBeenCalledWith("abc");
     });
   });
+
+  it.each([0, 1])("retains pending hashes across RPC failures on lane %i", async (lanes) => {
+    const { withRelayerChannel } = await load(lanes);
+    await withRelayerChannel(async (channel) => channel.trackPending("uncertain"));
+    mockRpc.getTransaction.mockReset().mockRejectedValueOnce(new Error("RPC unavailable"));
+    const callback = vi.fn();
+    await expect(withRelayerChannel(callback)).rejects.toThrow("RPC unavailable");
+    expect(callback).not.toHaveBeenCalled();
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS" });
+    await withRelayerChannel(callback);
+    expect(mockRpc.getTransaction).toHaveBeenLastCalledWith("uncertain");
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([0, 1])("retains pending hashes across timeout on lane %i", async (lanes) => {
+    const { withRelayerChannel } = await load(lanes);
+    await withRelayerChannel(async (channel) => channel.trackPending("uncertain"));
+    let now = 0;
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => (now += 30_000));
+    const callback = vi.fn();
+    await expect(withRelayerChannel(callback)).rejects.toThrow("finality is unknown");
+    expect(callback).not.toHaveBeenCalled();
+    clock.mockRestore();
+    mockRpc.getTransaction.mockReset().mockResolvedValue({ status: "FAILED" });
+    await withRelayerChannel(callback);
+    expect(mockRpc.getTransaction).toHaveBeenLastCalledWith("uncertain");
+  });
+
+  it("direct source-lock users must reconcile unknown source-lane rent submissions", async () => {
+    const { withRelayerChannel } = await load(0);
+    const { withRelayerLock } = await import("@/lib/stellar/client");
+    await withRelayerChannel(async (channel) => channel.trackPending("rent"));
+    mockRpc.getTransaction.mockReset().mockRejectedValueOnce(new Error("RPC unavailable"));
+    const callback = vi.fn();
+    await expect(withRelayerLock(callback)).rejects.toThrow("RPC unavailable");
+    expect(callback).not.toHaveBeenCalled();
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS" });
+    await withRelayerLock(callback);
+    expect(mockRpc.getTransaction).toHaveBeenLastCalledWith("rent");
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([0, 1])(
+    "releases ambiguous rent only beyond envelope expiry in closed ledger time, lane %i",
+    async (lanes) => {
+      const { withRelayerChannel } = await load(lanes);
+      await withRelayerChannel(async (channel) => channel.trackPending("rent", "50"));
+      mockRpc.getTransaction.mockReset().mockResolvedValue({ status: "NOT_FOUND" });
+      mockRpc.getLatestLedger
+        .mockReset()
+        .mockResolvedValueOnce({ closeTime: "50" })
+        .mockResolvedValueOnce({ closeTime: "51" });
+      const callback = vi.fn();
+      await withRelayerChannel(callback);
+      expect(mockRpc.getLatestLedger).toHaveBeenCalledTimes(2);
+      expect(callback).toHaveBeenCalledTimes(1);
+      mockRpc.getTransaction.mockClear();
+      await withRelayerChannel(callback);
+      expect(mockRpc.getTransaction).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("buildRelayerTx", () => {
@@ -248,7 +322,7 @@ describe("buildRelayerTx", () => {
       id: "1",
       latestLedger: 1000,
       events: [],
-      transactionData: new SorobanDataBuilder(),
+      transactionData: new SorobanDataBuilder().setResourceFee("1000"),
       minResourceFee: "1000",
       result: { auth, retval: nativeToScVal(true) },
     };
@@ -347,4 +421,189 @@ describe("buildRelayerTx", () => {
       ),
     ).rejects.toThrow("sim: HostError");
   });
+
+  function restoreRequired(auth: xdr.SorobanAuthorizationEntry[] = []) {
+    return {
+      ...simSuccess(auth),
+      restorePreamble: { minResourceFee: "1000", transactionData: new SorobanDataBuilder() },
+    };
+  }
+
+  it("allows a restorable release probe through to the locked restore path", async () => {
+    await load(0);
+    const { simulateReleaseByRelayer } = await import("@/lib/stellar/relayer");
+    const sim = restoreRequired();
+    mockRpc.simulateTransaction.mockResolvedValue(sim);
+    expect(await simulateReleaseByRelayer(CONTRACT, "after")).toEqual({
+      ok: true,
+      latestLedger: 1000,
+      sim,
+    });
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects excessive restoration fees before signing or sending", async () => {
+    process.env.STELLAR_TTL_MAX_FEE_STROOPS = "100";
+    const { buildRelayerTx, withRelayerChannel } = await load(0);
+    mockRpc.simulateTransaction
+      .mockReset()
+      .mockResolvedValueOnce(restoreRequired())
+      .mockResolvedValueOnce(simSuccess([]));
+    await expect(
+      withRelayerChannel((channel) =>
+        buildRelayerTx({
+          channel,
+          operation: operation(),
+          onSimulationError: (m) => new Error(m),
+        }),
+      ),
+    ).rejects.toThrow("fee limit");
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+  });
+
+  it("preserves the automatic restoration list in assembled transaction data", async () => {
+    const { buildRelayerTx, withRelayerChannel } = await load(0);
+    const sim = simSuccess([]);
+    sim.transactionData.setReadWrite([new Contract(CONTRACT).getFootprint()]);
+    const data = sim.transactionData.build();
+    data.ext(
+      new xdr.SorobanTransactionDataExt(
+        1,
+        new xdr.SorobanResourcesExtV0({ archivedSorobanEntries: [0] }),
+      ),
+    );
+    sim.transactionData = new SorobanDataBuilder(data);
+    mockRpc.simulateTransaction.mockResolvedValue(sim);
+    const tx = await withRelayerChannel((channel) =>
+      buildRelayerTx({ channel, operation: operation(), onSimulationError: (m) => new Error(m) }),
+    );
+    expect(
+      tx.toEnvelope().v1().tx().ext().sorobanData().ext().resourceExt().archivedSorobanEntries(),
+    ).toEqual([0]);
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+  });
+
+  it.each([0, 1])("restores once then freshly simulates on lane %i", async (lanes) => {
+    const { buildRelayerTx, withRelayerChannel } = await load(lanes);
+    const auth = lanes ? [relayerAuthEntry(RELAYER.publicKey())] : [];
+    mockRpc.simulateTransaction
+      .mockReset()
+      .mockResolvedValueOnce(restoreRequired(auth))
+      .mockResolvedValueOnce(simSuccess([]))
+      .mockResolvedValue(simSuccess(auth));
+    mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING" });
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 1001 });
+    const tx = await withRelayerChannel((channel) =>
+      buildRelayerTx({ channel, operation: operation(), onSimulationError: (m) => new Error(m) }),
+    );
+    const restore = mockRpc.sendTransaction.mock.calls[0]![0];
+    expect(restore.operations[0].type).toBe("restoreFootprint");
+    expect(restore.source).toBe(tx.source);
+    expect(restore.signatures[0].hint()).toEqual(Keypair.fromPublicKey(tx.source).signatureHint());
+    expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(1);
+    expect(mockRpc.simulateTransaction).toHaveBeenCalledTimes(lanes ? 4 : 3);
+    expect(tx.operations[0]!.type).toBe("invokeHostFunction");
+  });
+
+  it("rechecks the release condition after restoring rather than using the probe result", async () => {
+    const { buildRelayerTx, withRelayerChannel } = await load(0);
+    mockRpc.simulateTransaction
+      .mockReset()
+      .mockResolvedValueOnce(simSuccess([]))
+      .mockResolvedValueOnce({ error: "ConditionNotMet", latestLedger: 1001 });
+    mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING" });
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS" });
+    await expect(
+      withRelayerChannel((channel) =>
+        buildRelayerTx({
+          channel,
+          operation: operation(),
+          presimulated: restoreRequired(),
+          onSimulationError: (m) => new Error(m),
+        }),
+      ),
+    ).rejects.toThrow("ConditionNotMet");
+    expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("tracks an unknown restore hash and never builds an invocation after timeout", async () => {
+    const { buildRelayerTx, relayerSourceChannel } = await load(0);
+    const trackPending = vi.fn();
+    mockRpc.simulateTransaction
+      .mockReset()
+      .mockResolvedValueOnce(restoreRequired())
+      .mockResolvedValueOnce(simSuccess([]));
+    mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING" });
+    let now = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => (now += 30_000));
+    await expect(
+      buildRelayerTx({
+        channel: { ...relayerSourceChannel(), trackPending },
+        operation: operation(),
+        onSimulationError: (m) => new Error(m),
+      }),
+    ).rejects.toThrow("finality is unknown");
+    const restore = mockRpc.sendTransaction.mock.calls[0]![0];
+    expect(trackPending).toHaveBeenCalledWith(
+      restore.hash().toString("hex"),
+      restore.timeBounds.maxTime,
+    );
+    expect(mockRpc.simulateTransaction).toHaveBeenCalledTimes(2);
+  });
+
+  it("re-records and signs channel auth after restoration requested by authorized simulation", async () => {
+    const { buildRelayerTx, withRelayerChannel } = await load(1);
+    const auth = [relayerAuthEntry(RELAYER.publicKey())];
+    mockRpc.simulateTransaction
+      .mockReset()
+      .mockResolvedValueOnce(simSuccess(auth))
+      .mockResolvedValueOnce(restoreRequired(auth))
+      .mockResolvedValueOnce(simSuccess([]))
+      .mockResolvedValue(simSuccess(auth));
+    mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING" });
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS" });
+    const tx = await withRelayerChannel((channel) =>
+      buildRelayerTx({
+        channel,
+        operation: operation(),
+        onSimulationError: (m) => new Error(m),
+      }),
+    );
+    expect(mockRpc.simulateTransaction).toHaveBeenCalledTimes(5);
+    const freshProbe = mockRpc.simulateTransaction.mock.calls[3]![0];
+    expect(freshProbe.operations[0].auth).toEqual([]);
+    expect(tx.operations[0]!.type).toBe("invokeHostFunction");
+  });
+
+  it.each(["ERROR", "FAILED", "transport", "repeat"])(
+    "does not return an invocation after restoration %s",
+    async (failure) => {
+      const { buildRelayerTx, withRelayerChannel } = await load(0);
+      mockRpc.simulateTransaction
+        .mockReset()
+        .mockResolvedValueOnce(restoreRequired())
+        .mockResolvedValueOnce(simSuccess([]))
+        .mockResolvedValue(restoreRequired());
+      mockRpc.sendTransaction.mockReset();
+      if (failure === "transport")
+        mockRpc.sendTransaction.mockRejectedValue(new Error("transport"));
+      else
+        mockRpc.sendTransaction.mockResolvedValue({
+          status: failure === "ERROR" ? "ERROR" : "PENDING",
+        });
+      mockRpc.getTransaction.mockResolvedValue({
+        status: failure === "FAILED" ? "FAILED" : "SUCCESS",
+      });
+      await expect(
+        withRelayerChannel((channel) =>
+          buildRelayerTx({
+            channel,
+            operation: operation(),
+            onSimulationError: (m) => new Error(m),
+          }),
+        ),
+      ).rejects.toThrow();
+      expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(1);
+    },
+  );
 });

@@ -53,7 +53,9 @@ pub enum Error {
     NotCancelled = 7,
 }
 
-const VERSION: u32 = 6;
+const VERSION: u32 = 7;
+const TTL_THRESHOLD: u32 = 50_000;
+const TTL_EXTEND_TO: u32 = 500_000;
 
 #[contract]
 pub struct SubscriptionTrigger;
@@ -114,6 +116,7 @@ impl SubscriptionTrigger {
         env.storage()
             .instance()
             .set(&Key::NextChargeAt, &start_time);
+        bump_ttl(&env);
     }
 
     /// Pulls the pre-authorized subscription amount from the subscriber and
@@ -136,6 +139,7 @@ impl SubscriptionTrigger {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
         env.storage().instance().set(&Key::Relayer, &new_relayer);
+        bump_ttl(&env);
         #[allow(deprecated)]
         env.events()
             .publish((Symbol::new(&env, "set_relayer"), admin), new_relayer);
@@ -198,6 +202,7 @@ impl SubscriptionTrigger {
         token::Client::new(&env, &asset).approve(&subscriber, &contract, &0, &expiration_ledger);
 
         env.storage().instance().set(&Key::Cancelled, &true);
+        bump_ttl(&env);
 
         #[allow(deprecated)]
         env.events()
@@ -227,6 +232,7 @@ impl SubscriptionTrigger {
         }
 
         env.storage().instance().set(&Key::Cancelled, &false);
+        bump_ttl(&env);
 
         #[allow(deprecated)]
         env.events()
@@ -290,9 +296,18 @@ fn execute_charge(env: &Env) {
         &next_charge_at.saturating_add(interval_seconds),
     );
 
+    bump_ttl(env);
+
     #[allow(deprecated)]
     env.events()
         .publish((symbol_short!("charge"), subscriber), amount);
+}
+
+// The host checks and extends the instance and shared code lifetimes independently.
+fn bump_ttl(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
 }
 
 fn invoke_receive_and_forward(
@@ -709,3 +724,7 @@ mod test {
         client.subscribe(); // already active
     }
 }
+
+#[cfg(test)]
+#[path = "ttl-tests.rs"]
+mod ttl_tests;

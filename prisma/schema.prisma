@@ -296,6 +296,10 @@ model Deployment {
   // so a deployment whose scan always fails rotates to the back instead of
   // holding a batch slot forever (EventCursor.updatedAt only moves on success).
   eventsPolledAt          DateTime?
+  // TTL inventory attempts rotate durably, including failed reads.
+  ttlCheckedAt            DateTime?
+  // Position within a large durable pipeline; each inventory reads one instance.
+  ttlScanOffset           Int               @default(0)
 
   flow                 Flow                  @relation(fields: [flowId], references: [id], onDelete: Restrict)
   owner                User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
@@ -318,6 +322,7 @@ model Deployment {
   @@index([status, chargeRelayerMode, nextChargeAt])
   @@index([chargeRelayerMode])
   @@index([status, eventsPolledAt])
+  @@index([network, status, ttlCheckedAt, id])
 }
 
 model StreamerClaimJob {
@@ -702,4 +707,11 @@ model FileAsset {
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([ownerId, createdAt(sort: Desc)])
+}
+
+// Rotates current templates/factory independently of deployments, including failures.
+model TtlMaintenanceState {
+  network      String @id
+  sharedOffset Int    @default(0)
+  sharedFirst  Boolean @default(false)
 }

@@ -9,6 +9,7 @@ const g = globalThis as unknown as {
   __sorobanRpc?: rpc.Server;
   __horizon?: Horizon.Server;
   __relayerValidated?: boolean;
+  __relayerPendingBarrier?: () => Promise<void>;
 };
 
 async function validateRelayerSequence(server: rpc.Server) {
@@ -91,8 +92,16 @@ export function decodeContractAddress(addr: string): Buffer {
 // dedicated single signer) on top of this.
 let relayerQueue = Promise.resolve<unknown>(undefined);
 
+/** Register source-lane reconciliation without importing channel code into the RPC client. */
+export function registerRelayerPendingBarrier(barrier: () => Promise<void>): void {
+  g.__relayerPendingBarrier = barrier;
+}
+
 export async function withRelayerLock<T>(fn: () => Promise<T>): Promise<T> {
-  const promise = relayerQueue.then(() => fn());
+  const promise = relayerQueue.then(async () => {
+    await g.__relayerPendingBarrier?.();
+    return fn();
+  });
   relayerQueue = promise.then(
     () => {},
     () => {},

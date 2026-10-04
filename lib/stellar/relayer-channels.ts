@@ -3,14 +3,20 @@ import {
   Address,
   BASE_FEE,
   Keypair,
+  Operation,
   Transaction,
   TransactionBuilder,
   authorizeEntry,
   rpc,
   xdr,
 } from "@stellar/stellar-sdk";
-import { horizon, sorobanRpc, withRelayerLock } from "./client";
-import { stellarPassphrase, stellarRelayerChannelCount, stellarRelayerSecretKey } from "@/lib/env";
+import { horizon, registerRelayerPendingBarrier, sorobanRpc, withRelayerLock } from "./client";
+import {
+  env,
+  stellarPassphrase,
+  stellarRelayerChannelCount,
+  stellarRelayerSecretKey,
+} from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { deriveChannelKeypair } from "./relayer-channel-keys";
 import { log } from "@/lib/log";
@@ -55,9 +61,10 @@ export type RelayerChannel = {
   /**
    * Record a transaction sent but not yet final. The next holder of this
    * channel waits for it inside the lock, so its sequence number is current.
-   * A no-op on the relayer lane, which behaves as it did before channels.
    */
-  trackPending(txHash: string): void;
+  trackPending(txHash: string, maxTime?: string): void;
+  /** Clear only this known final/rejected transaction; leave other work intact. */
+  clearPending?(txHash: string): void;
 };
 
 function requireRelayerKeypair(): Keypair {
@@ -70,14 +77,27 @@ function requireRelayerKeypair(): Keypair {
 
 /** The relayer as its own source: today's behaviour, and the fallback lane. */
 export function relayerSourceChannel(): RelayerChannel {
+  registerRelayerPendingBarrier(async () => {
+    if (g.__relayerSourcePending) await waitForPending(g.__relayerSourcePending);
+  });
   const kp = requireRelayerKeypair();
+  if (g.__relayerSourcePending?.address !== kp.publicKey()) {
+    g.__relayerSourcePending = { address: kp.publicKey(), pendingHash: null, pendingMaxTime: null };
+  }
+  const pending = g.__relayerSourcePending;
   return {
     keypair: kp,
     publicKey: kp.publicKey(),
     relayerSigner: kp,
     index: null,
     isRelayerSource: true,
-    trackPending: () => {},
+    trackPending: (hash, maxTime) => {
+      pending.pendingHash = hash;
+      pending.pendingMaxTime = maxTime ?? null;
+    },
+    clearPending: (hash) => {
+      if (pending.pendingHash === hash) pending.pendingHash = null;
+    },
   };
 }
 
@@ -89,6 +109,7 @@ type Slot = {
   verifiedAt: number;
   warned: boolean;
   pendingHash: string | null;
+  pendingMaxTime: string | null;
 };
 
 type Pool = {
@@ -97,7 +118,14 @@ type Pool = {
   lastFallbackWarnAt: number;
 };
 
-const g = globalThis as unknown as { __relayerChannelPool?: Pool };
+const g = globalThis as unknown as {
+  __relayerChannelPool?: Pool;
+  __relayerSourcePending?: {
+    address: string;
+    pendingHash: string | null;
+    pendingMaxTime: string | null;
+  };
+};
 
 function getPool(): Pool {
   const count = stellarRelayerChannelCount();
@@ -118,14 +146,19 @@ function getPool(): Pool {
       verifiedAt: 0,
       warned: false,
       pendingHash: null,
+      pendingMaxTime: null,
       channel: {
         keypair: kp,
         publicKey: kp.publicKey(),
         relayerSigner: relayer,
         index: i,
         isRelayerSource: false,
-        trackPending: (hash) => {
+        trackPending: (hash, maxTime) => {
           slot.pendingHash = hash;
+          slot.pendingMaxTime = maxTime ?? null;
+        },
+        clearPending: (hash) => {
+          if (slot.pendingHash === hash) slot.pendingHash = null;
         },
       },
     };
@@ -139,6 +172,7 @@ function getPool(): Pool {
 /** Test hook: forget the pool so the next call rebuilds it from env. */
 export function resetRelayerChannelPoolForTests(): void {
   delete g.__relayerChannelPool;
+  delete g.__relayerSourcePending;
 }
 
 function isMissingAccount(err: unknown): boolean {
@@ -211,21 +245,50 @@ function release(pool: Pool, slot: Slot): void {
   wake(pool);
 }
 
-async function waitForPending(slot: Slot): Promise<void> {
+async function waitForPending(slot: {
+  pendingHash: string | null;
+  pendingMaxTime: string | null;
+}): Promise<void> {
   const hash = slot.pendingHash;
   if (!hash) return;
-  slot.pendingHash = null;
   const server = sorobanRpc();
   const deadline = Date.now() + PENDING_WAIT_MS;
   while (Date.now() < deadline) {
-    try {
-      const got = await server.getTransaction(hash);
-      if (got.status !== "NOT_FOUND") return;
-    } catch {
+    const got = await server.getTransaction(hash);
+    if (got.status === "SUCCESS" || got.status === "FAILED") {
+      slot.pendingHash = null;
       return;
+    }
+    // An ambiguous rent submit may never have arrived. Only a CLOSED ledger
+    // beyond the signed envelope's upper time bound proves it cannot land now.
+    // This releases the source lane; it does not classify or retry that work.
+    if (
+      got.status === "NOT_FOUND" &&
+      slot.pendingMaxTime &&
+      /^\d+$/.test(slot.pendingMaxTime) &&
+      BigInt(slot.pendingMaxTime) > 0n
+    ) {
+      const latest = await server.getLatestLedger();
+      if (
+        typeof latest.closeTime === "string" &&
+        /^\d+$/.test(latest.closeTime) &&
+        BigInt(latest.closeTime) <= 0xffff_ffff_ffff_ffffn &&
+        BigInt(latest.closeTime) > BigInt(slot.pendingMaxTime)
+      ) {
+        slot.pendingHash = null;
+        return;
+      }
     }
     await new Promise((r) => setTimeout(r, PENDING_POLL_MS));
   }
+  throw new AppError("UPSTREAM_RPC", "Previous relayer transaction finality is unknown");
+}
+
+async function withRelayerSource<T>(fn: (channel: RelayerChannel) => Promise<T>): Promise<T> {
+  return withRelayerLock(async () => {
+    const channel = relayerSourceChannel();
+    return fn(channel);
+  });
 }
 
 /**
@@ -241,7 +304,7 @@ export async function withRelayerChannel<T>(
   fn: (channel: RelayerChannel) => Promise<T>,
 ): Promise<T> {
   if (stellarRelayerChannelCount() === 0) {
-    return withRelayerLock(() => fn(relayerSourceChannel()));
+    return withRelayerSource(fn);
   }
   const pool = getPool();
   const slot = await acquire(pool);
@@ -251,7 +314,7 @@ export async function withRelayerChannel<T>(
       pool.lastFallbackWarnAt = now;
       log.warn("no funded relayer channel; using the relayer account as source");
     }
-    return withRelayerLock(() => fn(relayerSourceChannel()));
+    return withRelayerSource(fn);
   }
   try {
     await waitForPending(slot);
@@ -299,10 +362,28 @@ function credentialAddress(entry: xdr.SorobanAuthorizationEntry): string | null 
  * left as they came.
  */
 export async function buildRelayerTx(opts: BuildRelayerTxOptions): Promise<Transaction> {
+  return buildRelayerTxAttempt(opts, true);
+}
+
+/** Restore only before submission, then rebuild once; never retry a payment. */
+async function buildRelayerTxAttempt(
+  opts: BuildRelayerTxOptions,
+  mayRestore: boolean,
+): Promise<Transaction> {
   const { channel } = opts;
   const server = sorobanRpc();
   const passphrase = stellarPassphrase();
   const timeout = opts.timeoutSeconds ?? 180;
+
+  const restoreAndRebuild = async (sim: rpc.Api.SimulateTransactionRestoreResponse) => {
+    if (!mayRestore) {
+      throw opts.onSimulationError("Archived state still requires restoration after one restore");
+    }
+    await restoreRelayerFootprint(server, channel, sim, passphrase, opts.onSimulationError);
+    // Restoration consumed a sequence number and changed the ledger. Discard
+    // the probe's footprint and every recorded relayer authorization.
+    return buildRelayerTxAttempt({ ...opts, presimulated: undefined }, false);
+  };
 
   let sourceAcct;
   try {
@@ -324,6 +405,7 @@ export async function buildRelayerTx(opts: BuildRelayerTxOptions): Promise<Trans
   if (channel.isRelayerSource) {
     const sim = opts.presimulated ?? (await server.simulateTransaction(tx));
     if (rpc.Api.isSimulationError(sim)) throw opts.onSimulationError(sim.error);
+    if (rpc.Api.isSimulationRestore(sim)) return restoreAndRebuild(sim);
     const assembled = rpc.assembleTransaction(tx, sim).build();
     assembled.sign(channel.keypair);
     return assembled;
@@ -343,6 +425,7 @@ export async function buildRelayerTx(opts: BuildRelayerTxOptions): Promise<Trans
   invokeOp.auth([]);
   const sim1 = await server.simulateTransaction(new Transaction(envelope, passphrase));
   if (rpc.Api.isSimulationError(sim1)) throw opts.onSimulationError(sim1.error);
+  if (rpc.Api.isSimulationRestore(sim1)) return restoreAndRebuild(sim1);
 
   const relayerAddress = channel.relayerSigner.publicKey();
   const validUntil = sim1.latestLedger + AUTH_LEDGER_MARGIN;
@@ -364,9 +447,55 @@ export async function buildRelayerTx(opts: BuildRelayerTxOptions): Promise<Trans
   const authorized = new Transaction(envelope, passphrase);
   const sim2 = await server.simulateTransaction(authorized);
   if (rpc.Api.isSimulationError(sim2)) throw opts.onSimulationError(sim2.error);
+  if (rpc.Api.isSimulationRestore(sim2)) return restoreAndRebuild(sim2);
   const assembled = rpc.assembleTransaction(authorized, sim2).build();
   assembled.sign(channel.keypair);
   return assembled;
+}
+
+async function restoreRelayerFootprint(
+  server: rpc.Server,
+  channel: RelayerChannel,
+  sim: rpc.Api.SimulateTransactionRestoreResponse,
+  passphrase: string,
+  onError: (message: string) => Error,
+): Promise<void> {
+  const account = await server.getAccount(channel.publicKey);
+  const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: passphrase })
+    .setSorobanData(sim.restorePreamble.transactionData.build())
+    .addOperation(Operation.restoreFootprint({}))
+    .setTimeout(180)
+    .build();
+  const restoreSim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(restoreSim)) throw onError(restoreSim.error);
+  if (rpc.Api.isSimulationRestore(restoreSim)) {
+    throw onError("Restoration simulation unexpectedly requires restoration");
+  }
+  const assembled = rpc.assembleTransaction(tx, restoreSim).build();
+  if (BigInt(assembled.fee) > BigInt(env().STELLAR_TTL_MAX_FEE_STROOPS)) {
+    throw onError("Archived state restoration exceeds the configured maintenance fee limit");
+  }
+  assembled.sign(channel.keypair);
+  const hash = assembled.hash().toString("hex");
+  // Record before sending: transport failure can leave a submitted restore
+  // with unknown finality. The next channel holder must reconcile that hash.
+  channel.trackPending(hash, assembled.timeBounds?.maxTime);
+  const sent = await server.sendTransaction(assembled);
+  if (sent.status === "ERROR") {
+    channel.clearPending?.(hash);
+    throw onError("Archived state restoration was rejected");
+  }
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const got = await server.getTransaction(hash);
+    if (got.status === "SUCCESS" || got.status === "FAILED") {
+      channel.clearPending?.(hash);
+      if (got.status === "SUCCESS") return;
+      throw onError("Archived state restoration failed on the network");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  throw onError("Archived state restoration finality is unknown; invocation was not submitted");
 }
 
 export type RelayerChannelBalance = {

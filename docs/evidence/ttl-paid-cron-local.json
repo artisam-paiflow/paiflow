@@ -1,0 +1,556 @@
+{
+  "date": "2026-10-04",
+  "scope": "Actual POST handler exposed through local-only Node HTTP adapter; genuine Stellar RPC simulation/submission/finality, PostgreSQL and Redis. No RPC or DB mocks.",
+  "network": {
+    "name": "isolated standalone",
+    "passphrase": "Standalone Network ; February 2017",
+    "protocol": 26,
+    "minPersistentTtl": 180,
+    "maxEntryTtl": 3110400,
+    "note": "Accelerated real local chain, not public TESTNET. TTL180 fixture setting permits immediate genuine due entries; production application TTL thresholds and limits unchanged."
+  },
+  "httpGuard": {
+    "missingSecret": {
+      "status": 403,
+      "body": {
+        "error": {
+          "code": "FORBIDDEN",
+          "message": "Bad cron secret"
+        }
+      }
+    },
+    "badSecret": {
+      "status": 403,
+      "body": {
+        "error": {
+          "code": "FORBIDDEN",
+          "message": "Bad cron secret"
+        }
+      }
+    },
+    "heldLease": {
+      "status": 200,
+      "body": {
+        "data": {
+          "dryRun": false,
+          "deployments": 0,
+          "submissions": 0,
+          "truncated": false,
+          "budgetExhausted": false,
+          "moreDeployments": false,
+          "partialPipelines": false,
+          "details": [],
+          "failedDeployments": [],
+          "scans": [],
+          "leaseHeld": true
+        }
+      }
+    },
+    "tick": {
+      "status": 200,
+      "body": {
+        "data": {
+          "dryRun": false,
+          "deployments": 0,
+          "submissions": 0,
+          "truncated": false,
+          "budgetExhausted": false,
+          "moreDeployments": false,
+          "partialPipelines": false,
+          "details": [],
+          "failedDeployments": [],
+          "scans": []
+        }
+      }
+    },
+    "cursor": {
+      "network": "testnet",
+      "sharedOffset": 0,
+      "sharedFirst": true
+    }
+  },
+  "lanes": {
+    "channelsDisabled": {
+      "fixture": {
+        "hash": "4af3cc5f61e80f7c241311bfdd90f03830fdb8865475abaa48b3e1aa2a5e17a2",
+        "txHash": "609ef6e1f71151c3ac1e09a7dceeae240571841bd6aad7551de0c673845de1ae",
+        "liveUntil": 570,
+        "ledger": 391
+      },
+      "feeCapRejection": {
+        "status": 200,
+        "body": {
+          "data": {
+            "dryRun": false,
+            "deployments": 0,
+            "submissions": 1,
+            "truncated": false,
+            "budgetExhausted": false,
+            "moreDeployments": false,
+            "partialPipelines": false,
+            "details": [
+              {
+                "target": "4af3cc5f61e80f7c241311bfdd90f03830fdb8865475abaa48b3e1aa2a5e17a2",
+                "kind": "code",
+                "status": "failed",
+                "liveUntilLedger": 570,
+                "reason": "TTL maintenance fee exceeds configured cap"
+              }
+            ],
+            "failedDeployments": [],
+            "scans": [],
+            "sharedScan": {
+              "totalTargets": 1,
+              "nextOffset": 0
+            }
+          }
+        }
+      },
+      "successfulExtension": {
+        "status": 200,
+        "body": {
+          "data": {
+            "dryRun": false,
+            "deployments": 0,
+            "submissions": 1,
+            "truncated": false,
+            "budgetExhausted": false,
+            "moreDeployments": false,
+            "partialPipelines": false,
+            "details": [
+              {
+                "target": "4af3cc5f61e80f7c241311bfdd90f03830fdb8865475abaa48b3e1aa2a5e17a2",
+                "kind": "code",
+                "status": "extended",
+                "liveUntilLedger": 500434,
+                "txHash": "a59f6b5ee4f6c55ec77de11b5fbe1888db52c5bd0d4f2c1e6e650fada104f119",
+                "feeStroops": "50162262"
+              }
+            ],
+            "failedDeployments": [],
+            "scans": [],
+            "sharedScan": {
+              "totalTargets": 1,
+              "nextOffset": 0
+            }
+          }
+        }
+      },
+      "fees": [
+        {
+          "txHash": "a59f6b5ee4f6c55ec77de11b5fbe1888db52c5bd0d4f2c1e6e650fada104f119",
+          "status": "SUCCESS",
+          "ledger": 434,
+          "declaredFeeStroops": "50162262",
+          "resultFeeCharged": "43587296",
+          "horizonFeeCharged": "43587296",
+          "source": "GCFFPJSSWGK2KPOYVFHXQEZD7NYEDQLSEJMRYIBFZMLR5EJB7QQC5QTI",
+          "preBalances": [
+            {
+              "change": "ledgerEntryState",
+              "address": "GCFFPJSSWGK2KPOYVFHXQEZD7NYEDQLSEJMRYIBFZMLR5EJB7QQC5QTI",
+              "balance": "99949489625"
+            },
+            {
+              "change": "ledgerEntryUpdated",
+              "address": "GCFFPJSSWGK2KPOYVFHXQEZD7NYEDQLSEJMRYIBFZMLR5EJB7QQC5QTI",
+              "balance": "99949489625"
+            }
+          ],
+          "postBalances": [],
+          "refundedFromDeclaredFeeStroops": "6574966",
+          "sorobanFees": {
+            "totalNonRefundableResourceFeeCharged": "9012",
+            "totalRefundableResourceFeeCharged": "43578184",
+            "rentFeeCharged": "43578184"
+          },
+          "feeEvents": [
+            {
+              "stage": "transactionEventStageBeforeAllTxes",
+              "topics": ["fee", "GCFFPJSSWGK2KPOYVFHXQEZD7NYEDQLSEJMRYIBFZMLR5EJB7QQC5QTI"],
+              "amount": "50162262"
+            },
+            {
+              "stage": "transactionEventStageAfterAllTxes",
+              "topics": ["fee", "GCFFPJSSWGK2KPOYVFHXQEZD7NYEDQLSEJMRYIBFZMLR5EJB7QQC5QTI"],
+              "amount": "-6574966"
+            }
+          ]
+        }
+      ]
+    },
+    "fundedChannel": {
+      "configuredChannels": 1,
+      "fixture": {
+        "hash": "1c9c456a8088e0e27a8b733140d268e6284894350e32d7c61bb2816bceb27e66",
+        "txHash": "bb72da736a146b57924b2d317e251e05ee5fd0907d1b0b5ed9fe7ac339850a97",
+        "liveUntil": 653,
+        "ledger": 474
+      },
+      "feeCapRejection": {
+        "status": 200,
+        "body": {
+          "data": {
+            "dryRun": false,
+            "deployments": 0,
+            "submissions": 1,
+            "truncated": false,
+            "budgetExhausted": false,
+            "moreDeployments": false,
+            "partialPipelines": false,
+            "details": [
+              {
+                "target": "1c9c456a8088e0e27a8b733140d268e6284894350e32d7c61bb2816bceb27e66",
+                "kind": "code",
+                "status": "failed",
+                "liveUntilLedger": 653,
+                "reason": "TTL maintenance fee exceeds configured cap"
+              }
+            ],
+            "failedDeployments": [],
+            "scans": [],
+            "sharedScan": {
+              "totalTargets": 1,
+              "nextOffset": 0
+            }
+          }
+        }
+      },
+      "successfulExtension": {
+        "status": 200,
+        "body": {
+          "data": {
+            "dryRun": false,
+            "deployments": 0,
+            "submissions": 1,
+            "truncated": false,
+            "budgetExhausted": false,
+            "moreDeployments": false,
+            "partialPipelines": false,
+            "details": [
+              {
+                "target": "1c9c456a8088e0e27a8b733140d268e6284894350e32d7c61bb2816bceb27e66",
+                "kind": "code",
+                "status": "extended",
+                "liveUntilLedger": 500501,
+                "txHash": "a7fd7e10febe3e40d34c9e62491b01df359f481dea9195694c319dfc86cc7b5e",
+                "feeStroops": "50160659"
+              }
+            ],
+            "failedDeployments": [],
+            "scans": [],
+            "sharedScan": {
+              "totalTargets": 1,
+              "nextOffset": 0
+            }
+          }
+        }
+      },
+      "fees": [
+        {
+          "txHash": "a7fd7e10febe3e40d34c9e62491b01df359f481dea9195694c319dfc86cc7b5e",
+          "status": "SUCCESS",
+          "ledger": 501,
+          "declaredFeeStroops": "50160659",
+          "resultFeeCharged": "43585901",
+          "horizonFeeCharged": "43585901",
+          "source": "GBYVQI4JJUS7FUXV666YHMWKPSVOWR3V5FROJQPTKVEKZH4BCZVJGR75",
+          "preBalances": [
+            {
+              "change": "ledgerEntryState",
+              "address": "GBYVQI4JJUS7FUXV666YHMWKPSVOWR3V5FROJQPTKVEKZH4BCZVJGR75",
+              "balance": "99949839341"
+            },
+            {
+              "change": "ledgerEntryUpdated",
+              "address": "GBYVQI4JJUS7FUXV666YHMWKPSVOWR3V5FROJQPTKVEKZH4BCZVJGR75",
+              "balance": "99949839341"
+            }
+          ],
+          "postBalances": [],
+          "refundedFromDeclaredFeeStroops": "6574758",
+          "sorobanFees": {
+            "totalNonRefundableResourceFeeCharged": "9012",
+            "totalRefundableResourceFeeCharged": "43576789",
+            "rentFeeCharged": "43576789"
+          },
+          "feeEvents": [
+            {
+              "stage": "transactionEventStageBeforeAllTxes",
+              "topics": ["fee", "GBYVQI4JJUS7FUXV666YHMWKPSVOWR3V5FROJQPTKVEKZH4BCZVJGR75"],
+              "amount": "50160659"
+            },
+            {
+              "stage": "transactionEventStageAfterAllTxes",
+              "topics": ["fee", "GBYVQI4JJUS7FUXV666YHMWKPSVOWR3V5FROJQPTKVEKZH4BCZVJGR75"],
+              "amount": "-6574758"
+            }
+          ]
+        }
+      ]
+    },
+    "allChannelsUnfundedFallback": {
+      "configuredChannels": 1,
+      "fixture": {
+        "hash": "2fa69668277d112f8804eb9ed927df2845403807b3c5ae6f2eead096ff26328d",
+        "txHash": "50c827cc8c62b7b40f26921d221db2a173393e5e7f1a92983010b3c1c9a65a5d",
+        "liveUntil": 783,
+        "ledger": 604
+      },
+      "feeCapRejection": {
+        "status": 200,
+        "body": {
+          "data": {
+            "dryRun": false,
+            "deployments": 0,
+            "submissions": 1,
+            "truncated": true,
+            "budgetExhausted": false,
+            "moreDeployments": false,
+            "partialPipelines": false,
+            "details": [
+              {
+                "target": "2fa69668277d112f8804eb9ed927df2845403807b3c5ae6f2eead096ff26328d",
+                "kind": "code",
+                "status": "failed",
+                "liveUntilLedger": 783,
+                "reason": "TTL maintenance fee exceeds configured cap"
+              }
+            ],
+            "failedDeployments": [],
+            "scans": [],
+            "sharedScan": {
+              "totalTargets": 2,
+              "nextOffset": 1
+            }
+          }
+        }
+      },
+      "successfulExtension": {
+        "status": 200,
+        "body": {
+          "data": {
+            "dryRun": false,
+            "deployments": 0,
+            "submissions": 1,
+            "truncated": true,
+            "budgetExhausted": false,
+            "moreDeployments": false,
+            "partialPipelines": false,
+            "details": [
+              {
+                "target": "2fa69668277d112f8804eb9ed927df2845403807b3c5ae6f2eead096ff26328d",
+                "kind": "code",
+                "status": "extended",
+                "liveUntilLedger": 500642,
+                "txHash": "1fc797b121132918a24e9fa89f36d081b14d5cae976bdeabe5097011153dd45d",
+                "feeStroops": "50161760"
+              }
+            ],
+            "failedDeployments": [],
+            "scans": [],
+            "sharedScan": {
+              "totalTargets": 2,
+              "nextOffset": 1
+            }
+          }
+        }
+      },
+      "fees": [
+        {
+          "txHash": "1fc797b121132918a24e9fa89f36d081b14d5cae976bdeabe5097011153dd45d",
+          "status": "SUCCESS",
+          "ledger": 642,
+          "declaredFeeStroops": "50161760",
+          "resultFeeCharged": "43586860",
+          "horizonFeeCharged": "43586860",
+          "source": "GBDGBKEJFVJSKM72HWSGQBFJGJH5SP675RUKCBEQZ4JRR5QGJBMALUEF",
+          "preBalances": [
+            {
+              "change": "ledgerEntryState",
+              "address": "GBDGBKEJFVJSKM72HWSGQBFJGJH5SP675RUKCBEQZ4JRR5QGJBMALUEF",
+              "balance": "99949490127"
+            },
+            {
+              "change": "ledgerEntryUpdated",
+              "address": "GBDGBKEJFVJSKM72HWSGQBFJGJH5SP675RUKCBEQZ4JRR5QGJBMALUEF",
+              "balance": "99949490127"
+            }
+          ],
+          "postBalances": [],
+          "refundedFromDeclaredFeeStroops": "6574900",
+          "sorobanFees": {
+            "totalNonRefundableResourceFeeCharged": "9012",
+            "totalRefundableResourceFeeCharged": "43577748",
+            "rentFeeCharged": "43577748"
+          },
+          "feeEvents": [
+            {
+              "stage": "transactionEventStageBeforeAllTxes",
+              "topics": ["fee", "GBDGBKEJFVJSKM72HWSGQBFJGJH5SP675RUKCBEQZ4JRR5QGJBMALUEF"],
+              "amount": "50161760"
+            },
+            {
+              "stage": "transactionEventStageAfterAllTxes",
+              "topics": ["fee", "GBDGBKEJFVJSKM72HWSGQBFJGJH5SP675RUKCBEQZ4JRR5QGJBMALUEF"],
+              "amount": "-6574900"
+            }
+          ]
+        }
+      ],
+      "chainLaneEvidence": {
+        "unfundedChannel": "GBTNJLALJTHHOUC46MRRPQZN24QYCOGAAMCNTHJQ2E7ZNWNZGXUFTKOF",
+        "unfundedChannelHttpStatus": 404,
+        "fallbackRelayer": "GBDGBKEJFVJSKM72HWSGQBFJGJH5SP675RUKCBEQZ4JRR5QGJBMALUEF",
+        "transactions": [
+          {
+            "hash": "fa95e84972013f515638c2697451c42543c782b8cee69a3cfecb911b0f1d37ad",
+            "successful": true,
+            "source": "GDSHNE5JI7YVGUYVW3MAQMWC3O5GLKXSG5PZQLGHSYVMF5QX6DUZPTX4",
+            "feeCharged": "100"
+          },
+          {
+            "hash": "50c827cc8c62b7b40f26921d221db2a173393e5e7f1a92983010b3c1c9a65a5d",
+            "successful": true,
+            "source": "GBDGBKEJFVJSKM72HWSGQBFJGJH5SP675RUKCBEQZ4JRR5QGJBMALUEF",
+            "feeCharged": "348113"
+          },
+          {
+            "hash": "1fc797b121132918a24e9fa89f36d081b14d5cae976bdeabe5097011153dd45d",
+            "successful": true,
+            "source": "GBDGBKEJFVJSKM72HWSGQBFJGJH5SP675RUKCBEQZ4JRR5QGJBMALUEF",
+            "feeCharged": "43586860"
+          }
+        ]
+      }
+    }
+  },
+  "sharedRotation": [
+    {
+      "before": {
+        "network": "testnet",
+        "sharedOffset": 0,
+        "sharedFirst": true
+      },
+      "status": 200,
+      "body": {
+        "data": {
+          "dryRun": false,
+          "deployments": 0,
+          "submissions": 0,
+          "truncated": true,
+          "budgetExhausted": false,
+          "moreDeployments": false,
+          "partialPipelines": false,
+          "details": [
+            {
+              "target": "1c9c456a8088e0e27a8b733140d268e6284894350e32d7c61bb2816bceb27e66",
+              "kind": "code",
+              "status": "healthy",
+              "liveUntilLedger": 500501
+            }
+          ],
+          "failedDeployments": [],
+          "scans": [],
+          "sharedScan": {
+            "totalTargets": 2,
+            "nextOffset": 1
+          }
+        }
+      },
+      "after": {
+        "network": "testnet",
+        "sharedOffset": 1,
+        "sharedFirst": false
+      }
+    },
+    {
+      "before": {
+        "network": "testnet",
+        "sharedOffset": 1,
+        "sharedFirst": false
+      },
+      "status": 200,
+      "body": {
+        "data": {
+          "dryRun": false,
+          "deployments": 0,
+          "submissions": 0,
+          "truncated": false,
+          "budgetExhausted": false,
+          "moreDeployments": false,
+          "partialPipelines": false,
+          "details": [
+            {
+              "target": "4af3cc5f61e80f7c241311bfdd90f03830fdb8865475abaa48b3e1aa2a5e17a2",
+              "kind": "code",
+              "status": "healthy",
+              "liveUntilLedger": 500434
+            }
+          ],
+          "failedDeployments": [],
+          "scans": [],
+          "sharedScan": {
+            "totalTargets": 2,
+            "nextOffset": 0
+          }
+        }
+      },
+      "after": {
+        "network": "testnet",
+        "sharedOffset": 0,
+        "sharedFirst": true
+      }
+    },
+    {
+      "before": {
+        "network": "testnet",
+        "sharedOffset": 0,
+        "sharedFirst": true
+      },
+      "status": 200,
+      "body": {
+        "data": {
+          "dryRun": false,
+          "deployments": 0,
+          "submissions": 0,
+          "truncated": true,
+          "budgetExhausted": false,
+          "moreDeployments": false,
+          "partialPipelines": false,
+          "details": [
+            {
+              "target": "1c9c456a8088e0e27a8b733140d268e6284894350e32d7c61bb2816bceb27e66",
+              "kind": "code",
+              "status": "healthy",
+              "liveUntilLedger": 500501
+            }
+          ],
+          "failedDeployments": [],
+          "scans": [],
+          "sharedScan": {
+            "totalTargets": 2,
+            "nextOffset": 1
+          }
+        }
+      },
+      "after": {
+        "network": "testnet",
+        "sharedOffset": 1,
+        "sharedFirst": false
+      }
+    }
+  ],
+  "feeCaps": {
+    "rejectionCapStroops": "100",
+    "successCapStroops": "1000000000",
+    "note": "Fixture-only caps, no rollout budget selected. submissions is attempted operations, not successful on-chain sends."
+  },
+  "limits": [
+    "Paid smoke targets due actual WASM code keys; full pipeline instance/archive checks recorded separately.",
+    "HTTP adapter imports real route POST, NextRequest, NextResponse; does not boot Next server or middleware. Cron endpoints are public in middleware and guarded in real route.",
+    "Existing Redis helper fails open on first connection if lease attempted before ready; lease-held assertion uses warm client.",
+    "Default production maintenance remains off. No shared DB/hash/env modified."
+  ],
+  "feesInterpretation": "Local protocol26 transaction result feeCharged and Horizon fee_charged match final net fee: declared fee minus explicit transactionEventStageAfterAllTxes fee refund. Soroban metadata separates refundable/nonrefundable resource fees and rent. Public TESTNET earlier result semantics should be verified before relabeling."
+}

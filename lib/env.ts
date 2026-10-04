@@ -297,6 +297,16 @@ const EnvSchema = z.object({
   // ask for thousands of accounts to fund.
   STELLAR_RELAYER_CHANNELS: z.coerce.number().int().min(0).max(50).default(0),
 
+  // Paid TTL maintenance is opt-in; otherwise the cron only inventories.
+  STELLAR_TTL_MAINTENANCE_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  STELLAR_TTL_MAX_FEE_STROOPS: z
+    .string()
+    .regex(/^[1-9]\d{0,18}$/)
+    .default("1000000"),
+
   // ---- Off-ramp treasury ----
   // Relayer-controlled holding address that cash_out nodes sink USDC to before
   // the off-chain PDAX leg. When unset, the relayer address is used.
