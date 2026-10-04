@@ -137,6 +137,7 @@ export async function POST(req: NextRequest) {
         templateKind: node.templateKind,
         wasmHash: hash,
         params: node.params,
+        implementation: node.implementation,
       };
     });
 

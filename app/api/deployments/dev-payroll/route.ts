@@ -234,6 +234,7 @@ export async function POST(req: NextRequest) {
         templateKind: node.templateKind,
         wasmHash,
         params: node.params,
+        implementation: node.implementation,
       };
     });
 

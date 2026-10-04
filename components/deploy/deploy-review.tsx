@@ -7,6 +7,7 @@ import type { Asset } from "@/lib/flows/schema";
 import type { TrustlineCheck } from "@/lib/stellar/trustline-check";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
+import { implementationLabel } from "@/lib/flows/implementation";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
 import type { TemplateKind } from "@prisma/client";
 import { apiError } from "@/lib/friendly-error";
@@ -65,7 +66,12 @@ export default function DeployReview({
 }) {
   const [busy, setBusy] = useState(false);
   const [pipeline, setPipeline] = useState<
-    Array<{ nodeId: string; contractAddress: string; templateKind: TemplateKind }>
+    Array<{
+      nodeId: string;
+      contractAddress: string;
+      templateKind: TemplateKind;
+      implementation?: unknown;
+    }>
   >([]);
   const isMainnet = network === "mainnet";
   const swapCount = swapPreviews?.length ?? 0;
@@ -210,7 +216,7 @@ export default function DeployReview({
                 </span>
                 <div className="min-w-0">
                   <span className="text-label-md text-on-surface font-mono">
-                    {TEMPLATE_LABELS[node.templateKind]}
+                    {implementationLabel(node.implementation) ?? TEMPLATE_LABELS[node.templateKind]}
                   </span>
                   <div className="text-label-sm text-on-surface-variant truncate font-mono">
                     {node.contractAddress}

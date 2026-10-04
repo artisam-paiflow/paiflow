@@ -6,6 +6,7 @@ import DeploymentCanvas from "./deployment-canvas";
 import { eventsReducer } from "./deployment-events";
 import { LiveEvents, type Evt } from "./live-events";
 import LiveBalances from "./live-balances";
+import PipelineImplementations, { type MonitoredPipelineNode } from "./pipeline-implementations";
 import ContractCallButton from "./contract-call-button";
 import SubscriptionRelayerPanel from "./subscription-relayer-panel";
 import PayrollPanel from "./payroll-panel";
@@ -45,7 +46,7 @@ export default function DeploymentView({
   initialEvents: Evt[];
   graph: FlowGraph | null;
   webhookSecret: string | null;
-  pipeline?: Array<{ nodeId: string; contractAddress: string; templateKind: string }> | null;
+  pipeline?: MonitoredPipelineNode[] | null;
   templateKind?: string | null;
   errorMessage: string | null;
   canEditDevValues?: boolean;
@@ -317,6 +318,7 @@ export default function DeploymentView({
           <DeploymentCanvas graph={graph} pulseTick={pulse} />
         </section>
       )}
+      {pipeline && <PipelineImplementations pipeline={pipeline} network={network} />}
       <LiveBalances deploymentId={deploymentId} network={network} refreshTick={balanceTick} />
       <div className="gap-md grid grid-cols-1 lg:grid-cols-2">
         <section className="glass-panel p-md rounded-xl">

@@ -25,6 +25,7 @@ import { AppError } from "@/lib/errors";
 import { assertNoHiddenSurfaces } from "@/lib/features";
 import type { PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
 import type { FlowGraph } from "@/lib/flows/schema";
+import { implementationIssues, type PipelineImplementation } from "@/lib/flows/implementation";
 import { nodeBlueprint, pipelineNodeConstructorArgs } from "./scval";
 import { classifySend } from "./send-status";
 import { simulationFailure } from "./sim-error";
@@ -61,6 +62,7 @@ export async function checkAccountFunding(
 }
 
 export type PipelineDeployNode = {
+  implementation?: PipelineImplementation;
   nodeId: string;
   templateKind: string;
   wasmHash: string;
@@ -74,6 +76,7 @@ export type PreparedPipelineDeploy = {
     contractAddress: string;
     salt: Buffer;
     templateKind: string;
+    implementation?: PipelineImplementation;
   }>;
 };
 
@@ -83,6 +86,7 @@ type PipelinePlan = {
     templateKind: string;
     wasmHash: string;
     params: PipelineNodeParams;
+    implementation?: PipelineImplementation;
     salt: Buffer;
     contractAddress: string;
   }>;
@@ -95,6 +99,10 @@ function buildPipelinePlan(
   graph: FlowGraph,
   nodes: PipelineDeployNode[],
 ): PipelinePlan {
+  if (nodes.some((node) => node.implementation !== undefined)) {
+    const issues = implementationIssues(graph, nodes);
+    if (issues.length) throw new AppError("VALIDATION", issues[0]!.message);
+  }
   const pipeline = nodes.map((n) => {
     const salt = randomBytes(32);
     const contractAddress = computeContractAddress(sourceAccount, salt);
@@ -184,6 +192,7 @@ async function preparePipelineDeployTxFromPlan(
     contractAddress: p.contractAddress,
     salt: p.salt,
     templateKind: p.templateKind,
+    ...(p.implementation ? { implementation: p.implementation } : {}),
   }));
   // The diagnostic event log names the contract address that rejected —
   // map it back to the pipeline node's template for a precise message.
