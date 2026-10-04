@@ -5,10 +5,12 @@ import { assetLabel, isContractAction } from "@/lib/flows/schema";
 import { DEPLOYING_WALLET, resolveOwnerReturns } from "@/lib/flows/terminal-outcomes";
 import { inFlowOrder } from "@/lib/flows/graph";
 import { log } from "@/lib/log";
+import { implementationLabel } from "@/lib/flows/implementation";
 import { fetchTokenBalance } from "./balance";
 import { assetContractId } from "./assets";
 
 export type BalanceNode = {
+  implementationLabel?: string | null;
   nodeId: string;
   templateKind: TemplateKind;
   contractAddress: string;
@@ -18,6 +20,7 @@ export type BalanceNode = {
 };
 
 export type BalanceNodeError = {
+  implementationLabel?: string | null;
   nodeId: string;
   templateKind: TemplateKind;
   contractAddress: string;
@@ -32,6 +35,7 @@ export type WorkflowBalances = {
 };
 
 type PipelineEntry = {
+  implementation?: unknown;
   nodeId: string;
   contractAddress: string;
   templateKind: TemplateKind;
@@ -87,6 +91,7 @@ export async function getWorkflowBalances(
   const pipeline = (deployment.pipelineSnapshot as PipelineEntry[] | null) ?? [];
   const seenAddresses = new Set<string>();
   const targets: Array<{
+    implementationLabel?: string | null;
     nodeId: string;
     templateKind: TemplateKind;
     contractAddress: string;
@@ -94,7 +99,12 @@ export async function getWorkflowBalances(
   }> = [];
 
   for (const node of pipeline) {
-    if (!node.contractAddress || !isBalanceHolding(node.templateKind)) continue;
+    if (
+      !node.contractAddress ||
+      seenAddresses.has(node.contractAddress) ||
+      !isBalanceHolding(node.templateKind)
+    )
+      continue;
 
     const asset = node.templateKind === "SWAPPER" ? getSwapperAssetOut(graph) : flowAsset;
     if (!asset) {
@@ -107,6 +117,7 @@ export async function getWorkflowBalances(
 
     targets.push({
       nodeId: node.nodeId,
+      implementationLabel: implementationLabel(node.implementation),
       templateKind: node.templateKind,
       contractAddress: node.contractAddress,
       asset,
@@ -155,6 +166,7 @@ export async function getWorkflowBalances(
       );
       nodes.push({
         nodeId: target.nodeId,
+        implementationLabel: target.implementationLabel ?? null,
         templateKind: target.templateKind,
         contractAddress: target.contractAddress,
         asset: target.asset,
@@ -172,6 +184,7 @@ export async function getWorkflowBalances(
 
     nodes.push({
       nodeId: target.nodeId,
+      implementationLabel: target.implementationLabel ?? null,
       templateKind: target.templateKind,
       contractAddress: target.contractAddress,
       asset: target.asset,

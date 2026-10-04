@@ -28,7 +28,8 @@ import { swapConfigIssues, type SwapNode } from "./swap-rules";
 import { addressIssues, isAcceptedFlowAddress } from "./address-rules";
 import { SECRET_SEED_MESSAGE } from "./secret-seed";
 import { inFlowOrder } from "./graph";
-import { flowToPipeline, absorbedActionIds, type PipelineNode } from "./to-params";
+import { implementationIssues } from "./implementation";
+import { flowToPipeline, type PipelineNode } from "./to-params";
 import {
   BRANCH_LABEL,
   branchAmountText,
@@ -1283,31 +1284,10 @@ function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): Val
     };
   }
 
-  // Every contract action the user drew must actually reach the chain. Both the
-  // template ladder above and flowToPipeline pick "the" action as
-  // contractActions[0], in flow order via inFlowOrder() — the action the trigger
-  // reaches first along the edges, so the pipeline follows what the user drew
-  // rather than the order they dropped the blocks. That is not enough on its
-  // own: an action can still end up neither emitted nor absorbed, and a
-  // schedule flow with two chained pays is the live example — the streamer
-  // carries one payout step, so the second pay reaches no contract and that
-  // recipient is never paid. Catch it here rather than letting money move
-  // against a pipeline the user didn't draw.
-  //
-  // "Not emitted" is not the same as "lost": an oracle_gte condition compiles to
-  // a CONDITIONAL that owns the recipients and pays them itself, so its pay or
-  // split is absorbed on purpose. absorbedActionIds() carries that rule, and
-  // lives beside the code that applies it.
+  // Compilation records shared implementations and absorbed rules at emission.
+  // Check every visual block against that same mapping, including the trigger.
   const deployedNodeIds = new Set(pipelineNodes.map((n) => n.nodeId));
-  const absorbed = absorbedActionIds(graph);
-  for (const a of contractActions) {
-    if (deployedNodeIds.has(a.id) || absorbed.has(a.id)) continue;
-    errors.push({
-      path: `nodes.${a.id}`,
-      message: `Action ${a.id} (${a.type}) is not represented in the deployed pipeline`,
-      friendlyMessage: FRIENDLY.ACTION_NOT_DEPLOYED(nodeLabels.get(a.id) ?? a.type),
-    });
-  }
+  errors.push(...implementationIssues(originalGraph, pipelineNodes));
 
   // The router picks path A or path B and forwards the whole amount down it. An
   // empty path is a silent no-op on chain: the funds already sit in the router,

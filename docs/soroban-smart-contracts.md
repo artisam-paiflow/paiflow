@@ -596,6 +596,42 @@ This gives users a real-time feed of their contract's activity.
 constructor params. It is an array, not a single template: one flow generally deploys several
 contracts. `CLAUDE.md` §2 traces the full graph → params → XDR → snapshot chain.
 
+Each newly compiled entry also carries `implementation: { version: 1, bindings: [...] }`
+([#801](https://github.com/webnxt-2030/pinkraft/issues/801)). A binding records the original visual
+`blockId`, `blockType`, and implementation `role`. The compiler emits this metadata together with
+the contract parameters; it is not a later reconstruction from an editable graph. The existing
+pipeline IDs, order, constructor arguments, and address calculation remain unchanged.
+
+Receive → Pay and Subscription → Split retain separate trigger/action bindings. Schedule →
+Pay/Split binds both the schedule and distribution to the same Streamer entry. A Hold binding
+records a `strict_lock` rule on its time condition, while Return to owner retains its visual type
+on its immutable Payer implementation. An oracle condition's absorbed Pay/Split is bound as
+distribution on the Conditional. Generated fiat payout contracts record `payout_sink` and the
+zero-based recipient index within the originating Pay/Split block. These describe existing
+compilation behavior; they do not make unsupported compositions executable.
+
+`lib/flows/implementation.ts` parses versioned metadata and checks every visual block's coverage,
+binding roles, contract kinds, originating references, duplicates, and generated-recipient
+references. Where compilation synthesizes fiat payouts, every fiat recipient requires one generated child,
+matched to the parent constructor reference, originating block/index, and cash-out parent ID.
+Existing external cash-out recipients preserved by Dev non-payroll compilation remain dependencies
+and do not require generated children. Validation and preparation use these checks before deployment. Preparation persists
+the metadata beside the resolved address in the existing `pipelineSnapshot` JSON array;
+confirmation preserves that snapshot. No database migration or Rust ABI change is required.
+
+Deployment review, the “Where blocks run” view, and live balances display the recorded associations.
+Balance reads and totals deduplicate contract addresses; event polling continues to poll each
+address once regardless of bindings. Older snapshots and unrecognized metadata versions retain
+existing contract behavior and show block associations as unavailable; monitoring never recompiles
+them to invent a mapping. Dev mutation paths preserve existing metadata; additional contracts
+created later by mutation retain the unavailable-association fallback unless their writer records
+bindings. Recipient indexes refer to the roster at compilation, not subsequent mutable rosters.
+
+Product authority: [SPEC.md §3.3](../SPEC.md#33-logic) states, “Hold is absorbed into that condition
+and has no contract of its own.” [§3.2](../SPEC.md#32-actions) also defines the generated cash-out
+contracts behind fiat Pay/Split recipients. Explicit associations account for these relationships
+without requiring a contract per block or claiming a fee or throughput improvement.
+
 ---
 
 ## 5. How to Add a New Contract to Paiflow

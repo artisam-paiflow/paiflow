@@ -81,6 +81,37 @@ describe("pollEventsFor", () => {
     vi.clearAllMocks();
   });
 
+  it("polls a shared implementation's address once despite multiple bindings or snapshot aliases", async () => {
+    const node = {
+      nodeId: "p",
+      contractAddress: "C123",
+      templateKind: "STREAMER",
+      implementation: {
+        version: 1,
+        bindings: [
+          { blockId: "t", blockType: "on_schedule", role: "schedule" },
+          { blockId: "p", blockType: "split", role: "distribution" },
+        ],
+      },
+    };
+    vi.mocked(db.deployment.findUnique).mockResolvedValue({
+      id: "dep-1",
+      contractAddress: "C123",
+      status: "CONFIRMED",
+      cursor: { lastLedger: 500 },
+      pipelineSnapshot: [node, { ...node, nodeId: "alias" }],
+      graphSnapshot: null,
+      flow: { templateKind: TemplateKind.STREAMER },
+    } as unknown as Prisma.PromiseReturnType<typeof db.deployment.findUnique>);
+    const getEvents = vi.fn(async () => ({ events: [], latestLedger: 600 }));
+    mockServer({ getEvents });
+    expect(await pollEventsFor("dep-1")).toBe(0);
+    expect(getEvents).toHaveBeenCalledTimes(1);
+    expect(getEvents.mock.calls[0]).toEqual([
+      expect.objectContaining({ filters: [{ type: "contract", contractIds: ["C123"] }] }),
+    ]);
+  });
+
   it("returns 0 when deployment is not found", async () => {
     vi.mocked(db.deployment.findUnique).mockResolvedValue(null);
     const result = await pollEventsFor("dep-1");

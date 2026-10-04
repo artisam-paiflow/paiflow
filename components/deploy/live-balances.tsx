@@ -193,7 +193,7 @@ export default function LiveBalances({
                 >
                   <div className="flex flex-col gap-0.5">
                     <span className="text-label-sm text-on-surface-variant font-mono">
-                      {node.templateKind}
+                      {node.implementationLabel ?? node.templateKind}
                     </span>
                     <div className="flex items-center gap-2">
                       {explorerUrl ? (

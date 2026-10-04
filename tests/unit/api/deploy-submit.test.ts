@@ -130,6 +130,42 @@ describe("deployments/[id]/submit", () => {
     mockFromXDR.mockImplementation(() => fakeTx("aabbccdd"));
   });
 
+  it("retains prepared block bindings when confirming a deployment", async () => {
+    const pipeline = [
+      {
+        nodeId: "p",
+        contractAddress: "CABC",
+        templateKind: "STREAMER",
+        implementation: {
+          version: 1,
+          bindings: [
+            { blockId: "t", blockType: "on_schedule", role: "schedule" },
+            { blockId: "p", blockType: "split", role: "distribution" },
+          ],
+        },
+      },
+    ];
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment({ pipelineSnapshot: pipeline }));
+    mockDeploy.submitDeployTx.mockResolvedValue({ status: "SUCCESS", txHash: TX_HASH });
+    mockDb.deployment.update.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+      id: "dep-1",
+      status: "CONFIRMED",
+      deployTxHash: TX_HASH,
+      contractAddress: "CABC",
+      pipelineSnapshot: pipeline,
+    });
+    const res = await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.pipeline).toEqual(pipeline);
+    const confirmation = mockDb.deployment.update.mock.calls[1]?.[0].data;
+    expect(confirmation.status).toBe("CONFIRMED");
+    // Confirmation updates status/finality fields without replacing the prepared snapshot.
+    expect(confirmation).not.toHaveProperty("pipelineSnapshot");
+  });
+
   it("returns idempotently when a concurrent request already confirmed (P2025 race-loser)", async () => {
     mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
     mockDeploy.submitDeployTx.mockResolvedValue({

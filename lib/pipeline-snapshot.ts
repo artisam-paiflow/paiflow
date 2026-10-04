@@ -1,5 +1,6 @@
 import "server-only";
 import { AppError } from "@/lib/errors";
+import type { PipelineImplementation } from "@/lib/flows/implementation";
 import type { TemplateKind } from "@prisma/client";
 
 export type PipelineSnapshotNode = {
@@ -7,6 +8,7 @@ export type PipelineSnapshotNode = {
   contractAddress: string;
   templateKind: string;
   salt?: unknown;
+  implementation?: PipelineImplementation;
 };
 
 /**

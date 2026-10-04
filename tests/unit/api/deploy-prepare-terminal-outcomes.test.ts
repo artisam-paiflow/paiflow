@@ -63,6 +63,56 @@ it("binds Return to the preparing wallet and persists the original graph", async
   expect(mockDb.deployment.create.mock.calls[0]?.[0].data.graphSnapshot).toEqual(graph);
 });
 
+it("persists the prepared implementation bindings with their resolved addresses", async () => {
+  const pipeline = [
+    {
+      nodeId: "t",
+      templateKind: "DEPOSIT_TRIGGER",
+      contractAddress: "trigger",
+      implementation: {
+        version: 1,
+        bindings: [{ blockId: "t", blockType: "on_receive", role: "trigger" }],
+      },
+    },
+    {
+      nodeId: "c",
+      templateKind: "TIMELOCK",
+      contractAddress: "lock",
+      implementation: {
+        version: 1,
+        bindings: [
+          { blockId: "c", blockType: "condition", role: "condition" },
+          { blockId: "h", blockType: "hold", role: "strict_lock" },
+        ],
+      },
+    },
+    {
+      nodeId: "r",
+      templateKind: "PAYER",
+      contractAddress: "return",
+      implementation: {
+        version: 1,
+        bindings: [{ blockId: "r", blockType: "return_to_owner", role: "action" }],
+      },
+    },
+  ];
+  prepare.mockResolvedValue({ xdr: "unsigned", pipeline });
+  const res = await POST({
+    json: async () => ({ flowId: FLOW, sourceAccount: SOURCE }),
+  } as unknown as import("next/server").NextRequest);
+  expect(res.status).toBe(200);
+  expect(
+    prepare.mock.calls[0]?.[0].nodes.map(
+      (node: { implementation: unknown }) => node.implementation,
+    ),
+  ).toEqual(pipeline.map((node) => node.implementation));
+  expect(mockDb.deployment.update).toHaveBeenCalledWith({
+    where: { id: "d" },
+    data: expect.objectContaining({ pipelineSnapshot: pipeline }),
+  });
+  expect((await res.json()).data.pipeline).toEqual(pipeline);
+});
+
 it.each([undefined, "PENDING:owner", "invalid"])(
   "returns 422 VALIDATION for Return to owner with deploying wallet %s",
   async (sourceAccount) => {
