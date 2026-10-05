@@ -6,8 +6,9 @@ import { pollEventsFor } from "@/lib/stellar/events";
 
 /**
  * A deployment whose event cursor was stamped less than this long ago is served from the database
- * as it stands; an older one is polled from RPC first. It is also the least time between the end of
- * one on-demand poll of a deployment and the start of the next, whatever the poll found, so it is
+ * as it stands; an older one is polled from RPC first. This is a recent-progress throttle,
+ * not proof the scan reached the tip: partial coverage also stamps the cursor. It is also the least
+ * time between the end of one on-demand poll of a deployment and the start of the next, whatever the poll found, so it is
  * the throttle that keeps a busy caller (or many callers sharing a demo deployment) from driving
  * RPC traffic.
  */

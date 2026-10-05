@@ -28,12 +28,20 @@ const { mockDb, mockPoll, limits, redisState } = vi.hoisted(() => {
 });
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/env", () => ({ env: () => ({ CRON_SECRET: undefined, LOG_LEVEL: "silent" }) }));
-vi.mock("@/lib/stellar/events", () => ({ pollEventsFor: mockPoll }));
+vi.mock("@/lib/stellar/events", () => ({ pollEventsForWithOutcome: mockPoll }));
 vi.mock("@/lib/cron/config", () => ({ CRON_LIMITS: limits }));
 vi.mock("@/lib/redis", () => ({ redis: () => (redisState.enabled ? redisState.client : null) }));
 
 import { POST } from "@/app/api/cron/poll-events/route";
 import { SANDBOX_POLL_WINDOW_MS, cronPollableDeploymentWhere } from "@/lib/sandbox";
+
+const complete = (written: number) => ({
+  status: "complete",
+  written,
+  scannedThrough: 100,
+  contracts: [],
+  reasons: [],
+});
 
 const NOW = new Date("2026-09-19T12:00:00.000Z");
 const attemptOrder = { eventsPolledAt: { sort: "asc", nulls: "first" } };
@@ -80,7 +88,7 @@ describe("cron/poll-events", () => {
 
   it("selects through the sandbox window, never-polled first, and polls each deployment", async () => {
     primeSelection([{ id: "d1" }], [{ id: "d2" }]);
-    mockPoll.mockResolvedValueOnce(3).mockResolvedValueOnce(0);
+    mockPoll.mockResolvedValueOnce(complete(3)).mockResolvedValueOnce(complete(0));
 
     const res = await post();
 
@@ -99,14 +107,61 @@ describe("cron/poll-events", () => {
     });
     expect(mockPoll.mock.calls).toEqual([["d1"], ["d2"]]);
     expect(await res.json()).toEqual({
-      data: { polled: 2, written: 3, errors: 0, deployments: 2, truncated: false },
+      data: {
+        attempted: 2,
+        polled: 2,
+        partial: 0,
+        failed: 0,
+        skipped: 0,
+        written: 3,
+        errors: 0,
+        deployments: 2,
+        truncated: false,
+      },
     });
+  });
+
+  it("reports actual coverage separately from attempts and reader errors", async () => {
+    primeSelection(
+      [
+        { id: "complete" },
+        { id: "partial" },
+        { id: "failed" },
+        { id: "skipped" },
+        { id: "capped" },
+      ],
+      [],
+    );
+    mockPoll
+      .mockResolvedValueOnce(complete(2))
+      .mockResolvedValueOnce({ ...complete(1), status: "partial", reasons: ["insert-error"] })
+      .mockResolvedValueOnce({ ...complete(0), status: "failed", reasons: ["rpc-error"] })
+      .mockResolvedValueOnce({
+        ...complete(0),
+        status: "skipped",
+        reasons: ["missing-start-ledger"],
+      })
+      .mockResolvedValueOnce({ ...complete(0), status: "partial", reasons: ["page-limit"] });
+    expect(await (await post()).json()).toEqual({
+      data: {
+        attempted: 5,
+        polled: 1,
+        partial: 2,
+        failed: 1,
+        skipped: 1,
+        written: 3,
+        errors: 2,
+        deployments: 5,
+        truncated: false,
+      },
+    });
+    expect(mockDb.deployment.updateMany).toHaveBeenCalledTimes(5);
   });
 
   it("caps never-polled deployments at half the batch so polled ones always get slots", async () => {
     limits.pollEvents.batch = 4;
     primeSelection([{ id: "u1" }, { id: "u2" }], [{ id: "p1" }, { id: "p2" }]);
-    mockPoll.mockResolvedValue(0);
+    mockPoll.mockResolvedValue(complete(0));
 
     await post();
 
@@ -116,13 +171,23 @@ describe("cron/poll-events", () => {
 
   it("keeps going when one deployment fails to poll", async () => {
     primeSelection([{ id: "d1" }, { id: "d2" }], []);
-    mockPoll.mockRejectedValueOnce(new Error("rpc down")).mockResolvedValueOnce(1);
+    mockPoll.mockRejectedValueOnce(new Error("rpc down")).mockResolvedValueOnce(complete(1));
 
     const res = await post();
 
     expect(mockPoll).toHaveBeenCalledTimes(2);
     expect(await res.json()).toEqual({
-      data: { polled: 1, written: 1, errors: 1, deployments: 2, truncated: false },
+      data: {
+        attempted: 2,
+        polled: 1,
+        partial: 0,
+        failed: 1,
+        skipped: 0,
+        written: 1,
+        errors: 1,
+        deployments: 2,
+        truncated: false,
+      },
     });
   });
 
@@ -134,7 +199,17 @@ describe("cron/poll-events", () => {
 
     expect(mockPoll).not.toHaveBeenCalled();
     expect(await res.json()).toEqual({
-      data: { polled: 0, written: 0, errors: 0, deployments: 2, truncated: true },
+      data: {
+        attempted: 0,
+        polled: 0,
+        partial: 0,
+        failed: 0,
+        skipped: 0,
+        written: 0,
+        errors: 0,
+        deployments: 2,
+        truncated: true,
+      },
     });
   });
 
@@ -143,14 +218,24 @@ describe("cron/poll-events", () => {
     primeSelection([{ id: "d1" }, { id: "d2" }, { id: "d3" }], []);
     mockPoll.mockImplementationOnce(async () => {
       vi.setSystemTime(new Date(NOW.getTime() + 1_500));
-      return 1;
+      return complete(1);
     });
 
     const res = await post();
 
     expect(mockPoll.mock.calls).toEqual([["d1"]]);
     expect(await res.json()).toEqual({
-      data: { polled: 1, written: 1, errors: 0, deployments: 3, truncated: true },
+      data: {
+        attempted: 1,
+        polled: 1,
+        partial: 0,
+        failed: 0,
+        skipped: 0,
+        written: 1,
+        errors: 0,
+        deployments: 3,
+        truncated: true,
+      },
     });
   });
 
@@ -168,7 +253,7 @@ describe("cron/poll-events", () => {
       peak = Math.max(peak, inFlight);
       await new Promise<void>((resolve) => releases.push(resolve));
       inFlight -= 1;
-      return 1;
+      return complete(1);
     });
 
     const pending = post();
@@ -184,7 +269,17 @@ describe("cron/poll-events", () => {
     expect(peak).toBe(3);
     expect(mockPoll).toHaveBeenCalledTimes(10);
     expect(await res.json()).toEqual({
-      data: { polled: 10, written: 10, errors: 0, deployments: 10, truncated: false },
+      data: {
+        attempted: 10,
+        polled: 10,
+        partial: 0,
+        failed: 0,
+        skipped: 0,
+        written: 10,
+        errors: 0,
+        deployments: 10,
+        truncated: false,
+      },
     });
   });
 
@@ -196,14 +291,24 @@ describe("cron/poll-events", () => {
     mockPoll.mockImplementation(async () => {
       await vi.waitFor(() => expect(mockPoll).toHaveBeenCalledTimes(2));
       vi.setSystemTime(new Date(NOW.getTime() + 1_500));
-      return 1;
+      return complete(1);
     });
 
     const res = await post();
 
     expect(mockPoll.mock.calls).toEqual([["d1"], ["d2"]]);
     expect(await res.json()).toEqual({
-      data: { polled: 2, written: 2, errors: 0, deployments: 4, truncated: true },
+      data: {
+        attempted: 2,
+        polled: 2,
+        partial: 0,
+        failed: 0,
+        skipped: 0,
+        written: 2,
+        errors: 0,
+        deployments: 4,
+        truncated: true,
+      },
     });
     // The unstarted tail is left unstamped so it leads the next tick.
     expect(mockDb.deployment.updateMany.mock.calls.map(([q]) => q.where.id).sort()).toEqual([
@@ -217,14 +322,24 @@ describe("cron/poll-events", () => {
     primeSelection([{ id: "d1" }, { id: "d2" }, { id: "d3" }, { id: "d4" }], []);
     mockPoll.mockImplementation(async (id: string) => {
       if (id === "d1") throw new Error("rpc down");
-      return 2;
+      return complete(2);
     });
 
     const res = await post();
 
     expect(mockPoll).toHaveBeenCalledTimes(4);
     expect(await res.json()).toEqual({
-      data: { polled: 3, written: 6, errors: 1, deployments: 4, truncated: false },
+      data: {
+        attempted: 4,
+        polled: 3,
+        partial: 0,
+        failed: 1,
+        skipped: 0,
+        written: 6,
+        errors: 1,
+        deployments: 4,
+        truncated: false,
+      },
     });
   });
 
@@ -232,7 +347,7 @@ describe("cron/poll-events", () => {
     primeSelection([{ id: "ok" }, { id: "bad" }], []);
     mockPoll.mockImplementation(async (id: string) => {
       if (id === "bad") throw new Error("always fails");
-      return 0;
+      return complete(0);
     });
 
     await post();
@@ -245,14 +360,24 @@ describe("cron/poll-events", () => {
   it("a failed stamp neither fails the run nor blocks later deployments", async () => {
     limits.pollEvents.concurrency = 1;
     primeSelection([{ id: "d1" }, { id: "d2" }], []);
-    mockPoll.mockResolvedValue(1);
+    mockPoll.mockResolvedValue(complete(1));
     mockDb.deployment.updateMany.mockRejectedValueOnce(new Error("db blip"));
 
     const res = await post();
 
     expect(mockPoll).toHaveBeenCalledTimes(2);
     expect(await res.json()).toEqual({
-      data: { polled: 2, written: 2, errors: 0, deployments: 2, truncated: false },
+      data: {
+        attempted: 2,
+        polled: 2,
+        partial: 0,
+        failed: 0,
+        skipped: 0,
+        written: 2,
+        errors: 0,
+        deployments: 2,
+        truncated: false,
+      },
     });
   });
 
@@ -263,7 +388,18 @@ describe("cron/poll-events", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      data: { polled: 0, written: 0, errors: 0, deployments: 0, truncated: false, leaseHeld: true },
+      data: {
+        attempted: 0,
+        polled: 0,
+        partial: 0,
+        failed: 0,
+        skipped: 0,
+        written: 0,
+        errors: 0,
+        deployments: 0,
+        truncated: false,
+        leaseHeld: true,
+      },
     });
     expect(mockDb.deployment.findMany).not.toHaveBeenCalled();
     expect(mockPoll).not.toHaveBeenCalled();
@@ -284,13 +420,23 @@ describe("cron/poll-events", () => {
   it("runs normally when Redis is unavailable", async () => {
     redisState.enabled = false;
     primeSelection([{ id: "d1" }], []);
-    mockPoll.mockResolvedValueOnce(1);
+    mockPoll.mockResolvedValueOnce(complete(1));
 
     const res = await post();
 
     expect(mockPoll).toHaveBeenCalledWith("d1");
     expect(await res.json()).toEqual({
-      data: { polled: 1, written: 1, errors: 0, deployments: 1, truncated: false },
+      data: {
+        attempted: 1,
+        polled: 1,
+        partial: 0,
+        failed: 0,
+        skipped: 0,
+        written: 1,
+        errors: 0,
+        deployments: 1,
+        truncated: false,
+      },
     });
   });
 });
