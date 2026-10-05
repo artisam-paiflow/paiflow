@@ -643,10 +643,132 @@ and wall times vary between runs. The original baseline evidence is preserved.
 
 These measurements and implementation checks ran locally, with zero public RPC requests,
 zero chain submissions and zero campaign spending. No live service, scheduler,
-shared template configuration or paid-maintenance activation changed. The next
-release gate is small bounded `hackathon-testing` latency/headroom calibration;
-due-code fee measurements, recurring funding, #805 activation and #460 scheduling
+shared template configuration or paid-maintenance activation changed. The small
+bounded `hackathon-testing` latency/headroom calibration is recorded below.
+Due-code fee measurements, recurring funding, #805 activation and #460 scheduling
 remain separately scoped. Disposable test services are removed after validation.
+
+## Deployed optimizer dry-run calibration — 5 October 2026
+
+The user authorized deployment of the merged optimizer with paid maintenance
+disabled, bounded inventory checks without provoking RPC throttling, and this
+report update. Only Railway **hackathon-testing** was accessed. A tracked-only
+archive of `216ef8c2aae496847ac5c6d9198462ace632a468` was uploaded as deployment
+`9994d0dc-ba38-4652-a1fd-4157109433e2`, which reached **SUCCESS**. Post-merge
+[Node/Rust CI](https://github.com/webnxt-2030/pinkraft/actions/runs/37288983039)
+passed at that exact commit. The deployed TTL runner, deadline helper and cron
+route source hashes match the archive. CLI uploads still report health version
+`dev`; the archive, deployment message, source hashes and observed optimized
+batch behavior establish provenance.
+
+The HTTP health check returned `status: ok` with DB, Redis and RPC all `ok`.
+All **55 existing migrations** were already applied. Application variables and
+the shared template/factory fingerprint were unchanged before and after.
+`STELLAR_TTL_MAINTENANCE_ENABLED=false`, the existing 50-XLM per-transaction cap,
+150-XLM campaign limit and unset channels were preserved. Campaign reservations
+remained **1,313,198 stroops across two reservations**. No scheduler, shared WASM
+activation, paid transaction or new migration was part of this calibration.
+
+Sanitized measurements and per-tick target coverage are retained in
+[deployed calibration evidence](evidence/ttl-capacity-hackathon-testing.json).
+This is evidence for the current **nine pipelines**, not a deployed test of the
+100-pipeline capacity target.
+
+### HTTP coverage and response headroom
+
+Three authenticated GET calls ran serially, starting at **10:20:58.803**,
+**10:22:23.796** and **10:23:37.934 UTC**. Start intervals were **84.993** and
+**74.138 seconds**; no back-to-back loop or concurrent load was used. The
+controller refused another tick after an HTTP error, failed/deferred/pending
+target, failed deployment, exhausted deadline or unexpected paid response.
+
+| Measurement                        | Observed result                        |
+| ---------------------------------- | -------------------------------------- |
+| Eligible pipelines                 | 9, with 2–3 instances each             |
+| Pipeline instance coverage         | 21 / 21 by tick 2                      |
+| Shared target coverage             | 22 / 22 by tick 3                      |
+| Unique instance/code targets read  | 47, including 25 distinct code entries |
+| Client HTTP durations              | 4.004 s, 3.993 s, 3.801 s              |
+| Railway upstream request durations | 3.849 s, 3.820 s, 3.655 s              |
+| Full observed coverage             | 162.932 s from first start to last end |
+| Failed/missing/deferred targets    | 0                                      |
+| Deadline/request-cap exhaustion    | 0                                      |
+| Maintenance submissions            | 0                                      |
+
+Existing deployment offsets were 1 or 2, so tick 1 finished inherited pipeline
+tails; tick 2 inspected every instance from offset zero. The shared cursor moved
+**8 → 18 → 0 → 10**. Coverage is the union of actual target reports, not the
+`truncated` flag: tick 3 correctly remains truncated because another shared
+rotation has started, although all expected targets have been observed.
+
+Upstream responses stayed below four seconds, about **16 seconds below the
+runner's 20-second work budget**, and comfortably below the modeled 30-second
+HTTP check. Full coverage took about **2 minutes 43 seconds**, well inside the
+six-hour scan gate for this inventory. Neither comparison establishes paid-work
+headroom or a strict HTTP deadline.
+
+Seven instance entries were reported `due`, with observed live-until zero; they
+were left untouched. No code entry was due. At the last diagnostic ledger
+**5,034,456**, healthy instances had at least **86,605 ledgers** remaining and
+observed healthy code had at least **81,699 ledgers**, leaving **31,699 ledgers**
+above the 50,000-ledger threshold for the earliest code. These are fresh
+observations, not guaranteed renewal dates. Successful inventory coverage does
+not establish that the seven due instances are available or restored.
+
+### RPC, database and competing traffic
+
+Separate read-only probes ran from the application container after the HTTP
+coverage sequence. Six native RPC requests ran serially with **one-second idle
+gaps**, no retries, and a stop on the first non-200 or JSON-RPC error:
+
+| Diagnostic                           | Samples                                |
+| ------------------------------------ | -------------------------------------- |
+| `getLatestLedger`                    | 1,155 / 898 / 1,003 ms                 |
+| `getLedgerEntries`, 21 instance keys | 479 / 477 / 458 ms; all 21 returned    |
+| HTTP results                         | Six HTTP 200 responses; zero 429s      |
+| DB inventory read, cold connection   | 62 ms client / 4 ms query event        |
+| DB inventory read, warmed connection | 4 / 3 ms client; 1 / 1 ms query events |
+
+The DB probe used the runner's deployment eligibility, ordering, selection and
+26-row limit. These RPC/DB samples are separate diagnostic sessions, not timing
+instrumentation inside the HTTP cron. The HTTP endpoint does not expose exact
+RPC counts, per-call DB timings or transport failures recovered by fallback.
+
+The configured provider is `soroban-testnet.stellar.org`, as listed in the
+[Stellar network documentation](https://developers.stellar.org/docs/networks).
+No numeric RPC quota was exposed in the diagnostic response headers or the
+inspected network/provider documentation. The inspected responses all lacked
+`Retry-After` and rate-limit headers. For this small inventory, the no-retry
+code path needs at most **six RPC requests per tick**, excluding background
+requests; this is a code-derived bound, not measured transport accounting.
+The runtime's failure path still allows **50 inventory requests plus two setup
+reads**, and recursive splitting does not distinguish provider throttling from
+an individual bad key. The per-tick cap does not enforce a provider rate limit.
+
+Railway recorded no HTTP activity in the preceding 15-minute sample. The
+calibration-window HTTP logs contained exactly our **one health request and
+three inventory requests**, all 200; the warning/error sample was empty.
+No competing HTTP workload or throttling was observed. Logs do not enumerate
+all internal jobs, other provider consumers or provider-wide allocation, so
+these results establish successful conservative calibration, not a guarantee
+against rate limiting under future traffic. No traffic was added solely to find
+the provider's limit.
+
+### Assessment and next gate
+
+**No further healthy-inventory optimization is indicated for the current nine
+pipelines.** The optimizer completes this inventory with substantial response
+and scan headroom. Keep further manual checks serial and at least a minute
+apart, stopping on failures rather than generating repeated fallback traffic.
+
+Before increased traffic or recurring enablement, establish a provider request
+allocation and measure aggregate RPC use alongside genuine competing work.
+Evaluate shared request pacing and explicit 429/`Retry-After` handling so the
+existing fallback cannot amplify throttling. Expected-scale deployed validation
+remains open: this quiet, three-tick observation does not validate 100 pipelines,
+concurrent users, a week-long soak, paid finality or provider-failure headroom.
+Paid due-code/refund evidence, public recovery/payment, recurring funding,
+#805 activation and #460 scheduling retain their separate release gates.
 
 ## Remaining #804 release evidence
 
@@ -661,8 +783,11 @@ This report advances #804; it does not close the issue. Remaining checks are:
   activating its new shared artifacts.
 - Deployed expected-scale/headroom validation against the local capacity matrix
   above, with measured RPC/DB latency and competing work, followed by numeric
-  ongoing budget/funding selection. The baseline identified growth/latency limits; the local optimization improves healthy scanning, while slow paid growth still fails;
-  it does not install scheduling or prove public-provider capacity. Mainnet cost
+  ongoing budget/funding selection. The small deployed calibration above covers
+  nine pipelines under quiet conditions; expected-scale and competing-work
+  evidence remain outstanding. The baseline identified growth/latency limits;
+  the local optimization improves healthy scanning, while slow paid growth still
+  fails. It does not install scheduling or prove public-provider capacity. Mainnet cost
   measurements and a production release decision remain outstanding.
 
 ## Reproduce the read-only fee measurements
