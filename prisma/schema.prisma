@@ -711,7 +711,37 @@ model FileAsset {
 
 // Rotates current templates/factory independently of deployments, including failures.
 model TtlMaintenanceState {
-  network      String @id
-  sharedOffset Int    @default(0)
+  network      String  @id
+  sharedOffset Int     @default(0)
   sharedFirst  Boolean @default(false)
+}
+
+// A fixed campaign ceiling. Reservations never expire or credit expected refunds.
+model TransactionFeeBudget {
+  network               String
+  name                  String
+  limitStroops          String
+  committedStroops      String    @default("0")
+  createdAt             DateTime  @default(now())
+  fixtureSetupClaimedAt DateTime?
+
+  reservations TransactionFeeReservation[]
+
+  @@id([network, name])
+}
+
+model TransactionFeeReservation {
+  id                 String   @id @default(uuid()) @db.Uuid
+  network            String
+  budgetName         String
+  txHash             String
+  payer              String
+  declaredFeeStroops String
+  purpose            String
+  createdAt          DateTime @default(now())
+
+  budget TransactionFeeBudget @relation(fields: [network, budgetName], references: [network, name], onDelete: Restrict)
+
+  @@unique([network, txHash])
+  @@index([network, budgetName, createdAt])
 }

@@ -1,0 +1,250 @@
+{
+  "environment": "hackathon-testing",
+  "network": "TESTNET",
+  "at": "2026-10-04T23:24:47.745Z",
+  "deployment": {
+    "id": "3169b6b2-48bb-4e6a-865a-091ca45a6bd5",
+    "status": "SUCCESS",
+    "sourceCommit": "25a2037693ba0905f1e58477d2617a26a54f6ff6",
+    "source": "tracked-only git archive uploaded by Railway CLI",
+    "healthVersion": "dev",
+    "versionLimitation": "CLI upload has no RAILWAY_GIT_COMMIT_SHA; source provenance is the archived commit and deployment message, not the health version"
+  },
+  "before": {
+    "at": "2026-10-04T23:12:36.847Z",
+    "environment": "hackathon-testing",
+    "network": "TESTNET",
+    "paidMaintenanceEnabled": false,
+    "maxFeeStroops": "500000000",
+    "budget": {
+      "name": "ttl804-testnet-20261004",
+      "limitStroops": "1500000000"
+    },
+    "committedStroops": "0",
+    "reservations": [],
+    "migrations": [
+      {
+        "migration_name": "20261004010000_deployment_ttl_checked_at",
+        "finished_at": "2026-10-04T09:28:15.071Z"
+      },
+      {
+        "migration_name": "20261004020000_transaction_fee_budget",
+        "finished_at": "2026-10-04T14:26:14.096Z"
+      }
+    ],
+    "sharedConfigurationSha256": "327aadfa2285ab3d33fe1a6bae7d34bb35cc130a9e956a342da30490ca42e377"
+  },
+  "after": {
+    "at": "2026-10-04T23:24:47.745Z",
+    "environment": "hackathon-testing",
+    "network": "TESTNET",
+    "paidMaintenanceEnabled": false,
+    "maxFeeStroops": "500000000",
+    "budget": {
+      "name": "ttl804-testnet-20261004",
+      "limitStroops": "1500000000"
+    },
+    "committedStroops": "1313198",
+    "reservations": [
+      {
+        "txHash": "783ba6596c57900f42d9887cd973ee65cd558db5e7767d64fc2444e92160c342",
+        "declaredFeeStroops": "704205",
+        "purpose": "fixture-setup",
+        "payer": "GALWPCNQW5XZG4IZANOR4URL2ZQWYR2OK65O3YVIUVTOE7P3NS3MLPQZ"
+      },
+      {
+        "txHash": "61b562873e56091d4b30c3da98f19600599a5a0de7dd16b4475e194b1d0401e5",
+        "declaredFeeStroops": "608993",
+        "purpose": "fixture-deposit",
+        "payer": "GALWPCNQW5XZG4IZANOR4URL2ZQWYR2OK65O3YVIUVTOE7P3NS3MLPQZ"
+      }
+    ],
+    "migrations": [
+      {
+        "migration_name": "20261004010000_deployment_ttl_checked_at",
+        "finished_at": "2026-10-04T09:28:15.071Z"
+      },
+      {
+        "migration_name": "20261004020000_transaction_fee_budget",
+        "finished_at": "2026-10-04T14:26:14.096Z"
+      }
+    ],
+    "sharedConfigurationSha256": "327aadfa2285ab3d33fe1a6bae7d34bb35cc130a9e956a342da30490ca42e377"
+  },
+  "unchangedApplicationVariables": true,
+  "changedApplicationVariableNames": [],
+  "unchangedSharedConfiguration": true,
+  "http": {
+    "at": "2026-10-04T23:23:12.169164+00:00",
+    "environment": "hackathon-testing",
+    "network": "TESTNET",
+    "deploymentId": "3169b6b2-48bb-4e6a-865a-091ca45a6bd5",
+    "sourceCommit": "25a2037693ba0905f1e58477d2617a26a54f6ff6",
+    "calls": [
+      {
+        "label": "health",
+        "httpStatus": 200,
+        "durationSeconds": 0.48,
+        "body": {
+          "status": "ok",
+          "version": "dev",
+          "db": "ok",
+          "redis": "ok",
+          "rpc": "ok"
+        }
+      },
+      {
+        "label": "missing-secret",
+        "httpStatus": 403,
+        "durationSeconds": 0.16,
+        "body": {
+          "error": {
+            "code": "FORBIDDEN",
+            "message": "Bad cron secret"
+          }
+        }
+      },
+      {
+        "label": "wrong-secret",
+        "httpStatus": 403,
+        "durationSeconds": 0.164,
+        "body": {
+          "error": {
+            "code": "FORBIDDEN",
+            "message": "Bad cron secret"
+          }
+        }
+      },
+      {
+        "label": "inventory",
+        "httpStatus": 200,
+        "durationSeconds": 3.967,
+        "body": {
+          "data": {
+            "dryRun": true,
+            "deployments": 5,
+            "submissions": 0,
+            "truncated": true,
+            "budgetExhausted": false,
+            "moreDeployments": true,
+            "partialPipelines": true,
+            "details": [
+              {
+                "target": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+                "kind": "code",
+                "status": "healthy",
+                "liveUntilLedger": 5116155
+              },
+              {
+                "target": "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW",
+                "kind": "instance",
+                "status": "healthy",
+                "liveUntilLedger": 5138300
+              },
+              {
+                "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+                "kind": "code",
+                "status": "healthy",
+                "liveUntilLedger": 7742950
+              },
+              {
+                "target": "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF",
+                "kind": "instance",
+                "status": "healthy",
+                "liveUntilLedger": 5138301
+              },
+              {
+                "target": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+                "kind": "instance",
+                "status": "healthy",
+                "liveUntilLedger": 5138929
+              },
+              {
+                "target": "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP",
+                "kind": "instance",
+                "status": "healthy",
+                "liveUntilLedger": 5138303
+              },
+              {
+                "target": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+                "kind": "code",
+                "status": "healthy",
+                "liveUntilLedger": 7742749
+              },
+              {
+                "target": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+                "kind": "instance",
+                "status": "healthy",
+                "liveUntilLedger": 5138947
+              }
+            ],
+            "failedDeployments": [],
+            "scans": [
+              {
+                "deploymentId": "deployment-1",
+                "totalTargets": 3,
+                "nextOffset": 1
+              },
+              {
+                "deploymentId": "deployment-2",
+                "totalTargets": 3,
+                "nextOffset": 1
+              },
+              {
+                "deploymentId": "deployment-3",
+                "totalTargets": 2,
+                "nextOffset": 1
+              },
+              {
+                "deploymentId": "deployment-4",
+                "totalTargets": 3,
+                "nextOffset": 2
+              },
+              {
+                "deploymentId": "deployment-5",
+                "totalTargets": 2,
+                "nextOffset": 1
+              }
+            ],
+            "sharedScan": {
+              "totalTargets": 22,
+              "nextOffset": 7
+            }
+          }
+        }
+      }
+    ]
+  },
+  "localBudgetRace": {
+    "environment": "isolated-local-postgres",
+    "at": "2026-10-04T23:22:19.478Z",
+    "concurrentAttempts": 20,
+    "accepted": 3,
+    "rejected": 17,
+    "limitStroops": "1500000000",
+    "committedStroops": "1500000000",
+    "reservationSumStroops": "1500000000",
+    "persistedCeilingRejected": true,
+    "duplicateRejected": true,
+    "duplicateRollbackCommittedStroops": "500000000",
+    "changedLimitRejected": true,
+    "auditCount": 3,
+    "networkSubmissions": 0
+  },
+  "fixture": {
+    "manifest": "ttl-recovery-fixture-testnet.json",
+    "waitingEvidence": "ttl-recovery-fixture-waiting-testnet.json",
+    "phase": "awaiting-natural-expiry",
+    "setupFees": {
+      "declaredFeeStroops": "1313198",
+      "netFeeStroops": "1129546"
+    },
+    "escrowStroops": "10000000",
+    "campaignRemainingStroops": "1498686802"
+  },
+  "limitations": [
+    "Inventory mode does not execute the deployed guard paid path; real guarded fixture setup and PostgreSQL race verify reservation behavior separately.",
+    "Recovery/payment and genuinely due deployed code extension have not run.",
+    "No browser/wallet, expected-scale load, recurring scheduler, ongoing funding, shared WASM activation or MAINNET release evidence."
+  ]
+}

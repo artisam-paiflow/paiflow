@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Account, Address, Keypair, Networks, SorobanDataBuilder, xdr } from "@stellar/stellar-sdk";
 import type { RelayerChannel } from "@/lib/stellar/relayer-channels";
 
-const { mockDb, mockRpc, withChannel, clock } = vi.hoisted(() => ({
+const { mockDb, mockRpc, withChannel, clock, reserveFee } = vi.hoisted(() => ({
+  reserveFee: vi.fn(),
   mockDb: {
     auditLog: { create: vi.fn() },
     deployment: { findMany: vi.fn(), update: vi.fn() },
@@ -26,6 +27,10 @@ vi.mock("@/lib/log", () => ({ log: { warn: vi.fn() } }));
 vi.mock("@/lib/stellar/client", () => ({ sorobanRpc: () => mockRpc }));
 vi.mock("@/lib/stellar/relayer-channels", () => ({ withRelayerChannel: withChannel }));
 vi.mock("@/lib/cron/deadline", () => ({ cronDeadline: () => ({ expired: () => clock.expired }) }));
+vi.mock("@/lib/stellar/fee-budget", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stellar/fee-budget")>()),
+  reserveTransactionFee: reserveFee,
+}));
 
 const contract = (byte: number) => Address.contract(Buffer.alloc(32, byte)).toString();
 const HASH = "ab".repeat(32);
@@ -65,12 +70,19 @@ function instanceVal(address: string, hash = OLD_HASH) {
 const entries = new Map<string, { val: xdr.LedgerEntryData; liveUntilLedgerSeq?: number }>();
 async function load() {
   vi.resetModules();
+  // Recreate the partial mock so its real config helper sees the fresh env()
+  // module; a cached importOriginal would retain an earlier test's env memo.
+  const actual = await vi.importActual<typeof import("@/lib/stellar/fee-budget")>(
+    "@/lib/stellar/fee-budget",
+  );
+  vi.doMock("@/lib/stellar/fee-budget", () => ({ ...actual, reserveTransactionFee: reserveFee }));
   return import("@/lib/stellar/ttl-maintenance");
 }
 beforeEach(() => {
   vi.clearAllMocks();
   entries.clear();
   clock.expired = false;
+  reserveFee.mockResolvedValue(undefined);
   mockDb.contractTemplate.findMany.mockResolvedValue([]);
   mockDb.factoryDeployment.findUnique.mockResolvedValue(null);
   mockDb.deployment.findMany.mockResolvedValue([]);
@@ -90,6 +102,8 @@ beforeEach(() => {
 afterEach(() => {
   delete process.env.STELLAR_TTL_MAINTENANCE_ENABLED;
   delete process.env.STELLAR_TTL_MAX_FEE_STROOPS;
+  delete process.env.STELLAR_TTL_FEE_BUDGET_NAME;
+  delete process.env.STELLAR_TTL_FEE_BUDGET_STROOPS;
   vi.useRealTimers();
 });
 
@@ -381,6 +395,61 @@ describe("TTL transaction safety", () => {
     });
     mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING" });
     mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS" });
+  });
+  it("rejects raised-cap paid runs without a cumulative budget before any chain reads", async () => {
+    process.env.STELLAR_TTL_MAINTENANCE_ENABLED = "true";
+    process.env.STELLAR_TTL_MAX_FEE_STROOPS = "500000000";
+    const mod = await load();
+    await expect(mod.runTtlMaintenance()).rejects.toThrow("cumulative fee budget");
+    expect(mockRpc.getLedgerEntries).not.toHaveBeenCalled();
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+  });
+  it("failed durable reservation prevents signing, pending tracking and submission", async () => {
+    process.env.STELLAR_TTL_FEE_BUDGET_NAME = "ttl804-testnet-20261004";
+    process.env.STELLAR_TTL_FEE_BUDGET_STROOPS = "1500000000";
+    reserveFee.mockRejectedValueOnce(new Error("budget exhausted"));
+    const sign = vi.spyOn(channel.keypair, "sign");
+    const mod = await load();
+    await expect(
+      mod.submitTtlOperation(
+        mockRpc as unknown as import("@stellar/stellar-sdk").rpc.Server,
+        channel,
+        mod.ttlCodeKey(HASH),
+        500_000,
+        "500000000",
+      ),
+    ).rejects.toThrow("budget exhausted");
+    expect(sign).not.toHaveBeenCalled();
+    expect(channel.trackPending).not.toHaveBeenCalled();
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+    sign.mockRestore();
+  });
+  it("a successful reservation precedes submission and survives an uncertain transport outcome", async () => {
+    process.env.STELLAR_TTL_FEE_BUDGET_NAME = "ttl804-testnet-20261004";
+    process.env.STELLAR_TTL_FEE_BUDGET_STROOPS = "1500000000";
+    mockRpc.sendTransaction.mockRejectedValueOnce(new Error("transport"));
+    const mod = await load();
+    await expect(
+      mod.submitTtlOperation(
+        mockRpc as unknown as import("@stellar/stellar-sdk").rpc.Server,
+        channel,
+        mod.ttlCodeKey(HASH),
+        null,
+        "500000000",
+      ),
+    ).rejects.toThrow("transport");
+    expect(reserveFee).toHaveBeenCalledWith(
+      expect.objectContaining({
+        budget: { name: "ttl804-testnet-20261004", limitStroops: "1500000000" },
+        payer: channel.publicKey,
+        declaredFeeStroops: "300",
+        purpose: "ttl-restoration",
+      }),
+    );
+    expect(reserveFee.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRpc.sendTransaction.mock.invocationCallOrder[0]!,
+    );
+    expect(channel.clearPending).not.toHaveBeenCalled();
   });
   it("assembles exact read-only extension footprint, caps fee, signs with channel and waits for finality", async () => {
     const mod = await load();

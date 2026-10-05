@@ -19,6 +19,7 @@ import { log } from "@/lib/log";
 import { cronDeadline } from "@/lib/cron/deadline";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { withRelayerChannel, type RelayerChannel } from "@/lib/stellar/relayer-channels";
+import { reserveTransactionFee, ttlFeeBudget } from "@/lib/stellar/fee-budget";
 
 export const TTL_LIMITS = {
   batch: 5,
@@ -112,8 +113,19 @@ export async function submitTtlOperation(
   const assembled = rpc.assembleTransaction(tx, sim).build();
   if (BigInt(assembled.fee) > BigInt(maxFeeStroops))
     throw new AppError("VALIDATION", "TTL maintenance fee exceeds configured cap");
-  assembled.sign(channel.keypair);
   const hash = assembled.hash().toString("hex");
+  const budget = ttlFeeBudget(maxFeeStroops);
+  if (budget) {
+    await reserveTransactionFee({
+      network: env().STELLAR_NETWORK,
+      budget,
+      txHash: hash,
+      payer: channel.publicKey,
+      declaredFeeStroops: assembled.fee,
+      purpose: extendTo === null ? "ttl-restoration" : "ttl-extension",
+    });
+  }
+  assembled.sign(channel.keypair);
   // Record BEFORE attempting the send: a network failure can hide an accepted transaction.
   channel.trackPending(hash, assembled.timeBounds?.maxTime);
   const sent = await server.sendTransaction(assembled);
@@ -154,6 +166,7 @@ export function ttlStatus(
 export async function runTtlMaintenance(): Promise<TtlSummary> {
   const config = env();
   const dryRun = !config.STELLAR_TTL_MAINTENANCE_ENABLED;
+  if (!dryRun) ttlFeeBudget(config.STELLAR_TTL_MAX_FEE_STROOPS);
   const result: TtlSummary = {
     dryRun,
     deployments: 0,

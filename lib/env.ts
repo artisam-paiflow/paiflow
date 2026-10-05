@@ -169,6 +169,7 @@ const optionalNonNegativeInt = (defaultValue: number) =>
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+  RAILWAY_ENVIRONMENT_NAME: optionalString,
 
   // ---- Temporary splitter/off-ramp hard limits ----
   // Exposed to the browser because validateFlow runs client-side. Whole-token
@@ -306,6 +307,14 @@ const EnvSchema = z.object({
     .string()
     .regex(/^[1-9]\d{0,18}$/)
     .default("1000000"),
+  STELLAR_TTL_FEE_BUDGET_NAME: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9-]{0,79}$/)
+    .optional(),
+  STELLAR_TTL_FEE_BUDGET_STROOPS: z
+    .string()
+    .regex(/^[1-9]\d{0,18}$/)
+    .optional(),
 
   // ---- Off-ramp treasury ----
   // Relayer-controlled holding address that cash_out nodes sink USDC to before
@@ -440,6 +449,10 @@ export function env(): EnvShape {
       "Invalid environment variables:\n" +
         "  - DEMO_API_DEPLOYMENT_ID: required when DEMO_API_ENABLED=true.",
     );
+  }
+
+  if (!!parsed.data.STELLAR_TTL_FEE_BUDGET_NAME !== !!parsed.data.STELLAR_TTL_FEE_BUDGET_STROOPS) {
+    throw new Error("TTL fee budget name and limit must be configured together");
   }
 
   cached = parsed.data;

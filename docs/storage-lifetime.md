@@ -44,6 +44,25 @@ fee bounds and hashes on confirmed success; `feeStroops` is not the charged fee
 after refunds. Rent may be substantially less;
 the cap is not an estimate.
 
+Paid caps above 0.1 XLM require both `STELLAR_TTL_FEE_BUDGET_NAME` and
+`STELLAR_TTL_FEE_BUDGET_STROOPS`. The additive
+`20261004020000_transaction_fee_budget` migration stores a fixed, per-network
+campaign limit and transaction reservations. Each guarded submission atomically
+reserves its declared maximum fee and writes an audit record before sending.
+Reservations survive restarts; refunds, rejection, expiry and unknown finality
+never replenish this conservative allowance. A duplicate hash or changed limit
+is rejected. When configured, this guard covers maintenance, the relayer builder's
+explicit legacy restoration, and the #804 fixture tooling; unrelated automation
+fees are outside the campaign. Missing persistence fails closed.
+
+The fixture tooling also consumes a permanent campaign setup claim atomically
+before Friendbot funding. `20261005000000_ttl_fixture_setup_claim` backfills that
+claim from existing setup/deposit reservations, preserving previous authorization
+consumption. A failed preparation does not release it. Recovery journals payment
+and any separate legacy restoration immediately at finality, before fee metadata
+or verification reads; uncertain attempts retain their hashes and report unknown
+submission count. See [review fixes](ttl-release-rehearsal.md#independent-review-fixes).
+
 Discovery uses:
 
 - Current template and factory rows, freshly queried from the DB, with env
@@ -129,7 +148,7 @@ Isolated TESTNET fixtures completed 12 successful transactions for Subscription 
 and Webhook v2: upload, deployment, trigger execution/charge, and separate instance
 and actual-code extensions to 600,000 ledgers. Public evidence is in
 [ttl-maintenance-testnet.json](evidence/ttl-maintenance-testnet.json). The RPC
-transaction-result `feeCharged` values (before possible resource-fee refunds) for
+transaction-result `feeCharged` values (already net of resource-fee refunds) for
 code extensions were 221,949,455 stroops
 (Webhook) and 347,975,490 stroops (Subscription), substantially above the default
 maintenance cap. Subscription's instance extension also exceeded that cap. These
@@ -236,3 +255,23 @@ not a comparison of signing-lane efficiency. This completes physical hot-archive
 recovery on the isolated chain, including the actual funded-channel invocation
 path. Public TESTNET uses different ledger/network limits, so these fixtures
 do not select a production budget.
+
+## Deployed release measurements
+
+The [#804 rehearsal report](ttl-release-rehearsal.md) records actual deployed
+inventory coverage, public TESTNET instance restoration through funded channels
+and unfunded-channel fallback, fee/refund reconciliation, held-Redis-lease blocking,
+and verified disable-to-inventory rollback in `hackathon-testing`. It also lists
+the remaining release checks and explains why the default fee cap cannot cover
+all observed extensions. Paid maintenance remains disabled; the measured fees do
+not establish a production budget.
+
+The user subsequently approved a temporary 50-XLM maintenance transaction cap
+for the TESTNET rehearsal. Only the cap changed in `hackathon-testing`; the same
+application commit was redeployed and the actual HTTP route still returned
+inventory-only behavior with zero submissions. The user also approved a 150-XLM
+total rehearsal spending ceiling; enforcement remains outstanding before paid
+runs. A fresh read found none of the 25 recorded code
+entries due at the unchanged threshold. See
+[cap-increase evidence](evidence/ttl-cap-increase-hackathon-testing.json) and the
+rehearsal report for the observed lifetimes and outstanding release decisions.

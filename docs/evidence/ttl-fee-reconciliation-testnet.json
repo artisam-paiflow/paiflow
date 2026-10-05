@@ -1,0 +1,198 @@
+{
+  "extensions": {
+    "network": "TESTNET",
+    "measuredAt": "2026-10-04T10:37:32.075Z",
+    "transactions": [
+      {
+        "label": "webhook instance TTL extension",
+        "hash": "89e7cf6231e67b7840295bbceea65073c29ba5b1853ad0d2c849fa9d81373e77",
+        "ledger": 5011671,
+        "payer": "GD5ETW3WBOJXAJY5A5XUUUJOS6U6TCN6TNJQO6FRZCHLMHABOT5FKUJK",
+        "operation": "extendFootprintTtl",
+        "declaredFeeStroops": "934346",
+        "initiallyChargedStroops": "934346",
+        "refundStroops": "129913",
+        "netFeeStroops": "804433",
+        "resultFeeChargedStroops": "804433",
+        "rentFeeStroops": "802027",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "934346"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-129913"
+          }
+        ]
+      },
+      {
+        "label": "webhook actual-code TTL extension",
+        "hash": "5b3f0b9471034111999368bf790c75705f3f9c939ac2bb60faa927af3bb0a9c2",
+        "ledger": 5011672,
+        "payer": "GD5ETW3WBOJXAJY5A5XUUUJOS6U6TCN6TNJQO6FRZCHLMHABOT5FKUJK",
+        "operation": "extendFootprintTtl",
+        "declaredFeeStroops": "255250597",
+        "initiallyChargedStroops": "255250597",
+        "refundStroops": "33301142",
+        "netFeeStroops": "221949455",
+        "resultFeeChargedStroops": "221949455",
+        "rentFeeStroops": "221947101",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "255250597"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-33301142"
+          }
+        ]
+      },
+      {
+        "label": "subscription instance TTL extension",
+        "hash": "f520bfd6ca378bc330d26b724a3fb4b77a84f76258c3513835d445b60ca08c63",
+        "ledger": 5011678,
+        "payer": "GD5ETW3WBOJXAJY5A5XUUUJOS6U6TCN6TNJQO6FRZCHLMHABOT5FKUJK",
+        "operation": "extendFootprintTtl",
+        "declaredFeeStroops": "1734232",
+        "initiallyChargedStroops": "1734232",
+        "refundStroops": "234244",
+        "netFeeStroops": "1499988",
+        "resultFeeChargedStroops": "1499988",
+        "rentFeeStroops": "1497582",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "1734232"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-234244"
+          }
+        ]
+      },
+      {
+        "label": "subscription actual-code TTL extension",
+        "hash": "940c66590f692091dc06ade417d91d024a074ddfba3571e1140c8cbdd5ba27c6",
+        "ledger": 5011679,
+        "payer": "GD5ETW3WBOJXAJY5A5XUUUJOS6U6TCN6TNJQO6FRZCHLMHABOT5FKUJK",
+        "operation": "extendFootprintTtl",
+        "declaredFeeStroops": "400180234",
+        "initiallyChargedStroops": "400180234",
+        "refundStroops": "52204744",
+        "netFeeStroops": "347975490",
+        "resultFeeChargedStroops": "347975490",
+        "rentFeeStroops": "347973136",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "400180234"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-52204744"
+          }
+        ]
+      }
+    ]
+  },
+  "restorations": {
+    "network": "TESTNET",
+    "measuredAt": "2026-10-04T10:40:29.286Z",
+    "transactions": [
+      {
+        "label": "instance restoration 1",
+        "hash": "1f415af64bd0c4b7ce9c3be4b3c77ac73e951bbd3cfee0a5029ad11cd0df5a73",
+        "ledger": 5017341,
+        "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "operation": "restoreFootprint",
+        "declaredFeeStroops": "268004",
+        "initiallyChargedStroops": "268004",
+        "refundStroops": "41042",
+        "netFeeStroops": "226962",
+        "resultFeeChargedStroops": "226962",
+        "rentFeeStroops": "219972",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "268004"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-41042"
+          }
+        ]
+      },
+      {
+        "label": "instance restoration 2",
+        "hash": "4681d207b75b58c9512f9adb8f56d4692d0a01acb53f9b5159b4783914d4e53c",
+        "ledger": 5017342,
+        "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "operation": "restoreFootprint",
+        "declaredFeeStroops": "268004",
+        "initiallyChargedStroops": "268004",
+        "refundStroops": "41042",
+        "netFeeStroops": "226962",
+        "resultFeeChargedStroops": "226962",
+        "rentFeeStroops": "219972",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "268004"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-41042"
+          }
+        ]
+      },
+      {
+        "label": "instance restoration 3",
+        "hash": "cd50ba48cb69b998a58335690cc9e4176ab54c9ec8a6a2f4be7e56094825da67",
+        "ledger": 5017343,
+        "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "operation": "restoreFootprint",
+        "declaredFeeStroops": "501718",
+        "initiallyChargedStroops": "501718",
+        "refundStroops": "71461",
+        "netFeeStroops": "430257",
+        "resultFeeChargedStroops": "430257",
+        "rentFeeStroops": "422766",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "501718"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-71461"
+          }
+        ]
+      },
+      {
+        "label": "instance restoration 4",
+        "hash": "69290d6be8dfe794c564babcca7ae9b5ffa3afc47a49c72962ee7dbf64363624",
+        "ledger": 5017344,
+        "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "operation": "restoreFootprint",
+        "declaredFeeStroops": "443892",
+        "initiallyChargedStroops": "443892",
+        "refundStroops": "63935",
+        "netFeeStroops": "379957",
+        "resultFeeChargedStroops": "379957",
+        "rentFeeStroops": "372590",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "443892"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-63935"
+          }
+        ]
+      }
+    ]
+  }
+}
