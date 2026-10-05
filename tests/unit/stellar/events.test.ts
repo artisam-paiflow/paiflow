@@ -5,6 +5,7 @@ import {
   MAX_EVENT_PAGES_PER_POLL,
   advanceEventCursor,
   pollEventsFor,
+  pollEventsForWithOutcome,
 } from "@/lib/stellar/events";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { db } from "@/lib/db";
@@ -740,6 +741,239 @@ describe("pollEventsFor: RPC scan windows", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("stops before an unstored event and recovers it on the next poll", async () => {
+    deployment(100);
+    const events = [payout(120), payout(150), payout(160)];
+    server(async () => ({ events, cursor: cursorAt(200), latestLedger: 200 }));
+    vi.mocked(db.contractEvent.create)
+      .mockResolvedValueOnce({ id: "stored" } as never)
+      .mockRejectedValueOnce(new Error("database unavailable"));
+
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      written: 1,
+      scannedThrough: 149,
+      reasons: ["insert-error"],
+    });
+    expect(cursorWritten()).toEqual({ lastLedger: 149 });
+    expect(db.contractEvent.create).toHaveBeenCalledTimes(2);
+
+    deployment(149);
+    server(async () => ({ events: events.slice(1), cursor: cursorAt(200), latestLedger: 200 }));
+    vi.mocked(db.contractEvent.create).mockResolvedValue({ id: "recovered" } as never);
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "complete",
+      written: 2,
+      scannedThrough: 200,
+      reasons: [],
+    });
+    expect(cursorWritten()).toEqual({ lastLedger: 200 });
+  });
+
+  it("replays earlier events in the same ledger harmlessly after an insert failure", async () => {
+    deployment(149);
+    const events = [payout(150, 1), payout(150, 2), payout(151)];
+    server(async () => ({ events, cursor: cursorAt(200), latestLedger: 200 }));
+    vi.mocked(db.contractEvent.create)
+      .mockResolvedValueOnce({ id: "stored" } as never)
+      .mockRejectedValueOnce(new Error("db failure"));
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      written: 1,
+      scannedThrough: 149,
+    });
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
+    vi.mocked(db.contractEvent.create)
+      .mockRejectedValueOnce({ code: "P2002" })
+      .mockResolvedValue({ id: "recovered" } as never);
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "complete",
+      written: 2,
+      scannedThrough: 200,
+    });
+  });
+
+  it("does not claim coverage if the first event at the start ledger cannot be stored", async () => {
+    deployment(100);
+    server(async () => ({ events: [payout(101)], latestLedger: 200 }));
+    vi.mocked(db.contractEvent.create).mockRejectedValueOnce(new Error("db failure"));
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "failed",
+      written: 0,
+      scannedThrough: 100,
+      reasons: ["insert-error"],
+    });
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("does not initialize a cursor from a failed first scan", async () => {
+    vi.mocked(db.deployment.findUnique).mockResolvedValue({
+      id: "dep-1",
+      contractAddress: "C123",
+      status: "CONFIRMED",
+      cursor: null,
+      deployTxHash: "dtx1",
+      flow: { templateKind: TemplateKind.SPLITTER },
+    } as never);
+    vi.mocked(sorobanRpc).mockReturnValue({
+      getTransaction: async () => ({ status: "SUCCESS", ledger: 1000 }),
+      getEvents: async () => {
+        throw new Error("rpc down");
+      },
+      getHealth: async () => ({ oldestLedger: 1, latestLedger: 2000 }),
+    } as never);
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "failed",
+      scannedThrough: 0,
+    });
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
+    expect(db.eventCursor.createMany).not.toHaveBeenCalled();
+  });
+
+  it("preserves full-page coverage when a later page's insert fails in the same ledger", async () => {
+    deployment(100);
+    const full = Array.from({ length: EVENTS_PAGE_LIMIT }, (_, i) => payout(150, i));
+    server(async (req) =>
+      req.cursor
+        ? { events: [payout(150, 999)], cursor: cursorAt(200), latestLedger: 200 }
+        : { events: full, cursor: cursorAt(150, 99), latestLedger: 200 },
+    );
+    for (let i = 0; i < EVENTS_PAGE_LIMIT; i++) {
+      vi.mocked(db.contractEvent.create).mockResolvedValueOnce({ id: "stored" } as never);
+    }
+    vi.mocked(db.contractEvent.create).mockRejectedValueOnce(new Error("insert failure"));
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      written: EVENTS_PAGE_LIMIT,
+      scannedThrough: 149,
+      reasons: ["insert-error"],
+    });
+    expect(cursorWritten()).toEqual({ lastLedger: 149 });
+    vi.mocked(db.contractEvent.create).mockResolvedValue({ id: "stored" } as never);
+  });
+
+  it("reports a full page without a continuation cursor as partial", async () => {
+    deployment(100);
+    server(async () => ({
+      events: Array.from({ length: EVENTS_PAGE_LIMIT }, (_, i) => payout(150, i)),
+      latestLedger: 200,
+    }));
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      scannedThrough: 149,
+      reasons: ["missing-cursor"],
+    });
+  });
+
+  it("distinguishes first-page failure from later-page partial coverage", async () => {
+    deployment(100);
+    server(async () => {
+      throw new Error("rpc unavailable");
+    });
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "failed",
+      written: 0,
+      scannedThrough: 100,
+      reasons: ["rpc-error"],
+    });
+    server(async (req) => {
+      if (req.cursor) throw new Error("later page unavailable");
+      return { events: [], cursor: cursorAt(150), latestLedger: 200 };
+    });
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      written: 0,
+      scannedThrough: 150,
+      reasons: ["rpc-error"],
+    });
+  });
+
+  it("reports empty scans and already caught-up scans as complete", async () => {
+    deployment(100);
+    server(async () => ({ events: [], cursor: cursorAt(200), latestLedger: 200 }));
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "complete",
+      written: 0,
+      scannedThrough: 200,
+    });
+    vi.mocked(db.eventCursor.updateMany).mockClear();
+    deployment(200);
+    server(
+      async () => {
+        throw new Error("ahead of tip");
+      },
+      1,
+      200,
+    );
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "complete",
+      written: 0,
+      scannedThrough: 200,
+    });
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("reports page limits and retention gaps instead of complete coverage", async () => {
+    deployment(100);
+    server(async () => ({ events: [], cursor: cursorAt(150), latestLedger: 200 }));
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      scannedThrough: 150,
+      reasons: ["page-limit"],
+    });
+    server(
+      async (req) => {
+        if (req.startLedger === 101) throw new Error("outside retention");
+        return { events: [], cursor: cursorAt(200), latestLedger: 200 };
+      },
+      140,
+      200,
+    );
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      scannedThrough: 200,
+      reasons: ["retention-gap"],
+    });
+  });
+
+  it("reports mixed contract outcomes and holds coverage at the least advanced contract", async () => {
+    deployment(100, [{ nodeId: "pay", contractAddress: "C456", templateKind: TemplateKind.PAYER }]);
+    server(async (req) => {
+      if (req.filters[0]!.contractIds[0] === "C456") throw new Error("rpc unavailable");
+      return { events: [], latestLedger: 200 };
+    });
+    const result = await pollEventsForWithOutcome("dep-1");
+    expect(result).toMatchObject({
+      status: "partial",
+      scannedThrough: 100,
+      written: 0,
+      reasons: ["rpc-error"],
+    });
+    expect(result.contracts.map((scan) => scan.status)).toEqual(["complete", "failed"]);
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("reports unavailable deployments and missing start state as skipped", async () => {
+    vi.mocked(db.deployment.findUnique).mockResolvedValue(null);
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "skipped",
+      scannedThrough: null,
+      reasons: ["deployment-unavailable"],
+    });
+    deployment(100);
+    vi.mocked(db.deployment.findUnique).mockResolvedValue({
+      id: "dep-1",
+      contractAddress: "C123",
+      status: "CONFIRMED",
+      flow: { templateKind: TemplateKind.SPLITTER },
+    } as never);
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "skipped",
+      scannedThrough: null,
+      reasons: ["missing-start-ledger"],
+    });
   });
 
   it("follows the cursor across empty windows and ingests an event past the first one", async () => {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
 import { withErrorHandler } from "@/lib/errors";
-import { pollEventsFor } from "@/lib/stellar/events";
+import { pollEventsForWithOutcome } from "@/lib/stellar/events";
 import { requireCronSecret } from "@/lib/auth/cron-secret";
 import { cronPollableDeploymentWhere } from "@/lib/sandbox";
 import { CRON_LIMITS } from "@/lib/cron/config";
@@ -46,7 +46,11 @@ export async function POST(req: NextRequest) {
       const deployments = [...unpolled, ...polledBefore];
       log.info({ deploymentCount: deployments.length }, "poll-events cron found deployments");
 
+      let attempted = 0;
       let polled = 0;
+      let partial = 0;
+      let failed = 0;
+      let skipped = 0;
       let written = 0;
       let truncated = false;
       const errors: Array<{ deploymentId: string; error: string }> = [];
@@ -63,14 +67,41 @@ export async function POST(req: NextRequest) {
           }
           const d = deployments[next++];
           if (!d) return;
+          attempted += 1;
           try {
-            const count = await pollEventsFor(d.id);
-            polled += 1;
-            written += count;
-            if (count > 0) {
-              log.info({ deploymentId: d.id, written: count }, "poll-events cron wrote events");
+            const result = await pollEventsForWithOutcome(d.id);
+            written += result.written;
+            switch (result.status) {
+              case "complete":
+                polled += 1;
+                break;
+              case "partial":
+                partial += 1;
+                break;
+              case "failed":
+                failed += 1;
+                break;
+              case "skipped":
+                skipped += 1;
+                break;
+              default: {
+                const unreachable: never = result.status;
+                throw new Error(`Unknown event scan status: ${unreachable}`);
+              }
             }
+            if (
+              result.reasons.some(
+                (reason) =>
+                  reason === "rpc-error" ||
+                  reason === "insert-error" ||
+                  reason === "deployment-ledger-error",
+              )
+            ) {
+              errors.push({ deploymentId: d.id, error: result.reasons.join(", ") });
+            }
+            log.info({ deploymentId: d.id, ...result }, "poll-events cron scan outcome");
           } catch (err) {
+            failed += 1;
             const message = err instanceof Error ? err.message : String(err);
             log.warn({ deploymentId: d.id, err }, "poll-events cron failed for deployment");
             errors.push({ deploymentId: d.id, error: message });
@@ -93,14 +124,18 @@ export async function POST(req: NextRequest) {
 
       if (truncated) {
         log.warn(
-          { budgetMs, attempted: polled + errors.length, deploymentCount: deployments.length },
+          { budgetMs, attempted, deploymentCount: deployments.length },
           "poll-events cron out of time; the rest waits for the next run",
         );
       }
 
       log.info(
         {
+          attempted,
           polled,
+          partial,
+          failed,
+          skipped,
           written,
           deploymentCount: deployments.length,
           errorCount: errors.length,
@@ -109,14 +144,28 @@ export async function POST(req: NextRequest) {
         "poll-events cron finished",
       );
 
-      return { polled, written, errors: errors.length, deployments: deployments.length, truncated };
+      return {
+        attempted,
+        polled,
+        partial,
+        failed,
+        skipped,
+        written,
+        errors: errors.length,
+        deployments: deployments.length,
+        truncated,
+      };
     });
 
     if (!lease.acquired) {
       log.info("poll-events cron skipped: previous run still active");
       return NextResponse.json({
         data: {
+          attempted: 0,
           polled: 0,
+          partial: 0,
+          failed: 0,
+          skipped: 0,
           written: 0,
           errors: 0,
           deployments: 0,
