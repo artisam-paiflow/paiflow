@@ -1,4 +1,29 @@
-Generated from pinkraft `hackathon` @ 18b89d56625ef562ea9b0458f6ccc6d19f0f6efe. Testnet only.
+API reference based on pinkraft `hackathon` @ 18b89d56625ef562ea9b0458f6ccc6d19f0f6efe. Participant rules and starter mode instructions updated Oct 5, 2026. Testnet only.
+
+# Hackathon preparation rules
+
+- Ideation may start now: choose a problem, research users and sketch the app.
+- Registration closes October 11, 2026, at 12:59 PM. A maximum of 10 teams of 1–4 students can participate. Solo teams are welcome; at least two members are encouraged. If more than 10 teams apply, we will coordinate with the respective student organisation to determine the best way forward.
+- Online onboarding is October 12, 2026, at 9:00 PM. The meeting link will be provided through blockhub.academy or through the student organisation representatives.
+- After October 12 onboarding, teams may build their app's screens and features that don't involve payments, using the supplied starter. Keep its payment features and live feed disabled until October 14.
+- Flow deployment, connecting the app to Paiflow APIs and live payment testing must wait until October 14. Paiflow account credentials are handed out on October 14.
+- Wallet preparation is allowed beforehand: select testnet, add the exact USDC trustline and obtain testnet XLM and USDC where possible. On-site support and ready-to-use fallback wallets are available on October 14.
+
+The supplied starter defaults to preparation mode when `PAIFLOW_MODE` is unset. Run `pnpm install` and `pnpm dev`, then open http://localhost:3000 to build non-payment screens. You can also copy `.env.example` to `.env.local` and keep server-only `PAIFLOW_MODE=prepare`. This disables wallet actions, payments and event polling; the starter makes no upstream Paiflow requests or demo-token requests. Direct payment, payout and event routes return HTTP 403 `PREPARATION_MODE`.
+
+On October 14, set server-only `PAIFLOW_MODE=team` alongside the supplied platform origin, your confirmed deployment UUID and API token, then restart. Explicit `PAIFLOW_MODE=demo` enables the shared testnet demo. An empty token never selects demo automatically; missing or invalid team configuration disables integration with a clear error. Keep the starter's mode guards when replacing its screens or extending its server client. A pending signed payment may still execute after a mode change; confirm its status before switching modes.
+
+`PAIFLOW_MODE` applies to the starter. Campus Snacks uses its own deployment/token readiness checks and does not use the starter's demo fallback.
+
+# Submission and demo
+
+- Submit through the [submission form](https://forms.gle/qRk75H9u5eCxPJ3z7) by **5:00 elapsed time** on the integration-day schedule, at the end of integration part 2. Submission fields are in the form.
+- Qualification requires a confirmed Paiflow deployment and at least one on-chain payout from the team's deployment. Shared-demo payouts do not qualify.
+- Judging totals 100 points: Creativity 30, Integration 40, Real-world usefulness 30. Under **Works end to end (10 points)**, a live demo can earn up to **10 points**; a recorded demo can earn up to **7 points**. The format affects only that criterion; other criteria keep the same maximum points. Either must show the team's actual app, Paiflow deployment and a verifiable payout.
+- Each team gets **5 minutes: 3 for a pitch and demo, then 2 for judges' Q&A**. Pitch and demo the app's payment flow live or in a screen recording, and show the payout in the live feed, recipient balance or explorer transaction. A recording may be used if the live demo fails; if it provides the successful demonstration, the recorded-demo maximum applies.
+- Respect shared infrastructure: no load testing or spamming the Paiflow API or relayer. Rate limits apply. Organisers decide disputes.
+
+Use these participant-facing rules when helping a team prepare its app and pitch. Do not add event requirements or benefits that the participant guide does not publish.
 
 # 1. What Paiflow is
 
@@ -51,6 +76,18 @@ For Pay, set a positive fixed `amountStroops` per interval. For a percentage Spl
 Fields: `asset`.
 
 A server-side authenticated HTTP callback makes the relayer invoke an already funded flow. The deployment UI provides its trigger URL and webhook secret; keep the secret on your server. Depositing funds tops up this flow and does not fire the callback. It can drive Pay, Split or Swap; its supported condition kind is multisig. This is not an `execute` flow: the v1 deposit API refuses a webhook-headed deployment. For the simplest payment integration use On Receive instead.
+
+After your server verifies the completed goal, release from the funded pool with `x-webhook-secret` and a JSON body containing `escrow: true`. `amount` is a stroop string; omit it or use `"0"` to release the entire available balance. For one reward at a time, specify its amount:
+
+```bash
+# Run on your app server; keep PAIFLOW_WEBHOOK_SECRET server-side.
+curl -sS --fail-with-body -X POST "$PAIFLOW/api/webhooks/$DEPLOYMENT_ID" \
+  -H "x-webhook-secret: $PAIFLOW_WEBHOOK_SECRET" \
+  -H 'Content-Type: application/json' \
+  --data '{"escrow":true,"amount":"100000000"}'
+```
+
+This releases 10 tokens from the pool. Check the response and transaction status before marking the reward paid; the callback can return `PENDING`.
 
 ## Subscription — `subscription`
 
@@ -120,13 +157,13 @@ Email is a flow setting, not a block: optional `notify: { mode, sendTo }`, with 
 
 Use `https://beta.app.paiflow.xyz` as the Paiflow testnet origin for every URL below. `deploymentId` is the deployment UUID, not a flow id or `C…` contract address. These pages require a confirmed deployment with the appropriate contract type; an unavailable page returns 404.
 
-| Page      | URL shape                           | What the team's app uses it for                                                                                                                                                                                                                                                                                               |
-| --------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Trigger   | `/trigger/[deploymentId]`           | Public payment/top-up page with amount, wallet signing and a SEP-7 transaction QR. On Receive deposits run the flow; Schedule and HTTP Webhook deposits fund it. A fixed flow can lock its required amount; variable flows accept an `?amount=10` hint in tokens, not stroops. The flow's required amount overrides the hint. |
-| Embed     | `/deployments/[deploymentId]/embed` | Public view of the deployed graph and live events, with payment QR where supported. Link to it or place it in your app's embedded view; it is not an API response.                                                                                                                                                            |
-| Allowance | `/allowance/[deploymentId]`         | The subscription customer connects their wallet and approves an asset allowance for the subscription contract. Each approval adds to the existing allowance. It does not deposit or charge immediately.                                                                                                                       |
+| Page      | URL shape                           | What the team's app uses it for                                                                                                                                                                                                                                                                             |
+| --------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trigger   | `/trigger/[deploymentId]`           | Public payment/top-up page with amount entry and wallet signing. On Receive deposits run the flow; Schedule and HTTP Webhook deposits fund it. A fixed flow can lock its required amount; variable flows accept an `?amount=10` hint in tokens, not stroops. The flow's required amount overrides the hint. |
+| Embed     | `/deployments/[deploymentId]/embed` | Public view of the deployed graph and live events, with payment QR where supported. Link to it or place it in your app's embedded view; it is not an API response.                                                                                                                                          |
+| Allowance | `/allowance/[deploymentId]`         | The subscription customer connects their wallet and approves an asset allowance for the subscription contract. Each approval adds to the existing allowance. It does not deposit or charge immediately.                                                                                                     |
 
-The payment QR carries a SEP-7 transaction request, not merely a contract address. A wallet must support signing that request on testnet. Your own checkout can use the execute sequence instead.
+The usual trigger QR opens this hosted page (or the allowance page for a subscription). The customer then connects a testnet wallet and signs there. Separate transaction QR modes encode SEP-7 requests and require a compatible wallet. Your own checkout can use the execute sequence instead.
 
 # 4. The `/api/v1` API
 
@@ -140,7 +177,7 @@ Browser → your app's server → Paiflow is the API path. The server returns un
 
 ## Routes, responses and limits
 
-Success uses `{ "data": ... }`; preparation and submission return HTTP 200. Errors use `{ "error": { "code", "message", "fields"?, "details"? } }`. Inspect HTTP status **and** submission `data.status`. Every token-authenticated response has `x-request-id`; retain it for mentor debugging. Do not log tokens or signed XDR.
+Success uses `{ "data": ... }`; preparation and submission return HTTP 200. Errors use `{ "error": { "code", "message", "fields"?, "details"? } }`. Inspect HTTP status **and** submission `data.status`. Every token-authenticated response has `x-request-id`; retain it for platform-support debugging. Do not log tokens or signed XDR.
 
 | Method and path                               | Limit                                           |
 | --------------------------------------------- | ----------------------------------------------- |
@@ -164,7 +201,7 @@ Limits use fixed windows, separately per endpoint. Owner-session token managemen
 | 409  | `CONFLICT`           | Wait for payout finality/expiry and retry as described below. |
 | 422  | `VALIDATION`         | Fix input or the simulated flow; inspect fields and message.  |
 | 429  | `RATE_LIMITED`       | Back off using `Retry-After`.                                 |
-| 500  | `INTERNAL`           | Keep request id and ask a mentor.                             |
+| 500  | `INTERNAL`           | Keep request id and ask platform support.                     |
 | 502  | `UPSTREAM_RPC`       | Retry carefully: submission may already have broadcast.       |
 
 ## Execute: prepare → customer's wallet signs → submit
@@ -206,7 +243,7 @@ curl -sS --fail-with-body -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/ex
 
 ### Copy-paste TypeScript fetch
 
-The following implementation belongs in the starter's server-only module. All six operations below use this helper. Set `PAIFLOW_BASE_URL=https://beta.app.paiflow.xyz` in your own app's server configuration. The error class retains status and retry information; callers must handle these rather than retrying every error.
+The following team-mode request example belongs in a server-only module. When extending the supplied starter, retain its mode guards; all six operations below use this helper. Set `PAIFLOW_BASE_URL=https://beta.app.paiflow.xyz` in your own app's server configuration. The error class retains status and retry information; callers must handle these rather than retrying every error.
 
 ```ts
 import "server-only";
@@ -241,6 +278,8 @@ export class PaiflowError extends Error {
   }
 }
 function config() {
+  if (process.env.PAIFLOW_MODE !== "team")
+    throw new Error("Select team mode for this team API example");
   const origin = process.env.PAIFLOW_BASE_URL;
   const deploymentId = process.env.PAIFLOW_DEPLOYMENT_ID;
   const token = process.env.PAIFLOW_API_TOKEN;
@@ -342,7 +381,7 @@ export function listEvents(input: { cursor?: string; limit?: number; txHash?: st
 
 Supported routes to that Pay are immediate amount conditions or fixed Split. A fixed Split must have zero token/accumulated balances, positive fixed recipients, one next step, and incoming amount greater than its fixed total; surplus reaches Pay. Percentage Split consumes everything; a shortfall accumulates; neither qualifies. Time holds, Swap and other delayed/unsupported paths are refused. Pay must have no existing pooled balance. Deferred value sets Pay to 100%; otherwise current configuration is preserved: percentage must consume all incoming funds, or incoming must not exceed a fixed cap. These checks concern the amount reaching Pay after upstream payouts.
 
-**One payout at a time per deployment.** A lease keeps the chosen recipient protected during preparation/configuration and until the exact deposit is final or ledger-time expiry is proven. HTTP 409 means retry after `Retry-After` when provided; it is advisory and you may still get 409 because ledger time lags. If no header is present, wait and retry with bounded backoff. If the earlier deposit was submitted, retry that same signed envelope to get its status. PENDING, uncertain RPC results and some send refusals retain protection; do not change recipients or start another payout while waiting. A wall-clock timeout alone does not prove that an abandoned deposit cannot execute. Functioning coordination is required; a 502 coordination failure needs a mentor/operator.
+**One payout at a time per deployment.** A lease keeps the chosen recipient protected during preparation/configuration and until the exact deposit is final or ledger-time expiry is proven. HTTP 409 means retry after `Retry-After` when provided; it is advisory and you may still get 409 because ledger time lags. If no header is present, wait and retry with bounded backoff. If the earlier deposit was submitted, retry that same signed envelope to get its status. PENDING, uncertain RPC results and some send refusals retain protection; do not change recipients or start another payout while waiting. A wall-clock timeout alone does not prove that an abandoned deposit cannot execute. Functioning coordination is required; a 502 coordination failure needs platform support.
 
 **A deposit outside `/payouts` pays the last recipient set. Execute and direct deposits bypass the payout lease.** Keep them, owner changes and UI mutations from running concurrently with payouts. The lease does not isolate your deployment from those other paths. Only add envelope signatures to the prepared payout; changing source, amount, bounds, operations or authorisation entries is refused. Final retries are retained for seven days.
 
@@ -400,7 +439,7 @@ export const releaseEarly = (input: { nodeId?: string } = {}) =>
 
 ## Public spec and demo access
 
-The OpenAPI document is bare JSON (no `data` wrapper). A public demo token takes no body, returns HTTP 201 `{ data: { deploymentId, token, expiresAt } }`, and expires in 60 minutes. Available only where enabled; otherwise 403. The demo is a shared testnet swap deployment: other callers can read events including your depositing address, and deposited testnet XLM goes to a Paiflow-owned account, not back to you. Use a throwaway funded wallet. Build your actual idea against the team's deployment/token. The starter's demo fallback can obtain its token on the server.
+The OpenAPI document is bare JSON (no `data` wrapper). A public demo token takes no body, returns HTTP 201 `{ data: { deploymentId, token, expiresAt } }`, and expires in 60 minutes. Available only where enabled; otherwise 403. The demo is a shared testnet swap deployment: other callers can read events including your depositing address, and deposited testnet XLM goes to a Paiflow-owned account, not back to you. Use a throwaway funded wallet. Build your actual idea against the team's deployment/token. The starter can obtain a demo token on its server only after explicit `PAIFLOW_MODE=demo` selection. For hackathon teams, shared-demo payment testing begins on October 14; shared-demo payouts do not qualify for prizes.
 
 ```bash
 curl -sS --fail-with-body "$PAIFLOW/api/v1/openapi.json"
@@ -411,11 +450,15 @@ These optional public calls can also live in the server module:
 
 ```ts
 export async function getOpenApi(origin: string): Promise<unknown> {
+  if (!["demo", "team"].includes(process.env.PAIFLOW_MODE ?? "prepare"))
+    throw new Error("Paiflow requests are disabled; select demo or team mode on integration day");
   const response = await fetch(new URL("/api/v1/openapi.json", origin));
   if (!response.ok) throw new Error(`OpenAPI HTTP ${response.status}`);
   return response.json();
 }
 export async function getDemoToken(origin: string) {
+  if (process.env.PAIFLOW_MODE !== "demo")
+    throw new Error("Demo access requires explicit demo mode");
   const response = await fetch(new URL("/api/v1/demo-token", origin), { method: "POST" });
   const body = (await response.json()) as
     | { data: { deploymentId: string; token: string; expiresAt: string } }
@@ -432,21 +475,23 @@ export async function getDemoToken(origin: string) {
 }
 ```
 
-# 5. Simulating customers
+# 5. Testnet wallets and simulating customers
 
-Each team gets **three organiser-made testnet wallets, each with 1,000 USDC** plus testnet XLM for fees/reserves. Teams may create more testnet wallets and are encouraged to. Use the three wallets to play three customers: connect/switch to the relevant wallet, prepare using that wallet's public address, have it sign in the browser, then submit. Each customer wallet signs its own payment. **The app must never hold a customer's secret key**, even for a demo. Import the handout keys only into dedicated testnet wallets, outside your app code; never commit them.
+Teams are encouraged to prepare their own dedicated testnet wallets and obtain testnet XLM and USDC beforehand to save integration time. Add the exact USDC trustline described below; a trustline alone provides no balance. We provide wallet and funding support on site on October 14, with ready-to-use wallets as a last resort.
 
-These are testnet wallets created by the organisers, who hold copies of their keys. Never send real (mainnet) funds to them or import them into a wallet you use for real money. Anyone with the key can take what's in them.
+On October 14, use different wallets to simulate customers: connect/switch to the relevant wallet, prepare using its public address, have it sign in the browser, then submit. Each customer signs their own payment. **The app must never hold a customer's secret key**, even for a demo. Import any fallback-wallet handout keys only into dedicated testnet wallets, outside the app code; never commit them.
 
-**USDC trustlines:** a fresh Stellar wallet usually cannot hold USDC until it adds a trustline to that exact asset code and issuer. A missing recipient trustline can show `TrustlineMissingError` / `The payout recipient has no trustline for {asset}. The recipient must add a trustline for {asset} before this flow can pay them.` in simulation, surfaced as 422 `VALIDATION`; the whole payment reverts. A deploy warning does not block deployment or require acknowledgement, so successful deployment does not prove recipients are ready. In the recipient's testnet wallet, use Add asset / Add trustline for code `USDC`, issuer `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`, and have that wallet sign its change-trust transaction. Fund a new account with testnet XLM via Friendbot first so it exists and has reserves/fees. A trustline to another issuer's USDC will not work; native XLM needs no trustline. The handed-out wallets are provisioned with the right line, but every new recipient needs checking. Adding a trustline enables receipt, not a USDC balance: obtain testnet USDC separately, then prepare the failed payment again. Payouts checks recipient readiness before changing it; an inconclusive check also refuses mutation.
+Organiser-provided fallback wallets are testnet-only; organisers hold copies of their keys. Never send real (mainnet) funds to them or import them into a wallet you use for real money. Anyone with the key can take what's in them.
+
+**USDC trustlines:** a fresh Stellar wallet usually cannot hold USDC until it adds a trustline to that exact asset code and issuer. A missing recipient trustline can show `TrustlineMissingError` / `The payout recipient has no trustline for {asset}. The recipient must add a trustline for {asset} before this flow can pay them.` in simulation, surfaced as 422 `VALIDATION`; the whole payment reverts. A deploy warning does not block deployment or require acknowledgement, so successful deployment does not prove recipients are ready. In the recipient's testnet wallet, use Add asset / Add trustline for code `USDC`, issuer `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`, and have that wallet sign its change-trust transaction. Fund a new account with testnet XLM via Friendbot first so it exists and has reserves/fees. A trustline to another issuer's USDC will not work; native XLM needs no trustline. Check the exact trustline and required balances in every wallet, including any organiser-provided fallback wallet. Adding a trustline enables receipt, not a USDC balance: obtain testnet USDC separately, then prepare the failed payment again. Payouts checks recipient readiness before changing it; an inconclusive check also refuses mutation.
 
 # 6. Timing advice
 
-Recommend **at least five minutes** for On Schedule and Subscription charge intervals; when using Allowance for a subscription, plan its charges on that same minimum interval. Allowance itself is approval, not a separate timed block. Payments land **one to two minutes after they are due** because automation is polled. Shorter intervals make a demo look stalled and drain a 1,000-USDC wallet: 10 USDC/minute is about 2,400 USDC over four hours (the wallet runs out before that). Every team shares the relayer. The builder allows one-minute intervals; this is advice, not enforcement, but don't use them for the event.
+Recommend **at least five minutes** for On Schedule and Subscription charge intervals; when using Allowance for a subscription, plan its charges on that same minimum interval. Allowance itself is approval, not a separate timed block. Payments land **one to two minutes after they are due** because automation is polled. Shorter intervals make a demo look stalled and drain testnet funds quickly: 10 USDC/minute requires about 2,400 USDC over four hours. Choose demo amounts to fit your available balance. Every team shares the relayer. The builder allows one-minute intervals; this is advice, not enforcement, but don't use them for the event.
 
 For `/payouts`, **reuse a small, fixed set of recipients**. A new recipient costs one extra relayer configuration transaction; matching existing recipient and value can skip that mutation. Leave time for signing within its 60-second window and for the preceding payout to finish.
 
-The **live feed can lag by up to a minute** in normal background polling. Do not send another payment just because the animation has not appeared. Poll events with the rules above, track submission status/hash, and allow extra time when the network is slow; a minute is not a guaranteed upper bound during an outage.
+The **live feed can lag by up to a minute** in normal background polling. Do not send another payment just because the animation has not appeared. Poll events with the rules above, track submission status/hash, and allow extra time when the network is slow; a minute is not a guaranteed upper bound.
 
 # 7. Common failures
 
@@ -471,7 +516,7 @@ The quoted text below is returned by the API or its contract error translation. 
 | `txBadSeq`: ``The `from` account's sequence number moved since this envelope was prepared. Prepare it again.``                                                              | Avoid simultaneous transactions from the same customer wallet; prepare again after its other transaction finishes.                                                       |
 | `txBadAuth`: ``The envelope is not signed by the `from` account.``                                                                                                          | Reconnect the selected customer's wallet and sign with the returned passphrase.                                                                                          |
 
-If submission returns `PENDING` or a transport/502 error, keep its signed envelope and check again. Expiry is a reason to prepare anew only once the old payment is known not to have succeeded; don't mistake an uncertain response for no payment. For any unfamiliar error, keep `x-request-id`, status, code and message for the mentor, without exposing credentials.
+If submission returns `PENDING` or a transport/502 error, keep its signed envelope and check again. Expiry is a reason to prepare anew only once the old payment is known not to have succeeded; don't mistake an uncertain response for no payment. For any unfamiliar error, keep `x-request-id`, status, code and message for platform support, without exposing credentials.
 
 # 8. Worked examples
 
@@ -480,6 +525,16 @@ If submission returns `PENDING` or a transport/502 error, keep its signed envelo
 Graph: **On Receive USDC → Split**, with two recipients at 5000/5000 bps (or your chosen shares summing to 10,000). Every positive customer deposit is distributed by percentage; recipients need USDC trustlines. Deploy once for the group/creator.
 
 App calls: `prepareExecute({ from: customerPublicKey, amount: "100000000" })` for a 10-USDC contribution → customer's browser wallet signs → `submitExecute({ signedXdr })` → `listEvents({ cursor })`. Show RECEIVE and PAYOUT events, deduplicated by eventId; use the hosted trigger page as a payment alternative and embed for the shared visual feed. Switch wallets to demonstrate three customers, not three deployments.
+
+## Campus Snacks reference sample
+
+Source: [artisam-paiflow/paiflow-campus-snacks](https://github.com/artisam-paiflow/paiflow-campus-snacks), built from the supplied starter. It represents one branch of a snack shop. See its [README setup instructions](https://github.com/artisam-paiflow/paiflow-campus-snacks/blob/main/README.md) for October 14 integration.
+
+Graph: **On Receive USDC → percentage Split**, with Dev mode off. Vendor first: **9000 bps (90%)**; student organisation second: **1000 bps (10%)**. Use distinct funded testnet recipients with the exact USDC trustline. One deployment serves all customers.
+
+On October 14, configure server-only `PAIFLOW_BASE_URL` with the supplied platform origin, `PAIFLOW_DEPLOYMENT_ID` with the team's confirmed deployment UUID, and `PAIFLOW_API_TOKEN` with its token; restart the app. The sample requires its own configured deployment and does not use the starter's shared XLM demo. The server calculates snack prices; Freighter signs in the browser.
+
+The organiser's October 4 rehearsal confirmed **3.50 USDC → 3.15 vendor + 0.35 student organisation** on-chain. Each team must still rehearse its own deployment after setup. The two jars show cumulative received payouts, not wallet balances. They pair a USDC deposit with its percentage Split payout in the same transaction, deduplicate `eventId` and follow contract rounding; unmatched activity stays in history but does not increase totals. `$` labels denote testnet USDC; no real money or goods are involved.
 
 ## Sari-sari store checkout
 
