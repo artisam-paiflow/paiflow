@@ -770,6 +770,59 @@ concurrent users, a week-long soak, paid finality or provider-failure headroom.
 Paid due-code/refund evidence, public recovery/payment, recurring funding,
 #805 activation and #460 scheduling retain their separate release gates.
 
+## Due-code and recovery eligibility recheck — 5 October 2026
+
+At **11:03 UTC**, a bounded read-only inspection from the application container
+rechecked the current/historical code inventory, disposable fixture instances,
+and durable campaign reservations. Only Railway **hackathon-testing** was
+accessed. The active deployment remains `9994d0dc-ba38-4652-a1fd-4157109433e2`;
+the TTL runtime source hashes still match `216ef8c2`. Full public observations
+are retained in [eligibility evidence](evidence/ttl-eligibility-hackathon-testing.json).
+
+Three serial RPC calls, separated by one-second idle gaps and with no retries,
+read the latest ledger, **24 instances** (21 pipeline instances, the two
+disposable fixture instances, and the factory), and **27 code entries**.
+The code inventory includes current templates, the factory, historical
+executables resolved from durable pipeline instances, and both fixture
+executables. No entry was missing. All code entries were healthy; seven
+pre-existing non-fixture instances still reported due with live-until zero and
+were left untouched.
+
+`getLatestLedger` reported protocol **29** and ledger **5,034,917**; the instance
+and code reads used ledger **5,034,918**. Earlier isolated physical-archive
+evidence used protocol 26. The future public recovery/payment run must verify
+the network behavior at execution time.
+
+| Gate                         | Observation at ledger 5,034,918                 | Earliest eligible ledger |
+| ---------------------------- | ----------------------------------------------- | ------------------------ |
+| Due-code extension           | 81,237 ledgers left; 31,237 above the threshold | 5,066,155                |
+| Disposable instance recovery | Both instances have 112,573 ledgers left        | 5,147,492                |
+
+The earliest due-code candidate is
+`472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602`,
+with live-until **5,116,155**. Its renewal threshold is 50,000 remaining ledgers.
+The disposable instances retain live-until **5,147,491** and exactly match the
+saved instance values and executable hashes. Neither is registered for
+maintenance, and no fixture payment reservation exists. The fixture Pay code
+has live-until **5,121,109**, earlier than the fixture instances; this is an
+opportunity for naturally expired code recovery when the instance gate is met,
+subject to a fresh read and any intervening renewal of the shared executable.
+
+At an assumed five seconds per ledger, these gates are approximately **43.4
+hours** and **6.5 days** away. They are planning estimates, not guaranteed dates
+or scheduled execution. Re-read the actual ledgers, instance values,
+executables, and campaign reservations before submitting. Renewal of an
+executable can postpone its archival without renewing the fixture instances.
+
+The durable campaign remains at **1,313,198 stroops** committed across two
+reservations, leaving **1,498,686,802 stroops (149.8686802 XLM)** of its 150-XLM
+allowance. The 50-XLM per-transaction cap, disabled paid maintenance, and zero
+configured channels remain in effect. **Neither paid test was eligible, so no
+extension, restoration, or payment was submitted.** This inspection did not
+change configuration or register recurring work. Due-code/refund and public
+recovery/payment acceptance remain open; the fixture's funded balance will need
+verification before execution.
+
 ## Remaining #804 release evidence
 
 This report advances #804; it does not close the issue. Remaining checks are:
