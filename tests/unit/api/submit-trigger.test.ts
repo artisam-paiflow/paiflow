@@ -1,3 +1,8 @@
+vi.mock("@/lib/analytics/outcomes", () => ({
+  recordTransactionOutcome: vi.fn(async () => false),
+  beginTransactionSubmission: vi.fn(async () => undefined),
+  transactionObservation: vi.fn(async () => undefined),
+}));
 /**
  * #557: `submit-trigger` and `submit-invoke` answered PENDING for a send the
  * RPC refused (TRY_AGAIN_LATER) and wrote the audit row `tx-status` binds its

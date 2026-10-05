@@ -19,7 +19,15 @@ import {
 } from "@stellar/stellar-sdk";
 
 const { mockDb, mockRpc, mockBuildHint } = vi.hoisted(() => ({
-  mockDb: { deploymentApiToken: { findUnique: vi.fn(), update: vi.fn() } },
+  mockDb: {
+    $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockDb)),
+    deploymentApiToken: { findUnique: vi.fn(), update: vi.fn() },
+    signedTransaction: {
+      createMany: vi.fn(async () => ({ count: 1 })),
+      findUnique: vi.fn(async () => null),
+    },
+    analyticsDelivery: { createMany: vi.fn(async () => ({ count: 1 })) },
+  },
   mockRpc: {
     getAccount: vi.fn(),
     simulateTransaction: vi.fn(),

@@ -57,7 +57,7 @@ describe("redactDeep", () => {
     });
     const deep = { a: { b: { c: { d: { e: { f: { g: { h: ACCOUNT } } } } } } } };
     const out = redactDeep(deep) as typeof deep;
-    // Past the cap the value is returned as-is; the cap only bounds the walk.
-    expect(out.a.b.c.d.e.f.g).toEqual({ h: ACCOUNT });
+    // Beyond the cap the branch is dropped, never returned unsanitized.
+    expect(out.a.b.c.d.e.f).toEqual({});
   });
 });

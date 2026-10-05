@@ -1,6 +1,12 @@
 import "server-only";
 import type { Transaction } from "@stellar/stellar-sdk";
 import { rpc } from "@stellar/stellar-sdk";
+import {
+  beginTransactionSubmission,
+  recordTransactionOutcome,
+  transactionObservation,
+  type TransactionObservation,
+} from "@/lib/analytics/outcomes";
 import { audit, wasTxConfirmedFor } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { log } from "@/lib/log";
@@ -14,10 +20,19 @@ import { signerFromTransaction } from "./signer";
 
 const rpcFailed = () => new AppError("UPSTREAM_RPC", "The Soroban RPC request failed; try again");
 
-async function viaRpc<T>(fn: () => Promise<T>): Promise<T> {
+async function viaRpc<T>(
+  fn: () => Promise<T>,
+  txHash?: string,
+  evidence: { submissionAttempt?: number; observation?: TransactionObservation } = {},
+): Promise<T> {
   try {
     return await fn();
   } catch (err) {
+    if (txHash)
+      await recordTransactionOutcome(txHash, "UNRESOLVED", {
+        failureCode: "RPC_UNAVAILABLE",
+        ...evidence,
+      });
     log.warn({ err }, "v1 execute submit: RPC call failed");
     throw rpcFailed();
   }
@@ -61,12 +76,16 @@ export async function submitPreparedDeposit({
     kind: "API_EXECUTE",
     network: deployment.network,
     userId: null,
+    apiTokenId: tokenId,
     deploymentId: deploymentId,
     ip,
   });
 
   const server = sorobanRpc();
-  let got = await viaRpc(() => server.getTransaction(txHash));
+  const preflightObservation = await transactionObservation(txHash);
+  let got = await viaRpc(() => server.getTransaction(txHash), txHash, {
+    observation: preflightObservation,
+  });
 
   if (got.status === rpc.Api.GetTransactionStatus.NOT_FOUND) {
     if (!allowSubmit)
@@ -74,9 +93,14 @@ export async function submitPreparedDeposit({
         "VALIDATION",
         "This payout no longer owns recipient protection; only final-status retries are allowed",
       );
-    const send = await viaRpc(() => server.sendTransaction(tx));
+    const submissionAttempt = await beginTransactionSubmission(txHash);
+    const send = await viaRpc(() => server.sendTransaction(tx), txHash, { submissionAttempt });
 
     if (send.status === "ERROR") {
+      await recordTransactionOutcome(txHash, "REJECTED", {
+        failureCode: "RPC_REJECTED",
+        submissionAttempt,
+      });
       const error = await explainFailedTx(
         { resultXdr: send.errorResult, diagnosticEventsXdr: send.diagnosticEvents },
         nodes,
@@ -84,11 +108,16 @@ export async function submitPreparedDeposit({
       return { txHash, status: "FAILED", error };
     }
     if (send.status === "TRY_AGAIN_LATER") {
+      await recordTransactionOutcome(txHash, "REJECTED", {
+        failureCode: "RPC_REJECTED",
+        submissionAttempt,
+      });
       throw new AppError(
         "UPSTREAM_RPC",
         "The network is busy and did not accept the transaction; submit the same envelope again",
       );
     }
+    await recordTransactionOutcome(txHash, "ACCEPTED", { submissionAttempt });
     // DUPLICATE: an earlier submit already sent it and wrote the row.
     if (send.status === "PENDING") {
       await audit({
@@ -111,13 +140,15 @@ export async function submitPreparedDeposit({
       return { txHash, status: "PENDING" };
     }
     try {
-      got = await viaRpc(() => waitForFinal(txHash));
+      const observation = await transactionObservation(txHash);
+      got = await viaRpc(() => waitForFinal(txHash), txHash, { observation });
     } finally {
       await slot.release();
     }
   }
 
   if (got.status === rpc.Api.GetTransactionStatus.SUCCESS) {
+    await recordTransactionOutcome(txHash, "CONFIRMED", { ledger: got.ledger, deploymentId });
     // A lookup failure writes a possible duplicate row rather than none.
     const alreadyConfirmed = await wasTxConfirmedFor(deploymentId, txHash).catch(() => false);
     if (!alreadyConfirmed) {
@@ -133,6 +164,11 @@ export async function submitPreparedDeposit({
   }
 
   if (got.status === rpc.Api.GetTransactionStatus.FAILED) {
+    await recordTransactionOutcome(txHash, "FAILED", {
+      ledger: got.ledger,
+      failureCode: "ONCHAIN_FAILED",
+      deploymentId,
+    });
     const error = await explainFailedTx(got, nodes);
     return { txHash, status: "FAILED", ledger: got.ledger, error };
   }

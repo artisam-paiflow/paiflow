@@ -69,10 +69,16 @@ export function redactString(value: string): string {
     .slice(0, MAX_STRING);
 }
 
-function sanitizeValue(value: unknown): unknown {
+function sanitizeValue(value: unknown, depth = 0): unknown {
+  if (depth > 6) return undefined;
   if (typeof value === "string") return redactString(value);
-  if (Array.isArray(value)) return value.map(sanitizeValue);
-  if (typeof value === "number" || typeof value === "boolean" || value === null) return value;
+  if (Array.isArray(value))
+    return value
+      .slice(0, 100)
+      .map((v) => sanitizeValue(v, depth + 1))
+      .filter((v) => v !== undefined);
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "boolean" || value === null) return value;
   // Nested objects are not part of any declared event shape; drop rather than
   // walk something a caller cast past the type system.
   return undefined;

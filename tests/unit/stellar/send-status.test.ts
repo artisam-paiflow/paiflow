@@ -15,6 +15,11 @@ const { mockRpc, mockInvoke, mockChannels, RELAYER } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/db", () => ({ db: {} }));
+vi.mock("@/lib/analytics/outcomes", () => ({
+  recordTransactionOutcome: vi.fn(async () => false),
+  beginTransactionSubmission: vi.fn(async () => undefined),
+  transactionObservation: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/stellar/client", () => ({
   sorobanRpc: () => mockRpc,
   horizon: vi.fn(),

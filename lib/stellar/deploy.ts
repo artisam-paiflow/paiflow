@@ -1,4 +1,5 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
 import {
   Address,
   BASE_FEE,
@@ -10,9 +11,11 @@ import {
   rpc,
   xdr,
 } from "@stellar/stellar-sdk";
-import { randomBytes } from "node:crypto";
-import { sorobanRpc, horizon } from "./client";
-import { buildRelayerTx, withRelayerChannel, type RelayerChannel } from "./relayer-channels";
+import {
+  beginTransactionSubmission,
+  recordTransactionOutcome,
+  transactionObservation,
+} from "@/lib/analytics/outcomes";
 import { getFactoryAddress } from "@/lib/stellar/config";
 import {
   stellarPassphrase,
@@ -26,6 +29,8 @@ import { assertNoHiddenSurfaces } from "@/lib/features";
 import type { PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { implementationIssues, type PipelineImplementation } from "@/lib/flows/implementation";
+import { sorobanRpc, horizon } from "./client";
+import { buildRelayerTx, withRelayerChannel, type RelayerChannel } from "./relayer-channels";
 import { nodeBlueprint, pipelineNodeConstructorArgs } from "./scval";
 import { classifySend } from "./send-status";
 import { simulationFailure } from "./sim-error";
@@ -264,8 +269,14 @@ function computeContractAddress(sourceAccount: string, salt: Buffer): string {
 }
 
 export type SubmitResult =
-  | { status: "SUCCESS"; txHash: string; contractAddress?: string }
-  | { status: "FAILED"; txHash: string; errorMessage?: string }
+  | { status: "SUCCESS"; txHash: string; contractAddress?: string; ledger?: number }
+  | {
+      status: "FAILED";
+      txHash: string;
+      errorMessage?: string;
+      failureCode?: "RPC_REJECTED" | "ONCHAIN_FAILED" | "FINALITY_UNKNOWN";
+      ledger?: number;
+    }
   // No `txHash`: the network never queued one, so there is nothing a caller
   // could store or reconcile against. The same signed envelope can be sent again.
   | { status: "NOT_ACCEPTED" };
@@ -274,17 +285,39 @@ export type SubmitResult =
 export async function submitDeployTx(signedXdr: string): Promise<SubmitResult> {
   const server = sorobanRpc();
   const tx = TransactionBuilder.fromXDR(signedXdr, stellarPassphrase());
-  const send = await server.sendTransaction(tx);
+  const txHash = tx.hash().toString("hex");
+  const submissionAttempt = await beginTransactionSubmission(txHash);
+  let send;
+  try {
+    send = await server.sendTransaction(tx);
+  } catch (error) {
+    await recordTransactionOutcome(txHash, "UNRESOLVED", {
+      failureCode: "RPC_UNAVAILABLE",
+      submissionAttempt,
+    });
+    throw error;
+  }
   const sent = classifySend(send);
 
   // Answered before the poll: the hash was never queued, so polling it would
   // spend the whole 30 s on NOT_FOUND, and a relayer deploy spends them holding
   // the relayer lock.
-  if (sent.outcome === "NOT_ACCEPTED") return { status: "NOT_ACCEPTED" };
+  if (sent.outcome === "NOT_ACCEPTED") {
+    await recordTransactionOutcome(txHash, "REJECTED", {
+      failureCode: "RPC_REJECTED",
+      submissionAttempt,
+    });
+    return { status: "NOT_ACCEPTED" };
+  }
   if (sent.outcome === "REJECTED") {
+    await recordTransactionOutcome(txHash, "REJECTED", {
+      failureCode: "RPC_REJECTED",
+      submissionAttempt,
+    });
     return {
       status: "FAILED",
       txHash: send.hash,
+      failureCode: "RPC_REJECTED",
       errorMessage: `sendTransaction error: ${JSON.stringify(send.errorResult?.result?.()) ?? send.status}`,
     };
   }
@@ -292,27 +325,50 @@ export async function submitDeployTx(signedXdr: string): Promise<SubmitResult> {
   // exactly like a first send.
   sent.outcome satisfies "QUEUED";
 
+  await recordTransactionOutcome(txHash, "ACCEPTED", { submissionAttempt });
+  const observation = await transactionObservation(txHash);
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
-    const got = await server.getTransaction(send.hash);
+    let got;
+    try {
+      got = await server.getTransaction(send.hash);
+    } catch (error) {
+      await recordTransactionOutcome(txHash, "UNRESOLVED", {
+        failureCode: "RPC_UNAVAILABLE",
+        observation,
+      });
+      throw error;
+    }
     if (got.status === "SUCCESS") {
       const created = extractCreatedContract(got);
       return {
         status: "SUCCESS",
         txHash: send.hash,
         contractAddress: created ?? undefined,
+        ledger: got.ledger,
       };
     }
     if (got.status === "FAILED") {
       return {
         status: "FAILED",
         txHash: send.hash,
+        failureCode: "ONCHAIN_FAILED",
+        ledger: got.ledger,
         errorMessage: "Transaction failed on the network",
       };
     }
     await new Promise((r) => setTimeout(r, 1500));
   }
-  return { status: "FAILED", txHash: send.hash, errorMessage: "Timed out waiting for finality" };
+  await recordTransactionOutcome(txHash, "UNRESOLVED", {
+    failureCode: "FINALITY_UNKNOWN",
+    observation,
+  });
+  return {
+    status: "FAILED",
+    txHash: send.hash,
+    errorMessage: "Timed out waiting for finality",
+    failureCode: "FINALITY_UNKNOWN",
+  };
 }
 
 export type RelayerPipelineDeployResult = Exclude<SubmitResult, { status: "NOT_ACCEPTED" }> & {
@@ -382,7 +438,9 @@ export async function deployPipelineByRelayer(opts: {
   });
 }
 
-function extractCreatedContract(tx: rpc.Api.GetSuccessfulTransactionResponse): string | null {
+export function extractCreatedContract(
+  tx: rpc.Api.GetSuccessfulTransactionResponse,
+): string | null {
   try {
     const retval = tx.returnValue;
     if (!retval) return null;

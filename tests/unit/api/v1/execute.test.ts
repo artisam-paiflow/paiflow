@@ -1,3 +1,8 @@
+vi.mock("@/lib/analytics/outcomes", () => ({
+  recordTransactionOutcome: vi.fn(async () => false),
+  beginTransactionSubmission: vi.fn(async () => undefined),
+  transactionObservation: vi.fn(async () => undefined),
+}));
 /**
  * #468: the v1 execute pair. Prepare returns the unsigned deposit for a swapper
  * flow; submit refuses any envelope that is not exactly that deposit, then

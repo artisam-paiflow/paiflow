@@ -18,6 +18,8 @@
  * checking the provider's limits. No poll takes the relayer lock.
  */
 export const CRON_LIMITS = {
+  reconcileTransactions: { budgetMs: 12_000, ttlMs: 60_000, batch: 50 },
+  analyticsDelivery: { budgetMs: 6_000, batch: 20 },
   pollEvents: { budgetMs: 20_000, ttlMs: 60_000, batch: 200, concurrency: 6 },
   autoChargePayroll: { budgetMs: 20_000, ttlMs: 600_000, batch: 100 },
   autoChargeSubscriptions: { budgetMs: 20_000, ttlMs: 600_000, batch: 100 },

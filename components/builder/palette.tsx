@@ -375,6 +375,7 @@ export default function Palette({
                   return (
                     <div key={tpl.label} className="group relative">
                       <button
+                        data-analytics-control="template-select"
                         data-testid={`palette-${tpl.label.toLowerCase().replace(/\s+/g, "-")}`}
                         onClick={() => !disabled && onAdd(tpl.make())}
                         disabled={disabled}

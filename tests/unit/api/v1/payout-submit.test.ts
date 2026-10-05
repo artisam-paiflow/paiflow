@@ -24,6 +24,11 @@ vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/stellar/client", () => ({ sorobanRpc: () => rpc }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn(), wasTxConfirmedFor: vi.fn(async () => false) }));
 vi.mock("@/lib/signed-tx", () => ({ recordSignedTransaction: vi.fn() }));
+vi.mock("@/lib/analytics/outcomes", () => ({
+  recordTransactionOutcome: vi.fn(async () => false),
+  beginTransactionSubmission: vi.fn(async () => undefined),
+  transactionObservation: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/stellar/events", () => ({ pollEventsFor: vi.fn(async () => 1) }));
 vi.mock("@/lib/api/v1/payouts", () => ({ preparePayout: prepare }));
 import { acquirePayoutLease } from "@/lib/api/v1/payout-lease";

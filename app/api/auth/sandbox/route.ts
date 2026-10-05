@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
         username,
         passwordHash,
         role: Role.SANDBOX,
+        analyticsAudience: "SANDBOX",
         flows: {
           create: {
             name: SANDBOX_STARTER_NAME,
