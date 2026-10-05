@@ -462,14 +462,18 @@ in `components/deploy/deploy-review.tsx`). Any new one must carry it.
 
 ## 17. Process
 
-1. If the change touches product behaviour or block semantics, read `SPEC.md` §3 first and quote it
+1. **Gather questions before making changes.** After each user prompt, review the request and
+   collect any clarification questions in a single list. If there are questions, ask the user all
+   of them at once and wait for their answers before making any changes. If there are no questions,
+   proceed without asking for confirmation.
+2. If the change touches product behaviour or block semantics, read `SPEC.md` §3 first and quote it
    in the PR. Many PRs have no relevant section; that's expected.
-2. Plan in three bullets: files changed, schema migrated, tests added.
-3. Make incorrect states unrepresentable: Zod at every boundary, exhaustive `switch` with `never`.
-4. One concern per PR.
-5. No `TODO:` without a tracking issue link.
-6. Self-review with [§10](#10-security-checklist-per-pr).
-7. Base branch is **`develop`**, not `main`.
+3. Plan in three bullets: files changed, schema migrated, tests added.
+4. Make incorrect states unrepresentable: Zod at every boundary, exhaustive `switch` with `never`.
+5. One concern per PR.
+6. No `TODO:` without a tracking issue link.
+7. Self-review with [§10](#10-security-checklist-per-pr).
+8. Base branch is **`develop`**, not `main`.
 
 ---
 
