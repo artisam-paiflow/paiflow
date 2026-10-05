@@ -74,27 +74,47 @@ Discovery uses:
   only when no snapshot exists). Actual executable hashes from ledger entries
   identify historical WASM; current template hashes are never substituted.
 
-A run selects five oldest inventory attempts, reading one unique instance and its
-actual code per deployment. Durable `ttlCheckedAt` and `ttlScanOffset` advance
-through large pipelines even after a failed target. A separate network cursor
-rotates shared factory/template targets and alternates whether shared or deployment
-work runs first. Permanently failing entries cannot consume all future mutation
-slots. Instance and code reads and decisions remain independent.
+A run selects up to **25 oldest inventory attempts**, reading up to **ten unique
+instances per deployment** in a batch, then inspecting their actual code hashes.
+Reads are pooled across these deployments in requests of at most 100 keys.
+Shared factory/template targets rotate in batches of ten. Durable `ttlCheckedAt`
+and `ttlScanOffset` advance through large pipelines even after a failed target;
+failed batched reads split into smaller batches, down to individual failed keys,
+within the remaining budget, with at most **50 inventory requests** per call.
+The cap excludes the two setup reads and per-operation rechecks/post-reads; rent
+attempts retain their separate limit. `inventoryReadLimitReached` reports exhaustion.
+Deployment and shared cursors advance only through the contiguous prefix of
+attempted targets, including attempted failures. If fallback reads stop at the
+deadline or request cap, the first unattempted target remains eligible next tick.
+A separate network cursor alternates whether shared or deployment work runs first.
+Instance and code reads and decisions remain independent. Rent submissions stay
+sequential and use the existing source/channel locks. The runner rechecks each
+due target after acquiring its channel, so a renewal confirmed during the wait
+does not trigger a redundant submission.
 
 Reports distinguish `moreDeployments`, `partialPipelines`, and `budgetExhausted`;
 `truncated` is true if any apply or shared inventory has more targets in its cycle.
-`sharedScan` reports total shared targets and the next offset. `scans` contains deployment ID, total unique
-instance targets, and the next offset. The **20-second budget is checked between
-items**, not a strict request timeout: one RPC, lock wait, or 30-second finality
-poll may exceed it. The default limits are deliberately conservative.
+`sharedScan` reports total shared targets and the next offset. `scans` contains
+deployment ID, total unique instance targets, and the next offset. One shared
+**20-second budget bounds RPC waits, channel acquisition and finality polling**.
+A callback acquired after that deadline fails before signing. Fee reservations
+and writes recording confirmed results finish normally, so this is not a strict
+end-to-end HTTP timeout. An RPC wait timeout does not cancel an already submitted
+transaction. Existing SDK transport timeouts still apply to outstanding requests.
+
+Reports use `pending` for an attempted send without known finality and retain its
+public hash and declared fee, with a `CONTRACT_STORAGE_RENT_PENDING` audit. The
+source barrier remains until confirmation or verified expiry. A later healthy
+inventory read can establish maintenance coverage; a pending audit alone cannot.
+This does not add durable source reconciliation or increase submission concurrency
+([#202](https://github.com/webnxt-2030/pinkraft/issues/202)).
 
 Before enabling paid maintenance, schedule repeated inventory ticks and verify
-coverage completes comfortably inside the extension threshold. Approximate full
-scan duration is `ceil(deployments / 5) × largest pipeline target count × cadence`.
-At one-minute cadence, 100 deployments with 840 unique targets each take roughly
-11.7 days, longer than the roughly 2.9-day threshold at five-second ledgers. That
-workload needs adjusted capacity/threshold policy before rollout. Small typical
-pipelines are faster; no 100-user capacity guarantee is established here.
+coverage completes comfortably inside the extension threshold. With full batches,
+an ideal scan takes approximately `ceil(deployments / 25) × ceil(largest pipeline
+target count / 10) × cadence`; time-budget exhaustion, paid work, failures and DB
+latency can increase it. See the [local before/after rehearsal](ttl-release-rehearsal.md#local-throughput-and-time-budget-improvement--5-october-2026).
+The model is not a supported-capacity guarantee.
 
 There is no automatic scheduler registration. Deploy the migration first, install
 the authenticated recurring call, observe complete dry-run coverage and capped TESTNET paid-smoke fees, then

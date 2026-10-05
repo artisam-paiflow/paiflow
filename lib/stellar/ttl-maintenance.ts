@@ -16,13 +16,16 @@ import { db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
-import { cronDeadline } from "@/lib/cron/deadline";
+import { ttlDeadline, type TtlDeadline } from "@/lib/stellar/ttl-deadline";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { withRelayerChannel, type RelayerChannel } from "@/lib/stellar/relayer-channels";
 import { reserveTransactionFee, ttlFeeBudget } from "@/lib/stellar/fee-budget";
 
 export const TTL_LIMITS = {
-  batch: 5,
+  batch: 25,
+  targetsPerDeployment: 10,
+  sharedBatch: 10,
+  maxInventoryReads: 50,
   budgetMs: 20_000,
   ttlMs: 600_000,
   maxSubmissions: 12,
@@ -61,7 +64,15 @@ export function ttlSnapshotAddresses(snapshot: unknown, legacyAddress: string | 
 export type TtlDetail = {
   target: string;
   kind: "instance" | "code";
-  status: "healthy" | "due" | "extended" | "restored" | "missing" | "failed" | "deferred";
+  status:
+    | "healthy"
+    | "due"
+    | "extended"
+    | "restored"
+    | "missing"
+    | "failed"
+    | "deferred"
+    | "pending";
   liveUntilLedger?: number;
   feeStroops?: string;
   txHash?: string;
@@ -76,11 +87,22 @@ export type TtlSummary = {
   budgetExhausted: boolean;
   moreDeployments: boolean;
   partialPipelines: boolean;
+  inventoryReadLimitReached?: boolean;
   sharedScan?: { totalTargets: number; nextOffset: number };
   details: TtlDetail[];
   failedDeployments: string[];
   scans: Array<{ deploymentId: string; totalTargets: number; nextOffset: number }>;
 };
+
+/** An attempted send has an unknown outcome. Retain its public identity and source barrier. */
+export class TtlPendingError extends AppError {
+  constructor(
+    readonly txHash: string,
+    readonly feeStroops: string,
+  ) {
+    super("UPSTREAM_RPC", "TTL maintenance finality unknown; no submission retry");
+  }
+}
 
 /** No-auth rent operation: channel signs only the envelope, never contract authorization. */
 export async function submitTtlOperation(
@@ -89,8 +111,9 @@ export async function submitTtlOperation(
   key: xdr.LedgerKey,
   extendTo: number | null,
   maxFeeStroops: string,
+  deadline: TtlDeadline = ttlDeadline(30_000),
 ): Promise<{ txHash: string; feeStroops: string }> {
-  const account = await server.getAccount(channel.publicKey);
+  const account = await deadline.run(() => server.getAccount(channel.publicKey));
   const data = new SorobanDataBuilder();
   if (extendTo === null) data.setReadWrite([key]);
   else data.setReadOnly([key]);
@@ -106,7 +129,7 @@ export async function submitTtlOperation(
     .setSorobanData(data.build())
     .setTimeout(180)
     .build();
-  const sim = await server.simulateTransaction(tx);
+  const sim = await deadline.run(() => server.simulateTransaction(tx));
   if (rpc.Api.isSimulationError(sim) || rpc.Api.isSimulationRestore(sim)) {
     throw new AppError("UPSTREAM_RPC", "TTL maintenance simulation requires recovery or failed");
   }
@@ -125,28 +148,39 @@ export async function submitTtlOperation(
       purpose: extendTo === null ? "ttl-restoration" : "ttl-extension",
     });
   }
+  deadline.assert();
   assembled.sign(channel.keypair);
   // Record BEFORE attempting the send: a network failure can hide an accepted transaction.
   channel.trackPending(hash, assembled.timeBounds?.maxTime);
-  const sent = await server.sendTransaction(assembled);
-  if (sent.status === "ERROR") {
-    channel.clearPending?.(hash);
-    throw new AppError("UPSTREAM_RPC", "TTL maintenance transaction rejected");
-  }
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    const got = await server.getTransaction(hash);
-    if (got.status === "SUCCESS") {
+  try {
+    const sent = await deadline.run(() => server.sendTransaction(assembled));
+    if (sent.status === "ERROR") {
       channel.clearPending?.(hash);
-      return { txHash: hash, feeStroops: assembled.fee };
+      throw new AppError("UPSTREAM_RPC", "TTL maintenance transaction rejected");
     }
-    if (got.status === "FAILED") {
-      channel.clearPending?.(hash);
-      throw new AppError("UPSTREAM_RPC", "TTL maintenance transaction failed");
+    while (!deadline.expired()) {
+      const got = await deadline.run(() => server.getTransaction(hash));
+      if (got.status === "SUCCESS") {
+        channel.clearPending?.(hash);
+        return { txHash: hash, feeStroops: assembled.fee };
+      }
+      if (got.status === "FAILED") {
+        channel.clearPending?.(hash);
+        throw new AppError("UPSTREAM_RPC", "TTL maintenance transaction failed");
+      }
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1_000, deadline.remaining())));
     }
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  } catch (error) {
+    if (
+      error instanceof AppError &&
+      ["TTL maintenance transaction rejected", "TTL maintenance transaction failed"].includes(
+        error.message,
+      )
+    )
+      throw error;
+    throw new TtlPendingError(hash, assembled.fee);
   }
-  throw new AppError("UPSTREAM_RPC", "TTL maintenance finality unknown; no submission retry");
+  throw new TtlPendingError(hash, assembled.fee);
 }
 
 /** Threshold inclusive, just like instance.extend_ttl. Missing is unknown, not proof of archival. */
@@ -179,14 +213,14 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
     failedDeployments: [],
     scans: [],
   };
-  const deadline = cronDeadline(TTL_LIMITS.budgetMs);
+  const deadline = ttlDeadline(TTL_LIMITS.budgetMs);
   const server = sorobanRpc();
   const settingKey = xdr.LedgerKey.configSetting(
     new xdr.LedgerKeyConfigSetting({
       configSettingId: xdr.ConfigSettingId.configSettingStateArchival(),
     }),
   );
-  const setting = (await server.getLedgerEntries(settingKey)).entries[0];
+  const setting = (await deadline.run(() => server.getLedgerEntries(settingKey))).entries[0];
   if (!setting) throw new AppError("UPSTREAM_RPC", "Network archival limits unavailable");
   const extendTo = Math.min(
     TTL_LIMITS.extendTo,
@@ -194,8 +228,10 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
   );
   if (extendTo <= 1) throw new AppError("UPSTREAM_RPC", "Invalid network archival limits");
   const threshold = Math.min(TTL_LIMITS.threshold, extendTo - 1);
-  const latest = (await server.getLatestLedger()).sequence;
+  const latest = (await deadline.run(() => server.getLatestLedger())).sequence;
+  let inventoryReads = 0;
   const seen = new Set<string>();
+  const attempted = new Set<string>();
 
   const inspect = async (
     targets: Array<{ target: string; kind: "instance" | "code" }>,
@@ -208,12 +244,43 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
       return true;
     });
     for (let start = 0; start < unique.length; start += 100) {
-      // Finish this deployment's inventory before rotating it; mutations may be deferred.
       const batch = unique.slice(start, start + 100);
-      const keys = batch.map(({ target, kind }) =>
-        kind === "instance" ? ttlInstanceKey(target) : ttlCodeKey(target),
-      );
-      const response = await server.getLedgerEntries(...keys);
+      if (deadline.expired() || inventoryReads >= TTL_LIMITS.maxInventoryReads) {
+        result.details.push(...batch.map((item) => ({ ...item, status: "deferred" as const })));
+        result.truncated = true;
+        result.budgetExhausted ||= deadline.expired();
+        result.inventoryReadLimitReached ||= inventoryReads >= TTL_LIMITS.maxInventoryReads;
+        continue;
+      }
+      let keys: xdr.LedgerKey[];
+      let response: Awaited<ReturnType<rpc.Server["getLedgerEntries"]>>;
+      try {
+        keys = batch.map(({ target, kind }) =>
+          kind === "instance" ? ttlInstanceKey(target) : ttlCodeKey(target),
+        );
+        inventoryReads++;
+        response = await deadline.run(() => server.getLedgerEntries(...keys));
+        for (const item of batch) attempted.add(`${item.kind}:${item.target}`);
+      } catch {
+        // Split failed batches to isolate bad keys without spending one RPC per healthy key.
+        // Retries are inventory reads only, bounded by the same deadline; never repeat a send.
+        if (batch.length > 1 && !deadline.expired()) {
+          for (const item of batch) seen.delete(`${item.kind}:${item.target}`);
+          const middle = Math.ceil(batch.length / 2);
+          for (const half of [batch.slice(0, middle), batch.slice(middle)])
+            for (const hash of await inspect(half)) hashes.add(hash);
+        } else {
+          for (const item of batch) attempted.add(`${item.kind}:${item.target}`);
+          result.details.push(
+            ...batch.map((item) => ({
+              ...item,
+              status: deadline.expired() ? ("deferred" as const) : ("failed" as const),
+              reason: "Target inventory unavailable",
+            })),
+          );
+        }
+        continue;
+      }
       const entries = new Map(response.entries.map((entry) => [entry.key.toXDR("base64"), entry]));
       for (const [i, item] of batch.entries()) {
         const key = keys[i]!;
@@ -236,19 +303,57 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
               result.budgetExhausted ||= deadline.expired();
             } else {
               result.submissions++;
-              const archived =
+              let archived =
                 entry.liveUntilLedgerSeq !== undefined &&
                 entry.liveUntilLedgerSeq < Math.max(latest, response.latestLedger);
               try {
-                const sent = await withRelayerChannel((channel) =>
-                  submitTtlOperation(
-                    server,
-                    channel,
-                    key,
-                    archived ? null : extendTo,
-                    config.STELLAR_TTL_MAX_FEE_STROOPS,
-                  ),
+                const sent = await deadline.acquire((started) =>
+                  withRelayerChannel(async (channel) => {
+                    started();
+                    // A previous pending rent may have confirmed while this caller queued.
+                    // Recheck under the lock before paying from a stale inventory observation.
+                    const fresh = await deadline.run(() => server.getLedgerEntries(key));
+                    const observed = fresh.entries[0];
+                    if (!observed)
+                      throw new AppError(
+                        "UPSTREAM_RPC",
+                        "TTL maintenance target unavailable after channel acquisition",
+                      );
+                    entry = observed;
+                    detail.liveUntilLedger = observed.liveUntilLedgerSeq;
+                    const status = ttlStatus(
+                      observed.liveUntilLedgerSeq,
+                      Math.max(latest, fresh.latestLedger),
+                      threshold,
+                    );
+                    if (status === "healthy") return null;
+                    if (status === "missing")
+                      throw new AppError(
+                        "UPSTREAM_RPC",
+                        "TTL maintenance target lifetime unavailable after channel acquisition",
+                      );
+                    archived =
+                      observed.liveUntilLedgerSeq !== undefined &&
+                      observed.liveUntilLedgerSeq < Math.max(latest, fresh.latestLedger);
+                    return submitTtlOperation(
+                      server,
+                      channel,
+                      key,
+                      archived ? null : extendTo,
+                      config.STELLAR_TTL_MAX_FEE_STROOPS,
+                      deadline,
+                    );
+                  }),
                 );
+                if (!sent) {
+                  detail.status = "healthy";
+                  if (item.kind === "instance" && entry) {
+                    const executable = entry.val.contractData().val().instance().executable();
+                    if (executable.switch().name === "contractExecutableWasm")
+                      hashes.add(executable.wasmHash().toString("hex"));
+                  }
+                  continue;
+                }
                 Object.assign(detail, sent, {
                   status: archived ? "restored" : "extended",
                 });
@@ -263,7 +368,8 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
                   },
                 });
                 try {
-                  const observed = (await server.getLedgerEntries(key)).entries[0];
+                  const observed = (await deadline.run(() => server.getLedgerEntries(key)))
+                    .entries[0];
                   if (observed) {
                     entry = observed;
                     detail.liveUntilLedger = observed.liveUntilLedgerSeq;
@@ -278,7 +384,22 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
                   detail.liveUntilLedger = undefined;
                 }
               } catch (error) {
-                detail.status = "failed";
+                detail.status = error instanceof TtlPendingError ? "pending" : "failed";
+                if (error instanceof TtlPendingError) {
+                  detail.txHash = error.txHash;
+                  detail.feeStroops = error.feeStroops;
+                  await audit({
+                    action: "CONTRACT_STORAGE_RENT_PENDING",
+                    metadata: {
+                      network: config.STELLAR_NETWORK,
+                      target: item.target,
+                      kind: item.kind,
+                      txHash: error.txHash,
+                      feeStroops: error.feeStroops,
+                      operation: archived ? "restore" : "extend",
+                    },
+                  });
+                }
                 // Only our fixed messages are safe to return; upstream strings can contain credentials.
                 detail.reason =
                   error instanceof AppError && error.message.startsWith("TTL maintenance")
@@ -351,13 +472,9 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
   const inspectShared = async () => {
     if (sharedTargets.length && !deadline.expired()) {
       const offset = Math.max(0, cursor.sharedOffset) % sharedTargets.length;
-      result.sharedScan = {
-        totalTargets: sharedTargets.length,
-        nextOffset: (offset + 1) % sharedTargets.length,
-      };
-      result.truncated ||= result.sharedScan.nextOffset !== 0;
+      const chunk = sharedTargets.slice(offset, offset + TTL_LIMITS.sharedBatch);
       try {
-        const hashes = await inspect([sharedTargets[offset]!]);
+        const hashes = await inspect(chunk);
         await inspect(hashes.map((target) => ({ target, kind: "code" })));
       } catch {
         result.details.push({
@@ -366,21 +483,37 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
           reason: "Shared target inventory unavailable",
         });
       } finally {
+        // Fallback reads can stop inside a chunk. Keep the first unattempted target
+        // eligible next tick, while rotating past attempted failures as well as successes.
+        const firstDeferred = chunk.findIndex(
+          ({ kind, target }) => !attempted.has(`${kind}:${target}`),
+        );
+        const count = firstDeferred === -1 ? chunk.length : firstDeferred;
+        result.sharedScan = {
+          totalTargets: sharedTargets.length,
+          nextOffset: (offset + count) % sharedTargets.length,
+        };
+        result.truncated ||= count < chunk.length || result.sharedScan.nextOffset !== 0;
         await db.ttlMaintenanceState.update({
           where: { network: config.STELLAR_NETWORK },
-          data: { sharedOffset: (offset + 1) % sharedTargets.length },
+          data: { sharedOffset: result.sharedScan!.nextOffset },
         });
       }
     }
   };
   const inspectDeployments = async () => {
+    if (deadline.expired()) {
+      result.truncated = result.budgetExhausted = true;
+      return;
+    }
+    const work: Array<{
+      deployment: (typeof deployments)[number];
+      addresses: string[];
+      offset: number;
+      chunk: string[];
+    }> = [];
+    const invalid: Array<(typeof deployments)[number]> = [];
     for (const deployment of deployments.slice(0, TTL_LIMITS.batch)) {
-      if (deadline.expired()) {
-        result.truncated = true;
-        result.budgetExhausted = true;
-        break;
-      }
-      let nextOffset = deployment.ttlScanOffset;
       try {
         const addresses = ttlSnapshotAddresses(
           deployment.pipelineSnapshot,
@@ -388,30 +521,56 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
         );
         if (!addresses.length) throw new Error("No durable pipeline addresses");
         const offset = Math.max(0, deployment.ttlScanOffset) % addresses.length;
-        const chunk = addresses.slice(offset, offset + 1);
-        nextOffset = offset + chunk.length >= addresses.length ? 0 : offset + chunk.length;
-        result.scans.push({
-          deploymentId: deployment.id,
-          totalTargets: addresses.length,
-          nextOffset,
+        work.push({
+          deployment,
+          addresses,
+          offset,
+          chunk: addresses.slice(offset, offset + TTL_LIMITS.targetsPerDeployment),
         });
-        if (nextOffset !== 0) {
-          result.truncated = true;
-          result.partialPipelines = true;
-        }
-        const hashes = await inspect(chunk.map((target) => ({ target, kind: "instance" })));
-        await inspect(hashes.map((target) => ({ target, kind: "code" })));
       } catch {
+        invalid.push(deployment);
         result.failedDeployments.push(deployment.id);
         log.warn({ deploymentId: deployment.id }, "TTL inventory failed");
-      } finally {
-        await db.deployment.update({
-          where: { id: deployment.id },
-          data: { ttlCheckedAt: new Date(), ttlScanOffset: nextOffset },
-        });
-        result.deployments++;
       }
     }
+    // Pool instance reads across flows; getLedgerEntries batches never exceed 100 keys.
+    const hashes = await inspect(
+      work.flatMap(({ chunk }) => chunk.map((target) => ({ target, kind: "instance" as const }))),
+    );
+    await inspect(hashes.map((target) => ({ target, kind: "code" })));
+    const failures = new Set(
+      result.details
+        .filter((d) => d.status === "failed" && d.reason === "Target inventory unavailable")
+        .map((d) => d.target),
+    );
+    const updates: Array<{ id: string; nextOffset: number }> = invalid.map((deployment) => ({
+      id: deployment.id,
+      nextOffset: deployment.ttlScanOffset,
+    }));
+    for (const { deployment, addresses, offset, chunk } of work) {
+      const firstDeferred = chunk.findIndex((target) => !attempted.has(`instance:${target}`));
+      const count = firstDeferred === -1 ? chunk.length : firstDeferred;
+      if (!count) continue; // A deadline-deferred read is not an inventory attempt.
+      const nextOffset = offset + count >= addresses.length ? 0 : offset + count;
+      result.scans.push({
+        deploymentId: deployment.id,
+        totalTargets: addresses.length,
+        nextOffset,
+      });
+      if (nextOffset !== 0) result.truncated = result.partialPipelines = true;
+      if (chunk.some((target) => failures.has(target)))
+        result.failedDeployments.push(deployment.id);
+      updates.push({ id: deployment.id, nextOffset });
+    }
+    await Promise.all(
+      updates.map(({ id, nextOffset }) =>
+        db.deployment.update({
+          where: { id },
+          data: { ttlCheckedAt: new Date(), ttlScanOffset: nextOffset },
+        }),
+      ),
+    );
+    result.deployments += updates.length;
   };
   if (cursor.sharedFirst) {
     await inspectShared();

@@ -402,6 +402,252 @@ still reports awaiting natural expiry, with no transactions. These fixes made
 **zero chain submissions**. See
 [deployed fixes evidence](evidence/ttl-review-fixes-hackathon-testing.json).
 
+## Local capacity rehearsal — 5 October 2026
+
+The baseline opt-in [rehearsal](../tests/rehearsal/ttl-capacity.test.ts) executed the
+original maintenance runner, including its actual PostgreSQL selection/order,
+durable cursors, audits and Redis lease. All RPC methods and channel acquisition
+are replaced with synthetic adapters. No public RPC, Railway service, shared
+configuration or blockchain transaction is involved. Evidence and runtime-source
+SHA-256 values are in [local capacity evidence](evidence/ttl-capacity-local.json).
+This is additional #804 evidence, not deployed capacity certification.
+
+Each workload includes one factory instance, **28 unique code hashes** (21
+current template hashes, six historical hashes, and factory code), plus its
+pipeline instances. Three additional rows exercise exclusion of sandbox,
+failed and other-network deployments. Old ended schedules remain eligible.
+Snapshots and code bytes are synthetic; these fixtures do not prove graph,
+constructor, wallet or factory compatibility.
+
+Calls start one minute apart in virtual time. Normal read/account/simulation/send
+methods cost an assumed **350 ms** each; the slow-read case assumes **3 seconds**.
+Finality costs an assumed five or thirty seconds in one synthetic response.
+Paid request counts omit repeated finality polling and provider retries.
+Ledger progression is five seconds. Actual local database/Redis wall time and
+query counts are recorded separately and **excluded** from modeled cycle time;
+the cycle results therefore need additional deployed latency/headroom validation.
+The first tick starts immediately, so 60 calls finish just after minute 59.
+
+| Workload / condition                                      | First complete coverage or maintenance | Six-hour coverage gate                 |
+| --------------------------------------------------------- | -------------------------------------: | -------------------------------------- |
+| 100 × 3, healthy                                          |                              59.08 min | Pass in model                          |
+| 100 × 10, healthy                                         |                             199.08 min | Pass in model                          |
+| 99 × 3 plus one × 10, healthy                             |                             180.08 min | Pass in model                          |
+| 700 × 10, healthy                                         |             1,399.08 min (23 h 19 min) | Fail                                   |
+| 100 × 10, three-second reads                              |                397.35 min (6 h 37 min) | Fail                                   |
+| 100 × 3, first-read failures on 15 instances              |                             117.08 min | Pass after recovery                    |
+| 100 × 3, all targets initially due, five-second finality  |                             109.29 min | Pass in model                          |
+| 100 × 10, all targets initially due, five-second finality |                342.37 min (5 h 42 min) | Little margin                          |
+| 100 × 3, all targets due, thirty-second finality          |                             348.55 min | Coverage passes; response target fails |
+| 100 × 10, all targets due, thirty-second finality         |             1,048.55 min (17 h 28 min) | Fail                                   |
+
+The matrix also covers two consecutive healthy cycles, a paid cycle followed by
+a healthy cycle, synthetic restoration, persistent read failures, missing
+entries, fee-cap rejection/recovery and unknown finality. Persistent read/missing
+and fee-rejected cases retain **15 unresolved instances** at six hours despite
+cursor rotation. The unknown-finality case makes exactly one synthetic send,
+then blocks its synthetic source; all 329 targets remain unresolved. This source
+adapter deliberately does not model eventual reconciliation/expiry, channel-pool
+availability, cross-process locking or process restarts. It does not re-prove
+the real channel implementation's pending handling.
+
+Normal healthy calls made at most **14 synthetic RPC method calls** and used
+at most 4.9 seconds of modeled RPC time. The slow-read case reached 24 seconds.
+Five-second-finality paid calls reached 22.7 seconds; thirty-second-finality
+calls reached **33.5 seconds**, exceeding the repository's existing 30-second
+cron caller target. These are separate coverage/response checks: a six-hour
+coverage pass cannot make an overlong HTTP response acceptable. The TTL
+scheduler is still unregistered, and no external timeout was exercised here.
+
+### Capacity and funding recommendation
+
+Keep **100 pipelines, typically three contracts with occasional larger
+pipelines**, as the initial validation workload, not an enforced product limit.
+The 100 × 10 due case leaves only about 18 minutes of the six-hour allowance,
+before database latency, competing relayer work or provider throttling. Do not
+claim comfortable coverage for that workload. The 700 × 10 workload needs a
+focused capacity follow-up before enablement; slower finality also requires
+resolving the cron response budget/topology under #460. No runner limits or
+submission concurrency were changed by this rehearsal.
+
+The one-minute cadence and six-hour gate remain candidate settings. A deployed
+check must calibrate RPC/DB latency and competing traffic before adopting them.
+Use unresolved-target count, oldest successful inspection/maintenance age,
+partial/time-exhausted ticks, per-call duration, fee rejection and pending
+finality as operating signals. Cursor completion alone is not successful
+maintenance. Start the clock for never-successful targets at workload entry.
+
+The harness's 40,000-stroop resource fee is deliberately synthetic and **must
+not be used to set a recurring budget**. Existing reconciled TESTNET extensions
+in the fee table above show why code rent must be priced separately from
+instance rent. Those samples target 600,000 ledgers; genuinely due deployed
+500,000-ledger code measurements remain outstanding. A budget worksheet needs:
+
+- Counts and sizes of unique instance/code keys, including historical code.
+- Actual declared fees, refunds and net rent for due extensions; restoration
+  backlog priced separately. Mutation-time renewals can reduce background work.
+- Expected renewals over the selected horizon, contingency, per-operation and
+  per-tick ceilings, a durable daily/monthly ceiling, and each payer's available
+  balance above account reserves.
+
+The approved **50-XLM operation / 150-XLM campaign** bounds remain rehearsal
+settings. This local test incurs zero chain fees and does not consume that
+campaign. No unattended monthly budget or production funding decision is made.
+
+### Reproduce the local rehearsal
+
+Use fresh disposable containers; the harness refuses any nonempty application
+table or Redis database, requires the fixed loopback ports below, scrubs inherited
+application configuration, and serializes rehearsal instances. The normal unit
+suite does not run this integration config. The password below is a deliberately
+public local fixture value, not an application credential.
+
+```bash
+podman run -d --name paiflow-ttl-capacity-postgres --pull=never \
+  -p 127.0.0.1:55484:5432 \
+  -e POSTGRES_USER=capacity -e POSTGRES_PASSWORD=capacity-local-only \
+  -e POSTGRES_DB=ttl_capacity docker.io/library/postgres:18-alpine
+podman run -d --name paiflow-ttl-capacity-redis --pull=never \
+  -p 127.0.0.1:56384:6379 docker.io/library/redis:7-alpine
+
+export NODE_ENV=test STELLAR_NETWORK=testnet
+export AUTH_SECRET=local-capacity-test-auth-secret-32-chars
+export DATABASE_URL=postgresql://capacity:capacity-local-only@127.0.0.1:55484/ttl_capacity
+export REDIS_URL=redis://127.0.0.1:56384/0
+
+# Once PostgreSQL is ready, apply existing migrations to this disposable DB.
+pnpm exec prisma migrate deploy
+pnpm exec vitest run --config scripts/ttl-capacity.config.ts
+pnpm exec prettier --write docs/evidence/ttl-capacity-optimized-local.json
+
+# After the run, remove these rehearsal-owned services and their disposable data.
+podman rm -f paiflow-ttl-capacity-postgres paiflow-ttl-capacity-redis
+```
+
+Current runs write `ttl-capacity-optimized-local.json`; the original baseline
+`ttl-capacity-local.json` is retained for comparison. Fixture rows and lease keys
+are removed during teardown; the containers should still be removed explicitly.
+Do not reuse these exports for ordinary unit tests that may touch the database.
+
+Validation passed: **19 integration checks across 18 scenarios**, **75 focused
+unit tests**, typecheck, lint and formatting. Evidence totals and runtime-source
+hashes were independently recomputed. A deliberate occupied-database run was
+rejected before fixture creation; its sentinel row was preserved and its Redis
+lock released. Both rehearsal containers were removed after verification.
+
+## Local throughput and time-budget improvement — 5 October 2026
+
+The authorized local optimization changes the runner, without changing contracts,
+fees, activation settings, dependencies or schema. It selects up to 25 oldest
+non-sandbox deployments and ten instances per deployment, pooling reads across
+flows in RPC requests of at most 100 keys. Shared targets rotate in batches of ten.
+Actual executable hashes remain authoritative and deduplicated. Failed reads
+split into smaller batches to isolate bad keys; at most 50 inventory requests run
+per call, excluding setup and rent rechecks/post-reads. Targets deferred before
+an attempt retain their durable cursor and timestamp. An exhausted fallback read
+cannot permanently starve later rows or shared targets: both cursors advance
+only through the contiguous attempted prefix, including failed attempts, and
+resume at the first unattempted target. Complete snapshots still validate before
+any target from that deployment is used.
+
+One 20-second deadline now bounds inventory/account/simulation/send/finality waits
+and channel acquisition. A late queued callback fails before signing. Reservation
+and confirmed-result writes finish normally, so this is not a guaranteed HTTP
+response deadline. The runner rechecks lifetime under the acquired channel lock
+to avoid a redundant renewal after a previous pending transaction confirms.
+Unknown send/finality reports `pending`, a public hash and declared fee, and writes
+`CONTRACT_STORAGE_RENT_PENDING`. Source barriers, fee caps, durable campaign
+reservations and the 12-attempt limit remain in force; submissions stay sequential.
+Restart/multiple-process source coordination remains #202.
+
+The [optimized evidence](evidence/ttl-capacity-optimized-local.json) retains source
+hashes and all 18 scenarios. The [baseline evidence](evidence/ttl-capacity-local.json)
+is preserved. Both use real local PostgreSQL/Redis, synthetic RPC and one-minute
+virtual cadence. These are modeled maintenance times, not provider measurements
+or payment/user throughput. The updated adapter models the new finality timeout:
+confirmation changes synthetic ledger state independently of source acquisition,
+and a later acquisition reconciles that synthetic pending hash. Lost-response
+sends remain blocked indefinitely. Real source-barrier reconciliation is covered
+by the existing unit/isolated-chain evidence, not re-proven by this adapter.
+Ordinary synthetic read costs still advance Date in one step, conservatively
+allowing modeled overshoot up to one read. Real timer tests separately verify
+that hung waits stop at the remaining deadline.
+
+| Workload / condition                          | Baseline complete maintenance | Optimized complete maintenance |
+| --------------------------------------------- | ----------------------------: | -----------------------------: |
+| 100 × 3, healthy                              |                     59.08 min |                   **3.03 min** |
+| 100 × 10, healthy                             |                    199.08 min |                   **3.04 min** |
+| 99 × 3 plus one × 10, healthy                 |                    180.08 min |                   **3.03 min** |
+| 700 × 10, healthy                             |                  1,399.08 min |                  **27.04 min** |
+| 100 × 10, three-second reads                  |                    397.35 min |                   **3.35 min** |
+| 100 × 3, transient read failures              |                    117.08 min |                   **3.06 min** |
+| 100 × 3, all due, five-second confirmation    |                    109.29 min |                 **110.03 min** |
+| 100 × 10, all due, five-second confirmation   |                    342.37 min |                 **343.15 min** |
+| 100 × 3, all due, thirty-second confirmation  |                    348.55 min |                 **329.04 min** |
+| 100 × 10, all due, thirty-second confirmation |                  1,048.55 min |               **1,029.04 min** |
+
+Healthy 100 × 3 uses **20 RPC requests** per complete cycle versus 775 before;
+100 × 10 uses **28 versus 2,589**. Growth uses **200 versus 18,114**. Maximum
+normal healthy requests per tick fall from 14 to **6–8**. Normal healthy RPC time
+per tick falls from 4.9 seconds to **2.1–2.8 seconds**. Faster scanning therefore
+uses fewer requests for the complete workload and a smaller healthy burst.
+Persistent failures require additional isolation reads: the six-hour scenario
+uses **15,946 versus 4,567** requests, peaking at 48 per tick. The hard inventory
+cap and shared deadline bound that work; these failure costs remain a deployed
+calibration/operating concern.
+
+Paid calls in the slow-confirmation scenarios reach **20 modeled seconds**
+versus 33.5 before. All scenarios pass the separate modeled 30-second response
+check, including three-second inventory reads peaking at 21 seconds. Actual DB
+writes, lock/barrier background completion and outstanding SDK sockets remain
+outside a hard end-to-end guarantee. Existing per-request SDK transport timeouts
+still apply; timing out a wait does not cancel an accepted transaction.
+
+Paid throughput is broadly unchanged: the 100 × 10 five-second case has only
+about **17 minutes** of modeled six-hour headroom, and the thirty-second case
+still fails six hours. Faster healthy inventory does not remove the sequential
+source/finality constraint. Shorter waits increase pending records: 109 of 329
+synthetic sends in the typical paid case, and all sends in the thirty-second
+cases, return before confirmation. Later healthy inventory establishes coverage;
+these pending audits alone never count as confirmed maintenance or charged-fee
+reconciliation. No target is sent twice in the matrix.
+
+Two healthy cycles finish at **3.03 / 7.03 minutes**; paid then healthy cycles
+finish at **110.03 / 114.03 minutes**. Persistent read failure, missing entries and
+fee rejection leave exactly **15 deliberately affected instances** unresolved,
+with healthy neighbours and all code inspected. Fee recovery finishes at
+115.03 minutes. The lost-response scenario makes exactly one synthetic send and
+keeps its source blocked, leaving all 329 targets unresolved. Held Redis leases
+still prevent any DB/RPC work; ownership-aware teardown releases the lease and
+removes rehearsal fixtures.
+
+Initial optimization validation: **19 integration checks across 18 scenarios**, **3,129 Node/DOM tests
+in 208 files**,
+typecheck, lint, formatting and production build. Focused tests exercise the
+100-key boundary, partial cursors, fallback starvation, instant provider failure,
+hung finality, late channel acquisition, fresh reads after acquisition and
+reservation expiry before signing. Both evidence totals and source hashes were
+independently checked. No Rust changes require a new WASM upload.
+
+Independent review then found that the shared cursor advanced by its entire
+batch when recursive fallback stopped early. The fix retains the first
+unattempted shared position. New regressions run four deadline-limited ticks
+through ten shared targets, including a failed singleton, and verify that
+deployment-first request-cap exhaustion leaves shared targets eligible on the
+next tick. Follow-up checks passed **87 focused tests across five files**,
+typecheck, lint, formatting and diff checks. The guarded local capacity rehearsal
+also passed all **19 integration checks across 18 scenarios** after the fix,
+regenerating optimized evidence with verified current runtime-source hashes.
+Modeled coverage, timing and RPC results are unchanged; database query counts
+and wall times vary between runs. The original baseline evidence is preserved.
+
+These measurements and implementation checks ran locally, with zero public RPC requests,
+zero chain submissions and zero campaign spending. No live service, scheduler,
+shared template configuration or paid-maintenance activation changed. The next
+release gate is small bounded `hackathon-testing` latency/headroom calibration;
+due-code fee measurements, recurring funding, #805 activation and #460 scheduling
+remain separately scoped. Disposable test services are removed after validation.
+
 ## Remaining #804 release evidence
 
 This report advances #804; it does not close the issue. Remaining checks are:
@@ -413,9 +659,11 @@ This report advances #804; it does not close the issue. Remaining checks are:
   its limits.
 - Browser/factory/wallet coverage coordinated with #805 without implicitly
   activating its new shared artifacts.
-- Expected-scale cycles under failures and paid-operation load, followed by
-  numeric ongoing budget/funding selection. Mainnet cost measurements and a
-  production release decision remain outstanding.
+- Deployed expected-scale/headroom validation against the local capacity matrix
+  above, with measured RPC/DB latency and competing work, followed by numeric
+  ongoing budget/funding selection. The baseline identified growth/latency limits; the local optimization improves healthy scanning, while slow paid growth still fails;
+  it does not install scheduling or prove public-provider capacity. Mainnet cost
+  measurements and a production release decision remain outstanding.
 
 ## Reproduce the read-only fee measurements
 
