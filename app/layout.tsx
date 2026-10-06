@@ -1,39 +1,36 @@
 import type { Metadata } from "next";
 import { Toaster } from "sonner";
-import { Space_Grotesk, Geist, JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { SessionProvider } from "@/components/app/session-provider";
 import { AnalyticsProvider } from "@/components/app/analytics-provider";
 
 /**
- * Fonts are self-hosted at build time via `next/font/google` (per PR #51
- * review). This eliminates a render-blocking external stylesheet, the
- * GDPR concern with sending visitor IPs to Google's CDN, and the
- * `fonts.googleapis.com` / `fonts.gstatic.com` entries we previously had
- * to add to CSP.
+ * Fonts are bundled in app/fonts and self-hosted via `next/font/local`.
+ * Builds and browsers do not need to fetch fonts from Google's CDN.
+ * The text fonts are the same Latin variable files used by the homepage.
  *
  * Each font exposes a CSS variable consumed by `globals.css` (--font-display,
  * --font-body, --font-mono, --font-symbols). Tailwind's `@theme` maps these
  * to the BRAND.md font-family aliases.
  */
-const grotesk = Space_Grotesk({
-  subsets: ["latin"],
-  weight: ["600", "700"],
+const grotesk = localFont({
+  src: "./fonts/space-grotesk-latin.woff2",
+  weight: "300 700",
   variable: "--font-grotesk",
   display: "swap",
 });
 
-const geist = Geist({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+const geist = localFont({
+  src: "./fonts/geist-latin.woff2",
+  weight: "100 900",
   variable: "--font-geist",
   display: "swap",
 });
 
-const jbm = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+const jbm = localFont({
+  src: "./fonts/jetbrains-mono-latin.woff2",
+  weight: "400 800",
   variable: "--font-jbm",
   display: "swap",
 });
