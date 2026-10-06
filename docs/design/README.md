@@ -42,13 +42,13 @@ When a decision is later reversed:
 
 A superseded record stays here. It is still a design record.
 
-## Here or `../archive/`?
+## Design records and retired documentation
 
 - **`design/`** — a decision at a point in time. Allowed to disagree with the
   code, provided its status block says so.
-- **[`../archive/`](../archive/)** — a document that set out to describe the
-  current system and stopped being true (a feature log, superseded marketing
-  copy), or that never described this repo at all.
+- **Retired documentation** — documents that described an older system or
+  another repository can be removed when no longer needed. Earlier versions
+  remain available in Git history.
 
 The test is what the document was _for_. A design record was never a description
 of the system, so it does not become wrong when the system changes — only its
