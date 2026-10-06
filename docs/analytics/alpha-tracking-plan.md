@@ -173,6 +173,10 @@ Scheduling and successful authenticated runs must be independently verified befo
 claiming unattended finality. A code test is not that verification. The existing
 five-minute deployment timeout finalizer excludes usage-v2 rows.
 
+For a controlled admin/testnet deployment that leaves finality and setup to cron,
+use the expiring, flow-scoped [deployment recovery rehearsal](deployment-recovery-rehearsal.md).
+Its local checks do not replace live scheduler, setup and delivery evidence.
+
 Closing the browser does not prevent this job from reading chain finality.
 Deployment confirmation invokes the same setup code as interactive submission,
 including subscription schedules, streamer jobs, payroll employees, KYC and webhook
