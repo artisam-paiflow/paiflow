@@ -1,10 +1,10 @@
 # Event RPC validation plan for hackathon testing
 
 Prepared 6 October 2026 for [#486](https://github.com/webnxt-2030/pinkraft/issues/486).
-**Result: stopped with partial evidence; the live validation gate is incomplete.**
-Both deployments and payments are confirmed in app records. Fixture A's events
-and balances passed; fixture B's event/balance checks and pagination remain open.
-Sandbox was disabled again after the campaign. See the execution outcome below.
+**Latest result: both payments, grouped filtering and diagnostic pagination passed;
+the production 100-event boundary remains untested and the live gate incomplete.**
+Sandbox remained disabled during the authorized follow-up. The initial campaign's
+stop and incomplete checks are retained below as history.
 
 The user approved execution of this bounded, supervised correctness campaign on
 6 October 2026 after discussion of RPC pacing. Deployment, promotion, service
@@ -132,8 +132,62 @@ the disposable local PostgreSQL container was removed. Public testnet fixtures
 and their app records remain as evidence. No direct live DB changes were made.
 
 See [campaign evidence](evidence/event-rpc-campaign-hackathon-testing.json).
-Before another campaign, reconcile B's balances/events and improve sanitized
-transport-error reporting; do not blindly resubmit its already-confirmed payment.
+The follow-up below reconciles B's balances/events. Do not resubmit either
+already-confirmed payment.
+
+## Authorized follow-up: 6 October UTC / 7 October Hong Kong
+
+The user authorized verifying the second payment and finishing the pagination
+checks. The active deployment, commit, provider and event-reader SHA-256 still
+matched the restored testing runtime above. Sandbox remained disabled. No new
+fixture, signed transaction, fee expenditure or service configuration change
+was required.
+
+Independent RPC transaction metadata confirms B's payment succeeded at ledger
+`5053768`, with a net fee of `2882526` stroops. Its ten pipeline events matched
+the real grouped-filter results. Across both payments, recipient balances rose
+by exactly `135000` and `65000` stroops. The source balance and sequence
+reconciled to all four transactions, **0.9140638 test XLM in net fees** and
+**0.02 test XLM in principal**.
+
+For both fixtures, individual and grouped filters returned identical event IDs
+and payloads, and matched independent transaction metadata. SDK emitters routed
+correctly; group sizes were `[5]` for A and `[5, 1]` for B. Diagnostic limit-2
+paging retrieved each tested ledger without missing or duplicate IDs, over five
+pages for each first group. These checks use real provider transport and cursors.
+
+One guarded operator invocation of the unchanged deployed ingestion function,
+scoped to B, stored all ten events and advanced the shared cursor through ledger
+`5055814`. Stored emitters, decoded kinds/assets/amounts and payloads matched the
+independent reference and local replay. No direct event/cursor writes or live
+cursor rewinds were used. B's live SSE delivery was not separately observed.
+
+Two local PostgreSQL replay checks passed using the pinned deployed reader and
+captured real limit-100 responses. Initial reads stored eight and ten events;
+replaying the same range stored zero new rows and published no duplicate events.
+Group boundaries and cursor advancement passed. RPC, Redis, email and off-ramp
+were mocked only for this isolated SQL replay. An initial harness attempt used
+end-ledger-bounded diagnostic responses, whose cursor had not reached the tip;
+the reader correctly followed that cursor. The harness was corrected to use
+separately captured start-ledger-only responses, without changing reader code.
+
+The follow-up made **31 measured direct RPC reads** and **three measured
+ingestion reads**, serially paced with at least one second between completed
+requests; ingestion/diagnostic passes were at least one minute apart. No provider
+errors or HTTP 429 occurred. The cumulative conservative request ceiling is
+**208 of 300**, retaining the original reservations and a 36-request ingestion
+allowance rather than replenishing unused budget. The local client and disposable
+PostgreSQL container were removed after validation.
+
+**Production page-boundary evidence remains not exercised.** The tested ranges
+contain at most nine matching events in a single group and ledger, so even
+successful real limit-2 pagination and sparse limit-100 replay cannot validate
+the unchanged reader's full 100-event pages or its allowance boundary. No dense
+fixture or transaction storm was manufactured. The combined #486 live gate stays
+open until an eligible dense fixture supplies that evidence; provider capacity
+and representative competing-workload headroom remain separate checks.
+
+See [follow-up evidence](evidence/event-rpc-followup-hackathon-testing.json).
 
 ## Disposable fixtures
 
