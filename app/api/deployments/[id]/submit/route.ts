@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { confirmDeployment } from "@/lib/deployments/confirm";
+import { isDeploymentReconciliationRehearsal } from "@/lib/deployments/reconciliation-rehearsal";
 import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
@@ -98,6 +99,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     // The signer row joins the status flip: a database failure aborts here,
     // before the chain call, so the row cannot be lost after a success.
+    const reconciliationRehearsal = isDeploymentReconciliationRehearsal(deployment, user.role);
     const signerRow = signedTransactionRow({
       signer,
       kind: "DEPLOY",
@@ -127,10 +129,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     await audit({
       action: "DEPLOY_SUBMIT",
       userId: user.id,
-      metadata: { deploymentId: id, signerAddress: signer.signerAddress },
+      metadata: {
+        deploymentId: id,
+        signerAddress: signer.signerAddress,
+        ...(reconciliationRehearsal ? { reconciliationRehearsal: true } : {}),
+      },
     });
 
-    const result = await submitDeployTx(body.signedXdr);
+    const result = reconciliationRehearsal
+      ? await submitDeployTx(body.signedXdr, { confirmation: "reconcile" })
+      : await submitDeployTx(body.signedXdr);
+    if (result.status === "SUBMITTED") {
+      return NextResponse.json({ data: { status: "SUBMITTED", txHash: result.txHash } });
+    }
     if (result.status === "NOT_ACCEPTED") {
       // Nothing reached the network, so nothing failed: the claim is handed
       // back and the same signed envelope can be submitted again. It still
