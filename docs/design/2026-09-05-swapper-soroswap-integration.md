@@ -1,6 +1,7 @@
 # Swapper: real DEX swap through the Soroswap router
 
-> **Decided 2026-09-05. Not yet built.** This record fixes the scope of Instawards
+> **Decided 2026-09-05; built and closed 2026-09-12.** Implementation and evidence
+> are recorded in [Deliverable 1](../instawards/deliverables/d1.md). This record fixes the scope of Instawards
 > Deliverable 1 after checking every claim in
 > [`../instawards-phase-1-sow.md`](../instawards-phase-1-sow.md) §4.1 against the
 > code and the live Soroswap testnet router. The SOW is the contract and is not

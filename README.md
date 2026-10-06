@@ -350,7 +350,7 @@ tests/
   unit/             Vitest specs (`*.test.ts` node, `*.test.tsx` jsdom components)
   e2e/              Playwright specs
 screenshots/     Generated UI screenshots (committed)
-docs/            Architecture, runbooks, design records, archive/
+docs/            Architecture, runbooks, design records
 homepage/        Static marketing site (index, about, privacy, terms); its own Railway service
 ```
 
@@ -415,7 +415,6 @@ Configured for **Railway** (`railway.toml`, `nixpacks.toml`):
 | [`docs/api/`](./docs/api/README.md)                                    | Developer API (`/api/v1`): guide with curl examples, OpenAPI spec, Postman collection              |
 | [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md)   | Approved Instawards Phase 1 Statement of Work (verbatim) — deliverables, evidence, success metrics |
 | [`docs/design/`](./docs/design/)                                       | Design records — why a decision was made; see its README for the convention                        |
-| [`docs/archive/`](./docs/archive/)                                     | Superseded / out-of-scope documents — historical record only                                       |
 
 ## License
 
