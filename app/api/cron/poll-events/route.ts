@@ -94,6 +94,7 @@ export async function POST(req: NextRequest) {
                 (reason) =>
                   reason === "rpc-error" ||
                   reason === "insert-error" ||
+                  reason === "unexpected-emitter" ||
                   reason === "deployment-ledger-error",
               )
             ) {

@@ -919,7 +919,9 @@ function stampInboundAsset(params: {
 }
 
 export const EVENTS_PAGE_LIMIT = 100;
-/** Bounds one poll's RPC calls per contract; a deployment far behind catches up over several polls. */
+/** RPC permits at most five contract IDs across a getEvents request. */
+export const MAX_EVENT_CONTRACTS_PER_REQUEST = 5;
+/** Page allowance per requested contract; groups retain the pre-batching total request budget. */
 export const MAX_EVENT_PAGES_PER_POLL = 5;
 
 /**
@@ -936,6 +938,7 @@ export type EventScanStatus = "complete" | "partial" | "failed" | "skipped";
 export type EventScanReason =
   | "rpc-error"
   | "insert-error"
+  | "unexpected-emitter"
   | "page-limit"
   | "missing-cursor"
   | "retention-gap"
@@ -958,20 +961,21 @@ export type EventPollResult = {
   written: number;
   /** Safe shared coverage for this attempt; null when no start ledger was available. */
   scannedThrough: number | null;
+  /** Group members share scan coverage/status; written counts are per emitting contract. */
   contracts: Array<ScanResult & { contractAddress: string }>;
   reasons: EventScanReason[];
 };
 
 /**
- * Pages forward through a contract's events from `startLedger`. An RPC scans a
+ * Pages forward through a group's events from `startLedger`. An RPC scans a
  * bounded ledger window per call (10,000 on SDF testnet) and answers a window
  * with no events with an empty page and a cursor, so a single call from a stale
  * start ledger never reaches the tip: the cursor has to be followed.
  */
 async function pollEventsWithStartLedger(
   deploymentId: string,
-  contractAddress: string,
-  templateKind: TemplateKind,
+  contracts: PipelineNode[],
+  writtenByContract: Map<string, number>,
   startLedger: number,
   symbolMap: Map<string, string>,
   graph: FlowGraph | null,
@@ -979,7 +983,12 @@ async function pollEventsWithStartLedger(
   flowTemplateKind: TemplateKind,
 ): Promise<ScanResult> {
   const server = sorobanRpc();
-  const filters = [{ type: "contract" as const, contractIds: [contractAddress] }];
+  const contractIds = contracts.map((node) => node.contractAddress);
+  // Pool the former per-contract allowance: a mixed-emitter ledger must not
+  // become unreachable just because its events now share a page stream.
+  const maxPages = MAX_EVENT_PAGES_PER_POLL * contracts.length;
+  const emitters = new Map(contracts.map((node) => [node.contractAddress, node.templateKind]));
+  const filters = [{ type: "contract" as const, contractIds }];
   const reasons: EventScanReason[] = [];
   const failed: ScanResult = {
     written: 0,
@@ -1004,11 +1013,11 @@ async function pollEventsWithStartLedger(
     // Behind retention: those ledgers are gone for good; resume from the oldest one held.
     const oldestLedger = health?.oldestLedger ?? null;
     if (oldestLedger === null || startLedger >= oldestLedger) {
-      log.warn({ err, deploymentId, contractAddress, startLedger }, "getEvents failed");
+      log.warn({ err, deploymentId, contractIds, startLedger }, "getEvents failed");
       return failed;
     }
     log.warn(
-      { err, deploymentId, contractAddress, startLedger, oldestLedger },
+      { err, deploymentId, contractIds, startLedger, oldestLedger },
       "getEvents start ledger is past RPC retention; events before oldestLedger are unrecoverable",
     );
     reasons.push("retention-gap");
@@ -1020,7 +1029,7 @@ async function pollEventsWithStartLedger(
       });
     } catch (retryErr) {
       log.warn(
-        { err: retryErr, deploymentId, contractAddress, oldestLedger },
+        { err: retryErr, deploymentId, contractIds, oldestLedger },
         "getEvents failed from the oldest retained ledger",
       );
       return { ...failed, reasons: [...reasons, "rpc-error"] };
@@ -1033,8 +1042,8 @@ async function pollEventsWithStartLedger(
     const events = resp.events ?? [];
     const ingested = await ingestEventPage(
       deploymentId,
-      contractAddress,
-      templateKind,
+      emitters,
+      writtenByContract,
       events,
       symbolMap,
       graph,
@@ -1043,15 +1052,15 @@ async function pollEventsWithStartLedger(
     );
 
     written += ingested.written;
-    if (ingested.failedLedger !== null) {
+    if (ingested.failure !== null) {
       // A ledger is atomic for coverage even if earlier events in it were stored.
       // Stop here: retrying this ledger deduplicates those rows and recovers the failed one.
-      const scannedThrough = Math.max(safeThrough, ingested.failedLedger - 1);
+      const scannedThrough = Math.max(safeThrough, ingested.failure.ledger - 1);
       return {
         written,
         scannedThrough,
         status: scannedThrough >= startLedger || written > 0 ? "partial" : "failed",
-        reasons: [...reasons, "insert-error"],
+        reasons: [...reasons, ingested.failure.reason],
       };
     }
 
@@ -1064,7 +1073,7 @@ async function pollEventsWithStartLedger(
     // Re-reading that ledger next poll is harmless: eventId is unique.
     const scannedThrough = full ? (at ?? events[events.length - 1]!.ledger) - 1 : at!;
     safeThrough = Math.max(safeThrough, scannedThrough);
-    if (page >= MAX_EVENT_PAGES_PER_POLL || !resp.cursor) {
+    if (page >= maxPages || !resp.cursor) {
       return {
         written,
         scannedThrough: safeThrough,
@@ -1075,7 +1084,7 @@ async function pollEventsWithStartLedger(
     try {
       resp = await server.getEvents({ cursor: resp.cursor, filters, limit: EVENTS_PAGE_LIMIT });
     } catch (err) {
-      log.warn({ err, deploymentId, contractAddress, scannedThrough }, "getEvents page failed");
+      log.warn({ err, deploymentId, contractIds, scannedThrough }, "getEvents page failed");
       // The pages already read are complete; keeping that progress lets a far-behind
       // deployment still catch up (before retention drops its ledgers) on a flaky RPC.
       return {
@@ -1090,16 +1099,27 @@ async function pollEventsWithStartLedger(
 
 async function ingestEventPage(
   deploymentId: string,
-  contractAddress: string,
-  templateKind: TemplateKind,
+  emitters: Map<string, TemplateKind>,
+  writtenByContract: Map<string, number>,
   events: rpc.Api.EventResponse[],
   symbolMap: Map<string, string>,
   graph: FlowGraph | null,
   pipeline: PipelineNodeSnapshot[] | null,
   flowTemplateKind: TemplateKind,
-): Promise<{ written: number; failedLedger: number | null }> {
+): Promise<{
+  written: number;
+  failure: { ledger: number; reason: "insert-error" | "unexpected-emitter" } | null;
+}> {
   let written = 0;
   for (const ev of events) {
+    // The SDK parses the RPC's contractId into a Contract object. Never infer
+    // the emitter from the filter or the pipeline root: pages mix node kinds.
+    const contractAddress = ev.contractId?.contractId();
+    const templateKind = contractAddress ? emitters.get(contractAddress) : undefined;
+    if (!contractAddress || !templateKind) {
+      log.warn({ deploymentId, eventId: ev.id, contractAddress }, "unexpected event emitter");
+      return { written, failure: { ledger: ev.ledger, reason: "unexpected-emitter" } };
+    }
     const topics: EventTopics = (ev.topic ?? []).map((t) => {
       try {
         return scValToNative(t);
@@ -1143,6 +1163,7 @@ async function ingestEventPage(
       });
       persisted = true;
       written += 1;
+      writtenByContract.set(contractAddress, (writtenByContract.get(contractAddress) ?? 0) + 1);
       const client = redis();
       if (client) {
         log.info(
@@ -1159,7 +1180,7 @@ async function ingestEventPage(
                 kind,
                 ledger: ev.ledger,
                 txHash: ev.txHash,
-                payload: { topics, value },
+                payload: { topics, value, contractAddress },
                 decodedData: resolvedData,
                 occurredAt: ev.ledgerClosedAt,
               }),
@@ -1249,10 +1270,10 @@ async function ingestEventPage(
       const code = (err as { code?: string })?.code;
       if (!persisted && code === "P2002") continue;
       log.warn({ err, deploymentId, eventId: ev.id }, "event ingestion failed");
-      if (!persisted) return { written, failedLedger: ev.ledger };
+      if (!persisted) return { written, failure: { ledger: ev.ledger, reason: "insert-error" } };
     }
   }
-  return { written, failedLedger: null };
+  return { written, failure: null };
 }
 
 type PipelineNode = {
@@ -1400,18 +1421,28 @@ export async function pollEventsForWithOutcome(deploymentId: string): Promise<Ev
   // least-advanced one; a failed scan holds it where it is.
   let scannedThrough = Number.POSITIVE_INFINITY;
 
-  for (const node of contracts) {
+  // Keep groups sequential: the cron already bounds deployment concurrency.
+  // All members share coverage because pagination spans every emitter in the group.
+  for (let offset = 0; offset < contracts.length; offset += MAX_EVENT_CONTRACTS_PER_REQUEST) {
+    const group = contracts.slice(offset, offset + MAX_EVENT_CONTRACTS_PER_REQUEST);
+    const writtenByContract = new Map<string, number>();
     const result = await pollEventsWithStartLedger(
       deploymentId,
-      node.contractAddress,
-      node.templateKind,
+      group,
+      writtenByContract,
       startLedger,
       symbolMap,
       graph,
       (deployment.pipelineSnapshot as PipelineNodeSnapshot[] | null) ?? [],
       flowTemplateKind,
     );
-    scans.push({ contractAddress: node.contractAddress, ...result });
+    for (const node of group) {
+      scans.push({
+        ...result,
+        contractAddress: node.contractAddress,
+        written: writtenByContract.get(node.contractAddress) ?? 0,
+      });
+    }
     totalWritten += result.written;
     scannedThrough = Math.min(
       scannedThrough,
