@@ -18,6 +18,7 @@ import {
 } from "@/lib/analytics/outcomes";
 import { getFactoryAddress } from "@/lib/stellar/config";
 import {
+  env,
   stellarPassphrase,
   stellarRelayerAddress,
   stellarRelayerSecretKey,
@@ -281,8 +282,21 @@ export type SubmitResult =
   // could store or reconcile against. The same signed envelope can be sent again.
   | { status: "NOT_ACCEPTED" };
 
-/** Submit a signed XDR, poll until finalized. */
-export async function submitDeployTx(signedXdr: string): Promise<SubmitResult> {
+type SubmittedDeployResult = { status: "SUBMITTED"; txHash: string };
+
+/** Normal callers wait for finality; #808's scoped testnet rehearsal leaves it to cron. */
+export function submitDeployTx(signedXdr: string): Promise<SubmitResult>;
+export function submitDeployTx(
+  signedXdr: string,
+  options: { confirmation: "reconcile" },
+): Promise<SubmitResult | SubmittedDeployResult>;
+export async function submitDeployTx(
+  signedXdr: string,
+  options?: { confirmation: "reconcile" },
+): Promise<SubmitResult | SubmittedDeployResult> {
+  if (options?.confirmation === "reconcile" && env().STELLAR_NETWORK !== "testnet") {
+    throw new AppError("FORBIDDEN", "Deployment reconciliation rehearsal is testnet-only");
+  }
   const server = sorobanRpc();
   const tx = TransactionBuilder.fromXDR(signedXdr, stellarPassphrase());
   const txHash = tx.hash().toString("hex");
@@ -326,6 +340,9 @@ export async function submitDeployTx(signedXdr: string): Promise<SubmitResult> {
   sent.outcome satisfies "QUEUED";
 
   await recordTransactionOutcome(txHash, "ACCEPTED", { submissionAttempt });
+  if (options?.confirmation === "reconcile") {
+    return { status: "SUBMITTED", txHash };
+  }
   const observation = await transactionObservation(txHash);
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {

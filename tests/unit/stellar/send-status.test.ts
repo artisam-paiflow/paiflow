@@ -39,6 +39,7 @@ vi.mock("@/lib/env", async (importOriginal) => ({
 
 import { AppError } from "@/lib/errors";
 import { submitDeployTx } from "@/lib/stellar/deploy";
+import { recordTransactionOutcome, transactionObservation } from "@/lib/analytics/outcomes";
 import { classifySend, SEND_NOT_ACCEPTED_MESSAGE } from "@/lib/stellar/send-status";
 import { submitTriggerTx, submitWebhookExecuteTx } from "@/lib/stellar/trigger";
 import { TRIGGER, signedEnvelope } from "../api/v1/execute-fixtures";
@@ -143,6 +144,49 @@ describe("submitWebhookExecuteTx", () => {
 });
 
 describe("submitDeployTx", () => {
+  it.each(["PENDING", "DUPLICATE"])(
+    "rehearsal records %s acceptance and leaves finality to cron",
+    async (status) => {
+      const signed = signedEnvelope();
+      mockRpc.sendTransaction.mockResolvedValue({ status, hash: hashOf(signed) });
+      expect(await submitDeployTx(signed, { confirmation: "reconcile" })).toEqual({
+        status: "SUBMITTED",
+        txHash: hashOf(signed),
+      });
+      expect(recordTransactionOutcome).toHaveBeenCalledWith(
+        hashOf(signed),
+        "ACCEPTED",
+        expect.any(Object),
+      );
+      expect(transactionObservation).not.toHaveBeenCalled();
+      expect(mockRpc.getTransaction).not.toHaveBeenCalled();
+    },
+  );
+  it.each(["TRY_AGAIN_LATER", "ERROR"])("rehearsal does not call %s accepted", async (status) => {
+    const signed = signedEnvelope();
+    mockRpc.sendTransaction.mockResolvedValue({ status, hash: hashOf(signed) });
+    const result = await submitDeployTx(signed, { confirmation: "reconcile" });
+    expect(result.status).toBe(status === "ERROR" ? "FAILED" : "NOT_ACCEPTED");
+    expect(recordTransactionOutcome).not.toHaveBeenCalledWith(
+      hashOf(signed),
+      "ACCEPTED",
+      expect.any(Object),
+    );
+    expect(mockRpc.getTransaction).not.toHaveBeenCalled();
+  });
+  it("leaves ambiguous send errors unresolved during the rehearsal", async () => {
+    const signed = signedEnvelope();
+    mockRpc.sendTransaction.mockRejectedValueOnce(new Error("RPC unavailable"));
+    await expect(submitDeployTx(signed, { confirmation: "reconcile" })).rejects.toThrow(
+      "RPC unavailable",
+    );
+    expect(recordTransactionOutcome).toHaveBeenCalledWith(
+      hashOf(signed),
+      "UNRESOLVED",
+      expect.objectContaining({ failureCode: "RPC_UNAVAILABLE" }),
+    );
+    expect(mockRpc.getTransaction).not.toHaveBeenCalled();
+  });
   it("TRY_AGAIN_LATER answers NOT_ACCEPTED at once, without polling the unqueued hash", async () => {
     const signed = signedEnvelope();
     mockRpc.sendTransaction.mockResolvedValue({ status: "TRY_AGAIN_LATER", hash: hashOf(signed) });

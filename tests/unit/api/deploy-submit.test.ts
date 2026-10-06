@@ -41,6 +41,9 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeT
       LOG_LEVEL: "silent",
       NEXT_PUBLIC_APP_URL: "http://localhost:3000",
       NEXT_PUBLIC_APP_ENV: "local",
+      STELLAR_NETWORK: "testnet",
+      STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID: undefined as string | undefined,
+      STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL: undefined as string | undefined,
     };
 
     const mockRedis = {
@@ -96,6 +99,7 @@ vi.mock("@stellar/stellar-sdk", async () => {
 import { POST } from "@/app/api/deployments/[id]/submit/route";
 import { audit } from "@/lib/audit";
 import { captureServer } from "@/lib/analytics/server";
+import { requireSession } from "@/lib/auth";
 
 const auditActions = () => vi.mocked(audit).mock.calls.map(([a]) => a.action);
 const capturedEvents = () => vi.mocked(captureServer).mock.calls.map(([, event]) => event);
@@ -138,6 +142,98 @@ describe("deployments/[id]/submit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFromXDR.mockImplementation(() => fakeTx("aabbccdd"));
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = undefined;
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = undefined;
+    vi.mocked(requireSession).mockResolvedValue({
+      id: "user-1",
+      username: "test-user",
+      role: "USER",
+    });
+  });
+
+  it("returns accepted rehearsal submissions without confirmation/setup or failure events", async () => {
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = "flow-1";
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = new Date(
+      Date.now() + 60_000,
+    ).toISOString();
+    vi.mocked(requireSession).mockResolvedValue({
+      id: "user-1",
+      username: "test-admin",
+      role: "ADMIN",
+    });
+    mockDb.deployment.findFirst.mockResolvedValue(
+      makeDeployment({ flowId: "flow-1", network: "testnet" }),
+    );
+    mockDeploy.submitDeployTx.mockResolvedValue({ status: "SUBMITTED", txHash: TX_HASH });
+    const response = await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toEqual({ status: "SUBMITTED", txHash: TX_HASH });
+    expect(mockDeploy.submitDeployTx).toHaveBeenCalledWith("signed-xdr", {
+      confirmation: "reconcile",
+    });
+    expect(mockDb.deployment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "dep-1", ownerId: "user-1" } }),
+    );
+    expect(mockDb.deployment.update).toHaveBeenCalledTimes(1);
+    expect(mockDb.deployment.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "SUBMITTED", deployTxHash: TX_HASH } }),
+    );
+    expect(mockDb.employee.create).not.toHaveBeenCalled();
+    expect(auditActions()).toEqual(["DEPLOY_SUBMIT"]);
+    expect(vi.mocked(audit)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ reconciliationRehearsal: true }),
+      }),
+    );
+    expect(capturedEvents()).not.toContain("deploy_confirmed");
+    expect(capturedEvents()).not.toContain("deploy_failed");
+  });
+
+  it.each([
+    ["USER", "flow-1", "testnet"],
+    ["SANDBOX", "flow-1", "testnet"],
+    ["ADMIN", "other-flow", "testnet"],
+    ["ADMIN", "flow-1", "mainnet"],
+  ] as const)("keeps ordinary confirmation for %s / %s / %s", async (role, flowId, network) => {
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = "flow-1";
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = new Date(
+      Date.now() + 60_000,
+    ).toISOString();
+    vi.mocked(requireSession).mockResolvedValue({ id: "user-1", username: "test-user", role });
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment({ flowId, network }));
+    mockDeploy.submitDeployTx.mockResolvedValue({
+      status: "FAILED",
+      txHash: TX_HASH,
+      failureCode: "FINALITY_UNKNOWN",
+    });
+    await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(mockDeploy.submitDeployTx).toHaveBeenCalledWith("signed-xdr");
+  });
+
+  it("cannot use the rehearsal to bypass deployment ownership", async () => {
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = "flow-1";
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = new Date(
+      Date.now() + 60_000,
+    ).toISOString();
+    vi.mocked(requireSession).mockResolvedValue({
+      id: "user-1",
+      username: "test-admin",
+      role: "ADMIN",
+    });
+    mockDb.deployment.findFirst.mockResolvedValue(null);
+    const response = await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(response.status).toBe(404);
+    expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
+    expect(mockDb.deployment.update).not.toHaveBeenCalled();
   });
 
   it("keeps a finality timeout submitted for server reconciliation", async () => {
@@ -377,11 +473,24 @@ describe("deployments/[id]/submit", () => {
     });
   });
 
-  it("rejects a signed XDR that does not match the prepared transaction", async () => {
+  it.each([false, true])("rejects mismatched signed XDR (rehearsal: %s)", async (rehearsal) => {
+    if (rehearsal) {
+      mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = "flow-1";
+      mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = new Date(
+        Date.now() + 60_000,
+      ).toISOString();
+      vi.mocked(requireSession).mockResolvedValue({
+        id: "user-1",
+        username: "test-admin",
+        role: "ADMIN",
+      });
+    }
     mockFromXDR.mockImplementation((...args: unknown[]) =>
       fakeTx(args[0] === "unsigned-xdr" ? "aabbccdd" : "11223344"),
     );
-    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+    mockDb.deployment.findFirst.mockResolvedValue(
+      makeDeployment({ flowId: "flow-1", network: "testnet" }),
+    );
 
     const req = makeRequest({ deploymentId: "dep-1", signedXdr: "tampered-signed-xdr" });
     const res = await POST(req, makeContext("dep-1"));
