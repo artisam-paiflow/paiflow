@@ -3,44 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { ReactFlow, Background, Controls, type Edge, type Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
-import { assetLabel, isAction, isLogic, isTrigger } from "@/lib/flows/schema";
-import { BRANCH_LABEL, edgeBranch, isBranchingCondition } from "@/lib/flows/branches";
+import type { FlowGraph } from "@/lib/flows/schema";
+import { toCanvasGraph, type CanvasGraph } from "@/lib/flows/canvas-graph";
 
 type Evt = { id: string; kind: string; occurredAt: string };
-
-function nodeLabel(n: FlowNode): string {
-  switch (n.type) {
-    case "on_receive":
-      return `On Receive (${assetLabel(n.config.asset)})`;
-    case "on_schedule":
-      return `On Schedule (${(n.config as { intervalAmount?: number; intervalUnit?: string; interval?: string }).intervalAmount ?? 1} ${(n.config as { intervalAmount?: number; intervalUnit?: string; interval?: string }).intervalUnit ?? (n.config as { interval?: string }).interval ?? "hour"})`;
-    case "webhook":
-      return `Webhook (${assetLabel(n.config.asset)})`;
-    case "web2_webhook":
-      return `HTTP Webhook (${assetLabel(n.config.asset)})`;
-    case "subscription":
-      return `Subscription (${assetLabel(n.config.asset)})`;
-    case "payroll":
-      return `Payroll (${assetLabel(n.config.asset)})`;
-    case "oracle":
-      return `Oracle (${assetLabel(n.config.asset)})`;
-    case "pay":
-      return "Pay";
-    case "split":
-      return n.config.recipients.length > 0 ? `Split (${n.config.recipients.length})` : "Split";
-    case "swap":
-      return `Swap (${assetLabel(n.config.assetIn)} → ${assetLabel(n.config.assetOut)})`;
-    case "yield":
-      return `Yield (${assetLabel(n.config.asset)})`;
-    case "cash_out":
-      return `Cash Out (${assetLabel(n.config.asset)})`;
-    case "condition":
-      return `Condition (${n.config.kind})`;
-    default:
-      return "Unknown";
-  }
-}
 
 export default function DeploymentCanvas({
   graph,
@@ -48,6 +14,17 @@ export default function DeploymentCanvas({
 }: {
   graph: FlowGraph;
   pulseTick: number;
+}) {
+  const canvasGraph = useMemo(() => toCanvasGraph(graph), [graph]);
+  return <ReadOnlyDeploymentCanvas graph={canvasGraph} pulseTick={pulseTick} />;
+}
+
+export function ReadOnlyDeploymentCanvas({
+  graph,
+  pulseTick = 0,
+}: {
+  graph: CanvasGraph;
+  pulseTick?: number;
 }) {
   const layout = useMemo(() => layoutGraph(graph), [graph]);
   const [animatedEdges, setAnimatedEdges] = useState<Set<string>>(new Set());
@@ -91,7 +68,7 @@ export default function DeploymentCanvas({
   );
 }
 
-function layoutGraph(graph: FlowGraph): {
+function layoutGraph(graph: CanvasGraph): {
   nodes: Node[];
   edges: { id: string; source: string; target: string; label?: string }[];
 } {
@@ -121,7 +98,7 @@ function layoutGraph(graph: FlowGraph): {
       if (indeg.get(next) === 0) queue.push(next);
     }
   }
-  const layers = new Map<number, FlowNode[]>();
+  const layers = new Map<number, CanvasGraph["nodes"]>();
   for (const n of graph.nodes) {
     const l = layer.get(n.id) ?? 0;
     if (!layers.has(l)) layers.set(l, []);
@@ -130,9 +107,9 @@ function layoutGraph(graph: FlowGraph): {
   const nodes: Node[] = [];
   for (const [l, items] of layers) {
     items.forEach((n, i) => {
-      const isT = isTrigger(n);
-      const isA = isAction(n);
-      const isL = isLogic(n);
+      const isT = n.role === "trigger";
+      const isA = n.role === "action";
+      const isL = n.role === "logic";
       const tone = isT
         ? { border: "#98cbff", glow: "0 0 12px rgba(152,203,255,0.25)" }
         : isA
@@ -144,7 +121,7 @@ function layoutGraph(graph: FlowGraph): {
         id: n.id,
         type: "default",
         position: { x: 60 + i * 280, y: 60 + l * 140 },
-        data: { label: nodeLabel(n) },
+        data: { label: n.label },
         draggable: false,
         style: {
           background: "rgba(28, 27, 27, 0.7)",
@@ -162,16 +139,7 @@ function layoutGraph(graph: FlowGraph): {
   }
   return {
     nodes,
-    edges: graph.edges.map((e) => {
-      const src = graph.nodes.find((n) => n.id === e.source);
-      const branch = isBranchingCondition(src) ? edgeBranch(e, src) : null;
-      return {
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        ...(branch ? { label: BRANCH_LABEL[branch] } : {}),
-      };
-    }),
+    edges: graph.edges,
   };
 }
 
