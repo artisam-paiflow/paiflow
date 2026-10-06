@@ -220,6 +220,11 @@ const EnvSchema = z.object({
 
   // Network is pinned per environment: staging/dev = testnet, prod = mainnet.
   STELLAR_NETWORK: z.enum(["testnet", "mainnet"]).default("testnet"),
+  // #808: operator-scoped, expiring testnet deployment recovery rehearsal.
+  STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID: optionalUuid,
+  STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL: optionalString.pipe(
+    z.string().datetime({ offset: true }).optional(),
+  ),
   STELLAR_NETWORK_PASSPHRASE_TESTNET: z.string().default("Test SDF Network ; September 2015"),
   STELLAR_HORIZON_URL_TESTNET: z.string().url().default("https://horizon-testnet.stellar.org"),
   STELLAR_SOROBAN_RPC_URL_TESTNET: z.string().url().default("https://soroban-testnet.stellar.org"),
@@ -419,6 +424,21 @@ export function env(): EnvShape {
   }
   // Cross-field guard, not a schema .superRefine(): ENV_VAR_NAMES relies on
   // EnvSchema staying a ZodObject so `.keyof()` works.
+  const rehearsalFlow = parsed.data.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID;
+  const rehearsalUntil = parsed.data.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL;
+  if (rehearsalFlow || rehearsalUntil) {
+    if (parsed.data.STELLAR_NETWORK !== "testnet") {
+      throw new Error("Deployment reconciliation rehearsal is testnet-only");
+    }
+    if (!rehearsalFlow || !rehearsalUntil) {
+      throw new Error(
+        "Deployment reconciliation rehearsal flow and expiry must be configured together",
+      );
+    }
+    if (Date.parse(rehearsalUntil) > Date.now() + 60 * 60_000) {
+      throw new Error("Deployment reconciliation rehearsal expiry must be at most one hour ahead");
+    }
+  }
   //
   // The sandbox mints a usable session for anyone who asks, with no account and
   // no credential. On mainnet that is an anonymous party pointing the builder at
