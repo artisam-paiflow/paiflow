@@ -31,8 +31,8 @@ const { mockDb, mockSession } = vi.hoisted(() => ({
 vi.mock("@/lib/redis", () => ({ redis: () => null }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/auth", () => ({ getSessionUser: mockSession }));
-vi.mock("@/lib/stellar/balances", () => ({
-  getWorkflowBalances: vi.fn(async () => ({ totals: [], nodes: [] })),
+vi.mock("@/lib/stellar/dashboard-balance-cache", () => ({
+  getDashboardBalances: vi.fn(async () => ({ totals: [], nodes: [] })),
 }));
 vi.mock("@/lib/stellar/events", () => ({ pollEventsFor: vi.fn(async () => 0) }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
