@@ -699,6 +699,7 @@ export default function DeploymentView({
           )}
           {status === "CONFIRMED" && network && timelockBranchIds.length > 0 && (
             <ReleaseNowPanel
+              onSuccess={() => dispatchEvents({ type: "refreshBalances" })}
               deploymentId={deploymentId}
               network={network}
               nodeIds={timelockBranchIds}

@@ -2,6 +2,7 @@ import "server-only";
 import { Prisma, Role, TemplateKind, TimelockMode, type TimelockRelease } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { log } from "@/lib/log";
 import { withRelayerChannel } from "@/lib/stellar/relayer-channels";
 import { cronDeadline, type CronDeadline } from "@/lib/cron/deadline";
@@ -403,6 +404,7 @@ async function probe(row: TimelockRelease, now: Date): Promise<AutoReleaseDetail
     }
 
     if (send.status === "SUCCESS") {
+      invalidateDashboardBalances(row.deploymentId, send.txHash);
       log.info({ ...detail, txHash: send.txHash }, "auto-release: released timelock");
       await update({
         // The balance was zeroed somewhere inside this ledger, so a refill

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
-import { AppError, errorResponse } from "@/lib/errors";
+import { AppError, withErrorHandler } from "@/lib/errors";
 import {
   rateLimit,
   clientIp,
@@ -10,7 +10,7 @@ import {
   CALLER_RATE_LIMITS,
   retryAfterSeconds,
 } from "@/lib/rate-limit";
-import { getWorkflowBalances } from "@/lib/stellar/balances";
+import { getDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -18,7 +18,7 @@ export const runtime = "nodejs";
 const { perCaller, ipBackstop } = CALLER_RATE_LIMITS.balances;
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  try {
+  return withErrorHandler(async () => {
     const user = await getSessionUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -47,7 +47,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     }
     const deployment = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
-      include: {
+      select: {
+        id: true,
+        ownerId: true,
+        status: true,
+        graphSnapshot: true,
+        pipelineSnapshot: true,
+        contractAddress: true,
+        sourceAccount: true,
         flow: { select: { templateKind: true } },
       },
     });
@@ -70,13 +77,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     }
 
     if (deployment.status !== "CONFIRMED" || !deployment.contractAddress) {
-      return NextResponse.json({ totals: [], nodes: [] });
+      return NextResponse.json(
+        { totals: [], nodes: [] },
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
     }
 
-    const { totals, nodes } = await getWorkflowBalances(deployment);
+    const balances = await getDashboardBalances(deployment);
 
-    return NextResponse.json({ totals, nodes });
-  } catch (err) {
-    return errorResponse(err);
-  }
+    return NextResponse.json(balances, { headers: { "Cache-Control": "private, no-store" } });
+  });
 }

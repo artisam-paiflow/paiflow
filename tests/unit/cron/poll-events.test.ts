@@ -129,6 +129,7 @@ describe("cron/poll-events", () => {
         { id: "failed" },
         { id: "skipped" },
         { id: "capped" },
+        { id: "unexpected-emitter" },
       ],
       [],
     );
@@ -141,21 +142,26 @@ describe("cron/poll-events", () => {
         status: "skipped",
         reasons: ["missing-start-ledger"],
       })
-      .mockResolvedValueOnce({ ...complete(0), status: "partial", reasons: ["page-limit"] });
+      .mockResolvedValueOnce({ ...complete(0), status: "partial", reasons: ["page-limit"] })
+      .mockResolvedValueOnce({
+        ...complete(0),
+        status: "partial",
+        reasons: ["unexpected-emitter"],
+      });
     expect(await (await post()).json()).toEqual({
       data: {
-        attempted: 5,
+        attempted: 6,
         polled: 1,
-        partial: 2,
+        partial: 3,
         failed: 1,
         skipped: 1,
         written: 3,
-        errors: 2,
-        deployments: 5,
+        errors: 3,
+        deployments: 6,
         truncated: false,
       },
     });
-    expect(mockDb.deployment.updateMany).toHaveBeenCalledTimes(5);
+    expect(mockDb.deployment.updateMany).toHaveBeenCalledTimes(6);
   });
 
   it("caps never-polled deployments at half the batch so polled ones always get slots", async () => {

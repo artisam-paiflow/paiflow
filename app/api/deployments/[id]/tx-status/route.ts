@@ -3,6 +3,7 @@ import { z } from "zod";
 import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { audit, wasTxSubmittedFor } from "@/lib/audit";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { db } from "@/lib/db";
@@ -239,6 +240,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       );
 
       if (submittedHere) {
+        invalidateDashboardBalances(id, txHash);
         await audit({
           action: "DEPLOY_TRIGGER_CONFIRMED",
           ip,

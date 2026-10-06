@@ -3,6 +3,7 @@ import { DevSplitterSchema, type DevSplitRecipient } from "@/lib/dev/schema";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { audit } from "@/lib/audit";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { refuseNewFiatRecipients } from "@/lib/features";
@@ -93,6 +94,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         throw new AppError("UPSTREAM_RPC", result.errorMessage ?? "update_recipients failed");
       }
 
+      invalidateDashboardBalances(d.id, result.txHash);
       await audit({
         action: "DEV_UPDATE_RECIPIENTS",
         userId: user.id,
@@ -146,6 +148,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       onChainRecipients,
     );
     txHashes.push(splitterResult.txHash);
+    invalidateDashboardBalances(d.id, splitterResult.txHash);
 
     await syncEmployees(
       d.id,
