@@ -1,4 +1,4 @@
-API reference based on pinkraft `hackathon` @ 18b89d56625ef562ea9b0458f6ccc6d19f0f6efe. Participant rules and starter mode instructions updated Oct 5, 2026. Testnet only.
+API reference based on pinkraft `hackathon` @ 18b89d56625ef562ea9b0458f6ccc6d19f0f6efe. Participant rules and starter mode instructions updated Oct 6, 2026. Testnet only.
 
 # Hackathon preparation rules
 
@@ -6,6 +6,7 @@ API reference based on pinkraft `hackathon` @ 18b89d56625ef562ea9b0458f6ccc6d19f
 - Registration closes October 11, 2026, at 12:59 PM. A maximum of 10 teams of 1–4 students can participate. Solo teams are welcome; at least two members are encouraged. If more than 10 teams apply, we will coordinate with the respective student organisation to determine the best way forward.
 - Online onboarding is October 12, 2026, at 9:00 PM. The meeting link will be provided through blockhub.academy or through the student organisation representatives.
 - After October 12 onboarding, teams may build their app's screens and features that don't involve payments, using the supplied starter. Keep its payment features and live feed disabled until October 14.
+- The in-person event and Paiflow integration start on October 14, 2026, at **10:30 AM PHT**. Participants must source their own internet connection (for example, mobile data or a personal hotspot).
 - Flow deployment, connecting the app to Paiflow APIs and live payment testing must wait until October 14. Paiflow account credentials are handed out on October 14.
 - Wallet preparation is allowed beforehand: select testnet, add the exact USDC trustline and obtain testnet XLM and USDC where possible. On-site support and ready-to-use fallback wallets are available on October 14.
 
@@ -17,7 +18,7 @@ On October 14, set server-only `PAIFLOW_MODE=team` alongside the supplied platfo
 
 # Submission and demo
 
-- Submit through the [submission form](https://forms.gle/qRk75H9u5eCxPJ3z7) by **5:00 elapsed time** on the integration-day schedule, at the end of integration part 2. Submission fields are in the form.
+- Submit through the [submission form](https://forms.gle/qRk75H9u5eCxPJ3z7) by **3:30 PM PHT on October 14** (5:00 elapsed time) on the integration-day schedule, at the end of integration part 2. Submission fields are in the form.
 - Qualification requires a confirmed Paiflow deployment and at least one on-chain payout from the team's deployment. Shared-demo payouts do not qualify.
 - Judging totals 100 points: Creativity 30, Integration 40, Real-world usefulness 30. Under **Works end to end (10 points)**, a live demo can earn up to **10 points**; a recorded demo can earn up to **7 points**. The format affects only that criterion; other criteria keep the same maximum points. Either must show the team's actual app, Paiflow deployment and a verifiable payout.
 - Each team gets **5 minutes: 3 for a pitch and demo, then 2 for judges' Q&A**. Pitch and demo the app's payment flow live or in a screen recording, and show the payout in the live feed, recipient balance or explorer transaction. A recording may be used if the live demo fails; if it provides the successful demonstration, the recorded-demo maximum applies.
