@@ -1,6 +1,6 @@
 # Paiflow Hackathon Mechanics
 
-Updated Oct 5, 2026
+Updated Oct 6, 2026
 
 Build an app that solves a real problem with automated payments. Choose your idea now. After onboarding on October 12, build your app’s screens and features that don’t involve payments. Add Paiflow payments on October 14.
 
@@ -11,6 +11,7 @@ Build an app that solves a real problem with automated payments. Choose your ide
 | What                | One-day, in-person hackathon to build apps that move crypto through Paiflow |
 | Who                 | Students                                                                    |
 | Teams               | 10 teams of 1–4 people                                                      |
+| Event starts        | October 14, 2026, 10:30 AM PHT                                              |
 | Integration time    | 4 hours on October 14 to integrate your app with Paiflow                    |
 | Prize pool          | PHP 10,000 across five awards                                               |
 | Network             | Stellar testnet                                                             |
@@ -39,18 +40,18 @@ A maximum of 10 teams can participate. Solo teams are welcome, but teams are enc
 
 **After October 12 onboarding:** start building your app’s screens and features that don’t involve payments. You may use the supplied starter, but keep its payment features and live feed disabled until October 14.
 
-**October 14:** receive your team's Paiflow account credentials and begin Paiflow integration. Flow deployment, connecting your app to Paiflow APIs and live payment testing must wait until October 14. Preparing a wallet, adding its trustline and obtaining testnet funds are allowed beforehand.
+**October 14, 10:30 AM PHT:** receive your team's Paiflow account credentials and begin Paiflow integration. Flow deployment, connecting your app to Paiflow APIs and live payment testing must wait until October 14. Preparing a wallet, adding its trustline and obtaining testnet funds are allowed beforehand.
 
-**Integration window:** times below are elapsed from the start of Paiflow integration (0:00).
+**Integration window:** Paiflow integration starts at **10:30 AM PHT on October 14**. All times below are in Philippine Time (PHT).
 
-| Start | Length | Block                 | What happens                                                      |
-| ----- | ------ | --------------------- | ----------------------------------------------------------------- |
-| 0:00  | 2 h    | Integration, part 1   | Deploy and aim for your first confirmed payout                    |
-| 2:00  | 1 h    | Lunch + checkpoint    | Optional coding; check your deployment and payout evidence        |
-| 3:00  | 2 h    | Integration, part 2   | Complete integration and prepare your demo                        |
-| 4:30  | 30 min | Submission            | Submit before 5:00 with your deployment ID and payout transaction |
-| 5:00  | 1 h    | Pitching              | 10 teams × 5 minutes; random order drawn at 5:00                  |
-| 6:00  | 30 min | Deliberation + awards |                                                                   |
+| Start    | Length | Block                 | What happens                                                         |
+| -------- | ------ | --------------------- | -------------------------------------------------------------------- |
+| 10:30 AM | 2 h    | Integration, part 1   | Deploy and aim for your first confirmed payout                        |
+| 12:30 PM | 1 h    | Lunch + checkpoint    | Optional coding; check your deployment and payout evidence            |
+| 1:30 PM  | 2 h    | Integration, part 2   | Complete integration and prepare your demo                            |
+| 3:00 PM  | 30 min | Submission            | Submit before 3:30 PM with your deployment ID and payout transaction   |
+| 3:30 PM  | 1 h    | Pitching              | 10 teams × 5 minutes; random order drawn at 3:30 PM                     |
+| 4:30 PM  | 30 min | Deliberation + awards |                                                                      |
 
 ## The challenge
 
@@ -88,7 +89,10 @@ Choose your idea now. After October 12 onboarding, build your app’s screens an
 - [ ] Attend onboarding on October 12, 2026, 9:00 PM; the meeting link will be provided through blockhub.academy or through the student organisation representatives. Share the instructions with your team
 - [ ] Install [Freighter](https://www.freighter.app/) on at least one team laptop and set it to testnet
 - [ ] Install Node.js 22, pnpm 10 and git, and have a GitHub account
+- [ ] Arrange your own internet connection for the event (for example, mobile data or a personal hotspot)
 - [ ] Pick an idea
+
+**Internet connection:** Participants must source their own internet connection for the event. Bring mobile data or a personal hotspot with enough data for development and payment testing.
 
 **October 12–13 preparation checklist:**
 
@@ -138,7 +142,7 @@ The beta app collects usage analytics (PostHog) to improve Paiflow.
 
 **To qualify, you need a confirmed Paiflow deployment and at least one on-chain payout from it.** Otherwise, you may still pitch but won't be ranked or eligible for prizes.
 
-Submit through the [submission form](https://forms.gle/qRk75H9u5eCxPJ3z7) by **5:00 elapsed time** on the schedule (the end of integration part 2).
+Submit through the [submission form](https://forms.gle/qRk75H9u5eCxPJ3z7) by **3:30 PM PHT on October 14** (the end of integration part 2).
 
 ## Judging
 
