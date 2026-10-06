@@ -1,3 +1,5 @@
+vi.mock("@/lib/stellar/dashboard-balance-cache", () => ({ invalidateDashboardBalances: vi.fn() }));
+import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { Contract, StrKey, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 import {
@@ -313,6 +315,7 @@ describe("pollEventsFor", () => {
     const result = await pollEventsFor("dep-1");
     expect(result).toBe(1);
     expect(db.contractEvent.create).toHaveBeenCalledTimes(1);
+    expect(invalidateDashboardBalances).toHaveBeenCalledExactlyOnceWith("dep-1", "tx1");
     expect(db.eventCursor.updateMany).toHaveBeenCalledWith({
       where: { deploymentId: "dep-1", lastLedger: { lte: 500 } },
       data: { lastLedger: 500 },
@@ -984,6 +987,7 @@ describe("pollEventsFor: RPC scan windows", () => {
       expect(spy).toHaveBeenCalledTimes(expectedPages);
       expect(expectedPages).toBeLessThanOrEqual(MAX_EVENT_PAGES_PER_POLL * addresses.length);
       expect(cursorWritten()).toEqual({ lastLedger: 200 });
+      const invalidationsBeforeReplay = vi.mocked(invalidateDashboardBalances).mock.calls.length;
       // An overlapping caller that read the older durable ledger replays safely.
       expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
         status: "complete",
@@ -991,6 +995,9 @@ describe("pollEventsFor: RPC scan windows", () => {
         scannedThrough: 200,
       });
       expect(stored.size).toBe(events.length);
+      expect(vi.mocked(invalidateDashboardBalances).mock.calls).toHaveLength(
+        invalidationsBeforeReplay,
+      );
       vi.mocked(db.contractEvent.create).mockResolvedValue({ id: "row" } as never);
     },
   );

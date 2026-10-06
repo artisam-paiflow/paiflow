@@ -183,3 +183,33 @@ it("unresolved assets are errors instead of a fresh complete empty total", async
   expect(result.freshness.targets[0]?.readAt).toBeNull();
   expect(createTokenBalanceReader).not.toHaveBeenCalled();
 });
+
+it("waits for both active target reads on abort and never starts remaining targets", async () => {
+  const deployment = simpleDeployment();
+  deployment.pipelineSnapshot = Array.from({ length: 8 }, (_, index) => ({
+    nodeId: `p${index}`,
+    contractAddress: StrKey.encodeContract(Buffer.alloc(32, index + 1)),
+    templateKind: "PAYER",
+  }));
+  deployment.contractAddress = null;
+  const finishes: Array<() => void> = [];
+  balance.mockImplementation(
+    () => new Promise<bigint>((resolve) => finishes.push(() => resolve(1n))),
+  );
+  const controller = new AbortController();
+  let settled = false;
+  const read = getWorkflowBalances(deployment, controller.signal).finally(() => {
+    settled = true;
+  });
+  const rejected = expect(read).rejects.toThrow("timed out");
+  await Promise.resolve();
+  expect(finishes).toHaveLength(2);
+  controller.abort();
+  finishes[0]!();
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(settled).toBe(false);
+  finishes[1]!();
+  await rejected;
+  expect(balance).toHaveBeenCalledTimes(2);
+});

@@ -3,6 +3,7 @@ import type { TransactionOutcome } from "@prisma/client";
 import { log } from "@/lib/log";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { enqueueAnalytics } from "./outbox";
 import { TRACKING_VERSION } from "./policy";
 export const TERMINAL_OUTCOMES: readonly TransactionOutcome[] = ["CONFIRMED", "FAILED"];
@@ -65,7 +66,8 @@ export async function recordTransactionOutcome(
   } = {},
 ) {
   try {
-    return await db.$transaction(async (tx) => {
+    let confirmedDeploymentId: string | null = null;
+    const changed = await db.$transaction(async (tx) => {
       for (let retries = 0; retries < 5; retries++) {
         const row = await tx.signedTransaction.findUnique({
           where: { txHash: txHash.toLowerCase() },
@@ -172,10 +174,14 @@ export async function recordTransactionOutcome(
           },
           personProfile: Boolean(row.userId),
         });
+        if (outcome === "CONFIRMED") confirmedDeploymentId = row.deploymentId;
         return true;
       }
       return false;
     });
+    if (changed && confirmedDeploymentId)
+      invalidateDashboardBalances(confirmedDeploymentId, txHash);
+    return changed;
   } catch {
     log.warn(
       { txHash, outcome },

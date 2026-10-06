@@ -104,6 +104,7 @@ function getSwapperAssetOut(graph: FlowGraph): Asset | null {
 
 export async function getWorkflowBalances(
   deployment: BalanceDeployment,
+  signal?: AbortSignal,
 ): Promise<ReadWorkflowBalances> {
   const totalsMap = new Map<string, { asset: Asset; symbol: string; balance: bigint }>();
   const nodes: Array<BalanceNode | BalanceNodeError> = [];
@@ -209,16 +210,37 @@ export async function getWorkflowBalances(
   }
 
   const readBalance = targets.length ? createTokenBalanceReader(deployment.sourceAccount) : null;
-  const results = await Promise.allSettled(
-    targets.map(async (target) => {
-      const tokenAddress = assetContractId(target.asset);
-      const balance = await readBalance!({
-        tokenAddress,
-        holderAddress: target.contractAddress,
-      });
-      return { target, balance, readAt: new Date().toISOString() };
+  // Two workers per admitted dashboard batch bound simultaneous RPC reads.
+  const results: PromiseSettledResult<{
+    target: (typeof targets)[number];
+    balance: bigint;
+    readAt: string;
+  }>[] = new Array(targets.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(2, targets.length) }, async () => {
+      while (next < targets.length) {
+        if (signal?.aborted) break;
+        const index = next++;
+        const target = targets[index]!;
+        results[index] = (
+          await Promise.allSettled([
+            (async () => {
+              const tokenAddress = assetContractId(target.asset);
+              const balance = await readBalance!({
+                tokenAddress,
+                holderAddress: target.contractAddress,
+              });
+              return { target, balance, readAt: new Date().toISOString() };
+            })(),
+          ])
+        )[0]!;
+      }
     }),
   );
+
+  // Keep the admitted batch alive until both workers settle, even on abort.
+  if (signal?.aborted) throw new Error("Dashboard balance refresh timed out");
 
   for (let i = 0; i < results.length; i++) {
     const result = results[i]!;

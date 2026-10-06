@@ -4,6 +4,8 @@ import { TransactionBuilder, Address, StrKey, rpc, scValToNative, xdr } from "@s
 import { EventKind, TemplateKind } from "@prisma/client";
 import { sorobanRpc } from "./client";
 import { db } from "@/lib/db";
+import { changesDashboardBalance } from "@/lib/balance-events";
+import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { redis, eventChannel } from "@/lib/redis";
 import { log } from "@/lib/log";
 import { assetContractId } from "@/lib/stellar/assets";
@@ -1162,6 +1164,7 @@ async function ingestEventPage(
         },
       });
       persisted = true;
+      if (changesDashboardBalance(kind)) invalidateDashboardBalances(deploymentId, ev.txHash);
       written += 1;
       writtenByContract.set(contractAddress, (writtenByContract.get(contractAddress) ?? 0) + 1);
       const client = redis();

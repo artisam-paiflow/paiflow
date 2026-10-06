@@ -1,6 +1,7 @@
 import "server-only";
 import { TemplateKind, type Deployment } from "@prisma/client";
 import { AppError } from "@/lib/errors";
+import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { ReleaseBeforeSchema, type ReleaseBefore } from "@/lib/api/v1/schema";
 import { log } from "@/lib/log";
 import { pipelineNodesOfKind } from "@/lib/pipeline-snapshot";
@@ -152,6 +153,7 @@ export async function releaseTimelockBranchBefore(
     );
   }
 
+  invalidateDashboardBalances(deployment.id, send.txHash);
   log.info(
     { deploymentId: deployment.id, nodeId: node.nodeId, txHash: send.txHash },
     "early-release: released before side",

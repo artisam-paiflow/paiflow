@@ -15,10 +15,12 @@ export default function ReleaseNowPanel({
   deploymentId,
   network,
   nodeIds,
+  onSuccess,
 }: {
   deploymentId: string;
   network: StellarNetwork;
   nodeIds: string[];
+  onSuccess?: () => void;
 }) {
   const [nodeId, setNodeId] = useState(nodeIds[0] ?? "");
   const [confirming, setConfirming] = useState(false);
@@ -45,6 +47,7 @@ export default function ReleaseNowPanel({
       } | null;
       if (!res.ok || !json?.data) throw apiError(json, "Release failed");
       setTxHash(json.data.txHash);
+      onSuccess?.();
       setConfirming(false);
       toast.success("Released to the before side");
     } catch (err) {
