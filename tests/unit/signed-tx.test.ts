@@ -40,6 +40,10 @@ describe("recordSignedTransaction", () => {
   const userIds: string[] = [];
 
   afterEach(async () => {
+    for (const hash of hashes)
+      await db.analyticsDelivery.deleteMany({
+        where: { properties: { path: ["tx_hash"], equals: hash } },
+      });
     await db.signedTransaction.deleteMany({ where: { txHash: { in: hashes.splice(0) } } });
     await db.user.deleteMany({ where: { id: { in: userIds.splice(0) } } });
   });
@@ -48,100 +52,43 @@ describe("recordSignedTransaction", () => {
     mockCapture.mockClear();
   });
 
-  it("captures transaction_signed for the signer's user, or for the wallet with no profile", async () => {
-    const anon = signedEnvelope();
-    hashes.push(anon.signer.txHash);
-    await recordSignedTransaction({ signer: anon.signer, kind: "TRIGGER", network: "testnet" });
-    expect(mockCapture).toHaveBeenLastCalledWith(
-      `wallet:${anon.kp.publicKey()}`,
-      "transaction_signed",
-      {
-        deployment_id: null,
-        tx_hash: anon.signer.txHash,
-        signer_address: anon.kp.publicKey(),
-        kind: "trigger",
-        signed_by_source: true,
-      },
-      { personProfile: false },
-    );
-
-    const user = await db.user.create({
-      data: { username: `signer-${Date.now()}-b`, passwordHash: "not-a-real-hash" },
-      select: { id: true },
-    });
-    userIds.push(user.id);
-    const known = signedEnvelope();
-    hashes.push(known.signer.txHash);
-    await recordSignedTransaction({
-      signer: known.signer,
-      kind: "DEPLOY",
-      network: "testnet",
-      userId: user.id,
-    });
-    expect(mockCapture).toHaveBeenLastCalledWith(
-      user.id,
-      "transaction_signed",
-      expect.objectContaining({ kind: "deploy", signer_address: known.kp.publicKey() }),
-    );
-  });
-
-  it("does not capture when the row was not written", async () => {
-    const { signer } = signedEnvelope();
-    hashes.push(signer.txHash);
-    await recordSignedTransaction({
-      signer,
-      kind: "DEPLOY",
-      network: "testnet",
-      userId: "00000000-0000-0000-0000-000000000001",
-    });
-    expect(mockCapture).not.toHaveBeenCalled();
-  });
-
-  it("writes one row and captures one event per hash; a resubmission is a no-op", async () => {
+  it("writes one durable signed event per hash and preserves the first attribution", async () => {
     const { kp, signer } = signedEnvelope();
     hashes.push(signer.txHash);
-    const input = {
-      signer,
-      kind: "TRIGGER" as const,
-      network: "testnet",
-      userId: null,
-      deploymentId: null,
-      ip: "203.0.113.9",
-    };
-
+    const input = { signer, kind: "TRIGGER" as const, network: "testnet", ip: "203.0.113.9" };
     await recordSignedTransaction(input);
     await recordSignedTransaction({ ...input, ip: "198.51.100.1" });
-
-    const rows = await db.signedTransaction.findMany({ where: { txHash: signer.txHash } });
-    expect(rows).toHaveLength(1);
-    // One analytics event per hash, not per resubmission.
-    expect(mockCapture).toHaveBeenCalledTimes(1);
-    expect(rows[0]).toMatchObject({
+    expect(await db.signedTransaction.count({ where: { txHash: signer.txHash } })).toBe(1);
+    expect(
+      await db.signedTransaction.findUnique({ where: { txHash: signer.txHash } }),
+    ).toMatchObject({
       signerAddress: kp.publicKey(),
-      feeSourceAddress: null,
-      muxedSource: null,
-      isFeeBump: false,
-      signedBySource: true,
       userId: null,
-      deploymentId: null,
-      kind: "TRIGGER",
-      network: "testnet",
-      ip: "203.0.113.9",
+      outcome: "RECEIVED",
+      trackingVersion: "usage-v2",
+      ip: input.ip,
     });
+    expect(
+      await db.analyticsDelivery.count({
+        where: {
+          event: "transaction_signed",
+          properties: { path: ["tx_hash"], equals: signer.txHash },
+        },
+      }),
+    ).toBe(1);
   });
-
-  it("writes nothing and does not throw for an unreadable envelope", async () => {
-    const signer = signerFromSignedXdr("SIGNED:AAAA", Networks.TESTNET);
-    expect(signer.ok).toBe(false);
-    const input = { signer, kind: "INVOKE" as const, network: "testnet" };
+  it("fails closed for an unreadable envelope", async () => {
+    const input = {
+      signer: signerFromSignedXdr("SIGNED:AAAA", Networks.TESTNET),
+      kind: "INVOKE" as const,
+      network: "testnet",
+    };
     expect(signedTransactionRow(input)).toBeNull();
-    await expect(recordSignedTransaction(input)).resolves.toBeUndefined();
+    await expect(recordSignedTransaction(input)).rejects.toThrow();
   });
-
-  it("swallows a failed write instead of failing the caller", async () => {
+  it("fails before submission if the durable write fails", async () => {
     const { signer } = signedEnvelope();
     hashes.push(signer.txHash);
-    // A user id that exists nowhere violates the foreign key.
     await expect(
       recordSignedTransaction({
         signer,
@@ -149,7 +96,7 @@ describe("recordSignedTransaction", () => {
         network: "testnet",
         userId: "00000000-0000-0000-0000-000000000001",
       }),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow();
     expect(await db.signedTransaction.count({ where: { txHash: signer.txHash } })).toBe(0);
   });
 

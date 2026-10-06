@@ -20,6 +20,7 @@ import {
 import { AppError } from "@/lib/errors";
 import { deriveChannelKeypair } from "./relayer-channel-keys";
 import { log } from "@/lib/log";
+import { reserveTransactionFee, ttlFeeBudget } from "@/lib/stellar/fee-budget";
 
 /**
  * Relayer channel accounts.
@@ -334,6 +335,21 @@ export async function withRelayerChannel<T>(
   }
 }
 
+export type RelayerRestorationRecord = {
+  hash: string;
+  payer: string;
+  declaredFeeStroops: string;
+};
+export type RelayerRestorationOutcome = RelayerRestorationRecord & {
+  status: "SUCCESS" | "FAILED";
+  netFeeStroops: string;
+  ledger: number;
+};
+export type RelayerRestorationObserver = {
+  beforeSend: (record: RelayerRestorationRecord) => Promise<void>;
+  onFinality: (outcome: RelayerRestorationOutcome) => Promise<void>;
+};
+
 export type BuildRelayerTxOptions = {
   channel: RelayerChannel;
   operation: xdr.Operation;
@@ -341,6 +357,8 @@ export type BuildRelayerTxOptions = {
   onSimulationError: (message: string) => Error;
   /** Relayer-source lane only: reuse a simulation taken earlier instead of simulating again. */
   presimulated?: rpc.Api.SimulateTransactionSuccessResponse;
+  /** Public evidence only; persist before sending and immediately on finality. */
+  restorationObserver?: RelayerRestorationObserver;
 };
 
 function credentialAddress(entry: xdr.SorobanAuthorizationEntry): string | null {
@@ -379,7 +397,14 @@ async function buildRelayerTxAttempt(
     if (!mayRestore) {
       throw opts.onSimulationError("Archived state still requires restoration after one restore");
     }
-    await restoreRelayerFootprint(server, channel, sim, passphrase, opts.onSimulationError);
+    await restoreRelayerFootprint(
+      server,
+      channel,
+      sim,
+      passphrase,
+      opts.onSimulationError,
+      opts.restorationObserver,
+    );
     // Restoration consumed a sequence number and changed the ledger. Discard
     // the probe's footprint and every recorded relayer authorization.
     return buildRelayerTxAttempt({ ...opts, presimulated: undefined }, false);
@@ -459,6 +484,7 @@ async function restoreRelayerFootprint(
   sim: rpc.Api.SimulateTransactionRestoreResponse,
   passphrase: string,
   onError: (message: string) => Error,
+  observer?: RelayerRestorationObserver,
 ): Promise<void> {
   const account = await server.getAccount(channel.publicKey);
   const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: passphrase })
@@ -475,8 +501,21 @@ async function restoreRelayerFootprint(
   if (BigInt(assembled.fee) > BigInt(env().STELLAR_TTL_MAX_FEE_STROOPS)) {
     throw onError("Archived state restoration exceeds the configured maintenance fee limit");
   }
-  assembled.sign(channel.keypair);
   const hash = assembled.hash().toString("hex");
+  const budget = ttlFeeBudget(env().STELLAR_TTL_MAX_FEE_STROOPS);
+  if (budget) {
+    await reserveTransactionFee({
+      network: env().STELLAR_NETWORK,
+      budget,
+      txHash: hash,
+      payer: channel.publicKey,
+      declaredFeeStroops: assembled.fee,
+      purpose: "ttl-restoration",
+    });
+  }
+  assembled.sign(channel.keypair);
+  const record = { hash, payer: channel.publicKey, declaredFeeStroops: assembled.fee };
+  await observer?.beforeSend(record);
   // Record before sending: transport failure can leave a submitted restore
   // with unknown finality. The next channel holder must reconcile that hash.
   channel.trackPending(hash, assembled.timeBounds?.maxTime);
@@ -490,6 +529,12 @@ async function restoreRelayerFootprint(
     const got = await server.getTransaction(hash);
     if (got.status === "SUCCESS" || got.status === "FAILED") {
       channel.clearPending?.(hash);
+      await observer?.onFinality({
+        ...record,
+        status: got.status,
+        netFeeStroops: got.resultXdr.feeCharged().toString(),
+        ledger: got.ledger,
+      });
       if (got.status === "SUCCESS") return;
       throw onError("Archived state restoration failed on the network");
     }

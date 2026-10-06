@@ -44,6 +44,25 @@ fee bounds and hashes on confirmed success; `feeStroops` is not the charged fee
 after refunds. Rent may be substantially less;
 the cap is not an estimate.
 
+Paid caps above 0.1 XLM require both `STELLAR_TTL_FEE_BUDGET_NAME` and
+`STELLAR_TTL_FEE_BUDGET_STROOPS`. The additive
+`20261004020000_transaction_fee_budget` migration stores a fixed, per-network
+campaign limit and transaction reservations. Each guarded submission atomically
+reserves its declared maximum fee and writes an audit record before sending.
+Reservations survive restarts; refunds, rejection, expiry and unknown finality
+never replenish this conservative allowance. A duplicate hash or changed limit
+is rejected. When configured, this guard covers maintenance, the relayer builder's
+explicit legacy restoration, and the #804 fixture tooling; unrelated automation
+fees are outside the campaign. Missing persistence fails closed.
+
+The fixture tooling also consumes a permanent campaign setup claim atomically
+before Friendbot funding. `20261005000000_ttl_fixture_setup_claim` backfills that
+claim from existing setup/deposit reservations, preserving previous authorization
+consumption. A failed preparation does not release it. Recovery journals payment
+and any separate legacy restoration immediately at finality, before fee metadata
+or verification reads; uncertain attempts retain their hashes and report unknown
+submission count. See [review fixes](ttl-release-rehearsal.md#independent-review-fixes).
+
 Discovery uses:
 
 - Current template and factory rows, freshly queried from the DB, with env
@@ -55,27 +74,47 @@ Discovery uses:
   only when no snapshot exists). Actual executable hashes from ledger entries
   identify historical WASM; current template hashes are never substituted.
 
-A run selects five oldest inventory attempts, reading one unique instance and its
-actual code per deployment. Durable `ttlCheckedAt` and `ttlScanOffset` advance
-through large pipelines even after a failed target. A separate network cursor
-rotates shared factory/template targets and alternates whether shared or deployment
-work runs first. Permanently failing entries cannot consume all future mutation
-slots. Instance and code reads and decisions remain independent.
+A run selects up to **25 oldest inventory attempts**, reading up to **ten unique
+instances per deployment** in a batch, then inspecting their actual code hashes.
+Reads are pooled across these deployments in requests of at most 100 keys.
+Shared factory/template targets rotate in batches of ten. Durable `ttlCheckedAt`
+and `ttlScanOffset` advance through large pipelines even after a failed target;
+failed batched reads split into smaller batches, down to individual failed keys,
+within the remaining budget, with at most **50 inventory requests** per call.
+The cap excludes the two setup reads and per-operation rechecks/post-reads; rent
+attempts retain their separate limit. `inventoryReadLimitReached` reports exhaustion.
+Deployment and shared cursors advance only through the contiguous prefix of
+attempted targets, including attempted failures. If fallback reads stop at the
+deadline or request cap, the first unattempted target remains eligible next tick.
+A separate network cursor alternates whether shared or deployment work runs first.
+Instance and code reads and decisions remain independent. Rent submissions stay
+sequential and use the existing source/channel locks. The runner rechecks each
+due target after acquiring its channel, so a renewal confirmed during the wait
+does not trigger a redundant submission.
 
 Reports distinguish `moreDeployments`, `partialPipelines`, and `budgetExhausted`;
 `truncated` is true if any apply or shared inventory has more targets in its cycle.
-`sharedScan` reports total shared targets and the next offset. `scans` contains deployment ID, total unique
-instance targets, and the next offset. The **20-second budget is checked between
-items**, not a strict request timeout: one RPC, lock wait, or 30-second finality
-poll may exceed it. The default limits are deliberately conservative.
+`sharedScan` reports total shared targets and the next offset. `scans` contains
+deployment ID, total unique instance targets, and the next offset. One shared
+**20-second budget bounds RPC waits, channel acquisition and finality polling**.
+A callback acquired after that deadline fails before signing. Fee reservations
+and writes recording confirmed results finish normally, so this is not a strict
+end-to-end HTTP timeout. An RPC wait timeout does not cancel an already submitted
+transaction. Existing SDK transport timeouts still apply to outstanding requests.
+
+Reports use `pending` for an attempted send without known finality and retain its
+public hash and declared fee, with a `CONTRACT_STORAGE_RENT_PENDING` audit. The
+source barrier remains until confirmation or verified expiry. A later healthy
+inventory read can establish maintenance coverage; a pending audit alone cannot.
+This does not add durable source reconciliation or increase submission concurrency
+([#202](https://github.com/webnxt-2030/pinkraft/issues/202)).
 
 Before enabling paid maintenance, schedule repeated inventory ticks and verify
-coverage completes comfortably inside the extension threshold. Approximate full
-scan duration is `ceil(deployments / 5) × largest pipeline target count × cadence`.
-At one-minute cadence, 100 deployments with 840 unique targets each take roughly
-11.7 days, longer than the roughly 2.9-day threshold at five-second ledgers. That
-workload needs adjusted capacity/threshold policy before rollout. Small typical
-pipelines are faster; no 100-user capacity guarantee is established here.
+coverage completes comfortably inside the extension threshold. With full batches,
+an ideal scan takes approximately `ceil(deployments / 25) × ceil(largest pipeline
+target count / 10) × cadence`; time-budget exhaustion, paid work, failures and DB
+latency can increase it. See the [local before/after rehearsal](ttl-release-rehearsal.md#local-throughput-and-time-budget-improvement--5-october-2026).
+The model is not a supported-capacity guarantee.
 
 There is no automatic scheduler registration. Deploy the migration first, install
 the authenticated recurring call, observe complete dry-run coverage and capped TESTNET paid-smoke fees, then
@@ -129,7 +168,7 @@ Isolated TESTNET fixtures completed 12 successful transactions for Subscription 
 and Webhook v2: upload, deployment, trigger execution/charge, and separate instance
 and actual-code extensions to 600,000 ledgers. Public evidence is in
 [ttl-maintenance-testnet.json](evidence/ttl-maintenance-testnet.json). The RPC
-transaction-result `feeCharged` values (before possible resource-fee refunds) for
+transaction-result `feeCharged` values (already net of resource-fee refunds) for
 code extensions were 221,949,455 stroops
 (Webhook) and 347,975,490 stroops (Subscription), substantially above the default
 maintenance cap. Subscription's instance extension also exceeded that cap. These
@@ -236,3 +275,23 @@ not a comparison of signing-lane efficiency. This completes physical hot-archive
 recovery on the isolated chain, including the actual funded-channel invocation
 path. Public TESTNET uses different ledger/network limits, so these fixtures
 do not select a production budget.
+
+## Deployed release measurements
+
+The [#804 rehearsal report](ttl-release-rehearsal.md) records actual deployed
+inventory coverage, public TESTNET instance restoration through funded channels
+and unfunded-channel fallback, fee/refund reconciliation, held-Redis-lease blocking,
+and verified disable-to-inventory rollback in `hackathon-testing`. It also lists
+the remaining release checks and explains why the default fee cap cannot cover
+all observed extensions. Paid maintenance remains disabled; the measured fees do
+not establish a production budget.
+
+The user subsequently approved a temporary 50-XLM maintenance transaction cap
+for the TESTNET rehearsal. Only the cap changed in `hackathon-testing`; the same
+application commit was redeployed and the actual HTTP route still returned
+inventory-only behavior with zero submissions. The user also approved a 150-XLM
+total rehearsal spending ceiling; enforcement remains outstanding before paid
+runs. A fresh read found none of the 25 recorded code
+entries due at the unchanged threshold. See
+[cap-increase evidence](evidence/ttl-cap-increase-hackathon-testing.json) and the
+rehearsal report for the observed lifetimes and outstanding release decisions.

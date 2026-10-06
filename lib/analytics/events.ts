@@ -139,6 +139,22 @@ export type EventMap = {
     signed_by_source: boolean;
   };
 
+  transaction_outcome: {
+    deployment_id: string | null;
+    tx_hash: string;
+    signer_address: string;
+    kind: "deploy" | "trigger" | "invoke" | "api_execute";
+    outcome: "RECEIVED" | "ACCEPTED" | "UNRESOLVED" | "REJECTED" | "CONFIRMED" | "FAILED";
+    outcome_revision: number;
+    ledger: number | null;
+    failure_code: string | null;
+  };
+  exception_captured: {
+    stage: "runtime" | "unhandled_rejection" | "render";
+    error_class: ErrorClass;
+    error_code: string | null;
+    frames: string[];
+  };
   // 5. Verify
   deployment_page_viewed: { deployment_id: string; status: string };
   live_feed_disconnected: { deployment_id: string; disconnect_count: number };

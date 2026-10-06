@@ -1,0 +1,31 @@
+{
+  "environment": "isolated-local-postgres",
+  "at": "2026-10-05T00:07:22.737Z",
+  "concurrentAttempts": 20,
+  "accepted": 3,
+  "rejected": 17,
+  "limitStroops": "1500000000",
+  "committedStroops": "1500000000",
+  "reservationSumStroops": "1500000000",
+  "persistedCeilingRejected": true,
+  "duplicateRejected": true,
+  "duplicateRollbackCommittedStroops": "500000000",
+  "changedLimitRejected": true,
+  "auditCount": 3,
+  "setupClaims": {
+    "concurrentAttempts": 20,
+    "accepted": 1,
+    "rejected": 19,
+    "persistedSetupClaimRejected": true,
+    "committedStroops": "0",
+    "auditCount": 1
+  },
+  "networkSubmissions": 0,
+  "migrationBackfill": {
+    "environment": "isolated-local-postgres",
+    "claimTimestamp": "2026-10-04T00:00:00.000Z",
+    "committedStroops": "120",
+    "existingFixtureClaimRejected": true,
+    "networkSubmissions": 0
+  }
+}

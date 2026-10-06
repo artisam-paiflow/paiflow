@@ -6,8 +6,27 @@ beforeEach(() => {
 afterEach(() => {
   delete process.env.STELLAR_TTL_MAINTENANCE_ENABLED;
   delete process.env.STELLAR_TTL_MAX_FEE_STROOPS;
+  delete process.env.STELLAR_TTL_FEE_BUDGET_NAME;
+  delete process.env.STELLAR_TTL_FEE_BUDGET_STROOPS;
 });
 describe("TTL maintenance configuration", () => {
+  it.each(["STELLAR_TTL_FEE_BUDGET_NAME", "STELLAR_TTL_FEE_BUDGET_STROOPS"])(
+    "rejects half-configured budget %s",
+    async (key) => {
+      process.env[key] = key.endsWith("NAME") ? "ttl804-testnet-20261004" : "1500000000";
+      const { env } = await import("@/lib/env");
+      expect(() => env()).toThrow("configured together");
+    },
+  );
+  it.each(["", "0", "-1", "1.5", "01", " 10"])(
+    "rejects invalid cumulative ceiling %j",
+    async (value) => {
+      process.env.STELLAR_TTL_FEE_BUDGET_NAME = "ttl804-testnet-20261004";
+      process.env.STELLAR_TTL_FEE_BUDGET_STROOPS = value;
+      const { env } = await import("@/lib/env");
+      expect(() => env()).toThrow();
+    },
+  );
   it("defaults to inventory only and a bounded string fee", async () => {
     const { env } = await import("@/lib/env");
     expect(env().STELLAR_TTL_MAINTENANCE_ENABLED).toBe(false);

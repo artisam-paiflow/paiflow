@@ -31,6 +31,12 @@ describe("hackathon AI context pack", () => {
         process.env.PAIFLOW_BASE_URL = "https://beta.app.paiflow.xyz";
         process.env.PAIFLOW_DEPLOYMENT_ID = "test-deployment";
         process.env.PAIFLOW_API_TOKEN = "test-token";
+        process.env.PAIFLOW_MODE = "prepare";
+        globalThis.fetch = async () => assert.fail("Preparation must not call Paiflow");
+        await assert.rejects(prepareExecute({ from: "test-account", amount: "1" }), {
+          message: "Select team mode for this team API example",
+        });
+        process.env.PAIFLOW_MODE = "team";
         for (const requestId of ["proxy-request-123", null]) {
           globalThis.fetch = async () => new Response("<html>Bad gateway</html>", {
             status: 502,

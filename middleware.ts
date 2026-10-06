@@ -7,6 +7,8 @@ import { isSandboxAllowed } from "@/lib/sandbox-paths";
 const { auth } = NextAuth(authConfig);
 
 const PUBLIC_PATHS = [
+  /^\/api\/audit\/analytics-context$/,
+  /^\/api\/audit\/wallet-connection$/,
   /^\/$/,
   /^\/login$/,
   /^\/register$/,

@@ -15,7 +15,8 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 
-const { mockRpc, warn } = vi.hoisted(() => ({
+const { mockRpc, warn, reserveFee } = vi.hoisted(() => ({
+  reserveFee: vi.fn(),
   mockRpc: {
     getAccount: vi.fn(),
     getTransaction: vi.fn(),
@@ -58,6 +59,10 @@ async function load(channels: number) {
   process.env.STELLAR_RELAYER_SECRET_KEY = RELAYER.secret();
   process.env.STELLAR_RELAYER_CHANNELS = String(channels);
   vi.resetModules();
+  const actual = await vi.importActual<typeof import("@/lib/stellar/fee-budget")>(
+    "@/lib/stellar/fee-budget",
+  );
+  vi.doMock("@/lib/stellar/fee-budget", () => ({ ...actual, reserveTransactionFee: reserveFee }));
   const mod = await import("@/lib/stellar/relayer-channels");
   mod.resetRelayerChannelPoolForTests();
   return mod;
@@ -79,6 +84,8 @@ afterEach(() => {
   delete process.env.STELLAR_RELAYER_SECRET_KEY;
   delete process.env.STELLAR_RELAYER_CHANNELS;
   delete process.env.STELLAR_TTL_MAX_FEE_STROOPS;
+  delete process.env.STELLAR_TTL_FEE_BUDGET_NAME;
+  delete process.env.STELLAR_TTL_FEE_BUDGET_STROOPS;
 });
 
 describe("deriveChannelKeypair", () => {
@@ -461,6 +468,30 @@ describe("buildRelayerTx", () => {
     expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
   });
 
+  it("does not submit a legacy restore or payment when the durable fee reservation fails", async () => {
+    process.env.STELLAR_TTL_MAX_FEE_STROOPS = "500000000";
+    process.env.STELLAR_TTL_FEE_BUDGET_NAME = "ttl804-testnet-20261004";
+    process.env.STELLAR_TTL_FEE_BUDGET_STROOPS = "1500000000";
+    reserveFee.mockRejectedValueOnce(new Error("cumulative budget exhausted"));
+    const { buildRelayerTx, withRelayerChannel } = await load(0);
+    mockRpc.simulateTransaction
+      .mockReset()
+      .mockResolvedValueOnce(restoreRequired())
+      .mockResolvedValueOnce(simSuccess([]));
+    await expect(
+      withRelayerChannel((channel) =>
+        buildRelayerTx({ channel, operation: operation(), onSimulationError: (m) => new Error(m) }),
+      ),
+    ).rejects.toThrow("cumulative budget exhausted");
+    expect(reserveFee).toHaveBeenCalledWith(
+      expect.objectContaining({
+        purpose: "ttl-restoration",
+        budget: { name: "ttl804-testnet-20261004", limitStroops: "1500000000" },
+      }),
+    );
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+  });
+
   it("preserves the automatic restoration list in assembled transaction data", async () => {
     const { buildRelayerTx, withRelayerChannel } = await load(0);
     const sim = simSuccess([]);
@@ -504,6 +535,85 @@ describe("buildRelayerTx", () => {
     expect(mockRpc.simulateTransaction).toHaveBeenCalledTimes(lanes ? 4 : 3);
     expect(tx.operations[0]!.type).toBe("invokeHostFunction");
   });
+
+  it.each(["SUCCESS", "FAILED"])(
+    "journals separate restoration %s before rebuilding the invocation",
+    async (status) => {
+      const { buildRelayerTx, withRelayerChannel } = await load(0);
+      mockRpc.simulateTransaction
+        .mockReset()
+        .mockResolvedValueOnce(restoreRequired())
+        .mockResolvedValue(simSuccess([]));
+      mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING" });
+      mockRpc.getTransaction.mockResolvedValue({
+        status,
+        ledger: 1001,
+        resultXdr: { feeCharged: () => ({ toString: () => "100" }) },
+      });
+      const observer = {
+        beforeSend: vi.fn(async () => {
+          expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+        }),
+        onFinality: vi.fn(),
+      };
+      const run = withRelayerChannel((channel) =>
+        buildRelayerTx({
+          channel,
+          operation: operation(),
+          onSimulationError: (m) => new Error(m),
+          restorationObserver: observer,
+        }),
+      );
+      if (status === "SUCCESS") await run;
+      else await expect(run).rejects.toThrow("restoration failed");
+      const restore = mockRpc.sendTransaction.mock.calls[0]![0];
+      expect(observer.beforeSend).toHaveBeenCalledWith({
+        hash: restore.hash().toString("hex"),
+        payer: restore.source,
+        declaredFeeStroops: restore.fee,
+      });
+      expect(observer.onFinality).toHaveBeenCalledWith(
+        expect.objectContaining({ status, netFeeStroops: "100", ledger: 1001 }),
+      );
+      expect(mockRpc.sendTransaction).toHaveBeenCalledOnce();
+      if (status === "SUCCESS")
+        expect(observer.onFinality.mock.invocationCallOrder[0]).toBeLessThan(
+          mockRpc.simulateTransaction.mock.invocationCallOrder[2]!,
+        );
+      else expect(mockRpc.simulateTransaction).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each(["beforeSend", "onFinality"] as const)(
+    "stops before invocation if restoration %s journal persistence fails",
+    async (stage) => {
+      const { buildRelayerTx, withRelayerChannel } = await load(0);
+      mockRpc.simulateTransaction
+        .mockReset()
+        .mockResolvedValueOnce(restoreRequired())
+        .mockResolvedValue(simSuccess([]));
+      mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING" });
+      mockRpc.getTransaction.mockResolvedValue({
+        status: "SUCCESS",
+        ledger: 1001,
+        resultXdr: { feeCharged: () => ({ toString: () => "100" }) },
+      });
+      const observer = { beforeSend: vi.fn(), onFinality: vi.fn() };
+      observer[stage].mockRejectedValueOnce(new Error("journal unavailable"));
+      await expect(
+        withRelayerChannel((channel) =>
+          buildRelayerTx({
+            channel,
+            operation: operation(),
+            onSimulationError: (m) => new Error(m),
+            restorationObserver: observer,
+          }),
+        ),
+      ).rejects.toThrow("journal unavailable");
+      expect(mockRpc.simulateTransaction).toHaveBeenCalledTimes(2);
+      expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(stage === "beforeSend" ? 0 : 1);
+    },
+  );
 
   it("rechecks the release condition after restoring rather than using the probe result", async () => {
     const { buildRelayerTx, withRelayerChannel } = await load(0);

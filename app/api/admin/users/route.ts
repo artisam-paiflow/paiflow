@@ -1,23 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { Role } from "@prisma/client";
+import { CreateAnalyticsAccountSchema } from "@/lib/analytics/account-schema";
 import { db } from "@/lib/db";
 import { hashPassword, requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { audit } from "@/lib/audit";
-import { Role } from "@prisma/client";
 import { pwnedCount } from "@/lib/hibp";
-
-const CreateSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(3)
-    .max(32)
-    .regex(/^[a-zA-Z0-9_.-]+$/),
-  password: z.string().min(12).max(256),
-  role: z.enum(["USER", "ADMIN"]).default("USER"),
-});
 
 export async function GET(req: NextRequest) {
   return withErrorHandler(async () => {
@@ -29,6 +18,7 @@ export async function GET(req: NextRequest) {
         id: true,
         username: true,
         role: true,
+        analyticsAudience: true,
         isActive: true,
         createdAt: true,
         lastLoginAt: true,
@@ -45,7 +35,7 @@ export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const admin = await requireSession({ role: Role.ADMIN });
     await enforceWriteRateLimit("adminWrite", admin.id);
-    const body = CreateSchema.parse(await req.json());
+    const body = CreateAnalyticsAccountSchema.parse(await req.json());
     if (body.password.toLowerCase().includes(body.username.toLowerCase())) {
       throw new AppError("VALIDATION", "Password must not contain the username");
     }
@@ -60,13 +50,14 @@ export async function POST(req: NextRequest) {
         username: body.username,
         passwordHash: await hashPassword(body.password),
         role: body.role,
+        analyticsAudience: body.analyticsAudience,
       },
-      select: { id: true, username: true, role: true },
+      select: { id: true, username: true, role: true, analyticsAudience: true },
     });
     await audit({
       action: "ADMIN_USER_CREATE",
       userId: admin.id,
-      metadata: { newUserId: u.id, role: u.role },
+      metadata: { newUserId: u.id, role: u.role, analyticsAudience: u.analyticsAudience },
     });
     return NextResponse.json({ data: u }, { status: 201 });
   });

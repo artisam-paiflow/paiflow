@@ -1,3 +1,10 @@
+vi.mock("@/lib/analytics/wallet-connections", () => ({
+  recordWalletConnection: vi.fn(async (input) => ({
+    ok: true,
+    created: true,
+    connectionId: input.connectionId,
+  })),
+}));
 /**
  * #725: `balances` and `poll-events` were keyed on the caller's IP alone, so
  * one venue Wi-Fi shared one bucket and ten open deployment tabs 429'd live
@@ -171,18 +178,23 @@ for (const [name, handler, limits] of routes) {
 }
 
 describe("audit/wallet-connection rate limits (#725)", () => {
-  const body = JSON.stringify({
+  const body = {
     address: Keypair.random().publicKey(),
     network: "testnet",
     walletId: "freighter",
-  });
+    surface: "trigger",
+  };
   const post = (ip: string, as: unknown) => {
     mockSession.mockResolvedValueOnce(as);
     return walletConnect(
       new NextRequest("http://localhost/api/audit/wallet-connection", {
         method: "POST",
         headers: { "x-forwarded-for": ip, "content-type": "application/json" },
-        body,
+        body: JSON.stringify({
+          ...body,
+          connectionId: crypto.randomUUID(),
+          sessionUserId: as && typeof as === "object" && "id" in as ? as.id : null,
+        }),
       }),
     );
   };

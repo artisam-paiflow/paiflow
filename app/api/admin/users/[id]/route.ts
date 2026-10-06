@@ -1,25 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { Role } from "@prisma/client";
+import { PatchAnalyticsAccountSchema } from "@/lib/analytics/account-schema";
 import { db } from "@/lib/db";
 import { hashPassword, requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { audit } from "@/lib/audit";
-import { Role } from "@prisma/client";
-
-const PatchSchema = z.object({
-  role: z.enum(["USER", "ADMIN"]).optional(),
-  isActive: z.boolean().optional(),
-  resetPassword: z.string().min(12).max(256).optional(),
-  unlock: z.boolean().optional(),
-});
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const admin = await requireSession({ role: Role.ADMIN });
     await enforceWriteRateLimit("adminWrite", admin.id);
     const { id } = await ctx.params;
-    const body = PatchSchema.parse(await req.json());
+    const body = PatchAnalyticsAccountSchema.parse(await req.json());
     const target = await db.user.findUnique({ where: { id } });
     if (!target) throw new AppError("NOT_FOUND", "User not found");
     if (target.id === admin.id && body.isActive === false) {
@@ -35,6 +28,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     const data: {
       role?: Role;
+      analyticsAudience?: "INTERNAL" | "EXTERNAL" | "UNCLASSIFIED";
       isActive?: boolean;
       passwordHash?: string;
       failedLogins?: number;
@@ -42,6 +36,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       sessionVersion?: { increment: number };
     } = {};
     if (body.role) data.role = body.role;
+    if (body.analyticsAudience) {
+      if (target.role === Role.SANDBOX)
+        throw new AppError("FORBIDDEN", "Sandbox analytics classification is fixed");
+      data.analyticsAudience = body.analyticsAudience;
+    }
     if (typeof body.isActive === "boolean") data.isActive = body.isActive;
     if (body.resetPassword) data.passwordHash = await hashPassword(body.resetPassword);
     if (body.unlock) {
@@ -59,7 +58,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const updated = await db.user.update({
       where: { id },
       data,
-      select: { id: true, username: true, role: true, isActive: true },
+      select: { id: true, username: true, role: true, isActive: true, analyticsAudience: true },
     });
     await audit({
       action: body.isActive === false ? "ADMIN_USER_DEACTIVATE" : "ADMIN_USER_UPDATE",

@@ -1,3 +1,8 @@
+vi.mock("@/lib/analytics/outcomes", () => ({
+  recordTransactionOutcome: vi.fn(async () => false),
+  beginTransactionSubmission: vi.fn(async () => undefined),
+  transactionObservation: vi.fn(async () => undefined),
+}));
 /**
  * QA-D1 ISSUE-002: a confirmed trigger must land its contract events in the
  * store before the status response returns, so the deployment page the user
@@ -296,7 +301,7 @@ describe("GET /api/deployments/[id]/tx-status", () => {
   it.each([
     ["SUCCESS", "trigger_confirmed"],
     ["FAILED", "trigger_failed_onchain"],
-  ])("captures a %s outcome once across repeated polls", async (status, event) => {
+  ])("does not attribute an unrecorded %s outcome to its owner", async (status) => {
     mockRpc.getTransaction.mockResolvedValue({ status, ledger: 4598539 });
     mockDb.deployment.findUnique.mockResolvedValue({
       ownerId: "owner-1",
@@ -309,12 +314,11 @@ describe("GET /api/deployments/[id]/tx-status", () => {
     }
     await vi.waitFor(() => expect(mockRedis.set).toHaveBeenCalledTimes(3));
     await new Promise((r) => setTimeout(r, 0));
-    expect(mockCapture).toHaveBeenCalledTimes(1);
-    expect(mockCapture).toHaveBeenCalledWith("owner-1", event, expect.anything(), undefined);
+    expect(mockCapture).not.toHaveBeenCalled();
   });
 
-  // The owner is only the fallback for transactions from before signers were
-  // recorded; a SignedTransaction row names who actually signed.
+  // A SignedTransaction row identifies its signing session; an unknown signer
+  // is never substituted with the deployment owner.
   it("attributes the outcome to the signer's user when the signer was signed in", async () => {
     mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 4598539 });
     mockDb.deployment.findUnique.mockResolvedValue({

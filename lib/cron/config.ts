@@ -12,12 +12,16 @@
  * `getEvents` calls each time out at 10s) can still push a response past 30s; the run finishes
  * server-side and the next tick picks up the rest.
  *
- * poll-events polls `concurrency` deployments at once (#486). Each poll is a chain of sequential
- * `getEvents` calls (~0.7s per deployment), so 6 workers cover roughly 35 deployments per 5s and
- * about 8 to 10 RPC requests a second against a shared, rate-limited endpoint. Raise it only after
- * checking the provider's limits. No poll takes the relayer lock.
+ * poll-events polls `concurrency` deployments at once (#486). Each poll scans sequential
+ * groups of at most five contract IDs, with five pages of allowance per requested contract
+ * (at most 25 pages per group, preserving the former total request budget). This keeps at most
+ * six event RPC requests in flight in this cron; batching reduces calls for quiet pipelines.
+ * Request rate still depends on latency, pagination and competing callers. Raise concurrency
+ * only after checking the provider's limits. No poll takes the relayer lock.
  */
 export const CRON_LIMITS = {
+  reconcileTransactions: { budgetMs: 12_000, ttlMs: 60_000, batch: 50 },
+  analyticsDelivery: { budgetMs: 6_000, batch: 20 },
   pollEvents: { budgetMs: 20_000, ttlMs: 60_000, batch: 200, concurrency: 6 },
   autoChargePayroll: { budgetMs: 20_000, ttlMs: 600_000, batch: 100 },
   autoChargeSubscriptions: { budgetMs: 20_000, ttlMs: 600_000, batch: 100 },

@@ -38,9 +38,10 @@ if (split.type !== "split") throw new Error("fixture");
 const addresses = split.config.recipients.map((r) => r.address);
 const saved = new Map<string, Record<string, unknown>>();
 const claims = new Set<string>();
-function rpcEvent(id: string, topic: string[], value: unknown) {
+function rpcEvent(contractAddress: string, id: string, topic: string[], value: unknown) {
   return {
     id,
+    contractId: { contractId: () => contractAddress },
     topic: topic.map((v) => nativeToScVal(v)),
     value: nativeToScVal(value),
     ledger: 10,
@@ -86,13 +87,14 @@ beforeEach(() => {
     async ({ filters }: { filters: { contractIds: string[] }[] }) => {
       return {
         latestLedger: 10,
-        events:
-          filters[0]!.contractIds[0] === "root"
-            ? [rpcEvent("receive", ["deposit", addresses[0]!], "1000000000")]
+        events: filters[0]!.contractIds.flatMap((address) =>
+          address === "root"
+            ? [rpcEvent("root", "receive", ["deposit", addresses[0]!], "1000000000")]
             : [
-                rpcEvent("pay-a", ["pay", addresses[0]!], ["USDC", "400000000"]),
-                rpcEvent("pay-b", ["pay", addresses[1]!], ["USDC", "600000000"]),
+                rpcEvent("split", "pay-a", ["pay", addresses[0]!], ["USDC", "400000000"]),
+                rpcEvent("split", "pay-b", ["pay", addresses[1]!], ["USDC", "600000000"]),
               ],
+        ),
       };
     },
   );
@@ -160,14 +162,14 @@ describe("email dispatch after persisted event polling", () => {
   it("a failed contract scan sends nothing until a complete retry", async () => {
     const original = mock.getEvents.getMockImplementation()!;
     mock.getEvents.mockImplementation(async (...args) => {
-      if (args[0].filters[0].contractIds[0] === "split") throw new Error("RPC unavailable");
+      if (args[0].filters[0].contractIds.includes("split")) throw new Error("RPC unavailable");
       return original(...args);
     });
-    expect(await pollEventsFor("dep")).toBe(1);
+    expect(await pollEventsFor("dep")).toBe(0);
     expect(mock.send).not.toHaveBeenCalled();
     expect(mock.cursor).not.toHaveBeenCalled();
     mock.getEvents.mockImplementation(original);
-    expect(await pollEventsFor("dep")).toBe(2);
+    expect(await pollEventsFor("dep")).toBe(3);
     await vi.waitFor(() => expect(mock.update).toHaveBeenCalledTimes(1));
     expect(mock.send).toHaveBeenCalledTimes(1);
   });

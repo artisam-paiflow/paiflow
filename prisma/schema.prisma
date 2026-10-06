@@ -101,6 +101,58 @@ enum EventKind {
   CASH_OUT
 }
 
+enum AnalyticsAudience {
+  INTERNAL
+  EXTERNAL
+  SANDBOX
+  UNCLASSIFIED
+}
+
+enum TransactionOutcome {
+  RECEIVED
+  ACCEPTED
+  UNRESOLVED
+  REJECTED
+  CONFIRMED
+  FAILED
+}
+
+model AnalyticsPolicy {
+  version     String   @id
+  activatedAt DateTime @default(now())
+}
+
+model WalletConnection {
+  id              String            @id @db.Uuid
+  address         String
+  network         String
+  walletProvider  String
+  surface         String
+  userId          String?           @db.Uuid
+  audience        AnalyticsAudience
+  trackingVersion String
+  createdAt       DateTime          @default(now())
+  user            User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([trackingVersion, network, audience, createdAt])
+  @@index([address, createdAt])
+  @@index([userId, createdAt])
+}
+
+model AnalyticsDelivery {
+  id            String    @id @db.Uuid
+  distinctId    String
+  event         String
+  properties    Json
+  personProfile Boolean   @default(false)
+  occurredAt    DateTime  @default(now())
+  deliveredAt   DateTime?
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+
+  @@index([deliveredAt, nextAttemptAt])
+}
+
 model User {
   id             String    @id @default(uuid()) @db.Uuid
   username       String    @unique
@@ -129,7 +181,10 @@ model User {
   passwordResetTokens PasswordResetToken[]
   devApiTokens        DevApiToken[]
   deploymentApiTokens DeploymentApiToken[]
-  signedTransactions  SignedTransaction[]
+  signedTransactions  SignedTransaction[]  @relation("signingSession")
+  callerTransactions  SignedTransaction[]  @relation("transactionCaller")
+  walletConnections   WalletConnection[]
+  analyticsAudience   AnalyticsAudience    @default(UNCLASSIFIED)
 }
 
 /// A per-developer API token that maps a machine caller to a Paiflow user.
@@ -166,8 +221,9 @@ model DeploymentApiToken {
   expiresAt    DateTime?
   revokedAt    DateTime?
 
-  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
-  createdBy  User?      @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  deployment         Deployment          @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  createdBy          User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  signedTransactions SignedTransaction[]
 
   @@index([deploymentId])
 }
@@ -646,29 +702,52 @@ model AuditLog {
 /// is the system of record, because it is indexed and its write is not
 /// best-effort. See lib/signed-tx.ts.
 model SignedTransaction {
-  id               String       @id @default(uuid()) @db.Uuid
+  callerAccountId    String?             @db.Uuid
+  callerAccount      User?               @relation("transactionCaller", fields: [callerAccountId], references: [id], onDelete: SetNull)
+  trackingVersion    String?
+  audience           AnalyticsAudience   @default(UNCLASSIFIED)
+  apiTokenId         String?             @db.Uuid
+  outcome            TransactionOutcome?
+  submittedAt        DateTime?
+  acceptedAt         DateTime?
+  confirmedAt        DateTime?
+  failedAt           DateTime?
+  rejectedAt         DateTime?
+  ledger             Int?
+  failureCode        String?
+  nextCheckAt        DateTime?
+  lastCheckedAt      DateTime?
+  checkAttempts      Int                 @default(0)
+  submissionRevision Int                 @default(0)
+  outcomeRevision    Int                 @default(0)
+  apiToken           DeploymentApiToken? @relation(fields: [apiTokenId], references: [id], onDelete: SetNull)
+  id                 String              @id @default(uuid()) @db.Uuid
   /// Lowercase hex, the hash the network knows the envelope by.
-  txHash           String       @unique
+  txHash             String              @unique
   /// Always the G… form, so it joins to every other address column.
-  signerAddress    String
+  signerAddress      String
   /// Set only for a fee bump, where it differs from the signer.
-  feeSourceAddress String?
+  feeSourceAddress   String?
   /// The M… address when the source was muxed.
-  muxedSource      String?
-  isFeeBump        Boolean      @default(false)
+  muxedSource        String?
+  isFeeBump          Boolean             @default(false)
   /// A signature on the envelope verifies against the source key.
-  signedBySource   Boolean      @default(true)
+  signedBySource     Boolean             @default(true)
   /// The session user who submitted the envelope; the app has no wallet↔user binding.
-  userId           String?      @db.Uuid
-  deploymentId     String?      @db.Uuid
-  kind             SignedTxKind
-  network          String
-  ip               String?
-  createdAt        DateTime     @default(now())
+  userId             String?             @db.Uuid
+  deploymentId       String?             @db.Uuid
+  kind               SignedTxKind
+  network            String
+  ip                 String?
+  createdAt          DateTime            @default(now())
 
-  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user       User?       @relation("signingSession", fields: [userId], references: [id], onDelete: SetNull)
   deployment Deployment? @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
 
+  @@index([callerAccountId, createdAt])
+  @@index([trackingVersion, network, audience, createdAt])
+  @@index([outcome, nextCheckAt])
+  @@index([apiTokenId, createdAt])
   @@index([signerAddress, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
   @@index([deploymentId, createdAt(sort: Desc)])
@@ -711,7 +790,37 @@ model FileAsset {
 
 // Rotates current templates/factory independently of deployments, including failures.
 model TtlMaintenanceState {
-  network      String @id
-  sharedOffset Int    @default(0)
+  network      String  @id
+  sharedOffset Int     @default(0)
   sharedFirst  Boolean @default(false)
+}
+
+// A fixed campaign ceiling. Reservations never expire or credit expected refunds.
+model TransactionFeeBudget {
+  network               String
+  name                  String
+  limitStroops          String
+  committedStroops      String    @default("0")
+  createdAt             DateTime  @default(now())
+  fixtureSetupClaimedAt DateTime?
+
+  reservations TransactionFeeReservation[]
+
+  @@id([network, name])
+}
+
+model TransactionFeeReservation {
+  id                 String   @id @default(uuid()) @db.Uuid
+  network            String
+  budgetName         String
+  txHash             String
+  payer              String
+  declaredFeeStroops String
+  purpose            String
+  createdAt          DateTime @default(now())
+
+  budget TransactionFeeBudget @relation(fields: [network, budgetName], references: [network, name], onDelete: Restrict)
+
+  @@unique([network, txHash])
+  @@index([network, budgetName, createdAt])
 }
