@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { z } from "zod";
 import { audit } from "@/lib/audit";
 
@@ -28,6 +29,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
+    await enforceWriteRateLimit("deploymentPatch", user.id);
     const { id } = await ctx.params;
     const body = PatchSchema.parse(await req.json());
     const deployment = await db.deployment.findFirst({ where: { id, ownerId: user.id } });

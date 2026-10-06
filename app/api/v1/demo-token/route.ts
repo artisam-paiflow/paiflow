@@ -5,9 +5,10 @@ import { db } from "@/lib/db";
 import { demoApiDeploymentId, env } from "@/lib/env";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { log } from "@/lib/log";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { resolveSwapperPipeline } from "@/lib/api/v1/execute";
+import { clientIp, rateLimit, rateLimitedError } from "@/lib/rate-limit";
+import { resolveExecutablePipeline } from "@/lib/api/v1/execute";
 import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
+import { markTokenKnown } from "@/lib/api/v1/pre-auth";
 import {
   API_TOKEN_SELECT,
   DEMO_MAX_ACTIVE_TOKENS,
@@ -52,19 +53,19 @@ export async function POST(req: NextRequest) {
     const ip = clientIp(req);
     const perIp = await rateLimit(`v1:demo-token:${ip}`, ...limitArgs("demoToken"));
     if (!perIp.ok) {
-      throw new AppError("RATE_LIMITED", "Too many demo tokens from this address");
+      throw rateLimitedError(perIp, "Too many demo tokens from this address");
     }
     const global = await rateLimit("v1:demo-token:global", ...limitArgs("demoTokenGlobal"));
-    // `shared` is false when rateLimit() fell back to its per-process bucket. clientIp() trusts the
-    // first X-Forwarded-For entry, which an attacker sets freely, so the instance-wide cap is the
-    // only thing actually bounding how many live credentials this route can mint — and a
+    // `shared` is false when rateLimit() fell back to its per-process bucket. clientIp() is only as
+    // honest as the edge in front of the app (#433), so the instance-wide cap is the only thing
+    // that bounds how many live credentials this route can mint whatever proxy sits there — and a
     // per-process count does not bound it across replicas. This one fails closed.
     if (!global.shared) {
       log.warn({ ip }, "demo token refused: no shared rate limiter available");
       throw new AppError("RATE_LIMITED", "The demo API is unavailable right now. Try again later.");
     }
     if (!global.ok) {
-      throw new AppError("RATE_LIMITED", "The demo API is busy right now. Try again shortly.");
+      throw rateLimitedError(global, "The demo API is busy right now. Try again shortly.");
     }
 
     const deployment = await db.deployment.findUnique({
@@ -82,8 +83,8 @@ export async function POST(req: NextRequest) {
     // Every check below collapses to one identical refusal. These are operator misconfigurations,
     // not caller input, and an anonymous prober must not learn the demo deployment's state from
     // the difference between "missing", "still pending" and "wrong shape". The reason goes to the
-    // log instead. `resolveSwapperPipeline` throws its own codes, so it is caught here too —
-    // ONLY_SWAPPER_FLOWS must not leak out of this route.
+    // log instead. `resolveExecutablePipeline` throws its own codes, so it is caught here too —
+    // NOT_EXECUTABLE_FLOW must not leak out of this route.
     const reason = ((): string | null => {
       if (!deployment) return "deployment row not found";
       if (deployment.network !== env().STELLAR_NETWORK) {
@@ -94,9 +95,9 @@ export async function POST(req: NextRequest) {
       // so issuing one would hand out a credential that is dead on arrival.
       if (deployment.owner.role === Role.SANDBOX) return "deployment owner is a sandbox identity";
       try {
-        resolveSwapperPipeline(deployment);
+        resolveExecutablePipeline(deployment);
       } catch (err) {
-        return `not a confirmed swapper pipeline: ${err instanceof AppError ? err.message : String(err)}`;
+        return `not a confirmed executable pipeline: ${err instanceof AppError ? err.message : String(err)}`;
       }
       return null;
     })();
@@ -147,6 +148,9 @@ export async function POST(req: NextRequest) {
       });
       return { token: created, evicted: stale.map((t) => t.id) };
     });
+
+    // So a failed-auth block on a shared address (a venue's Wi-Fi) never refuses this token (#524).
+    await markTokenKnown(tokenHash, expiresAt);
 
     await audit({
       action: "API_DEMO_TOKEN_ISSUED",

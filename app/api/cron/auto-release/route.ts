@@ -1,102 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Role } from "@prisma/client";
-import { db } from "@/lib/db";
-import { log } from "@/lib/log";
 import { withErrorHandler } from "@/lib/errors";
-import { prepareReleaseByRelayerTx, submitReleaseByRelayerTx } from "@/lib/stellar/relayer";
-import { withRelayerLock } from "@/lib/stellar/client";
+import { log } from "@/lib/log";
 import { requireCronSecret } from "@/lib/auth/cron-secret";
+import { CRON_LIMITS } from "@/lib/cron/config";
+import { withCronLease } from "@/lib/cron/lease";
+import { runAutoRelease } from "@/lib/timelock-release";
 
 export const dynamic = "force-dynamic";
 
+// Sandbox-owned deployments are never loaded: a sandbox session cannot deploy
+// a TIMELOCK (SANDBOX_TEMPLATE_KINDS), and this job signs with the relayer,
+// which must never act on a sandbox pipeline. lib/timelock-release.ts filters
+// them out of both discovery and selection.
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     requireCronSecret(req);
-
-    const deployments = await db.deployment.findMany({
-      // A sandbox session cannot deploy a TIMELOCK (SANDBOX_TEMPLATE_KINDS), and
-      // this job signs with the relayer, which must never act on a sandbox
-      // pipeline — so those rows are skipped rather than loaded and discarded.
-      where: { status: "CONFIRMED", owner: { role: { not: Role.SANDBOX } } },
-      select: { id: true, pipelineSnapshot: true },
-    });
-
-    const results: Array<{
-      contractAddress: string;
-      status: "released" | "skipped" | "failed";
-      error?: string;
-    }> = [];
-
-    for (const d of deployments) {
-      const pipeline = d.pipelineSnapshot as Array<{
-        nodeId: string;
-        contractAddress: string;
-        templateKind: string;
-      }> | null;
-
-      if (!pipeline) continue;
-
-      for (const node of pipeline) {
-        if (node.templateKind !== "TIMELOCK") continue;
-
-        const contractAddress = node.contractAddress;
-        try {
-          const submit = await withRelayerLock(async () => {
-            const { xdr } = await prepareReleaseByRelayerTx(contractAddress);
-            return submitReleaseByRelayerTx(xdr);
-          });
-
-          if (submit.status === "SUCCESS") {
-            log.info(
-              { deploymentId: d.id, contractAddress, txHash: submit.txHash },
-              "Auto-released timelock contract",
-            );
-            results.push({ contractAddress, status: "released" });
-          } else {
-            log.warn(
-              { deploymentId: d.id, contractAddress, error: submit.errorMessage },
-              "Auto-release simulation succeeded but submission failed",
-            );
-            results.push({
-              contractAddress,
-              status: "failed",
-              error: submit.errorMessage,
-            });
-          }
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          // Expected cases — don't log warnings for these:
-          if (message.includes("ConditionNotMet") || message.includes("NothingToRelease")) {
-            // Time hasn't passed yet or no funds to release
-            results.push({ contractAddress, status: "skipped" });
-          } else if (
-            message.includes("non-existent contract function") ||
-            message.includes("MissingValue")
-          ) {
-            // Old WASM that doesn't have release_by_relayer
-            results.push({ contractAddress, status: "skipped" });
-          } else if (message.includes("Unauthorized")) {
-            // Contract deployed without a dedicated relayer (relayer == admin)
-            results.push({ contractAddress, status: "skipped" });
-          } else {
-            // Truly unexpected error — log it
-            log.warn(
-              { deploymentId: d.id, contractAddress, error: message },
-              "Auto-release simulation failed",
-            );
-            results.push({ contractAddress, status: "failed", error: message });
-          }
-        }
-      }
+    const lease = await withCronLease("auto-release", CRON_LIMITS.autoRelease.ttlMs, () =>
+      runAutoRelease(),
+    );
+    if (!lease.acquired) {
+      log.info("auto-release cron skipped: previous run still active");
+      return NextResponse.json({
+        data: {
+          discovered: 0,
+          released: 0,
+          skipped: 0,
+          failed: 0,
+          details: [],
+          truncated: false,
+          leaseHeld: true,
+        },
+      });
     }
-
-    const released = results.filter((r) => r.status === "released").length;
-    const skipped = results.filter((r) => r.status === "skipped").length;
-    const failed = results.filter((r) => r.status === "failed").length;
-
-    return NextResponse.json({
-      data: { released, skipped, failed, details: results },
-    });
+    return NextResponse.json({ data: lease.value });
   });
 }
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import type { PipelineSnapshotNode } from "@/lib/flows/pipeline-snapshot";
+import type { PipelineSnapshotNode } from "@/lib/pipeline-snapshot";
 import { readDevIsConfigured } from "@/lib/stellar/dev-mutate";
 
 const DEV_KINDS = new Set(["PAYER_DEV", "SPLITTER_DEV", "SUBSCRIPTION_DEV"]);
@@ -10,6 +10,7 @@ const DEV_KINDS = new Set(["PAYER_DEV", "SPLITTER_DEV", "SUBSCRIPTION_DEV"]);
 /**
  * List the dev (`_DEV`) nodes of a deployment and their on-chain
  * configured/blank status, so an API consumer knows what still needs filling.
+ * Read-only and sets no recipient, so it has no trustline warning (#723).
  */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {

@@ -43,14 +43,16 @@ export const ExecutePrepareSchema = z
       .regex(/^\d{1,39}$/, "Must be a whole number of stroops")
       // Zod still runs this after the regex fails, and BigInt("1.5") throws.
       .refine((s) => !/^\d{1,39}$/.test(s) || BigInt(s) > 0n, "Must be greater than zero")
-      .describe("Amount to deposit into the swapper flow, in stroops of its input asset."),
+      .describe(
+        "Amount to deposit into the flow's deposit trigger, in stroops of the flow's input asset.",
+      ),
     from: z
       .string()
       .refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar address")
       .describe("G-address that deposits, pays the fee and signs the returned envelope."),
   })
   .strict()
-  .describe(`Prepare the deposit that executes a swapper flow. ${EXECUTE_PREREQUISITES}`);
+  .describe(`Prepare the deposit that executes a deposit-triggered flow. ${EXECUTE_PREREQUISITES}`);
 export type ExecutePrepare = z.infer<typeof ExecutePrepareSchema>;
 
 export const ExecutePreparedSchema = z
@@ -62,7 +64,7 @@ export const ExecutePreparedSchema = z
       .string()
       .describe("ISO time after which the network refuses the envelope; prepare again."),
   })
-  .describe("An unsigned deposit that executes a swapper flow.");
+  .describe("An unsigned deposit that executes a deposit-triggered flow.");
 export type ExecutePrepared = z.infer<typeof ExecutePreparedSchema>;
 
 export const ExecuteSubmitSchema = z
@@ -77,7 +79,7 @@ export const ExecuteSubmitSchema = z
       ),
   })
   .strict()
-  .describe("Submit a signed deposit that executes a swapper flow.");
+  .describe("Submit a signed deposit that executes a deposit-triggered flow.");
 export type ExecuteSubmit = z.infer<typeof ExecuteSubmitSchema>;
 
 export const ExecuteSubmitQuerySchema = z.object({
@@ -100,8 +102,34 @@ export const ExecuteSubmittedSchema = z
     ledger: z.number().int().optional(),
     error: z.object({ code: z.string(), message: z.string() }).optional(),
   })
-  .describe("The outcome of executing a swapper flow.");
+  .describe("The outcome of executing a deposit-triggered flow.");
 export type ExecuteSubmitted = z.infer<typeof ExecuteSubmittedSchema>;
+
+export const ReleaseBeforeSchema = z
+  .object({
+    nodeId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(128)
+      .optional()
+      .describe(
+        "The timelock branch to release. Required when the deployment has more than one; " +
+          "otherwise it may be omitted.",
+      ),
+  })
+  .strict()
+  .describe("Release a timelock branch's before side now (work delivered), ahead of its deadline.");
+export type ReleaseBefore = z.infer<typeof ReleaseBeforeSchema>;
+
+export const ReleasedSchema = z
+  .object({
+    nodeId: z.string().describe("The timelock branch node that was released."),
+    txHash: z.string().describe("Hash of the confirmed release transaction, hex."),
+    ledger: z.number().int().optional(),
+  })
+  .describe("A confirmed early release of a timelock branch's before side.");
+export type Released = z.infer<typeof ReleasedSchema>;
 
 /** `GET /api/v1/deployments/{id}/events` query. Every value arrives as a string. */
 export const ListEventsQuerySchema = z
@@ -158,3 +186,31 @@ export const DemoTokenSchema = z
   })
   .describe("A short-lived token for the shared demo deployment on testnet.");
 export type DemoToken = z.infer<typeof DemoTokenSchema>;
+
+export const PayoutPrepareSchema = ExecutePrepareSchema.extend({
+  amount: ExecutePrepareSchema.shape.amount.refine(
+    (s) => !/^\d{1,39}$/.test(s) || BigInt(s) <= (1n << 127n) - 1n,
+    "Amount exceeds the contract i128 range",
+  ),
+  recipient: z
+    .string()
+    .refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar recipient account")
+    .describe("Account paid by the selected Pay; checked before any relayer mutation."),
+  nodeId: z
+    .string()
+    .min(1)
+    .max(128)
+    .optional()
+    .describe("Select one PAYER_DEV when the pipeline contains several."),
+})
+  .strict()
+  .describe("Configure one immediate dev Pay for this recipient, then prepare its deposit.");
+export type PayoutPrepare = z.infer<typeof PayoutPrepareSchema>;
+export const PayoutPreparedSchema = ExecutePreparedSchema.extend({ nodeId: z.string() });
+export type PayoutPrepared = z.infer<typeof PayoutPreparedSchema>;
+export const PayoutSubmitSchema = ExecuteSubmitSchema.describe(
+  "Submit exactly the transaction prepared by payouts for this token and deployment, with envelope signatures added.",
+);
+export type PayoutSubmit = z.infer<typeof PayoutSubmitSchema>;
+export const PayoutSubmittedSchema = ExecuteSubmittedSchema;
+export type PayoutSubmitted = z.infer<typeof PayoutSubmittedSchema>;

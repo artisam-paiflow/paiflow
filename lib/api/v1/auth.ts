@@ -17,9 +17,18 @@ export type DeploymentTokenAuth = {
 
 // One message for every refusal: a caller probing with a stolen or guessed
 // token must not learn whether it was unknown, revoked, expired or bound to
-// another deployment.
-const refused = () =>
+// another deployment. Also what `lib/api/v1/pre-auth.ts` answers a recently
+// refused token with, so a cached refusal reads the same as a looked-up one.
+export const refusedDeploymentToken = () =>
   new AppError("UNAUTHENTICATED", "A valid API token for this deployment is required");
+const refused = refusedDeploymentToken;
+
+/** The request's `Authorization: Bearer pfk_…` token when it is well-formed, else null. No DB. */
+export function bearerDeploymentToken(req: NextRequest): string | null {
+  const match = /^Bearer\s+(\S+)$/i.exec(req.headers.get("authorization")?.trim() ?? "");
+  const raw = match?.[1];
+  return raw && DEPLOYMENT_API_TOKEN_PATTERN.test(raw) ? raw : null;
+}
 
 /**
  * Authenticate an `/api/v1` request against one deployment.
@@ -33,9 +42,8 @@ export async function requireDeploymentToken(
   req: NextRequest,
   deploymentId: string,
 ): Promise<DeploymentTokenAuth> {
-  const match = /^Bearer\s+(\S+)$/i.exec(req.headers.get("authorization")?.trim() ?? "");
-  const raw = match?.[1];
-  if (!raw || !DEPLOYMENT_API_TOKEN_PATTERN.test(raw)) throw refused();
+  const raw = bearerDeploymentToken(req);
+  if (!raw) throw refused();
 
   const row = await db.deploymentApiToken.findUnique({
     where: { tokenHash: hashApiToken(raw) },

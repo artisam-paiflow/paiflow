@@ -1,13 +1,18 @@
 import {
   DemoTokenSchema,
   EXECUTE_PREREQUISITES,
+  PayoutPrepareSchema,
+  PayoutPreparedSchema,
+  PayoutSubmitSchema,
   ExecutePrepareSchema,
   ExecutePreparedSchema,
   ExecuteSubmitQuerySchema,
   ExecuteSubmitSchema,
   ExecuteSubmittedSchema,
+  ReleaseBeforeSchema,
+  ReleasedSchema,
 } from "./schema";
-import { V1_RATE_LIMITS } from "./limits";
+import { V1_PRE_AUTH_LIMITS, V1_RATE_LIMITS, V1_WAIT_SLOTS } from "./limits";
 
 // The OpenAPI 3.1 document for `/api/v1`, hand-written because no generator is installed (no new
 // dependency, CLAUDE.md §10). No server-only import: `scripts/print-openapi.ts` prints it to
@@ -42,6 +47,12 @@ const XLM_SAC_TESTNET = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYS
 const USDC_SAC_TESTNET = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
 
 export const examples = {
+  payoutRequest: {
+    amount: "1000000000",
+    from: EXAMPLE_FROM,
+    recipient: EXAMPLE_FROM,
+    nodeId: "pay",
+  },
   executeRequest: { amount: "1000000000", from: EXAMPLE_FROM },
   executeResponse: {
     data: {
@@ -49,6 +60,17 @@ export const examples = {
       networkPassphrase: "Test SDF Network ; September 2015",
       network: "testnet",
       expiresAt: "2026-09-15T09:03:00.000Z",
+    },
+  },
+  releaseRequest: { nodeId: "timelock-branch-1" },
+  releaseResponse: {
+    data: { nodeId: "timelock-branch-1", txHash: EXAMPLE_TX_HASH, ledger: 1842917 },
+  },
+  releaseError422: {
+    error: {
+      code: "VALIDATION",
+      message:
+        "The deadline has passed; this condition now releases to its after side automatically.",
     },
   },
   submitRequest: {
@@ -193,7 +215,9 @@ const ERROR_DESCRIPTIONS: Record<ErrorCode, string> = {
   CONFLICT: "The request conflicts with current state.",
   VALIDATION:
     "The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
-  RATE_LIMITED: "Too many requests in the window.",
+  RATE_LIMITED:
+    "Too many requests in the window: the per-token limit, or, for a token not issued or used in " +
+    "the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
   INTERNAL: "Unexpected server error.",
   UPSTREAM_RPC: "The Soroban RPC request failed or the network was busy; retry.",
 };
@@ -218,7 +242,7 @@ const DEMO_ERROR_DESCRIPTIONS: Record<ErrorCode, string> = {
   FORBIDDEN: "The public demo is not enabled on this instance.",
   RATE_LIMITED: "Too many demo tokens from this address, or the instance is at its hourly cap.",
   INTERNAL:
-    "The demo deployment is not configured, confirmed or swapper-shaped. One message for every case; the operator is alerted.",
+    "The demo deployment is not configured, confirmed or deposit-triggered. One message for every case; the operator is alerted.",
 };
 
 const errorsWith =
@@ -267,6 +291,8 @@ const executeShape = ExecutePrepareSchema.shape;
 const preparedShape = ExecutePreparedSchema.shape;
 const submittedShape = ExecuteSubmittedSchema.shape;
 const demoShape = DemoTokenSchema.shape;
+const releasedShape = ReleasedSchema.shape;
+const releaseShape = ReleaseBeforeSchema.shape;
 
 export const openApiDocument = {
   openapi: "3.1.0",
@@ -274,7 +300,7 @@ export const openApiDocument = {
     title: "Paiflow API v1",
     version: "1.0.0",
     description: [
-      "Execute a deployed swapper flow and poll its on-chain events from your own backend.",
+      "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.",
       "",
       "Every `/api/v1/deployments/{id}/…` call authenticates with a deployment API token " +
         "(`Authorization: Bearer pfk_…`) that the deployment's owner mints in the **API access** " +
@@ -290,6 +316,18 @@ export const openApiDocument = {
       "| --- | --- |",
       errorTable,
       "",
+      "Rate limits are per token and per endpoint (each operation lists its own). A token that " +
+        "has been issued or has worked in the last 30 days is subject to nothing else. Any other " +
+        "token is limited per client address before it is looked up: " +
+        `${V1_PRE_AUTH_LIMITS.ipBackstop.limit} lookups per ` +
+        `${V1_PRE_AUTH_LIMITS.ipBackstop.windowSeconds} seconds, and, after ` +
+        `${V1_PRE_AUTH_LIMITS.failedAuth.limit} failed authentications in ` +
+        `${V1_PRE_AUTH_LIMITS.failedAuth.windowSeconds} seconds from the address, ` +
+        `${V1_PRE_AUTH_LIMITS.blockedLookups.limit} per ` +
+        `${V1_PRE_AUTH_LIMITS.blockedLookups.windowSeconds} seconds. A token refused in the last ` +
+        "minute is refused again without a lookup. So one caller's bad token does not lock out " +
+        "others on the same network.",
+      "",
       "No account? `POST /api/v1/demo-token` hands you a short-lived token for a shared demo " +
         "flow, so every call above can be tried straight away.",
       "",
@@ -298,7 +336,19 @@ export const openApiDocument = {
   },
   servers: [{ url: "https://paiflow.xyz", description: "Public instance (Stellar testnet)" }],
   tags: [
-    { name: "Execute", description: "Run a swapper flow: prepare, sign on your side, submit." },
+    {
+      name: "Payouts",
+      description: "Coordinate immediate deposits to one mutable Pay with a per-payment recipient.",
+    },
+    {
+      name: "Execute",
+      description: "Run a deposit-triggered flow: prepare, sign on your side, submit.",
+    },
+    {
+      name: "Release",
+      description:
+        "Signal that work was delivered: release a timelock branch's before side ahead of its deadline.",
+    },
     { name: "Events", description: "Cursor-based polling of a deployment's decoded events." },
     { name: "Spec", description: "This document." },
     {
@@ -316,17 +366,109 @@ export const openApiDocument = {
     },
   ],
   paths: {
+    "/api/v1/deployments/{id}/payouts": {
+      post: {
+        tags: ["Payouts"],
+        operationId: "preparePayout",
+        summary: "Prepare a deposit with a per-payment recipient",
+        description: [
+          PayoutPrepareSchema.description,
+          "Requires a confirmed deposit-triggered dev flow and one selected PAYER_DEV. Only immediate paths through amount conditions and fixed Split are supported. Current on-chain connectivity and values are checked against the deployed graph. Split must have zero token and accumulated balances, a fixed crypto roster and a deposit greater than its total; it forwards the surplus immediately and resets its accumulator. Percentage Split, shortfalls, delayed/unsupported paths and deposits that miss this Pay are refused.",
+          "For fillValueViaApi, Pay is set to 100%. Otherwise its current configured value is preserved: percentage must consume all incoming funds, or fixed incoming funds must be at most its fixed cap (Pay pays min(incoming, cap)). Pay must start with zero balance. Recipient account/trustline checks must succeed before mutation; unchanged configuration skips the relayer transaction.",
+          "Requires functioning Redis. Concurrent preparation returns CONFLICT. Coordination records retain uncertain configuration transactions and the exact prepared deposit through finality or ledger-time expiry; wall-clock expiry does not release protection. Payout deposits have a 60-second validity window; execute retains 180 seconds. Sign this xdr before expiresAt and post it to payouts/submit using the same token. Direct deposits, execute, legacy dev mutations and owner transactions bypass this coordination. Never flush payout coordination records while transactions may still land.",
+          rate(V1_RATE_LIMITS.payouts, "per token"),
+        ].join("\n\n"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        requestBody: {
+          required: true,
+          content: json(
+            { $ref: "#/components/schemas/PayoutPrepareRequest" },
+            examples.payoutRequest,
+          ),
+        },
+        responses: {
+          "200": {
+            description: "Sign the unsigned envelope with from.",
+            content: json(dataEnvelope("#/components/schemas/PayoutPrepared"), {
+              data: { ...examples.executeResponse.data, nodeId: "pay" },
+            }),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "INSUFFICIENT_FUNDS",
+            "NOT_FOUND",
+            "CONFLICT",
+            "VALIDATION",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+          ),
+          "409": {
+            ...errorResponse("`CONFLICT`: Another payout is preparing or can still execute."),
+            headers: {
+              "Retry-After": {
+                description:
+                  "Present when a held transaction is known: whole seconds until its maxTime, rounded up with a minimum of 1. Advisory only; finality or ledger-time expiry is still required, so a retry may return 409 again.",
+                schema: { type: "integer", minimum: 1 },
+                example: 60,
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/v1/deployments/{id}/payouts/submit": {
+      post: {
+        tags: ["Payouts"],
+        operationId: "submitPayout",
+        summary: "Submit exactly the prepared payout",
+        description: [
+          PayoutSubmitSchema.description,
+          "The hash must match the exact prepared deposit for this deployment and API token. Changing amount, source, operations, bounds or authorization entries is refused; add envelope signatures only. Fee-bump envelopes are refused. PENDING or uncertain RPC outcomes retain recipient protection. Confirmed finality releases only this holder, never a newer payout's protection. A network submission refusal can return FAILED while protection remains until finality or ledger-time expiry. Retry the same signedXdr to obtain status; final retries remain available for seven days. An expired unconfirmed envelope cannot be resubmitted after a successor acquires protection.",
+          rate(V1_RATE_LIMITS.payoutsSubmit, "per token"),
+        ].join("\n\n"),
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          deploymentIdParam,
+          {
+            name: "wait",
+            in: "query",
+            required: false,
+            description: `Default true: bounded wait, as execute/submit; false answers PENDING immediately. At most ${V1_WAIT_SLOTS.perToken} concurrent waits per token.`,
+            schema: { type: "string", enum: ["true", "false"], default: "true" },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: json(
+            { $ref: "#/components/schemas/PayoutSubmitRequest" },
+            examples.submitRequest,
+          ),
+        },
+        responses: {
+          "200": {
+            description:
+              "SUCCESS, PENDING or FAILED; retries are idempotent on the exact prepared hash.",
+            content: json(
+              dataEnvelope("#/components/schemas/ExecuteSubmitted"),
+              examples.submitSuccess,
+            ),
+          },
+          ...errors("UNAUTHENTICATED", "NOT_FOUND", "VALIDATION", "RATE_LIMITED", "UPSTREAM_RPC"),
+        },
+      },
+    },
     "/api/v1/deployments/{id}/execute": {
       post: {
         tags: ["Execute"],
         operationId: "prepareExecute",
-        summary: "Prepare the unsigned deposit that executes a swapper flow",
+        summary: "Prepare the unsigned deposit that executes a deposit-triggered flow",
         description: [
           ExecutePrepareSchema.description,
           "",
-          "The flow runs through its deposit trigger; the swapper executes as the next pipeline " +
-            "step. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before " +
-            "`expiresAt`, and post it to `execute/submit`. Only swapper flows can be executed.",
+          "The flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run as part of the same transaction. " +
+            "Sign the returned `xdr` with the `from` key using `networkPassphrase`, before " +
+            "`expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`. A Pay or Split step with no recipient yet (dev mode) reverts with a plain message.",
           "",
           rate(V1_RATE_LIMITS.execute, "per token"),
         ].join("\n"),
@@ -384,7 +526,9 @@ export const openApiDocument = {
             name: "wait",
             in: "query",
             required: false,
-            description: `${ExecuteSubmitQuerySchema.shape.wait.description} Default \`true\`: wait up to about 25 seconds for a final status, then return \`PENDING\` if there is none yet.`,
+            description:
+              `${ExecuteSubmitQuerySchema.shape.wait.description} Default \`true\`: wait up to about 25 seconds for a final status, then return \`PENDING\` if there is none yet. ` +
+              `At most ${V1_WAIT_SLOTS.perToken} calls per token wait at once; a call over that still sends the transaction and returns \`PENDING\` straight away, as \`wait=false\` does. Resubmit the same \`signedXdr\` to check it.`,
             schema: { type: "string", enum: ["true", "false"], default: "true" },
           },
         ],
@@ -422,6 +566,51 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/v1/deployments/{id}/release-early": {
+      post: {
+        tags: ["Release"],
+        operationId: "releaseEarly",
+        summary: "Release a timelock branch's before side now",
+        description: [
+          ReleaseBeforeSchema.description,
+          "",
+          "For a flow like 'pay on delivery, refund the client after the deadline': call this when " +
+            "the work is delivered and the relayer pays the before side. Nothing is signed on " +
+            "your side; the token is the authorisation. Unlike `execute`, this sends a " +
+            "transaction and returns once it is final.",
+          "",
+          "After the deadline the contract refuses the before side and this returns `VALIDATION` " +
+            "(422): the condition then releases to its after side automatically. It also returns " +
+            "`VALIDATION` when the condition holds no funds, or when the deployment has several " +
+            "timelock branches and `nodeId` is missing or unknown. The body may be omitted when " +
+            "there is exactly one branch.",
+          "",
+          rate(V1_RATE_LIMITS.releaseBefore, "per token"),
+        ].join("\n"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        requestBody: {
+          required: false,
+          content: json(
+            { $ref: "#/components/schemas/ReleaseBeforeRequest" },
+            examples.releaseRequest,
+          ),
+        },
+        responses: {
+          "200": {
+            description: "The confirmed release.",
+            content: json(dataEnvelope("#/components/schemas/Released"), examples.releaseResponse),
+          },
+          ...errorsFor({ VALIDATION: examples.releaseError422 })(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "VALIDATION",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+          ),
+        },
+      },
+    },
     "/api/v1/deployments/{id}/events": {
       get: {
         tags: ["Events"],
@@ -430,9 +619,19 @@ export const openApiDocument = {
         description: [
           "Forward-paginated events the app decoded for this deployment's contracts, ascending by " +
             "`(ledger, eventId)`. This is the app's record, not a raw chain feed: each event " +
-            "appears once (`eventId` is unique), and it can trail the chain by about a minute, " +
-            "because events arrive from a one-minute poller (a confirmed `execute/submit` ingests " +
-            "its own events straight away).",
+            "appears once (`eventId` is unique).",
+          "",
+          "**Freshness.** When this deployment's events were last collected from the network more " +
+            "than 10 seconds ago, a call collects them first and waits up to 5 seconds for that " +
+            "before answering from the record. So an event usually appears within 10 to 20 " +
+            "seconds of its ledger closing, whoever submitted the transaction (a wallet paying the " +
+            "contract directly, a scanned SEP-7 QR, a scheduled charge), provided you keep " +
+            "polling. Collection is shared by every caller of the deployment: one at a time, and " +
+            "the next no sooner than 10 seconds after the last one ends, so polling faster than " +
+            "that does not make events arrive sooner. A call that arrives while a collection is " +
+            "already running, or when the network is slow, answers with what is recorded, and " +
+            "the event appears on a later call; a background poller also collects every minute. " +
+            "A confirmed `execute/submit` records its own events before it returns.",
           "",
           'A swap is `kind: PAYOUT` with `topic: "swap"` and `data` ' +
             "`{ assetIn, assetOut, amountIn, amountOut }`; amounts are stroops as strings.",
@@ -663,6 +862,61 @@ export const openApiDocument = {
           },
         },
       },
+      PayoutPrepareRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["amount", "from", "recipient"],
+        description: PayoutPrepareSchema.description,
+        properties: {
+          amount: {
+            type: "string",
+            pattern: "^\\d{1,39}$",
+            description:
+              "Positive integer stroops, bounded by i128 and the selected percentage payment's multiplication range.",
+          },
+          from: {
+            type: "string",
+            pattern: "^G[A-Z2-7]{55}$",
+            description: executeShape.from.description,
+          },
+          recipient: {
+            type: "string",
+            pattern: "^G[A-Z2-7]{55}$",
+            description: PayoutPrepareSchema.shape.recipient.description,
+          },
+          nodeId: {
+            type: "string",
+            minLength: 1,
+            maxLength: 128,
+            description: PayoutPrepareSchema.shape.nodeId.description,
+          },
+        },
+      },
+      PayoutPrepared: {
+        description: PayoutPreparedSchema.description,
+        allOf: [
+          { $ref: "#/components/schemas/ExecutePrepared" },
+          {
+            type: "object",
+            required: ["nodeId"],
+            properties: { nodeId: { type: "string", description: "The selected Pay node." } },
+          },
+        ],
+      },
+      PayoutSubmitRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["signedXdr"],
+        description: PayoutSubmitSchema.description,
+        properties: {
+          signedXdr: {
+            type: "string",
+            minLength: 10,
+            maxLength: 200000,
+            description: "Exactly the prepared deposit with envelope signatures added.",
+          },
+        },
+      },
       ExecutePrepareRequest: {
         type: "object",
         additionalProperties: false,
@@ -730,6 +984,29 @@ export const openApiDocument = {
             description: "Present when `status` is `FAILED`.",
             properties: { code: { type: "string" }, message: { type: "string" } },
           },
+        },
+      },
+      ReleaseBeforeRequest: {
+        type: "object",
+        additionalProperties: false,
+        description: ReleaseBeforeSchema.description,
+        properties: {
+          nodeId: {
+            type: "string",
+            minLength: 1,
+            maxLength: 128,
+            description: releaseShape.nodeId.description,
+          },
+        },
+      },
+      Released: {
+        type: "object",
+        required: ["nodeId", "txHash"],
+        description: ReleasedSchema.description,
+        properties: {
+          nodeId: { type: "string", description: releasedShape.nodeId.description },
+          txHash: { type: "string", description: releasedShape.txHash.description },
+          ledger: { type: "integer", description: "Ledger the transaction was final in." },
         },
       },
       ContractEvent: {

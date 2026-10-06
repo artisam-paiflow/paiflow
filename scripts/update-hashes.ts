@@ -35,6 +35,7 @@ async function update() {
     { kind: TemplateKind.DEPOSIT_TRIGGER, envKey: `STELLAR_WASM_HASH_DEPOSIT_TRIGGER_${suffix}` },
     { kind: TemplateKind.ROUTER, envKey: `STELLAR_WASM_HASH_ROUTER_${suffix}` },
     { kind: TemplateKind.TIMELOCK, envKey: `STELLAR_WASM_HASH_TIMELOCK_${suffix}` },
+    { kind: TemplateKind.TIMELOCK_BRANCH, envKey: `STELLAR_WASM_HASH_TIMELOCK_BRANCH_${suffix}` },
     { kind: TemplateKind.FACTORY, envKey: `STELLAR_WASM_HASH_FACTORY_${suffix}` },
     { kind: TemplateKind.WEBHOOK, envKey: `STELLAR_WASM_HASH_WEBHOOK_${suffix}` },
     { kind: TemplateKind.SUBSCRIPTION, envKey: `STELLAR_WASM_HASH_SUBSCRIPTION_${suffix}` },

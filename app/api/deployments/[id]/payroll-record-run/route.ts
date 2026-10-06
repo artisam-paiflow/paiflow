@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
 import {
   readPayrollRecipients,
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const body = PostSchema.parse(await req.json());
 
     const rl = await rateLimit(`payroll-record:${user.id}`, 30, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many payroll run recordings");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many payroll run recordings");
 
     const where = { id, ownerId: user.id };
     const d = await db.deployment.findFirst({

@@ -1,0 +1,1670 @@
+{
+  "environment": "hackathon-testing",
+  "network": "TESTNET",
+  "date": "2026-10-04",
+  "measuredAt": "2026-10-04T11:35:30.420048+00:00",
+  "codeCommit": "1b89b9f2d9565930b20268c9a8db76f3a36b081e",
+  "scope": "Actual deployed Next HTTP maintenance route, Railway PostgreSQL/Redis and public TESTNET. No staging access, shared artifact activation, wallet payments, or recurring scheduler registration. Database deployment aliases are local to this file.",
+  "initialSettings": {
+    "paidMaintenance": "false",
+    "feeCapStroops": "1000000",
+    "channels": "UNSET",
+    "effectiveChannels": 0
+  },
+  "temporarySettings": {
+    "paidMaintenance": "true",
+    "feeCapStroops": "1000000",
+    "channels": 1,
+    "successfulDeployment": "8f4a5b81-d3db-4f97-af2d-063107a30719"
+  },
+  "baseline": {
+    "at": "2026-10-04T11:26:31.340Z",
+    "environment": "hackathon-testing",
+    "network": "TESTNET",
+    "codeCommit": "1b89b9f2d9565930b20268c9a8db76f3a36b081e",
+    "origin": "https://pinkraft-prod.up.railway.app",
+    "accounts": {
+      "relayer": {
+        "address": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "exists": true,
+        "sequence": "20132642020130820",
+        "balanceStroops": "99998735862",
+        "latestLedger": 5017921
+      },
+      "channel": {
+        "address": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+        "exists": false,
+        "sequence": null,
+        "balanceStroops": null,
+        "latestLedger": 5017921
+      }
+    },
+    "entries": {
+      "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "cfa366e6b04a55dc278e235afda7ac9eeabaebfa434942d4feacf876913a983b",
+        "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+      },
+      "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 5138302,
+        "valueSha256": "1e442998e0e6f915428f09cfad163e5b11088ee13f506770c4fc395b820195e8",
+        "executableHash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417"
+      },
+      "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "a8c00a8dd5a0c4d6ccb2ffc0906ae9c3d321f279e7aedf3185df518f31e82eb2",
+        "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+      },
+      "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 5138303,
+        "valueSha256": "d62e9c6ec1b2afa7ffbba55a52ea7d2727eebdd51e022a4d649d2fa5cbcf9e2e",
+        "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+      },
+      "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "8932078a25701f1636f2c46fd0c1893631504e3eb74e51e4a97217b6f9656233",
+        "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+      },
+      "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "7184231c99cd61cf5598e0f61c0f9b9e71cee363938bf2d02c2ee08800494eb8",
+        "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+      },
+      "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "83eb54e8761d0dfe24a181bd565cb19f454d1e804635488a050215bef5664c86",
+        "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+      },
+      "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "3468f454da63127c94402bf6a235a4398753b9620bc61c23b889582e02499f79",
+        "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+      },
+      "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "9953353fcd85363286cd4caaf7e8baa919039d90a0803e30aee9771d42e52fe0",
+        "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+      },
+      "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "c4359ce7b9bed81e1eb3e63cfc28e6259c593865e1b1300c15b54dd285ebc5d9",
+        "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+      },
+      "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "15a37d18c9dcd8846bb5460292f4db2c4879559cc819b1d016e482f6ff97e42b",
+        "executableHash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417"
+      },
+      "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "33f68b779be93d814d07b131ca7addc98f7cb7aea67fc2ccf10649b7de18ed21",
+        "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+      },
+      "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "ae74b16d548c07ffdd4bafb7dbec9ae9761b3453f86a7f8af80302930a2f1b3c",
+        "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+      },
+      "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 5121061,
+        "valueSha256": "70a8eb77f59cb8dbe0f5c65adeb4e0d8570910672a1426fb33393c19606d7d4b",
+        "executableHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602"
+      },
+      "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 5121061,
+        "valueSha256": "888526aea92b773af1f09fa13fc94775019c0456d44da6d8aff61d0c8ebc62c3",
+        "executableHash": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91"
+      },
+      "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 5138300,
+        "valueSha256": "04dcd39eb9eeb2562390d8e933d82b20a5e8383b8e937a6812679c383bd1ed2c",
+        "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+      },
+      "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "a85b8849dd796cc8700502d2a3b02b878e02a571cd81b1193b632acd5c38a3fa",
+        "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+      },
+      "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "68a8f49fe55cf6a2a76b142d313befd29cc47e3a4d8069fa2944ef38bf5b6672",
+        "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+      },
+      "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 5138301,
+        "valueSha256": "c873319f684eb88c549027ee419c03e8965530ca179516bfc4dcb5cbdce4e3b2",
+        "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+      },
+      "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "1d389316c186cd598a275067657be5c19fe07dac69520b0c878e7d71db3cb92f",
+        "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+      },
+      "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW": {
+        "latestLedger": 5017921,
+        "liveUntilLedger": 0,
+        "valueSha256": "66e196fbc0e7a4788b9f51574a50897c551c7d09393bbb4c09671f6e154101e0",
+        "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+      }
+    },
+    "scans": {
+      "deployments": [
+        {
+          "id": "deployment-1",
+          "ttlCheckedAt": "2026-10-04T10:38:23.080Z",
+          "ttlScanOffset": 0
+        },
+        {
+          "id": "deployment-2",
+          "ttlCheckedAt": "2026-10-04T10:38:29.085Z",
+          "ttlScanOffset": 2
+        },
+        {
+          "id": "deployment-3",
+          "ttlCheckedAt": "2026-10-04T10:41:02.359Z",
+          "ttlScanOffset": 0
+        },
+        {
+          "id": "deployment-4",
+          "ttlCheckedAt": "2026-10-04T10:41:02.649Z",
+          "ttlScanOffset": 0
+        },
+        {
+          "id": "deployment-5",
+          "ttlCheckedAt": "2026-10-04T10:41:03.410Z",
+          "ttlScanOffset": 0
+        },
+        {
+          "id": "deployment-6",
+          "ttlCheckedAt": "2026-10-04T10:41:03.665Z",
+          "ttlScanOffset": 0
+        },
+        {
+          "id": "deployment-7",
+          "ttlCheckedAt": "2026-10-04T10:41:04.423Z",
+          "ttlScanOffset": 0
+        },
+        {
+          "id": "deployment-8",
+          "ttlCheckedAt": "2026-10-04T10:38:12.886Z",
+          "ttlScanOffset": 1
+        },
+        {
+          "id": "deployment-9",
+          "ttlCheckedAt": "2026-10-04T10:38:18.422Z",
+          "ttlScanOffset": 1
+        }
+      ],
+      "shared": {
+        "network": "testnet",
+        "sharedOffset": 3,
+        "sharedFirst": true
+      },
+      "audits": 0
+    }
+  },
+  "heldLease": {
+    "before": {
+      "accounts": {
+        "relayer": {
+          "address": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+          "exists": true,
+          "sequence": "20132642020130820",
+          "balanceStroops": "99998735862",
+          "latestLedger": 5017960
+        },
+        "channel": {
+          "address": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+          "exists": false,
+          "sequence": null,
+          "balanceStroops": null,
+          "latestLedger": 5017960
+        }
+      },
+      "scans": {
+        "deployments": [
+          {
+            "id": "deployment-1",
+            "ttlCheckedAt": "2026-10-04T10:38:23.080Z",
+            "ttlScanOffset": 0
+          },
+          {
+            "id": "deployment-2",
+            "ttlCheckedAt": "2026-10-04T10:38:29.085Z",
+            "ttlScanOffset": 2
+          },
+          {
+            "id": "deployment-3",
+            "ttlCheckedAt": "2026-10-04T10:41:02.359Z",
+            "ttlScanOffset": 0
+          },
+          {
+            "id": "deployment-4",
+            "ttlCheckedAt": "2026-10-04T10:41:02.649Z",
+            "ttlScanOffset": 0
+          },
+          {
+            "id": "deployment-5",
+            "ttlCheckedAt": "2026-10-04T10:41:03.410Z",
+            "ttlScanOffset": 0
+          },
+          {
+            "id": "deployment-6",
+            "ttlCheckedAt": "2026-10-04T10:41:03.665Z",
+            "ttlScanOffset": 0
+          },
+          {
+            "id": "deployment-7",
+            "ttlCheckedAt": "2026-10-04T10:41:04.423Z",
+            "ttlScanOffset": 0
+          },
+          {
+            "id": "deployment-8",
+            "ttlCheckedAt": "2026-10-04T10:38:12.886Z",
+            "ttlScanOffset": 1
+          },
+          {
+            "id": "deployment-9",
+            "ttlCheckedAt": "2026-10-04T10:38:18.422Z",
+            "ttlScanOffset": 1
+          }
+        ],
+        "shared": {
+          "network": "testnet",
+          "sharedOffset": 3,
+          "sharedFirst": true
+        },
+        "audits": 4
+      }
+    },
+    "leaseBefore": {
+      "ownerMatches": true,
+      "pttlMs": 112495
+    },
+    "ticks": [
+      {
+        "at": "2026-10-04T11:29:56.751Z",
+        "elapsedMs": 149,
+        "response": {
+          "data": {
+            "dryRun": false,
+            "deployments": 0,
+            "submissions": 0,
+            "truncated": false,
+            "budgetExhausted": false,
+            "moreDeployments": false,
+            "partialPipelines": false,
+            "details": [],
+            "failedDeployments": [],
+            "scans": [],
+            "leaseHeld": true
+          }
+        }
+      },
+      {
+        "at": "2026-10-04T11:29:56.753Z",
+        "elapsedMs": 150,
+        "response": {
+          "data": {
+            "dryRun": false,
+            "deployments": 0,
+            "submissions": 0,
+            "truncated": false,
+            "budgetExhausted": false,
+            "moreDeployments": false,
+            "partialPipelines": false,
+            "details": [],
+            "failedDeployments": [],
+            "scans": [],
+            "leaseHeld": true
+          }
+        }
+      }
+    ],
+    "after": {
+      "accounts": {
+        "relayer": {
+          "address": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+          "exists": true,
+          "sequence": "20132642020130820",
+          "balanceStroops": "99998735862",
+          "latestLedger": 5017961
+        },
+        "channel": {
+          "address": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+          "exists": false,
+          "sequence": null,
+          "balanceStroops": null,
+          "latestLedger": 5017962
+        }
+      },
+      "scans": {
+        "deployments": [
+          {
+            "id": "deployment-1",
+            "ttlCheckedAt": "2026-10-04T10:38:23.080Z",
+            "ttlScanOffset": 0
+          },
+          {
+            "id": "deployment-2",
+            "ttlCheckedAt": "2026-10-04T10:38:29.085Z",
+            "ttlScanOffset": 2
+          },
+          {
+            "id": "deployment-3",
+            "ttlCheckedAt": "2026-10-04T10:41:02.359Z",
+            "ttlScanOffset": 0
+          },
+          {
+            "id": "deployment-4",
+            "ttlCheckedAt": "2026-10-04T10:41:02.649Z",
+            "ttlScanOffset": 0
+          },
+          {
+            "id": "deployment-5",
+            "ttlCheckedAt": "2026-10-04T10:41:03.410Z",
+            "ttlScanOffset": 0
+          },
+          {
+            "id": "deployment-6",
+            "ttlCheckedAt": "2026-10-04T10:41:03.665Z",
+            "ttlScanOffset": 0
+          },
+          {
+            "id": "deployment-7",
+            "ttlCheckedAt": "2026-10-04T10:41:04.423Z",
+            "ttlScanOffset": 0
+          },
+          {
+            "id": "deployment-8",
+            "ttlCheckedAt": "2026-10-04T10:38:12.886Z",
+            "ttlScanOffset": 1
+          },
+          {
+            "id": "deployment-9",
+            "ttlCheckedAt": "2026-10-04T10:38:18.422Z",
+            "ttlScanOffset": 1
+          }
+        ],
+        "shared": {
+          "network": "testnet",
+          "sharedOffset": 3,
+          "sharedFirst": true
+        },
+        "audits": 4
+      }
+    },
+    "leaseAfter": {
+      "ownerMatches": true,
+      "pttlMs": 106373
+    },
+    "releasedByOwner": true,
+    "keyAbsentAfterRelease": true
+  },
+  "configuredUnfundedFallback": {
+    "before": {
+      "accounts": {
+        "relayer": {
+          "address": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+          "exists": true,
+          "sequence": "20132642020130820",
+          "balanceStroops": "99998735862",
+          "latestLedger": 5017966
+        },
+        "channel": {
+          "address": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+          "exists": false,
+          "sequence": null,
+          "balanceStroops": null,
+          "latestLedger": 5017966
+        }
+      },
+      "entries": {
+        "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "cfa366e6b04a55dc278e235afda7ac9eeabaebfa434942d4feacf876913a983b",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 5138302,
+          "valueSha256": "1e442998e0e6f915428f09cfad163e5b11088ee13f506770c4fc395b820195e8",
+          "executableHash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417"
+        },
+        "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "a8c00a8dd5a0c4d6ccb2ffc0906ae9c3d321f279e7aedf3185df518f31e82eb2",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 5138303,
+          "valueSha256": "d62e9c6ec1b2afa7ffbba55a52ea7d2727eebdd51e022a4d649d2fa5cbcf9e2e",
+          "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+        },
+        "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "8932078a25701f1636f2c46fd0c1893631504e3eb74e51e4a97217b6f9656233",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "7184231c99cd61cf5598e0f61c0f9b9e71cee363938bf2d02c2ee08800494eb8",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "83eb54e8761d0dfe24a181bd565cb19f454d1e804635488a050215bef5664c86",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "3468f454da63127c94402bf6a235a4398753b9620bc61c23b889582e02499f79",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "9953353fcd85363286cd4caaf7e8baa919039d90a0803e30aee9771d42e52fe0",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "c4359ce7b9bed81e1eb3e63cfc28e6259c593865e1b1300c15b54dd285ebc5d9",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "15a37d18c9dcd8846bb5460292f4db2c4879559cc819b1d016e482f6ff97e42b",
+          "executableHash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417"
+        },
+        "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "33f68b779be93d814d07b131ca7addc98f7cb7aea67fc2ccf10649b7de18ed21",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "ae74b16d548c07ffdd4bafb7dbec9ae9761b3453f86a7f8af80302930a2f1b3c",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 5121061,
+          "valueSha256": "70a8eb77f59cb8dbe0f5c65adeb4e0d8570910672a1426fb33393c19606d7d4b",
+          "executableHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602"
+        },
+        "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 5121061,
+          "valueSha256": "888526aea92b773af1f09fa13fc94775019c0456d44da6d8aff61d0c8ebc62c3",
+          "executableHash": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91"
+        },
+        "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 5138300,
+          "valueSha256": "04dcd39eb9eeb2562390d8e933d82b20a5e8383b8e937a6812679c383bd1ed2c",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "a85b8849dd796cc8700502d2a3b02b878e02a571cd81b1193b632acd5c38a3fa",
+          "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+        },
+        "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "68a8f49fe55cf6a2a76b142d313befd29cc47e3a4d8069fa2944ef38bf5b6672",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 5138301,
+          "valueSha256": "c873319f684eb88c549027ee419c03e8965530ca179516bfc4dcb5cbdce4e3b2",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "1d389316c186cd598a275067657be5c19fe07dac69520b0c878e7d71db3cb92f",
+          "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+        },
+        "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW": {
+          "latestLedger": 5017966,
+          "liveUntilLedger": 0,
+          "valueSha256": "66e196fbc0e7a4788b9f51574a50897c551c7d09393bbb4c09671f6e154101e0",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        }
+      }
+    },
+    "tick": {
+      "at": "2026-10-04T11:30:21.404Z",
+      "elapsedMs": 21782,
+      "response": {
+        "data": {
+          "dryRun": false,
+          "deployments": 4,
+          "submissions": 4,
+          "truncated": true,
+          "budgetExhausted": true,
+          "moreDeployments": true,
+          "partialPipelines": true,
+          "details": [
+            {
+              "target": "232dca3682e469969614db0f40d955bee12175a49e9afd5a6175e067407291da",
+              "kind": "code",
+              "status": "healthy",
+              "liveUntilLedger": 5116157
+            },
+            {
+              "target": "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2",
+              "kind": "instance",
+              "status": "restored",
+              "liveUntilLedger": 5138927,
+              "txHash": "1310454b5be846865944dccda7d870a0ed044ce85c9fc9073b364210e9662501",
+              "feeStroops": "446900"
+            },
+            {
+              "target": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+              "kind": "code",
+              "status": "healthy",
+              "liveUntilLedger": 7742749
+            },
+            {
+              "target": "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT",
+              "kind": "instance",
+              "status": "restored",
+              "liveUntilLedger": 5138928,
+              "txHash": "a6708724b7a919ce0c3459540fa37059753bda276d47f6c1c4ccaafccc733370",
+              "feeStroops": "446900"
+            },
+            {
+              "target": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+              "kind": "instance",
+              "status": "restored",
+              "liveUntilLedger": 5138929,
+              "txHash": "3fbb1c7216a4935a6f87221317c55ff8e3bde74175b23a905376df9ea892d4b2",
+              "feeStroops": "269772"
+            },
+            {
+              "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+              "kind": "code",
+              "status": "healthy",
+              "liveUntilLedger": 7742950
+            },
+            {
+              "target": "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ",
+              "kind": "instance",
+              "status": "restored",
+              "liveUntilLedger": 5138930,
+              "txHash": "a325840b26ea5c317c5568737307ba8adad11e3d1d9315c67414f2648adbf69f",
+              "feeStroops": "386240"
+            },
+            {
+              "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+              "kind": "code",
+              "status": "healthy",
+              "liveUntilLedger": 7742954
+            }
+          ],
+          "failedDeployments": [],
+          "scans": [
+            {
+              "deploymentId": "deployment-8",
+              "totalTargets": 3,
+              "nextOffset": 2
+            },
+            {
+              "deploymentId": "deployment-9",
+              "totalTargets": 3,
+              "nextOffset": 2
+            },
+            {
+              "deploymentId": "deployment-1",
+              "totalTargets": 2,
+              "nextOffset": 1
+            },
+            {
+              "deploymentId": "deployment-2",
+              "totalTargets": 3,
+              "nextOffset": 0
+            }
+          ],
+          "sharedScan": {
+            "totalTargets": 22,
+            "nextOffset": 4
+          }
+        }
+      }
+    },
+    "transactions": [
+      {
+        "label": "fallback instance restoration",
+        "target": "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2",
+        "source": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "hash": "1310454b5be846865944dccda7d870a0ed044ce85c9fc9073b364210e9662501",
+        "ledger": 5017968,
+        "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "operation": "restoreFootprint",
+        "declaredFeeStroops": "446900",
+        "initiallyChargedStroops": "446900",
+        "refundStroops": "64327",
+        "netFeeStroops": "382573",
+        "resultFeeChargedStroops": "382573",
+        "rentFeeStroops": "375206",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "446900"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-64327"
+          }
+        ],
+        "restored": [
+          {
+            "type": "ttl",
+            "valueSha256": "d567331d9b048067d4c04e5434dedd94b7b85b50fdac863518ac90feec2fc867"
+          },
+          {
+            "type": "contractData",
+            "valueSha256": "34a2babb5acc26170d5b25b79c7f4cb5cbfaecb647b01f7ae170ba86f1a2423f"
+          }
+        ]
+      },
+      {
+        "label": "fallback instance restoration",
+        "target": "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT",
+        "source": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "hash": "a6708724b7a919ce0c3459540fa37059753bda276d47f6c1c4ccaafccc733370",
+        "ledger": 5017969,
+        "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "operation": "restoreFootprint",
+        "declaredFeeStroops": "446900",
+        "initiallyChargedStroops": "446900",
+        "refundStroops": "64327",
+        "netFeeStroops": "382573",
+        "resultFeeChargedStroops": "382573",
+        "rentFeeStroops": "375206",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "446900"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-64327"
+          }
+        ],
+        "restored": [
+          {
+            "type": "ttl",
+            "valueSha256": "e1b0a2ceb49720bcf8cb2341ab6ff355a7b2968fd419b1fb4a1fc93bb649eac2"
+          },
+          {
+            "type": "contractData",
+            "valueSha256": "e216279528de55c72f0a1f9fdb4a561d18a6aca40127be33fd3fba7af5c7ae98"
+          }
+        ]
+      },
+      {
+        "label": "fallback instance restoration",
+        "target": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+        "source": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "hash": "3fbb1c7216a4935a6f87221317c55ff8e3bde74175b23a905376df9ea892d4b2",
+        "ledger": 5017970,
+        "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "operation": "restoreFootprint",
+        "declaredFeeStroops": "269772",
+        "initiallyChargedStroops": "269772",
+        "refundStroops": "41273",
+        "netFeeStroops": "228499",
+        "resultFeeChargedStroops": "228499",
+        "rentFeeStroops": "221509",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "269772"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-41273"
+          }
+        ],
+        "restored": [
+          {
+            "type": "ttl",
+            "valueSha256": "e26f0ae2934a7401a6ea6b07a9daceebb7c6a5de021a3417d625fe46f35f0bbb"
+          },
+          {
+            "type": "contractData",
+            "valueSha256": "aaf33793862fe6a1d343eaf89b876a8fc5ca8bc1ea497dbaa10cdaf7ace2deb0"
+          }
+        ]
+      },
+      {
+        "label": "fallback instance restoration",
+        "target": "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ",
+        "source": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "hash": "a325840b26ea5c317c5568737307ba8adad11e3d1d9315c67414f2648adbf69f",
+        "ledger": 5017971,
+        "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "operation": "restoreFootprint",
+        "declaredFeeStroops": "386240",
+        "initiallyChargedStroops": "386240",
+        "refundStroops": "56432",
+        "netFeeStroops": "329808",
+        "resultFeeChargedStroops": "329808",
+        "rentFeeStroops": "322570",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "386240"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-56432"
+          }
+        ],
+        "restored": [
+          {
+            "type": "ttl",
+            "valueSha256": "988b233e6b80ddf90720cddf2d0c255c2f61ffd238543ebed2a6aff8e4ae7c87"
+          },
+          {
+            "type": "contractData",
+            "valueSha256": "5f7b3547baf86199046476ce700ab5af561a5c454b86e025530d2361360422eb"
+          }
+        ]
+      }
+    ],
+    "after": {
+      "accounts": {
+        "relayer": {
+          "address": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+          "exists": true,
+          "sequence": "20132642020130824",
+          "balanceStroops": "99997412409",
+          "latestLedger": 5017978
+        },
+        "channel": {
+          "address": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+          "exists": false,
+          "sequence": null,
+          "balanceStroops": null,
+          "latestLedger": 5017978
+        }
+      },
+      "entries": {
+        "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 5138929,
+          "valueSha256": "cfa366e6b04a55dc278e235afda7ac9eeabaebfa434942d4feacf876913a983b",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 5138302,
+          "valueSha256": "1e442998e0e6f915428f09cfad163e5b11088ee13f506770c4fc395b820195e8",
+          "executableHash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417"
+        },
+        "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 0,
+          "valueSha256": "a8c00a8dd5a0c4d6ccb2ffc0906ae9c3d321f279e7aedf3185df518f31e82eb2",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 5138303,
+          "valueSha256": "d62e9c6ec1b2afa7ffbba55a52ea7d2727eebdd51e022a4d649d2fa5cbcf9e2e",
+          "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+        },
+        "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 5138930,
+          "valueSha256": "8932078a25701f1636f2c46fd0c1893631504e3eb74e51e4a97217b6f9656233",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 0,
+          "valueSha256": "7184231c99cd61cf5598e0f61c0f9b9e71cee363938bf2d02c2ee08800494eb8",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 0,
+          "valueSha256": "83eb54e8761d0dfe24a181bd565cb19f454d1e804635488a050215bef5664c86",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 0,
+          "valueSha256": "3468f454da63127c94402bf6a235a4398753b9620bc61c23b889582e02499f79",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 0,
+          "valueSha256": "9953353fcd85363286cd4caaf7e8baa919039d90a0803e30aee9771d42e52fe0",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 0,
+          "valueSha256": "c4359ce7b9bed81e1eb3e63cfc28e6259c593865e1b1300c15b54dd285ebc5d9",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 0,
+          "valueSha256": "15a37d18c9dcd8846bb5460292f4db2c4879559cc819b1d016e482f6ff97e42b",
+          "executableHash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417"
+        },
+        "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 0,
+          "valueSha256": "33f68b779be93d814d07b131ca7addc98f7cb7aea67fc2ccf10649b7de18ed21",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 0,
+          "valueSha256": "ae74b16d548c07ffdd4bafb7dbec9ae9761b3453f86a7f8af80302930a2f1b3c",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 5121061,
+          "valueSha256": "70a8eb77f59cb8dbe0f5c65adeb4e0d8570910672a1426fb33393c19606d7d4b",
+          "executableHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602"
+        },
+        "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 5121061,
+          "valueSha256": "888526aea92b773af1f09fa13fc94775019c0456d44da6d8aff61d0c8ebc62c3",
+          "executableHash": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91"
+        },
+        "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 5138300,
+          "valueSha256": "04dcd39eb9eeb2562390d8e933d82b20a5e8383b8e937a6812679c383bd1ed2c",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 5138927,
+          "valueSha256": "a85b8849dd796cc8700502d2a3b02b878e02a571cd81b1193b632acd5c38a3fa",
+          "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+        },
+        "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 0,
+          "valueSha256": "68a8f49fe55cf6a2a76b142d313befd29cc47e3a4d8069fa2944ef38bf5b6672",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 5138301,
+          "valueSha256": "c873319f684eb88c549027ee419c03e8965530ca179516bfc4dcb5cbdce4e3b2",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 5138928,
+          "valueSha256": "1d389316c186cd598a275067657be5c19fe07dac69520b0c878e7d71db3cb92f",
+          "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+        },
+        "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW": {
+          "latestLedger": 5017978,
+          "liveUntilLedger": 0,
+          "valueSha256": "66e196fbc0e7a4788b9f51574a50897c551c7d09393bbb4c09671f6e154101e0",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        }
+      }
+    },
+    "declaredTotalStroops": "1549812",
+    "refundTotalStroops": "226359",
+    "netTotalStroops": "1323453",
+    "balanceReductionStroops": "1323453",
+    "sequenceIncrements": 4,
+    "valuesPreserved": true,
+    "rentTotalStroops": "1294491",
+    "otherFeesTotalStroops": "28962",
+    "allDeclaredFeesWithinCap": true
+  },
+  "channelFunding": {
+    "at": "2026-10-04T11:31:32.644Z",
+    "method": "TESTNET Friendbot",
+    "account": {
+      "address": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+      "exists": true,
+      "sequence": "21552064286949376",
+      "balanceStroops": "100000000000",
+      "latestLedger": 5017981
+    }
+  },
+  "fundedChannelRecovery": {
+    "before": {
+      "accounts": {
+        "relayer": {
+          "address": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+          "exists": true,
+          "sequence": "20132642020130824",
+          "balanceStroops": "99997412409",
+          "latestLedger": 5017986
+        },
+        "channel": {
+          "address": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+          "exists": true,
+          "sequence": "21552064286949376",
+          "balanceStroops": "100000000000",
+          "latestLedger": 5017986
+        }
+      },
+      "entries": {
+        "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 5138929,
+          "valueSha256": "cfa366e6b04a55dc278e235afda7ac9eeabaebfa434942d4feacf876913a983b",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 5138302,
+          "valueSha256": "1e442998e0e6f915428f09cfad163e5b11088ee13f506770c4fc395b820195e8",
+          "executableHash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417"
+        },
+        "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 0,
+          "valueSha256": "a8c00a8dd5a0c4d6ccb2ffc0906ae9c3d321f279e7aedf3185df518f31e82eb2",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 5138303,
+          "valueSha256": "d62e9c6ec1b2afa7ffbba55a52ea7d2727eebdd51e022a4d649d2fa5cbcf9e2e",
+          "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+        },
+        "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 5138930,
+          "valueSha256": "8932078a25701f1636f2c46fd0c1893631504e3eb74e51e4a97217b6f9656233",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 0,
+          "valueSha256": "7184231c99cd61cf5598e0f61c0f9b9e71cee363938bf2d02c2ee08800494eb8",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 0,
+          "valueSha256": "83eb54e8761d0dfe24a181bd565cb19f454d1e804635488a050215bef5664c86",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 0,
+          "valueSha256": "3468f454da63127c94402bf6a235a4398753b9620bc61c23b889582e02499f79",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 0,
+          "valueSha256": "9953353fcd85363286cd4caaf7e8baa919039d90a0803e30aee9771d42e52fe0",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 0,
+          "valueSha256": "c4359ce7b9bed81e1eb3e63cfc28e6259c593865e1b1300c15b54dd285ebc5d9",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 0,
+          "valueSha256": "15a37d18c9dcd8846bb5460292f4db2c4879559cc819b1d016e482f6ff97e42b",
+          "executableHash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417"
+        },
+        "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 0,
+          "valueSha256": "33f68b779be93d814d07b131ca7addc98f7cb7aea67fc2ccf10649b7de18ed21",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 0,
+          "valueSha256": "ae74b16d548c07ffdd4bafb7dbec9ae9761b3453f86a7f8af80302930a2f1b3c",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 5121061,
+          "valueSha256": "70a8eb77f59cb8dbe0f5c65adeb4e0d8570910672a1426fb33393c19606d7d4b",
+          "executableHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602"
+        },
+        "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 5121061,
+          "valueSha256": "888526aea92b773af1f09fa13fc94775019c0456d44da6d8aff61d0c8ebc62c3",
+          "executableHash": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91"
+        },
+        "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 5138300,
+          "valueSha256": "04dcd39eb9eeb2562390d8e933d82b20a5e8383b8e937a6812679c383bd1ed2c",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 5138927,
+          "valueSha256": "a85b8849dd796cc8700502d2a3b02b878e02a571cd81b1193b632acd5c38a3fa",
+          "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+        },
+        "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 0,
+          "valueSha256": "68a8f49fe55cf6a2a76b142d313befd29cc47e3a4d8069fa2944ef38bf5b6672",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 5138301,
+          "valueSha256": "c873319f684eb88c549027ee419c03e8965530ca179516bfc4dcb5cbdce4e3b2",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 5138928,
+          "valueSha256": "1d389316c186cd598a275067657be5c19fe07dac69520b0c878e7d71db3cb92f",
+          "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+        },
+        "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW": {
+          "latestLedger": 5017986,
+          "liveUntilLedger": 0,
+          "valueSha256": "66e196fbc0e7a4788b9f51574a50897c551c7d09393bbb4c09671f6e154101e0",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        }
+      }
+    },
+    "tick": {
+      "at": "2026-10-04T11:32:00.323Z",
+      "elapsedMs": 23367,
+      "response": {
+        "data": {
+          "dryRun": false,
+          "deployments": 4,
+          "submissions": 4,
+          "truncated": true,
+          "budgetExhausted": true,
+          "moreDeployments": true,
+          "partialPipelines": true,
+          "details": [
+            {
+              "target": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+              "kind": "instance",
+              "status": "restored",
+              "liveUntilLedger": 5138947,
+              "txHash": "04732ade00329de6afec8a222459af997b5c8f75272bda6af14fdf1161f37c1d",
+              "feeStroops": "269679"
+            },
+            {
+              "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+              "kind": "code",
+              "status": "healthy",
+              "liveUntilLedger": 7742950
+            },
+            {
+              "target": "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP",
+              "kind": "instance",
+              "status": "restored",
+              "liveUntilLedger": 5138948,
+              "txHash": "aa337740170d9dd3cf17743c4acc43801f4d35b673e44244b8acbddd6b1c5e69",
+              "feeStroops": "269679"
+            },
+            {
+              "target": "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK",
+              "kind": "instance",
+              "status": "restored",
+              "liveUntilLedger": 5138949,
+              "txHash": "cd40f63020d984e16d67f2e11aa477b7bc71b5d3cd97079dc1d600bb162c382b",
+              "feeStroops": "269679"
+            },
+            {
+              "target": "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH",
+              "kind": "instance",
+              "status": "restored",
+              "liveUntilLedger": 5138950,
+              "txHash": "de9597ab9a1aee200a66a318698bb9a5328cb08ff3ec4f7c8fcf82a4268b15c3",
+              "feeStroops": "269679"
+            }
+          ],
+          "failedDeployments": [],
+          "scans": [
+            {
+              "deploymentId": "deployment-3",
+              "totalTargets": 2,
+              "nextOffset": 1
+            },
+            {
+              "deploymentId": "deployment-4",
+              "totalTargets": 2,
+              "nextOffset": 1
+            },
+            {
+              "deploymentId": "deployment-5",
+              "totalTargets": 2,
+              "nextOffset": 1
+            },
+            {
+              "deploymentId": "deployment-6",
+              "totalTargets": 2,
+              "nextOffset": 1
+            }
+          ]
+        }
+      }
+    },
+    "transactions": [
+      {
+        "label": "funded instance restoration",
+        "target": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+        "source": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+        "hash": "04732ade00329de6afec8a222459af997b5c8f75272bda6af14fdf1161f37c1d",
+        "ledger": 5017988,
+        "payer": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+        "operation": "restoreFootprint",
+        "declaredFeeStroops": "269679",
+        "initiallyChargedStroops": "269679",
+        "refundStroops": "41261",
+        "netFeeStroops": "228418",
+        "resultFeeChargedStroops": "228418",
+        "rentFeeStroops": "221428",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "269679"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-41261"
+          }
+        ],
+        "restored": [
+          {
+            "type": "ttl",
+            "valueSha256": "5396bd47fc6e9630e8daa4947f2c50206c782510941e5ad04464566ab4e608ed"
+          },
+          {
+            "type": "contractData",
+            "valueSha256": "ed4f0c7c2572c4e39720488ba7a2ab601506bf6f3c151567ed0d4e5a9a4f34f3"
+          }
+        ]
+      },
+      {
+        "label": "funded instance restoration",
+        "target": "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP",
+        "source": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+        "hash": "aa337740170d9dd3cf17743c4acc43801f4d35b673e44244b8acbddd6b1c5e69",
+        "ledger": 5017989,
+        "payer": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+        "operation": "restoreFootprint",
+        "declaredFeeStroops": "269679",
+        "initiallyChargedStroops": "269679",
+        "refundStroops": "41261",
+        "netFeeStroops": "228418",
+        "resultFeeChargedStroops": "228418",
+        "rentFeeStroops": "221428",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "269679"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-41261"
+          }
+        ],
+        "restored": [
+          {
+            "type": "ttl",
+            "valueSha256": "d29193223d530b0f5f0f6a0412e90a3c2ed46edfe9d29a8b5e9043c48af2d56e"
+          },
+          {
+            "type": "contractData",
+            "valueSha256": "2a5fed2512a9f8160faba4ca8b63dae7265e3d48b51c95cba35ac567fb1f1067"
+          }
+        ]
+      },
+      {
+        "label": "funded instance restoration",
+        "target": "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK",
+        "source": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+        "hash": "cd40f63020d984e16d67f2e11aa477b7bc71b5d3cd97079dc1d600bb162c382b",
+        "ledger": 5017990,
+        "payer": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+        "operation": "restoreFootprint",
+        "declaredFeeStroops": "269679",
+        "initiallyChargedStroops": "269679",
+        "refundStroops": "41261",
+        "netFeeStroops": "228418",
+        "resultFeeChargedStroops": "228418",
+        "rentFeeStroops": "221428",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "269679"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-41261"
+          }
+        ],
+        "restored": [
+          {
+            "type": "ttl",
+            "valueSha256": "dba4553f5338554027a6271f6457caee6b2dd4b08f393507716b10e5b0578b92"
+          },
+          {
+            "type": "contractData",
+            "valueSha256": "b44c19383775736a6903a7cd343a587f74aa2a5dd47842f1c7ea75be0f3b85b8"
+          }
+        ]
+      },
+      {
+        "label": "funded instance restoration",
+        "target": "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH",
+        "source": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+        "hash": "de9597ab9a1aee200a66a318698bb9a5328cb08ff3ec4f7c8fcf82a4268b15c3",
+        "ledger": 5017991,
+        "payer": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+        "operation": "restoreFootprint",
+        "declaredFeeStroops": "269679",
+        "initiallyChargedStroops": "269679",
+        "refundStroops": "41261",
+        "netFeeStroops": "228418",
+        "resultFeeChargedStroops": "228418",
+        "rentFeeStroops": "221428",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "269679"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-41261"
+          }
+        ],
+        "restored": [
+          {
+            "type": "ttl",
+            "valueSha256": "c3d158283020e4c6cf22600786bfcd5092c8cdadc55ce61cd1def061095a2c4c"
+          },
+          {
+            "type": "contractData",
+            "valueSha256": "67c1b44e9d062655964996081276d1f29c550d017a0f7e464fdc7ffe671451fa"
+          }
+        ]
+      }
+    ],
+    "after": {
+      "accounts": {
+        "relayer": {
+          "address": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+          "exists": true,
+          "sequence": "20132642020130824",
+          "balanceStroops": "99997412409",
+          "latestLedger": 5017991
+        },
+        "channel": {
+          "address": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+          "exists": true,
+          "sequence": "21552064286949380",
+          "balanceStroops": "99999086328",
+          "latestLedger": 5017991
+        }
+      },
+      "entries": {
+        "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 5138929,
+          "valueSha256": "cfa366e6b04a55dc278e235afda7ac9eeabaebfa434942d4feacf876913a983b",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 5138302,
+          "valueSha256": "1e442998e0e6f915428f09cfad163e5b11088ee13f506770c4fc395b820195e8",
+          "executableHash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417"
+        },
+        "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 0,
+          "valueSha256": "a8c00a8dd5a0c4d6ccb2ffc0906ae9c3d321f279e7aedf3185df518f31e82eb2",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 5138303,
+          "valueSha256": "d62e9c6ec1b2afa7ffbba55a52ea7d2727eebdd51e022a4d649d2fa5cbcf9e2e",
+          "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+        },
+        "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 5138930,
+          "valueSha256": "8932078a25701f1636f2c46fd0c1893631504e3eb74e51e4a97217b6f9656233",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 5138947,
+          "valueSha256": "7184231c99cd61cf5598e0f61c0f9b9e71cee363938bf2d02c2ee08800494eb8",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 0,
+          "valueSha256": "83eb54e8761d0dfe24a181bd565cb19f454d1e804635488a050215bef5664c86",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 5138948,
+          "valueSha256": "3468f454da63127c94402bf6a235a4398753b9620bc61c23b889582e02499f79",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 0,
+          "valueSha256": "9953353fcd85363286cd4caaf7e8baa919039d90a0803e30aee9771d42e52fe0",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 5138949,
+          "valueSha256": "c4359ce7b9bed81e1eb3e63cfc28e6259c593865e1b1300c15b54dd285ebc5d9",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 0,
+          "valueSha256": "15a37d18c9dcd8846bb5460292f4db2c4879559cc819b1d016e482f6ff97e42b",
+          "executableHash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417"
+        },
+        "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 5138950,
+          "valueSha256": "33f68b779be93d814d07b131ca7addc98f7cb7aea67fc2ccf10649b7de18ed21",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 0,
+          "valueSha256": "ae74b16d548c07ffdd4bafb7dbec9ae9761b3453f86a7f8af80302930a2f1b3c",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 5121061,
+          "valueSha256": "70a8eb77f59cb8dbe0f5c65adeb4e0d8570910672a1426fb33393c19606d7d4b",
+          "executableHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602"
+        },
+        "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 5121061,
+          "valueSha256": "888526aea92b773af1f09fa13fc94775019c0456d44da6d8aff61d0c8ebc62c3",
+          "executableHash": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91"
+        },
+        "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 5138300,
+          "valueSha256": "04dcd39eb9eeb2562390d8e933d82b20a5e8383b8e937a6812679c383bd1ed2c",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 5138927,
+          "valueSha256": "a85b8849dd796cc8700502d2a3b02b878e02a571cd81b1193b632acd5c38a3fa",
+          "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+        },
+        "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 0,
+          "valueSha256": "68a8f49fe55cf6a2a76b142d313befd29cc47e3a4d8069fa2944ef38bf5b6672",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        },
+        "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 5138301,
+          "valueSha256": "c873319f684eb88c549027ee419c03e8965530ca179516bfc4dcb5cbdce4e3b2",
+          "executableHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18"
+        },
+        "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 5138928,
+          "valueSha256": "1d389316c186cd598a275067657be5c19fe07dac69520b0c878e7d71db3cb92f",
+          "executableHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a"
+        },
+        "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW": {
+          "latestLedger": 5017991,
+          "liveUntilLedger": 0,
+          "valueSha256": "66e196fbc0e7a4788b9f51574a50897c551c7d09393bbb4c09671f6e154101e0",
+          "executableHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2"
+        }
+      }
+    },
+    "declaredTotalStroops": "1078716",
+    "refundTotalStroops": "165044",
+    "netTotalStroops": "913672",
+    "balanceReductionStroops": "913672",
+    "sequenceIncrements": 4,
+    "valuesPreserved": true,
+    "rentTotalStroops": "885712",
+    "otherFeesTotalStroops": "27960",
+    "allDeclaredFeesWithinCap": true
+  },
+  "rollback": {
+    "before": {
+      "relayer": {
+        "address": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "exists": true,
+        "sequence": "20132642020130824",
+        "balanceStroops": "99997412409",
+        "latestLedger": 5018010
+      },
+      "channel": {
+        "address": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+        "exists": true,
+        "sequence": "21552064286949380",
+        "balanceStroops": "99999086328",
+        "latestLedger": 5018010
+      }
+    },
+    "tick": {
+      "at": "2026-10-04T11:33:59.240Z",
+      "elapsedMs": 5369,
+      "response": {
+        "data": {
+          "dryRun": true,
+          "deployments": 5,
+          "submissions": 0,
+          "truncated": true,
+          "budgetExhausted": false,
+          "moreDeployments": true,
+          "partialPipelines": true,
+          "details": [
+            {
+              "target": "2d3c99b5aeacbbc7cda0f3aad8bc98bc42c708260e9ee223ab28056ebf078de0",
+              "kind": "code",
+              "status": "healthy",
+              "liveUntilLedger": 5119991
+            },
+            {
+              "target": "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6",
+              "kind": "instance",
+              "status": "healthy",
+              "liveUntilLedger": 5121061
+            },
+            {
+              "target": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+              "kind": "code",
+              "status": "healthy",
+              "liveUntilLedger": 5116155
+            },
+            {
+              "target": "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX",
+              "kind": "instance",
+              "status": "due",
+              "liveUntilLedger": 0
+            },
+            {
+              "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+              "kind": "code",
+              "status": "healthy",
+              "liveUntilLedger": 7742954
+            },
+            {
+              "target": "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW",
+              "kind": "instance",
+              "status": "due",
+              "liveUntilLedger": 0
+            },
+            {
+              "target": "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR",
+              "kind": "instance",
+              "status": "healthy",
+              "liveUntilLedger": 5138302
+            },
+            {
+              "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+              "kind": "code",
+              "status": "healthy",
+              "liveUntilLedger": 7742958
+            },
+            {
+              "target": "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6",
+              "kind": "instance",
+              "status": "due",
+              "liveUntilLedger": 0
+            },
+            {
+              "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+              "kind": "code",
+              "status": "healthy",
+              "liveUntilLedger": 7742950
+            }
+          ],
+          "failedDeployments": [],
+          "scans": [
+            {
+              "deploymentId": "deployment-7",
+              "totalTargets": 2,
+              "nextOffset": 1
+            },
+            {
+              "deploymentId": "deployment-8",
+              "totalTargets": 3,
+              "nextOffset": 0
+            },
+            {
+              "deploymentId": "deployment-9",
+              "totalTargets": 3,
+              "nextOffset": 0
+            },
+            {
+              "deploymentId": "deployment-1",
+              "totalTargets": 2,
+              "nextOffset": 0
+            },
+            {
+              "deploymentId": "deployment-2",
+              "totalTargets": 3,
+              "nextOffset": 1
+            }
+          ],
+          "sharedScan": {
+            "totalTargets": 22,
+            "nextOffset": 5
+          }
+        }
+      }
+    },
+    "after": {
+      "relayer": {
+        "address": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "exists": true,
+        "sequence": "20132642020130824",
+        "balanceStroops": "99997412409",
+        "latestLedger": 5018011
+      },
+      "channel": {
+        "address": "GBLS6KVIY7CJS4GWAM7IH2WQARHPEHFRQ5ULD6QZAL5YPR4WTXJTC3VG",
+        "exists": true,
+        "sequence": "21552064286949380",
+        "balanceStroops": "99999086328",
+        "latestLedger": 5018011
+      }
+    },
+    "settings": {
+      "paidMaintenance": "false",
+      "feeCapStroops": "1000000",
+      "channels": "UNSET",
+      "effectiveChannels": 0
+    },
+    "allApplicationVariablesMatchBaseline": true,
+    "successfulDeployment": "39172609-350e-46c2-89f0-d4d0b32fc5b0",
+    "status": "SUCCESS",
+    "codeCommit": "1b89b9f2d9565930b20268c9a8db76f3a36b081e"
+  },
+  "verification": {
+    "focusedTestsPassed": 105,
+    "focusedTestFiles": 5,
+    "typecheck": "passed",
+    "diffCheck": "passed"
+  },
+  "limitations": [
+    "Recovery used eight previously expired instances; executable code was live. No archived-code restoration or payment after recovery was exercised.",
+    "A held lease blocked two concurrent calls while paid maintenance was enabled. Long-run lease renewal and Redis-outage behavior were not tested.",
+    "Both paid ticks exhausted the inter-item time budget after four deployments. This is not a load/soak or capacity guarantee.",
+    "Channel 0 remains Friendbot-funded on TESTNET but the original unset channel setting is restored. Funding is a persistent test side effect; it was not drawn from the relayer.",
+    "Different instance sets were restored through the two lanes. Their measured fees do not compare signing-lane efficiency.",
+    "No production budget, shared WASM activation, recurring scheduler, or mainnet execution is authorized by these checks."
+  ]
+}

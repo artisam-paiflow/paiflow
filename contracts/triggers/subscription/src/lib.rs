@@ -12,6 +12,18 @@ pub struct WorkflowTarget {
     pub data: String,
 }
 
+/// Fresh, read-only preflight snapshot. Token allowance is deliberately separate.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SubscriptionState {
+    pub is_cancelled: bool,
+    pub next_charge_at: u64,
+    pub amount_per_period: i128,
+    pub subscriber: Address,
+    pub asset: Address,
+    pub relayer: Address,
+}
+
 #[contracttype]
 pub enum Key {
     Admin,
@@ -41,13 +53,27 @@ pub enum Error {
     NotCancelled = 7,
 }
 
-const VERSION: u32 = 5;
+const VERSION: u32 = 7;
+const TTL_THRESHOLD: u32 = 50_000;
+const TTL_EXTEND_TO: u32 = 500_000;
 
 #[contract]
 pub struct SubscriptionTrigger;
 
 #[contractimpl]
 impl SubscriptionTrigger {
+    /// Observational only: no writes, events, authorization, or TTL extension.
+    pub fn state(env: Env) -> SubscriptionState {
+        SubscriptionState {
+            is_cancelled: Self::is_cancelled(env.clone()),
+            next_charge_at: Self::next_charge_at(env.clone()),
+            amount_per_period: Self::amount_per_period(env.clone()),
+            subscriber: Self::subscriber(env.clone()),
+            asset: Self::asset(env.clone()),
+            relayer: Self::relayer(env),
+        }
+    }
+
     pub fn __constructor(
         env: Env,
         admin: Address,
@@ -90,6 +116,7 @@ impl SubscriptionTrigger {
         env.storage()
             .instance()
             .set(&Key::NextChargeAt, &start_time);
+        bump_ttl(&env);
     }
 
     /// Pulls the pre-authorized subscription amount from the subscriber and
@@ -112,6 +139,7 @@ impl SubscriptionTrigger {
         let admin: Address = env.storage().instance().get(&Key::Admin).unwrap();
         admin.require_auth();
         env.storage().instance().set(&Key::Relayer, &new_relayer);
+        bump_ttl(&env);
         #[allow(deprecated)]
         env.events()
             .publish((Symbol::new(&env, "set_relayer"), admin), new_relayer);
@@ -174,6 +202,7 @@ impl SubscriptionTrigger {
         token::Client::new(&env, &asset).approve(&subscriber, &contract, &0, &expiration_ledger);
 
         env.storage().instance().set(&Key::Cancelled, &true);
+        bump_ttl(&env);
 
         #[allow(deprecated)]
         env.events()
@@ -203,6 +232,7 @@ impl SubscriptionTrigger {
         }
 
         env.storage().instance().set(&Key::Cancelled, &false);
+        bump_ttl(&env);
 
         #[allow(deprecated)]
         env.events()
@@ -266,9 +296,18 @@ fn execute_charge(env: &Env) {
         &next_charge_at.saturating_add(interval_seconds),
     );
 
+    bump_ttl(env);
+
     #[allow(deprecated)]
     env.events()
         .publish((symbol_short!("charge"), subscriber), amount);
+}
+
+// The host checks and extends the instance and shared code lifetimes independently.
+fn bump_ttl(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
 }
 
 fn invoke_receive_and_forward(
@@ -296,7 +335,7 @@ fn invoke_receive_and_forward(
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::testutils::{Address as _, Ledger};
+    use soroban_sdk::testutils::{storage::Instance as _, Address as _, Events, Ledger};
     use soroban_sdk::{contract, contractimpl, token, vec, Env};
 
     const START_TIME: u64 = 1000;
@@ -350,6 +389,99 @@ mod test {
             ),
         );
         (contract_id, asset.address())
+    }
+
+    fn assert_state_matches(env: &Env, contract: &Address) -> SubscriptionState {
+        let client = SubscriptionTriggerClient::new(env, contract);
+        let ttl = env.as_contract(contract, || env.storage().instance().get_ttl());
+        let events = env.events().all();
+        let state = client.state();
+        assert!(env.auths().is_empty());
+        assert_eq!(state, client.state());
+        assert_eq!(state.is_cancelled, client.is_cancelled());
+        assert_eq!(state.next_charge_at, client.next_charge_at());
+        assert_eq!(state.amount_per_period, client.amount_per_period());
+        assert_eq!(state.subscriber, client.subscriber());
+        assert_eq!(state.asset, client.asset());
+        assert_eq!(state.relayer, client.relayer());
+        assert_eq!(env.events().all(), events);
+        assert_eq!(
+            env.as_contract(contract, || env.storage().instance().get_ttl()),
+            ttl
+        );
+        state
+    }
+
+    #[test]
+    fn state_matches_getters_through_transitions_and_failed_charge() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let subscriber = Address::generate(&env);
+        let relayer = Address::generate(&env);
+        let (contract, asset) = deploy_contract(&env, admin, subscriber.clone(), relayer);
+        let client = SubscriptionTriggerClient::new(&env, &contract);
+        let tok = token::Client::new(&env, &asset);
+        token::StellarAssetClient::new(&env, &asset).mint(&subscriber, &1000);
+        tok.approve(&subscriber, &contract, &200, &1000);
+        let initial = assert_state_matches(&env, &contract);
+        assert_eq!(initial.next_charge_at, START_TIME);
+        assert_eq!(initial.amount_per_period, 200);
+        assert!(!initial.is_cancelled);
+        assert_eq!(tok.balance(&subscriber), 1000);
+        assert_eq!(tok.allowance(&subscriber, &contract), 200);
+
+        env.ledger().set_timestamp(START_TIME);
+        client.charge_by_relayer();
+        let charged = assert_state_matches(&env, &contract);
+        assert_eq!(charged.next_charge_at, START_TIME + INTERVAL);
+        assert_eq!(tok.balance(&subscriber), 800);
+        env.ledger().set_timestamp(START_TIME + INTERVAL);
+        assert!(client.try_charge_by_relayer().is_err());
+        assert_eq!(assert_state_matches(&env, &contract), charged);
+        assert_eq!(tok.balance(&subscriber), 800);
+
+        client.unsubscribe();
+        let cancelled = assert_state_matches(&env, &contract);
+        assert!(cancelled.is_cancelled);
+        assert_eq!(cancelled.next_charge_at, charged.next_charge_at);
+        assert_eq!(tok.allowance(&subscriber, &contract), 0);
+        assert!(client.try_charge().is_err());
+        assert_eq!(assert_state_matches(&env, &contract), cancelled);
+        client.subscribe();
+        assert_eq!(assert_state_matches(&env, &contract), charged);
+        let new_relayer = Address::generate(&env);
+        client.set_relayer(&new_relayer);
+        let rotated = assert_state_matches(&env, &contract);
+        assert_eq!(rotated.relayer, new_relayer);
+        assert_eq!(rotated.next_charge_at, charged.next_charge_at);
+        tok.approve(&subscriber, &contract, &200, &1000);
+        client.charge();
+        assert_eq!(
+            assert_state_matches(&env, &contract).next_charge_at,
+            START_TIME + 2 * INTERVAL
+        );
+        assert_eq!(tok.balance(&subscriber), 600);
+    }
+
+    #[test]
+    fn state_preserves_integer_boundaries() {
+        let env = Env::default();
+        let (contract, _) = deploy_contract(
+            &env,
+            Address::generate(&env),
+            Address::generate(&env),
+            Address::generate(&env),
+        );
+        env.as_contract(&contract, || {
+            env.storage()
+                .instance()
+                .set(&Key::AmountPerPeriod, &i128::MAX);
+            env.storage().instance().set(&Key::NextChargeAt, &u64::MAX);
+        });
+        let state = assert_state_matches(&env, &contract);
+        assert_eq!(state.amount_per_period, i128::MAX);
+        assert_eq!(state.next_charge_at, u64::MAX);
     }
 
     #[test]
@@ -592,3 +724,7 @@ mod test {
         client.subscribe(); // already active
     }
 }
+
+#[cfg(test)]
+#[path = "ttl-tests.rs"]
+mod ttl_tests;

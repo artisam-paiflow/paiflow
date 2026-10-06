@@ -34,6 +34,9 @@ enum TemplateKind {
   SUBSCRIPTION_DEV
   CASH_OUT_DEV
   CASH_OUT
+  /// A timelock with a "before" and an "after" next step (#721). Its own kind,
+  /// so TIMELOCK contracts already deployed keep their ABI.
+  TIMELOCK_BRANCH
 }
 
 enum DeploymentStatus {
@@ -98,6 +101,58 @@ enum EventKind {
   CASH_OUT
 }
 
+enum AnalyticsAudience {
+  INTERNAL
+  EXTERNAL
+  SANDBOX
+  UNCLASSIFIED
+}
+
+enum TransactionOutcome {
+  RECEIVED
+  ACCEPTED
+  UNRESOLVED
+  REJECTED
+  CONFIRMED
+  FAILED
+}
+
+model AnalyticsPolicy {
+  version     String   @id
+  activatedAt DateTime @default(now())
+}
+
+model WalletConnection {
+  id              String            @id @db.Uuid
+  address         String
+  network         String
+  walletProvider  String
+  surface         String
+  userId          String?           @db.Uuid
+  audience        AnalyticsAudience
+  trackingVersion String
+  createdAt       DateTime          @default(now())
+  user            User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([trackingVersion, network, audience, createdAt])
+  @@index([address, createdAt])
+  @@index([userId, createdAt])
+}
+
+model AnalyticsDelivery {
+  id            String    @id @db.Uuid
+  distinctId    String
+  event         String
+  properties    Json
+  personProfile Boolean   @default(false)
+  occurredAt    DateTime  @default(now())
+  deliveredAt   DateTime?
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+
+  @@index([deliveredAt, nextAttemptAt])
+}
+
 model User {
   id             String    @id @default(uuid()) @db.Uuid
   username       String    @unique
@@ -126,7 +181,10 @@ model User {
   passwordResetTokens PasswordResetToken[]
   devApiTokens        DevApiToken[]
   deploymentApiTokens DeploymentApiToken[]
-  signedTransactions  SignedTransaction[]
+  signedTransactions  SignedTransaction[]  @relation("signingSession")
+  callerTransactions  SignedTransaction[]  @relation("transactionCaller")
+  walletConnections   WalletConnection[]
+  analyticsAudience   AnalyticsAudience    @default(UNCLASSIFIED)
 }
 
 /// A per-developer API token that maps a machine caller to a Paiflow user.
@@ -163,8 +221,9 @@ model DeploymentApiToken {
   expiresAt    DateTime?
   revokedAt    DateTime?
 
-  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
-  createdBy  User?      @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  deployment         Deployment          @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  createdBy          User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  signedTransactions SignedTransaction[]
 
   @@index([deploymentId])
 }
@@ -289,6 +348,14 @@ model Deployment {
   // retry with the same key returns the existing deployment instead of
   // deploying a second set of contracts. NULL for endpoints that don't opt in.
   idempotencyKey          String?
+  // Stamped by cron/poll-events after every poll attempt, success or failure,
+  // so a deployment whose scan always fails rotates to the back instead of
+  // holding a batch slot forever (EventCursor.updatedAt only moves on success).
+  eventsPolledAt          DateTime?
+  // TTL inventory attempts rotate durably, including failed reads.
+  ttlCheckedAt            DateTime?
+  // Position within a large durable pipeline; each inventory reads one instance.
+  ttlScanOffset           Int               @default(0)
 
   flow                 Flow                  @relation(fields: [flowId], references: [id], onDelete: Restrict)
   owner                User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
@@ -302,6 +369,7 @@ model Deployment {
   cashOutJobFailures   CashOutJobFailure[]
   apiTokens            DeploymentApiToken[]
   signedTransactions   SignedTransaction[]
+  timelockReleases     TimelockRelease[]
 
   @@unique([ownerId, idempotencyKey])
   @@index([ownerId, createdAt(sort: Desc)])
@@ -309,6 +377,8 @@ model Deployment {
   @@index([status, nextChargeAt])
   @@index([status, chargeRelayerMode, nextChargeAt])
   @@index([chargeRelayerMode])
+  @@index([status, eventsPolledAt])
+  @@index([network, status, ttlCheckedAt, id])
 }
 
 model StreamerClaimJob {
@@ -329,6 +399,60 @@ model StreamerClaimJob {
   @@index([status, runAt])
   @@index([deploymentId, nodeId, status])
   @@index([contractAddress, status])
+}
+
+enum TimelockMode {
+  AFTER
+  BEFORE
+}
+
+/// What `cron/auto-release` knows about one deployed timelock, so a tick probes
+/// only the timelocks that can release now instead of simulating every one ever
+/// deployed (#564). A timelock is not "done" after one release: its balance
+/// goes back to zero and a later `execute_step` refills it, so the row records
+/// the ledger up to which the contract was last seen empty (`settledLedger`)
+/// and a RECEIVE event after that ledger makes it due again.
+///
+/// Rows are created by the cron itself from `paramsSnapshot` the first time it
+/// sees a confirmed deployment with a timelock, so older deployments need no
+/// backfill.
+model TimelockRelease {
+  id                String        @id @default(uuid()) @db.Uuid
+  deploymentId      String        @db.Uuid
+  nodeId            String
+  contractAddress   String        @unique
+  templateKind      TemplateKind
+  /// Null only on an unsupported row whose parameters could not be read. A
+  /// TIMELOCK_BRANCH row is AFTER: the relayer can only release it at or after
+  /// the deadline, when it pays the contract's "after" list.
+  mode              TimelockMode?
+  /// The contract's `unlock_time`. AFTER releases from this instant on; BEFORE
+  /// releases up to and including it and never after.
+  unlockAt          DateTime?
+  /// Earliest time the cron probes this timelock again without a new RECEIVE.
+  nextProbeAt       DateTime?
+  /// Ledger through which the balance is known to be zero: the ledger a
+  /// NothingToRelease simulation read, or the one before a release that landed
+  /// (a refill later in the release's own ledger must still wake it).
+  settledLedger     Int?
+  lastReleasedAt    DateTime?
+  lastReleaseTxHash String?
+  failureCount      Int           @default(0)
+  lastError         String?
+  /// Set when the relayer can never release this contract (a timelock deployed
+  /// with relayer == admin, or a WASM without `release_by_relayer`). Such a row
+  /// is never selected again.
+  unsupportedReason String?
+  /// Claimed by a run while it probes, so overlapping runs (a second replica,
+  /// a retried cron call) do not both simulate and submit the same release.
+  leaseUntil        DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+
+  @@index([deploymentId])
+  @@index([nextProbeAt])
 }
 
 enum SignedTxKind {
@@ -521,9 +645,15 @@ model ContractEvent {
 
   @@index([deploymentId, occurredAt(sort: Desc)])
   @@index([deploymentId, ledger, eventId])
+  // cron/auto-release: "any RECEIVE past ledger N for this deployment".
+  @@index([deploymentId, kind, ledger])
 }
 
 model EmailNotification {
+  deploymentId    String?  @db.Uuid
+  txHash          String?
+  kind            String?
+  deliveryKey     String?  @unique
   id              String   @id @default(uuid()) @db.Uuid
   contractEventId String   @db.Uuid
   nodeId          String
@@ -537,6 +667,7 @@ model EmailNotification {
 
   @@unique([contractEventId, nodeId, address])
   @@index([contractEventId])
+  @@index([deploymentId, txHash])
 }
 
 model EventCursor {
@@ -544,6 +675,8 @@ model EventCursor {
   lastLedger   Int
   updatedAt    DateTime   @updatedAt
   deployment   Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+
+  @@index([updatedAt])
 }
 
 model AuditLog {
@@ -569,29 +702,52 @@ model AuditLog {
 /// is the system of record, because it is indexed and its write is not
 /// best-effort. See lib/signed-tx.ts.
 model SignedTransaction {
-  id               String       @id @default(uuid()) @db.Uuid
+  callerAccountId    String?             @db.Uuid
+  callerAccount      User?               @relation("transactionCaller", fields: [callerAccountId], references: [id], onDelete: SetNull)
+  trackingVersion    String?
+  audience           AnalyticsAudience   @default(UNCLASSIFIED)
+  apiTokenId         String?             @db.Uuid
+  outcome            TransactionOutcome?
+  submittedAt        DateTime?
+  acceptedAt         DateTime?
+  confirmedAt        DateTime?
+  failedAt           DateTime?
+  rejectedAt         DateTime?
+  ledger             Int?
+  failureCode        String?
+  nextCheckAt        DateTime?
+  lastCheckedAt      DateTime?
+  checkAttempts      Int                 @default(0)
+  submissionRevision Int                 @default(0)
+  outcomeRevision    Int                 @default(0)
+  apiToken           DeploymentApiToken? @relation(fields: [apiTokenId], references: [id], onDelete: SetNull)
+  id                 String              @id @default(uuid()) @db.Uuid
   /// Lowercase hex, the hash the network knows the envelope by.
-  txHash           String       @unique
+  txHash             String              @unique
   /// Always the G… form, so it joins to every other address column.
-  signerAddress    String
+  signerAddress      String
   /// Set only for a fee bump, where it differs from the signer.
-  feeSourceAddress String?
+  feeSourceAddress   String?
   /// The M… address when the source was muxed.
-  muxedSource      String?
-  isFeeBump        Boolean      @default(false)
+  muxedSource        String?
+  isFeeBump          Boolean             @default(false)
   /// A signature on the envelope verifies against the source key.
-  signedBySource   Boolean      @default(true)
+  signedBySource     Boolean             @default(true)
   /// The session user who submitted the envelope; the app has no wallet↔user binding.
-  userId           String?      @db.Uuid
-  deploymentId     String?      @db.Uuid
-  kind             SignedTxKind
-  network          String
-  ip               String?
-  createdAt        DateTime     @default(now())
+  userId             String?             @db.Uuid
+  deploymentId       String?             @db.Uuid
+  kind               SignedTxKind
+  network            String
+  ip                 String?
+  createdAt          DateTime            @default(now())
 
-  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user       User?       @relation("signingSession", fields: [userId], references: [id], onDelete: SetNull)
   deployment Deployment? @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
 
+  @@index([callerAccountId, createdAt])
+  @@index([trackingVersion, network, audience, createdAt])
+  @@index([outcome, nextCheckAt])
+  @@index([apiTokenId, createdAt])
   @@index([signerAddress, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
   @@index([deploymentId, createdAt(sort: Desc)])
@@ -630,4 +786,41 @@ model FileAsset {
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([ownerId, createdAt(sort: Desc)])
+}
+
+// Rotates current templates/factory independently of deployments, including failures.
+model TtlMaintenanceState {
+  network      String  @id
+  sharedOffset Int     @default(0)
+  sharedFirst  Boolean @default(false)
+}
+
+// A fixed campaign ceiling. Reservations never expire or credit expected refunds.
+model TransactionFeeBudget {
+  network               String
+  name                  String
+  limitStroops          String
+  committedStroops      String    @default("0")
+  createdAt             DateTime  @default(now())
+  fixtureSetupClaimedAt DateTime?
+
+  reservations TransactionFeeReservation[]
+
+  @@id([network, name])
+}
+
+model TransactionFeeReservation {
+  id                 String   @id @default(uuid()) @db.Uuid
+  network            String
+  budgetName         String
+  txHash             String
+  payer              String
+  declaredFeeStroops String
+  purpose            String
+  createdAt          DateTime @default(now())
+
+  budget TransactionFeeBudget @relation(fields: [network, budgetName], references: [network, name], onDelete: Restrict)
+
+  @@unique([network, txHash])
+  @@index([network, budgetName, createdAt])
 }

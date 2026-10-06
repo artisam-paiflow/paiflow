@@ -1,3 +1,8 @@
+vi.mock("@/lib/analytics/outcomes", () => ({
+  recordTransactionOutcome: vi.fn(async () => false),
+  beginTransactionSubmission: vi.fn(async () => undefined),
+  transactionObservation: vi.fn(async () => undefined),
+}));
 /**
  * #468: the v1 execute pair. Prepare returns the unsigned deposit for a swapper
  * flow; submit refuses any envelope that is not exactly that deposit, then
@@ -39,7 +44,14 @@ vi.mock("@/lib/signed-tx", () => ({ recordSignedTransaction: vi.fn(async () => u
 
 import { POST as prepare } from "@/app/api/v1/deployments/[id]/execute/route";
 import { POST as submit } from "@/app/api/v1/deployments/[id]/execute/submit/route";
-import { CONFIRM_POLL_INTERVAL_MS, ONLY_SWAPPER_FLOWS, waitForFinal } from "@/lib/api/v1/execute";
+import {
+  CONFIRM_POLL_INTERVAL_MS,
+  NOT_EXECUTABLE_FLOW,
+  explainFailedTx,
+  waitForFinal,
+} from "@/lib/api/v1/execute";
+import { V1_WAIT_SLOTS } from "@/lib/api/v1/limits";
+import { acquireWaitSlot } from "@/lib/api/v1/wait-slots";
 import { AppError } from "@/lib/errors";
 import { SimulationError, simulationFailure } from "@/lib/stellar/sim-error";
 import { audit, wasTxConfirmedFor } from "@/lib/audit";
@@ -51,6 +63,7 @@ import {
   OWNER_ID,
   PAYER,
   ROUTER,
+  SWAPPER_PIPELINE,
   SWAPPER,
   TRIGGER,
   contractErrorEvent,
@@ -198,33 +211,153 @@ describe("pipeline scope", () => {
   });
 
   it.each([
-    ["no pipeline", null],
-    ["a splitter pipeline", [{ nodeId: "t", contractAddress: TRIGGER, templateKind: "SPLITTER" }]],
+    ["no pipeline", null, NOT_EXECUTABLE_FLOW],
+    ["an empty pipeline", [], NOT_EXECUTABLE_FLOW],
     [
-      "a deposit trigger without a swapper",
+      "a splitter head",
+      [{ nodeId: "t", contractAddress: TRIGGER, templateKind: "SPLITTER" }],
+      "starts with a splitter step",
+    ],
+    [
+      "a swapper behind a webhook head",
+      [
+        { nodeId: "w", contractAddress: TRIGGER, templateKind: "WEBHOOK" },
+        { nodeId: "s", contractAddress: SWAPPER, templateKind: "SWAPPER" },
+      ],
+      "starts with a webhook step",
+    ],
+    [
+      "a subscription head",
+      [
+        { nodeId: "s", contractAddress: TRIGGER, templateKind: "SUBSCRIPTION" },
+        { nodeId: "p", contractAddress: PAYER, templateKind: "PAYER" },
+      ],
+      "starts with a subscription step",
+    ],
+    [
+      "a dev subscription head",
+      [{ nodeId: "s", contractAddress: TRIGGER, templateKind: "SUBSCRIPTION_DEV" }],
+      "starts with a subscription step",
+    ],
+    [
+      "a payroll head",
+      [{ nodeId: "s", contractAddress: TRIGGER, templateKind: "PAYROLL" }],
+      "starts with a payroll step",
+    ],
+    [
+      "a head kind this release has never heard of",
+      [{ nodeId: "s", contractAddress: TRIGGER, templateKind: "FUTURE_KIND" }],
+      "starts with a FUTURE_KIND step",
+    ],
+    [
+      "a deposit trigger head with no address",
+      [{ nodeId: "t", contractAddress: "", templateKind: "DEPOSIT_TRIGGER" }],
+      NOT_EXECUTABLE_FLOW,
+    ],
+  ])("422 for %s, on both routes", async (_label, pipelineSnapshot, expected) => {
+    authorize({ pipelineSnapshot });
+    const p = await callPrepare();
+    expect(p.status).toBe(422);
+    expect((await p.json()).error.message).toContain(expected);
+
+    const s = await callSubmit(signedEnvelope());
+    expect(s.status).toBe(422);
+    expect((await s.json()).error.message).toContain(expected);
+    expect(mockPrepareTriggerTx).not.toHaveBeenCalled();
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+  });
+
+  // #756: every flow that starts with a deposit trigger is executable, not only swappers.
+  it.each([
+    [
+      "a Pay flow",
       [
         { nodeId: "t", contractAddress: TRIGGER, templateKind: "DEPOSIT_TRIGGER" },
         { nodeId: "p", contractAddress: PAYER, templateKind: "PAYER" },
       ],
     ],
     [
-      "a swapper behind a non-deposit head",
+      "a Split flow",
       [
-        { nodeId: "w", contractAddress: TRIGGER, templateKind: "WEBHOOK" },
-        { nodeId: "s", contractAddress: SWAPPER, templateKind: "SWAPPER" },
+        { nodeId: "t", contractAddress: TRIGGER, templateKind: "DEPOSIT_TRIGGER" },
+        { nodeId: "s", contractAddress: OTHER_CONTRACT, templateKind: "SPLITTER" },
       ],
     ],
-  ])("422 for %s, on both routes", async (_label, pipelineSnapshot) => {
+    [
+      "an amount-condition flow",
+      [
+        { nodeId: "t", contractAddress: TRIGGER, templateKind: "DEPOSIT_TRIGGER" },
+        { nodeId: "r", contractAddress: OTHER_CONTRACT, templateKind: "ROUTER" },
+        { nodeId: "p", contractAddress: PAYER, templateKind: "PAYER" },
+        { nodeId: "s", contractAddress: SWAPPER, templateKind: "PAYER_DEV" },
+      ],
+    ],
+    ["a swap flow", SWAPPER_PIPELINE],
+  ])("prepares and submits %s through its trigger", async (_label, pipelineSnapshot) => {
     authorize({ pipelineSnapshot });
-    const p = await callPrepare();
-    expect(p.status).toBe(422);
-    expect((await p.json()).error.message).toBe(ONLY_SWAPPER_FLOWS);
+    const signed = signedEnvelope();
+    mockPrepareTriggerTx.mockResolvedValue({ xdr: signed });
 
-    const s = await callSubmit(signedEnvelope());
-    expect(s.status).toBe(422);
-    expect((await s.json()).error.message).toBe(ONLY_SWAPPER_FLOWS);
-    expect(mockPrepareTriggerTx).not.toHaveBeenCalled();
+    const p = await callPrepare();
+    expect(p.status).toBe(200);
+    expect(mockPrepareTriggerTx).toHaveBeenCalledWith(
+      expect.objectContaining({ contractAddress: TRIGGER, isPipeline: true }),
+    );
+
+    // The envelope check is the same for every head: only a deposit on this trigger.
+    const wrong = await callSubmit(signedEnvelope({ contract: OTHER_CONTRACT }));
+    expect(wrong.status).toBe(422);
     expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("a Pay or Split step with nothing configured (#756)", () => {
+  const DEV_PIPELINE = (kind: "PAYER_DEV" | "SPLITTER_DEV") => [
+    { nodeId: "t", contractAddress: TRIGGER, templateKind: "DEPOSIT_TRIGGER" },
+    { nodeId: "p", contractAddress: PAYER, templateKind: kind },
+  ];
+
+  it.each([
+    [
+      "PAYER_DEV",
+      "payer_dev",
+      "This flow's Pay step has no recipient yet. Set it in Dev values on the deployment page, or per payment through POST /api/v1/deployments/:id/payouts.",
+    ],
+    [
+      "SPLITTER_DEV",
+      "splitter_dev",
+      "This flow's Split step has no recipients yet. Set them in Dev values on the deployment page.",
+    ],
+  ] as const)("%s NotConfigured is a plain 422 on prepare", async (kind, key, text) => {
+    authorize({ pipelineSnapshot: DEV_PIPELINE(kind) });
+    mockBuildHint.mockResolvedValue({ addressMap: { [TRIGGER]: "deposit_trigger", [PAYER]: key } });
+    mockPrepareTriggerTx.mockImplementation(async (opts: { hint: () => Promise<unknown> }) => {
+      const hint = (await opts.hint()) as Parameters<typeof simulationFailure>[1];
+      // payer_dev NotConfigured is #4; splitter_dev's is #8.
+      const code = kind === "PAYER_DEV" ? 4 : 8;
+      throw simulationFailure(`contract:${PAYER}, topics:[error, Error(Contract, #${code})]`, hint);
+    });
+
+    const res = await callPrepare();
+
+    expect(res.status).toBe(422);
+    const { error } = await res.json();
+    expect(error.message).toContain(text);
+    if (kind === "SPLITTER_DEV") {
+      expect(error.message).not.toContain("/payouts");
+    }
+  });
+
+  it("is a plain message on a reverted submit too", async () => {
+    mockBuildHint.mockResolvedValue({ addressMap: { [PAYER]: "payer_dev" } });
+    const failure = await explainFailedTx(
+      { diagnosticEventsXdr: [contractErrorEvent(PAYER, 4)] },
+      DEV_PIPELINE("PAYER_DEV"),
+    );
+    expect(failure.code).toBe("NotConfigured");
+    expect(failure.message).toBe(
+      "This flow's Pay step has no recipient yet. Set it in Dev values on the deployment page, or per payment through POST /api/v1/deployments/:id/payouts.",
+    );
   });
 });
 
@@ -582,6 +715,88 @@ describe("POST …/execute/submit", () => {
     const res = await callSubmit(signedEnvelope());
     expect(res.status).toBe(502);
     expect((await res.json()).error.code).toBe("UPSTREAM_RPC");
+  });
+
+  describe("concurrent wait=true cap (#524)", () => {
+    async function holdAllSlots() {
+      const held = [];
+      for (let i = 0; i < V1_WAIT_SLOTS.perToken; i++) {
+        const slot = await acquireWaitSlot(token.id);
+        expect(slot).not.toBeNull();
+        held.push(slot!);
+      }
+      return held;
+    }
+
+    async function expectNoSlotLeaked() {
+      const held = await holdAllSlots();
+      await Promise.all(held.map((s) => s.release()));
+    }
+
+    it("over the cap, still sends and answers PENDING at once instead of waiting", async () => {
+      const held = await holdAllSlots();
+      try {
+        const signed = signedEnvelope();
+        const txHash = hashOf(signed);
+        mockRpc.getTransaction.mockResolvedValue({
+          status: rpc.Api.GetTransactionStatus.NOT_FOUND,
+        });
+        mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: txHash });
+
+        const res = await callSubmit(signed);
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ data: { txHash, status: "PENDING" } });
+        expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(1);
+        // Only the pre-send lookup: no polling.
+        expect(mockRpc.getTransaction).toHaveBeenCalledTimes(1);
+        expect(auditActions()).toEqual(["API_EXECUTE_SUBMITTED"]);
+      } finally {
+        await Promise.all(held.map((s) => s.release()));
+      }
+    });
+
+    it("the cap is per token: another token still waits", async () => {
+      const held = await holdAllSlots();
+      try {
+        token = newToken();
+        authorize();
+        const signed = signedEnvelope();
+        const txHash = hashOf(signed);
+        mockRpc.getTransaction
+          .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.NOT_FOUND })
+          .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.SUCCESS, ledger: 7 });
+        mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: txHash });
+
+        expect(await (await callSubmit(signed)).json()).toEqual({
+          data: { txHash, status: "SUCCESS", ledger: 7 },
+        });
+      } finally {
+        await Promise.all(held.map((s) => s.release()));
+      }
+    });
+
+    it("releases the slot when the wait completes", async () => {
+      const signed = signedEnvelope();
+      mockRpc.getTransaction
+        .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.NOT_FOUND })
+        .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.SUCCESS, ledger: 8 });
+      mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: hashOf(signed) });
+
+      expect((await callSubmit(signed)).status).toBe(200);
+      await expectNoSlotLeaked();
+    });
+
+    it("releases the slot when the wait fails", async () => {
+      const signed = signedEnvelope();
+      mockRpc.getTransaction
+        .mockResolvedValueOnce({ status: rpc.Api.GetTransactionStatus.NOT_FOUND })
+        .mockRejectedValueOnce(new Error("ECONNRESET"));
+      mockRpc.sendTransaction.mockResolvedValue({ status: "PENDING", hash: hashOf(signed) });
+
+      expect((await callSubmit(signed)).status).toBe(502);
+      await expectNoSlotLeaked();
+    });
   });
 
   it("502 when the network asks to try again later", async () => {

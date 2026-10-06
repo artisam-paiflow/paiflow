@@ -10,72 +10,124 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 import { sorobanRpc, decodeContractAddress } from "./client";
+import { buildRelayerTx, relayerSourceChannel, type RelayerChannel } from "./relayer-channels";
 import { stellarPassphrase, stellarRelayerAddress, stellarRelayerSecretKey } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { simulationFailure } from "./sim-error";
+import { timelockSideArg } from "./scval";
 
-export async function prepareReleaseByRelayerTx(
-  contractAddress: string,
-): Promise<{ xdr: string; txHash: string }> {
+/** Which list a timelock_branch release intends to pay; absent for the old timelock. */
+export type ReleaseSide = "before" | "after";
+
+function relayerReleaseKeypair(): Keypair {
   const secret = stellarRelayerSecretKey();
   if (!secret) {
     throw new AppError("INTERNAL", "STELLAR_RELAYER_SECRET_KEY is not configured");
   }
+  return Keypair.fromSecret(secret);
+}
 
-  const server = sorobanRpc();
-  const relayerKeypair = Keypair.fromSecret(secret);
-  const relayerAddress = relayerKeypair.publicKey();
-
-  let sourceAcct;
+async function loadRelayerAccount(server: rpc.Server, relayerAddress: string) {
   try {
-    sourceAcct = await server.getAccount(relayerAddress);
-  } catch (err) {
+    return await server.getAccount(relayerAddress);
+  } catch {
     throw new AppError(
       "INSUFFICIENT_FUNDS",
       `Relayer account ${relayerAddress} is not funded or does not exist`,
     );
   }
+}
 
+function releaseOperation(contractAddress: string, side?: ReleaseSide) {
   const contractIdBytes = decodeContractAddress(contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
-
   const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
     new xdr.InvokeContractArgs({
       contractAddress: scAddress,
       functionName: "release_by_relayer",
-      args: [],
+      args: side ? [timelockSideArg(side)] : [],
     }),
   );
+  return Operation.invokeHostFunction({ func: hostFunction });
+}
 
-  const op = Operation.invokeHostFunction({ func: hostFunction });
-
-  const tx = new TransactionBuilder(sourceAcct, {
+function buildReleaseTx(
+  source: Awaited<ReturnType<rpc.Server["getAccount"]>>,
+  contractAddress: string,
+  side?: ReleaseSide,
+) {
+  return new TransactionBuilder(source, {
     fee: BASE_FEE,
     networkPassphrase: stellarPassphrase(),
   })
-    .addOperation(op)
+    .addOperation(releaseOperation(contractAddress, side))
     .setTimeout(180)
     .build();
-
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw simulationFailure(`Soroban simulate failed for ${contractAddress}: ${sim.error}`);
-  }
-
-  const assembled = rpc.assembleTransaction(tx, sim).build();
-  assembled.sign(relayerKeypair);
-
-  return { xdr: assembled.toXDR(), txHash: assembled.hash().toString("hex") };
 }
 
-export async function submitReleaseByRelayerTx(xdr: string): Promise<{
+export type ReleaseSimulation =
+  | { ok: true; latestLedger: number; sim: rpc.Api.SimulateTransactionSuccessResponse }
+  | { ok: false; latestLedger: number; error: string };
+
+/**
+ * Simulate a timelock's `release_by_relayer()` (with the intended `side` for a
+ * timelock_branch, which reverts with ConditionNotMet if the ledger time is on
+ * the other side) without signing anything, so the caller learns whether a
+ * release would go through before it takes the relayer lock. A contract revert is returned, not thrown; an RPC that cannot be
+ * reached still throws.
+ */
+export async function simulateReleaseByRelayer(
+  contractAddress: string,
+  side?: ReleaseSide,
+): Promise<ReleaseSimulation> {
+  const server = sorobanRpc();
+  const source = await loadRelayerAccount(server, relayerReleaseKeypair().publicKey());
+  const sim = await server.simulateTransaction(buildReleaseTx(source, contractAddress, side));
+  if (rpc.Api.isSimulationError(sim)) {
+    return { ok: false, latestLedger: sim.latestLedger, error: sim.error };
+  }
+  // Automatic restoration is carried in transactionData. Legacy restore
+  // preambles are handled under the relayer channel lock before rebuilding
+  // and simulating the release again, including its deadline/side checks.
+  return { ok: true, latestLedger: sim.latestLedger, sim };
+}
+
+/**
+ * Sign and submit a release that `simulateReleaseByRelayer()` already
+ * simulated, then wait for finality. Call it inside `withRelayerChannel()` and
+ * pass the channel it hands you.
+ *
+ * The transaction is rebuilt here on a freshly loaded source account, so its
+ * sequence number is read under the lock rather than carried over from the
+ * simulation, which may be minutes old by the time the lock is free. On the
+ * relayer-source lane what the simulation contributes — footprint, resource
+ * fee, and the source-account auth entry `release_by_relayer` needs — does not
+ * depend on the sequence number, which is what makes it safe to assemble onto
+ * the rebuilt envelope. On a channel that source-account entry would authorize
+ * the channel, not the relayer, so the probe's simulation is discarded and the
+ * call is simulated again with the relayer's address-credential entry signed.
+ */
+export async function sendReleaseByRelayer(
+  contractAddress: string,
+  sim: rpc.Api.SimulateTransactionSuccessResponse,
+  side?: ReleaseSide,
+  channel: RelayerChannel = relayerSourceChannel(),
+): Promise<{
   status: "SUCCESS" | "FAILED";
   txHash: string;
+  ledger?: number;
   errorMessage?: string;
 }> {
   const server = sorobanRpc();
-  const tx = TransactionBuilder.fromXDR(xdr, stellarPassphrase());
-  const send = await server.sendTransaction(tx);
+  const assembled = await buildRelayerTx({
+    channel,
+    operation: releaseOperation(contractAddress, side),
+    presimulated: sim,
+    onSimulationError: (message) =>
+      new AppError("UPSTREAM_RPC", `release_by_relayer simulation failed: ${message}`),
+  });
+
+  const send = await server.sendTransaction(assembled);
 
   if (send.status === "ERROR") {
     return {
@@ -89,12 +141,13 @@ export async function submitReleaseByRelayerTx(xdr: string): Promise<{
   while (Date.now() < deadline) {
     const got = await server.getTransaction(send.hash);
     if (got.status === "SUCCESS") {
-      return { status: "SUCCESS", txHash: send.hash };
+      return { status: "SUCCESS", txHash: send.hash, ledger: got.ledger };
     }
     if (got.status === "FAILED") {
       return {
         status: "FAILED",
         txHash: send.hash,
+        ledger: got.ledger,
         errorMessage: "Transaction failed on the network",
       };
     }
@@ -292,60 +345,38 @@ export async function readStreamerRetrieveAllowed(contractAddress: string): Prom
   return value;
 }
 
+/**
+ * Build and sign a no-argument `*_by_relayer` call on `channel`. The caller
+ * runs this and the matching submit inside one `withRelayerChannel()`.
+ */
+async function prepareByRelayer(
+  contractAddress: string,
+  functionName: string,
+  contractKey: "streamer" | "subscription" | "payroll",
+  channel: RelayerChannel,
+): Promise<{ xdr: string; txHash: string }> {
+  const scAddress = xdr.ScAddress.scAddressTypeContract(
+    decodeContractAddress(contractAddress) as unknown as xdr.Hash,
+  );
+  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({ contractAddress: scAddress, functionName, args: [] }),
+  );
+  const signed = await buildRelayerTx({
+    channel,
+    operation: Operation.invokeHostFunction({ func: hostFunction }),
+    onSimulationError: (message) =>
+      simulationFailure(`Soroban simulate failed for ${contractAddress}: ${message}`, {
+        contract: contractKey,
+      }),
+  });
+  return { xdr: signed.toXDR(), txHash: signed.hash().toString("hex") };
+}
+
 export async function prepareStreamerClaimByRelayerTx(
   contractAddress: string,
+  channel: RelayerChannel = relayerSourceChannel(),
 ): Promise<{ xdr: string; txHash: string }> {
-  const secret = stellarRelayerSecretKey();
-  if (!secret) {
-    throw new AppError("INTERNAL", "STELLAR_RELAYER_SECRET_KEY is not configured");
-  }
-
-  const server = sorobanRpc();
-  const relayerKeypair = Keypair.fromSecret(secret);
-  const relayerAddress = relayerKeypair.publicKey();
-
-  let sourceAcct;
-  try {
-    sourceAcct = await server.getAccount(relayerAddress);
-  } catch (err) {
-    throw new AppError(
-      "INSUFFICIENT_FUNDS",
-      `Relayer account ${relayerAddress} is not funded or does not exist`,
-    );
-  }
-
-  const contractIdBytes = decodeContractAddress(contractAddress);
-  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
-
-  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
-    new xdr.InvokeContractArgs({
-      contractAddress: scAddress,
-      functionName: "claim",
-      args: [],
-    }),
-  );
-
-  const op = Operation.invokeHostFunction({ func: hostFunction });
-
-  const tx = new TransactionBuilder(sourceAcct, {
-    fee: BASE_FEE,
-    networkPassphrase: stellarPassphrase(),
-  })
-    .addOperation(op)
-    .setTimeout(180)
-    .build();
-
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw simulationFailure(`Soroban simulate failed for ${contractAddress}: ${sim.error}`, {
-      contract: "streamer",
-    });
-  }
-
-  const assembled = rpc.assembleTransaction(tx, sim).build();
-  assembled.sign(relayerKeypair);
-
-  return { xdr: assembled.toXDR(), txHash: assembled.hash().toString("hex") };
+  return prepareByRelayer(contractAddress, "claim", "streamer", channel);
 }
 
 export async function submitStreamerClaimByRelayerTx(xdr: string): Promise<{
@@ -458,58 +489,9 @@ export async function readTokenAllowance(opts: {
 
 export async function prepareSubscriptionChargeByRelayerTx(
   contractAddress: string,
+  channel: RelayerChannel = relayerSourceChannel(),
 ): Promise<{ xdr: string; txHash: string }> {
-  const secret = stellarRelayerSecretKey();
-  if (!secret) {
-    throw new AppError("INTERNAL", "STELLAR_RELAYER_SECRET_KEY is not configured");
-  }
-
-  const server = sorobanRpc();
-  const relayerKeypair = Keypair.fromSecret(secret);
-  const relayerAddress = relayerKeypair.publicKey();
-
-  let sourceAcct;
-  try {
-    sourceAcct = await server.getAccount(relayerAddress);
-  } catch (err) {
-    throw new AppError(
-      "INSUFFICIENT_FUNDS",
-      `Relayer account ${relayerAddress} is not funded or does not exist`,
-    );
-  }
-
-  const contractIdBytes = decodeContractAddress(contractAddress);
-  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
-
-  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
-    new xdr.InvokeContractArgs({
-      contractAddress: scAddress,
-      functionName: "charge_by_relayer",
-      args: [],
-    }),
-  );
-
-  const op = Operation.invokeHostFunction({ func: hostFunction });
-
-  const tx = new TransactionBuilder(sourceAcct, {
-    fee: BASE_FEE,
-    networkPassphrase: stellarPassphrase(),
-  })
-    .addOperation(op)
-    .setTimeout(180)
-    .build();
-
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw simulationFailure(`Soroban simulate failed for ${contractAddress}: ${sim.error}`, {
-      contract: "subscription",
-    });
-  }
-
-  const assembled = rpc.assembleTransaction(tx, sim).build();
-  assembled.sign(relayerKeypair);
-
-  return { xdr: assembled.toXDR(), txHash: assembled.hash().toString("hex") };
+  return prepareByRelayer(contractAddress, "charge_by_relayer", "subscription", channel);
 }
 
 export async function submitSubscriptionChargeByRelayerTx(xdr: string): Promise<{
@@ -1208,58 +1190,9 @@ export async function readPayerRecipients(
 
 export async function preparePayrollChargeByRelayerTx(
   contractAddress: string,
+  channel: RelayerChannel = relayerSourceChannel(),
 ): Promise<{ xdr: string; txHash: string }> {
-  const secret = stellarRelayerSecretKey();
-  if (!secret) {
-    throw new AppError("INTERNAL", "STELLAR_RELAYER_SECRET_KEY is not configured");
-  }
-
-  const server = sorobanRpc();
-  const relayerKeypair = Keypair.fromSecret(secret);
-  const relayerAddress = relayerKeypair.publicKey();
-
-  let sourceAcct;
-  try {
-    sourceAcct = await server.getAccount(relayerAddress);
-  } catch (err) {
-    throw new AppError(
-      "INSUFFICIENT_FUNDS",
-      `Relayer account ${relayerAddress} is not funded or does not exist`,
-    );
-  }
-
-  const contractIdBytes = decodeContractAddress(contractAddress);
-  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
-
-  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
-    new xdr.InvokeContractArgs({
-      contractAddress: scAddress,
-      functionName: "charge_by_relayer",
-      args: [],
-    }),
-  );
-
-  const op = Operation.invokeHostFunction({ func: hostFunction });
-
-  const tx = new TransactionBuilder(sourceAcct, {
-    fee: BASE_FEE,
-    networkPassphrase: stellarPassphrase(),
-  })
-    .addOperation(op)
-    .setTimeout(180)
-    .build();
-
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw simulationFailure(`Soroban simulate failed for ${contractAddress}: ${sim.error}`, {
-      contract: "payroll",
-    });
-  }
-
-  const assembled = rpc.assembleTransaction(tx, sim).build();
-  assembled.sign(relayerKeypair);
-
-  return { xdr: assembled.toXDR(), txHash: assembled.hash().toString("hex") };
+  return prepareByRelayer(contractAddress, "charge_by_relayer", "payroll", channel);
 }
 
 export async function submitPayrollChargeByRelayerTx(xdr: string): Promise<{

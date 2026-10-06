@@ -1,8 +1,8 @@
 # Developer API
 
-Paiflow's `/api/v1` lets your backend run a deployed **swapper flow** and watch what it did on
+Paiflow's `/api/v1` lets your backend run a deployed **deposit-triggered flow** (Pay, Split, condition or swap) and watch what it did on
 chain, with no browser and no wallet integration on Paiflow's side. You send the deposit, the flow
-swaps it on a real DEX and pays the proceeds out, and you poll the events.
+runs (paying, splitting, routing or swapping on a real DEX) and you poll the events.
 
 | Artefact                  | Where                                                                                                                                                                                                                                                                                               |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -21,10 +21,16 @@ in this guide works against either host.
 
 ## How it works
 
-A swapper flow starts at its **deposit trigger**: a contract that receives `deposit(from, amount)`
-and passes the funds down the pipeline, where the swapper exchanges them and the payer forwards the
-proceeds. The swapper can't be called directly (it only accepts calls from the step before it), so
-"executing a swapper flow" means depositing into its trigger.
+A flow that starts at a **deposit trigger** can be executed: a contract that receives
+`deposit(from, amount)` and passes the funds down the pipeline (a payer forwards them, a splitter
+divides them, a condition routes them, a swapper exchanges them first). The steps after the trigger
+can't be called directly (they only accept calls from the step before them), so "executing a flow"
+means depositing into its trigger.
+
+Flows that start with anything else (a subscription, webhook, payroll, timelock or oracle trigger)
+run on their own schedule or callback, which a deposit can't start. Execute refuses them with a
+`422` naming the step the flow starts with. A Pay or Split step in a dev-mode flow that has no
+recipient yet also reverts, with a plain message: set the recipient first, then execute.
 
 The deposit has to be authorized by the account the funds come from. That's you, so executing a
 flow takes three steps:
@@ -35,7 +41,7 @@ flow takes three steps:
 3. **Submit.** `POST /api/v1/deployments/{id}/execute/submit` checks the envelope, sends it to the
    network, waits for the result and records it.
 
-Then `GET /api/v1/deployments/{id}/events` returns the deposit, swap and payout events.
+Then `GET /api/v1/deployments/{id}/events` returns the deposit and whatever the flow's later steps emit (payout, split, swap).
 
 {% hint style="info" %}
 **The API never signs.** Paiflow is non-custodial: your secret key never leaves your side and is
@@ -47,8 +53,8 @@ move funds on its own.
 
 ## Prerequisites
 
-- **A confirmed swapper deployment.** Build and deploy a flow such as `Receive XLM → Swap → Pay
-USDC` in the builder; its status must be `CONFIRMED`. Its id is in the deployment page URL
+- **A confirmed deployment whose flow starts with a deposit trigger.** Build and deploy a flow such
+  as `Receive XLM → Swap → Pay USDC` or `Receive USDC → Split` in the builder; its status must be `CONFIRMED`. Its id is in the deployment page URL
   (`/deployments/<id>`), where the **API access** panel also lives.
 - **A deployment API token**, minted by the deployment's owner (see below).
 - **A funded Stellar account** to deposit from. It pays the deposit and the transaction fee, and
@@ -235,7 +241,9 @@ curl -sS -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute/submit" \
 What to expect:
 
 - **It waits.** By default the call waits up to about 25 seconds for a final result. Add
-  `?wait=false` to get `PENDING` back as soon as the network accepts the transaction.
+  `?wait=false` to get `PENDING` back as soon as the network accepts the transaction. At most three
+  waiting calls per token are held open at once; a fourth still sends its transaction but returns
+  `PENDING` straight away, exactly as `?wait=false` would. Resubmit the same `signedXdr` to check it.
 - **A `502` here does not mean the transaction was not sent.** Each RPC call times out at ten
   seconds, so a stalled RPC during the wait ends the call with `502 UPSTREAM_RPC` even though the
   envelope was already broadcast. Treat it like `PENDING`: submit the same `signedXdr` again, or
@@ -322,9 +330,16 @@ contracts, as recorded in its own database. It is not a raw feed of the chain:
 
 - **No duplicates.** Each event appears exactly once, keyed by the network's `eventId`.
 - **Oldest first.** Events are ordered by `(ledger, eventId)`, and pagination only moves forward.
-- **Up to about a minute behind.** Events are collected by a poller that runs every minute. A
-  `SUCCESS` from `execute/submit` also records that transaction's events immediately, so
-  `?txHash=<txHash>` right after a submit usually already has them.
+- **About 10 to 20 seconds behind.** When the deployment's events were last collected from the
+  network more than 10 seconds ago, a call collects them first and waits up to 5 seconds for that,
+  so while you keep polling, an event usually shows within 10 to 20 seconds of its ledger closing,
+  however it was submitted: through `execute/submit`, by a wallet paying the contract directly, or
+  from a scanned QR. Collection is shared by everyone polling the deployment, runs one at a time,
+  and starts no sooner than 10 seconds after the last one ended, so polling faster than that does
+  not help. A call that lands while a collection is already running, or when the network is slow,
+  answers with what is recorded and the event shows on a later call; a background poller also
+  collects every minute. A `SUCCESS` from `execute/submit` records that transaction's events before
+  it returns, so `?txHash=<txHash>` right after a submit already has them.
 - **Swaps.** A swap has `kind: "PAYOUT"` and `topic: "swap"`. Its `data` is
   `{ assetIn, assetOut, amountIn, amountOut }`, with amounts in stroops as strings. `assetIn` and
   `assetOut` are the asset's **symbol** where the flow names one (`"XLM"`, `"USDC"`) and the raw
@@ -350,6 +365,30 @@ done
 Treat the cursor as opaque. An empty `cursor=` or a cursor that has been modified gets a `422`; it
 never silently starts again from the first event.
 
+### 5. Release a timelock branch early
+
+A flow with a **timelock branch** ("pay on delivery, refund the client after the deadline") pays
+its _after_ side by itself once the deadline passes. To pay the _before_ side when the work is
+delivered, call:
+
+```bash
+curl -sS -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/release-early" \
+  -H "Authorization: Bearer $PAIFLOW_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "nodeId": "timelock-branch-1" }'
+```
+
+Nothing is signed on your side: the token authorises the call and Paiflow's relayer sends the
+release. The response returns once the transaction is final:
+`{ "data": { "nodeId": "…", "txHash": "…", "ledger": 1842917 } }`.
+
+- `nodeId` names the branch. It is required when the deployment has more than one and may be
+  omitted (or the body left empty) when it has one.
+- **After the deadline** the contract refuses the before side and you get a `422 VALIDATION`
+  ("The deadline has passed; this condition now releases to its after side automatically"). A
+  condition that holds no funds is also a `422`.
+- The deployment's owner can do the same from the **Release now** button on the deployment page.
+
 ## Errors
 
 Successful responses are `{ "data": … }`. Errors use one shape on every route:
@@ -367,17 +406,17 @@ Successful responses are `{ "data": … }`. Errors use one shape on every route:
 `fields` appears on validation errors. `details`, when present, carries raw technical detail such
 as a Soroban simulation diagnostic.
 
-| `code`               | HTTP | When                                                                                                                              |
-| -------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `UNAUTHENTICATED`    | 401  | Token missing, unknown, revoked, expired, or for another deployment (token management: no signed-in session)                      |
-| `INSUFFICIENT_FUNDS` | 402  | The `from` account doesn't exist on this network (prepare)                                                                        |
-| `FORBIDDEN`          | 403  | Not allowed for this caller (sandbox), or the public demo is not enabled on this instance (demo token)                            |
-| `NOT_FOUND`          | 404  | A malformed deployment id, or (execute) a deployment that isn't confirmed                                                         |
-| `CONFLICT`           | 409  | Token management only: already 10 active tokens                                                                                   |
-| `VALIDATION`         | 422  | Bad body or query; a deposit the simulation rejects; a flow that isn't a swapper flow; an envelope that isn't this flow's deposit |
-| `RATE_LIMITED`       | 429  | Too many requests in the window (see below); on the demo token, also when the instance has no shared rate limiter                 |
-| `INTERNAL`           | 500  | Unexpected server error; on the demo token, also a deliberate refusal when the demo flow is misconfigured, with the reason logged |
-| `UPSTREAM_RPC`       | 502  | The Stellar RPC call failed, or the network was too busy to accept the transaction; retry, resubmitting the same envelope         |
+| `code`               | HTTP | When                                                                                                                                              |
+| -------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `UNAUTHENTICATED`    | 401  | Token missing, unknown, revoked, expired, or for another deployment (token management: no signed-in session)                                      |
+| `INSUFFICIENT_FUNDS` | 402  | The `from` account doesn't exist on this network (prepare)                                                                                        |
+| `FORBIDDEN`          | 403  | Not allowed for this caller (sandbox), or the public demo is not enabled on this instance (demo token)                                            |
+| `NOT_FOUND`          | 404  | A malformed deployment id, or (execute) a deployment that isn't confirmed                                                                         |
+| `CONFLICT`           | 409  | Already 10 active tokens, or a payout is preparing or can still execute                                                                           |
+| `VALIDATION`         | 422  | Bad body or query; a deposit the simulation rejects; a flow that doesn't start with a deposit trigger; an envelope that isn't this flow's deposit |
+| `RATE_LIMITED`       | 429  | Too many requests in the window (see below); on the demo token, also when the instance has no shared rate limiter                                 |
+| `INTERNAL`           | 500  | Unexpected server error; on the demo token, also a deliberate refusal when the demo flow is misconfigured, with the reason logged                 |
+| `UPSTREAM_RPC`       | 502  | The Stellar RPC call failed, or the network was too busy to accept the transaction; retry, resubmitting the same envelope                         |
 
 Every response carries an `x-request-id` header. Include it when you report a problem.
 
@@ -390,10 +429,24 @@ instance-wide cap fails closed: on an instance without a shared rate limiter it 
 request with `429`, because a per-process count cannot bound how many live credentials the route
 hands out across replicas.
 
+A token that was issued, or has worked, in the last 30 days is subject only to the per-token limits
+below, whatever else is happening on your network. Other tokens (guesses, typos, revoked ones) are
+limited per client address before they are looked up, so a room of teams sharing one network (a
+hackathon venue's Wi-Fi) does not pay for one broken script:
+
+- A token refused in the last minute is refused again with the same `401`, without a lookup.
+- **6,000 lookups per minute** of tokens not seen before, from one address.
+- **After 300 failed authentications in 10 minutes** from one address (a missing, malformed,
+  unknown, revoked or expired token, or one for another deployment), **60 lookups per minute** of
+  tokens not seen before, and `429` for the rest. If you see
+  `Too many failed authentication attempts from this address`, the token you are sending is the one
+  to check.
+
 | Endpoint                                      | Limit                                                     |
 | --------------------------------------------- | --------------------------------------------------------- |
 | `POST …/execute`                              | 30 per minute                                             |
 | `POST …/execute/submit`                       | 30 per minute                                             |
+| `POST …/release-early`                        | 10 per minute                                             |
 | `GET …/events`                                | 120 per minute                                            |
 | `GET /api/v1/openapi.json`                    | 60 per minute per client IP (no token)                    |
 | `POST /api/v1/demo-token`                     | 3 per hour per client IP, 60 per hour instance-wide       |
@@ -474,3 +527,52 @@ The OpenAPI document is a TypeScript object in `lib/api/v1/openapi.ts`. After ch
 `pnpm api:openapi` to regenerate `docs/api/openapi.json`. `tests/unit/api/v1/openapi.test.ts` fails
 if the committed copy falls behind, if a route under `app/api/v1` has no entry, if an example stops
 matching its Zod schema, or if the Postman collection misses a v1 request.
+
+## Per-payment payouts
+
+For a deposit-triggered dev flow, `POST /api/v1/deployments/:id/payouts` accepts
+`{ "from": "G…", "amount": "1000000000", "recipient": "G…", "nodeId": "pay" }`.
+`nodeId` is optional when there is only one deployed `PAYER_DEV`. Sign the returned `xdr` with
+`from` and the supplied network passphrase, then post `{ "signedXdr": "…" }` to
+`POST /api/v1/deployments/:id/payouts/submit` with the same deployment token. The response adds
+`nodeId` to execute's preparation fields. Payout deposits have a **60-second validity window**;
+`execute` keeps 180 seconds. Sign and submit before `expiresAt`. Submission keeps execute's bounded wait,
+`?wait=false`,
+and `SUCCESS | PENDING | FAILED` conventions.
+
+The selected Pay must receive this deposit through immediate amount conditions or fixed Split,
+with no delayed or unsupported steps. Eligibility uses the deployed graph and current on-chain
+configuration, resolving every address through `pipelineSnapshot`. A fixed Split is accepted only
+with zero token and accumulated balances, positive fixed crypto recipients, exactly one next
+step, and an incoming deposit greater than its fixed total. It pays its roster and immediately
+forwards the surplus to the next step, resetting its accumulator. Percentage Split consumes the
+deposit; shortfalls accumulate; neither reaches the selected Pay and both are refused.
+
+If Pay uses **Fill value via API**, payouts configures it to 100%. Otherwise its current value is
+preserved. Fixed Pay pays `min(incoming, configured cap)`, so incoming must be at most that cap;
+percentage Pay must consume all incoming funds. This refers to the amount that reaches Pay after
+upstream fixed payouts. Pay must have zero existing balance. Any account/trustline refusal or
+inconclusive check blocks recipient mutation, including missing accounts for native XLM. Matching
+recipient and payment configuration skip mutation.
+
+Functioning Redis is required. A unique holder protects each deployment while preparing,
+configuring and awaiting the exact prepared deposit. Configuration hashes are saved before
+submission. A timeout, network error or `PENDING` result retains protection: another request
+cannot change the recipient until the configuration/deposit is final or a closed ledger's time
+passes its transaction validity window. **Wall-clock Redis expiry is insufficient.** `CONFLICT`
+means an earlier payout may still execute. When a held transaction is known, the 409 includes
+`Retry-After`: seconds until its `maxTime`, rounded up with a minimum of 1. This is advisory;
+ledger time can lag, so retrying may still return 409. An abandoned deposit permits a new prepare
+only once ledger-time expiry is proved. For a submitted payout, retry its same signed envelope.
+Signature changes are allowed; transaction-body changes are refused. Confirmed
+retries remain available for seven days and cannot release a newer holder. A send refusal can
+return `FAILED` without releasing protection if finality is still uncertain.
+
+Coordination covers these payout endpoints only. **Direct deposits, `execute`, legacy dev mutation
+routes and owner-signed transactions bypass it** and must not run concurrently with payouts.
+Keep Redis coordination records durable; never flush or evict them while transactions can still
+land. This feature adds no coordination to those other surfaces.
+
+Maintainer staging check: run two successive payouts to different recipients and verify both
+recipient destinations and all pipeline balances. No staging transaction was performed by these
+tests.

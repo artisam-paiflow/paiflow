@@ -19,6 +19,8 @@ export const NODE_TYPE_LABELS: Record<FlowNode["type"], string> = {
   swap: "Swap",
   yield: "Yield",
   cash_out: "Cash Out",
+  hold: "Hold",
+  return_to_owner: "Return to owner",
   email_notify: "Email",
   condition: "Condition",
 };

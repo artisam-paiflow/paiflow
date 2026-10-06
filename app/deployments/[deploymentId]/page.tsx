@@ -172,6 +172,7 @@ export default async function DeploymentPage({
         </div>
 
         <DeploymentView
+          canEditDevValues={user.role !== Role.SANDBOX}
           deploymentId={d.id}
           contractAddress={d.contractAddress}
           network={network}

@@ -1,7 +1,7 @@
+import { Role } from "@prisma/client";
 import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
-import { Role } from "@prisma/client";
 import AdminUserList from "@/components/admin/user-list";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +13,7 @@ export default async function AdminUsers() {
       id: true,
       username: true,
       role: true,
+      analyticsAudience: true,
       isActive: true,
       createdAt: true,
       lastLoginAt: true,

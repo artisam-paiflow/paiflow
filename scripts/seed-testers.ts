@@ -7,7 +7,8 @@
  *
  * stdout is the SQL (hashes only — safe to paste anywhere). stderr is the one-time credential
  * list: username, generated password, and md5 of the stored hash to compare with the `hash_md5`
- * column the statement returns. Nothing is written to disk; save the passwords yourself.
+ * column the statement returns. With --credentials-dir, passwords go only to private handouts;
+ * the username/hash_md5 verification list still prints to stderr.
  *
  * A password printed here is only a candidate until the statement returns that username with a
  * matching `hash_md5`. A username that already existed is skipped by `on conflict do nothing`,
@@ -18,6 +19,8 @@
  *   pnpm testers:seed-sql --from 6 --to 10 > seed.sql # SQL to a file, credentials to the terminal
  */
 import { createHash, randomBytes } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import argon2 from "argon2";
 import { buildTesterSeedSql, testerUsernames } from "@/lib/auth/tester-seed-sql";
 
@@ -55,12 +58,14 @@ function generatePassword(username: string): string {
   const to = Number(arg("to"));
   const prefix = arg("prefix") ?? "tester";
   if (!arg("from") || !arg("to")) {
-    console.error("Usage: pnpm testers:seed-sql --from <n> --to <n> [--prefix tester]");
+    console.error(
+      "Usage: pnpm testers:seed-sql --from <n> --to <n> [--prefix tester] [--pad <n>] [--credentials-dir <dir>]",
+    );
     process.exit(1);
   }
 
   const accounts = [];
-  for (const username of testerUsernames(from, to, prefix)) {
+  for (const username of testerUsernames(from, to, prefix, Number(arg("pad") ?? "0"))) {
     const password = generatePassword(username);
     const passwordHash = await argon2.hash(password, ARGON_OPTS);
     if (!(await argon2.verify(passwordHash, password))) {
@@ -69,15 +74,31 @@ function generatePassword(username: string): string {
     accounts.push({ username, password, passwordHash });
   }
 
-  process.stdout.write(buildTesterSeedSql(accounts));
+  const sql = buildTesterSeedSql(accounts);
+  const credentialsDir = arg("credentials-dir");
+  if (credentialsDir) {
+    await mkdir(credentialsDir, { recursive: true, mode: 0o700 });
+    for (const a of accounts) {
+      await writeFile(
+        join(credentialsDir, `${a.username}.md`),
+        `# ${a.username}\n\nUsername: ${a.username}\nPassword: ${a.password}\n\nLog in at https://beta.app.paiflow.xyz\n`,
+        { mode: 0o600, flag: "wx" },
+      );
+    }
+  }
+  process.stdout.write(sql);
 
-  console.error("\nusername    password                    hash_md5");
+  console.error(
+    credentialsDir
+      ? "\nusername    hash_md5"
+      : "\nusername    password                    hash_md5",
+  );
   for (const a of accounts) {
     const md5 = createHash("md5").update(a.passwordHash).digest("hex");
-    console.error(`${a.username.padEnd(12)}${a.password.padEnd(28)}${md5}`);
+    console.error(`${a.username.padEnd(12)}${credentialsDir ? "" : a.password.padEnd(28)}${md5}`);
   }
   console.error(
-    "\nShown once. Hand out a password only for a username the SQL returns with this hash_md5:\n" +
+    "\nHand out a password only for a username the SQL returns with this hash_md5:\n" +
       "a username missing from the result already existed, was skipped, and keeps its old password.",
   );
 })().catch((err) => {

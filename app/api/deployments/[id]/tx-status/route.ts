@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { audit, wasTxSubmittedFor } from "@/lib/audit";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { db } from "@/lib/db";
@@ -31,8 +33,7 @@ const EVENT_INGEST_DEADLINE_MS = 5_000;
 // The status route is public, so the caller has no session to attribute a
 // trigger to. The `SignedTransaction` row written at submit says who signed:
 // its user when the signer was signed in, else the wallet itself with no
-// person profile. Only a transaction from before signers were recorded falls
-// back to the deployment's owner, who is not necessarily the signer.
+// person profile. Unknown historical signers remain unattributed.
 // Best-effort like the rest of the bookkeeping here: it never affects the
 // status answer.
 //
@@ -132,7 +133,8 @@ async function captureTriggerOutcome(
       }),
     ]);
     if (!d) return;
-    const distinctId = signed?.userId ?? (signed ? `wallet:${signed.signerAddress}` : d.ownerId);
+    if (!signed) return;
+    const distinctId = signed.userId ?? `wallet:${signed.signerAddress}`;
     const opts = signed && !signed.userId ? ({ personProfile: false } as const) : undefined;
     const signerAddress = signed?.signerAddress ?? null;
     if (outcome === "failed") {
@@ -190,6 +192,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const got = await server.getTransaction(txHash);
 
     if (got.status === "SUCCESS") {
+      await recordTransactionOutcome(txHash, "CONFIRMED", {
+        ledger: got.ledger,
+        deploymentId: id,
+        executionOnly: true,
+      });
       // The status answer above is public chain data — the caller already holds
       // the hash and could ask the Soroban RPC directly — so it is not gated.
       // What has to be bound to this deployment is the bookkeeping below, above
@@ -233,6 +240,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       );
 
       if (submittedHere) {
+        invalidateDashboardBalances(id, txHash);
         await audit({
           action: "DEPLOY_TRIGGER_CONFIRMED",
           ip,
@@ -264,7 +272,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         ]);
         clearTimeout(deadline);
 
-        const envelopeXdr = (got as any).envelopeXdr as string | undefined;
+        const envelopeXdr =
+          typeof got.envelopeXdr === "string" ? got.envelopeXdr : got.envelopeXdr?.toXDR("base64");
         if (envelopeXdr) {
           try {
             // The graph only supplies the asset's symbol, and the claim above
@@ -295,6 +304,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     }
 
     if (got.status === "FAILED") {
+      await recordTransactionOutcome(txHash, "FAILED", {
+        ledger: got.ledger,
+        failureCode: "ONCHAIN_FAILED",
+        deploymentId: id,
+        executionOnly: true,
+      });
       // Unlike the SUCCESS branch this reads nothing that a stranger's hash
       // could pollute, but only a hash we submitted says something about Paiflow.
       const claim = await claimOutcome(id, txHash, "failed");

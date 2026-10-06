@@ -78,6 +78,7 @@ export default function NewFlowButton({
     <>
       <button
         type="button"
+        data-analytics-control="new-flow"
         aria-label={ariaLabel}
         className={className}
         onClick={() => setOpen(true)}
@@ -144,6 +145,7 @@ export default function NewFlowButton({
               </button>
               <button
                 type="button"
+                data-analytics-control="create-flow"
                 onClick={() => void create()}
                 disabled={busy || !name.trim()}
                 className="bg-primary text-label-md text-on-primary inline-flex items-center gap-2 rounded-lg px-4 py-2 font-mono font-bold transition-all hover:-translate-y-px active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"

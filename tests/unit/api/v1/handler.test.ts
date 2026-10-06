@@ -6,7 +6,11 @@ const { mockRequireDeploymentToken } = vi.hoisted(() => ({
   mockRequireDeploymentToken: vi.fn(),
 }));
 
-vi.mock("@/lib/api/v1/auth", () => ({ requireDeploymentToken: mockRequireDeploymentToken }));
+vi.mock("@/lib/api/v1/auth", () => ({
+  requireDeploymentToken: mockRequireDeploymentToken,
+  // `pfk_x` is not a well-formed token; the pre-auth guards are covered in pre-auth.test.ts.
+  bearerDeploymentToken: () => null,
+}));
 // No Redis: enforceRateLimit runs on its real in-memory bucket.
 vi.mock("@/lib/redis", () => ({ redis: () => null }));
 

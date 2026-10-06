@@ -21,8 +21,9 @@ import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
 import { cn } from "@/lib/utils";
-import type { FlowGraph, FlowNode, SenderKyc } from "@/lib/flows/schema";
-import { isPendingAddress } from "@/lib/flows/schema";
+import type { EdgeBranch, FlowEdge, FlowGraph, FlowNode, SenderKyc } from "@/lib/flows/schema";
+import { EdgeBranchSchema, isPendingAddress } from "@/lib/flows/schema";
+import { BRANCH_LABEL, edgeBranch, isBranchingCondition } from "@/lib/flows/branches";
 import { flowToEnglish } from "@/lib/flows/english";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { validateFlow, flowHasFiatPayout } from "@/lib/flows/validate";
@@ -30,6 +31,9 @@ import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import { TriggerNode, ActionNode, LogicNode } from "@/components/nodes";
 import AnimatedStraightEdge from "@/components/nodes/animated-edge";
+import { NotificationSettingsDialog } from "./notification-settings";
+import { sendWithRateLimitRetry } from "./autosave-retry.utils";
+import { createSaveCoordinator, type SaveOutcome } from "./save-outcome.utils";
 import CanvasConfigPanel from "./canvas-config-panel";
 import Palette from "./palette";
 import DeployButton from "./deploy-button";
@@ -44,6 +48,7 @@ import { track } from "@/lib/analytics/client";
 import { IN_SCOPE_NODE_TYPES } from "@/lib/analytics/events";
 import { useValidationTracking } from "@/lib/analytics/validation-tracking";
 import { NARROW_VIEWPORT_QUERY, useMediaQuery } from "@/lib/hooks/use-media-query";
+import type { FeatureFlags } from "@/lib/feature-flags";
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -71,6 +76,8 @@ function hasFiatPayoutConfig(node: FlowNode | undefined): boolean {
 const MINIMAP_NODE_LABELS = NODE_TYPE_LABELS;
 
 type BuilderProps = {
+  sandbox?: boolean;
+  accountEmail?: string | null;
   flowId: string;
   initialName: string;
   initialGraph: FlowGraph;
@@ -78,9 +85,16 @@ type BuilderProps = {
   network: StellarNetwork;
   /** The Soroswap router this environment resolves to, shown read-only on the swap panel. */
   routerContractId?: string;
+  /**
+   * Surface switches read from the server's env at request time (#722), so a
+   * restart flips them. Hides the palette entry, panel control and assistant,
+   * and makes the in-builder validation match the server's refusal.
+   */
+  features: FeatureFlags;
 };
 
 function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["positions"]): Node {
+  if (n.type === "email_notify") throw new Error("Legacy graph must be migrated before rendering");
   let type: "trigger" | "action" | "logic";
   switch (n.type) {
     case "on_receive":
@@ -96,7 +110,8 @@ function nodeToReactFlow(n: FlowNode, index: number, positions?: FlowGraph["posi
     case "split":
     case "swap":
     case "yield":
-    case "email_notify":
+    case "hold":
+    case "return_to_owner":
     case "cash_out":
       type = "action";
       break;
@@ -149,7 +164,8 @@ function nodeBorderColor(n: FlowNode | undefined): string {
     case "split":
     case "swap":
     case "yield":
-    case "email_notify":
+    case "hold":
+    case "return_to_owner":
       return "#ffb1c4";
     case "condition":
       return "#ffba20";
@@ -158,21 +174,49 @@ function nodeBorderColor(n: FlowNode | undefined): string {
   }
 }
 
-function edgeWithColors(
-  e: { id: string; source: string; target: string },
-  nodes: FlowNode[],
-): Edge {
+/**
+ * An edge out of a condition always carries its branch as the React Flow
+ * `sourceHandle`, including a legacy handle-less one, which `edgeBranch` reads
+ * as "true". Naming the handle keeps the edge on the True output rather than
+ * whichever handle React Flow finds first, and the next autosave writes the
+ * branch down explicitly.
+ */
+function edgeWithColors(e: FlowEdge, nodes: FlowNode[]): Edge {
   const src = nodes.find((n) => n.id === e.source);
   const tgt = nodes.find((n) => n.id === e.target);
+  const branch = edgeBranch(e, src);
   return {
     id: e.id,
     source: e.source,
     target: e.target,
+    ...(branch ? { sourceHandle: branch } : {}),
     type: "straight",
+    ariaLabel: branchLabelFor(src, branch)
+      ? `${branchLabelFor(src, branch)} branch from Condition to ${tgt ? NODE_TYPE_LABELS[tgt.type] : "step"}`
+      : undefined,
     data: {
       sourceColor: nodeBorderColor(src),
       targetColor: nodeBorderColor(tgt),
+      branch: branchLabelFor(src, branch),
     },
+  };
+}
+
+/** The chip drawn on an edge: only on a condition that has two outputs. */
+function branchLabelFor(src: FlowNode | undefined, branch: EdgeBranch | null): string | undefined {
+  if (!branch) return undefined;
+  if (!isBranchingCondition(src) && branch === "true") return undefined;
+  return BRANCH_LABEL[branch];
+}
+
+/** The persisted edge for a canvas edge: only a valid branch handle is kept. */
+function toFlowEdge(e: Edge): FlowEdge {
+  const branch = EdgeBranchSchema.safeParse(e.sourceHandle);
+  return {
+    id: e.id,
+    source: e.source,
+    target: e.target,
+    ...(branch.success ? { sourceHandle: branch.data } : {}),
   };
 }
 
@@ -184,7 +228,16 @@ export default function BuilderClient(props: BuilderProps) {
   );
 }
 
-function Builder({ flowId, initialName, initialGraph, network, routerContractId }: BuilderProps) {
+function Builder({
+  sandbox = false,
+  accountEmail,
+  flowId,
+  initialName,
+  initialGraph,
+  network,
+  routerContractId,
+  features,
+}: BuilderProps) {
   const [name, setName] = useState(initialName);
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>(initialGraph.nodes);
   const [rfNodes, setRfNodes] = useState<Node[]>(
@@ -207,6 +260,11 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
   const [addressBook, setAddressBook] = useState<AddressEntry[]>([]);
   const [addressBookLoading, setAddressBookLoading] = useState(false);
   const [addressBookError, setAddressBookError] = useState<string | null>(null);
+  const [notify, setNotify] = useState<NonNullable<FlowGraph["notify"]>>({
+    mode: initialGraph.notify?.mode ?? "off",
+    sendTo: initialGraph.notify?.sendTo ?? accountEmail ?? "",
+  });
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [devMode, setDevMode] = useState<boolean>(initialGraph.devMode ?? false);
   const [senderKyc, setSenderKyc] = useState<SenderKyc | undefined>(initialGraph.senderKyc);
   const [kycDialogOpen, setKycDialogOpen] = useState(false);
@@ -267,14 +325,15 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
   const graph: FlowGraph = useMemo(
     () => ({
       nodes: flowNodes,
-      edges: rfEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+      edges: rfEdges.map(toFlowEdge),
       devMode,
+      notify: sandbox ? { mode: "off", sendTo: "" } : notify,
       senderKyc,
       // Persist canvas positions with the flow (autosave is debounced, so a
       // drag saves once it settles rather than on every frame).
       positions: Object.fromEntries(rfNodes.map((n) => [n.id, n.position])),
     }),
-    [flowNodes, rfEdges, devMode, senderKyc, rfNodes],
+    [flowNodes, rfEdges, devMode, notify, sandbox, senderKyc, rfNodes],
   );
 
   // Snapshot of the live canvas positions — used as a fallback when a
@@ -286,9 +345,17 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
 
   // Same predicate as the validation rule: the sender KYC toolbar button only
   // appears when the flow off-ramps to fiat somewhere.
-  const hasFiatPayout = useMemo(() => flowHasFiatPayout(graph), [graph]);
+  // With the off-ramp switched off there is no KYC to collect: a fiat step is
+  // refused on its node instead.
+  const hasFiatPayout = useMemo(
+    () => features.offramp && flowHasFiatPayout(graph),
+    [graph, features.offramp],
+  );
 
-  const validation = useMemo(() => validateFlow(graph), [graph]);
+  const validation = useMemo(
+    () => validateFlow(graph, { features, ignoreOwnerEmail: true }),
+    [graph, features],
+  );
 
   const english = useMemo(() => {
     const v = FlowGraphSchema.safeParse(graph);
@@ -355,47 +422,66 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
   );
 
   // Autosave with 800ms debounce (from develop)
-  const saveTimer = useRef<NodeJS.Timeout | null>(null);
-  const pendingSave = useRef<Promise<void> | null>(null);
+  const [saves] = useState(createSaveCoordinator);
+  const [deployPending, setDeployPending] = useState(false);
+  const deployPendingRef = useRef(false);
+  // What the next attempt sends: a retry after a 429 must carry the newest graph, not the one that
+  // was current when the first attempt went out.
+  const latestSave = useRef<{ graph: FlowGraph; name: string }>({ graph, name });
+  // Bumped by every save scheduled; a save still waiting out a 429 yields to a newer one.
+  const saveSeq = useRef(0);
+  const unmounted = useRef(false);
+  useEffect(() => {
+    unmounted.current = false;
+    return () => {
+      unmounted.current = true;
+      saves.cancel();
+    };
+  }, [saves]);
   function saveGraph(
     currentGraph: FlowGraph,
     currentName: string,
     immediate = false,
-  ): Promise<void> {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
+  ): Promise<SaveOutcome> {
+    latestSave.current = { graph: currentGraph, name: currentName };
+    const seq = ++saveSeq.current;
 
-    const doSave = async () => {
-      let res: Response;
+    const doSave = async (): Promise<SaveOutcome> => {
+      if (unmounted.current) return { ok: false };
+      let res: Response | null;
       try {
-        res = await fetch(`/api/flows/${flowId}`, {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ name: currentName, graph: currentGraph }),
-        });
+        res = await sendWithRateLimitRetry(
+          () =>
+            fetch(`/api/flows/${flowId}`, {
+              method: "PATCH",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                name: latestSave.current.name,
+                graph: latestSave.current.graph,
+              }),
+            }),
+          {
+            superseded: () => saveSeq.current !== seq || unmounted.current,
+            // The deploy click waits on this save, so it gets one retry, not the full budget.
+            maxRetries: immediate ? 1 : undefined,
+          },
+        );
       } catch (err) {
         track("flow_autosave_failed", { status: null });
-        toastError(err, "Save failed");
-        return;
+        if (!unmounted.current) toastError(err, "Save failed");
+        return { ok: false };
       }
+      // Navigation follows the newer save through the coordinator.
+      if (res === null) return { ok: false };
       if (!res.ok) {
         track("flow_autosave_failed", { status: res.status });
         const body = await res.json().catch(() => ({}));
-        toastError(body, `Save failed (${res.status})`);
+        if (!unmounted.current) toastError(body, `Save failed (${res.status})`);
       }
+      return { ok: res.ok && !unmounted.current };
     };
 
-    if (immediate) {
-      pendingSave.current = doSave();
-      return pendingSave.current;
-    }
-
-    pendingSave.current = new Promise((resolve) => {
-      saveTimer.current = setTimeout(async () => {
-        await doSave();
-        resolve();
-      }, 800);
-    });
-    return pendingSave.current;
+    return saves.schedule(doSave, immediate ? 0 : 800);
   }
 
   useEffect(() => {
@@ -489,19 +575,19 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
         from_type: src?.type ?? "unknown",
         to_type: tgt?.type ?? "unknown",
       });
-      setRfEdges((eds) =>
-        addEdge(
-          {
-            ...c,
-            type: "straight",
-            data: {
-              sourceColor: nodeBorderColor(src),
-              targetColor: nodeBorderColor(tgt),
-            },
-          },
-          eds,
-        ),
+      // The handle the user dragged from is the branch; edgeWithColors derives
+      // the colours, the chip and the accessible name from it.
+      const branch = EdgeBranchSchema.safeParse(c.sourceHandle);
+      const drawn = edgeWithColors(
+        {
+          id: `xy-edge__${c.source}${c.sourceHandle ?? ""}-${c.target}${c.targetHandle ?? ""}`,
+          source: c.source,
+          target: c.target,
+          ...(branch.success ? { sourceHandle: branch.data } : {}),
+        },
+        flowNodes,
       );
+      setRfEdges((eds) => addEdge(drawn, eds));
     },
     [flowNodes],
   );
@@ -512,11 +598,13 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
       eds.map((e) => {
         const src = flowNodes.find((n) => n.id === e.source);
         const tgt = flowNodes.find((n) => n.id === e.target);
+        const branch = edgeBranch(toFlowEdge(e), src);
         return {
           ...e,
           data: {
             sourceColor: nodeBorderColor(src),
             targetColor: nodeBorderColor(tgt),
+            branch: branchLabelFor(src, branch),
           },
         };
       }),
@@ -624,6 +712,7 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
       if (applied && patchedGraph) {
         // Use server-normalized graph directly (Issue #6 fix)
         setFlowNodes(patchedGraph.nodes);
+        if (patchedGraph.notify) setNotify(patchedGraph.notify);
         setRfNodes(
           patchedGraph.nodes.map((n, i) =>
             nodeToReactFlow(n, i, patchedGraph.positions ?? currentPositions()),
@@ -759,6 +848,7 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
           pipeline={pipeline}
           collapsed={sidebarCollapsed}
           devMode={devMode}
+          features={features}
           onToggleCollapse={() => {
             setSidebarCollapsed((v) => {
               const next = !v;
@@ -775,12 +865,21 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
             <DeployButton
               flowId={flowId}
               disabled={!isValid}
+              pending={deployPending}
               errorCount={errors.length}
               onClick={async (e) => {
                 e.preventDefault();
-                if (!isValid) return;
-                await saveGraph(graph, name, true);
-                window.location.href = `/flows/${flowId}/deploy`;
+                if (!isValid || deployPendingRef.current) return;
+                deployPendingRef.current = true;
+                setDeployPending(true);
+                try {
+                  await saves.navigateAfterSave(saveGraph(graph, name, true), () => {
+                    if (!unmounted.current) window.location.href = `/flows/${flowId}/deploy`;
+                  });
+                } finally {
+                  deployPendingRef.current = false;
+                  if (!unmounted.current) setDeployPending(false);
+                }
               }}
             />
             <input
@@ -790,6 +889,20 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
               className="text-headline-sm max-md:text-body-lg text-on-surface max-w-[40ch] min-w-[12ch] flex-1 border-0 bg-transparent px-0 py-1 font-semibold tracking-[-0.01em] outline-none focus:outline-none max-md:min-w-0"
               style={{ fieldSizing: "content" } as React.CSSProperties}
             />
+            {!sandbox && (
+              <button
+                id="notification-settings-button"
+                type="button"
+                aria-expanded={notificationsOpen}
+                aria-label="Email notifications"
+                className="input min-h-11 min-w-11"
+                onClick={() => setNotificationsOpen((v) => !v)}
+              >
+                <span aria-hidden="true" className="material-symbols-outlined">
+                  mail
+                </span>
+              </button>
+            )}
             <button
               type="button"
               role="switch"
@@ -818,6 +931,16 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
             </button>
           </div>
 
+          {!sandbox && notificationsOpen && (
+            <NotificationSettingsDialog
+              value={notify}
+              onChange={setNotify}
+              onClose={() => {
+                setNotificationsOpen(false);
+                document.getElementById("notification-settings-button")?.focus();
+              }}
+            />
+          )}
           {/* Row 2: English Preview */}
           <EnglishPreview
             english={english}
@@ -896,6 +1019,8 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
                   errors={errors}
                   network={network}
                   routerContractId={routerContractId}
+                  features={features}
+                  sandbox={sandbox}
                   onChange={updateNode}
                   onDelete={deleteNode}
                   addressBook={addressBook}
@@ -913,27 +1038,29 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
         </div>
       </div>
 
-      {/* Railway-style slide-in chat panel */}
-      <RaftLog
-        messages={messages}
-        onSend={sendChat}
-        loading={chatLoading}
-        pendingAddresses={pendingAddresses}
-        onResolveAddress={handleResolveAddress}
-        onSkipAddresses={handleSkipAddresses}
-        collapsed={chatCollapsed}
-        // Below md the docked sheet sits over the tab's corner; hiding it keeps
-        // it out of the tab order instead of focusable but unseen.
-        hideTab={narrow && !!selectedId && !!selectedNode}
-        onToggleCollapse={() => {
-          // Opening the chat below md dismisses the docked panel (see selectNode).
-          if (chatCollapsed && narrow) setSelectedId(null);
-          setChatCollapsed((v) => !v);
-        }}
-      />
+      {/* Railway-style slide-in chat panel; absent when the assistant is off (#722). */}
+      {features.aiAssistant && (
+        <RaftLog
+          messages={messages}
+          onSend={sendChat}
+          loading={chatLoading}
+          pendingAddresses={pendingAddresses}
+          onResolveAddress={handleResolveAddress}
+          onSkipAddresses={handleSkipAddresses}
+          collapsed={chatCollapsed}
+          // Below md the docked sheet sits over the tab's corner; hiding it keeps
+          // it out of the tab order instead of focusable but unseen.
+          hideTab={narrow && !!selectedId && !!selectedNode}
+          onToggleCollapse={() => {
+            // Opening the chat below md dismisses the docked panel (see selectNode).
+            if (chatCollapsed && narrow) setSelectedId(null);
+            setChatCollapsed((v) => !v);
+          }}
+        />
+      )}
 
       {/* Sender KYC dialog — design-time capture of the PDAX sender profile */}
-      {kycDialogOpen && (
+      {kycDialogOpen && features.offramp && (
         <SenderKycDialog
           initial={senderKyc}
           onSave={(kyc) => {
@@ -1002,7 +1129,7 @@ function Builder({ flowId, initialName, initialGraph, network, routerContractId 
 }
 
 function nodeLabel(n: FlowNode | undefined): string {
-  if (!n) return "?";
+  if (!n || n.type === "email_notify") return "?";
   switch (n.type) {
     case "on_receive":
       return `On Receive (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
@@ -1018,6 +1145,10 @@ function nodeLabel(n: FlowNode | undefined): string {
       return `Payroll (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
     case "oracle":
       return `Oracle (${n.config.asset.kind === "known" ? n.config.asset.symbol : n.config.asset.kind})`;
+    case "hold":
+      return "Hold";
+    case "return_to_owner":
+      return "Return to owner";
     case "pay":
       return `Pay`;
     case "split":
@@ -1026,8 +1157,6 @@ function nodeLabel(n: FlowNode | undefined): string {
       return `Swap`;
     case "yield":
       return `Yield`;
-    case "email_notify":
-      return `Email (${n.config.recipients.length})`;
     case "cash_out":
       return `Cash Out${n.config.bankCode ? ` (${n.config.bankCode})` : ""}`;
     case "condition":

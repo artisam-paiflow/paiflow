@@ -1,11 +1,12 @@
+import { DEPLOYING_WALLET, resolveOwnerReturns, terminalOutcomeIssues } from "./terminal-outcomes";
 import { TemplateKind } from "@prisma/client";
 import { StrKey } from "@stellar/stellar-sdk";
-import type { ZodIssue } from "zod";
 import {
   FlowGraphSchema,
   type FlowGraph,
   type FlowNode,
   type Asset,
+  type EdgeBranch,
   isAction,
   isContractAction,
   isLogic,
@@ -17,12 +18,31 @@ import {
   subscriptionAmountPerPeriodStroops,
   assetLabel,
 } from "./schema";
+import type { FeatureFlags } from "@/lib/feature-flags";
 import { isCatalogueAsset } from "./asset-catalogue";
+import { hiddenSurfaceIssues } from "./feature-gates";
 import type { ValidationIssue } from "./issue";
 import { checkHardLimits } from "./limits";
+import { paymentAmountIssues, scheduledPaymentIssues } from "./payment-bounds";
 import { swapConfigIssues, type SwapNode } from "./swap-rules";
+import { addressIssues, isAcceptedFlowAddress } from "./address-rules";
+import { SECRET_SEED_MESSAGE } from "./secret-seed";
 import { inFlowOrder } from "./graph";
-import { flowToPipeline, absorbedActionIds, type PipelineNode } from "./to-params";
+import { implementationIssues } from "./implementation";
+import { flowToPipeline, type PipelineNode } from "./to-params";
+import {
+  BRANCH_LABEL,
+  branchAmountText,
+  branchTimeText,
+  branchingNoun,
+  conditionBranchTargets,
+  isAmountCondition,
+  isBranchingCondition,
+  isTimeCondition,
+  routerPathBranch,
+  timelockSideBranch,
+  type BranchingNoun as BranchNoun,
+} from "./branches";
 
 export type { ValidationIssue };
 
@@ -63,6 +83,10 @@ const FRIENDLY = {
     const names = recipients.map((r) => r.label?.trim() || r.address);
     return `Each fixed-amount recipient needs a positive amount: ${names.join(", ")}.`;
   },
+  SHARE_REQUIRED: (recipients: { label?: string; address: string }[]) => {
+    const names = recipients.map((r) => r.label?.trim() || r.address);
+    return `Each recipient in a percentage split needs a share greater than 0%: ${names.join(", ")}. Enter a share, or remove the recipient.`;
+  },
   TOTAL_FIXED_AMOUNT_REQUIRED: "Add at least one positive fixed amount to the split.",
   AMOUNT_PER_INTERVAL_REQUIRED:
     "A scheduled split needs an amount per interval — the total released each interval, divided among the recipients by their shares. Set it on the split step, or switch the recipients to fixed amounts (each then receives their amount every interval).",
@@ -74,6 +98,24 @@ const FRIENDLY = {
     `The ${label} step wouldn't reach the chain, so this flow would deploy as something you didn't draw. Rebuilding the steps in the order the money moves usually fixes it. If it doesn't, this trigger or condition can't carry that step and it has to go.`,
   YIELD_PARENT: (label: string) =>
     `A Yield step can only come straight after a Webhook, HTTP Webhook, or Oracle trigger for now, not after ${label}. Move it, or use a Pay or Split step here.`,
+  ROUTER_EMPTY_PATH: (amounts: string, branch: EdgeBranch) =>
+    `A payment of ${amounts} ${branch === "true" ? "meets" : "doesn't meet"} this amount condition, but nothing is connected to the condition's ${BRANCH_LABEL[branch]} output, so the money would be stuck in the contract with no way to get it back. Connect a step to the ${BRANCH_LABEL[branch]} output, or remove the condition.`,
+  TIMELOCK_EMPTY_SIDE: (when: string, branch: EdgeBranch) =>
+    `If the funds are released ${when}, this time condition would send them down its ${BRANCH_LABEL[branch]} output, but nothing is connected there, so the money would be stuck in the contract with no way to get it back. Connect a step to the ${BRANCH_LABEL[branch]} output, or remove the condition.`,
+  BRANCH_FALSE_ON_SINGLE_OUTPUT:
+    "Only amount and time conditions have a False output, and a step is still connected to this condition's. Remove that connection, or switch the condition back to an amount or time condition.",
+  BRANCH_ON_NON_CONDITION: (label: string) =>
+    `A connection out of ${label} is marked as a True or False branch, but only a condition has branches. Remove the connection and draw it again.`,
+  BRANCH_FAN_OUT: (branch: EdgeBranch, count: number, noun: BranchNoun) =>
+    `The ${BRANCH_LABEL[branch]} output of this ${noun} condition connects to ${count} steps. The condition sends the whole payment to every step on a side, so each side can lead to one step only. Keep one, and put a Split there to pay several recipients.`,
+  BRANCH_EMAIL: (noun: BranchNoun) =>
+    `An email notification can't hang off ${noun === "amount" ? "an amount" : "a time"} condition: the condition reports every payment, whichever side it takes, so the email couldn't say which side ran. Attach the email to the step on that side instead.`,
+  BRANCH_TRIGGER: (label: string, noun: BranchNoun) =>
+    `${noun === "amount" ? "An amount" : "A time"} condition can't follow ${label} yet: a scheduled payment has no ${noun} condition contract, so the condition would be skipped and every payment would go out. Remove the condition, or use a Receive trigger.`,
+  BRANCH_TARGET: (noun: BranchNoun) =>
+    `${noun === "amount" ? "An amount" : "A time"} condition's output can't lead straight into another condition. Connect each output to a Pay or Split step.`,
+  BRANCH_MERGE: (label: string, noun: BranchNoun) =>
+    `${label} is reached from both sides of ${noun === "amount" ? "an amount" : "a time"} condition through different steps. A step only accepts money from the one step before it, so one of the two sides would always fail. Give each side its own step.`,
   YIELD_TERMINAL:
     "A Yield step is the end of the line for now — nothing can come after it except an email notification. Remove the connections coming out of it.",
 } as const;
@@ -261,59 +303,6 @@ export function computeAssetFlow(graph: FlowGraph): Map<string, Asset | null> {
 const GENERIC_SCHEMA_MESSAGE =
   "The flow structure is invalid. Check your node types and configuration.";
 
-// Show the offending value so the user can spot the typo, capped just past a
-// full Stellar address (56 chars) so a pasted blob can't flood the error panel.
-function showValue(v: string): string {
-  return v.length > 60 ? `${v.slice(0, 57)}...` : v;
-}
-
-// Turn a schema (Zod) issue into a message that names the offending field and
-// value. The graph failed to parse, so raw values are read defensively from
-// the migrated (unvalidated) graph rather than the typed one.
-function friendlySchemaIssue(issue: ZodIssue, migrated: unknown): string {
-  const p = issue.path;
-  const nodes = (migrated as { nodes?: unknown[] } | null | undefined)?.nodes;
-  const nodeIdx = p[0] === "nodes" && typeof p[1] === "number" ? p[1] : -1;
-  const node =
-    nodeIdx >= 0
-      ? (nodes?.[nodeIdx] as { type?: string; config?: Record<string, unknown> } | undefined)
-      : undefined;
-
-  if (issue.message === "Invalid Stellar address" && node) {
-    // Split recipient: nodes.<i>.config.recipients.<j>.address
-    if (
-      node.type === "split" &&
-      p[2] === "config" &&
-      p[3] === "recipients" &&
-      typeof p[4] === "number"
-    ) {
-      const recipients = node.config?.recipients as
-        | { label?: string; address?: string }[]
-        | undefined;
-      const recipient = recipients?.[p[4]];
-      const label = recipient?.label?.trim();
-      const who = label ? `recipient "${label}"` : `recipient #${p[4] + 1}`;
-      const bad = typeof recipient?.address === "string" ? recipient.address : "";
-      return `Invalid Stellar address for ${who} in the split node${
-        bad ? `: "${showValue(bad)}"` : ""
-      }. Enter a valid wallet (G...) or contract (C...) address.`;
-    }
-    // Pay recipient: nodes.<i>.config.recipient
-    if (node.type === "pay" && p[2] === "config" && p[3] === "recipient") {
-      const bad = typeof node.config?.recipient === "string" ? node.config.recipient : "";
-      return `Invalid Stellar address for the pay node's recipient${
-        bad ? `: "${showValue(bad)}"` : ""
-      }. Enter a valid wallet (G...) address.`;
-    }
-    // Other address fields (relayer, subscriber, employer, vault, issuer, signers).
-    const last = p[p.length - 1];
-    const field = typeof last === "number" ? String(p[p.length - 2] ?? "address") : String(last);
-    return `Invalid Stellar address in the "${field}" field of the ${node.type ?? "unknown"} node.`;
-  }
-
-  return GENERIC_SCHEMA_MESSAGE;
-}
-
 // True when the flow off-ramps to fiat anywhere: a cash-out sink node, a pay
 // node paid out in fiat, or a split recipient paid out in fiat (both deploy
 // an implicit cash-out contract). Shared by the validator and the builder
@@ -327,7 +316,154 @@ export function flowHasFiatPayout(graph: FlowGraph): boolean {
   );
 }
 
-export function validateFlow(rawGraph: unknown): ValidationResult {
+/**
+ * Rules for the True/False branches of a condition (#720). The router behind
+ * an amount condition transfers the whole amount to every step on the side it
+ * takes, and each step only accepts a call from its one parent contract, so a
+ * side must be a single chain of steps of its own.
+ */
+function branchIssues(
+  graph: FlowGraph,
+  nodesById: Map<string, FlowNode>,
+  nodeLabels: Map<string, string>,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  for (const e of graph.edges) {
+    if (!e.sourceHandle) continue;
+    const src = nodesById.get(e.source);
+    if (!src) continue; // reported by the edge checks
+    if (src.type !== "condition") {
+      issues.push({
+        path: `nodes.${src.id}`,
+        code: "BRANCH_NOT_SUPPORTED",
+        nodeId: src.id,
+        message: `Edge ${e.id} leaves ${src.type} node ${src.id} on branch "${e.sourceHandle}"; only a condition has branches`,
+        friendlyMessage: FRIENDLY.BRANCH_ON_NON_CONDITION(nodeLabels.get(src.id) ?? src.type),
+      });
+    } else if (e.sourceHandle === "false" && !isBranchingCondition(src)) {
+      issues.push({
+        path: `nodes.${src.id}`,
+        code: "BRANCH_NOT_SUPPORTED",
+        nodeId: src.id,
+        message: `Edge ${e.id} leaves the false branch of a ${src.config.kind} condition, which has one output`,
+        friendlyMessage: FRIENDLY.BRANCH_FALSE_ON_SINGLE_OUTPUT,
+      });
+    }
+  }
+
+  const onChainParents = new Map<string, Set<string>>();
+  const onChainChildren = new Map<string, string[]>();
+  for (const e of graph.edges) {
+    const s = nodesById.get(e.source);
+    const t = nodesById.get(e.target);
+    if (!s || !t || s.type === "email_notify" || t.type === "email_notify") continue;
+    onChainParents.set(t.id, (onChainParents.get(t.id) ?? new Set()).add(s.id));
+    onChainChildren.set(s.id, [...(onChainChildren.get(s.id) ?? []), t.id]);
+  }
+
+  const trigger = graph.nodes.find(isTrigger);
+  const scheduleLike =
+    trigger?.type === "on_schedule" ||
+    trigger?.type === "subscription" ||
+    trigger?.type === "payroll";
+
+  for (const cond of graph.nodes) {
+    if (!isBranchingCondition(cond)) continue;
+    const noun = branchingNoun(cond.config.kind);
+
+    // Schedule-like flows compile to a streamer or subscription and never emit
+    // the router, so the gate the user drew would silently not exist.
+    if (scheduleLike && trigger) {
+      issues.push({
+        path: `nodes.${cond.id}`,
+        code: "BRANCH_TRIGGER",
+        nodeId: cond.id,
+        message: `${noun} condition ${cond.id} under a ${trigger.type} trigger is not compiled`,
+        friendlyMessage: FRIENDLY.BRANCH_TRIGGER(nodeLabels.get(trigger.id) ?? trigger.type, noun),
+      });
+    }
+
+    const targets = conditionBranchTargets(graph, cond.id);
+    for (const id of [...targets.true, ...targets.false]) {
+      if (nodesById.get(id)?.type !== "condition") continue;
+      issues.push({
+        path: `nodes.${cond.id}`,
+        code: "BRANCH_TARGET",
+        nodeId: cond.id,
+        message: `Condition ${id} is a direct branch target of ${noun} condition ${cond.id}`,
+        friendlyMessage: FRIENDLY.BRANCH_TARGET(noun),
+      });
+    }
+
+    for (const branch of ["true", "false"] as const) {
+      if (targets[branch].length > 1) {
+        issues.push({
+          path: `nodes.${cond.id}`,
+          code: "BRANCH_FAN_OUT",
+          nodeId: cond.id,
+          message: `The ${branch} branch of condition ${cond.id} has ${targets[branch].length} next steps; the contract forwards the whole amount to each`,
+          friendlyMessage: FRIENDLY.BRANCH_FAN_OUT(branch, targets[branch].length, noun),
+        });
+      }
+    }
+
+    // A step downstream of the condition with two different parents: its
+    // contract stores one parent, so the call from the other one is refused
+    // on chain. Both outputs straight into the same step is fine, since the
+    // condition is the parent either way.
+    const seen = new Set<string>();
+    const stack = [...targets.true, ...targets.false];
+    while (stack.length) {
+      const id = stack.pop()!;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      if ((onChainParents.get(id)?.size ?? 0) > 1) {
+        issues.push({
+          path: `nodes.${id}`,
+          code: "BRANCH_MERGE",
+          nodeId: id,
+          message: `Node ${id} downstream of condition ${cond.id} has more than one parent`,
+          friendlyMessage: FRIENDLY.BRANCH_MERGE(nodeLabels.get(id) ?? id, noun),
+        });
+      }
+      stack.push(...(onChainChildren.get(id) ?? []));
+    }
+  }
+
+  return issues;
+}
+
+export type ValidateFlowOptions = {
+  /**
+   * The surfaces switched on for this server (#722). Omitted means every
+   * surface is on, which is right for saving a draft; anything that leads to a
+   * deploy passes `serverFeatures()` (or, in the builder, the flags the page
+   * handed down) so a hidden block is refused on its node.
+   */
+  features?: FeatureFlags;
+  /** Owner email is advisory on save and deploy; recipients still validate. */
+  ignoreOwnerEmail?: boolean;
+};
+
+export function validateFlow(rawGraph: unknown, opts: ValidateFlowOptions = {}): ValidationResult {
+  const result = validateFlowStructure(rawGraph, opts.ignoreOwnerEmail);
+  if (!opts.features) return result;
+  // A graph that fails to parse has no nodes to check; its schema errors stand.
+  const graph = result.ok
+    ? result.graph
+    : FlowGraphSchema.safeParse(migrateFlowGraph(rawGraph)).data;
+  if (!graph) return result;
+  const gated = hiddenSurfaceIssues(graph, opts.features);
+  if (gated.length === 0) return result;
+  // With the off-ramp off there is no KYC to collect (the button is hidden),
+  // so the KYC rule would be an instruction the user cannot follow.
+  const offramp = opts.features.offramp;
+  const rest = result.ok ? [] : result.errors.filter((e) => offramp || e.path !== "senderKyc");
+  return { ok: false, errors: [...gated, ...rest] };
+}
+
+function validateFlowStructure(rawGraph: unknown, ignoreOwnerEmail = false): ValidationResult {
   const migrated = migrateFlowGraph(rawGraph);
   const parsed = FlowGraphSchema.safeParse(migrated);
   if (!parsed.success) {
@@ -336,11 +472,29 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       errors: parsed.error.issues.map((i) => ({
         path: i.path.join("."),
         message: i.message,
-        friendlyMessage: friendlySchemaIssue(i, migrated),
+        friendlyMessage:
+          i.message === SECRET_SEED_MESSAGE ? SECRET_SEED_MESSAGE : GENERIC_SCHEMA_MESSAGE,
       })),
     };
   }
-  const graph = parsed.data;
+  const originalGraph = parsed.data;
+  const outcomeIssues = terminalOutcomeIssues(originalGraph);
+  if (outcomeIssues.length) return { ok: false, errors: outcomeIssues };
+  let graph: FlowGraph;
+  try {
+    graph = resolveOwnerReturns(originalGraph, DEPLOYING_WALLET);
+  } catch {
+    return {
+      ok: false,
+      errors: [
+        {
+          path: "nodes",
+          message: "Cannot resolve Return to owner incoming asset",
+          friendlyMessage: "Connect Return to owner to a condition with an incoming asset.",
+        },
+      ],
+    };
+  }
   const errors: ValidationIssue[] = [];
   const pendingLabels = new Set<string>();
 
@@ -364,6 +518,11 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
   }
   if (errors.length) return { ok: false, errors };
+
+  // Any string parses as an address so autosave keeps a half-typed one (#588);
+  // this is the check that keeps it from deploying.
+  errors.push(...addressIssues(graph));
+  errors.push(...paymentAmountIssues(graph));
 
   const triggers = graph.nodes.filter(isTrigger);
   if (triggers.length !== 1) {
@@ -400,7 +559,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       if (
         triggers[0]?.type === "on_schedule" &&
         !allFixed &&
-        (!a.config.amountPerIntervalStroops || a.config.amountPerIntervalStroops === "0")
+        (!a.config.amountPerIntervalStroops || BigInt(a.config.amountPerIntervalStroops) === 0n)
       ) {
         errors.push({
           path: `nodes.${a.id}.config.amountPerIntervalStroops`,
@@ -435,6 +594,17 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       const mode = a.config.recipients[0]?.mode ?? "percentage";
 
       if (mode === "percentage") {
+        // The schema lets a 0 share parse so the panel can autosave a cleared
+        // field (#583). Reject it before deployment, matching the standard
+        // splitter constructor's positive-recipient checks (#795).
+        const zeroShare = a.config.recipients.filter((r) => r.mode === "percentage" && r.bps <= 0);
+        if (zeroShare.length > 0) {
+          errors.push({
+            path: `nodes.${a.id}.config.recipients`,
+            message: `Every percentage recipient needs a share greater than 0 bps (${zeroShare.length} at 0)`,
+            friendlyMessage: FRIENDLY.SHARE_REQUIRED(zeroShare),
+          });
+        }
         const sum = a.config.recipients.reduce(
           (s, r) => (r.mode === "percentage" ? s + r.bps : s),
           0,
@@ -449,7 +619,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       } else {
         const zeroAmountRecipients: { label?: string; address: string }[] = [];
         for (const [idx, r] of a.config.recipients.entries()) {
-          if (r.mode === "fixed" && (!r.amountStroops || r.amountStroops === "0")) {
+          if (r.mode === "fixed" && (!r.amountStroops || BigInt(r.amountStroops) === 0n)) {
             zeroAmountRecipients.push(r);
             continue;
           }
@@ -537,7 +707,9 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
           if (!isFiat) {
             pendingLabels.add(r.label ?? "unnamed");
           }
-        } else {
+        } else if (isAcceptedFlowAddress(r.address, "account_or_contract")) {
+          // A blank or half-typed address is reported by addressIssues; two
+          // blank rows are not also a "duplicate" (#588).
           if (seen.has(r.address)) {
             errors.push({
               path: `nodes.${a.id}.config.recipients`,
@@ -553,7 +725,10 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       if (isPendingAddress(a.config.recipient)) {
         // Fiat pay recipients get an auto-generated cash-out contract at deploy
         // time, so a pending wallet address is not required up front.
-        if (a.config.payoutMode !== "fiat") {
+        if (
+          a.config.payoutMode !== "fiat" &&
+          originalGraph.nodes.find((n) => n.id === a.id)?.type !== "return_to_owner"
+        ) {
           pendingLabels.add(a.config.recipient.slice(8) || "unnamed");
         }
       }
@@ -598,7 +773,7 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       if (!valueDeferred && !a.config.fullAmount) {
         if (
           a.config.mode === "fixed" &&
-          (!a.config.amountStroops || a.config.amountStroops === "0")
+          (!a.config.amountStroops || BigInt(a.config.amountStroops) === 0n)
         ) {
           errors.push({
             path: `nodes.${a.id}.config.amountStroops`,
@@ -710,95 +885,21 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     }
   }
 
-  // Email notify nodes are decorator leaves — they cannot have children.
+  const checkEmail = (email: string | undefined, path: string) => {
+    if (email?.trim() && !isValidEmailAddress(email.trim()))
+      errors.push({
+        path,
+        message: "Invalid email address",
+        friendlyMessage: "Enter a valid email address or leave it empty.",
+      });
+  };
+  if (!ignoreOwnerEmail) checkEmail(graph.notify?.sendTo, "notify.sendTo");
   for (const n of graph.nodes) {
-    if (n.type === "email_notify") {
-      const hasOutgoing = graph.edges.some((e) => e.source === n.id);
-      if (hasOutgoing) {
-        errors.push({
-          path: `nodes.${n.id}`,
-          message: "Email notify node cannot have outgoing edges",
-          friendlyMessage:
-            "Email notify nodes can't be connected to other steps. Remove any connections coming out of it.",
-        });
-      }
-
-      const parentEdge = graph.edges.find((e) => e.target === n.id);
-      const parent = parentEdge ? nodesById.get(parentEdge.source) : undefined;
-
-      // The schema lets a row through with its email still blank or half typed
-      // (the config panel writes one row per split recipient before any email
-      // is entered), so this block is the only thing standing between such a
-      // row and the Resend call in notifications.ts. A blank row reads as "not
-      // filled in yet" and is reported once, under whichever rule names it best.
-      const filledRows = n.config.recipients.filter((r) => r.email.trim() !== "");
-      let unreportedBlankRows = n.config.recipients.filter((r) => r.email.trim() === "");
-
-      if (parent?.type === "split") {
-        const parentAddresses = parent.config.recipients.map((r) => r.address);
-        const emailAddresses = n.config.recipients.map((r) => r.address);
-        const filledAddresses = filledRows.map((r) => r.address);
-        // When the split is in dev mode and its recipients are left empty to be
-        // filled via API, we can't validate a 1:1 address mapping yet.
-        const splitFilledViaApi = graph.devMode === true && parentAddresses.length === 0;
-        if (!splitFilledViaApi && emailAddresses.length !== parentAddresses.length) {
-          errors.push({
-            path: `nodes.${n.id}.config.recipients`,
-            message: "Email notify node must have exactly one email per split recipient",
-            friendlyMessage:
-              "Add exactly one email for each address in the split. Remove or fill any blank rows.",
-          });
-        }
-        if (!splitFilledViaApi) {
-          for (const addr of parentAddresses) {
-            if (!filledAddresses.includes(addr)) {
-              errors.push({
-                path: `nodes.${n.id}.config.recipients`,
-                message: `Missing email for split recipient ${addr}`,
-                friendlyMessage: `Add an email for split recipient ${addr}.`,
-              });
-            }
-          }
-          const missingAddresses = parentAddresses.filter((a) => !filledAddresses.includes(a));
-          unreportedBlankRows = unreportedBlankRows.filter(
-            (r) => !missingAddresses.includes(r.address),
-          );
-        }
-      } else if (filledRows.length === 0) {
-        errors.push({
-          path: `nodes.${n.id}.config.recipients`,
-          message: "Email notify node requires at least one recipient",
-          friendlyMessage: "Add at least one recipient email to the email notify node.",
-        });
-        unreportedBlankRows = [];
-      }
-
-      if (unreportedBlankRows.length > 0) {
-        errors.push({
-          path: `nodes.${n.id}.config.recipients`,
-          message: "Email notify node has a recipient with no email address",
-          friendlyMessage: "Fill in or remove the blank recipient row on the email notify node.",
-        });
-      }
-
-      for (const r of filledRows) {
-        if (!isValidEmailAddress(r.email)) {
-          errors.push({
-            path: `nodes.${n.id}.config.recipients`,
-            message: `Invalid email address: ${r.email}`,
-            friendlyMessage: `"${r.email}" isn't a valid email address. Check it for typos.`,
-          });
-        }
-      }
-
-      if (!n.config.subject.trim()) {
-        errors.push({
-          path: `nodes.${n.id}.config.subject`,
-          message: "Email notify node requires a subject",
-          friendlyMessage: "Add a subject line to the email notify node.",
-        });
-      }
-    }
+    if (n.type === "pay") checkEmail(n.config.email, `nodes.${n.id}.config.email`);
+    if (n.type === "split")
+      n.config.recipients.forEach((r, i) =>
+        checkEmail(r.email, `nodes.${n.id}.config.recipients.${i}.email`),
+      );
   }
 
   // The conditional contract (oracle_gte) pays recipients directly and cannot
@@ -887,6 +988,8 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       }
     }
   }
+
+  errors.push(...branchIssues(graph, nodesById, nodeLabels));
 
   // Detect cycles via DFS
   const adj = new Map<string, string[]>();
@@ -1151,8 +1254,9 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
   let pipelineNodes: PipelineNode[];
   let pipeline: TemplateKind[];
   try {
-    pipelineNodes = flowToPipeline(graph);
+    pipelineNodes = flowToPipeline(originalGraph, undefined, undefined, { forValidation: true });
     pipeline = pipelineNodes.map((n) => n.templateKind);
+    errors.push(...scheduledPaymentIssues(pipelineNodes));
     if (pipeline.length === 0) {
       return {
         ok: false,
@@ -1180,30 +1284,72 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
     };
   }
 
-  // Every contract action the user drew must actually reach the chain. Both the
-  // template ladder above and flowToPipeline pick "the" action as
-  // contractActions[0], in flow order via inFlowOrder() — the action the trigger
-  // reaches first along the edges, so the pipeline follows what the user drew
-  // rather than the order they dropped the blocks. That is not enough on its
-  // own: an action can still end up neither emitted nor absorbed, and a
-  // schedule flow with two chained pays is the live example — the streamer
-  // carries one payout step, so the second pay reaches no contract and that
-  // recipient is never paid. Catch it here rather than letting money move
-  // against a pipeline the user didn't draw.
-  //
-  // "Not emitted" is not the same as "lost": an oracle_gte condition compiles to
-  // a CONDITIONAL that owns the recipients and pays them itself, so its pay or
-  // split is absorbed on purpose. absorbedActionIds() carries that rule, and
-  // lives beside the code that applies it.
+  // Compilation records shared implementations and absorbed rules at emission.
+  // Check every visual block against that same mapping, including the trigger.
   const deployedNodeIds = new Set(pipelineNodes.map((n) => n.nodeId));
-  const absorbed = absorbedActionIds(graph);
-  for (const a of contractActions) {
-    if (deployedNodeIds.has(a.id) || absorbed.has(a.id)) continue;
-    errors.push({
-      path: `nodes.${a.id}`,
-      message: `Action ${a.id} (${a.type}) is not represented in the deployed pipeline`,
-      friendlyMessage: FRIENDLY.ACTION_NOT_DEPLOYED(nodeLabels.get(a.id) ?? a.type),
-    });
+  errors.push(...implementationIssues(originalGraph, pipelineNodes));
+
+  // The router picks path A or path B and forwards the whole amount down it. An
+  // empty path is a silent no-op on chain: the funds already sit in the router,
+  // which has no withdraw, so they are lost. Refuse any router the pipeline
+  // would deploy with a path it could take and nothing on it (#719). The paths
+  // are filled from the condition's True/False branches (#720), so this fires
+  // on a branch left unconnected, once per missing branch, naming it.
+  for (const n of pipelineNodes) {
+    const p = n.params;
+    if (p.kind !== "router") continue;
+    const cond = graph.nodes.find((g) => g.id === n.nodeId);
+    for (const path of ["A", "B"] as const) {
+      const ids = path === "A" ? p.pathANodeIds : p.pathBNodeIds;
+      if (ids.length > 0) continue;
+      // Only an amount condition compiles to a router; the fallback is defensive.
+      const branch: EdgeBranch = isAmountCondition(cond)
+        ? routerPathBranch(cond.config.kind, path)
+        : path === "A"
+          ? "true"
+          : "false";
+      const amounts = isAmountCondition(cond)
+        ? branchAmountText(cond.config, branch, ` ${assetLabel(p.asset)}`)
+        : "some amounts";
+      errors.push({
+        path: `nodes.${n.nodeId}`,
+        code: "ROUTER_EMPTY_PATH",
+        nodeId: n.nodeId,
+        message: `Router ${n.nodeId} has an empty path ${path} (the ${branch} branch); funds routed there would be stranded`,
+        friendlyMessage: FRIENDLY.ROUTER_EMPTY_PATH(amounts, branch),
+      });
+    }
+  }
+
+  // The two-outcome timelock pays the whole balance to its "before" or "after"
+  // step, whichever the release time picks, and has no other way out. A side
+  // with nothing on it would leave the funds in the contract (#721), so refuse
+  // it, once per missing side, naming the output. The contract's constructor
+  // refuses the same shape; this reports it before anything is signed.
+  for (const n of pipelineNodes) {
+    const p = n.params;
+    if (p.kind !== "timelock_branch") continue;
+    const cond = graph.nodes.find((g) => g.id === n.nodeId);
+    for (const side of ["before", "after"] as const) {
+      const ids = side === "before" ? p.beforeNodeIds : p.afterNodeIds;
+      if (ids.length > 0) continue;
+      // Only a time condition compiles to this contract; the fallback is defensive.
+      const branch: EdgeBranch = isTimeCondition(cond)
+        ? timelockSideBranch(cond.config.kind, side)
+        : side === "before"
+          ? "true"
+          : "false";
+      const when = isTimeCondition(cond)
+        ? branchTimeText(cond.config, branch)
+        : `${side === "before" ? "before" : "at or after"} the deadline`;
+      errors.push({
+        path: `nodes.${n.nodeId}`,
+        code: "TIMELOCK_EMPTY_SIDE",
+        nodeId: n.nodeId,
+        message: `Timelock ${n.nodeId} has an empty ${side} list (the ${branch} branch); funds released ${side === "before" ? "before" : "at or after"} the deadline would be stranded`,
+        friendlyMessage: FRIENDLY.TIMELOCK_EMPTY_SIDE(when, branch),
+      });
+    }
   }
 
   // The same set, read the other way round: a pipeline node may not point at a
@@ -1219,11 +1365,15 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
       nextStepNodeIds?: string[];
       pathANodeIds?: string[];
       pathBNodeIds?: string[];
+      beforeNodeIds?: string[];
+      afterNodeIds?: string[];
     };
     for (const ref of [
       ...(p.nextStepNodeIds ?? []),
       ...(p.pathANodeIds ?? []),
       ...(p.pathBNodeIds ?? []),
+      ...(p.beforeNodeIds ?? []),
+      ...(p.afterNodeIds ?? []),
     ]) {
       if (deployedNodeIds.has(ref)) continue;
       errors.push({
@@ -1236,5 +1386,11 @@ export function validateFlow(rawGraph: unknown): ValidationResult {
 
   if (errors.length) return { ok: false, errors };
 
-  return { ok: true, templateKind, pipeline, graph, pendingLabels: [...pendingLabels] };
+  return {
+    ok: true,
+    templateKind,
+    pipeline,
+    graph: originalGraph,
+    pendingLabels: [...pendingLabels],
+  };
 }

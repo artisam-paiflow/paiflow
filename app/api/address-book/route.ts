@@ -4,6 +4,7 @@ import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 
 const CreateSchema = z.object({
   label: z.string().min(1).max(64),
@@ -25,6 +26,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireSession();
+    await enforceWriteRateLimit("addressBookWrite", user.id);
     const body = CreateSchema.parse(await req.json());
 
     // Block saving the same wallet under a second label. Two contacts pointing

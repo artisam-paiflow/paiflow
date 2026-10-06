@@ -99,7 +99,7 @@ The mission: **make Stellar the easiest chain on which to ship a payment flow**,
 
 ## ✨ Features
 
-- **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`, `HTTP Webhook`, `Subscription`, `Payroll`), actions (`Pay`, `Split`, `Swap`, `Email Notify`), and logic blocks (`Condition`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
+- **Visual flow builder** — drag triggers (`On Receive`, `On Schedule`, `HTTP Webhook`, `Subscription`, `Payroll`), actions (`Pay`, `Split`, `Swap`), and logic blocks (`Condition`) onto a `@xyflow/react` canvas, wire them up, validate, deploy.
 - **Native fiat payouts** — pay and split steps can settle directly to a recipient's bank account via a PDAX off-ramp integration. Bank details and sender KYC are captured in the builder and baked into immutable contracts at deploy time; an automated off-ramp pipeline settles the payouts.
 - **Non-custodial deploy** — the backend prepares simulated XDR; the user's wallet — Freighter on desktop, or xBull / LOBSTR / Freighter over WalletConnect, via `@creit.tech/stellar-wallets-kit` — signs. Private keys never touch the server.
 - **QR-triggered execution** — every deployment renders a public QR / dApp URL. Anyone with a wallet can scan it, sign, and fire `distribute()` — useful for audience-funded demos, public crowdpay flows, and self-fund-back tests. Rate-limited + audit-logged on the public endpoints.
@@ -207,7 +207,7 @@ Log in with `admin` / your `ADMIN_SEED_PASSWORD`. Without `RESEND_API_KEY`, pass
 | Email         | Resend (transactional — password reset, notifications)                                       |
 | Off-ramp      | PDAX Institution API (fiat payout), mock provider by default                                 |
 | AI            | Groq — Whisper (STT, raft-log voice input) + Llama (text)                                    |
-| Blockchain    | Stellar / Soroban — `@stellar/stellar-sdk` 15, `@creit.tech/stellar-wallets-kit` 1.9         |
+| Blockchain    | Stellar / Soroban — `@stellar/stellar-sdk` 16, `@creit.tech/stellar-wallets-kit` 1.9         |
 | Contracts     | Rust (CI toolchain 1.95), `soroban-sdk` 26, target `wasm32v1-none`                           |
 | Tests         | vitest 4 (node + jsdom, Testing Library, axe-core), `@playwright/test` 1.59 (e2e, local)     |
 | Observability | pino (+ pino-pretty in dev). Sentry is stubbed out — see note below.                         |
@@ -350,7 +350,7 @@ tests/
   unit/             Vitest specs (`*.test.ts` node, `*.test.tsx` jsdom components)
   e2e/              Playwright specs
 screenshots/     Generated UI screenshots (committed)
-docs/            Architecture, runbooks, design records, archive/
+docs/            Architecture, runbooks, design records
 homepage/        Static marketing site (index, about, privacy, terms); its own Railway service
 ```
 
@@ -415,7 +415,6 @@ Configured for **Railway** (`railway.toml`, `nixpacks.toml`):
 | [`docs/api/`](./docs/api/README.md)                                    | Developer API (`/api/v1`): guide with curl examples, OpenAPI spec, Postman collection              |
 | [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md)   | Approved Instawards Phase 1 Statement of Work (verbatim) — deliverables, evidence, success metrics |
 | [`docs/design/`](./docs/design/)                                       | Design records — why a decision was made; see its README for the convention                        |
-| [`docs/archive/`](./docs/archive/)                                     | Superseded / out-of-scope documents — historical record only                                       |
 
 ## License
 

@@ -28,12 +28,16 @@ import {
   readPayerRecipients,
 } from "@/lib/stellar/relayer";
 import { preparePayrollChargeByRelayerUnsigned } from "@/lib/stellar/invoke";
-import { TENANT_RELAYER_TIMEOUT_MS, withRelayerLock } from "@/lib/stellar/client";
+import { TENANT_RELAYER_TIMEOUT_MS } from "@/lib/stellar/client";
+import { withRelayerChannel } from "@/lib/stellar/relayer-channels";
 import { readTokenAllowance } from "@/lib/stellar/relayer";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode, EmployeePayoutMode, PayrollRunStatus } from "@prisma/client";
 import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
 import { requireCronSecret } from "@/lib/auth/cron-secret";
+import { CRON_LIMITS } from "@/lib/cron/config";
+import { cronDeadline } from "@/lib/cron/deadline";
+import { withCronLease } from "@/lib/cron/lease";
 
 export const dynamic = "force-dynamic";
 
@@ -252,8 +256,11 @@ async function chargeSubscriptionPayrollDeployment(
     const currentNext = await readSubscriptionNextChargeAt(subscriptionContractAddress);
     if (new Date(Number(currentNext) * 1000) > now) break;
 
-    const submit = await withRelayerLock(async () => {
-      const { xdr } = await prepareSubscriptionChargeByRelayerTx(subscriptionContractAddress);
+    const submit = await withRelayerChannel(async (channel) => {
+      const { xdr } = await prepareSubscriptionChargeByRelayerTx(
+        subscriptionContractAddress,
+        channel,
+      );
       return submitSubscriptionChargeByRelayerTx(xdr);
     });
 
@@ -366,581 +373,619 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const now = new Date();
-    const deployments = await db.deployment.findMany({
-      where: {
-        status: "CONFIRMED",
-        flow: { templateKind: "PAYROLL" },
-        OR: [{ nextChargeAt: { lte: now } }, { nextChargeAt: null }],
-      },
-      select: {
-        id: true,
-        offRampEnabled: true,
-        chargeEndAt: true,
-        chargeRelayerMode: true,
-        chargeRelayerUrl: true,
-        chargeRelayerAddress: true,
-        chargeRelayerToken: true,
-        nextChargeAt: true,
-        pipelineSnapshot: true,
-      },
-    });
-
-    const results: ResultDetail[] = [];
-    let platformCharged = 0;
-    let userCharged = 0;
-
-    const readCache = createContractReadCache();
-    // Only employer/asset are cached: the payroll contract has no setters for
-    // them. Recipients (update_recipients) and relayer (set_relayer) are
-    // admin-mutable, so they are read fresh below — caching them could write
-    // stale amounts into PayrollPayout rows and the fiat off-ramp jobs derived
-    // from them.
-    const readPayrollEmployerCached = readCache(
-      "payroll:employer",
-      readPayrollEmployer,
-      (addr) => addr,
+    const lease = await withCronLease(
+      "auto-charge-payroll",
+      CRON_LIMITS.autoChargePayroll.ttlMs,
+      runPayrollCharges,
     );
-    const readPayrollAssetCached = readCache("payroll:asset", readPayrollAsset, (addr) => addr);
+    if (!lease.acquired) {
+      log.info("auto-charge-payroll cron skipped: previous run still active");
+      return NextResponse.json({
+        data: {
+          platformCharged: 0,
+          userCharged: 0,
+          skipped: 0,
+          failed: 0,
+          processed: 0,
+          details: [],
+          truncated: false,
+          leaseHeld: true,
+        },
+      });
+    }
+    return NextResponse.json({ data: lease.value });
+  });
+}
 
-    for (const d of deployments) {
-      const pipeline = d.pipelineSnapshot as Array<{
-        nodeId: string;
-        contractAddress: string;
-        templateKind: string;
-      }> | null;
-      const payrollNode = pipeline?.find((n) => n.templateKind === "PAYROLL");
-      const subscriptionDevNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION_DEV");
-      const splitterDevNode = pipeline?.find((n) => n.templateKind === "SPLITTER_DEV");
-      const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
-      const splitterNode = pipeline?.find((n) => n.templateKind === "SPLITTER");
-      const payerDevNode = pipeline?.find((n) => n.templateKind === "PAYER_DEV");
-      const payerNode = pipeline?.find((n) => n.templateKind === "PAYER");
+async function runPayrollCharges() {
+  const now = new Date();
+  const deadline = cronDeadline(CRON_LIMITS.autoChargePayroll.budgetMs);
+  let truncated = false;
+  let attempted = 0;
+  const deployments = await db.deployment.findMany({
+    where: {
+      status: "CONFIRMED",
+      flow: { templateKind: "PAYROLL" },
+      OR: [{ nextChargeAt: { lte: now } }, { nextChargeAt: null }],
+    },
+    select: {
+      id: true,
+      offRampEnabled: true,
+      chargeEndAt: true,
+      chargeRelayerMode: true,
+      chargeRelayerUrl: true,
+      chargeRelayerAddress: true,
+      chargeRelayerToken: true,
+      nextChargeAt: true,
+      pipelineSnapshot: true,
+    },
+    // Most overdue first, so a backlog drains
+    // oldest-first. Rows with no date (stopped or never automated, written as
+    // MANUAL + null) sort last so they cannot fill the batch ahead of due ones.
+    orderBy: [{ nextChargeAt: { sort: "asc", nulls: "last" } }, { id: "asc" }],
+    take: CRON_LIMITS.autoChargePayroll.batch,
+  });
 
-      const cashOutContractAddresses = new Set(
-        pipeline
-          ?.filter((n) => n.templateKind === "CASH_OUT" || n.templateKind === "CASH_OUT_DEV")
-          .map((n) => n.contractAddress) ?? [],
+  const results: ResultDetail[] = [];
+  let platformCharged = 0;
+  let userCharged = 0;
+
+  const readCache = createContractReadCache();
+  // Only employer/asset are cached: the payroll contract has no setters for
+  // them. Recipients (update_recipients) and relayer (set_relayer) are
+  // admin-mutable, so they are read fresh below — caching them could write
+  // stale amounts into PayrollPayout rows and the fiat off-ramp jobs derived
+  // from them.
+  const readPayrollEmployerCached = readCache(
+    "payroll:employer",
+    readPayrollEmployer,
+    (addr) => addr,
+  );
+  const readPayrollAssetCached = readCache("payroll:asset", readPayrollAsset, (addr) => addr);
+
+  for (const d of deployments) {
+    // Unattempted deployments keep their nextChargeAt, so the next run finds them still due.
+    if (deadline.expired()) {
+      truncated = true;
+      log.warn(
+        { budgetMs: deadline.budgetMs, attempted, deploymentCount: deployments.length },
+        "auto-charge-payroll cron out of time; the rest waits for the next run",
       );
+      break;
+    }
+    attempted += 1;
+    const pipeline = d.pipelineSnapshot as Array<{
+      nodeId: string;
+      contractAddress: string;
+      templateKind: string;
+    }> | null;
+    const payrollNode = pipeline?.find((n) => n.templateKind === "PAYROLL");
+    const subscriptionDevNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION_DEV");
+    const splitterDevNode = pipeline?.find((n) => n.templateKind === "SPLITTER_DEV");
+    const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
+    const splitterNode = pipeline?.find((n) => n.templateKind === "SPLITTER");
+    const payerDevNode = pipeline?.find((n) => n.templateKind === "PAYER_DEV");
+    const payerNode = pipeline?.find((n) => n.templateKind === "PAYER");
 
-      const isMonolithic =
-        payrollNode?.contractAddress &&
-        (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM ||
-          d.chargeRelayerMode === ChargeRelayerMode.USER);
-      const isDev =
-        subscriptionDevNode?.contractAddress &&
-        (splitterDevNode?.contractAddress || payerDevNode?.contractAddress);
-      const isSubscriptionLike =
-        subscriptionNode?.contractAddress &&
-        (splitterNode?.contractAddress || payerNode?.contractAddress);
+    const cashOutContractAddresses = new Set(
+      pipeline
+        ?.filter((n) => n.templateKind === "CASH_OUT" || n.templateKind === "CASH_OUT_DEV")
+        .map((n) => n.contractAddress) ?? [],
+    );
 
-      if (!isMonolithic && !isDev && !isSubscriptionLike) {
+    const isMonolithic =
+      payrollNode?.contractAddress &&
+      (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM ||
+        d.chargeRelayerMode === ChargeRelayerMode.USER);
+    const isDev =
+      subscriptionDevNode?.contractAddress &&
+      (splitterDevNode?.contractAddress || payerDevNode?.contractAddress);
+    const isSubscriptionLike =
+      subscriptionNode?.contractAddress &&
+      (splitterNode?.contractAddress || payerNode?.contractAddress);
+
+    if (!isMonolithic && !isDev && !isSubscriptionLike) {
+      results.push({
+        deploymentId: d.id,
+        contractAddress:
+          payrollNode?.contractAddress ??
+          subscriptionDevNode?.contractAddress ??
+          subscriptionNode?.contractAddress ??
+          "",
+        status: "skipped",
+        error: "No chargeable payroll contract in pipeline",
+      });
+      continue;
+    }
+
+    let contractAddress = "";
+    let payrollRunId: string | null = null;
+    try {
+      if (isDev) {
+        contractAddress = subscriptionDevNode!.contractAddress;
+        const devChargedCount = await chargeSubscriptionPayrollDeployment(
+          d,
+          contractAddress,
+          (splitterDevNode ?? payerDevNode)!.contractAddress,
+          now,
+          splitterDevNode ? readSplitterDevRecipients : readPayerRecipients,
+          true,
+          cashOutContractAddresses,
+          readCache,
+        );
+        platformCharged += devChargedCount;
         results.push({
           deploymentId: d.id,
-          contractAddress:
-            payrollNode?.contractAddress ??
-            subscriptionDevNode?.contractAddress ??
-            subscriptionNode?.contractAddress ??
-            "",
-          status: "skipped",
-          error: "No chargeable payroll contract in pipeline",
+          contractAddress,
+          status: "charged",
         });
         continue;
       }
 
-      let contractAddress = "";
-      let payrollRunId: string | null = null;
-      try {
-        if (isDev) {
-          contractAddress = subscriptionDevNode!.contractAddress;
-          const devChargedCount = await chargeSubscriptionPayrollDeployment(
-            d,
-            contractAddress,
-            (splitterDevNode ?? payerDevNode)!.contractAddress,
-            now,
-            splitterDevNode ? readSplitterDevRecipients : readPayerRecipients,
-            true,
-            cashOutContractAddresses,
-            readCache,
-          );
-          platformCharged += devChargedCount;
-          results.push({
-            deploymentId: d.id,
-            contractAddress,
-            status: "charged",
-          });
-          continue;
-        }
-
-        if (isSubscriptionLike) {
-          contractAddress = subscriptionNode!.contractAddress;
-          const chargedCount = await chargeSubscriptionPayrollDeployment(
-            d,
-            contractAddress,
-            (splitterNode ?? payerNode)!.contractAddress,
-            now,
-            splitterNode ? readSplitterRecipients : readPayerRecipients,
-            false,
-            cashOutContractAddresses,
-            readCache,
-          );
-          platformCharged += chargedCount;
-          results.push({
-            deploymentId: d.id,
-            contractAddress,
-            status: "charged",
-          });
-          continue;
-        }
-
-        contractAddress = payrollNode!.contractAddress;
-        const [cancelled, nextChargeAt] = await Promise.all([
-          readPayrollIsCancelled(contractAddress),
-          readPayrollNextChargeAt(contractAddress),
-        ]);
-
-        if (cancelled) {
-          await db.deployment.update({
-            where: { id: d.id },
-            data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
-          });
-          results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
-          continue;
-        }
-
-        if (d.chargeEndAt && d.chargeEndAt <= now) {
-          await db.deployment.update({
-            where: { id: d.id },
-            data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
-          });
-          results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
-          continue;
-        }
-
-        const nextChargeDate = new Date(Number(nextChargeAt) * 1000);
-        if (nextChargeDate > now) {
-          await db.deployment.update({
-            where: { id: d.id },
-            data: { nextChargeAt: nextChargeDate },
-          });
-          results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
-          continue;
-        }
-
-        const [recipients, employer, asset, onChainRelayer] = await Promise.all([
-          readPayrollRecipients(contractAddress),
-          readPayrollEmployerCached(contractAddress),
-          readPayrollAssetCached(contractAddress),
-          readPayrollRelayer(contractAddress),
-        ]);
-
-        const totalAmount = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);
-
-        const existingEmployees = await db.employee.findMany({
-          where: { deploymentId: d.id },
-          include: { bankDetail: true },
-        });
-        const hasFiatEmployeeWithBank = existingEmployees.some(
-          (e) => e.payoutMode === "FIAT" && e.bankDetail,
+      if (isSubscriptionLike) {
+        contractAddress = subscriptionNode!.contractAddress;
+        const chargedCount = await chargeSubscriptionPayrollDeployment(
+          d,
+          contractAddress,
+          (splitterNode ?? payerNode)!.contractAddress,
+          now,
+          splitterNode ? readSplitterRecipients : readPayerRecipients,
+          false,
+          cashOutContractAddresses,
+          readCache,
         );
-
-        const allowance = await readTokenAllowance({
-          tokenContractAddress: asset,
-          owner: employer,
-          spender: contractAddress,
+        platformCharged += chargedCount;
+        results.push({
+          deploymentId: d.id,
+          contractAddress,
+          status: "charged",
         });
-        if (allowance < totalAmount) {
-          results.push({
-            deploymentId: d.id,
-            contractAddress,
-            status: "skipped",
-            error: "Insufficient allowance",
-          });
-          continue;
-        }
+        continue;
+      }
 
-        const expectedRelayer =
-          d.chargeRelayerMode === ChargeRelayerMode.PLATFORM
-            ? stellarRelayerAddress()
-            : d.chargeRelayerAddress;
-        if (expectedRelayer && onChainRelayer !== expectedRelayer) {
-          results.push({
-            deploymentId: d.id,
-            contractAddress,
-            status: "skipped",
-            error: `Relayer mismatch: on-chain ${onChainRelayer}, configured ${expectedRelayer}`,
-          });
-          continue;
-        }
+      contractAddress = payrollNode!.contractAddress;
+      const [cancelled, nextChargeAt] = await Promise.all([
+        readPayrollIsCancelled(contractAddress),
+        readPayrollNextChargeAt(contractAddress),
+      ]);
 
-        const payrollRun = await db.payrollRun.create({
-          data: {
-            deploymentId: d.id,
-            runAt: now,
-            status: PayrollRunStatus.PENDING,
-            totalStroops: totalAmount.toString(),
-          },
+      if (cancelled) {
+        await db.deployment.update({
+          where: { id: d.id },
+          data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
         });
-        payrollRunId = payrollRun.id;
+        results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
+        continue;
+      }
 
-        let chargedCount = 0;
-        const chargeTxHashes: string[] = [];
+      if (d.chargeEndAt && d.chargeEndAt <= now) {
+        await db.deployment.update({
+          where: { id: d.id },
+          data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
+        });
+        results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
+        continue;
+      }
 
-        if (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM) {
-          for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
-            const submit = await withRelayerLock(async () => {
-              const { xdr } = await preparePayrollChargeByRelayerTx(contractAddress);
-              return submitPayrollChargeByRelayerTx(xdr);
-            });
+      const nextChargeDate = new Date(Number(nextChargeAt) * 1000);
+      if (nextChargeDate > now) {
+        await db.deployment.update({
+          where: { id: d.id },
+          data: { nextChargeAt: nextChargeDate },
+        });
+        results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
+        continue;
+      }
 
-            if (submit.status === "SUCCESS") {
-              chargedCount++;
-              chargeTxHashes.push(submit.txHash);
+      const [recipients, employer, asset, onChainRelayer] = await Promise.all([
+        readPayrollRecipients(contractAddress),
+        readPayrollEmployerCached(contractAddress),
+        readPayrollAssetCached(contractAddress),
+        readPayrollRelayer(contractAddress),
+      ]);
 
-              for (const r of recipients) {
-                const employee = await db.employee.upsert({
-                  where: {
-                    deploymentId_address: {
-                      deploymentId: d.id,
-                      address: r.address,
-                    },
-                  },
-                  create: {
+      const totalAmount = recipients.reduce((sum, r) => sum + BigInt(r.amount), 0n);
+
+      const existingEmployees = await db.employee.findMany({
+        where: { deploymentId: d.id },
+        include: { bankDetail: true },
+      });
+      const hasFiatEmployeeWithBank = existingEmployees.some(
+        (e) => e.payoutMode === "FIAT" && e.bankDetail,
+      );
+
+      const allowance = await readTokenAllowance({
+        tokenContractAddress: asset,
+        owner: employer,
+        spender: contractAddress,
+      });
+      if (allowance < totalAmount) {
+        results.push({
+          deploymentId: d.id,
+          contractAddress,
+          status: "skipped",
+          error: "Insufficient allowance",
+        });
+        continue;
+      }
+
+      const expectedRelayer =
+        d.chargeRelayerMode === ChargeRelayerMode.PLATFORM
+          ? stellarRelayerAddress()
+          : d.chargeRelayerAddress;
+      if (expectedRelayer && onChainRelayer !== expectedRelayer) {
+        results.push({
+          deploymentId: d.id,
+          contractAddress,
+          status: "skipped",
+          error: `Relayer mismatch: on-chain ${onChainRelayer}, configured ${expectedRelayer}`,
+        });
+        continue;
+      }
+
+      const payrollRun = await db.payrollRun.create({
+        data: {
+          deploymentId: d.id,
+          runAt: now,
+          status: PayrollRunStatus.PENDING,
+          totalStroops: totalAmount.toString(),
+        },
+      });
+      payrollRunId = payrollRun.id;
+
+      let chargedCount = 0;
+      const chargeTxHashes: string[] = [];
+
+      if (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM) {
+        for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
+          const submit = await withRelayerChannel(async (channel) => {
+            const { xdr } = await preparePayrollChargeByRelayerTx(contractAddress, channel);
+            return submitPayrollChargeByRelayerTx(xdr);
+          });
+
+          if (submit.status === "SUCCESS") {
+            chargedCount++;
+            chargeTxHashes.push(submit.txHash);
+
+            for (const r of recipients) {
+              const employee = await db.employee.upsert({
+                where: {
+                  deploymentId_address: {
                     deploymentId: d.id,
                     address: r.address,
-                    amountStroops: r.amount,
                   },
-                  update: {
-                    amountStroops: r.amount,
-                  },
-                });
-                await db.payrollPayout.create({
-                  data: {
-                    payrollRunId: payrollRun.id,
-                    employeeId: employee.id,
-                    amountStroops: r.amount,
-                    txHash: submit.txHash,
-                  },
-                });
-              }
-
-              const next = await readPayrollNextChargeAt(contractAddress);
-              if (new Date(Number(next) * 1000) > new Date()) break;
-            } else {
-              throw new Error(submit.errorMessage ?? "Platform charge submission failed");
-            }
-          }
-        } else {
-          if (!d.chargeRelayerUrl || !d.chargeRelayerAddress) {
-            await db.payrollRun.update({
-              where: { id: payrollRun.id },
-              data: {
-                status: PayrollRunStatus.FAILED,
-                failedAt: new Date(),
-                lastError: "USER relayer mode missing url or address",
-              },
-            });
-            results.push({
-              deploymentId: d.id,
-              contractAddress,
-              status: "failed",
-              error: "USER relayer mode missing url or address",
-            });
-            continue;
-          }
-
-          // Check the stored URL again here, not just where it was saved: DNS
-          // can change under us, and rows predate this check (#581). Once per
-          // deployment rather than once per iteration, because undici pools the
-          // connection — iterations 2…n reuse the socket iteration 1 opened and
-          // never re-resolve, so a per-iteration lookup would vet an address the
-          // connection is no longer choosing.
-          let relayerUrl: URL;
-          try {
-            relayerUrl = await assertPublicUrl(d.chargeRelayerUrl, {
-              subject: "Relayer URL",
-              field: "chargeRelayerUrl",
-            });
-          } catch (err) {
-            const unsafe = err instanceof UnsafeUrlError ? err : null;
-            const message = unsafe?.message ?? "Relayer URL could not be validated";
-            await db.payrollRun.update({
-              where: { id: payrollRun.id },
-              data: {
-                status: PayrollRunStatus.FAILED,
-                failedAt: new Date(),
-                lastError: message,
-              },
-            });
-            if (unsafe?.terminal) {
-              // `nextChargeAt` is already in the past, so this deployment would
-              // otherwise come back every tick and write a FAILED run forever.
-              // Only for a deterministic refusal: one EAI_AGAIN must not switch
-              // off a tenant's automation.
-              await db.deployment.update({
-                where: { id: d.id },
-                data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
-              });
-            }
-            log.warn(
-              {
-                deploymentId: d.id,
-                contractAddress,
-                reason: unsafe?.reason ?? "unknown",
-                terminal: unsafe?.terminal ?? false,
-              },
-              "Tenant relayer URL refused",
-            );
-            results.push({ deploymentId: d.id, contractAddress, status: "failed", error: message });
-            continue;
-          }
-
-          for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
-            const { xdr: unsignedXdr } = await preparePayrollChargeByRelayerUnsigned({
-              contractAddress,
-              relayerAddress: d.chargeRelayerAddress,
-            });
-
-            const body = {
-              deploymentId: d.id,
-              contractAddress,
-              network: env().STELLAR_NETWORK,
-              networkPassphrase: stellarPassphrase(),
-              unsignedXdr,
-            };
-
-            let res: Response;
-            try {
-              res = await fetch(relayerUrl, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  ...(d.chargeRelayerToken
-                    ? { Authorization: `Bearer ${d.chargeRelayerToken}` }
-                    : {}),
                 },
-                body: JSON.stringify(body),
-                // Tenant-supplied endpoint: one that black-holes the connection
-                // must not stall the charge loop for every other customer.
-                signal: AbortSignal.timeout(TENANT_RELAYER_TIMEOUT_MS),
-                // Not "error", which surfaces as an opaque `TypeError: fetch
-                // failed`. "manual" does not follow the hop either, and lets us
-                // say what happened. Following it would defeat the URL check
-                // above and forward the tenant's bearer token to the new host.
-                redirect: "manual",
+                create: {
+                  deploymentId: d.id,
+                  address: r.address,
+                  amountStroops: r.amount,
+                },
+                update: {
+                  amountStroops: r.amount,
+                },
               });
-            } catch (err) {
-              const name = err instanceof Error ? err.name : "";
-              // The message the tenant gets is fixed, so log the real cause —
-              // otherwise a bug on our side is indistinguishable from an
-              // unreachable endpoint.
-              log.warn({ deploymentId: d.id, contractAddress, err }, "Tenant relayer fetch failed");
-              throw new RelayerResponseError(
-                name === "TimeoutError" || name === "AbortError"
-                  ? `User relayer did not respond within ${TENANT_RELAYER_TIMEOUT_MS}ms`
-                  : "User relayer could not be reached",
-              );
-            }
-
-            // Nothing upstream-controlled may reach an Error message: it is
-            // persisted as PayrollRun.lastError and read back by the owner, which
-            // is what made this a read-capable SSRF (#581). A status code is a
-            // number; a body is not.
-            if (res.status >= 300 && res.status < 400) {
-              await discardBody(res);
-              throw new RelayerResponseError(
-                `User relayer returned a redirect (${res.status}); redirects are not followed`,
-              );
-            }
-            if (!res.ok) {
-              await discardBody(res);
-              log.warn(
-                { deploymentId: d.id, contractAddress, status: res.status },
-                "Tenant relayer rejected charge",
-              );
-              throw new RelayerResponseError(`User relayer returned ${res.status}`);
-            }
-
-            const parsed = RelayerChargeResponseSchema.safeParse(await readJson(res));
-            if (!parsed.success) {
-              throw new RelayerResponseError("User relayer returned an unrecognised payload");
-            }
-            const json = parsed.data;
-
-            let chargeTxHash: string | undefined;
-            if (json.status === "SUCCESS" && json.txHash) {
-              chargedCount++;
-              chargeTxHashes.push(json.txHash);
-              chargeTxHash = json.txHash;
-            } else if (json.status === "PENDING" && json.signedXdr) {
-              const submit = await submitPayrollChargeByRelayerTx(json.signedXdr);
-              if (submit.status === "SUCCESS") {
-                chargedCount++;
-                chargeTxHashes.push(submit.txHash);
-                chargeTxHash = submit.txHash;
-              } else {
-                throw new Error(submit.errorMessage ?? "User relayer submission failed");
-              }
-            } else {
-              throw new RelayerResponseError("User relayer did not return a success payload");
-            }
-
-            if (chargeTxHash) {
-              for (const r of recipients) {
-                const employee = await db.employee.upsert({
-                  where: {
-                    deploymentId_address: {
-                      deploymentId: d.id,
-                      address: r.address,
-                    },
-                  },
-                  create: {
-                    deploymentId: d.id,
-                    address: r.address,
-                    amountStroops: r.amount,
-                  },
-                  update: {
-                    amountStroops: r.amount,
-                  },
-                });
-                await db.payrollPayout.create({
-                  data: {
-                    payrollRunId: payrollRun.id,
-                    employeeId: employee.id,
-                    amountStroops: r.amount,
-                    txHash: chargeTxHash,
-                  },
-                });
-              }
+              await db.payrollPayout.create({
+                data: {
+                  payrollRunId: payrollRun.id,
+                  employeeId: employee.id,
+                  amountStroops: r.amount,
+                  txHash: submit.txHash,
+                },
+              });
             }
 
             const next = await readPayrollNextChargeAt(contractAddress);
             if (new Date(Number(next) * 1000) > new Date()) break;
+          } else {
+            throw new Error(submit.errorMessage ?? "Platform charge submission failed");
           }
         }
-
-        if (chargedCount === 0) {
+      } else {
+        if (!d.chargeRelayerUrl || !d.chargeRelayerAddress) {
           await db.payrollRun.update({
             where: { id: payrollRun.id },
             data: {
               status: PayrollRunStatus.FAILED,
               failedAt: new Date(),
-              lastError: "No charges executed",
+              lastError: "USER relayer mode missing url or address",
             },
           });
           results.push({
             deploymentId: d.id,
             contractAddress,
-            status: "skipped",
-            error: "No charges executed",
+            status: "failed",
+            error: "USER relayer mode missing url or address",
           });
           continue;
         }
 
-        const next = await readPayrollNextChargeAt(contractAddress);
-        await db.$transaction(async (tx) => {
-          await tx.deployment.update({
-            where: { id: d.id },
-            data: {
-              lastChargedAt: new Date(),
-              nextChargeAt: new Date(Number(next) * 1000),
-            },
+        // Check the stored URL again here, not just where it was saved: DNS
+        // can change under us, and rows predate this check (#581). Once per
+        // deployment rather than once per iteration, because undici pools the
+        // connection — iterations 2…n reuse the socket iteration 1 opened and
+        // never re-resolve, so a per-iteration lookup would vet an address the
+        // connection is no longer choosing.
+        let relayerUrl: URL;
+        try {
+          relayerUrl = await assertPublicUrl(d.chargeRelayerUrl, {
+            subject: "Relayer URL",
+            field: "chargeRelayerUrl",
           });
-
-          await tx.payrollRun.update({
+        } catch (err) {
+          const unsafe = err instanceof UnsafeUrlError ? err : null;
+          const message = unsafe?.message ?? "Relayer URL could not be validated";
+          await db.payrollRun.update({
             where: { id: payrollRun.id },
             data: {
-              status: PayrollRunStatus.CHARGED,
-              chargedAt: new Date(),
-              txHash: chargeTxHashes[0] ?? null,
+              status: PayrollRunStatus.FAILED,
+              failedAt: new Date(),
+              lastError: message,
             },
           });
-
-          if (hasFiatEmployeeWithBank) {
-            await createOffRampJobsForPayrollRun(tx, payrollRun.id);
-          }
-        });
-
-        log.info(
-          {
-            deploymentId: d.id,
-            payrollRunId: payrollRun.id,
-            chargeTxHashes: chargeTxHashes.length,
-          },
-          "Created payroll run and off-ramp jobs",
-        );
-
-        if (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM) {
-          platformCharged += chargedCount;
-        } else {
-          userCharged += chargedCount;
-        }
-        results.push({ deploymentId: d.id, contractAddress, status: "charged" });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-
-        if (payrollRunId) {
-          try {
-            await db.payrollRun.update({
-              where: { id: payrollRunId },
-              data: {
-                status: PayrollRunStatus.FAILED,
-                failedAt: new Date(),
-                lastError: message,
-              },
+          if (unsafe?.terminal) {
+            // `nextChargeAt` is already in the past, so this deployment would
+            // otherwise come back every tick and write a FAILED run forever.
+            // Only for a deterministic refusal: one EAI_AGAIN must not switch
+            // off a tenant's automation.
+            await db.deployment.update({
+              where: { id: d.id },
+              data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
             });
-          } catch (updateErr) {
-            log.warn(
-              { deploymentId: d.id, payrollRunId, error: String(updateErr) },
-              "Failed to mark payroll run as FAILED",
+          }
+          log.warn(
+            {
+              deploymentId: d.id,
+              contractAddress,
+              reason: unsafe?.reason ?? "unknown",
+              terminal: unsafe?.terminal ?? false,
+            },
+            "Tenant relayer URL refused",
+          );
+          results.push({ deploymentId: d.id, contractAddress, status: "failed", error: message });
+          continue;
+        }
+
+        for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
+          const { xdr: unsignedXdr } = await preparePayrollChargeByRelayerUnsigned({
+            contractAddress,
+            relayerAddress: d.chargeRelayerAddress,
+          });
+
+          const body = {
+            deploymentId: d.id,
+            contractAddress,
+            network: env().STELLAR_NETWORK,
+            networkPassphrase: stellarPassphrase(),
+            unsignedXdr,
+          };
+
+          let res: Response;
+          try {
+            res = await fetch(relayerUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(d.chargeRelayerToken
+                  ? { Authorization: `Bearer ${d.chargeRelayerToken}` }
+                  : {}),
+              },
+              body: JSON.stringify(body),
+              // Tenant-supplied endpoint: one that black-holes the connection
+              // must not stall the charge loop for every other customer.
+              signal: AbortSignal.timeout(TENANT_RELAYER_TIMEOUT_MS),
+              // Not "error", which surfaces as an opaque `TypeError: fetch
+              // failed`. "manual" does not follow the hop either, and lets us
+              // say what happened. Following it would defeat the URL check
+              // above and forward the tenant's bearer token to the new host.
+              redirect: "manual",
+            });
+          } catch (err) {
+            const name = err instanceof Error ? err.name : "";
+            // The message the tenant gets is fixed, so log the real cause —
+            // otherwise a bug on our side is indistinguishable from an
+            // unreachable endpoint.
+            log.warn({ deploymentId: d.id, contractAddress, err }, "Tenant relayer fetch failed");
+            throw new RelayerResponseError(
+              name === "TimeoutError" || name === "AbortError"
+                ? `User relayer did not respond within ${TENANT_RELAYER_TIMEOUT_MS}ms`
+                : "User relayer could not be reached",
             );
           }
-        }
 
-        if (err instanceof RelayerResponseError) {
-          // Never `skipped`: a tenant must not be able to pick a status code or
-          // payload that reclassifies its own failed charge.
-          log.warn(
-            { deploymentId: d.id, contractAddress, error: message },
-            "Tenant relayer charge failed",
-          );
-          results.push({
-            deploymentId: d.id,
-            contractAddress,
-            status: "failed",
-            error: message,
-          });
-        } else if (isExpectedSkipError(message)) {
-          results.push({
-            deploymentId: d.id,
-            contractAddress,
-            status: "skipped",
-            error: message,
-          });
-        } else {
-          log.warn(
-            { deploymentId: d.id, contractAddress, error: message },
-            "Payroll charge failed",
-          );
-          results.push({
-            deploymentId: d.id,
-            contractAddress,
-            status: "failed",
-            error: message,
-          });
+          // Nothing upstream-controlled may reach an Error message: it is
+          // persisted as PayrollRun.lastError and read back by the owner, which
+          // is what made this a read-capable SSRF (#581). A status code is a
+          // number; a body is not.
+          if (res.status >= 300 && res.status < 400) {
+            await discardBody(res);
+            throw new RelayerResponseError(
+              `User relayer returned a redirect (${res.status}); redirects are not followed`,
+            );
+          }
+          if (!res.ok) {
+            await discardBody(res);
+            log.warn(
+              { deploymentId: d.id, contractAddress, status: res.status },
+              "Tenant relayer rejected charge",
+            );
+            throw new RelayerResponseError(`User relayer returned ${res.status}`);
+          }
+
+          const parsed = RelayerChargeResponseSchema.safeParse(await readJson(res));
+          if (!parsed.success) {
+            throw new RelayerResponseError("User relayer returned an unrecognised payload");
+          }
+          const json = parsed.data;
+
+          let chargeTxHash: string | undefined;
+          if (json.status === "SUCCESS" && json.txHash) {
+            chargedCount++;
+            chargeTxHashes.push(json.txHash);
+            chargeTxHash = json.txHash;
+          } else if (json.status === "PENDING" && json.signedXdr) {
+            const submit = await submitPayrollChargeByRelayerTx(json.signedXdr);
+            if (submit.status === "SUCCESS") {
+              chargedCount++;
+              chargeTxHashes.push(submit.txHash);
+              chargeTxHash = submit.txHash;
+            } else {
+              throw new Error(submit.errorMessage ?? "User relayer submission failed");
+            }
+          } else {
+            throw new RelayerResponseError("User relayer did not return a success payload");
+          }
+
+          if (chargeTxHash) {
+            for (const r of recipients) {
+              const employee = await db.employee.upsert({
+                where: {
+                  deploymentId_address: {
+                    deploymentId: d.id,
+                    address: r.address,
+                  },
+                },
+                create: {
+                  deploymentId: d.id,
+                  address: r.address,
+                  amountStroops: r.amount,
+                },
+                update: {
+                  amountStroops: r.amount,
+                },
+              });
+              await db.payrollPayout.create({
+                data: {
+                  payrollRunId: payrollRun.id,
+                  employeeId: employee.id,
+                  amountStroops: r.amount,
+                  txHash: chargeTxHash,
+                },
+              });
+            }
+          }
+
+          const next = await readPayrollNextChargeAt(contractAddress);
+          if (new Date(Number(next) * 1000) > new Date()) break;
         }
       }
-    }
 
-    return NextResponse.json({
-      data: {
-        platformCharged,
-        userCharged,
-        skipped: results.filter((r) => r.status === "skipped").length,
-        failed: results.filter((r) => r.status === "failed").length,
-        processed: deployments.length,
-        details: results,
-      },
-    });
-  });
+      if (chargedCount === 0) {
+        await db.payrollRun.update({
+          where: { id: payrollRun.id },
+          data: {
+            status: PayrollRunStatus.FAILED,
+            failedAt: new Date(),
+            lastError: "No charges executed",
+          },
+        });
+        results.push({
+          deploymentId: d.id,
+          contractAddress,
+          status: "skipped",
+          error: "No charges executed",
+        });
+        continue;
+      }
+
+      const next = await readPayrollNextChargeAt(contractAddress);
+      await db.$transaction(async (tx) => {
+        await tx.deployment.update({
+          where: { id: d.id },
+          data: {
+            lastChargedAt: new Date(),
+            nextChargeAt: new Date(Number(next) * 1000),
+          },
+        });
+
+        await tx.payrollRun.update({
+          where: { id: payrollRun.id },
+          data: {
+            status: PayrollRunStatus.CHARGED,
+            chargedAt: new Date(),
+            txHash: chargeTxHashes[0] ?? null,
+          },
+        });
+
+        if (hasFiatEmployeeWithBank) {
+          await createOffRampJobsForPayrollRun(tx, payrollRun.id);
+        }
+      });
+
+      log.info(
+        {
+          deploymentId: d.id,
+          payrollRunId: payrollRun.id,
+          chargeTxHashes: chargeTxHashes.length,
+        },
+        "Created payroll run and off-ramp jobs",
+      );
+
+      if (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM) {
+        platformCharged += chargedCount;
+      } else {
+        userCharged += chargedCount;
+      }
+      results.push({ deploymentId: d.id, contractAddress, status: "charged" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+
+      if (payrollRunId) {
+        try {
+          await db.payrollRun.update({
+            where: { id: payrollRunId },
+            data: {
+              status: PayrollRunStatus.FAILED,
+              failedAt: new Date(),
+              lastError: message,
+            },
+          });
+        } catch (updateErr) {
+          log.warn(
+            { deploymentId: d.id, payrollRunId, error: String(updateErr) },
+            "Failed to mark payroll run as FAILED",
+          );
+        }
+      }
+
+      if (err instanceof RelayerResponseError) {
+        // Never `skipped`: a tenant must not be able to pick a status code or
+        // payload that reclassifies its own failed charge.
+        log.warn(
+          { deploymentId: d.id, contractAddress, error: message },
+          "Tenant relayer charge failed",
+        );
+        results.push({
+          deploymentId: d.id,
+          contractAddress,
+          status: "failed",
+          error: message,
+        });
+      } else if (isExpectedSkipError(message)) {
+        results.push({
+          deploymentId: d.id,
+          contractAddress,
+          status: "skipped",
+          error: message,
+        });
+      } else {
+        log.warn({ deploymentId: d.id, contractAddress, error: message }, "Payroll charge failed");
+        results.push({
+          deploymentId: d.id,
+          contractAddress,
+          status: "failed",
+          error: message,
+        });
+      }
+    }
+  }
+
+  return {
+    platformCharged,
+    userCharged,
+    skipped: results.filter((r) => r.status === "skipped").length,
+    failed: results.filter((r) => r.status === "failed").length,
+    processed: attempted,
+    details: results,
+    truncated,
+  };
 }

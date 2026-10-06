@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { redis } from "@/lib/redis";
 import { sorobanRpc } from "@/lib/stellar/client";
+import { relayerChannelHealth } from "@/lib/stellar/relayer-channels";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,17 @@ export async function GET() {
   } catch {
     out.rpc = "down";
     out.status = "degraded";
+  }
+  // Only a count, never an address or balance: this route is public. The
+  // per-channel balances go to the log when the (cached) check refreshes.
+  try {
+    const channels = await relayerChannelHealth();
+    if (channels.configured > 0) {
+      out.relayerChannels = `${channels.funded}/${channels.configured}`;
+      if (channels.funded === 0) out.status = "degraded";
+    }
+  } catch {
+    out.relayerChannels = "unknown";
   }
   return NextResponse.json(out);
 }

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { clientIp } from "@/lib/rate-limit";
+import { markTokenKnown } from "@/lib/api/v1/pre-auth";
 import { CreateApiTokenSchema } from "@/lib/api/v1/schema";
 import {
   API_TOKEN_SELECT,
@@ -100,6 +101,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
         select: API_TOKEN_SELECT,
       });
     });
+
+    // Before the plaintext is returned, so a failed-auth block on the caller's address never
+    // refuses the token's first use (lib/api/v1/pre-auth.ts).
+    await markTokenKnown(tokenHash, expiresAt);
 
     await audit({
       action: "API_TOKEN_CREATED",

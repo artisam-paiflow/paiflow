@@ -1,25 +1,29 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
-import { AppError } from "@/lib/errors";
+import { isUuid } from "@/lib/api/v1/handler";
+import { AppError, withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const user = await requireSession().catch(() => null);
-  if (!user) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  return withErrorHandler(async () => {
+    const user = await requireSession();
+    const { id } = await ctx.params;
+    // Before the limiter: the id is part of its key, and only a real one may mint a bucket.
+    if (!isUuid(id)) throw new AppError("NOT_FOUND", "Deployment not found");
+    await enforceWriteRateLimit("deploymentStatusUser", user.id);
+    await enforceWriteRateLimit("deploymentStatus", `${user.id}:${id}`);
+    const deployment = await db.deployment.findFirst({
+      where: { id, ownerId: user.id },
+      select: { status: true },
+    });
+    if (!deployment) throw new AppError("NOT_FOUND", "Deployment not found");
 
-  const { id } = await ctx.params;
-  const deployment = await db.deployment.findFirst({
-    where: { id, ownerId: user.id },
-    select: { status: true },
-  });
-  if (!deployment) throw new AppError("NOT_FOUND", "Deployment not found");
-
-  return new Response(JSON.stringify({ status: deployment.status }), {
-    headers: { "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ status: deployment.status }), {
+      headers: { "Content-Type": "application/json" },
+    });
   });
 }

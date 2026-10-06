@@ -4,6 +4,7 @@ import { Role } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { setPdaxCredential } from "@/lib/offramp/pdax-auth";
 
 const CredentialSchema = z.object({
@@ -44,7 +45,8 @@ export async function GET(_req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
-    await requireSession({ role: Role.ADMIN });
+    const admin = await requireSession({ role: Role.ADMIN });
+    await enforceWriteRateLimit("adminWrite", admin.id);
 
     const body = CredentialSchema.parse(await req.json());
 

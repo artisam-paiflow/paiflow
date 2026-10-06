@@ -1,4 +1,6 @@
+import { StrKey } from "@stellar/stellar-sdk";
 import { TemplateKind } from "@prisma/client";
+import { DEPLOYING_WALLET, resolveOwnerReturns, terminalOutcomeIssues } from "./terminal-outcomes";
 import type {
   ActionNode,
   Asset,
@@ -10,6 +12,8 @@ import type {
   TriggerNode,
 } from "./schema";
 import {
+  FlowGraphSchema,
+  migrateFlowGraph,
   isAction,
   isLogic,
   isTrigger,
@@ -21,6 +25,8 @@ import {
   TOTAL_BPS,
 } from "./schema";
 import { inFlowOrder } from "./graph";
+import { directBinding, type PipelineImplementation } from "./implementation";
+import { conditionBranchTargets, routerPaths, timelockLists } from "./branches";
 
 export type PipelineRecipient = {
   address: string;
@@ -107,6 +113,20 @@ export type TimelockNodeParams = {
   unlockTime: number;
   mode: "after" | "before";
   nextStepNodeIds: string[];
+  relayer?: string;
+};
+
+/**
+ * A timelock with two outcomes (#721): released strictly before `unlockTime` it
+ * pays the `before` step, at or after it the `after` step. See timelockLists()
+ * for how a condition's True/False outputs map onto the two.
+ */
+export type TimelockBranchNodeParams = {
+  kind: "timelock_branch";
+  asset: Asset;
+  unlockTime: number;
+  beforeNodeIds: string[];
+  afterNodeIds: string[];
   relayer?: string;
 };
 
@@ -260,6 +280,7 @@ export type PipelineNodeParams =
   | ConditionalNodeParams
   | RouterNodeParams
   | TimelockNodeParams
+  | TimelockBranchNodeParams
   | WebhookTriggerNodeParams
   | SubscriptionTriggerNodeParams
   | PayrollTriggerNodeParams
@@ -275,6 +296,7 @@ export type PipelineNodeParams =
   | CashOutNodeParams;
 
 export type PipelineNode = {
+  implementation?: PipelineImplementation;
   nodeId: string;
   templateKind: TemplateKind;
   params: PipelineNodeParams;
@@ -372,6 +394,22 @@ function toPayrollRecipients(action: ContractActionNode): PipelineRecipient[] {
     ];
   }
   return [];
+}
+
+/**
+ * The router contract takes path A when `amount >= threshold` and path B
+ * otherwise. `amount_lt` (path B) is therefore already strict; `amount_gt`
+ * (path A) would also fire on an amount equal to the threshold, so it is
+ * compiled one stroop higher: `amount >= t + 1` is `amount > t` on integers.
+ */
+export function routerThresholdStroops(
+  config:
+    | { kind: "amount_gt"; amountStroops: string }
+    | { kind: "amount_lt"; amountStroops: string },
+): string {
+  return config.kind === "amount_gt"
+    ? (BigInt(config.amountStroops) + 1n).toString()
+    : config.amountStroops;
 }
 
 function getChildren(graph: FlowGraph): Map<string, string[]> {
@@ -507,6 +545,7 @@ function synthesizeCashOutNodes(
 
   const pushCashOutNode = (
     nodeId: string,
+    recipientIndex: number,
     bank: { accountName: string; accountNumber: string; bankCode: string },
   ) => {
     const shared = {
@@ -525,11 +564,23 @@ function synthesizeCashOutNodes(
             nodeId,
             templateKind: TemplateKind.CASH_OUT_DEV,
             params: { kind: "cash_out_dev" as const, ...shared },
+            implementation: {
+              version: 1,
+              bindings: [
+                { blockId: action.id, blockType: action.type, role: "payout_sink", recipientIndex },
+              ],
+            },
           }
         : {
             nodeId,
             templateKind: TemplateKind.CASH_OUT,
             params: { kind: "cash_out" as const, ...shared },
+            implementation: {
+              version: 1,
+              bindings: [
+                { blockId: action.id, blockType: action.type, role: "payout_sink", recipientIndex },
+              ],
+            },
           },
     );
   };
@@ -540,7 +591,7 @@ function synthesizeCashOutNodes(
       if (r.payoutMode !== "fiat") return r;
       changed = true;
       const nodeId = `${action.id}-cashout-${index}`;
-      pushCashOutNode(nodeId, {
+      pushCashOutNode(nodeId, index, {
         accountName: r.accountName ?? "",
         accountNumber: r.accountNumber ?? "",
         bankCode: r.bankCode ?? "",
@@ -556,7 +607,7 @@ function synthesizeCashOutNodes(
 
   if (action.type === "pay" && action.config.payoutMode === "fiat") {
     const nodeId = `${action.id}-cashout-0`;
-    pushCashOutNode(nodeId, {
+    pushCashOutNode(nodeId, 0, {
       accountName: action.config.accountName ?? "",
       accountNumber: action.config.accountNumber ?? "",
       bankCode: action.config.bankCode ?? "",
@@ -570,66 +621,62 @@ function synthesizeCashOutNodes(
   return { action, cashOutNodes };
 }
 
-/**
- * Contract actions that `flowToPipeline` deliberately does NOT emit as their own
- * pipeline node, because another node carries their semantics.
- *
- * There is exactly one such case today: an `oracle_gte` condition compiles to a
- * CONDITIONAL that owns the payout recipients and pays them itself, so it sets
- * `terminal` and the action loop never runs. That only works for actions the
- * CONDITIONAL's params can express — a recipient list. A swap or a yield has no
- * recipients, so it is genuinely lost rather than absorbed, and stays out of
- * this set.
- *
- * Kept beside the `terminal = true` it mirrors: validateFlow uses this to tell
- * "absorbed by design" apart from "silently dropped", and the two must not drift.
- */
+/** Compatibility helper; absorption is read from the compiler's own bindings. */
 export function absorbedActionIds(graph: FlowGraph): Set<string> {
-  const absorbed = new Set<string>();
-  const trigger = graph.nodes.find(isTrigger);
-  if (!trigger) return absorbed;
-  // Only receive-like flows reach the condition compiler; schedule-like triggers
-  // return before it.
-  if (
-    trigger.type === "on_schedule" ||
-    trigger.type === "subscription" ||
-    trigger.type === "payroll"
-  ) {
-    return absorbed;
-  }
-  const oracleGte = graph.nodes.filter((n) => isLogic(n) && n.config.kind === "oracle_gte");
-  if (oracleGte.length === 0) return absorbed;
-  // Exactly one action is absorbed: the `contractActions[0]` this file picks as
-  // `action` below, whose recipients become the CONDITIONAL's. Same
-  // `inFlowOrder` pick, or the two drift and the not-deployed guard names the
-  // action the conditional actually pays instead of the one that is dropped.
-  // Every other pay/split in the graph is dropped rather than absorbed, and
-  // must still trip validateFlow's not-deployed guard.
-  const [primary] = inFlowOrder(graph, graph.nodes.filter(isContractAction));
-  if (!primary || (primary.type !== "pay" && primary.type !== "split")) return absorbed;
-  // And only when a conditional actually carries it. An oracle_gte sitting
-  // unwired on the canvas still sets `terminal` below, but it absorbs nothing:
-  // treating the primary as absorbed there would hide a pay that reaches no
-  // contract at all.
-  const children = getPipelineChildren(graph);
-  const seen = new Set(oracleGte.map((c) => c.id));
-  const stack = [...seen];
+  return new Set(
+    flowToPipeline(graph, undefined, undefined, { forValidation: true })
+      .filter((node) => node.templateKind === TemplateKind.CONDITIONAL)
+      .flatMap((node) =>
+        node.implementation.bindings
+          .filter((binding) => binding.role === "distribution")
+          .map((binding) => binding.blockId),
+      ),
+  );
+}
+
+/** Only associate a payout with a conditional that actually reaches it. */
+function conditionalCarriesAction(
+  children: Map<string, string[]>,
+  conditionId: string,
+  action: ContractActionNode,
+): boolean {
+  if (action.type !== "pay" && action.type !== "split") return false;
+  const seen = new Set([conditionId]);
+  const stack = [conditionId];
   while (stack.length) {
     for (const child of children.get(stack.pop()!) ?? []) {
+      if (child === action.id) return true;
       if (seen.has(child)) continue;
       seen.add(child);
       stack.push(child);
     }
   }
-  if (seen.has(primary.id)) absorbed.add(primary.id);
-  return absorbed;
+  return false;
 }
+
+export type CompiledPipelineNode = PipelineNode & { implementation: PipelineImplementation };
 
 export function flowToPipeline(
   graph: FlowGraph,
   relayerAddress?: string,
   treasuryAddress?: string,
-): PipelineNode[] {
+  options: { ownerAddress?: string; forValidation?: boolean } = {},
+): CompiledPipelineNode[] {
+  graph = FlowGraphSchema.parse(migrateFlowGraph(graph));
+  const outcomeIssues = terminalOutcomeIssues(graph);
+  if (outcomeIssues.length) throw new Error(outcomeIssues[0]!.message);
+  const ownerReturns = new Set(
+    graph.nodes.filter((n) => n.type === "return_to_owner").map((n) => n.id),
+  );
+  if (
+    ownerReturns.size &&
+    !options.forValidation &&
+    !StrKey.isValidEd25519PublicKey(options.ownerAddress ?? "")
+  ) {
+    throw new Error("Return to owner requires the deploying wallet address");
+  }
+  const visualBlocks = new Map(graph.nodes.map((node) => [node.id, node]));
+  graph = resolveOwnerReturns(graph, options.ownerAddress ?? DEPLOYING_WALLET);
   const trigger = graph.nodes.find(isTrigger)!;
   const actions = graph.nodes.filter(isAction);
   // In flow order, not canvas order: every consumer of contractActions[0]
@@ -638,7 +685,20 @@ export function flowToPipeline(
   const conditions = graph.nodes.filter(isLogic);
   const children = getPipelineChildren(graph);
   const devMode = graph.devMode === true;
-  const pipeline: PipelineNode[] = [];
+  const pipeline: CompiledPipelineNode[] = [];
+  const emit = (...nodes: PipelineNode[]) => {
+    for (const node of nodes) {
+      const block = visualBlocks.get(node.nodeId);
+      if (!node.implementation && !block) throw new Error("Contract has no originating block");
+      pipeline.push({
+        ...node,
+        implementation: node.implementation ?? {
+          version: 1,
+          bindings: [directBinding(block!)],
+        },
+      });
+    }
+  };
 
   // ── schedule-like flows (on_schedule, subscription, payroll) ─────────
   if (
@@ -699,7 +759,7 @@ export function flowToPipeline(
       const amountPerPeriodStroops =
         subscriptionAmountPerPeriodStroops(graph) ?? trigger.config.amountPerPeriodStroops;
       if (devMode) {
-        pipeline.push({
+        emit({
           nodeId: trigger.id,
           templateKind: TemplateKind.SUBSCRIPTION_DEV,
           params: {
@@ -717,7 +777,7 @@ export function flowToPipeline(
           },
         });
       } else {
-        pipeline.push({
+        emit({
           nodeId: trigger.id,
           templateKind: TemplateKind.SUBSCRIPTION,
           params: {
@@ -749,7 +809,7 @@ export function flowToPipeline(
           ? { action: current, cashOutNodes: [] as PipelineNode[] }
           : synthesizeCashOutNodes(current, false, relayerAddress, treasuryAddress);
         cashOutNodes.push(...synthesized.cashOutNodes);
-        pipeline.push(
+        emit(
           contractActionToPipelineNode(
             synthesized.action,
             trigger,
@@ -766,7 +826,7 @@ export function flowToPipeline(
           }
         }
       }
-      pipeline.push(...cashOutNodes);
+      emit(...cashOutNodes);
       return pipeline;
     }
 
@@ -788,7 +848,7 @@ export function flowToPipeline(
         // the treasury and emits a cash_out event for the off-ramp cron.
         const cashOutNodes: PipelineNode[] = [];
 
-        pipeline.push({
+        emit({
           nodeId: trigger.id,
           templateKind: TemplateKind.SUBSCRIPTION_DEV,
           params: {
@@ -819,7 +879,7 @@ export function flowToPipeline(
             treasuryAddress,
           );
           cashOutNodes.push(...synthesized.cashOutNodes);
-          pipeline.push(
+          emit(
             contractActionToPipelineNode(
               synthesized.action,
               trigger,
@@ -837,7 +897,7 @@ export function flowToPipeline(
           }
         }
 
-        pipeline.push(...cashOutNodes);
+        emit(...cashOutNodes);
         return pipeline;
       }
 
@@ -847,7 +907,7 @@ export function flowToPipeline(
       // with bank details baked in at deploy time.
       const cashOutNodes: PipelineNode[] = [];
 
-      pipeline.push({
+      emit({
         nodeId: trigger.id,
         templateKind: TemplateKind.SUBSCRIPTION,
         params: {
@@ -871,7 +931,7 @@ export function flowToPipeline(
         seenActions.add(current.id);
         const synthesized = synthesizeCashOutNodes(current, false, relayerAddress, treasuryAddress);
         cashOutNodes.push(...synthesized.cashOutNodes);
-        pipeline.push(
+        emit(
           contractActionToPipelineNode(
             synthesized.action,
             trigger,
@@ -889,7 +949,7 @@ export function flowToPipeline(
         }
       }
 
-      pipeline.push(...cashOutNodes);
+      emit(...cashOutNodes);
       return pipeline;
     }
 
@@ -897,9 +957,16 @@ export function flowToPipeline(
     // streamer itself drives the release schedule.  Recipients must carry bps
     // that sum to TOTAL_BPS; derive them from fixed amounts when needed.
     const amountPerInterval = streamerAmountPerInterval(action, trigger, intervalSeconds);
-    pipeline.push({
+    emit({
       nodeId: action.id,
       templateKind: TemplateKind.STREAMER,
+      implementation: {
+        version: 1,
+        bindings: [
+          { blockId: trigger.id, blockType: trigger.type, role: "schedule" },
+          { blockId: action.id, blockType: action.type, role: "distribution" },
+        ],
+      },
       params: {
         kind: "streamer",
         asset,
@@ -922,7 +989,7 @@ export function flowToPipeline(
 
   // Trigger
   if (trigger.type === "webhook") {
-    pipeline.push({
+    emit({
       nodeId: trigger.id,
       templateKind: TemplateKind.WEBHOOK,
       params: {
@@ -933,7 +1000,7 @@ export function flowToPipeline(
       },
     });
   } else if (trigger.type === "web2_webhook") {
-    pipeline.push({
+    emit({
       nodeId: trigger.id,
       templateKind: TemplateKind.WEBHOOK,
       params: {
@@ -944,7 +1011,7 @@ export function flowToPipeline(
       },
     });
   } else if (trigger.type === "oracle") {
-    pipeline.push({
+    emit({
       nodeId: trigger.id,
       templateKind: TemplateKind.ORACLE,
       params: {
@@ -955,7 +1022,7 @@ export function flowToPipeline(
       },
     });
   } else {
-    pipeline.push({
+    emit({
       nodeId: trigger.id,
       templateKind: TemplateKind.DEPOSIT_TRIGGER,
       params: {
@@ -968,43 +1035,107 @@ export function flowToPipeline(
 
   // Conditions
   let terminal = false;
+  const branchActions: ContractActionNode[] = [];
   for (const cond of conditions) {
     if (cond.config.kind === "time_after" || cond.config.kind === "time_before") {
       const ts = Math.floor(new Date(cond.config.at).getTime() / 1000);
-      pipeline.push({
-        nodeId: cond.id,
-        templateKind: TemplateKind.TIMELOCK,
-        params: {
-          kind: "timelock",
-          asset,
-          unlockTime: ts,
-          mode: cond.config.kind === "time_after" ? "after" : "before",
-          nextStepNodeIds: children.get(cond.id) ?? [],
-        },
-      });
+      const targets = conditionBranchTargets(graph, cond.id);
+      const { beforeNodeIds, afterNodeIds } = timelockLists(cond.config.kind, targets);
+      const holds = beforeNodeIds.some(
+        (id) => graph.nodes.find((n) => n.id === id)?.type === "hold",
+      );
+      if (holds && afterNodeIds.length !== 1)
+        throw new Error("Hold requires one after destination");
+      emit(
+        holds
+          ? {
+              nodeId: cond.id,
+              templateKind: TemplateKind.TIMELOCK,
+              implementation: {
+                version: 1,
+                bindings: [
+                  directBinding(cond),
+                  ...beforeNodeIds
+                    .filter((id) => visualBlocks.get(id)?.type === "hold")
+                    .map((id) => ({
+                      blockId: id,
+                      blockType: "hold" as const,
+                      role: "strict_lock" as const,
+                    })),
+                ],
+              },
+              params: {
+                kind: "timelock",
+                asset,
+                unlockTime: ts,
+                mode: "after",
+                nextStepNodeIds: afterNodeIds,
+                relayer: relayerAddress,
+              },
+            }
+          : {
+              nodeId: cond.id,
+              templateKind: TemplateKind.TIMELOCK_BRANCH,
+              params: {
+                kind: "timelock_branch",
+                asset,
+                unlockTime: ts,
+                beforeNodeIds,
+                afterNodeIds,
+                relayer: relayerAddress,
+              },
+            },
+      );
+      for (const id of [...beforeNodeIds, ...afterNodeIds]) {
+        const node = graph.nodes.find((n) => n.id === id);
+        if (node && isContractAction(node)) branchActions.push(node);
+      }
     } else if (cond.config.kind === "amount_gt" || cond.config.kind === "amount_lt") {
-      const childIds = children.get(cond.id) ?? [];
-      const pathA = cond.config.kind === "amount_gt" ? childIds : [];
-      const pathB = cond.config.kind === "amount_lt" ? childIds : [];
-      pipeline.push({
+      // The true/false branches map onto the router's two paths per kind; see
+      // routerPaths(). A missing branch leaves its path empty, which
+      // validateFlow refuses (ROUTER_EMPTY_PATH) rather than strand funds.
+      const targets = conditionBranchTargets(graph, cond.id);
+      const { pathANodeIds, pathBNodeIds } = routerPaths(cond.config.kind, targets);
+      emit({
         nodeId: cond.id,
         templateKind: TemplateKind.ROUTER,
         params: {
           kind: "router",
           asset,
-          threshold: cond.config.amountStroops,
-          pathANodeIds: pathA,
-          pathBNodeIds: pathB,
+          threshold: routerThresholdStroops(cond.config),
+          pathANodeIds,
+          pathBNodeIds,
         },
       });
+      // Each side's step has to be deployed, not only the one the trigger
+      // reaches first (`action`), which is where the action loop starts.
+      for (const id of [...pathANodeIds, ...pathBNodeIds]) {
+        const node = graph.nodes.find((n) => n.id === id);
+        if (node && isContractAction(node)) branchActions.push(node);
+      }
     } else if (cond.config.kind === "oracle_gte") {
       const amount =
         action.type === "pay"
           ? (action.config.amountStroops ?? "0")
           : (sourceAmountStroops(graph) ?? "0");
-      pipeline.push({
+      emit({
         nodeId: cond.id,
         templateKind: TemplateKind.CONDITIONAL,
+        implementation: {
+          version: 1,
+          bindings: [
+            directBinding(cond),
+            ...(conditionalCarriesAction(children, cond.id, action)
+              ? [
+                  {
+                    blockId: action.id,
+                    blockType: action.type,
+                    role: "distribution" as const,
+                  },
+                ]
+              : []),
+          ],
+        },
         params: {
           kind: "conditional",
           asset,
@@ -1019,9 +1150,9 @@ export function flowToPipeline(
           nextStepNodeIds: [],
         },
       });
-      terminal = true; // see absorbedActionIds() — the conditional pays out itself
+      terminal = true; // The conditional carries distribution in its recorded bindings.
     } else if (cond.config.kind === "multisig") {
-      pipeline.push({
+      emit({
         nodeId: cond.id,
         templateKind: TemplateKind.MULTISIG,
         params: {
@@ -1039,7 +1170,7 @@ export function flowToPipeline(
   if (!terminal) {
     const cashOutNodes: PipelineNode[] = [];
     const seenActions = new Set<string>();
-    const actionQueue: ContractActionNode[] = [action];
+    const actionQueue: ContractActionNode[] = [action, ...branchActions];
 
     while (actionQueue.length > 0) {
       const current = actionQueue.shift()!;
@@ -1053,12 +1184,12 @@ export function flowToPipeline(
         : synthesizeCashOutNodes(current, false, relayerAddress, treasuryAddress);
       cashOutNodes.push(...synthesized.cashOutNodes);
 
-      pipeline.push(
+      emit(
         contractActionToPipelineNode(
           synthesized.action,
           trigger,
           children,
-          devMode,
+          devMode && !ownerReturns.has(current.id),
           relayerAddress,
           treasuryAddress,
         ),
@@ -1072,7 +1203,7 @@ export function flowToPipeline(
       }
     }
 
-    pipeline.push(...cashOutNodes);
+    emit(...cashOutNodes);
   }
 
   return pipeline;

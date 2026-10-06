@@ -1,3 +1,8 @@
+vi.mock("@/lib/analytics/outcomes", () => ({
+  recordTransactionOutcome: vi.fn(async () => false),
+  beginTransactionSubmission: vi.fn(async () => undefined),
+  transactionObservation: vi.fn(async () => undefined),
+}));
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeTx } = vi.hoisted(
@@ -8,6 +13,7 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeT
         findFirst: vi.fn(),
         findUnique: vi.fn(),
         update: vi.fn(),
+        updateMany: vi.fn(async () => ({ count: 1 })),
       },
       employee: {
         create: vi.fn(),
@@ -18,6 +24,8 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeT
       offRampSenderProfile: {
         upsert: vi.fn(),
       },
+      user: { findUnique: vi.fn(async () => null) },
+      analyticsDelivery: { createMany: vi.fn(async () => ({ count: 1 })) },
       signedTransaction: {
         createMany: vi.fn(async () => ({ count: 1 })),
       },
@@ -31,6 +39,8 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeT
       STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
       STELLAR_RELAYER_ADDRESS: null as string | null,
       LOG_LEVEL: "silent",
+      NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+      NEXT_PUBLIC_APP_ENV: "local",
     };
 
     const mockRedis = {
@@ -128,6 +138,64 @@ describe("deployments/[id]/submit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFromXDR.mockImplementation(() => fakeTx("aabbccdd"));
+  });
+
+  it("keeps a finality timeout submitted for server reconciliation", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+    mockDeploy.submitDeployTx.mockResolvedValue({
+      status: "FAILED",
+      txHash: TX_HASH,
+      errorMessage: "Timed out waiting for finality",
+      failureCode: "FINALITY_UNKNOWN",
+    });
+    const response = await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toEqual({ status: "SUBMITTED", txHash: TX_HASH });
+    expect(mockDb.deployment.update).toHaveBeenCalledTimes(1);
+    expect(mockDb.deployment.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "SUBMITTED", deployTxHash: TX_HASH } }),
+    );
+    expect(auditActions()).not.toContain("DEPLOY_FAIL");
+    expect(capturedEvents()).not.toContain("deploy_failed");
+  });
+
+  it("retains prepared block bindings when confirming a deployment", async () => {
+    const pipeline = [
+      {
+        nodeId: "p",
+        contractAddress: "CABC",
+        templateKind: "STREAMER",
+        implementation: {
+          version: 1,
+          bindings: [
+            { blockId: "t", blockType: "on_schedule", role: "schedule" },
+            { blockId: "p", blockType: "split", role: "distribution" },
+          ],
+        },
+      },
+    ];
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment({ pipelineSnapshot: pipeline }));
+    mockDeploy.submitDeployTx.mockResolvedValue({ status: "SUCCESS", txHash: TX_HASH });
+    mockDb.deployment.update.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+      id: "dep-1",
+      status: "CONFIRMED",
+      deployTxHash: TX_HASH,
+      contractAddress: "CABC",
+      pipelineSnapshot: pipeline,
+    });
+    const res = await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.pipeline).toEqual(pipeline);
+    const confirmation = mockDb.deployment.update.mock.calls[1]?.[0].data;
+    expect(confirmation.status).toBe("CONFIRMED");
+    // Confirmation updates status/finality fields without replacing the prepared snapshot.
+    expect(confirmation).not.toHaveProperty("pipelineSnapshot");
   });
 
   it("returns idempotently when a concurrent request already confirmed (P2025 race-loser)", async () => {
@@ -250,7 +318,7 @@ describe("deployments/[id]/submit", () => {
       expect(mockDb.deployment.update).toHaveBeenCalledTimes(2);
       expect(mockDb.deployment.update.mock.calls.at(-1)?.[0]).toEqual({
         where: { id: "dep-1", status: "SUBMITTED" },
-        data: { status: "PENDING_SIGNATURE" },
+        data: { status: "PENDING_SIGNATURE", deployTxHash: null },
       });
       expect(auditActions()).toEqual(["DEPLOY_SUBMIT"]);
       expect(capturedEvents()).not.toContain("deploy_failed");
@@ -287,7 +355,7 @@ describe("deployments/[id]/submit", () => {
       expect((await second.json()).data).toMatchObject({ status: "CONFIRMED", txHash: TX_HASH });
       expect(mockDeploy.submitDeployTx).toHaveBeenCalledTimes(2);
       expect(auditActions()).toEqual(["DEPLOY_SUBMIT", "DEPLOY_SUBMIT", "DEPLOY_CONFIRM"]);
-      expect(capturedEvents().filter((e) => e === "transaction_signed")).toHaveLength(1);
+      expect(mockDb.analyticsDelivery.createMany).toHaveBeenCalledTimes(1);
       expect(capturedEvents()).not.toContain("deploy_failed");
     });
 

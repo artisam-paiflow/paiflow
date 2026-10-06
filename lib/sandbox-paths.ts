@@ -70,6 +70,7 @@ const SANDBOX_PATHS = [
   /^\/api\/address-book(\/[^/]+)?$/,
   /^\/api\/soroswap\/quote$/,
   /^\/api\/audit\/wallet-connection$/,
+  /^\/api\/audit\/analytics-context$/,
   /^\/api\/deployments$/,
   /^\/api\/deployments\/prepare$/,
   new RegExp(`^/api/deployments/${ID}$`),

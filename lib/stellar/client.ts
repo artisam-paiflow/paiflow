@@ -9,6 +9,7 @@ const g = globalThis as unknown as {
   __sorobanRpc?: rpc.Server;
   __horizon?: Horizon.Server;
   __relayerValidated?: boolean;
+  __relayerPendingBarrier?: () => Promise<void>;
 };
 
 async function validateRelayerSequence(server: rpc.Server) {
@@ -50,8 +51,7 @@ export const TENANT_RELAYER_TIMEOUT_MS = 45_000;
 export function sorobanRpc(): rpc.Server {
   if (!g.__sorobanRpc) {
     g.__sorobanRpc = new rpc.Server(stellarRpcUrl(), { allowHttp: false });
-    // Set on the client, not passed as `{ timeout }`: stellar-sdk 15.1.0 declares
-    // that option on rpc.Server and its constructor never reads it.
+    // Set on the HTTP client: SDK 16.3.1 still ignores rpc.Server's timeout option.
     g.__sorobanRpc.httpClient.defaults.timeout = STELLAR_HTTP_TIMEOUT_MS;
     // Validate in background; don't block startup.
     validateRelayerSequence(g.__sorobanRpc).catch(() => {});
@@ -92,8 +92,16 @@ export function decodeContractAddress(addr: string): Buffer {
 // dedicated single signer) on top of this.
 let relayerQueue = Promise.resolve<unknown>(undefined);
 
+/** Register source-lane reconciliation without importing channel code into the RPC client. */
+export function registerRelayerPendingBarrier(barrier: () => Promise<void>): void {
+  g.__relayerPendingBarrier = barrier;
+}
+
 export async function withRelayerLock<T>(fn: () => Promise<T>): Promise<T> {
-  const promise = relayerQueue.then(() => fn());
+  const promise = relayerQueue.then(async () => {
+    await g.__relayerPendingBarrier?.();
+    return fn();
+  });
   relayerQueue = promise.then(
     () => {},
     () => {},

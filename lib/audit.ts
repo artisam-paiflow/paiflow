@@ -24,6 +24,11 @@ export type AuditAction =
   | "DEPLOY_SUBMIT"
   | "DEPLOY_CONFIRM"
   | "DEPLOY_FAIL"
+  | "CONTRACT_STORAGE_RESTORED"
+  | "CONTRACT_STORAGE_EXTENDED"
+  | "CONTRACT_STORAGE_RENT_PENDING"
+  | "TRANSACTION_FEE_RESERVED"
+  | "TTL_FIXTURE_SETUP_CLAIMED"
   | "DEPLOY_TRIGGER"
   | "DEPLOY_TRIGGER_CONFIRMED"
   | "DEPLOY_INVOKE"
@@ -39,9 +44,15 @@ export type AuditAction =
   | "ADMIN_USER_DEACTIVATE"
   | "API_TOKEN_CREATED"
   | "API_TOKEN_REVOKED"
+  | "API_PAYOUT_PREPARED"
+  | "API_PAYOUT_CONFIGURED"
+  | "API_PAYOUT_SUBMITTED"
+  | "API_PAYOUT_CONFIRMED"
   | "API_EXECUTE_PREPARED"
   | "API_EXECUTE_SUBMITTED"
   | "API_EXECUTE_CONFIRMED"
+  | "TIMELOCK_RELEASE_BEFORE"
+  | "API_TIMELOCK_RELEASE_BEFORE"
   | "API_DEMO_TOKEN_ISSUED";
 
 /**
@@ -58,6 +69,7 @@ const SUBMITTED_TX_ACTIONS = [
   "DEPLOY_INVOKE",
   "DEPLOY_CONFIRM",
   "API_EXECUTE_SUBMITTED",
+  "API_PAYOUT_SUBMITTED",
 ] satisfies AuditAction[];
 
 /**
@@ -98,7 +110,7 @@ export async function needsSubmitRow(
  * it from writing a second `API_EXECUTE_CONFIRMED` row each time.
  */
 export async function wasTxConfirmedFor(deploymentId: string, txHash: string): Promise<boolean> {
-  return hasTxAuditRow(["API_EXECUTE_CONFIRMED"], deploymentId, txHash);
+  return hasTxAuditRow(["API_EXECUTE_CONFIRMED", "API_PAYOUT_CONFIRMED"], deploymentId, txHash);
 }
 
 async function hasTxAuditRow(

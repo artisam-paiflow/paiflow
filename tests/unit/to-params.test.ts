@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { TemplateKind } from "@prisma/client";
+import { Address } from "@stellar/stellar-sdk";
+import { pipelineNodeConstructorArgs } from "@/lib/stellar/scval";
+import { timelockSideBranch } from "@/lib/flows/branches";
 import { flowToParams, flowToPipeline } from "@/lib/flows/to-params";
-import { sourceAmountStroops, bpsToPct, pctToBps } from "@/lib/flows/schema";
+import { FlowGraphSchema, sourceAmountStroops, bpsToPct, pctToBps } from "@/lib/flows/schema";
 
 const ADDR_A = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const ADDR_B = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
@@ -1458,7 +1461,7 @@ describe("flowToPipeline", () => {
     });
   });
 
-  it("produces deposit_trigger → timelock → splitter for time_after condition", () => {
+  it("produces deposit_trigger → timelock_branch → splitter for time_after condition", () => {
     const graph = splitGraph() as Parameters<typeof flowToPipeline>[0];
     graph.nodes.push({
       id: "c",
@@ -1473,8 +1476,14 @@ describe("flowToPipeline", () => {
     const pipeline = flowToPipeline(graph);
     expect(pipeline).toHaveLength(3);
     expect(pipeline[0]!.templateKind).toBe("DEPOSIT_TRIGGER");
-    expect(pipeline[1]!.templateKind).toBe("TIMELOCK");
-    expect(pipeline[1]!.params.kind).toBe("timelock");
+    expect(pipeline[1]!.templateKind).toBe("TIMELOCK_BRANCH");
+    expect(pipeline[1]!.params).toMatchObject({
+      kind: "timelock_branch",
+      // A handle-less edge is the True branch, which for time_after is the
+      // "after" list; the "before" list is empty and validateFlow refuses it.
+      afterNodeIds: ["a"],
+      beforeNodeIds: [],
+    });
     expect(pipeline[2]!.templateKind).toBe("SPLITTER");
   });
 
@@ -1491,7 +1500,8 @@ describe("flowToPipeline", () => {
     expect(pipeline[1]!.templateKind).toBe("ROUTER");
     expect(pipeline[1]!.params.kind).toBe("router");
     expect(pipeline[1]!.params).toMatchObject({
-      threshold: "50000000",
+      // amount_gt is strict: the router's `>=` is fed threshold + 1 stroop.
+      threshold: "50000001",
       pathANodeIds: ["a"],
       pathBNodeIds: [],
     });
@@ -2100,4 +2110,52 @@ describe("flowToPipeline", () => {
     const payer = pipeline[2]!.params as { nextStepNodeIds: string[] };
     expect(payer.nextStepNodeIds).toEqual([]);
   });
+});
+
+describe("time condition relayer authorization", () => {
+  it.each(["time_before", "time_after"] as const)(
+    "%s pins the relayer in branch and Hold constructors",
+    (kind) => {
+      // Use valid, distinct addresses so encoding cannot silently fall back to admin.
+      const relayerAddress = ADDR_B;
+      for (const hold of [false, true]) {
+        const graph = FlowGraphSchema.parse({
+          nodes: [
+            { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+            { id: "c", type: "condition", config: { kind, at: "2030-06-01T00:00:00.000Z" } },
+            { id: "before", type: hold ? "hold" : "return_to_owner", config: {} },
+            { id: "after", type: "return_to_owner", config: {} },
+          ],
+          edges: [
+            { id: "tc", source: "t", target: "c" },
+            {
+              id: "cb",
+              source: "c",
+              target: "before",
+              sourceHandle: timelockSideBranch(kind, "before"),
+            },
+            {
+              id: "ca",
+              source: "c",
+              target: "after",
+              sourceHandle: timelockSideBranch(kind, "after"),
+            },
+          ],
+        });
+        const pipeline = flowToPipeline(graph, relayerAddress, undefined, { ownerAddress: ADDR_A });
+        const condition = pipeline.find((n) => n.nodeId === "c")!;
+        expect(condition.params).toMatchObject({
+          kind: hold ? "timelock" : "timelock_branch",
+          relayer: relayerAddress,
+        });
+        const args = pipelineNodeConstructorArgs(condition.params, ADDR_A, ADDR_A, {
+          before: ADDR_A,
+          after: ADDR_A,
+        });
+        expect(args[0]).toEqual(new Address(ADDR_A).toScVal());
+        expect(args[6]).toEqual(new Address(relayerAddress).toScVal());
+        expect(args[6]).not.toEqual(args[0]);
+      }
+    },
+  );
 });

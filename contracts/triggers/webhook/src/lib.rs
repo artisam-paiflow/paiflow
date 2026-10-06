@@ -30,7 +30,9 @@ pub enum Error {
     InsufficientBalance = 4,
 }
 
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
+const TTL_THRESHOLD: u32 = 50_000;
+const TTL_EXTEND_TO: u32 = 500_000;
 
 #[contract]
 pub struct WebhookTrigger;
@@ -52,6 +54,7 @@ impl WebhookTrigger {
         env.storage().instance().set(&Key::Relayer, &relayer);
         env.storage().instance().set(&Key::NextSteps, &next_steps);
         env.storage().instance().set(&Key::Version, &VERSION);
+        bump_ttl(&env);
     }
 
     /// Called by the authorized relayer to pull funds from `from` and start the chain.
@@ -84,6 +87,8 @@ impl WebhookTrigger {
                 &amount,
             );
         }
+
+        bump_ttl(&env);
 
         #[allow(deprecated)]
         env.events()
@@ -118,6 +123,8 @@ impl WebhookTrigger {
             invoke_receive_and_forward(&env, &step.address, &contract, &asset, &send_amount);
         }
 
+        bump_ttl(&env);
+
         #[allow(deprecated)]
         env.events()
             .publish((symbol_short!("escrow"), contract), send_amount);
@@ -132,6 +139,8 @@ impl WebhookTrigger {
 
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         token::Client::new(&env, &asset).transfer(&from, env.current_contract_address(), &amount);
+
+        bump_ttl(&env);
 
         #[allow(deprecated)]
         env.events()
@@ -149,6 +158,13 @@ impl WebhookTrigger {
     pub fn relayer(env: Env) -> Address {
         env.storage().instance().get(&Key::Relayer).unwrap()
     }
+}
+
+// The host checks and extends the instance and shared code lifetimes independently.
+fn bump_ttl(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
 }
 
 fn invoke_receive_and_forward(
@@ -375,3 +391,7 @@ mod test {
         assert_eq!(tok.balance(&next), 300);
     }
 }
+
+#[cfg(test)]
+#[path = "ttl-tests.rs"]
+mod ttl_tests;

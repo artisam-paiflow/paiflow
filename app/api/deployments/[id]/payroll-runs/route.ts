@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import {
   RunListResponseSchema,
   countCompletedPayouts,
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     const rlKey = `payroll-runs-list:${user.id}`;
     const rl = await rateLimit(rlKey, 60, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many payroll run list requests");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many payroll run list requests");
 
     const { id } = await ctx.params;
     if (!isUuid(id)) throw new AppError("NOT_FOUND", "Deployment not found");

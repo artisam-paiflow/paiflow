@@ -131,14 +131,15 @@ A trigger is the root of the graph and decides **when** money moves. Exactly one
 
 An action decides **where** money goes. A flow must contain at least one.
 
-|     | Block          | Does                                                | Notes that matter                                                                                                                                              |
-| --- | -------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ●   | `pay`          | Sends to one recipient                              | Fixed amount, a percentage of what arrived, or the full amount. Supports a fiat payout mode.                                                                   |
-| ●   | `split`        | Fans out to up to 20 recipients                     | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                                                          |
-| ●   | `swap`         | Exchanges `assetIn` for `assetOut` on Soroswap      | A real DEX swap with a slippage bound; forwards the whole output to exactly one next step. See below.                                                          |
-| ●   | `email_notify` | Emails recipients when the flow pays out            | Terminal only — it must have no outgoing edges, because it moves no money and nothing can be downstream of a notification.                                     |
-| ◦   | `cash_out`     | Sends to the off-ramp treasury against bank details | The bridge out of crypto: the contract holds the destination bank account, so the payout is as immutable as the on-chain leg. Not placed directly — see below. |
-| ◦   | `yield`        | Transfers the balance to a vault address            | A plain token transfer; it does not call a vault protocol's deposit function and nothing accrues. Downstream steps are then invoked with `amount=0`.           |
+|     | Block             | Does                                                     | Notes that matter                                                                                                                                              |
+| --- | ----------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ●   | `hold`            | Strictly locks funds until a time condition deadline     | Terminal before-side marker; after side must have a destination. No early release.                                                                             |
+| ●   | `return_to_owner` | Returns the full incoming amount to the deploying wallet | Terminal after amount, time, or multisig conditions; refused after `oracle_gte`. Recipient resolves during preparation, immutable even in dev mode.            |
+| ●   | `pay`             | Sends to one recipient                                   | Fixed amount, a percentage of what arrived, or the full amount. Supports a fiat payout mode.                                                                   |
+| ●   | `split`           | Fans out to up to 20 recipients                          | Percentage mode (basis points) or fixed mode — never mixed. See the invariants below.                                                                          |
+| ●   | `swap`            | Exchanges `assetIn` for `assetOut` on Soroswap           | A real DEX swap with a slippage bound; forwards the whole output to exactly one next step. See below.                                                          |
+| ◦   | `cash_out`        | Sends to the off-ramp treasury against bank details      | The bridge out of crypto: the contract holds the destination bank account, so the payout is as immutable as the on-chain leg. Not placed directly — see below. |
+| ◦   | `yield`           | Transfers the balance to a vault address                 | A plain token transfer; it does not call a vault protocol's deposit function and nothing accrues. Downstream steps are then invoked with `amount=0`.           |
 
 **`cash_out` is not dragged onto the canvas.** Setting a `pay` or `split` recipient to fiat payout
 generates a cash-out contract for that recipient at deploy time. The block exists so the pipeline
@@ -153,14 +154,42 @@ bound as its own backstop, so a failed swap moves nothing downstream. `assetIn` 
 differ: Soroswap has no pair for an asset against itself, so a same-asset swap would deploy and then
 revert on its first trigger. A swap node must have exactly one outgoing edge that carries money:
 splitting is the splitter's job, and a swap with nowhere to send its output would strand it in a
-contract that has no way to release it. An `email_notify` edge is a decorator, moves nothing, and
-does not count toward that one. The router is environment config, never part of the graph. Instawards Phase 1 Deliverable 1, [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md).
+contract that has no way to release it. The router is environment config, never part of the graph. Instawards Phase 1 Deliverable 1, [`docs/instawards-phase-1-sow.md`](./docs/instawards-phase-1-sow.md).
+
+Email is a flow setting, not a block. New flows default to "Every time money moves";
+existing graphs without `notify` stay off. "Only when a deposit falls short" and "Off" are
+also available. Send to is pre-filled from the account email and never blocks save or deploy.
+Owners receive one generated summary per transaction. Pay and Split recipient rows have an
+optional email for that recipient's own payout only. Hold and Return to owner use the owner
+summary. Legacy Email Notify nodes are converted on load by matching recipient addresses, then
+removed with their edges; custom subjects and bodies are discarded. Sandbox notifications are
+forced off. Notification addresses are private and never appear on public surfaces or in logs.
 
 ### 3.3 Logic
 
 `condition` (●) gates everything downstream of it. Its `kind` selects the test: `amount_gt`,
 `amount_lt`, `oracle_gte`, `time_after`, `time_before`, or `multisig` (N-of-M signer approval).
 `multisig` is a condition kind, not a block of its own.
+
+An amount condition (`amount_gt`, `amount_lt`) has two outputs: **True** leads to the steps for a
+payment that meets the test, **False** to the steps for one that doesn't.
+
+A time condition (`time_after`, `time_before`) also has two outputs, but it does not test a payment:
+it holds the funds and the release time picks the side. Released strictly before the deadline, the
+funds go to the "before" step; released at or after it, to the "after" step. `time_before` names
+the before side as True and the after side as False; `time_after` the other way round. Before the
+deadline the before side can be chosen by the deploying wallet, and the contract also lets the
+relayer release it on an authorised request (the owner's session or a deployment API token; that
+request is not built yet, #751). The scheduled auto-release always asks
+for the after side, which the contract only allows at or after the deadline ("pay the freelancer on
+delivery, refund the client after the deadline"). A release that names the wrong side for the
+ledger time is refused, never redirected.
+
+A `hold` marker on the before side changes a time condition to a strict lock: neither the wallet nor the relayer can release early. At or after the deadline the full balance follows the after destination. Hold is absorbed into that condition and has no contract of its own.
+
+`return_to_owner` pays 100% of the incoming amount to the wallet signing deployment, never an address guessed when saving. It stays immutable in dev mode. It can follow amount, time and multisig conditions, but not `oracle_gte`, whose fixed-amount release cannot express full-balance return. Both outcomes require exactly one incoming condition edge and no outgoing edges.
+
+Every other kind has only the True output. An edge saved without a branch is the True branch.
 
 ### 3.4 Invariants
 
@@ -178,6 +207,19 @@ Money:
 - No duplicate recipient addresses in a split — a duplicate is far more likely a mistake than an
   intent to pay someone twice.
 - A scheduled split requires a positive amount per interval.
+- `amount_gt` and `amount_lt` are both strict. An amount condition sends every payment down one of
+  two paths, and both must lead to a step: money routed to an empty path would sit in a contract
+  that cannot release it. So both the True and the False output must be connected, each to one
+  step, before an amount condition can deploy.
+- A time condition holds the funds until they are released, and both sides must lead to a step for
+  the same reason: a side with nothing on it would leave the funds in a contract that cannot
+  release them. So both the True and the False output must be connected, each to one step, before
+  a time condition can deploy. The deploying wallet can release at any time, and the relayer can
+  release the before side on an authorised request, so who chooses the before side is a trust
+  property of the flow's owner, not of the contract's counterparties.
+  Exception: with Hold on the before side, both outputs are still connected but the before marker means strict locking rather than a destination. The after side must lead to one destination; no early release is possible.
+  The deadline itself belongs to the after side: `time_before` is
+  strict, `time_after` inclusive.
 - Amounts are stroops as decimal strings end to end. See [`CLAUDE.md` §3.3](./CLAUDE.md#33-typescript).
 
 Fiat payouts:
@@ -227,8 +269,7 @@ implementation.
 
 Two things deliberately absent: there is **no** per-deploy network picker (the network is pinned per
 environment — [`CLAUDE.md` §7.5](./CLAUDE.md#75-networks)), and **no** in-app changelog. Feature
-history is the git log; `docs/archive/features-through-2026-06.md` holds an earlier hand-kept log
-that stopped.
+history is the git log.
 
 ---
 

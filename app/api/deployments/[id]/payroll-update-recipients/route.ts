@@ -4,6 +4,8 @@ import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
+import { refuseNewFiatRecipients } from "@/lib/features";
 import { preparePayrollUpdateRecipientsInvocation } from "@/lib/stellar/invoke";
 import {
   submitUpdateRecipientsByRelayer,
@@ -56,9 +58,9 @@ type NormalizedRecipient = Omit<Recipient, "address"> & { address: string };
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
+    await enforceWriteRateLimit("payrollWrite", user.id);
     const { id } = await ctx.params;
     const body = PostSchema.parse(await req.json());
-
     const d = await db.deployment.findFirst({
       where: { id, ownerId: user.id },
       include: { flow: { select: { templateKind: true } } },
@@ -67,6 +69,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (d.flow.templateKind !== "PAYROLL") {
       throw new AppError("VALIDATION", "Deployment is not a payroll");
     }
+    // A new fiat recipient deploys a CASH_OUT_DEV sink and queues off-ramp
+    // jobs: new off-ramp use, refused while it is switched off (#722). Crypto
+    // recipients and fiat ones already on this deployment keep updating.
+    await refuseNewFiatRecipients(d.id, body.recipients);
 
     const normalizedRecipients = body.recipients.map((r) => {
       if (r.payoutMode === "fiat" && !r.address) {

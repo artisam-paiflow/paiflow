@@ -1,9 +1,16 @@
 "use client";
 
-import { memo } from "react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { memo, useEffect } from "react";
+import {
+  Handle,
+  Position,
+  useNodeConnections,
+  useUpdateNodeInternals,
+  type NodeProps,
+} from "@xyflow/react";
 import type { FlowNode } from "@/lib/flows/schema";
 import { isLogic } from "@/lib/flows/schema";
+import { conditionOutputs, conditionOutputsDescription } from "./logic-node.utils";
 
 type LogicNodeData = {
   node: FlowNode;
@@ -11,7 +18,7 @@ type LogicNodeData = {
 };
 
 const KIND_LABELS: Record<string, string> = {
-  amount_gt: "amount ≥",
+  amount_gt: "amount >",
   amount_lt: "amount <",
   oracle_gte: "oracle ≥",
   time_after: "time after",
@@ -19,10 +26,20 @@ const KIND_LABELS: Record<string, string> = {
   multisig: "multisig",
 };
 
-function LogicNodeComponent({ data, selected }: NodeProps) {
+function LogicNodeComponent({ id, data, selected }: NodeProps) {
   const d = data as LogicNodeData;
   const n = d.node;
+  const falseEdges = useNodeConnections({ handleType: "source", handleId: "false" });
+  const outputs = isLogic(n) ? conditionOutputs(n, falseEdges.length > 0) : [];
+  const branching = outputs.length > 1;
+  // Switching the kind adds or removes the False handle; React Flow has to
+  // re-measure the node's handles before an edge can attach to the new one.
+  const updateNodeInternals = useUpdateNodeInternals();
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [id, branching, updateNodeInternals]);
   if (!isLogic(n)) return null;
+  const description = conditionOutputsDescription(n);
 
   return (
     <div
@@ -51,13 +68,36 @@ function LogicNodeComponent({ data, selected }: NodeProps) {
         <div className="text-on-surface-variant mt-1 font-mono text-[11px]">
           {KIND_LABELS[n.config.kind] ?? n.config.kind}
         </div>
+        {description && <span className="sr-only">{description}</span>}
       </div>
 
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        className="!border-tertiary !bg-surface-container !h-2.5 !w-2.5 !rounded-full !border-2"
-      />
+      {branching && (
+        // Each label sits above its handle. Hidden from assistive tech, which
+        // reads the fuller sentence in the body instead.
+        <div aria-hidden="true" className="relative h-5">
+          {outputs.map((o) => (
+            <span
+              key={o.id}
+              className="text-on-surface-variant absolute top-0 -translate-x-1/2 font-mono text-[10px] tracking-wide uppercase"
+              style={{ left: `${o.leftPct}%` }}
+            >
+              {o.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {outputs.map((o) => (
+        <Handle
+          key={o.id}
+          id={o.id}
+          type="source"
+          position={Position.Bottom}
+          title={o.label ?? undefined}
+          style={{ left: `${o.leftPct}%` }}
+          className="!border-tertiary !bg-surface-container !h-2.5 !w-2.5 !rounded-full !border-2"
+        />
+      ))}
     </div>
   );
 }
