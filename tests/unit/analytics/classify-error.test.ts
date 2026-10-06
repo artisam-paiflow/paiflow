@@ -8,6 +8,23 @@ describe("classifyError", () => {
   it.each([
     [new Error("User declined access"), "user_rejected"],
     [new Error("The request was rejected by the user"), "user_rejected"],
+    // Wallets Kit parseError() output: Freighter throws objects, not Error.
+    [
+      { code: -1, message: "User declined access", ext: { private: "do not capture" } },
+      "user_rejected",
+    ],
+    [{ code: 4001, message: "User rejected the request." }, "user_rejected"],
+    [{ error: { code: -1, message: "User declined access" } }, "user_rejected"],
+    [{ code: -1, message: "Unhandled error from the wallet" }, "unknown"],
+    [{ code: 4001 }, "unknown"],
+    [
+      { code: -3, message: "Getting the address is not allowed, please request access first." },
+      "unknown",
+    ],
+    [{ code: -1, message: "The contract rejected this action." }, "unknown"],
+    [{ code: -1, message: "Wallet connection timed out" }, "timeout"],
+    [{ code: -1, message: "Failed to fetch" }, "network"],
+    [{ message: 123, ext: "User rejected" }, "unknown"],
     [
       apiError({
         error: {
@@ -57,6 +74,14 @@ describe("classifyError", () => {
   it("keeps the AppError code through apiError()", () => {
     const err = apiError({ error: { code: "CONFLICT", message: "Deployment is FAILED" } });
     expect(classifyError(err)).toMatchObject({ errorClass: "unknown", errorCode: "CONFLICT" });
+  });
+
+  it("uses the cancellation message key without capturing wallet payload fields", () => {
+    expect(classifyError({ code: -1, message: "User declined access", ext: "private" })).toEqual({
+      errorClass: "user_rejected",
+      errorCode: null,
+      messageKey: "Transaction cancelled in your wallet.",
+    });
   });
 
   it("builds the message key from the friendly message, without addresses", () => {
