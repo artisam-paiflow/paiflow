@@ -380,3 +380,16 @@ it("expires idle cache entries and associated timers", async () => {
   await cache.read(deployment, environment);
   expect(load).toHaveBeenCalledTimes(2);
 });
+
+it("deduplicates confirmed actions and replayed/multiple events by transaction", async () => {
+  const load = vi.fn(async () => value());
+  const cache = createDashboardBalanceCache({ load });
+  await cache.read(deployment, environment);
+  cache.invalidate("testnet", "d", "transaction");
+  await cache.read(deployment, environment);
+  cache.invalidate("testnet", "d", "transaction");
+  expect((await cache.read(deployment, environment)).freshness.cached).toBe(true);
+  expect(load).toHaveBeenCalledTimes(2);
+  cache.invalidate("testnet", "d", "other");
+  expect((await cache.read(deployment, environment)).freshness.cached).toBe(false);
+});

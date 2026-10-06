@@ -134,3 +134,11 @@ describe("eventsReducer", () => {
     expect(second.balanceTick).toBe(1);
   });
 });
+
+it.each(["RETRIEVE", "CASH_OUT"])("refreshes balances after %s events", (kind) => {
+  const next = eventsReducer(empty, { type: "merge", incoming: [evt({ kind, eventId: "new" })] });
+  expect(next.balanceTick).toBe(1);
+  expect(
+    eventsReducer(next, { type: "merge", incoming: [evt({ kind, eventId: "new" })] }).balanceTick,
+  ).toBe(1);
+});

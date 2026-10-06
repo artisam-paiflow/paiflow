@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { env, stellarRelayerAddress, stellarRpcUrl } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { dashboardBalanceAdmission } from "./dashboard-balance-admission";
 import {
   getWorkflowBalances,
   type BalanceDeployment,
@@ -15,6 +16,7 @@ type Entry = {
   network: string;
   deploymentId: string;
   generation: number;
+  invalidations?: Map<string, number>;
   previous?: ReadWorkflowBalances;
   result?: ReadWorkflowBalances;
   expiresAt: number;
@@ -25,8 +27,8 @@ type Entry = {
 
 const DISPLAY_TTL_MS = 10_000;
 const RETENTION_MS = 300_000;
-// Two sequential RPC stages each have the client's 10s HTTP timeout. This
-// additional deadline also releases waiters if a read helper never settles.
+// Each RPC call has the client's 10s HTTP timeout. This overall deadline
+// releases waiters and stops new targets while active worker calls settle.
 const REFRESH_TIMEOUT_MS = 25_000;
 const MAX_ENTRIES = 256;
 
@@ -48,22 +50,28 @@ function targetKey(target: BalanceTargetRead) {
 
 /**
  * Dashboard display cache only. Coordination is local to this process; these
- * retention bounds are not #816's global RPC admission/queue policy. No Redis
- * or framework cache is involved. Browser/event invalidation wiring is #816.
+ * admission and retention bounds cover the current single replica. No Redis
+ * or framework cache is involved.
  */
 export function createDashboardBalanceCache(options?: {
-  load?: typeof getWorkflowBalances;
+  load?: (deployment: DashboardDeployment, signal?: AbortSignal) => Promise<ReadWorkflowBalances>;
   ttlMs?: number;
   retentionMs?: number;
   refreshTimeoutMs?: number;
   maxEntries?: number;
 }) {
-  const load = options?.load ?? getWorkflowBalances;
+  const load =
+    options?.load ??
+    ((deployment, signal) =>
+      dashboardBalanceAdmission.run(() => getWorkflowBalances(deployment, signal), signal));
   const ttlMs = options?.ttlMs ?? DISPLAY_TTL_MS;
   const retentionMs = options?.retentionMs ?? RETENTION_MS;
   const refreshTimeoutMs = options?.refreshTimeoutMs ?? REFRESH_TIMEOUT_MS;
   const maxEntries = options?.maxEntries ?? MAX_ENTRIES;
   const entries = new Map<string, Entry>();
+  let hits = 0;
+  let joins = 0;
+  let refreshes = 0;
 
   function retain(result: ReadWorkflowBalances, previous?: ReadWorkflowBalances) {
     const oldTargets = new Map(
@@ -89,17 +97,23 @@ export function createDashboardBalanceCache(options?: {
   }
 
   function refresh(key: string, entry: Entry, deployment: DashboardDeployment) {
+    refreshes++;
     const generation = entry.generation;
+    const controller = new AbortController();
     let deadline: ReturnType<typeof setTimeout>;
     const timeout = new Promise<never>((_resolve, reject) => {
       deadline = setTimeout(() => {
+        controller.abort();
         reject(new AppError("UPSTREAM_RPC", "Dashboard balance refresh timed out"));
       }, refreshTimeoutMs);
       deadline.unref?.();
     });
     // A timeout doesn't cancel HTTP work. The RPC transport has its own finite
     // timeout; this race discards late results and never republishes them.
-    const pending = Promise.race([Promise.resolve().then(() => load(deployment)), timeout])
+    const pending = Promise.race([
+      Promise.resolve().then(() => load(deployment, controller.signal)),
+      timeout,
+    ])
       .catch((error: unknown) => {
         if (!entry.previous) throw error;
         const message = error instanceof Error ? error.message : "Balance refresh failed";
@@ -192,12 +206,14 @@ export function createDashboardBalanceCache(options?: {
     // follow-up after invalidation. Repeated invalidations cannot loop forever.
     for (let attempt = 0; attempt < 2; attempt++) {
       if (entry.result && entry.expiresAt > Date.now()) {
+        hits++;
         return structuredClone({
           ...entry.result,
           freshness: { ...entry.result.freshness, cached: true },
         });
       }
       if (entry.eviction) clearTimeout(entry.eviction);
+      if (entry.pending) joins++;
       const generation = entry.pending ? entry.pendingGeneration : entry.generation;
       let result: ReadWorkflowBalances;
       try {
@@ -212,16 +228,26 @@ export function createDashboardBalanceCache(options?: {
     throw new AppError("INTERNAL", "Balance refresh did not complete");
   }
 
-  function invalidate(network: string, deploymentId: string) {
+  function invalidate(network: string, deploymentId: string, transaction?: string) {
     for (const entry of entries.values()) {
       if (entry.network !== network || entry.deploymentId !== deploymentId) continue;
+      if (transaction) {
+        const now = Date.now();
+        entry.invalidations ??= new Map();
+        for (const [key, at] of entry.invalidations)
+          if (now - at >= RETENTION_MS) entry.invalidations.delete(key);
+        if (entry.invalidations.has(transaction)) continue;
+        if (entry.invalidations.size >= 256)
+          entry.invalidations.delete(entry.invalidations.keys().next().value!);
+        entry.invalidations.set(transaction, now);
+      }
       entry.generation++;
       entry.result = undefined;
       entry.expiresAt = 0;
     }
   }
 
-  return { read, invalidate };
+  return { read, invalidate, stats: () => ({ entries: entries.size, hits, joins, refreshes }) };
 }
 
 const dashboardBalanceCache = createDashboardBalanceCache();
@@ -235,7 +261,7 @@ export function getDashboardBalances(deployment: DashboardDeployment) {
   });
 }
 
-/** #816 wires deduplicated newly ingested events / confirmed app actions here. */
-export function invalidateDashboardBalances(deploymentId: string) {
-  dashboardBalanceCache.invalidate(env().STELLAR_NETWORK, deploymentId);
+/** Transaction identity deduplicates events and confirmed actions across viewers. */
+export function invalidateDashboardBalances(deploymentId: string, txHash?: string) {
+  dashboardBalanceCache.invalidate(env().STELLAR_NETWORK, deploymentId, txHash?.toLowerCase());
 }
