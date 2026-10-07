@@ -1,0 +1,531 @@
+{
+  "preparedAt": "2026-10-06T13:17:37.440Z",
+  "issue": 486,
+  "outcome": "STOPPED_PARTIAL",
+  "environment": "hackathon-testing",
+  "service": "paiflow-app",
+  "network": "testnet",
+  "provider": "https://soroban-testnet.stellar.org",
+  "activeCampaignDeployment": "52467c5a-6741-4744-9141-950288d05fa3",
+  "commit": "2403ce282e9c7baf9f537fe021f8c7454a865ef2",
+  "eventReaderSha256": "212707ade90134a16ce5fbd039fefd372367148d50938e03fe405938dd67a487",
+  "sdk": "16.3.1",
+  "stop": {
+    "at": "2026-10-06T13:13:42.117Z",
+    "method": "getTransaction",
+    "category": "RPC transport failure without captured HTTP status",
+    "httpStatus": null,
+    "retryAfter": null,
+    "retried": false,
+    "providerBanEvidence": false
+  },
+  "budget": {
+    "maxTransactions": 12,
+    "signedAttempts": 4,
+    "maxReservedFeesStroops": "60000000",
+    "reservedFeesStroops": "10522570",
+    "confirmedActualFeesKnownStroops": "6258112",
+    "secondPaymentActualFee": "unmeasured",
+    "reservedPrincipalStroops": "200000",
+    "preflightReadRpcRequests": 6,
+    "measuredDirectCampaignRpcRequests": 8,
+    "campaignRpcCeilingIncludingPreflight": 141,
+    "appRpcRequests": "source-reviewed conservative reservations; actual internal request count unmeasured"
+  },
+  "checks": {
+    "fixtureA": {
+      "contracts": 5,
+      "events": 8,
+      "databaseVsTransactionMeta": "passed",
+      "sseVsDatabasePayloadAndDecodedData": "passed",
+      "cursor": "advanced beyond payment ledger",
+      "recipientDeltaStroops": ["65000", "35000"],
+      "sourceDeltaStroops": "-6358112",
+      "financialCheck": "passed: 6258112 fee stroops plus 100000 principal"
+    },
+    "fixtureB": {
+      "contracts": 6,
+      "transaction": "app database confirms success at ledger 5053768",
+      "eventAndBalanceValidation": "not-run after stop"
+    },
+    "groupedVsIndividualRpcFiltering": "not-run",
+    "sameLedgerPagination": "not-run",
+    "production100EventBoundary": "not-exercised",
+    "localSqlReplay": "not-run after stop",
+    "liveGate": "incomplete"
+  },
+  "transactions": [
+    {
+      "at": "2026-10-06T12:55:49.492Z",
+      "type": "transaction-reservation",
+      "hash": "569a49567ce455999c9b37bf615f7a6297c525dda21c5da525e3d88fb24dbc63",
+      "purpose": "deploy-A",
+      "feeStroops": "2015602",
+      "principalStroops": "0",
+      "source": "GA5HNVNSZIG7R3LUSZOO6XJCDKDXZHZ2RBR35LZVIOIYZLWWXREIXNCE",
+      "sequence": "21704763259224065",
+      "maxTime": "1791291506",
+      "status": "CONFIRMED",
+      "cumulativeFeeStroops": "2015602",
+      "cumulativePrincipalStroops": "0",
+      "ledger": 5053553,
+      "finalityEvidence": "independent-RPC-meta-and-app-record",
+      "actualFeeStroops": "1749827"
+    },
+    {
+      "at": "2026-10-06T13:07:58.576Z",
+      "type": "transaction-reservation",
+      "hash": "a669a47d2e49195ca806b1910e0ba02f1ed6cb908a6583496605512d6f4abe39",
+      "purpose": "deploy-B",
+      "feeStroops": "2421503",
+      "principalStroops": "0",
+      "source": "GA5HNVNSZIG7R3LUSZOO6XJCDKDXZHZ2RBR35LZVIOIYZLWWXREIXNCE",
+      "sequence": "21704763259224066",
+      "maxTime": "1791292227",
+      "status": "CONFIRMED",
+      "cumulativeFeeStroops": "4437105",
+      "cumulativePrincipalStroops": "0",
+      "ledger": 5053699,
+      "finalityEvidence": "independent-RPC-meta-and-app-record",
+      "actualFeeStroops": "2105177"
+    },
+    {
+      "at": "2026-10-06T13:12:06.526Z",
+      "type": "transaction-reservation",
+      "hash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+      "purpose": "deposit-A",
+      "feeStroops": "2767380",
+      "principalStroops": "100000",
+      "source": "GA5HNVNSZIG7R3LUSZOO6XJCDKDXZHZ2RBR35LZVIOIYZLWWXREIXNCE",
+      "sequence": "21704763259224067",
+      "maxTime": "1791292486",
+      "status": "CONFIRMED",
+      "cumulativeFeeStroops": "7204485",
+      "cumulativePrincipalStroops": "100000",
+      "ledger": 5053749,
+      "finalityEvidence": "independent-RPC-meta-and-app-record",
+      "actualFeeStroops": "2403108"
+    },
+    {
+      "at": "2026-10-06T13:13:38.400Z",
+      "type": "transaction-reservation",
+      "hash": "a89467e753698a8155b0a9984f0a89cd7d69c2d5a926a2be3f73e9b6992c9aa1",
+      "purpose": "deposit-B",
+      "feeStroops": "3318085",
+      "principalStroops": "100000",
+      "source": "GA5HNVNSZIG7R3LUSZOO6XJCDKDXZHZ2RBR35LZVIOIYZLWWXREIXNCE",
+      "sequence": "21704763259224068",
+      "maxTime": "1791292585",
+      "status": "CONFIRMED",
+      "cumulativeFeeStroops": "10522570",
+      "cumulativePrincipalStroops": "200000",
+      "ledger": 5053768,
+      "finalityEvidence": "existing-app-record-only",
+      "actualFeeStroops": null
+    }
+  ],
+  "fixtureAEventEvidence": [
+    {
+      "eventId": "0021705686677241856-0000000001",
+      "kind": "RECEIVE",
+      "ledger": 5053749,
+      "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+      "payload": {
+        "value": "100000",
+        "topics": ["deposit", "GA5HNVNSZIG7R3LUSZOO6XJCDKDXZHZ2RBR35LZVIOIYZLWWXREIXNCE"],
+        "contractAddress": "CA6XVBUZ2PHWBOJEPZ3U5IAUKMAKNFNXSM5GSYKEW3SB2MRON7EWX3WA"
+      },
+      "decodedData": {
+        "from": "GA5HNVNSZIG7R3LUSZOO6XJCDKDXZHZ2RBR35LZVIOIYZLWWXREIXNCE",
+        "asset": "XLM",
+        "amount": "100000"
+      }
+    },
+    {
+      "eventId": "0021705686677241856-0000000005",
+      "kind": "FORWARD",
+      "ledger": 5053749,
+      "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+      "payload": {
+        "value": "90000",
+        "topics": [
+          "forward",
+          "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+          "CCUNMTGLUQ4SXHOYQHJZDYUCWOBO3ZKBXZPIQIFPJRBPG2PZ5E5LOJKI"
+        ],
+        "contractAddress": "CDGBZZ6JF4TZD6UTMZ5II4J4TZHOKL7YYHLIQRT7OUDSBTCTDUGK3A2Q"
+      },
+      "decodedData": {
+        "asset": "XLM",
+        "amount": "90000",
+        "recipient": "CCUNMTGLUQ4SXHOYQHJZDYUCWOBO3ZKBXZPIQIFPJRBPG2PZ5E5LOJKI"
+      }
+    },
+    {
+      "eventId": "0021705686677241856-0000000008",
+      "kind": "FORWARD",
+      "ledger": 5053749,
+      "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+      "payload": {
+        "value": "80000",
+        "topics": [
+          "forward",
+          "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+          "CBDMCJO335ZIMGDDWN2GVC4SMDV6S76YE4V732UK3DZX7Q4SZ4YFVXKP"
+        ],
+        "contractAddress": "CCUNMTGLUQ4SXHOYQHJZDYUCWOBO3ZKBXZPIQIFPJRBPG2PZ5E5LOJKI"
+      },
+      "decodedData": {
+        "asset": "XLM",
+        "amount": "80000",
+        "recipient": "CBDMCJO335ZIMGDDWN2GVC4SMDV6S76YE4V732UK3DZX7Q4SZ4YFVXKP"
+      }
+    },
+    {
+      "eventId": "0021705686677241856-0000000011",
+      "kind": "FORWARD",
+      "ledger": 5053749,
+      "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+      "payload": {
+        "value": "70000",
+        "topics": [
+          "forward",
+          "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+          "CBHJGJ5KQBWB5WLFHE2JF32AWEMPUYYUPRGZ7WFYBMBFZJU274N2LYFW"
+        ],
+        "contractAddress": "CBDMCJO335ZIMGDDWN2GVC4SMDV6S76YE4V732UK3DZX7Q4SZ4YFVXKP"
+      },
+      "decodedData": {
+        "asset": "XLM",
+        "amount": "70000",
+        "recipient": "CBHJGJ5KQBWB5WLFHE2JF32AWEMPUYYUPRGZ7WFYBMBFZJU274N2LYFW"
+      }
+    },
+    {
+      "eventId": "0021705686677241856-0000000014",
+      "kind": "PAYOUT",
+      "ledger": 5053749,
+      "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+      "payload": {
+        "value": [
+          {
+            "bps": 5000,
+            "amount": "0",
+            "address": "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU",
+            "is_cash_out": false
+          },
+          {
+            "bps": 5000,
+            "amount": "0",
+            "address": "GBD25NLKU7RM6GKRT6DNRMGY5WZJXE2TTRDOJBUGSDBAXHXVRNRG2BFI",
+            "is_cash_out": false
+          }
+        ],
+        "topics": ["payout", "CBDMCJO335ZIMGDDWN2GVC4SMDV6S76YE4V732UK3DZX7Q4SZ4YFVXKP"],
+        "contractAddress": "CBHJGJ5KQBWB5WLFHE2JF32AWEMPUYYUPRGZ7WFYBMBFZJU274N2LYFW"
+      },
+      "decodedData": {
+        "from": "CBDMCJO335ZIMGDDWN2GVC4SMDV6S76YE4V732UK3DZX7Q4SZ4YFVXKP",
+        "recipients": [
+          {
+            "bps": 5000,
+            "amount": "0",
+            "address": "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU",
+            "is_cash_out": false
+          },
+          {
+            "bps": 5000,
+            "amount": "0",
+            "address": "GBD25NLKU7RM6GKRT6DNRMGY5WZJXE2TTRDOJBUGSDBAXHXVRNRG2BFI",
+            "is_cash_out": false
+          }
+        ]
+      }
+    },
+    {
+      "eventId": "0021705686677241856-0000000015",
+      "kind": "PAYOUT",
+      "ledger": 5053749,
+      "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+      "payload": {
+        "value": ["CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC", "10000"],
+        "topics": ["pay", "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU"],
+        "contractAddress": "CBDMCJO335ZIMGDDWN2GVC4SMDV6S76YE4V732UK3DZX7Q4SZ4YFVXKP"
+      },
+      "decodedData": {
+        "asset": "XLM",
+        "payment": "10000",
+        "recipient": "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU"
+      }
+    },
+    {
+      "eventId": "0021705686677241856-0000000016",
+      "kind": "PAYOUT",
+      "ledger": 5053749,
+      "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+      "payload": {
+        "value": ["CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC", "10000"],
+        "topics": ["pay", "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU"],
+        "contractAddress": "CCUNMTGLUQ4SXHOYQHJZDYUCWOBO3ZKBXZPIQIFPJRBPG2PZ5E5LOJKI"
+      },
+      "decodedData": {
+        "asset": "XLM",
+        "payment": "10000",
+        "recipient": "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU"
+      }
+    },
+    {
+      "eventId": "0021705686677241856-0000000017",
+      "kind": "PAYOUT",
+      "ledger": 5053749,
+      "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+      "payload": {
+        "value": ["CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC", "10000"],
+        "topics": ["pay", "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU"],
+        "contractAddress": "CDGBZZ6JF4TZD6UTMZ5II4J4TZHOKL7YYHLIQRT7OUDSBTCTDUGK3A2Q"
+      },
+      "decodedData": {
+        "asset": "XLM",
+        "payment": "10000",
+        "recipient": "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU"
+      }
+    }
+  ],
+  "fixtureASseMessages": [
+    {
+      "at": "2026-10-06T13:12:41.696Z",
+      "type": "message",
+      "event": {
+        "id": "ae146be9-5c45-4ef0-91d1-e3f0f4ca4c0a",
+        "eventId": "0021705686677241856-0000000001",
+        "kind": "RECEIVE",
+        "ledger": 5053749,
+        "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+        "payload": {
+          "topics": ["deposit", "GA5HNVNSZIG7R3LUSZOO6XJCDKDXZHZ2RBR35LZVIOIYZLWWXREIXNCE"],
+          "value": "100000",
+          "contractAddress": "CA6XVBUZ2PHWBOJEPZ3U5IAUKMAKNFNXSM5GSYKEW3SB2MRON7EWX3WA"
+        },
+        "decodedData": {
+          "from": "GA5HNVNSZIG7R3LUSZOO6XJCDKDXZHZ2RBR35LZVIOIYZLWWXREIXNCE",
+          "amount": "100000",
+          "asset": "XLM"
+        },
+        "occurredAt": "2026-10-06T13:12:12Z"
+      }
+    },
+    {
+      "at": "2026-10-06T13:12:41.704Z",
+      "type": "message",
+      "event": {
+        "id": "39503448-b324-4c68-a2cb-3b9ac6099862",
+        "eventId": "0021705686677241856-0000000005",
+        "kind": "FORWARD",
+        "ledger": 5053749,
+        "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+        "payload": {
+          "topics": [
+            "forward",
+            "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+            "CCUNMTGLUQ4SXHOYQHJZDYUCWOBO3ZKBXZPIQIFPJRBPG2PZ5E5LOJKI"
+          ],
+          "value": "90000",
+          "contractAddress": "CDGBZZ6JF4TZD6UTMZ5II4J4TZHOKL7YYHLIQRT7OUDSBTCTDUGK3A2Q"
+        },
+        "decodedData": {
+          "asset": "XLM",
+          "recipient": "CCUNMTGLUQ4SXHOYQHJZDYUCWOBO3ZKBXZPIQIFPJRBPG2PZ5E5LOJKI",
+          "amount": "90000"
+        },
+        "occurredAt": "2026-10-06T13:12:12Z"
+      }
+    },
+    {
+      "at": "2026-10-06T13:12:41.705Z",
+      "type": "message",
+      "event": {
+        "id": "4ca99622-c4c5-4819-8234-a4f406bbea76",
+        "eventId": "0021705686677241856-0000000008",
+        "kind": "FORWARD",
+        "ledger": 5053749,
+        "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+        "payload": {
+          "topics": [
+            "forward",
+            "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+            "CBDMCJO335ZIMGDDWN2GVC4SMDV6S76YE4V732UK3DZX7Q4SZ4YFVXKP"
+          ],
+          "value": "80000",
+          "contractAddress": "CCUNMTGLUQ4SXHOYQHJZDYUCWOBO3ZKBXZPIQIFPJRBPG2PZ5E5LOJKI"
+        },
+        "decodedData": {
+          "asset": "XLM",
+          "recipient": "CBDMCJO335ZIMGDDWN2GVC4SMDV6S76YE4V732UK3DZX7Q4SZ4YFVXKP",
+          "amount": "80000"
+        },
+        "occurredAt": "2026-10-06T13:12:12Z"
+      }
+    },
+    {
+      "at": "2026-10-06T13:12:41.710Z",
+      "type": "message",
+      "event": {
+        "id": "dc4b9cf4-6fa3-4bfc-8043-b55f45798588",
+        "eventId": "0021705686677241856-0000000011",
+        "kind": "FORWARD",
+        "ledger": 5053749,
+        "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+        "payload": {
+          "topics": [
+            "forward",
+            "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+            "CBHJGJ5KQBWB5WLFHE2JF32AWEMPUYYUPRGZ7WFYBMBFZJU274N2LYFW"
+          ],
+          "value": "70000",
+          "contractAddress": "CBDMCJO335ZIMGDDWN2GVC4SMDV6S76YE4V732UK3DZX7Q4SZ4YFVXKP"
+        },
+        "decodedData": {
+          "asset": "XLM",
+          "recipient": "CBHJGJ5KQBWB5WLFHE2JF32AWEMPUYYUPRGZ7WFYBMBFZJU274N2LYFW",
+          "amount": "70000"
+        },
+        "occurredAt": "2026-10-06T13:12:12Z"
+      }
+    },
+    {
+      "at": "2026-10-06T13:12:41.714Z",
+      "type": "message",
+      "event": {
+        "id": "d0c38d36-1888-44e0-826d-4e489c015d45",
+        "eventId": "0021705686677241856-0000000014",
+        "kind": "PAYOUT",
+        "ledger": 5053749,
+        "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+        "payload": {
+          "topics": ["payout", "CBDMCJO335ZIMGDDWN2GVC4SMDV6S76YE4V732UK3DZX7Q4SZ4YFVXKP"],
+          "value": [
+            {
+              "address": "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU",
+              "amount": "0",
+              "bps": 5000,
+              "is_cash_out": false
+            },
+            {
+              "address": "GBD25NLKU7RM6GKRT6DNRMGY5WZJXE2TTRDOJBUGSDBAXHXVRNRG2BFI",
+              "amount": "0",
+              "bps": 5000,
+              "is_cash_out": false
+            }
+          ],
+          "contractAddress": "CBHJGJ5KQBWB5WLFHE2JF32AWEMPUYYUPRGZ7WFYBMBFZJU274N2LYFW"
+        },
+        "decodedData": {
+          "from": "CBDMCJO335ZIMGDDWN2GVC4SMDV6S76YE4V732UK3DZX7Q4SZ4YFVXKP",
+          "recipients": [
+            {
+              "address": "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU",
+              "amount": "0",
+              "bps": 5000,
+              "is_cash_out": false
+            },
+            {
+              "address": "GBD25NLKU7RM6GKRT6DNRMGY5WZJXE2TTRDOJBUGSDBAXHXVRNRG2BFI",
+              "amount": "0",
+              "bps": 5000,
+              "is_cash_out": false
+            }
+          ]
+        },
+        "occurredAt": "2026-10-06T13:12:12Z"
+      }
+    },
+    {
+      "at": "2026-10-06T13:12:41.717Z",
+      "type": "message",
+      "event": {
+        "id": "8bad1efd-fd87-4466-a3a9-1c44a50c1221",
+        "eventId": "0021705686677241856-0000000015",
+        "kind": "PAYOUT",
+        "ledger": 5053749,
+        "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+        "payload": {
+          "topics": ["pay", "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU"],
+          "value": ["CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC", "10000"],
+          "contractAddress": "CBDMCJO335ZIMGDDWN2GVC4SMDV6S76YE4V732UK3DZX7Q4SZ4YFVXKP"
+        },
+        "decodedData": {
+          "recipient": "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU",
+          "asset": "XLM",
+          "payment": "10000"
+        },
+        "occurredAt": "2026-10-06T13:12:12Z"
+      }
+    },
+    {
+      "at": "2026-10-06T13:12:41.721Z",
+      "type": "message",
+      "event": {
+        "id": "abe45377-bef4-487f-8c66-e092f4d3dcc8",
+        "eventId": "0021705686677241856-0000000016",
+        "kind": "PAYOUT",
+        "ledger": 5053749,
+        "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+        "payload": {
+          "topics": ["pay", "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU"],
+          "value": ["CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC", "10000"],
+          "contractAddress": "CCUNMTGLUQ4SXHOYQHJZDYUCWOBO3ZKBXZPIQIFPJRBPG2PZ5E5LOJKI"
+        },
+        "decodedData": {
+          "recipient": "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU",
+          "asset": "XLM",
+          "payment": "10000"
+        },
+        "occurredAt": "2026-10-06T13:12:12Z"
+      }
+    },
+    {
+      "at": "2026-10-06T13:12:41.724Z",
+      "type": "message",
+      "event": {
+        "id": "3666c7d4-e9c4-4c22-896c-bf2e96801faa",
+        "eventId": "0021705686677241856-0000000017",
+        "kind": "PAYOUT",
+        "ledger": 5053749,
+        "txHash": "df31f9374bde4c953d1c0273d7c084aae79df594ec16d625a3de67aa8feeda35",
+        "payload": {
+          "topics": ["pay", "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU"],
+          "value": ["CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC", "10000"],
+          "contractAddress": "CDGBZZ6JF4TZD6UTMZ5II4J4TZHOKL7YYHLIQRT7OUDSBTCTDUGK3A2Q"
+        },
+        "decodedData": {
+          "recipient": "GAYYRB775ATGQ7HH2XSB446TS3UQAVK5EOCE2MO4HKP3CFXDM6UIO3FU",
+          "asset": "XLM",
+          "payment": "10000"
+        },
+        "occurredAt": "2026-10-06T13:12:12Z"
+      }
+    }
+  ],
+  "restoredSettings": {
+    "deployment": "5fe997b5-8a8d-4d4e-903c-c538d29de931",
+    "network": "testnet",
+    "sandbox": false,
+    "ttlMaintenance": false,
+    "channels": 0,
+    "payroll": false,
+    "offramp": false
+  },
+  "cleanup": {
+    "clientStopped": true,
+    "inMemorySigningKeysReleased": true,
+    "sseClosed": true,
+    "temporaryPostgresRemoved": true,
+    "publicTestnetFixturesRetained": true
+  },
+  "limitations": [
+    "No provider capacity or ban-safety guarantee.",
+    "Provider error subtype unavailable because client omitted sanitized error code.",
+    "Fixture B fee, balances and event delivery remain unverified.",
+    "No retry, additional submission, provider fallback or direct live DB write followed the stop."
+  ]
+}

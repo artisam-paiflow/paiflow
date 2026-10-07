@@ -1,0 +1,387 @@
+{
+  "preparedAt": "2026-10-07T03:35:21.859181+00:00",
+  "issue": 486,
+  "authorization": "User approved the deploy/invoke, real-page capture and local recovery sequence on 7 October 2026, conditional on no Railway changes; existing cumulative ceilings retained",
+  "outcome": "real-100-plus-1-and-postgresql-recovery-passed",
+  "runtime": {
+    "at": "2026-10-07T03:30:12.437Z",
+    "environment": "hackathon-testing",
+    "deployment": "c4aa6a5c-3855-4eee-be29-c0699d4f37fc",
+    "commit": "c1db0a8c290e03d8ef15f37ac53e218aed8a9b11",
+    "network": "testnet",
+    "rpc": "https://soroban-testnet.stellar.org",
+    "sandbox": false,
+    "paidTtlMaintenance": false,
+    "relayerChannels": 0,
+    "payroll": false,
+    "offramp": false,
+    "eventReaderSha256": "b7c63960b6036b6385cb66b3dc7b98c8769ef2db7f31f80e9e88d4af5b0b99c4"
+  },
+  "railwayChangesDetected": false,
+  "postCaptureRailwayDeployment": "c4aa6a5c-3855-4eee-be29-c0699d4f37fc",
+  "caps": {
+    "network": "TESTNET",
+    "rpcUrl": "https://soroban-testnet.stellar.org",
+    "signedAttempts": 2,
+    "feePerAttemptStroops": "7985308",
+    "totalFeeReservationsStroops": "7985308",
+    "principalStroops": "0",
+    "additionalRpcRequests": 50,
+    "priorRpcCeiling": 250,
+    "combinedRpcCeiling": 300,
+    "friendbotRequests": 1,
+    "durationMinutes": 15,
+    "timeoutSeconds": 180,
+    "eventCount": 101
+  },
+  "artifact": {
+    "wasmSha256": "92b458a551b0e426d6ad96fcf61f969ee91b7dc32f8c93d9286a5ba5239aa6dd",
+    "clientSha256": "48912714f9b93cf22806c60736645a0fa41a3943d8f29658d1ab70ec71bfdfb9",
+    "harnessSha256": "10898866916d20adb9cfaccc71b906fa6baa7c6e5bc5ce40cafdf0b34aeafb93",
+    "runnerSha256": "a04e19e7371b6ab6e4213cf78922f5ab360ed97cc94ab5eabea6d5a48f7ac992",
+    "evidenceSha256": "ed69e597f89058ece14d89c0c709fdca2b5956a6e87c44e5498f5225cd8e8530"
+  },
+  "fixture": {
+    "source": "GALYHC3QHESXRSME75XFQHIIGJGUWPP3NE2JQGHJKY63BSEYPUGO7ABT",
+    "salt": "a7e3c435cf0de1bb354f8921cbc29a0f57abd8bdf26f38744c1e2b92ba7a1aa0",
+    "wasmHash": "92b458a551b0e426d6ad96fcf61f969ee91b7dc32f8c93d9286a5ba5239aa6dd",
+    "contractAddress": "CCFT6MBBHND5M6ONSVWFE3YOHGODWTBN4Z3A4SYGAR3UFCCQWRMRREW5",
+    "uploadedWasmReused": true,
+    "probeDeployed": true,
+    "invokedOnce": true,
+    "principalStroops": "0",
+    "sharedRegistration": false
+  },
+  "transactions": [
+    {
+      "stage": "deploy",
+      "hash": "de47c244e0837a7725a5798e1b83b6ef1321272980ec915038362541c4f4fc29",
+      "ledger": 5064059
+    },
+    {
+      "stage": "invoke",
+      "hash": "03ba47f936e382666f751033d8b3ba2187dbd33e8f3bad06960b3d813568146d",
+      "ledger": 5064061
+    }
+  ],
+  "accounting": {
+    "additionalRpcRequests": 23,
+    "combinedRpcCeiling": 273,
+    "additionalFriendbotRequests": 1,
+    "combinedFriendbotRequests": 4,
+    "signedAttempts": 2,
+    "combinedSignedAttempts": 8,
+    "reservedFeesStroops": "197245",
+    "combinedReservedFeesStroops": "52211937",
+    "netFeesChargedStroops": "156720",
+    "remainingOriginalFeeReservationStroops": "7788063",
+    "combinedHistoricalPrincipalStroops": "200000",
+    "pendingHash": null,
+    "budgetReset": false,
+    "refundsSubtractedAgain": false
+  },
+  "feeVerification": {
+    "transactions": [
+      {
+        "hash": "de47c244e0837a7725a5798e1b83b6ef1321272980ec915038362541c4f4fc29",
+        "ledger": 5064059,
+        "result": "txSuccess",
+        "netFeeChargedStroops": "112216"
+      },
+      {
+        "hash": "03ba47f936e382666f751033d8b3ba2187dbd33e8f3bad06960b3d813568146d",
+        "ledger": 5064061,
+        "result": "txSuccess",
+        "netFeeChargedStroops": "44504"
+      }
+    ],
+    "totalNetFeesChargedStroops": "156720",
+    "refundsSubtractedAgain": false
+  },
+  "liveValidation": {
+    "metadataEvents": 101,
+    "independentReferenceEvents": 101,
+    "firstPageEvents": 100,
+    "secondPageEvents": 1,
+    "metadataReferenceAndPageIdentityMatch": true,
+    "firstCursor": "0021749976379969536-0000000099",
+    "secondCursor": "0021750083754131455-4294967295",
+    "tipLedger": 5064085,
+    "pagesArtifact": "docs/evidence/event-rpc-probe-pages-hackathon-testing.json"
+  },
+  "postgresqlReplay": {
+    "readerSha256": "b7c63960b6036b6385cb66b3dc7b98c8769ef2db7f31f80e9e88d4af5b0b99c4",
+    "networkCalls": 0,
+    "results": [
+      {
+        "scenario": "baseline",
+        "status": "passed",
+        "initial": {
+          "status": "complete",
+          "written": 101,
+          "scannedThrough": 5064085,
+          "contracts": [
+            {
+              "written": 101,
+              "scannedThrough": 5064085,
+              "status": "complete",
+              "reasons": [],
+              "contractAddress": "CCFT6MBBHND5M6ONSVWFE3YOHGODWTBN4Z3A4SYGAR3UFCCQWRMRREW5"
+            }
+          ],
+          "reasons": []
+        },
+        "cursorAfterRecovery": 5064085,
+        "rows": 101,
+        "publishes": 101,
+        "replayWritten": 0,
+        "sqlForeignKeyFailureVerified": false,
+        "calls": 4
+      },
+      {
+        "scenario": "rpc",
+        "status": "passed",
+        "initial": {
+          "status": "partial",
+          "written": 100,
+          "scannedThrough": 5064060,
+          "contracts": [
+            {
+              "written": 100,
+              "scannedThrough": 5064060,
+              "status": "partial",
+              "reasons": ["rpc-error"],
+              "contractAddress": "CCFT6MBBHND5M6ONSVWFE3YOHGODWTBN4Z3A4SYGAR3UFCCQWRMRREW5"
+            }
+          ],
+          "reasons": ["rpc-error"]
+        },
+        "cursorAfterRecovery": 5064085,
+        "rows": 101,
+        "publishes": 101,
+        "replayWritten": 0,
+        "sqlForeignKeyFailureVerified": false,
+        "calls": 6
+      },
+      {
+        "scenario": "sql",
+        "status": "passed",
+        "initial": {
+          "status": "partial",
+          "written": 100,
+          "scannedThrough": 5064060,
+          "contracts": [
+            {
+              "written": 100,
+              "scannedThrough": 5064060,
+              "status": "partial",
+              "reasons": ["insert-error"],
+              "contractAddress": "CCFT6MBBHND5M6ONSVWFE3YOHGODWTBN4Z3A4SYGAR3UFCCQWRMRREW5"
+            }
+          ],
+          "reasons": ["insert-error"]
+        },
+        "cursorAfterRecovery": 5064085,
+        "rows": 101,
+        "publishes": 101,
+        "replayWritten": 0,
+        "sqlForeignKeyFailureVerified": true,
+        "calls": 6
+      }
+    ]
+  },
+  "requests": [
+    {
+      "id": 1,
+      "method": "getNetwork",
+      "at": "2026-10-07T03:31:01.834Z",
+      "httpStatus": 200,
+      "durationMs": 952
+    },
+    {
+      "id": 2,
+      "method": "getHealth",
+      "at": "2026-10-07T03:31:03.791Z",
+      "httpStatus": 200,
+      "durationMs": 263
+    },
+    {
+      "id": 3,
+      "method": "getLedgerEntries",
+      "at": "2026-10-07T03:31:05.060Z",
+      "httpStatus": 200,
+      "durationMs": 252
+    },
+    {
+      "id": 4,
+      "method": "getLedgerEntries",
+      "at": "2026-10-07T03:31:06.316Z",
+      "httpStatus": 200,
+      "durationMs": 251
+    },
+    {
+      "id": 0,
+      "method": "friendbot",
+      "at": "2026-10-07T03:31:07.571Z",
+      "httpStatus": 200,
+      "durationMs": 5025
+    },
+    {
+      "id": 5,
+      "method": "getLedgerEntries",
+      "at": "2026-10-07T03:31:13.600Z",
+      "httpStatus": 200,
+      "durationMs": 277
+    },
+    {
+      "id": 6,
+      "method": "simulateTransaction",
+      "at": "2026-10-07T03:31:14.881Z",
+      "httpStatus": 200,
+      "durationMs": 389
+    },
+    {
+      "id": 7,
+      "method": "sendTransaction",
+      "at": "2026-10-07T03:31:16.275Z",
+      "httpStatus": 200,
+      "durationMs": 332
+    },
+    {
+      "id": 8,
+      "method": "getTransaction",
+      "at": "2026-10-07T03:31:17.610Z",
+      "httpStatus": 200,
+      "durationMs": 248
+    },
+    {
+      "id": 9,
+      "method": "getTransaction",
+      "at": "2026-10-07T03:31:18.864Z",
+      "httpStatus": 200,
+      "durationMs": 256
+    },
+    {
+      "id": 10,
+      "method": "getTransaction",
+      "at": "2026-10-07T03:31:20.127Z",
+      "httpStatus": 200,
+      "durationMs": 259
+    },
+    {
+      "id": 11,
+      "method": "getTransaction",
+      "at": "2026-10-07T03:31:21.391Z",
+      "httpStatus": 200,
+      "durationMs": 255
+    },
+    {
+      "id": 12,
+      "method": "getTransaction",
+      "at": "2026-10-07T03:31:22.648Z",
+      "httpStatus": 200,
+      "durationMs": 251
+    },
+    {
+      "id": 13,
+      "method": "getLedgerEntries",
+      "at": "2026-10-07T03:31:23.905Z",
+      "httpStatus": 200,
+      "durationMs": 279
+    },
+    {
+      "id": 14,
+      "method": "simulateTransaction",
+      "at": "2026-10-07T03:31:25.190Z",
+      "httpStatus": 200,
+      "durationMs": 263
+    },
+    {
+      "id": 15,
+      "method": "sendTransaction",
+      "at": "2026-10-07T03:31:26.455Z",
+      "httpStatus": 200,
+      "durationMs": 246
+    },
+    {
+      "id": 16,
+      "method": "getTransaction",
+      "at": "2026-10-07T03:31:27.707Z",
+      "httpStatus": 200,
+      "durationMs": 249
+    },
+    {
+      "id": 17,
+      "method": "getTransaction",
+      "at": "2026-10-07T03:31:28.960Z",
+      "httpStatus": 200,
+      "durationMs": 248
+    },
+    {
+      "id": 18,
+      "method": "getTransaction",
+      "at": "2026-10-07T03:31:30.214Z",
+      "httpStatus": 200,
+      "durationMs": 262
+    },
+    {
+      "id": 19,
+      "method": "getTransaction",
+      "at": "2026-10-07T03:31:31.478Z",
+      "httpStatus": 200,
+      "durationMs": 247
+    },
+    {
+      "id": 20,
+      "method": "getTransaction",
+      "at": "2026-10-07T03:31:32.732Z",
+      "httpStatus": 200,
+      "durationMs": 719
+    },
+    {
+      "id": 21,
+      "method": "getEvents",
+      "at": "2026-10-07T03:31:34.454Z",
+      "httpStatus": 200,
+      "durationMs": 478
+    },
+    {
+      "id": 22,
+      "method": "getEvents",
+      "at": "2026-10-07T03:32:34.970Z",
+      "httpStatus": 200,
+      "durationMs": 514
+    },
+    {
+      "id": 23,
+      "method": "getEvents",
+      "at": "2026-10-07T03:33:35.550Z",
+      "httpStatus": 200,
+      "durationMs": 291
+    }
+  ],
+  "localValidation": {
+    "focusedTestsPassed": 143,
+    "realPagePostgresqlTestsPassed": 3,
+    "typecheck": "passed",
+    "formatting": "passed",
+    "fullSuiteRun": false,
+    "independentReview": false
+  },
+  "cleanup": {
+    "scratchContainerAndVolumesRemoved": true,
+    "signerReleased": true,
+    "secretPersisted": false,
+    "signedXdrPersisted": false,
+    "liveDatabaseMutated": false,
+    "railwayDeploymentOrConfigurationChanged": false
+  },
+  "limits": [
+    "Proves a real 100-event page boundary; does not prove exhaustion of the five-page allowance.",
+    "Probe STATUS_CHANGE events test persistence/cursor/deduplication; historical A/B evidence supplies financial decoding/routing.",
+    "Real RPC capture followed by local pinned-reader replay; the app did not ingest this probe into its live DB.",
+    "Mixed-workload headroom, dashboard browser/SSE checks, #804/#805/#460 rollout and publication remain separate.",
+    "No GitHub issue/PR/CI refresh, push, merge or rollout performed.",
+    "Prior rejected upload cause and net charged fee remain unknown; its reservation remains counted."
+  ]
+}
