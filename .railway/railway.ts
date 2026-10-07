@@ -51,7 +51,8 @@ export default defineRailway(() => {
       buildCommand: "pnpm install --frozen-lockfile && pnpm db:generate && pnpm build",
     },
     deploy: {
-      startCommand: "pnpm db:migrate:deploy && pnpm start",
+      startCommand: "sh scripts/start-railway.sh",
+      drainingSeconds: 30,
       healthcheckPath: "/api/health",
       healthcheckTimeout: 30,
       restartPolicyMaxRetries: 5,

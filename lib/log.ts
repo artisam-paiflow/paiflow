@@ -9,6 +9,7 @@ const REDACT_PATHS = [
   "*.password",
   "*.passwordHash",
   "*.signedXdr",
+  "*.intent",
   "*.secretKey",
   // Relayer channel keys are derived from the relayer secret (lib/stellar/relayer-channels.ts).
   "*.keypair",

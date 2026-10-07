@@ -39,6 +39,19 @@ afterEach(() => {
 });
 
 describe("pollTxStatus", () => {
+  it("polls scoped approval status and returns the ledger-proven expiry message", async () => {
+    const path = `/api/deployments/${DEPLOYMENT_ID}/subscription-allowance/status?intent=prepared-intent`;
+    fetchMock.mockResolvedValueOnce(
+      ok({ status: "FAILED", errorMessage: "Approval expired without confirmation" }),
+    );
+    const outcome = settle(pollTxStatus(DEPLOYMENT_ID, TX_HASH, undefined, path));
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(path);
+    expect((await outcome).value).toEqual({
+      status: "FAILED",
+      errorMessage: "Approval expired without confirmation",
+    });
+  });
   it("resolves SUCCESS and asks for the right transaction", async () => {
     fetchMock.mockResolvedValueOnce(ok({ status: "PENDING" }));
     fetchMock.mockResolvedValueOnce(ok({ status: "SUCCESS" }));

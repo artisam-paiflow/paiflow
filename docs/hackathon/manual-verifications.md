@@ -40,7 +40,7 @@ are prior evidence, not a completed deployed-environment run.
       not revoke an old secret. Credential recovery and infrastructure changes
       require their own execution authorization.
 - [ ] Reconcile participant and external starter/AI guidance with the verified
-      deployed behavior. Public live updates and embedded payment QR remain #577.
+      deployed behavior. Repeat these checks for the new #577 public read paths.
       Event Plan reconciliation remains on hold until explicitly resumed.
 
 ### Philippines mobile-data run
@@ -51,17 +51,71 @@ are prior evidence, not a completed deployed-environment run.
       browser/wallet, deployed commit and transaction evidence. A desktop source
       review or simulated mobile browser does not complete this check.
 
+### Public embed functionality — #577
+
+Run after a build containing #577 is promoted. See
+[public embed live reads](../public-embed-live.md) for endpoints and limits.
+
+- [ ] Open a donation/dues Receive → Pay/Split embed in a clean anonymous browser
+      and another team's browser. Confirm the payment-page QR renders, scans to
+      the same platform's customer page, and requires no Paiflow login or API token.
+- [ ] Pay with a separate real wallet/browser and confirm the intended on-chain
+      payout appears in the embed without reloading. Reconnect/reload and confirm
+      no duplicate events, including multiple payouts in one transaction.
+- [ ] Repeat #789's HTML/RSC/network private-data checks for initial history,
+      SSE snapshots and JSON catch-up. Confirm owner APIs/mutations remain protected
+      and the omitted balance panel produces no authentication error.
+- [ ] Verify webhook/streamer QR links are labeled as funding and do not imply
+      automatic reward execution or stream release. Confirm subscription, scheduled
+      and other unsupported pipeline roots have no payment QR.
+- [ ] Exercise stream disconnect/reconnect, periodic fallback and 429 backoff;
+      close/hide viewers and verify subscribers/connection slots are released.
+      Verify healthy shared Redis and multi-replica caps with the intended shared-IP
+      audience; record any outage fallback limits.
+- [ ] Synchronize participant PDF and all external starter/sample AI context
+      copies with verified promoted behavior; keep Event Plan reconciliation on hold.
+
+### Wallet-only subscription approval — #790
+
+Run after a build containing #790 is promoted. See
+[wallet-only subscription approval](../subscription-allowance.md) for the route
+boundary and recovery behavior. Local tests do not complete this rehearsal.
+
+- [ ] Confirm the promoted commit, environment network, funded relayer and RPC
+      configuration. Check #792's SDK ledger-read compatibility in this app,
+      including latest-ledger and ledger-close-time reads.
+- [ ] In a fresh logged-out browser, open a confirmed ordinary subscription's
+      `/allowance/:id` page without a deployment token. Confirm network, token,
+      subscription spender and configured subscriber; sign with that wallet,
+      observe confirmation and verify the cumulative allowance on chain.
+- [ ] Repeat with `SUBSCRIPTION_DEV`: first leave the subscriber unconfigured and
+      check the setup message, then fill it through the authenticated team's
+      **Dev values**. Change it to another test wallet and verify the old wallet
+      is refused and the new one can approve. Recheck a configuration change
+      between preparation and submission.
+- [ ] Refuse a different wallet, wrong network, tampered/extra operations and a
+      cross-deployment intent. Confirm no unintended transaction was sent. Use
+      controlled test fixtures and retain only public hashes as evidence.
+- [ ] Lose the submit response or interrupt connectivity; reload and reconcile
+      the same approval hash. Verify no second approval while finality is unknown,
+      successful catch-up, and safe retry after ledger-proven expiry. An RPC or
+      ledger-decoding failure must preserve the unknown outcome.
+- [ ] With ordinary and Dev subscriptions, wait for the actual scheduled charge
+      and verify the recipient payout, allowance reduction and visible activity
+      against public transaction hashes and balances. Approval alone is not a payout.
+- [ ] Verify deliberate public limits and signer attribution without attributing
+      anonymous customer consent to the deployment owner. Confirm general
+      invocation, charging, cancellation, Dev mutations and payroll approval
+      retain their existing guards and sandbox exclusions.
+- [ ] Reconcile the participant PDF and external Mechanics/AI/starter/sample
+      copies with the verified promoted journey. Keep Event Plan reconciliation
+      on hold until explicitly resumed.
+
 ## Queued with upcoming work
 
 These checks remain pending until their implementation or prerequisites are ready.
 Expand the steps when the corresponding PR is prepared.
 
-- [ ] **#577 — Public embed functionality:** verify payment QR and anonymous live
-      events on the promoted app; repeat #789's credential/private-data checks for
-      every new public read path.
-- [ ] **#790 — Wallet-only subscription approval:** verify logged-out customer and
-      Dev subscription approval using real wallet signing; confirm on-chain
-      allowance and subsequent expected charge behavior.
 - [ ] **#726 — Team provisioning:** verify all 36 funded wallets have the intended
       Paiflow accounts/logins and teams can sign in to their own accounts.
 - [ ] **#770 — Starter rehearsal:** run the supplied starter against the promoted

@@ -34,7 +34,7 @@ continue with the available context and mention that it is unavailable.
 You are building a **financial application that signs blockchain transactions**. Two consequences:
 
 1. **Mistakes are not "bugs we'll fix later."** A mis-parameterized splitter sends real money to the
-   wrong address. Validate twice (client + server), then again in the contract itself. Make
+   wrong address. Validate client, server, and contract inputs (see [§6](#6-validation)). Make
    incorrect states unrepresentable in the type system whenever possible.
 2. **The user's keys are sacred.** Paiflow is **non-custodial**. The backend may **build** and
    **submit** transactions but never sees or stores a user's private key. If you find yourself
@@ -67,10 +67,7 @@ pnpm dev
 | E2E (boots `pnpm dev` itself)             | `pnpm test:e2e` / `pnpm test:e2e tests/e2e/happy-path.spec.ts` |
 | Screenshots (committed to `screenshots/`) | `pnpm screenshots` / `pnpm screenshots:mobile`                 |
 
-Vitest runs a `node` project (`*.test.ts`) and a `dom` project (`*.test.tsx`, jsdom). **There is no
-`@/lib/env` stub** — tests get the real schema, isolated by the per-file env scrub in
-`tests/unit/setup.ts`; a test that mutates `process.env` cleans up after itself and calls
-`vi.resetModules()` to clear `env()`'s memo. Details in `tests/CLAUDE.md`.
+Test projects, env isolation, and conventions: [`tests/CLAUDE.md`](tests/CLAUDE.md).
 
 Contracts (Rust workspace, not built by the Node build):
 
@@ -79,26 +76,27 @@ pnpm contracts:deploy:testnet   # build → upload → deploy-factory → update
 cd contracts && cargo test --workspace && cargo clippy --all-targets -- -D warnings
 ```
 
-CI (`.github/workflows/ci.yml`): a **node** lane (`db:generate` → `db:migrate:deploy` → `typecheck`
-→ `test:ci`, which uploads the `vitest-junit` artifact and a job summary → `db:seed` → `build` →
-`pnpm audit`) and a **rust** lane (`cargo fmt --check`, `clippy -D warnings`,
-`cargo test --workspace`). Both must be green. **There is no E2E job.** The node lane's
-`setup-node` reads `engines.node` from `package.json`, so CI cannot resolve a Node below the floor.
-`pnpm audit` checks production and development dependencies and fails the node lane on any
-advisory, low included, except those listed in
-`pnpm.auditConfig.ignoreGhsas` in `package.json`. Each one there is an accepted risk whose reason is
-recorded in [#753](https://github.com/webnxt-2030/pinkraft/issues/753); add one only with a reason.
-A newly published advisory can turn an unrelated PR red — fix it with an override or accept it.
+CI requires the **node** checks (migrations, typecheck, tests, seed, build, audit) and **rust**
+checks (format, Clippy with warnings denied, workspace tests) to pass. The workflow is the source
+of truth for steps and report handling: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+E2E runs locally only (see [§12](#12-testing)).
+
+`pnpm audit` checks production and development dependencies and fails on any advisory, including
+low severity, except `pnpm.auditConfig.ignoreGhsas` in `package.json`. Add an exception only with a
+recorded acceptance reason; existing reasons are in
+[#753](https://github.com/webnxt-2030/pinkraft/issues/753).
 
 Stack and directory tree: [`README.md` → "Stack at a glance"](README.md#stack-at-a-glance) and
 [→ "Project layout"](README.md#project-layout). This repo deliberately has **no** component
-library, **no** client-state library, and **no** Server Actions — adding one is an architectural
-change; raise it first. Before adding a dependency: justify it in the PR, keep `pnpm audit` clean,
-and check the README's "things people expect to find and won't" list.
+library and **no** client-state library — adding one is an architectural change; raise it first.
+Before adding a dependency: justify it in the PR, keep `pnpm audit` clean, and check the README's
+"things people expect to find and won't" list.
 
 ---
 
 ## 2. Architecture
+
+**Pipeline**: the set of contracts one flow deploys, wired by the factory in a single transaction.
 
 ### The central object is a flow graph, not a contract
 
@@ -225,6 +223,7 @@ never loads a sandbox deployment.
 
 - `tsconfig.json` is the source of truth for compiler flags (`strict`, `noUncheckedIndexedAccess`;
   `exactOptionalPropertyTypes` deliberately **off**).
+- Use exhaustive `switch` statements with `never` for discriminated unions.
 - No `any` — use `unknown` + narrow; an escape hatch needs an `eslint-disable-next-line` with a
   reason (unenforced, [§19](#19-known-gaps)).
 - Money: stroops are **`string`** in domain types, Zod schemas, and the DB (`amountStroops`, …).
@@ -242,8 +241,8 @@ Absolute via `@/*`. Order: node built-ins → external → `@/lib` → `@/compon
 - Default to **Server Components**; `"use client"` for state, effects, browser APIs, or client-only
   libs (React Flow, wallet kit). Client components may `fetch` their own `/api/*` routes but never
   reach past the API into `lib/db` or a server-only module.
-- **No Server Actions.** Every mutation is a Route Handler under `app/api/`, wrapped in
-  `withErrorHandler`. The first `"use server"` is an architectural change — raise it first.
+- **No Server Actions.** Every mutation is a Route Handler under `app/api/`. The first
+  `"use server"` is an architectural change — raise it first. Error handling: [§13](#13-errors--logging).
 - Data: `import { db } from "@/lib/db"` (a `server-only` re-export of the singleton in
   `lib/prisma.ts`); don't add a second client. Use `db.$transaction` when write order matters. Never
   accept a `where` clause from user input.
@@ -388,7 +387,7 @@ manages only a few a minute. Channels lift that: N sources, one lock each.
 
 Everything in [§18](#18-forbidden-patterns), plus:
 
-- [ ] New request bodies parsed with Zod.
+- [ ] Validation follows [§6](#6-validation).
 - [ ] New mutating endpoints call `requireSession()` (or a documented alternative guard) and check
       ownership.
 - [ ] Cookies: `__Host-` prefix, `HttpOnly`, `Secure`, `SameSite=Lax`.
@@ -462,48 +461,49 @@ in `components/deploy/deploy-review.tsx`). Any new one must carry it.
 
 ## 17. Process
 
-1. **Gather questions before making changes.** After each user prompt, review the request and
-   collect any clarification questions in a single list. If there are questions, ask the user all
-   of them at once and wait for their answers before making any changes. If there are no questions,
-   proceed without asking for confirmation.
-2. If the change touches product behaviour or block semantics, read `SPEC.md` §3 first and quote it
-   in the PR. Many PRs have no relevant section; that's expected.
-3. Plan in three bullets: files changed, schema migrated, tests added.
-4. Make incorrect states unrepresentable: Zod at every boundary, exhaustive `switch` with `never`.
-5. One concern per PR.
-6. No `TODO:` without a tracking issue link.
-7. Self-review with [§10](#10-security-checklist-per-pr).
-8. Base branch is **`develop`**, not `main`.
+### Questions and implementation
+
+- Before implementing, review the request and inspect relevant files. Gather questions about
+  scope, requirements, and implementation decisions in one numbered list. If any remain, ask
+  them and end the turn; wait for answers without implementing or assuming answers. Otherwise,
+  proceed.
+- During implementation, if a question blocks correct work, explain what depends on the answer,
+  ask it, and end the turn. Do not continue implementation until answered.
+- For non-blocking questions discovered during implementation, record each question and the
+  reasonable assumption used in `.codex/pending-questions/<task>.md`, then continue. Include all
+  unresolved questions and assumptions in the final response; retain the file until resolved.
+- Ask questions requiring a wait directly in the response; do not use asynchronous question tools.
+
+### Change workflow
+
+1. If the change touches product behaviour or block semantics, read the relevant parts of
+   `SPEC.md` §3 first.
+2. One concern per PR.
+3. No `TODO:` without a tracking issue link.
+4. Self-review with [§10](#10-security-checklist-per-pr).
+5. Base branch is **`develop`**, not `main`.
 
 ---
 
 ## 18. Forbidden patterns
 
-> If you write any of these, the diff will be rejected.
+> If you write any of these, the diff will be rejected. Also follow the non-custodial key rule
+> in [§0](#0-mental-model), money types in [§3.3](#33-typescript), request validation in
+> [§6](#6-validation), and dependency policy in [§1](#1-commands).
 
-- ❌ Holding or transmitting a **user's** Stellar `secretKey` anywhere on the server.
 - ❌ A **secret** read from `process.env` outside `lib/env.ts` (`NEXT_PUBLIC_*` exempt).
-- ❌ `JSON.parse(request.body)` without a Zod schema.
 - ❌ `eval`, `new Function`, `dangerouslySetInnerHTML`.
 - ❌ `$queryRawUnsafe` with interpolated input — raw SQL only as a `$queryRaw` tagged template.
-- ❌ Storing money as `number`.
 - ❌ Logging cookies, tokens, passwords, secret keys, signed XDR, or raw request bodies.
 - ❌ `fetch(url)` to a user-supplied URL without an allowlist (SSRF).
 - ❌ `// @ts-ignore` (use `// @ts-expect-error` with a reason).
 - ❌ Committing `.env*` files other than `.env.example`.
 - ❌ Editing the live DB instead of writing a migration.
-- ❌ Adding a dependency without justification and a clean `pnpm audit`.
 
 ---
 
 ## 19. Known gaps
 
-Several rules above are **not enforced by tooling**: `pnpm lint` doesn't ban `any` or check import
-order, secrets are still read outside `lib/env.ts` in places, a few routes skip
-`withErrorHandler`, most `GET` routes have no rate limit, signed XDR operations aren't compared,
-passkey add needs no re-auth, and there is no E2E in CI. Don't assume CI catches these or cite them as true in review.
-The full table, with file names and tracking issues, plus known doc drift:
+Some rules above are not enforced by tooling or fully implemented. Verify the relevant code;
+don't assume CI proves compliance. Current exceptions, tracking issues, and doc drift:
 [`docs/known-gaps.md`](docs/known-gaps.md).
-
-**Pipeline** (used throughout): the set of contracts one flow deploys, wired by the factory in a
-single transaction.

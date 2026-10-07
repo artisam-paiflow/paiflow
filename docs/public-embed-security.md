@@ -3,7 +3,8 @@
 Issue: [#789](https://github.com/webnxt-2030/pinkraft/issues/789).
 
 Public deployment embeds use a separate read-only view. The server selects no
-webhook secret, owner record, API token or pipeline metadata. Before rendering,
+webhook secret, owner record or API token. Internal pipeline metadata determines
+payment-page eligibility in #577 and is never serialized to viewers. Before rendering,
 `projectPublicEmbed` constructs an explicit display projection: graph node labels
 and roles, edges and branch labels, deployment/contract/network identifiers, and
 recent event identity, kind, ledger, transaction hash, timestamp and a validated
@@ -17,8 +18,10 @@ retains webhook URL/secret access and owner controls. Missing or incorrect callb
 secrets still fail before relayer execution. Viewing an embed performs no callback,
 relayer execution, owner API polling or mutation.
 
-This change provides recorded history only. Public live updates and payment QR
-remain tracked by #577. The participant context pack reflects this distinction;
+The original #789 change provided recorded history only. The follow-up #577 uses
+the same event projection for public streaming and catch-up, and adds only a
+customer payment-page QR. See [public embed live reads](public-embed-live.md).
+The participant context pack distinguishes source behavior from deployed readiness;
 Event Plan reconciliation remains on hold. No live wallet/rewards rehearsal is
 claimed by the local tests.
 

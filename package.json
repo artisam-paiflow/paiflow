@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && DATABASE_URL=\"${DATABASE_URL:-postgresql://dummy:dummy@localhost:5432/dummy?schema=public}\" next build",
-    "start": "prisma migrate deploy && next start -p ${PORT:-3000}",
+    "start": "sh scripts/start-railway.sh",
     "lint": "next lint",
     "format": "prettier --write .",
     "homepage:css": "tsx scripts/build-homepage-css.ts",
@@ -60,9 +60,6 @@
     "docker:up": "docker compose --profile full up -d",
     "docker:down": "docker compose down -v",
     "prepare": "husky || true"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",

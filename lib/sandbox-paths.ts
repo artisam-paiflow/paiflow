@@ -74,6 +74,7 @@ const SANDBOX_PATHS = [
   /^\/api\/deployments$/,
   /^\/api\/deployments\/prepare$/,
   new RegExp(`^/api/deployments/${ID}$`),
+  new RegExp(`^/api/deployments/${ID}/embed/(events|activity|qr)$`),
   new RegExp(
     `^/api/deployments/${ID}/(submit|submit-trigger|trigger|tx-status|status|events|poll-events|balances|sep7|qr)$`,
   ),
