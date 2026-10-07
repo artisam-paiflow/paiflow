@@ -250,7 +250,9 @@ function Builder({
   // How the open panel was opened: only a keyboard open moves focus into it.
   const [openedBy, setOpenedBy] = useState<"keyboard" | "pointer">("pointer");
   const [chatCollapsed, setChatCollapsed] = useState(true);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarPinned, setSidebarPinned] = useState(false);
+  const sidebarCollapsed = !sidebarOpen && !sidebarPinned;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
@@ -311,14 +313,7 @@ function Builder({
   }, [refreshAddressBook]);
 
   useEffect(() => {
-    const stored = localStorage.getItem("sidebarCollapsed");
-    if (stored === "true") {
-      setSidebarCollapsed(true);
-    } else if (stored === null && window.matchMedia(NARROW_VIEWPORT_QUERY).matches) {
-      // No explicit preference yet: default collapsed on narrow viewports so the
-      // canvas isn't squeezed to nothing by a fixed 260px sidebar.
-      setSidebarCollapsed(true);
-    }
+    setSidebarPinned(localStorage.getItem("sidebarPinned") === "true");
     setReady(true);
   }, []);
 
@@ -793,7 +788,6 @@ function Builder({
   }
 
   const isValid = validation.ok;
-  const templateKind = validation.ok ? validation.templateKind : null;
   const pipeline = validation.ok ? validation.pipeline : undefined;
   const errors = useMemo(() => (validation.ok ? [] : validation.errors), [validation]);
   useValidationTracking(errors, flowNodes);
@@ -841,23 +835,46 @@ function Builder({
           gridTemplateColumns: sidebarCollapsed ? "40px minmax(0, 1fr)" : "260px minmax(0, 1fr)",
         }}
       >
-        <Palette
-          onAdd={addNode}
-          flowNodes={flowNodes}
-          templateKind={templateKind}
-          pipeline={pipeline}
-          collapsed={sidebarCollapsed}
-          devMode={devMode}
-          features={features}
-          onToggleCollapse={() => {
-            setSidebarCollapsed((v) => {
-              const next = !v;
-              localStorage.setItem("sidebarCollapsed", String(next));
-              return next;
-            });
+        <div
+          className="min-h-0 min-w-0"
+          onMouseEnter={() => {
+            setSidebarOpen(true);
             setHasAnimated(true);
           }}
-        />
+          onMouseLeave={() => {
+            setSidebarOpen(false);
+            setHasAnimated(true);
+          }}
+          onBlur={(event) => {
+            if (
+              !event.currentTarget.contains(event.relatedTarget) &&
+              !event.currentTarget.matches(":hover")
+            ) {
+              setSidebarOpen(false);
+              setHasAnimated(true);
+            }
+          }}
+        >
+          <Palette
+            onAdd={addNode}
+            flowNodes={flowNodes}
+            collapsed={sidebarCollapsed}
+            pinned={sidebarPinned}
+            devMode={devMode}
+            features={features}
+            onExpand={() => {
+              setSidebarOpen(true);
+              setHasAnimated(true);
+            }}
+            onTogglePin={() => {
+              const next = !sidebarPinned;
+              setSidebarPinned(next);
+              localStorage.setItem("sidebarPinned", String(next));
+              setSidebarOpen(true);
+              setHasAnimated(true);
+            }}
+          />
+        </div>
 
         <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_1fr]">
           {/* Row 1: Deploy → editable title */}
