@@ -197,14 +197,14 @@ function flowNode(s,x,y,w,h,title,detail,color=C.accent){
  const leftW=5.5,rightX=M+leftW+.4,rightW=CW-leftW-.4
  card(s,M,2.05,leftW,3.18,{fillT:92})
  T(s,'BUILDING WITH PAIFLOW',{x:M+.35,y:2.37,w:leftW-.7,h:.35,fontFace:MONO,fontSize:11,color:C.blue})
- T(s,'2 hackathons',{x:M+.35,y:2.99,w:leftW-.7,h:.8,fontFace:MONO,fontSize:35,bold:true,color:C.accent})
- T(s,'In collaboration with\nJRU + Web3 Iloilo.',{x:M+.35,y:4.08,w:leftW-.7,h:.8,fontSize:22})
+ T(s,'3 hackathons',{x:M+.35,y:2.99,w:leftW-.7,h:.8,fontFace:MONO,fontSize:35,bold:true,color:C.accent})
+ T(s,'In collaboration with\nJRU + Web3 Iloilo + FEU Tech.',{x:M+.35,y:4.08,w:leftW-.7,h:.8,fontSize:20})
  ;[['Weekly builder sessions','Onboard and build after the hackathon.'],['BlockQuest Fiesta PH','Hands-on Paiflow booth in Laguna.']].forEach(([t,d],i)=>{
   const y=2.05+i*1.74;card(s,rightX,y,rightW,1.44,{fillT:96});
   T(s,t,{x:rightX+.3,y:y+.25,w:rightW-.6,h:.48,fontSize:22,bold:true})
   T(s,d,{x:rightX+.3,y:y+.9,w:rightW-.6,h:.35,fontSize:16,color:C.muted})
  })
- T(s,'AKLAN · IN PLANNING · DATE TBC',{x:M,y:5.45,w:CW,h:.24,fontFace:MONO,fontSize:10.5,color:C.blue})
+ T(s,'AKLAN · NORTHWESTERN VISAYAN COLLEGE',{x:M,y:5.45,w:CW,h:.24,fontFace:MONO,fontSize:10.5,color:C.blue})
  T(s,'Join a university event to bring Paiflow to more students\nthrough a booth, a mini hackathon, or both.',{x:M,y:5.8,w:CW,h:.6,fontSize:16,color:C.muted})
  T(s,'Draw the flow. Sign it. Watch it land.',{x:M,y:6.47,w:CW,h:.32,fontSize:20,bold:true,color:C.accent})
  T(s,'paiflow.xyz',{x:10.8,y:6.54,w:1.8,h:.22,fontSize:10,fontFace:MONO,color:C.blue})
