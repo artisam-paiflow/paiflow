@@ -1761,7 +1761,7 @@ export default function ConfigPanel({
       )}
 
       <style jsx>{`
-        :global(.input) {
+        :global([data-testid="config-panel"] .input) {
           background-color: #0a0a0f;
           border: 1px solid #27272a;
           padding: 0.4rem 0.6rem;
