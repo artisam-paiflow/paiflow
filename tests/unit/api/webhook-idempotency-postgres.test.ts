@@ -19,7 +19,11 @@ import { executeKeyedWebhook } from "@/lib/webhook-idempotency";
 const url = process.env.WEBHOOK_IDEMPOTENCY_TEST_DATABASE_URL;
 const schema = `webhook_idem_${randomUUID().replaceAll("-", "")}`;
 let admin: PrismaClient;
-const deployment = { id: randomUUID(), network: "testnet" } as Deployment;
+const deployment = {
+  id: randomUUID(),
+  network: "testnet",
+  flow: { ownerId: randomUUID() },
+} as Deployment & { flow: { ownerId: string } };
 const hash = "a".repeat(64);
 describe.skipIf(!url)("webhook claims on real PostgreSQL", () => {
   beforeAll(async () => {
@@ -34,6 +38,11 @@ describe.skipIf(!url)("webhook claims on real PostgreSQL", () => {
     parsed.searchParams.set("schema", schema);
     holder.db = new PrismaClient({ datasourceUrl: parsed.toString() });
     await holder.db.$executeRawUnsafe('CREATE TABLE "Deployment" ("id" UUID PRIMARY KEY)');
+    await holder.db.$executeRawUnsafe(`CREATE TABLE "AuditLog" (
+      "id" UUID PRIMARY KEY, "userId" UUID, "action" TEXT NOT NULL,
+      "ip" TEXT, "userAgent" TEXT, "metadata" JSONB,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`);
     const migration = readFileSync(
       "prisma/migrations/20261007141000_webhook_idempotency/migration.sql",
       "utf8",
@@ -65,6 +74,18 @@ describe.skipIf(!url)("webhook claims on real PostgreSQL", () => {
     expect(new Set(results.map((r) => r.attemptId)).size).toBe(1);
     expect(holder.submit).toHaveBeenCalledOnce();
     expect(await holder.db!.webhookAttempt.count()).toBe(1);
+    expect(await holder.db!.auditLog.count()).toBe(1);
+    const attemptId = results[0]!.attemptId;
+    expect(await holder.db!.auditLog.findUnique({ where: { id: attemptId } })).toMatchObject({
+      action: "DEPLOY_TRIGGER",
+      userId: deployment.flow.ownerId,
+      metadata: { deploymentId: deployment.id, txHash: hash },
+    });
+    // Simulate a crash between durable acceptance and its audit, then race repair callbacks.
+    await holder.db!.auditLog.delete({ where: { id: attemptId } });
+    await Promise.all(Array.from({ length: 24 }, call));
+    expect(await holder.db!.auditLog.count()).toBe(1);
+    expect(holder.submit).toHaveBeenCalledOnce();
     await expect(
       executeKeyedWebhook(deployment, "contract", "event-42", { escrow: true, amount: "200" }),
     ).rejects.toMatchObject({ code: "CONFLICT" });

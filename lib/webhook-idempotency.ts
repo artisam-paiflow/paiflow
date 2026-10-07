@@ -15,6 +15,7 @@ export const WebhookIdempotencyKeySchema = z
     /^[A-Za-z0-9._:-]{1,128}$/,
     "Use 1–128 letters, digits, dots, underscores, colons or hyphens",
   );
+type WebhookDeployment = Deployment & { flow: { ownerId: string } };
 export type WebhookInput = { escrow: boolean; from?: string; amount?: string; auth?: string[] };
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 /** Fingerprint effective operation arguments; omitted escrow amount and zero mean the same thing. */
@@ -57,7 +58,40 @@ const response = (attempt: WebhookAttempt) => ({
     : {}),
 });
 
-async function replay(deployment: Deployment, attempt: WebhookAttempt) {
+/** The attempt UUID is also the audit's primary key: concurrent recovery cannot duplicate it. */
+async function ensureSubmissionAudit(
+  deployment: WebhookDeployment,
+  attempt: WebhookAttempt,
+  input: WebhookInput,
+) {
+  // A reserved hash alone is not evidence that the network accepted the transaction.
+  if (!attempt.txHash || (!attempt.acceptedAt && !["SUCCESS", "FAILED"].includes(attempt.status)))
+    return;
+  try {
+    await db.auditLog.upsert({
+      where: { id: attempt.id },
+      update: {},
+      create: {
+        id: attempt.id,
+        action: "DEPLOY_TRIGGER",
+        userId: deployment.flow.ownerId,
+        metadata: {
+          deploymentId: deployment.id,
+          txHash: attempt.txHash,
+          ...(input.escrow ? {} : { from: input.from }),
+          ...(input.amount === undefined ? {} : { amount: input.amount }),
+          escrow: input.escrow,
+        },
+      },
+    });
+  } catch (err) {
+    // Acceptance remains durable; the next callback repairs this best-effort audit.
+    log.warn({ err, attemptId: attempt.id }, "keyed webhook submission audit write failed");
+  }
+}
+
+async function replay(deployment: WebhookDeployment, attempt: WebhookAttempt, input: WebhookInput) {
+  await ensureSubmissionAudit(deployment, attempt, input);
   if (attempt.txHash && !["SUCCESS", "FAILED"].includes(attempt.status)) {
     // Lookup never submits; absence cannot reopen the event key.
     const result = await getTransactionStatus(deployment, attempt.txHash);
@@ -72,6 +106,7 @@ async function replay(deployment: Deployment, attempt: WebhookAttempt) {
       });
     }
     const latest = await db.webhookAttempt.findUniqueOrThrow({ where: { id: attempt.id } });
+    await ensureSubmissionAudit(deployment, latest, input);
     const data = response(latest);
     // Prefer a concurrently persisted terminal; otherwise report the current observation.
     if (!["SUCCESS", "FAILED"].includes(latest.status)) {
@@ -85,7 +120,7 @@ async function replay(deployment: Deployment, attempt: WebhookAttempt) {
 
 /** The database unique constraint is the cross-replica claim. No lease takeover, expiry or resend. */
 export async function executeKeyedWebhook(
-  deployment: Deployment,
+  deployment: WebhookDeployment,
   contractAddress: string,
   key: string,
   input: WebhookInput,
@@ -115,7 +150,7 @@ export async function executeKeyedWebhook(
     });
     if (original.requestHash !== requestHash || original.network !== network)
       throw new AppError("CONFLICT", "Idempotency-Key was already used with a different request");
-    return replay(deployment, original);
+    return replay(deployment, original, input);
   }
   try {
     await submitWebhookExecuteTx({
@@ -155,5 +190,7 @@ export async function executeKeyedWebhook(
         : { status: "REJECTED", errorCode: "PREPARATION_FAILED" },
     });
   }
-  return response(await db.webhookAttempt.findUniqueOrThrow({ where: { id: attempt.id } }));
+  const latest = await db.webhookAttempt.findUniqueOrThrow({ where: { id: attempt.id } });
+  await ensureSubmissionAudit(deployment, latest, input);
+  return response(latest);
 }

@@ -6,17 +6,34 @@ const m = vi.hoisted(() => ({
   update: vi.fn(),
   submit: vi.fn(),
   status: vi.fn(),
+  audit: vi.fn(),
+  findAudit: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
-  db: { webhookAttempt: { create: m.create, findUniqueOrThrow: m.find, updateMany: m.update } },
+  db: {
+    webhookAttempt: { create: m.create, findUniqueOrThrow: m.find, updateMany: m.update },
+    auditLog: { upsert: m.audit, findFirst: m.findAudit },
+  },
 }));
 vi.mock("@/lib/stellar/trigger", () => ({ submitWebhookExecuteTx: m.submit }));
 vi.mock("@/lib/api/v1/transaction-status", () => ({ getTransactionStatus: m.status }));
 import { executeKeyedWebhook, webhookRequestHash } from "@/lib/webhook-idempotency";
-const deployment = { id: "d", network: "testnet" } as Deployment;
+import { wasTxSubmittedFor } from "@/lib/audit";
+const deployment = { id: "d", network: "testnet", flow: { ownerId: "owner" } } as Deployment & {
+  flow: { ownerId: string };
+};
 const input = { escrow: true, amount: "100" };
 const hash = "a".repeat(64);
 let rows: Map<string, WebhookAttempt>;
+let audits: Map<
+  string,
+  {
+    id: string;
+    action: string;
+    userId: string;
+    metadata: { deploymentId: string; txHash: string; escrow: boolean };
+  }
+>;
 let failHashWrite = false;
 let loseHashAck = false;
 let failRead = false;
@@ -25,6 +42,23 @@ const call = (key = "task-42", body = input, d = deployment) =>
 beforeEach(() => {
   vi.resetAllMocks();
   rows = new Map();
+  audits = new Map();
+  m.audit.mockImplementation(async ({ where, create }) => {
+    if (!audits.has(where.id)) audits.set(where.id, create);
+    return audits.get(where.id);
+  });
+  m.findAudit.mockImplementation(async ({ where }) => {
+    const deploymentId = where.AND[0].metadata.equals;
+    const txHash = where.AND[1].metadata.equals;
+    return (
+      [...audits.values()].find(
+        (row) =>
+          where.action.in.includes(row.action) &&
+          row.metadata.deploymentId === deploymentId &&
+          row.metadata.txHash === txHash,
+      ) ?? null
+    );
+  });
   failHashWrite = false;
   loseHashAck = false;
   failRead = false;
@@ -80,6 +114,56 @@ describe("durable webhook event keys", () => {
     expect(new Set(results.map((r) => r.attemptId)).size).toBe(1);
     expect(m.submit).toHaveBeenCalledOnce();
     expect(rows.size).toBe(1);
+    await call();
+    expect(audits.size).toBe(1);
+    expect([...audits.keys()]).toEqual([results[0]!.attemptId]);
+  });
+  it("records an accepted payout for the owner and enables tx-status bookkeeping", async () => {
+    const result = await call();
+    expect(audits.get(result.attemptId)).toMatchObject({
+      action: "DEPLOY_TRIGGER",
+      userId: "owner",
+      metadata: { deploymentId: "d", txHash: hash, amount: "100", escrow: true },
+    });
+    expect(await wasTxSubmittedFor("d", hash)).toBe(true);
+    expect(await wasTxSubmittedFor("other", hash)).toBe(false);
+  });
+  it("repairs an interrupted audit write on concurrent retries without sending again", async () => {
+    m.audit.mockRejectedValueOnce(new Error("audit unavailable"));
+    const first = await call();
+    expect(first.status).toBe("PENDING");
+    expect(audits.size).toBe(0);
+    await Promise.all(Array.from({ length: 20 }, () => call()));
+    expect(audits.size).toBe(1);
+    expect(audits.has(first.attemptId)).toBe(true);
+    expect(m.submit).toHaveBeenCalledOnce();
+  });
+  it.each(["SUCCESS", "FAILED"])(
+    "repairs a terminal %s attempt's missing audit",
+    async (status) => {
+      const first = await call();
+      audits.clear();
+      Object.assign([...rows.values()][0]!, { status });
+      await Promise.all([call(), call()]);
+      expect(audits.size).toBe(1);
+      expect(audits.has(first.attemptId)).toBe(true);
+      expect(m.submit).toHaveBeenCalledOnce();
+    },
+  );
+  it("leaves a reserved hash unaudited until chain lookup establishes acceptance", async () => {
+    m.submit.mockImplementationOnce(async ({ submissionHooks }) => {
+      await submissionHooks.beforeSend(hash);
+      throw new Error("transport timeout");
+    });
+    const first = await call();
+    expect(audits.size).toBe(0);
+    m.status.mockResolvedValueOnce({ txHash: hash, status: "UNKNOWN" });
+    await call();
+    expect(audits.size).toBe(0);
+    m.status.mockResolvedValueOnce({ txHash: hash, status: "SUCCESS", ledger: 10 });
+    await call();
+    expect(audits.has(first.attemptId)).toBe(true);
+    expect(m.submit).toHaveBeenCalledOnce();
   });
   it("rejects different payloads and keeps the original key", async () => {
     await call();
@@ -142,6 +226,7 @@ describe("durable webhook event keys", () => {
     failHashWrite = true;
     const first = await call();
     expect(first.status).toBe("REJECTED");
+    expect(audits.size).toBe(0);
     expect(first).not.toHaveProperty("txHash");
     expect((await call()).attemptId).toBe(first.attemptId);
     expect(m.submit).toHaveBeenCalledOnce();
@@ -168,6 +253,7 @@ describe("durable webhook event keys", () => {
     });
     const first = await call();
     expect(first.status).toBe("REJECTED");
+    expect(audits.size).toBe(0);
     m.status.mockResolvedValue({ txHash: hash, status: "REJECTED" });
     expect((await call()).status).toBe("REJECTED");
     expect(m.submit).toHaveBeenCalledOnce();
