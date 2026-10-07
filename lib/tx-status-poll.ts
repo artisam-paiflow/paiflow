@@ -45,6 +45,7 @@ export async function pollTxStatus(
   deploymentId: string,
   txHash: string,
   signal?: AbortSignal,
+  statusPath?: string,
 ): Promise<TxPollResult> {
   const deadline = Date.now() + BUDGET_MS;
   let delay = POLL_INTERVAL_MS;
@@ -72,7 +73,10 @@ export async function pollTxStatus(
     let res: Response;
     let data: TxPollResult | null = null;
     try {
-      res = await fetch(`/api/deployments/${deploymentId}/tx-status?txHash=${txHash}`, { signal });
+      res = await fetch(
+        statusPath ?? `/api/deployments/${deploymentId}/tx-status?txHash=${txHash}`,
+        { signal },
+      );
       if (res.ok) {
         const json = (await res.json()) as { data: TxPollResult };
         data = { status: json.data.status, errorMessage: json.data.errorMessage };

@@ -30,6 +30,7 @@ type TriggerButtonProps = {
   isDeposit?: boolean;
   mode?: "trigger" | "allowance";
   templateKind?: "SUBSCRIPTION" | "PAYROLL";
+  disabled?: boolean;
 };
 
 function isMobile() {
@@ -99,8 +100,84 @@ export function TriggerButton({
   isDeposit,
   mode = "trigger",
   templateKind,
+  disabled = false,
 }: TriggerButtonProps) {
   const [busy, setBusy] = useState(false);
+  const allowanceIntentRef = useRef<string | null>(null);
+  const [pendingAllowanceHash, setPendingAllowanceHash] = useState<string | null>(null);
+  const [allowanceMessage, setAllowanceMessage] = useState<string | null>(null);
+  const isPublicAllowance = mode === "allowance" && templateKind !== "PAYROLL";
+  const allowanceStorageKey = `paiflow_allowance_pending:${deploymentId}:${network}`;
+
+  function rememberAllowance(hash: string | null, intent?: string) {
+    setPendingAllowanceHash(hash);
+    if (intent) allowanceIntentRef.current = intent;
+    if (!hash) allowanceIntentRef.current = null;
+    try {
+      if (hash)
+        localStorage.setItem(
+          allowanceStorageKey,
+          JSON.stringify({ txHash: hash, intent: allowanceIntentRef.current }),
+        );
+      else localStorage.removeItem(allowanceStorageKey);
+    } catch {
+      /* Storage may be disabled; retain the in-memory hash. */
+    }
+  }
+
+  async function checkAllowanceStatus(hash: string, signal?: AbortSignal) {
+    setAllowanceMessage(`Checking approval ${hash}`);
+    try {
+      const outcome = await pollTxStatus(
+        deploymentId,
+        hash,
+        signal,
+        allowanceIntentRef.current
+          ? `/api/deployments/${deploymentId}/subscription-allowance/status?intent=${encodeURIComponent(allowanceIntentRef.current)}`
+          : undefined,
+      );
+      rememberAllowance(null);
+      if (outcome.status === "SUCCESS") {
+        setAllowanceMessage(`Allowance confirmed: ${hash}`);
+        toast.success("Allowance approved!");
+      } else {
+        setAllowanceMessage(
+          `${outcome.errorMessage ?? "Approval failed on the network"}: ${hash}. You can try again.`,
+        );
+      }
+      return outcome;
+    } catch {
+      setAllowanceMessage(
+        `Confirmation is still unknown for ${hash}. Check its status before approving again.`,
+      );
+      return null;
+    }
+  }
+
+  useEffect(() => {
+    if (!isPublicAllowance) return;
+    let hash: string | null = null;
+    try {
+      const stored = localStorage.getItem(allowanceStorageKey);
+      if (stored) {
+        const pending = JSON.parse(stored) as { txHash?: unknown; intent?: unknown };
+        if (typeof pending.txHash === "string" && typeof pending.intent === "string") {
+          hash = pending.txHash;
+          allowanceIntentRef.current = pending.intent;
+        }
+      }
+    } catch {
+      /* optional storage */
+    }
+    if (!hash || !/^[a-f0-9]{64}$/.test(hash)) return;
+    setPendingAllowanceHash(hash);
+    const controller = new AbortController();
+    setBusy(true);
+    void checkAllowanceStatus(hash, controller.signal).finally(() => setBusy(false));
+    return () => controller.abort();
+    // Resume the existing hash when returning from a wallet or reloading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowanceStorageKey, isPublicAllowance]);
   const [showPicker, setShowPicker] = useState(false);
   const [pendingWallet, setPendingWallet] = useState<string | null>(null);
   const [showOpenWallet, setShowOpenWallet] = useState(false);
@@ -398,7 +475,9 @@ export function TriggerButton({
         : `/api/deployments/${deploymentId}/trigger`;
     const submitPath =
       mode === "allowance"
-        ? `/api/deployments/${deploymentId}/submit-invoke`
+        ? isPublicAllowance
+          ? `/api/deployments/${deploymentId}/subscription-allowance/submit`
+          : `/api/deployments/${deploymentId}/submit-invoke`
         : `/api/deployments/${deploymentId}/submit-trigger`;
     const res = await fetch(preparePath, {
       method: "POST",
@@ -429,6 +508,46 @@ export function TriggerButton({
 
     attemptRef.current.stage = "submit";
     toast.info("Submitting transaction...");
+    if (isPublicAllowance) {
+      const txHash = data.data.txHash as string;
+      if (!/^[a-f0-9]{64}$/.test(txHash) || typeof data.data.intent !== "string")
+        throw new Error("Missing allowance approval intent");
+      rememberAllowance(txHash, data.data.intent);
+      attemptRef.current.txHash = txHash;
+      // Save the hash and scoped intent before sending: a lost response can
+      // be reconciled without storing or re-signing the customer envelope.
+      let refusal: Error | null = null;
+      try {
+        const submit = await fetch(submitPath, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ signedXdr: signed.signedTxXdr, intent: data.data.intent }),
+        });
+        const result = await submit.json();
+        if (!submit.ok) {
+          // A definite validation refusal means the server never sent it.
+          if (submit.status >= 400 && submit.status < 500)
+            refusal = apiError(result, "Approval refused");
+        }
+      } catch {
+        // Transport/5xx uncertainty is resolved against the prepared hash.
+      }
+      if (refusal) {
+        rememberAllowance(null);
+        setAllowanceMessage(null);
+        throw refusal;
+      }
+      attemptRef.current.stage = "status_poll";
+      const outcome = await checkAllowanceStatus(txHash, controller.signal);
+      if (outcome?.status === "SUCCESS")
+        track("trigger_succeeded", {
+          deployment_id: deploymentId,
+          tx_hash: txHash,
+          signer_address: address,
+          elapsed_ms: Date.now() - attemptRef.current.startedAt,
+        });
+      return;
+    }
     const submit = await fetch(submitPath, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -651,7 +770,7 @@ export function TriggerButton({
   }
 
   async function onTrigger() {
-    if (showPicker) return;
+    if (disabled || showPicker || pendingAllowanceHash) return;
     if (!amount || !/^\d+$/.test(amount) || amount === "0") {
       toast.error("Enter a valid amount");
       return;
@@ -769,7 +888,7 @@ export function TriggerButton({
       )}
       <button
         onClick={onTrigger}
-        disabled={busy || showPicker}
+        disabled={disabled || busy || showPicker || Boolean(pendingAllowanceHash)}
         className="bg-primary px-md text-label-md text-on-primary inline-flex w-full items-center justify-center gap-2 rounded-lg py-3 font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_24px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
       >
         {busy ? (
@@ -790,6 +909,24 @@ export function TriggerButton({
           </>
         )}
       </button>
+
+      {isPublicAllowance && allowanceMessage && (
+        <p role="status" className="text-label-sm text-on-background/80 mt-3 break-all">
+          {allowanceMessage}
+        </p>
+      )}
+      {isPublicAllowance && pendingAllowanceHash && (
+        <button
+          disabled={busy}
+          className="text-primary mt-3 w-full rounded border p-3 disabled:opacity-50"
+          onClick={() => {
+            setBusy(true);
+            void checkAllowanceStatus(pendingAllowanceHash).finally(() => setBusy(false));
+          }}
+        >
+          CHECK APPROVAL STATUS
+        </button>
+      )}
 
       {isMobile() && showOpenWallet && selectedWalletRef.current && (
         <button
