@@ -643,6 +643,7 @@ model ContractEvent {
   emailNotifications EmailNotification[]
   cashOutJobFailure  CashOutJobFailure?
 
+  @@index([deploymentId, txHash])
   @@index([deploymentId, occurredAt(sort: Desc)])
   @@index([deploymentId, ledger, eventId])
   // cron/auto-release: "any RECEIVE past ledger N for this deployment".

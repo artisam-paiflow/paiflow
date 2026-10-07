@@ -214,3 +214,13 @@ export const PayoutSubmitSchema = ExecuteSubmitSchema.describe(
 export type PayoutSubmit = z.infer<typeof PayoutSubmitSchema>;
 export const PayoutSubmittedSchema = ExecuteSubmittedSchema;
 export type PayoutSubmitted = z.infer<typeof PayoutSubmittedSchema>;
+
+/** Absence from RPC is uncertainty, never proof of failure. */
+export const TransactionStatusSchema = z.object({
+  txHash: z.string().regex(/^[0-9a-f]{64}$/),
+  network: z.enum(["testnet", "mainnet"]),
+  status: z.enum(["SUCCESS", "FAILED", "PENDING", "UNKNOWN", "REJECTED"]),
+  ledger: z.number().int().positive().optional(),
+  error: z.object({ code: z.string(), message: z.string() }).optional(),
+});
+export type TransactionStatus = z.infer<typeof TransactionStatusSchema>;

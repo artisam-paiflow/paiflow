@@ -576,3 +576,41 @@ land. This feature adds no coordination to those other surfaces.
 Maintainer staging check: run two successive payouts to different recipients and verify both
 recipient destinations and all pipeline balances. No staging transaction was performed by these
 tests.
+
+## Recover a pending transaction
+
+Use the deployment's `pfk_` token with `GET /api/v1/deployments/{id}/transactions/{txHash}`:
+
+```bash
+curl "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/transactions/$TX_HASH" \
+  -H "Authorization: Bearer $PAIFLOW_TOKEN"
+```
+
+The response includes `data.txHash`, `network`, `status`, and a confirmed `ledger` when available.
+`SUCCESS` and `FAILED` are final; `FAILED` includes `error.code: ONCHAIN_FAILED`.
+`REJECTED` reports a recorded submission refusal, rather than an on-chain failure.
+`PENDING` means acceptance is known but finality is unavailable. `UNKNOWN` means the attempt is
+attributed to this deployment but neither acceptance nor finality is established. Neither an
+unknown state, missing events nor an RPC error makes a fresh payment safe: keep the original hash
+and resolve its outcome rather than building another payment.
+
+Poll after 2 seconds, then back off exponentially with jitter to 30 seconds. Stop on finality;
+honor `Retry-After` on 429 and back off on 502. Limits are 60 lookups/minute per token across all
+hashes, plus 60 RPC reads/minute per deployment across tokens. Production requires shared Redis
+for the RPC budget and returns 502 while it is unavailable. RPC reads have a 10-second timeout.
+This GET never sends a transaction or runs the pipeline; it may reconcile existing outcome records.
+
+Coverage includes recorded execute attempts, queued webhook callbacks and early releases with an
+audit record, and ingested deployment events. A submission outside Paiflow can be attributed if
+its RPC envelope directly invokes a contract in the deployment's pipeline on this network.
+Indirect calls and transfers to a contract alone cannot establish attribution. Unattributed hashes
+return 404; this does not prove the transaction failed or was never submitted. Deployment tokens
+cannot read another deployment's records.
+
+Confirmation audit actions alone establish attribution but do not supply retained finality;
+if their RPC envelope and any terminal record/event are unavailable, lookup returns `UNKNOWN`.
+
+RPC history is limited by the provider. Stored terminal outcomes and ingested events remain
+readable after expiry; other historical transactions may be unavailable. A previously accepted
+transaction can remain `PENDING` after it falls outside RPC history until further evidence is
+available. This endpoint does not guarantee historical recovery or webhook retry idempotency.

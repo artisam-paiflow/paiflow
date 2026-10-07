@@ -1006,6 +1006,20 @@
           "body": "{\n  \"data\": {\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"status\": \"FAILED\",\n    \"ledger\": 1842917,\n    \"error\": {\n      \"code\": \"txTooLate\",\n      \"message\": \"The transaction's 180-second window expired before it reached the network. Prepare it again.\"\n    }\n  }\n}"
         }
       ]
+    },
+    {
+      "name": "Get transaction status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/transactions/{{txHash}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "transactions", "{{txHash}}"]
+        },
+        "description": "Poll existing transaction without resubmitting; UNKNOWN never authorizes another payment."
+      },
+      "response": []
     }
   ]
 }

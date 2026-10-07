@@ -16,6 +16,7 @@ import { GET } from "@/app/api/v1/openapi.json/route";
 import { APP_ERROR_STATUS } from "@/lib/errors";
 import { ERROR_STATUS, examples, openApiDocument } from "@/lib/api/v1/openapi";
 import {
+  TransactionStatusSchema,
   ApiTokenSchema,
   DemoTokenSchema,
   CreateApiTokenSchema,
@@ -108,6 +109,7 @@ describe("OpenAPI document", () => {
   });
 
   const parses: Array<[string, z.ZodTypeAny, unknown]> = [
+    ["transaction status", TransactionStatusSchema, examples.transactionStatus.data],
     ["payout request", PayoutPrepareSchema, examples.payoutRequest],
     ["payout response", PayoutPreparedSchema, { ...examples.executeResponse.data, nodeId: "pay" }],
     ["payout submit", PayoutSubmitSchema, examples.submitRequest],
@@ -150,7 +152,9 @@ describe("Postman collection", () => {
   it("has a request for every /api/v1 operation", () => {
     const requests = collection.item
       .map(({ request }) => {
-        const p = `/${request.url.path.join("/")}`.replace("{{deploymentId}}", "{id}");
+        const p = `/${request.url.path.join("/")}`
+          .replace("{{deploymentId}}", "{id}")
+          .replace("{{txHash}}", "{txHash}");
         return `${p} ${request.method.toLowerCase()}`;
       })
       .sort();

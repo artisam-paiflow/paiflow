@@ -778,6 +778,132 @@
         }
       }
     },
+    "/api/v1/deployments/{id}/transactions/{txHash}": {
+      "get": {
+        "tags": ["Execute"],
+        "operationId": "getTransactionStatus",
+        "summary": "Look up an attributed transaction without resubmitting",
+        "description": "Accepts this deployment's pfk_ token. SUCCESS and FAILED are final; REJECTED means submission refusal, not on-chain failure. PENDING requires known acceptance. UNKNOWN means an attributed attempt has no established acceptance or finality; it never authorizes a new payment. Unattributed hashes return 404, including missing outside submissions. Supports execute records, queued webhook audit records, early-release audit records, ingested events and verified direct pipeline invocations in recent RPC envelopes. Outside indirect calls and token transfers alone are unsupported. Stored terminal outcomes and ingested events survive RPC retention; missing historical evidence cannot be reconstructed. Poll after 2 seconds, exponentially back off with jitter to 30 seconds; honor Retry-After on 429. RPC failures return 502, never FAILED. One bounded RPC read per request, at most 60/min per deployment across tokens; production requires shared Redis for that RPC budget. Rate limit: 60 requests per 60 seconds per token across transaction hashes.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          },
+          {
+            "name": "txHash",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attributed transaction lifecycle.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/TransactionStatus"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                    "network": "testnet",
+                    "status": "SUCCESS",
+                    "ledger": 1842917
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/deployments/{id}/events": {
       "get": {
         "tags": ["Events"],
@@ -1553,6 +1679,40 @@
             "minLength": 10,
             "maxLength": 200000,
             "description": "The envelope returned by prepare, signed by `from`. Anything but a single `deposit` call on this flow's trigger contract is refused."
+          }
+        }
+      },
+      "TransactionStatus": {
+        "type": "object",
+        "required": ["txHash", "network", "status"],
+        "properties": {
+          "txHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "network": {
+            "type": "string",
+            "enum": ["testnet", "mainnet"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["SUCCESS", "FAILED", "PENDING", "UNKNOWN", "REJECTED"]
+          },
+          "ledger": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
           }
         }
       },

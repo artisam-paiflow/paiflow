@@ -1,4 +1,5 @@
 import {
+  TransactionStatusSchema,
   DemoTokenSchema,
   EXECUTE_PREREQUISITES,
   PayoutPrepareSchema,
@@ -47,6 +48,9 @@ const XLM_SAC_TESTNET = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYS
 const USDC_SAC_TESTNET = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
 
 export const examples = {
+  transactionStatus: {
+    data: { txHash: EXAMPLE_TX_HASH, network: "testnet", status: "SUCCESS", ledger: 1842917 },
+  },
   payoutRequest: {
     amount: "1000000000",
     from: EXAMPLE_FROM,
@@ -611,6 +615,42 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/v1/deployments/{id}/transactions/{txHash}": {
+      get: {
+        tags: ["Execute"],
+        operationId: "getTransactionStatus",
+        summary: "Look up an attributed transaction without resubmitting",
+        description:
+          "Accepts this deployment's pfk_ token. SUCCESS and FAILED are final; REJECTED means submission refusal, not on-chain failure. PENDING requires known acceptance. UNKNOWN means an attributed attempt has no established acceptance or finality; it never authorizes a new payment. Unattributed hashes return 404, including missing outside submissions. Supports execute records, queued webhook audit records, early-release audit records, ingested events and verified direct pipeline invocations in recent RPC envelopes. Outside indirect calls and token transfers alone are unsupported. Stored terminal outcomes and ingested events survive RPC retention; missing historical evidence cannot be reconstructed. Poll after 2 seconds, exponentially back off with jitter to 30 seconds; honor Retry-After on 429. RPC failures return 502, never FAILED. One bounded RPC read per request, at most 60/min per deployment across tokens; production requires shared Redis for that RPC budget. " +
+          rate(V1_RATE_LIMITS.transactions, "per token across transaction hashes"),
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          deploymentIdParam,
+          {
+            name: "txHash",
+            in: "path",
+            required: true,
+            schema: { type: "string", pattern: "^[0-9a-fA-F]{64}$" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Attributed transaction lifecycle.",
+            content: json(
+              dataEnvelope("#/components/schemas/TransactionStatus"),
+              examples.transactionStatus,
+            ),
+          },
+          ...errorsFor()(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "VALIDATION",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+          ),
+        },
+      },
+    },
     "/api/v1/deployments/{id}/events": {
       get: {
         tags: ["Events"],
@@ -963,6 +1003,21 @@ export const openApiDocument = {
             minLength: 10,
             maxLength: 200000,
             description: ExecuteSubmitSchema.shape.signedXdr.description,
+          },
+        },
+      },
+      TransactionStatus: {
+        type: "object",
+        required: ["txHash", "network", "status"],
+        properties: {
+          txHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+          network: { type: "string", enum: TransactionStatusSchema.shape.network.options },
+          status: { type: "string", enum: TransactionStatusSchema.shape.status.options },
+          ledger: { type: "integer", minimum: 1 },
+          error: {
+            type: "object",
+            required: ["code", "message"],
+            properties: { code: { type: "string" }, message: { type: "string" } },
           },
         },
       },
