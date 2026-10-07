@@ -36,6 +36,7 @@ import { sendWithRateLimitRetry } from "./autosave-retry.utils";
 import { createSaveCoordinator, type SaveOutcome } from "./save-outcome.utils";
 import CanvasConfigPanel from "./canvas-config-panel";
 import Palette from "./palette";
+import PaletteSidebar from "./palette-sidebar";
 import DeployButton from "./deploy-button";
 import EnglishPreview from "./english-preview";
 import SenderKycDialog from "./sender-kyc-dialog";
@@ -835,24 +836,10 @@ function Builder({
           gridTemplateColumns: sidebarCollapsed ? "40px minmax(0, 1fr)" : "260px minmax(0, 1fr)",
         }}
       >
-        <div
-          className="min-h-0 min-w-0"
-          onMouseEnter={() => {
-            setSidebarOpen(true);
+        <PaletteSidebar
+          onOpenChange={(open) => {
+            setSidebarOpen(open);
             setHasAnimated(true);
-          }}
-          onMouseLeave={() => {
-            setSidebarOpen(false);
-            setHasAnimated(true);
-          }}
-          onBlur={(event) => {
-            if (
-              !event.currentTarget.contains(event.relatedTarget) &&
-              !event.currentTarget.matches(":hover")
-            ) {
-              setSidebarOpen(false);
-              setHasAnimated(true);
-            }
           }}
         >
           <Palette
@@ -874,7 +861,7 @@ function Builder({
               setHasAnimated(true);
             }}
           />
-        </div>
+        </PaletteSidebar>
 
         <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_1fr]">
           {/* Top row: Deploy, title, English preview, and settings */}
