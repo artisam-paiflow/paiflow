@@ -36,9 +36,10 @@ claimed by the local tests.
   Missing/incorrect webhook secrets returned 403. The authorized callback path
   is covered with a mocked relayer in the unit suite; no on-chain callback was
   submitted in this verification.
-- `pnpm audit` reported an existing high-severity `sharp` advisory
+- On the original base, `pnpm audit` reported an existing high-severity `sharp` advisory
   (`GHSA-wq5f-xc86-pv6w`) in the unchanged base lockfile. The patch adds no
-  dependency or audit exception; the audit gate remains unresolved.
+  dependency or audit exception. PR #832 subsequently fixed this advisory on
+  `hackathon-staging`; the security patch has been rebased onto that updated base.
 
 ## Assess previously exposed credentials
 
