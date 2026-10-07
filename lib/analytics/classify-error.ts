@@ -38,6 +38,11 @@ function rawMessage(err: unknown): string {
   if (typeof err === "string") return err;
   const body = (err as { error?: { message?: unknown; details?: unknown } } | null)?.error;
   if (body) return [body.message, body.details].filter((v) => typeof v === "string").join(" ");
+  // Wallets Kit normalizes adapter errors to plain objects, not Error instances.
+  // Do not inspect ext or infer cancellation from its generic numeric codes.
+  if (err != null && typeof err === "object" && "message" in err) {
+    return typeof err.message === "string" ? err.message : "";
+  }
   return "";
 }
 

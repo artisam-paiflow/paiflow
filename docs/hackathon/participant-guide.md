@@ -46,11 +46,11 @@ A maximum of 10 teams can participate. Solo teams are welcome, but teams are enc
 
 | Start    | Length | Block                 | What happens                                                         |
 | -------- | ------ | --------------------- | -------------------------------------------------------------------- |
-| 10:30 AM | 2 h    | Integration, part 1   | Deploy and aim for your first confirmed payout                        |
-| 12:30 PM | 1 h    | Lunch + checkpoint    | Optional coding; check your deployment and payout evidence            |
-| 1:30 PM  | 2 h    | Integration, part 2   | Complete integration and prepare your demo                            |
-| 3:00 PM  | 30 min | Submission            | Submit before 3:30 PM with your deployment ID and payout transaction   |
-| 3:30 PM  | 1 h    | Pitching              | 10 teams × 5 minutes; random order drawn at 3:30 PM                     |
+| 10:30 AM | 2 h    | Integration, part 1   | Deploy and aim for your first confirmed payout                       |
+| 12:30 PM | 1 h    | Lunch + checkpoint    | Optional coding; check your deployment and payout evidence           |
+| 1:30 PM  | 2 h    | Integration, part 2   | Complete integration and prepare your demo                           |
+| 3:00 PM  | 30 min | Submission            | Submit before 3:30 PM with your deployment ID and payout transaction |
+| 3:30 PM  | 1 h    | Pitching              | 10 teams × 5 minutes; random order drawn at 3:30 PM                  |
 | 4:30 PM  | 30 min | Deliberation + awards |                                                                      |
 
 ## The challenge
@@ -72,6 +72,8 @@ Paiflow deploys a flow you draw as Stellar contracts. Your app decides _who_ pay
 | Transparent donation drive | Donations split among beneficiaries, with a public feed showing payouts                                    | `on_receive` + `split`, embed + live feed                       |
 
 Strong projects have a real user, a flow that fits their problem, and a demo with visible payouts.
+
+On builds containing #577, public embeds show a read-only flow diagram and recent live activity, with a payment-page QR for supported payment and funding flows. If the live connection is unavailable, activity updates periodically. Webhook and streamer QR links add funds; they do not execute rewards or release streams. Subscription approval uses its separate allowance page. On builds containing #790, the configured customer opens that page and signs with their wallet without a Paiflow login or deployment token. Ordinary and Dev subscriptions are supported; the team must fill an unconfigured Dev subscriber first. If confirmation is unknown, check the existing approval status before approving again. Approval grants consent; the later scheduled charge must still be rehearsed with a real wallet and verified recipient payout. Confirm the deployed version with support before your rehearsal. For Web2 rewards, obtain the callback URL and secret from your authenticated owner deployment page and keep the secret on your server. Public embeds omit credentials and private configuration.
 
 For setup instructions and example payment flows, see the [AI context pack](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md). Confirm feature availability with the support contact before choosing an idea.
 

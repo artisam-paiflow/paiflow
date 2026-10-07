@@ -21,10 +21,13 @@
 ## Guides
 
 - [Integration guide](guide/README.md)
+- [Post-promotion manual verification queue](hackathon/manual-verifications.md)
 
 ## Reference
 
 - [Developer API](api/README.md)
+- [Public embed payment links and live reads](public-embed-live.md)
+- [Wallet-only subscription allowance approval](subscription-allowance.md)
 - [Metrics](instawards/metrics.md)
 - [Evidence index](instawards/evidence/README.md)
   - [Transaction list](instawards/evidence/transactions.md)

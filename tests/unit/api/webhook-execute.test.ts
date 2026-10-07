@@ -31,10 +31,13 @@ import { DEPLOYMENT_ID, OWNER_ID, TRIGGER, ctx } from "./v1/execute-fixtures";
 const SECRET = `whsec_${"a".repeat(64)}`;
 const FROM = Keypair.random().publicKey();
 
-function call() {
+function call(secret: string | null = SECRET) {
   const req = new Request(`https://paiflow.test/api/webhooks/${DEPLOYMENT_ID}`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-webhook-secret": SECRET },
+    headers: {
+      "content-type": "application/json",
+      ...(secret === null ? {} : { "x-webhook-secret": secret }),
+    },
     body: JSON.stringify({ from: FROM, amount: "10000000" }),
   });
   return POST(req as unknown as import("next/server").NextRequest, ctx());
@@ -52,6 +55,25 @@ beforeEach(() => {
 });
 
 describe("POST /api/webhooks/[id]", () => {
+  it.each([null, "", "incorrect-secret"])(
+    "refuses secret %j without relayer execution",
+    async (secret) => {
+      const res = await call(secret);
+      expect(res.status).toBe(403);
+      expect((await res.json()).error.code).toBe("FORBIDDEN");
+      expect(mockSubmit).not.toHaveBeenCalled();
+      expect(audit).not.toHaveBeenCalled();
+    },
+  );
+
+  it("preserves an authorized callback", async () => {
+    mockSubmit.mockResolvedValue({ status: "SUCCESS", txHash: "h" });
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.txHash).toBe("h");
+    expect(mockSubmit).toHaveBeenCalledOnce();
+  });
+
   it("a PENDING send writes the DEPLOY_TRIGGER row", async () => {
     mockSubmit.mockResolvedValue({ status: "PENDING", txHash: "h", duplicate: false });
 
