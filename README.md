@@ -388,10 +388,18 @@ true, and this one had already fallen four sections behind.
 
 ### Deployment infrastructure
 
-Configured for **Railway** (`railway.toml`, `nixpacks.toml`):
+Configured for **Railway** (`.railway/railway.ts`, `nixpacks.toml`):
 
 - `pnpm build` produces the standalone Next.js bundle.
-- `pnpm start` runs `prisma migrate deploy` before booting `next start`.
+- `pnpm start` runs migrations through `scripts/start-railway.sh` before starting Next.js.
+  Railway uses `sh scripts/start-railway.sh` directly so the script can replace itself with
+  the Next.js process, which receives shutdown signals without a package-manager wrapper.
+  The app's Railway settings must also use a 30-second draining time; the app service in
+  `.railway/railway.ts` declares both settings. Services configured outside that file need
+  those settings applied separately. Verify shutdown on a subsequent replacement of the
+  fixed deployment, since the outgoing older deployment still uses its original settings.
+- Prisma CLI configuration lives in `prisma.config.ts`; the database URL remains in
+  `prisma/schema.prisma` for Prisma 6.
 - File storage swaps from MinIO to a Railway Volume via `FILE_STORAGE_DRIVER`.
 - The homepage is a separate Railway service serving `homepage/` as static files at
   `beta.paiflow.xyz`: root directory `/homepage`, config file path `/homepage/railway.json`
