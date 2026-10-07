@@ -1,6 +1,6 @@
 # InstaAwards Builder Showcase working memory
 
-Updated October 7, 2026.
+Updated October 8, 2026.
 
 ## Current state and requirements
 
@@ -76,10 +76,10 @@ Baseline: nine-person alpha cohort (**one project member, eight external**) as o
 
 ## Planned events and roadmap
 
-- **Two hackathons in collaboration with JRU and Web3 Iloilo**. This user correction supersedes the forecast PDF's single-event framing; no combined team capacity was supplied. Hackathons are the largest event feature on slide 5.
+- **Three hackathons in collaboration with JRU, Web3 Iloilo and FEU Tech**. This user correction supersedes the earlier two-event framing and the forecast PDF's single-event framing; no combined team capacity was supplied. Hackathons are the largest event feature on slide 5.
 - Weekly builder sessions after the hackathons.
 - Hands-on Paiflow booth at BlockQuest Fiesta PH in Laguna.
-- Aklan university event to bring Paiflow to more students through **a booth, a mini hackathon, or both**; **in planning, date TBC**. Smaller feature on slide 5.
+- Aklan event at **Northwestern Visayan College** to bring Paiflow to more students through **a booth, a mini hackathon, or both**. The user requested removal of the planning/date label from the deck and notes; no event date was supplied. Smaller feature on slide 5.
 - Roadmap: PHP cash-out through a licensed off-ramp partner and USDT/EURC support. These are plans, not shipped achievements. Do not invent event dates or imply planned events have happened.
 
 ## Supporting assets
