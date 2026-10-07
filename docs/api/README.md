@@ -1,5 +1,7 @@
 # Developer API
 
+For the hackathon, start with the [developer API quick start](../hackathon/developer-api-quickstart.md).
+
 Paiflow's `/api/v1` lets your backend run a deployed **deposit-triggered flow** (Pay, Split, condition or swap) and watch what it did on
 chain, with no browser and no wallet integration on Paiflow's side. You send the deposit, the flow
 runs (paying, splitting, routing or swapping on a real DEX) and you poll the events.
