@@ -1,4 +1,8 @@
 export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { installServerShutdown } = await import("./lib/server-shutdown");
+    installServerShutdown();
+  }
   if (!process.env.SENTRY_DSN) return;
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { initSentryServer } = await import("./sentry.server.config");

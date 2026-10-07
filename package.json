@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:ci": "vitest run --reporter=default --reporter=junit --reporter=github-actions --outputFile.junit=reports/vitest-junit.xml",
+    "test:sse-shutdown": "node tests/sse-shutdown.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "screenshots": "playwright test --project=chromium-desktop screenshots.spec.ts",
