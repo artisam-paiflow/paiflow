@@ -21,6 +21,7 @@
 ## Guides
 
 - [Integration guide](guide/README.md)
+- [Post-promotion manual verification queue](hackathon/manual-verifications.md)
 
 ## Reference
 

@@ -3,6 +3,7 @@ import { DevPayerSchema } from "@/lib/dev/schema";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { audit } from "@/lib/audit";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { findPipelineNode } from "@/lib/pipeline-snapshot";
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       throw new AppError("UPSTREAM_RPC", result.errorMessage ?? "update_payment failed");
     }
 
+    invalidateDashboardBalances(d.id, result.txHash);
     await audit({
       action: "DEV_UPDATE_PAYMENT",
       userId: user.id,

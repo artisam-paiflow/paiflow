@@ -269,8 +269,7 @@ implementation.
 
 Two things deliberately absent: there is **no** per-deploy network picker (the network is pinned per
 environment — [`CLAUDE.md` §7.5](./CLAUDE.md#75-networks)), and **no** in-app changelog. Feature
-history is the git log; `docs/archive/features-through-2026-06.md` holds an earlier hand-kept log
-that stopped.
+history is the git log.
 
 ---
 

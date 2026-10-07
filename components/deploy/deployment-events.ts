@@ -1,3 +1,4 @@
+import { changesDashboardBalance } from "@/lib/balance-events";
 import type { Evt } from "./live-events";
 
 export type EventsState = {
@@ -15,16 +16,6 @@ export type EventsAction =
   | { type: "refreshBalances" };
 
 const PULSE_KINDS = new Set(["RECEIVE", "PAYOUT"]);
-
-const BALANCE_KINDS = new Set([
-  "RECEIVE",
-  "PAYOUT",
-  "CLAIM",
-  "CANCEL",
-  "SHORTFALL",
-  "FORWARD",
-  "ALLOWANCE",
-]);
 
 const MAX_EVENTS = 100;
 
@@ -51,7 +42,7 @@ export function eventsReducer(state: EventsState, action: EventsAction): EventsS
 
         merged.push({ ...data, _isNew: true });
         if (PULSE_KINDS.has(data.kind)) addedPulses += 1;
-        if (BALANCE_KINDS.has(data.kind)) balanceChanges += 1;
+        if (changesDashboardBalance(data.kind)) balanceChanges += 1;
       }
 
       merged.sort((a, b) => {

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* Fonts (Space Grotesk / Geist / JetBrains Mono / Material Symbols Outlined)
- * are self-hosted via `next/font/google` in app/layout.tsx — each one
+ * are self-hosted via `next/font/local` in app/layout.tsx — each one
  * exposes a CSS variable (--font-grotesk, --font-geist, --font-jbm,
  * --font-symbols) which the @theme aliases below reference. No remote
  * font requests at runtime. */
@@ -105,7 +105,7 @@
   --container-7xl: 80rem;
 
   /* BRAND.md font aliases. The leading `var(--font-*)` is supplied by
-   * next/font/google (see app/layout.tsx). System fallbacks keep things
+   * next/font/local (see app/layout.tsx). System fallbacks keep things
    * legible during the brief next-font swap. */
   --font-display: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
   --font-body: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
@@ -503,7 +503,7 @@ h4 {
   font-family: var(--font-mono);
 }
 
-/* Material Symbols base render. Self-hosted via next/font/google in
+/* Material Symbols base render. Self-hosted via next/font/local in
  * app/layout.tsx; --font-symbols points at the local woff2. The literal
  * "Material Symbols Outlined" fallback covers the early-paint window
  * before next-font's CSS lands and any local-OS instances of the font. */

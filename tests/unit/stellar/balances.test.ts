@@ -4,10 +4,14 @@ import type { Deployment } from "@prisma/client";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { assetContractId } from "@/lib/stellar/assets";
 const { balance } = vi.hoisted(() => ({ balance: vi.fn(async () => 123n) }));
-vi.mock("@/lib/stellar/balance", () => ({ fetchTokenBalance: balance }));
+vi.mock("@/lib/stellar/balance", () => ({ createTokenBalanceReader: vi.fn(() => balance) }));
+import { createTokenBalanceReader } from "@/lib/stellar/balance";
 import { getWorkflowBalances } from "@/lib/stellar/balances";
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  balance.mockReset().mockResolvedValue(123n);
+});
 
 it("reads a shared Streamer once, counts its funds once, and uses persisted block associations", async () => {
   const asset = { kind: "native" } as const;
@@ -93,7 +97,119 @@ it("reads preserved timelock and immutable Pay balances for a Return-only flow",
   expect(balance).toHaveBeenCalledWith({
     tokenAddress: assetContractId(asset),
     holderAddress: address,
-    sourceAccount: "wallet",
   });
+  expect(createTokenBalanceReader).toHaveBeenCalledWith("wallet");
   expect(graph.nodes[3]?.type).toBe("return_to_owner");
+});
+
+function simpleDeployment(): Parameters<typeof getWorkflowBalances>[0] {
+  return {
+    id: "d",
+    sourceAccount: "wallet",
+    contractAddress: StrKey.encodeContract(Buffer.alloc(32, 9)),
+    graphSnapshot: {
+      nodes: [{ id: "p", type: "pay", config: { asset: { kind: "native" }, recipient: "wallet" } }],
+      edges: [],
+    },
+    pipelineSnapshot: [],
+    flow: { templateKind: "PAYER" },
+  };
+}
+
+it("retains the primary contract fallback after narrowing the deployment input", async () => {
+  const result = await getWorkflowBalances(simpleDeployment());
+  expect(result.nodes[0]).toMatchObject({
+    nodeId: "primary",
+    templateKind: "PAYER",
+    balanceStroops: "123",
+  });
+  expect(result.freshness.totalsComplete).toBe(true);
+});
+
+it("keeps successful zero readings in freshness metadata", async () => {
+  balance.mockResolvedValue(0n);
+  const result = await getWorkflowBalances(simpleDeployment());
+  expect(result.totals).toEqual([]);
+  expect(result.nodes).toEqual([]);
+  expect(result.freshness.targets[0]).toMatchObject({ balanceStroops: "0", stale: false });
+  expect(result.freshness.targets[0]?.readAt).toEqual(expect.any(String));
+});
+
+it("marks mixed reads as partial and keeps failed targets out of totals", async () => {
+  const deployment = simpleDeployment();
+  deployment.pipelineSnapshot = [
+    {
+      nodeId: "s",
+      templateKind: "SPLITTER",
+      contractAddress: StrKey.encodeContract(Buffer.alloc(32, 8)),
+    },
+  ];
+  balance.mockResolvedValueOnce(123n).mockRejectedValueOnce(new Error("offline"));
+  const result = await getWorkflowBalances(deployment);
+  expect(createTokenBalanceReader).toHaveBeenCalledTimes(1);
+  expect(result.totals[0]?.balanceStroops).toBe("123");
+  expect(result.freshness).toMatchObject({ status: "partial", totalsComplete: false });
+  expect(result.freshness.targets[1]).toMatchObject({
+    balanceStroops: null,
+    readAt: null,
+    stale: true,
+    error: "offline",
+  });
+  expect(result.nodes[1]).toHaveProperty("error", "offline");
+});
+
+it("does no source-account lookup when there are no balance targets or no graph", async () => {
+  const deployment = simpleDeployment();
+  deployment.contractAddress = null;
+  expect((await getWorkflowBalances(deployment)).freshness.targets).toEqual([]);
+  deployment.graphSnapshot = null;
+  expect(await getWorkflowBalances(deployment)).toMatchObject({
+    totals: [],
+    freshness: { status: "stale", totalsComplete: false },
+  });
+  expect(createTokenBalanceReader).not.toHaveBeenCalled();
+});
+
+it("unresolved assets are errors instead of a fresh complete empty total", async () => {
+  const deployment = simpleDeployment();
+  deployment.graphSnapshot = { nodes: [], edges: [] };
+  deployment.pipelineSnapshot = [
+    { nodeId: "p", templateKind: "PAYER", contractAddress: deployment.contractAddress! },
+  ];
+  const result = await getWorkflowBalances(deployment);
+  expect(result.nodes).toHaveLength(1);
+  expect(result.nodes[0]).toHaveProperty("error");
+  expect(result.freshness).toMatchObject({ status: "stale", totalsComplete: false });
+  expect(result.freshness.targets[0]?.readAt).toBeNull();
+  expect(createTokenBalanceReader).not.toHaveBeenCalled();
+});
+
+it("waits for both active target reads on abort and never starts remaining targets", async () => {
+  const deployment = simpleDeployment();
+  deployment.pipelineSnapshot = Array.from({ length: 8 }, (_, index) => ({
+    nodeId: `p${index}`,
+    contractAddress: StrKey.encodeContract(Buffer.alloc(32, index + 1)),
+    templateKind: "PAYER",
+  }));
+  deployment.contractAddress = null;
+  const finishes: Array<() => void> = [];
+  balance.mockImplementation(
+    () => new Promise<bigint>((resolve) => finishes.push(() => resolve(1n))),
+  );
+  const controller = new AbortController();
+  let settled = false;
+  const read = getWorkflowBalances(deployment, controller.signal).finally(() => {
+    settled = true;
+  });
+  const rejected = expect(read).rejects.toThrow("timed out");
+  await Promise.resolve();
+  expect(finishes).toHaveLength(2);
+  controller.abort();
+  finishes[0]!();
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(settled).toBe(false);
+  finishes[1]!();
+  await rejected;
+  expect(balance).toHaveBeenCalledTimes(2);
 });

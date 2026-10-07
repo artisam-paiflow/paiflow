@@ -9,7 +9,7 @@ const { mockSession } = vi.hoisted(() => {
 vi.mock("@/lib/redis", () => ({ redis: () => null }));
 vi.mock("@/lib/db", () => ({ db: { deployment: { findFirst: vi.fn() } } }));
 vi.mock("@/lib/auth", () => ({ getSessionUser: mockSession, requireSession: vi.fn() }));
-vi.mock("@/lib/stellar/balances", () => ({ getWorkflowBalances: vi.fn() }));
+vi.mock("@/lib/stellar/dashboard-balance-cache", () => ({ getDashboardBalances: vi.fn() }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
 
 import { POST as register } from "@/app/api/auth/register/route";

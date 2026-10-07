@@ -9,6 +9,7 @@ import {
 } from "@/lib/analytics/outcomes";
 import { audit, wasTxConfirmedFor } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
+import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { log } from "@/lib/log";
 import { acquireWaitSlot } from "@/lib/api/v1/wait-slots";
 import { explainFailedTx, ingestEventsBounded, waitForFinal } from "@/lib/api/v1/execute";
@@ -149,6 +150,7 @@ export async function submitPreparedDeposit({
 
   if (got.status === rpc.Api.GetTransactionStatus.SUCCESS) {
     await recordTransactionOutcome(txHash, "CONFIRMED", { ledger: got.ledger, deploymentId });
+    invalidateDashboardBalances(deploymentId, txHash);
     // A lookup failure writes a possible duplicate row rather than none.
     const alreadyConfirmed = await wasTxConfirmedFor(deploymentId, txHash).catch(() => false);
     if (!alreadyConfirmed) {
