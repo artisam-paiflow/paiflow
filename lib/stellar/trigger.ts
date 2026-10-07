@@ -113,19 +113,26 @@ export async function submitTriggerTx(signedXdr: string): Promise<SubmitTriggerR
   return { status: "PENDING", txHash: send.hash, signer, duplicate: sent.duplicate };
 }
 
+/** Keyed callbacks persist the hash before the first send and never rebuild on retry. */
+export type WebhookSubmissionHooks = {
+  beforeSend: (txHash: string) => Promise<void>;
+  afterSend: (queued: boolean) => Promise<void>;
+};
+
 export async function submitWebhookExecuteTx(opts: {
   contractAddress: string;
   from?: string;
   amount?: string;
   auth?: string[];
   escrow?: boolean;
+  submissionHooks?: WebhookSubmissionHooks;
 }): Promise<SubmitTriggerResult> {
   return withRelayerChannel(async (channel) => {
     if (!opts.escrow && !opts.amount) {
       throw new Error("Amount is required for non-escrow triggers");
     }
 
-    const maxRetries = 3;
+    const maxRetries = opts.submissionHooks ? 1 : 3;
     let lastErrorMessage: string | undefined;
     let lastTxHash = "";
 
@@ -145,8 +152,20 @@ export async function submitWebhookExecuteTx(opts: {
       });
 
       const server = sorobanRpc();
-      const send = await server.sendTransaction(tx);
+      const txHash = tx.hash().toString("hex");
+      // This must finish durably before any bytes reach sendTransaction.
+      await opts.submissionHooks?.beforeSend(txHash);
+      let send;
+      try {
+        send = await server.sendTransaction(tx);
+      } catch (err) {
+        // A transport failure may have queued the original transaction.
+        if (opts.submissionHooks) channel.trackPending(txHash, tx.timeBounds?.maxTime);
+        throw err;
+      }
       const sent = classifySend(send);
+      if (sent.outcome === "QUEUED") channel.trackPending(txHash, tx.timeBounds?.maxTime);
+      await opts.submissionHooks?.afterSend(sent.outcome === "QUEUED");
 
       // The webhook caller holds no envelope, only its own request, and the
       // next attempt rebuilds the transaction. Not retried in here: the network
@@ -161,7 +180,7 @@ export async function submitWebhookExecuteTx(opts: {
       if (sent.outcome === "QUEUED") {
         // The caller does not wait for finality; the next holder of this
         // channel does, so its sequence number is current when it builds.
-        channel.trackPending(send.hash);
+        // Already tracked before persisting the acceptance acknowledgement.
         return { status: "PENDING", txHash: send.hash, duplicate: sent.duplicate };
       }
 

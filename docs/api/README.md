@@ -44,7 +44,7 @@ flow takes three steps:
 Then `GET /api/v1/deployments/{id}/events` returns the deposit and whatever the flow's later steps emit (payout, split, swap).
 
 {% hint style="info" %}
-**The API never signs.** Paiflow is non-custodial: your secret key never leaves your side and is
+**Execute deposits are signed by the caller.** Paiflow is non-custodial: your secret key never leaves your side and is
 never sent to Paiflow. The sign step is always yours, and curl alone can't do it, which is why the
 examples below use `stellar tx sign` or the Stellar SDK between the two calls. It also limits what a
 leaked API token can do: prepare an envelope, and relay one that your key already signed. It can't
@@ -614,3 +614,55 @@ RPC history is limited by the provider. Stored terminal outcomes and ingested ev
 readable after expiry; other historical transactions may be unavailable. A previously accepted
 transaction can remain `PENDING` after it falls outside RPC history until further evidence is
 available. This endpoint does not guarantee historical recovery or webhook retry idempotency.
+
+## Retry webhook rewards safely
+
+Deploy a standard **HTTP Webhook → Pay full amount** (or Split) flow, copy its URL and
+webhook secret from the authenticated owner deployment page, and fund it through
+`/trigger/{deploymentId}` with a wallet-signed deposit. Funding does not execute the flow.
+The recipients remain configured in the deployment; Dev mode is not required.
+
+Send the callback from your server after verifying the completed task. Use one stable key
+per logical event and reuse that key and payload for every retry:
+
+```bash
+curl -X POST "$PAIFLOW/api/webhooks/$DEPLOYMENT_ID" \
+  -H "x-webhook-secret: $PAIFLOW_WEBHOOK_SECRET" \
+  -H "Idempotency-Key: task-completed-42" \
+  -H "Content-Type: application/json" \
+  -d '{"escrow":true,"amount":"100000000"}'
+```
+
+This requests 10 tokens from the pre-funded pool. Omitting `amount` or using `"0"` releases
+all available funds. The relayer signs the release; the callback secret is separate from
+`pfk_`. Keep both credentials server-side.
+
+A keyed response includes `{ data: { attemptId, network, status, txHash?, ledger?, error? } }`.
+HTTP 202 with `Retry-After: 2` means `PENDING` or `UNKNOWN`; HTTP 200 reports finality or a
+submission/preparation rejection. Never treat HTTP success as payout confirmation.
+Repeat the same callback to check its existing attempt, or use the deployment's `pfk_`
+token with the transaction lookup endpoint once a hash is available. Back off with jitter,
+honor 429 `Retry-After`, and retry reads after 502. Callback rate limit: 20 requests/minute
+per deployment/client IP; replays also share the deployment's transaction RPC budget.
+
+Keys accept 1–128 letters, digits, dots, underscores, colons or hyphens, are case-sensitive,
+and are scoped to a deployment. Changed effective arguments return 409. Stroop strings are
+normalized (`"000100"` equals `"100"`); omitted escrow amount equals zero. Escrow ignores
+`from` and `auth`; native non-escrow execution fingerprints its source and signed auth entries.
+No callback bodies, secrets or signed envelopes are stored in the attempt table.
+
+The database reserves the key before preparation and persists the transaction hash before
+sending. Concurrent callbacks and later retries cannot prepare or send another transaction
+for that event. Keyed sends also disable the legacy sequence-error rebuild loop. There is
+**no automatic key expiry, deletion or lease takeover**; deployment deletion removes its
+attempts, and event keys must not be purged while the deployment remains usable. An
+interrupted worker before a hash is recorded can leave `UNKNOWN` without a hash indefinitely.
+An uncertain send retains the original hash. Missing RPC history does not prove failure;
+operator investigation is required for unrecoverable attempts. Never switch to a fresh key
+or an unkeyed callback merely because an attempt is uncertain.
+
+Unkeyed requests keep their existing behavior: each callback can create another payout.
+Idempotency covers only callers reusing the same key; it does not deduplicate different event
+keys, operator releases or other funding/execution paths, and is not an unconditional
+exactly-once payout guarantee. Both new migrations must be applied before rollout; only
+isolated local tests have run, with no live webhook payout or application database migration.

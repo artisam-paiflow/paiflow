@@ -53,6 +53,24 @@ export async function getTransactionStatus(
   // Every record query is scoped before returning or mutating anything. DB errors propagate.
   const where = { deploymentId: deployment.id, network, txHash, kind: { not: "DEPLOY" as const } };
   const readSigned = () => db.signedTransaction.findFirst({ where, select: signedSelect });
+  const readAttempt = () =>
+    db.webhookAttempt.findFirst({
+      where: { deploymentId: deployment.id, network, txHash },
+    });
+  const attempt = await readAttempt();
+  const attemptFinal = (value: typeof attempt): TransactionStatus | null =>
+    value?.status === "SUCCESS" || value?.status === "FAILED"
+      ? {
+          ...base,
+          status: value.status,
+          ...(value.ledger ? { ledger: value.ledger } : {}),
+          ...(value.status === "FAILED"
+            ? { error: { code: "ONCHAIN_FAILED", message: "Transaction failed on the network" } }
+            : {}),
+        }
+      : null;
+  const durableAttempt = attemptFinal(attempt);
+  if (durableAttempt) return durableAttempt;
   const row = await readSigned();
   const saved = terminal(row, base);
   if (saved) return saved;
@@ -74,7 +92,7 @@ export async function getTransactionStatus(
   ]);
   // Ingested successful contract events survive RPC history expiry.
   if (event) return { ...base, status: "SUCCESS", ledger: event.ledger };
-  const associated = Boolean(row || audit);
+  const associated = Boolean(row || audit || attempt);
   const budget = await rateLimit(`v1:transaction-rpc:${deployment.id}`, 60, 60);
   if (!budget.ok) throw rateLimitedError(budget);
   // RPC work has a deployment-wide bound across tokens and replicas. Fail closed in production.
@@ -87,7 +105,7 @@ export async function getTransactionStatus(
   try {
     got = await sorobanRpc().getTransaction(txHash);
   } catch {
-    const latest = terminal(await readSigned(), base);
+    const latest = terminal(await readSigned(), base) ?? attemptFinal(await readAttempt());
     if (latest) return latest;
     throw new AppError(
       "UPSTREAM_RPC",
@@ -109,6 +127,15 @@ export async function getTransactionStatus(
       ledger: got.ledger,
       ...(got.status === "FAILED" ? { failureCode: "ONCHAIN_FAILED" as const } : {}),
     });
+    if (attempt)
+      await db.webhookAttempt.updateMany({
+        where: { id: attempt.id, status: { notIn: ["SUCCESS", "FAILED"] } },
+        data: {
+          status: got.status,
+          ledger: got.ledger,
+          errorCode: got.status === "FAILED" ? "ONCHAIN_FAILED" : null,
+        },
+      });
     return {
       ...base,
       status: got.status,
@@ -120,10 +147,19 @@ export async function getTransactionStatus(
   }
   // Re-read after RPC to avoid answering uncertainty over a concurrent confirmation.
   const latest = await readSigned();
-  const final = terminal(latest, base);
+  const latestAttempt = await readAttempt();
+  const final = terminal(latest, base) ?? attemptFinal(latestAttempt);
   if (final) return final;
   const current = latest ?? row;
-  if (current?.outcome === "REJECTED" && !current.acceptedAt)
+  const currentAttempt = latestAttempt ?? attempt;
+  // Positive queue evidence takes precedence over an older submission refusal.
+  const accepted = Boolean(
+    current?.acceptedAt ||
+    current?.outcome === "ACCEPTED" ||
+    currentAttempt?.acceptedAt ||
+    audit?.action === "DEPLOY_TRIGGER",
+  );
+  if (!accepted && (current?.outcome === "REJECTED" || currentAttempt?.status === "REJECTED"))
     return {
       ...base,
       status: "REJECTED",
@@ -132,9 +168,5 @@ export async function getTransactionStatus(
         message: "Submission was rejected; no on-chain failure is established",
       },
     };
-  // Webhook DEPLOY_TRIGGER is written only after sendTransaction queued the hash.
-  const accepted = Boolean(
-    current?.acceptedAt || current?.outcome === "ACCEPTED" || audit?.action === "DEPLOY_TRIGGER",
-  );
   return { ...base, status: accepted ? "PENDING" : "UNKNOWN" };
 }

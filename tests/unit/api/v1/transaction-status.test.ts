@@ -13,6 +13,8 @@ import type { Deployment } from "@prisma/client";
 import { NextRequest } from "next/server";
 const mocks = vi.hoisted(() => ({
   signed: vi.fn(),
+  attempt: vi.fn(),
+  updateAttempt: vi.fn(),
   event: vi.fn(),
   audit: vi.fn(),
   token: vi.fn(),
@@ -24,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({
   db: {
     signedTransaction: { findFirst: mocks.signed },
+    webhookAttempt: { findFirst: mocks.attempt, updateMany: mocks.updateAttempt },
     contractEvent: { findFirst: mocks.event },
     auditLog: { findFirst: mocks.audit },
     deploymentApiToken: { findUnique: mocks.token, update: mocks.updateToken },
@@ -53,6 +56,8 @@ const received = { outcome: "RECEIVED", acceptedAt: null, ledger: null, failureC
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.signed.mockResolvedValue(received);
+  mocks.attempt.mockResolvedValue(null);
+  mocks.updateAttempt.mockResolvedValue({ count: 1 });
   mocks.event.mockResolvedValue(null);
   mocks.audit.mockResolvedValue(null);
   mocks.rpc.mockResolvedValue({ status: "NOT_FOUND" });
@@ -61,6 +66,50 @@ beforeEach(() => {
   mocks.updateToken.mockResolvedValue({});
 });
 describe("deployment transaction lookup", () => {
+  it("attributes keyed webhooks without audit records and preserves their hash", async () => {
+    mocks.signed.mockResolvedValue(null);
+    mocks.attempt.mockResolvedValue({ id: "attempt", status: "PENDING", acceptedAt: new Date() });
+    expect((await getTransactionStatus(deployment, hash)).status).toBe("PENDING");
+    expect(mocks.attempt).toHaveBeenCalledWith({
+      where: { deploymentId: id, network: "testnet", txHash: hash },
+    });
+  });
+  it("does not let an older refusal override accepted webhook evidence", async () => {
+    mocks.signed.mockResolvedValue({ ...received, outcome: "REJECTED" });
+    mocks.attempt.mockResolvedValue({ id: "attempt", status: "PENDING", acceptedAt: new Date() });
+    expect((await getTransactionStatus(deployment, hash)).status).toBe("PENDING");
+  });
+  it.each(["SUCCESS", "FAILED"])(
+    "retains a keyed webhook's %s across RPC expiry",
+    async (status) => {
+      mocks.attempt.mockResolvedValue({ status, ledger: 12 });
+      expect((await getTransactionStatus(deployment, hash)).status).toBe(status);
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    },
+  );
+  it("reconciles a keyed webhook's finality to its reserved attempt", async () => {
+    mocks.signed.mockResolvedValue(null);
+    mocks.attempt.mockResolvedValue({ id: "attempt", status: "UNKNOWN", acceptedAt: null });
+    mocks.rpc.mockResolvedValue({ status: "SUCCESS", ledger: 12 });
+    expect((await getTransactionStatus(deployment, hash)).status).toBe("SUCCESS");
+    expect(mocks.updateAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "attempt", status: { notIn: ["SUCCESS", "FAILED"] } },
+        data: { status: "SUCCESS", ledger: 12, errorCode: null },
+      }),
+    );
+  });
+  it.each([false, true])(
+    "preserves a concurrent keyed confirmation after stale RPC, throws=%s",
+    async (throws) => {
+      mocks.signed.mockResolvedValue(null);
+      mocks.attempt
+        .mockResolvedValueOnce({ id: "attempt", status: "UNKNOWN" })
+        .mockResolvedValue({ id: "attempt", status: "SUCCESS", ledger: 12 });
+      if (throws) mocks.rpc.mockRejectedValue(new Error("RPC down"));
+      expect((await getTransactionStatus(deployment, hash)).status).toBe("SUCCESS");
+    },
+  );
   it("does not turn an attributed but unobserved attempt into pending or failure", async () => {
     expect(await getTransactionStatus(deployment, hash)).toEqual({
       txHash: hash,

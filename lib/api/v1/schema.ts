@@ -224,3 +224,10 @@ export const TransactionStatusSchema = z.object({
   error: z.object({ code: z.string(), message: z.string() }).optional(),
 });
 export type TransactionStatus = z.infer<typeof TransactionStatusSchema>;
+
+/** Keyed webhook attempts may have no transaction hash if preparation was interrupted. */
+export const WebhookAttemptResponseSchema = TransactionStatusSchema.partial({
+  txHash: true,
+}).extend({
+  attemptId: z.string().uuid(),
+});

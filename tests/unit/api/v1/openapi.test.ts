@@ -17,6 +17,7 @@ import { APP_ERROR_STATUS } from "@/lib/errors";
 import { ERROR_STATUS, examples, openApiDocument } from "@/lib/api/v1/openapi";
 import {
   TransactionStatusSchema,
+  WebhookAttemptResponseSchema,
   ApiTokenSchema,
   DemoTokenSchema,
   CreateApiTokenSchema,
@@ -100,6 +101,13 @@ describe("OpenAPI document", () => {
     }
   });
 
+  it("documents the webhook route and secret authentication", () => {
+    expect(specOperations("/api/webhooks/")).toEqual(routeOperations("api/webhooks/[id]"));
+    expect(openApiDocument.paths["/api/webhooks/{id}"].post.security).toEqual([
+      { webhookSecret: [] },
+    ]);
+  });
+
   it("resolves every $ref", () => {
     const refs = JSON.stringify(openApiDocument).match(/"#\/components\/schemas\/\w+"/g) ?? [];
     const schemas = openApiDocument.components.schemas as Record<string, unknown>;
@@ -109,6 +117,7 @@ describe("OpenAPI document", () => {
   });
 
   const parses: Array<[string, z.ZodTypeAny, unknown]> = [
+    ["keyed webhook", WebhookAttemptResponseSchema, examples.webhookPending.data],
     ["transaction status", TransactionStatusSchema, examples.transactionStatus.data],
     ["payout request", PayoutPrepareSchema, examples.payoutRequest],
     ["payout response", PayoutPreparedSchema, { ...examples.executeResponse.data, nodeId: "pay" }],
@@ -158,7 +167,9 @@ describe("Postman collection", () => {
         return `${p} ${request.method.toLowerCase()}`;
       })
       .sort();
-    expect(requests).toEqual(specOperations("/api/v1/"));
+    expect(requests).toEqual(
+      [...specOperations("/api/v1/"), ...specOperations("/api/webhooks/")].sort(),
+    );
   });
 
   it("saves the spec's examples as its example responses", () => {

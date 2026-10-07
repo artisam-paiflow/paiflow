@@ -370,6 +370,7 @@ model Deployment {
   apiTokens            DeploymentApiToken[]
   signedTransactions   SignedTransaction[]
   timelockReleases     TimelockRelease[]
+  webhookAttempts      WebhookAttempt[]
 
   @@unique([ownerId, idempotencyKey])
   @@index([ownerId, createdAt(sort: Desc)])
@@ -824,4 +825,25 @@ model TransactionFeeReservation {
 
   @@unique([network, txHash])
   @@index([network, budgetName, createdAt])
+}
+
+/// Durable webhook event reservation. Keys never expire/reopen automatically.
+/// Store digests and transaction evidence, never callback bodies or signed envelopes.
+model WebhookAttempt {
+  id           String     @id @default(uuid()) @db.Uuid
+  deploymentId String     @db.Uuid
+  network      String
+  keyHash      String
+  requestHash  String
+  status       String     @default("PREPARING")
+  txHash       String?
+  acceptedAt   DateTime?
+  ledger       Int?
+  errorCode    String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deployment   Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+
+  @@unique([deploymentId, keyHash])
+  @@index([deploymentId, network, txHash])
 }

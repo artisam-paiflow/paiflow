@@ -3,7 +3,7 @@
   "info": {
     "title": "Paiflow API v1",
     "version": "1.0.0",
-    "description": "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.\n\nEvery `/api/v1/deployments/{id}/…` call authenticates with a deployment API token (`Authorization: Bearer pfk_…`) that the deployment's owner mints in the **API access** panel on the deployment page. A token reaches exactly one deployment.\n\n**The API never signs.** `execute` returns an unsigned envelope; you sign it with the `from` key, which stays on your side, and post it to `execute/submit`. A leaked token can only prepare and relay what you signed.\n\nSuccessful responses are `{ \"data\": … }`. Errors are `{ \"error\": { code, message, fields?, details? } }`:\n\n| Code | HTTP status |\n| --- | --- |\n| `UNAUTHENTICATED` | 401 |\n| `INSUFFICIENT_FUNDS` | 402 |\n| `FORBIDDEN` | 403 |\n| `NOT_FOUND` | 404 |\n| `CONFLICT` | 409 |\n| `VALIDATION` | 422 |\n| `RATE_LIMITED` | 429 |\n| `INTERNAL` | 500 |\n| `UPSTREAM_RPC` | 502 |\n\nRate limits are per token and per endpoint (each operation lists its own). A token that has been issued or has worked in the last 30 days is subject to nothing else. Any other token is limited per client address before it is looked up: 6000 lookups per 60 seconds, and, after 300 failed authentications in 600 seconds from the address, 60 per 60 seconds. A token refused in the last minute is refused again without a lookup. So one caller's bad token does not lock out others on the same network.\n\nNo account? `POST /api/v1/demo-token` hands you a short-lived token for a shared demo flow, so every call above can be tried straight away.\n\nThe public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`."
+    "description": "Execute a deployed deposit-triggered flow (Pay, Split, condition, swap) and poll its on-chain events from your own backend.\n\nEvery `/api/v1/deployments/{id}/…` call authenticates with a deployment API token (`Authorization: Bearer pfk_…`) that the deployment's owner mints in the **API access** panel on the deployment page. A token reaches exactly one deployment.\n\n**Execute deposits are signed by the caller.** `execute` returns an unsigned envelope; you sign it with the `from` key, which stays on your side, and post it to `execute/submit`. A leaked token can prepare and relay a deposit you signed. Webhook and early-release operations use the relayer.\n\nSuccessful responses are `{ \"data\": … }`. Errors are `{ \"error\": { code, message, fields?, details? } }`:\n\n| Code | HTTP status |\n| --- | --- |\n| `UNAUTHENTICATED` | 401 |\n| `INSUFFICIENT_FUNDS` | 402 |\n| `FORBIDDEN` | 403 |\n| `NOT_FOUND` | 404 |\n| `CONFLICT` | 409 |\n| `VALIDATION` | 422 |\n| `RATE_LIMITED` | 429 |\n| `INTERNAL` | 500 |\n| `UPSTREAM_RPC` | 502 |\n\nRate limits are per token and per endpoint (each operation lists its own). A token that has been issued or has worked in the last 30 days is subject to nothing else. Any other token is limited per client address before it is looked up: 6000 lookups per 60 seconds, and, after 300 failed authentications in 600 seconds from the address, 60 per 60 seconds. A token refused in the last minute is refused again without a lookup. So one caller's bad token does not lock out others on the same network.\n\nNo account? `POST /api/v1/demo-token` hands you a short-lived token for a shared demo flow, so every call above can be tried straight away.\n\nThe public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`."
   },
   "servers": [
     {
@@ -12,6 +12,10 @@
     }
   ],
   "tags": [
+    {
+      "name": "Webhooks",
+      "description": "Authenticated callbacks releasing a pre-funded flow, optionally deduplicated by application-event key."
+    },
     {
       "name": "Payouts",
       "description": "Coordinate immediate deposits to one mutable Pay with a per-payment recipient."
@@ -42,6 +46,228 @@
     }
   ],
   "paths": {
+    "/api/webhooks/{id}": {
+      "post": {
+        "tags": ["Webhooks"],
+        "operationId": "executeWebhook",
+        "summary": "Release a webhook flow, with optional durable event idempotency",
+        "description": "Authenticate with x-webhook-secret, not pfk_. Deposit funding separately. For pre-funded release use escrow:true and a stroop amount; omitted amount or zero releases the whole available pool. Idempotency-Key is optional: matching requests return the original attempt without another send; different effective arguments return 409. Keys are deployment-scoped, never automatically expire, and store only key/request digests. One hash is persisted before sending; keyed sends never rebuild/resubmit automatically. Interrupted preparation without a hash remains UNKNOWN and requires operator review. Unknown/missing RPC evidence never authorizes another payment. Use the same key to poll and a pfk_ token for the transaction lookup endpoint. Unkeyed requests retain legacy behavior and can each release another payout. Fixed recipients with Dev mode off. Rate limit: 20/minute per deployment/client IP; keyed replays additionally share transaction lookup RPC limits.",
+        "security": [
+          {
+            "webhookSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "escrow": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "amount": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "from": {
+                    "type": "string",
+                    "description": "Required for native non-escrow execution; requires signed Soroban authorization."
+                  },
+                  "auth": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Signed Soroban auth entries for non-escrow execution."
+                  }
+                }
+              },
+              "example": {
+                "escrow": true,
+                "amount": "100000000"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Legacy result, or keyed terminal/submission-rejected attempt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": ["data"],
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/WebhookAttemptResponse"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "required": ["txHash"],
+                          "additionalProperties": false,
+                          "properties": {
+                            "txHash": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": ["PENDING"]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Original keyed attempt is PENDING or UNKNOWN; retry the same key. No new transaction is submitted on replay.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Suggested seconds before polling the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WebhookAttemptResponse"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "attemptId": "c112ab0a-ec40-4b0f-8d1d-65d13edfe40c",
+                    "txHash": "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d",
+                    "network": "testnet",
+                    "status": "PENDING"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CONFLICT`: The request conflicts with current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`INTERNAL`: Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`UPSTREAM_RPC`: The Soroban RPC request failed or the network was busy; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/deployments/{id}/payouts": {
       "post": {
         "tags": ["Payouts"],
@@ -1509,6 +1735,12 @@
   },
   "components": {
     "securitySchemes": {
+      "webhookSecret": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-webhook-secret",
+        "description": "The webhook deployment's server-only callback secret."
+      },
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
@@ -1679,6 +1911,44 @@
             "minLength": 10,
             "maxLength": 200000,
             "description": "The envelope returned by prepare, signed by `from`. Anything but a single `deposit` call on this flow's trigger contract is refused."
+          }
+        }
+      },
+      "WebhookAttemptResponse": {
+        "type": "object",
+        "required": ["attemptId", "network", "status"],
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "txHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "network": {
+            "type": "string",
+            "enum": ["testnet", "mainnet"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["SUCCESS", "FAILED", "PENDING", "UNKNOWN", "REJECTED"]
+          },
+          "ledger": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
           }
         }
       },
