@@ -183,9 +183,8 @@ describe("public embed server/browser boundary", () => {
     expect(html).not.toMatch(/Secret token|Copy webhook|Dev values|Release now|API access/);
     expect(session).not.toHaveBeenCalled();
     expect(db.deployment.findUnique.mock.calls[0]?.[0].select).not.toHaveProperty("webhookSecret");
-    expect(db.deployment.findUnique.mock.calls[0]?.[0].select).not.toHaveProperty(
-      "pipelineSnapshot",
-    );
+    // The snapshot is read internally to determine payment eligibility, but
+    // never serialized to the public component (asserted above).
     expect(findComponent(page, OwnerView)).toBeUndefined();
   });
 

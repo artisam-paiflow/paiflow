@@ -26,6 +26,7 @@
 ## Reference
 
 - [Developer API](api/README.md)
+- [Public embed payment links and live reads](public-embed-live.md)
 - [Metrics](instawards/metrics.md)
 - [Evidence index](instawards/evidence/README.md)
   - [Transaction list](instawards/evidence/transactions.md)
