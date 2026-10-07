@@ -20,7 +20,7 @@ Preparation reads the current allowance and adds the requested positive i128
 amount, retaining the existing bounded expiration-ledger calculation and
 simulation. The server issues an HMAC intent under the existing `AUTH_SECRET`,
 scoped to this deployment/network, subscriber, token, spender, cumulative amount,
-full transaction hash and finite validity window. Submission at
+full transaction hash, preparation ledger and finite validity window. Submission at
 `/subscription-allowance/submit` requires the intent and an exact matching signed
 envelope. The hash binds expiration, sequence, fees, resources, authorization
 entries and all operations. A real Ed25519 subscriber signature must verify on
@@ -42,7 +42,12 @@ after the submit intent's ten-minute expiration. It reuses existing transaction
 confirmation and safe allowance-event bookkeeping. While outcome is unknown,
 new approval is blocked and the customer can check status or reload. A missing
 transaction permits another approval only after validated ledger close time
-passes the prepared transaction's maxTime, followed by another NOT_FOUND read.
+passes the prepared transaction's maxTime, followed by another NOT_FOUND read
+whose validated latest ledger/time cover that expiration ledger and whose oldest
+retained ledger covers the preparation ledger. The preparation ledger is captured
+before exposing the envelope and authenticated in the intent. Stale lookups,
+evicted history, malformed retention metadata and older intents lacking this
+bound retain unknown finality; they do not permit another approval.
 Wall-clock time, unavailable RPC or malformed/undecodable ledgers cannot establish
 expiration. Local storage must be available to recover after closing/reloading;
 within the same mounted page the pending hash also remains in memory.

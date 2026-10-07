@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withErrorHandler, AppError } from "@/lib/errors";
+import { sorobanRpc } from "@/lib/stellar/client";
 import { stellarPassphrase } from "@/lib/env";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { prepareTokenApproveInvocation } from "@/lib/stellar/invoke";
@@ -54,6 +55,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const amount = currentAllowance + BigInt(body.amount);
     if (currentAllowance < 0n || amount > MAX_ALLOWANCE)
       throw new AppError("VALIDATION", "Cumulative allowance would exceed the maximum i128 value");
+    // Capture before the envelope is exposed to the customer. Any possible
+    // inclusion must follow this ledger; wall-clock time is not a safe bound.
+    const { sequence: preparationLedger } = await sorobanRpc().getLatestLedger();
+    if (
+      !Number.isInteger(preparationLedger) ||
+      preparationLedger <= 0 ||
+      preparationLedger > 0xffff_ffff
+    )
+      throw new AppError("UPSTREAM_RPC", "Cannot establish approval preparation ledger");
     const { xdr } = await prepareTokenApproveInvocation({
       tokenContractAddress: state.tokenContractAddress,
       from: subscriber,
@@ -63,6 +73,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const prepared = createAllowanceIntent(
       xdr,
       {
+        preparationLedger,
         deploymentId: id,
         network: state.network,
         subscriber,

@@ -44,6 +44,7 @@ const tx = new TransactionBuilder(new Account(wallet.publicKey(), "1"), {
 const prepared = createAllowanceIntent(
   tx.toXDR(),
   {
+    preparationLedger: 90,
     deploymentId: id,
     network: "testnet",
     subscriber: wallet.publicKey(),

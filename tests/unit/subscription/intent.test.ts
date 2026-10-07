@@ -25,6 +25,7 @@ const token = StrKey.encodeContract(Buffer.alloc(32, 1));
 const spender = StrKey.encodeContract(Buffer.alloc(32, 2));
 const id = "11111111-1111-4111-8111-111111111111";
 const state = {
+  preparationLedger: 90,
   deploymentId: id,
   network: "testnet" as const,
   subscriber: wallet.publicKey(),
@@ -71,11 +72,30 @@ describe("public subscription approval intent", () => {
     tx.sign(wallet);
     const result = verifyAllowanceIntent(prepared.intent, tx.toXDR(), id);
     expect(result.intent.txHash).toBe(prepared.txHash);
+    expect(result.intent.preparationLedger).toBe(90);
     expect(result.signer.signedBySource).toBe(true);
     expect(verifyAllowanceIntent(prepared.intent, tx.toXDR(), id).intent.txHash).toBe(
       prepared.txHash,
     );
   });
+  it("rejects tampering with the authenticated preparation ledger", () => {
+    const tx = build();
+    const prepared = createAllowanceIntent(tx.toXDR(), state, "200");
+    const [payload, signature] = prepared.intent.split(".");
+    const altered = JSON.parse(Buffer.from(payload!, "base64url").toString());
+    altered.preparationLedger = 100;
+    tx.sign(wallet);
+    const intent = `${Buffer.from(JSON.stringify(altered)).toString("base64url")}.${signature}`;
+    expect(() => verifyAllowanceIntent(intent, tx.toXDR(), id)).toThrow(/invalid or expired/);
+  });
+  it.each([0, -1, 1.5, 0x1_0000_0000])(
+    "refuses invalid preparation ledger %s",
+    (preparationLedger) => {
+      expect(() =>
+        createAllowanceIntent(build().toXDR(), { ...state, preparationLedger }, "200"),
+      ).toThrow();
+    },
+  );
   it.each([
     { token: spender },
     { spender: token },

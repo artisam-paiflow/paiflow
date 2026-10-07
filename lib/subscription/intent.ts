@@ -14,6 +14,7 @@ const IntentSchema = z
     tokenContractAddress: z.string(),
     contractAddress: z.string(),
     amount: z.string(),
+    preparationLedger: z.number().int().positive().max(0xffff_ffff).optional(),
     maxTime: z.string().regex(/^[1-9][0-9]*$/),
     txHash: z.string().regex(/^[a-f0-9]{64}$/),
     expiresAt: z.number().int(),
@@ -69,6 +70,7 @@ function assertApproval(
 export function createAllowanceIntent(
   xdr: string,
   state: {
+    preparationLedger: number;
     deploymentId: string;
     network: "testnet" | "mainnet";
     subscriber: string;
@@ -87,6 +89,7 @@ export function createAllowanceIntent(
   };
   if (!tx.timeBounds || BigInt(intent.maxTime) <= 0n)
     throw new AppError("INTERNAL", "Prepared allowance must have a finite expiration");
+  IntentSchema.parse(intent);
   assertApproval(tx, intent);
   const payload = Buffer.from(JSON.stringify(intent)).toString("base64url");
   return { intent: `${payload}.${mac(payload).toString("base64url")}`, txHash: intent.txHash };
