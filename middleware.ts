@@ -22,6 +22,8 @@ const PUBLIC_PATHS = [
   /^\/deployments\/[^/]+\/embed$/,
   /^\/api\/deployments\/[^/]+\/embed\/(events|activity|qr)$/,
   /^\/trigger\/[^/]+$/,
+  /^\/allowance\/[^/]+$/,
+  /^\/api\/deployments\/[^/]+\/subscription-allowance(\/(submit|status))?$/,
   /^\/api\/deployments\/[^/]+\/trigger$/,
   /^\/api\/deployments\/[^/]+\/submit-trigger$/,
   /^\/api\/deployments\/[^/]+\/tx-status$/,

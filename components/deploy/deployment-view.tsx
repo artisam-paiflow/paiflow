@@ -233,7 +233,7 @@ export default function DeploymentView({
   const isStreamer = !!streamerNode;
   const isSubscription = templateKind === "SUBSCRIPTION";
   const subscriptionNode = isSubscription
-    ? pipeline?.find((n) => n.templateKind === "SUBSCRIPTION")
+    ? pipeline?.find((n) => ["SUBSCRIPTION", "SUBSCRIPTION_DEV"].includes(n.templateKind))
     : null;
   const payrollNode = pipeline?.find((n) =>
     ["PAYROLL", "SUBSCRIPTION_DEV", "SUBSCRIPTION"].includes(n.templateKind),
@@ -254,6 +254,8 @@ export default function DeploymentView({
   const [isPaused, setIsPaused] = useState(false);
   const [retrieveAllowed, setRetrieveAllowed] = useState(retrieveAllowedFromConfig);
   const [allowance, setAllowance] = useState<bigint | null>(null);
+  const [currentSubscriber, setCurrentSubscriber] = useState<string | null>(null);
+  const [currentAssetLabel, setCurrentAssetLabel] = useState<string | null>(null);
   const [isCancelled, setIsCancelled] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -265,14 +267,17 @@ export default function DeploymentView({
         const json = (await res.json()) as {
           data: {
             allowance: string;
-            subscriber: string;
-            asset: { kind: string };
+            subscriber: string | null;
+            assetLabel: string;
+            asset: { kind: string } | null;
             isCancelled: boolean;
           };
         };
         if (!cancelled) {
           setAllowance(BigInt(json.data.allowance));
           setIsCancelled(json.data.isCancelled);
+          setCurrentSubscriber(json.data.subscriber);
+          setCurrentAssetLabel(json.data.assetLabel);
         }
       })
       .catch(() => {
@@ -361,7 +366,7 @@ export default function DeploymentView({
                         Current allowance
                       </div>
                       <div className="text-on-surface mt-1 font-mono text-[12px]">
-                        {formatStroops(allowance.toString())} {assetLabel(triggerNode.config.asset)}
+                        {formatStroops(allowance.toString())} {currentAssetLabel ?? "—"}
                       </div>
                     </div>
                   )}
@@ -370,7 +375,7 @@ export default function DeploymentView({
                       Subscriber
                     </div>
                     <div className="text-on-surface mt-1 font-mono text-[12px] break-all">
-                      {triggerNode?.type === "subscription" ? triggerNode.config.subscriber : "—"}
+                      {currentSubscriber ?? "Subscriber needs configuration"}
                     </div>
                   </div>
                   <a

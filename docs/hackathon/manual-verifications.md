@@ -75,14 +75,47 @@ Run after a build containing #577 is promoted. See
 - [ ] Synchronize participant PDF and all external starter/sample AI context
       copies with verified promoted behavior; keep Event Plan reconciliation on hold.
 
+### Wallet-only subscription approval — #790
+
+Run after a build containing #790 is promoted. See
+[wallet-only subscription approval](../subscription-allowance.md) for the route
+boundary and recovery behavior. Local tests do not complete this rehearsal.
+
+- [ ] Confirm the promoted commit, environment network, funded relayer and RPC
+      configuration. Check #792's SDK ledger-read compatibility in this app,
+      including latest-ledger and ledger-close-time reads.
+- [ ] In a fresh logged-out browser, open a confirmed ordinary subscription's
+      `/allowance/:id` page without a deployment token. Confirm network, token,
+      subscription spender and configured subscriber; sign with that wallet,
+      observe confirmation and verify the cumulative allowance on chain.
+- [ ] Repeat with `SUBSCRIPTION_DEV`: first leave the subscriber unconfigured and
+      check the setup message, then fill it through the authenticated team's
+      **Dev values**. Change it to another test wallet and verify the old wallet
+      is refused and the new one can approve. Recheck a configuration change
+      between preparation and submission.
+- [ ] Refuse a different wallet, wrong network, tampered/extra operations and a
+      cross-deployment intent. Confirm no unintended transaction was sent. Use
+      controlled test fixtures and retain only public hashes as evidence.
+- [ ] Lose the submit response or interrupt connectivity; reload and reconcile
+      the same approval hash. Verify no second approval while finality is unknown,
+      successful catch-up, and safe retry after ledger-proven expiry. An RPC or
+      ledger-decoding failure must preserve the unknown outcome.
+- [ ] With ordinary and Dev subscriptions, wait for the actual scheduled charge
+      and verify the recipient payout, allowance reduction and visible activity
+      against public transaction hashes and balances. Approval alone is not a payout.
+- [ ] Verify deliberate public limits and signer attribution without attributing
+      anonymous customer consent to the deployment owner. Confirm general
+      invocation, charging, cancellation, Dev mutations and payroll approval
+      retain their existing guards and sandbox exclusions.
+- [ ] Reconcile the participant PDF and external Mechanics/AI/starter/sample
+      copies with the verified promoted journey. Keep Event Plan reconciliation
+      on hold until explicitly resumed.
+
 ## Queued with upcoming work
 
 These checks remain pending until their implementation or prerequisites are ready.
 Expand the steps when the corresponding PR is prepared.
 
-- [ ] **#790 — Wallet-only subscription approval:** verify logged-out customer and
-      Dev subscription approval using real wallet signing; confirm on-chain
-      allowance and subsequent expected charge behavior.
 - [ ] **#726 — Team provisioning:** verify all 36 funded wallets have the intended
       Paiflow accounts/logins and teams can sign in to their own accounts.
 - [ ] **#770 — Starter rehearsal:** run the supplied starter against the promoted
