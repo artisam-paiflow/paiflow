@@ -20,6 +20,7 @@ const PUBLIC_PATHS = [
   /^\/api\/files\/.*/,
   /^\/api\/webhooks(\/.*)?$/,
   /^\/deployments\/[^/]+\/embed$/,
+  /^\/api\/deployments\/[^/]+\/embed\/(events|activity|qr)$/,
   /^\/trigger\/[^/]+$/,
   /^\/api\/deployments\/[^/]+\/trigger$/,
   /^\/api\/deployments\/[^/]+\/submit-trigger$/,
