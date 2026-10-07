@@ -8,13 +8,16 @@ const globalForRedis = globalThis as unknown as {
   redisSub?: Redis | null;
 };
 
-function makeClient(): Redis | null {
+function makeClient(subscriber = false): Redis | null {
   const url = env().REDIS_URL;
   if (!url) return null;
   const client = new Redis(url, {
     lazyConnect: false,
     maxRetriesPerRequest: 2,
     enableOfflineQueue: false,
+    // SSE viewers reconnect through the manager; old socket subscriptions and
+    // in-flight commands must not be replayed after their viewers are disposed.
+    ...(subscriber ? { autoResubscribe: false, autoResendUnfulfilledCommands: false } : {}),
   });
   client.on("error", (err) => {
     // Avoid noisy stack traces in dev when Redis is intentionally offline.
@@ -45,7 +48,7 @@ export function redis(): Redis | null {
 
 export function redisSub(): Redis | null {
   if (globalForRedis.redisSub === undefined) {
-    globalForRedis.redisSub = makeClient();
+    globalForRedis.redisSub = makeClient(true);
   }
   return globalForRedis.redisSub ?? null;
 }

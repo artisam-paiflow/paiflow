@@ -398,6 +398,14 @@ Configured for **Railway** (`.railway/railway.ts`, `nixpacks.toml`):
   `.railway/railway.ts` declares both settings. Services configured outside that file need
   those settings applied separately. Verify shutdown on a subsequent replacement of the
   fixed deployment, since the outgoing older deployment still uses its original settings.
+- Node instrumentation installs one shutdown hook before Next.js's HTTP drain. It closes
+  active deployment event streams, releases their timers and registrations, and disconnects
+  the dedicated Redis subscriber. Viewers share subscriptions while the server runs; the last
+  viewer leaving releases its channel. The browser retains its polling and reconnect fallback.
+  `pnpm test:sse-shutdown` builds an isolated production Next.js fixture with the real SSE
+  modules and an in-memory subscriber, then verifies successful exits within 10 seconds for
+  active streams and pending setup. This runs in CI; hosted replacement and browser recovery
+  still require the separate rehearsal tracked in #842.
 - Prisma CLI configuration lives in `prisma.config.ts`; the database URL remains in
   `prisma/schema.prisma` for Prisma 6.
 - File storage swaps from MinIO to a Railway Volume via `FILE_STORAGE_DRIVER`.

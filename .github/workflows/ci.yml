@@ -51,6 +51,7 @@ jobs:
       - run: pnpm db:migrate:deploy
       - run: pnpm typecheck
       - run: pnpm test:ci
+      - run: pnpm test:sse-shutdown
       - name: Upload test report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
