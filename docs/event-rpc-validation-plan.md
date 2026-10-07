@@ -1,10 +1,14 @@
 # Event RPC validation plan for hackathon testing
 
 Prepared 6 October 2026 for [#486](https://github.com/webnxt-2030/pinkraft/issues/486).
-**Latest result: both payments, grouped filtering and diagnostic pagination passed;
-the production 100-event boundary remains untested and the live gate incomplete.**
-Sandbox remained disabled during the authorized follow-up. The initial campaign's
-stop and incomplete checks are retained below as history.
+**Latest result — 7 October: real grouped filtering/routing, same-ledger 100+1
+pagination and captured-page PostgreSQL failure/recovery checks passed.**
+The [isolated probe continuation](event-probe-deploy-invoke-plan.md) closes the
+previously untested 100-event boundary. This does not prove five-page allowance
+exhaustion, representative mixed-workload capacity or rollout readiness.
+Sandbox remained disabled during the follow-up and probe continuation. Initial
+stops and earlier incomplete checks below are historical outcomes; the latest
+continuation supersedes their pending page-boundary status.
 
 The user approved execution of this bounded, supervised correctness campaign on
 6 October 2026 after discussion of RPC pacing. Deployment, promotion, service
@@ -370,3 +374,42 @@ Official protocol reference: [Stellar RPC getEvents](https://developers.stellar.
 documents the five-contract filter maximum, inclusive starting ledger, opaque
 pagination cursor, actual emitter field and event-ID deduplication. Provider
 limits and retention are rechecked during campaign preflight.
+
+## Real 100+1 boundary and recovery completed — 7 October 2026
+
+A separately authorized isolated TESTNET probe reused the successfully uploaded
+WASM, deployed once and emitted 101 events in ledger 5064061. The Railway testing
+deployment/commit, exact reader hash and relevant settings matched the approved
+baseline before execution; the post-capture deployment also matched. No Railway
+deployment/configuration change or shared WASM registration occurred.
+
+Transaction metadata and an independent limit-200 RPC reference matched the real
+limit-100 pages exactly: **100 events followed by 1**. The second cursor reached
+RPC tip ledger 5064085. Three isolated PostgreSQL scenarios replayed these captured
+pages through the byte-identical pinned deployed reader: normal ingestion,
+page-two RPC failure and an actual SQL foreign-key failure. Both failures stored
+100 events while holding the cursor at 5064060, before the unfinished event ledger.
+Retry stored the final event and advanced to 5064085. Every scenario finished with
+101 unique event IDs and 101 publishes; isolated rewind/replay produced zero
+additional rows or publishes. Local replay made no external network calls.
+
+The probe topic decodes as generic STATUS_CHANGE. It exercises production paging,
+persistence, coverage and duplicate suppression; the earlier real A/B fixtures
+supply financial decoding, actual emitter routing and grouped-filter evidence.
+The continuation added 23 RPC requests, one Friendbot request, two signed attempts,
+197245 reserved fee stroops and 156720 net charged fee stroops. Cumulative accounting
+is 273 conservative RPC requests, four funding requests, eight signed attempts and
+52211937 reserved fee stroops. Historical 200000-stroop principal is unchanged.
+Reservations are never replenished; old consumed execution modes cannot be reused.
+
+See the [execution report](event-probe-deploy-invoke-plan.md),
+[continuation summary](evidence/event-rpc-probe-deploy-invoke-hackathon-testing.json),
+[exact reference and pages](evidence/event-rpc-probe-pages-hackathon-testing.json)
+and [upload prerequisite](evidence/event-rpc-probe-upload-diagnostic-hackathon-testing.json).
+The executable local probe and replay harness are outside this evidence-only PR.
+
+This completes the real 100-event page-boundary and captured-page recovery checks.
+The pre-existing single-contract overflow/page-allowance limitation remains.
+Representative live mixed-workload/headroom validation and the retained workload
+publication/review plus #804 rollout handoff remain separate open gates. #486 stays
+open; this report does not establish supported capacity or production readiness.
