@@ -7,12 +7,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Keypair } from "@stellar/stellar-sdk";
 
-const { mockDb, mockSubmit } = vi.hoisted(() => ({
+const { mockDb, mockSubmit, mockKeyed } = vi.hoisted(() => ({
   mockDb: { deployment: { findFirst: vi.fn() } },
   mockSubmit: vi.fn(),
+  mockKeyed: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
+vi.mock("@/lib/webhook-idempotency", () => ({ executeKeyedWebhook: mockKeyed }));
 vi.mock("@/lib/stellar/trigger", () => ({ submitWebhookExecuteTx: mockSubmit }));
 vi.mock("@/lib/rate-limit", () => ({
   enforceRateLimit: vi.fn(async () => undefined),
@@ -31,11 +33,12 @@ import { DEPLOYMENT_ID, OWNER_ID, TRIGGER, ctx } from "./v1/execute-fixtures";
 const SECRET = `whsec_${"a".repeat(64)}`;
 const FROM = Keypair.random().publicKey();
 
-function call(secret: string | null = SECRET) {
+function call(secret: string | null = SECRET, key?: string) {
   const req = new Request(`https://paiflow.test/api/webhooks/${DEPLOYMENT_ID}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
+      ...(key !== undefined ? { "Idempotency-Key": key } : {}),
       ...(secret === null ? {} : { "x-webhook-secret": secret }),
     },
     body: JSON.stringify({ from: FROM, amount: "10000000" }),
@@ -51,6 +54,7 @@ beforeEach(() => {
     webhookSecret: SECRET,
     pipelineSnapshot: [{ nodeId: "hook", contractAddress: TRIGGER, templateKind: "WEBHOOK" }],
     flow: { ownerId: OWNER_ID },
+    network: "testnet",
   });
 });
 
@@ -100,5 +104,37 @@ describe("POST /api/webhooks/[id]", () => {
     expect(res.status).toBe(502);
     expect((await res.json()).error.code).toBe("UPSTREAM_RPC");
     expect(audit).not.toHaveBeenCalled();
+  });
+});
+
+describe("keyed webhook route", () => {
+  it("does not reserve an attempt before authenticating", async () => {
+    expect((await call("wrong", "event-42")).status).toBe(403);
+    expect(mockKeyed).not.toHaveBeenCalled();
+  });
+  it("returns the durable keyed attempt and bypasses legacy submission", async () => {
+    mockKeyed.mockResolvedValue({
+      attemptId: "attempt",
+      txHash: "a".repeat(64),
+      status: "PENDING",
+      network: "testnet",
+    });
+    const res = await call(SECRET, "event-42");
+    expect(res.status).toBe(202);
+    expect(res.headers.get("retry-after")).toBe("2");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect((await res.json()).data.attemptId).toBe("attempt");
+    expect(mockSubmit).not.toHaveBeenCalled();
+    expect(mockKeyed).toHaveBeenCalledWith(
+      expect.objectContaining({ network: "testnet" }),
+      TRIGGER,
+      "event-42",
+      expect.objectContaining({ escrow: false, from: FROM }),
+    );
+  });
+  it("reports payload conflicts", async () => {
+    mockKeyed.mockRejectedValue(new AppError("CONFLICT", "different request"));
+    expect((await call(SECRET, "event-42")).status).toBe(409);
+    expect(mockSubmit).not.toHaveBeenCalled();
   });
 });

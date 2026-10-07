@@ -13,7 +13,7 @@ const routes = new Set(
     .map((file) =>
       path.posix
         .join("/api/v1", path.dirname(String(file)).split(path.sep).join("/"))
-        .replace(/\[id\]/g, ":id"),
+        .replace(/\[([A-Za-z0-9_]+)\]/g, ":$1"),
     ),
 );
 

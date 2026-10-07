@@ -6,6 +6,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { submitWebhookExecuteTx } from "@/lib/stellar/trigger";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { audit, needsSubmitRow } from "@/lib/audit";
+import { executeKeyedWebhook } from "@/lib/webhook-idempotency";
 import { timingSafeEqualString } from "@/lib/auth/timing-safe";
 
 const PostSchema = z
@@ -65,6 +66,28 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const triggerNode = pipeline?.[0];
     if (!triggerNode || triggerNode.templateKind !== "WEBHOOK") {
       throw new AppError("VALIDATION", "This deployment is not a webhook pipeline");
+    }
+
+    const idempotencyKey = req.headers.get("idempotency-key");
+    if (idempotencyKey !== null) {
+      const data = await executeKeyedWebhook(
+        deployment,
+        triggerNode.contractAddress,
+        idempotencyKey,
+        body,
+      );
+      return NextResponse.json(
+        { data },
+        {
+          status: data.status === "UNKNOWN" || data.status === "PENDING" ? 202 : 200,
+          headers: {
+            "Cache-Control": "no-store",
+            ...(data.status === "UNKNOWN" || data.status === "PENDING"
+              ? { "Retry-After": "2" }
+              : {}),
+          },
+        },
+      );
     }
 
     const result = await submitWebhookExecuteTx({

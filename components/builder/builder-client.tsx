@@ -895,7 +895,7 @@ function Builder({
                 type="button"
                 aria-expanded={notificationsOpen}
                 aria-label="Email notifications"
-                className="input min-h-11 min-w-11"
+                className="border-outline-variant/40 bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface inline-flex size-11 shrink-0 items-center justify-center rounded-lg border transition-colors"
                 onClick={() => setNotificationsOpen((v) => !v)}
               >
                 <span aria-hidden="true" className="material-symbols-outlined">

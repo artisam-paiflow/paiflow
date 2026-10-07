@@ -1,5 +1,7 @@
 # Developer API
 
+For the hackathon, start with the [developer API quick start](../hackathon/developer-api-quickstart.md).
+
 Paiflow's `/api/v1` lets your backend run a deployed **deposit-triggered flow** (Pay, Split, condition or swap) and watch what it did on
 chain, with no browser and no wallet integration on Paiflow's side. You send the deposit, the flow
 runs (paying, splitting, routing or swapping on a real DEX) and you poll the events.
@@ -44,7 +46,7 @@ flow takes three steps:
 Then `GET /api/v1/deployments/{id}/events` returns the deposit and whatever the flow's later steps emit (payout, split, swap).
 
 {% hint style="info" %}
-**The API never signs.** Paiflow is non-custodial: your secret key never leaves your side and is
+**Execute deposits are signed by the caller.** Paiflow is non-custodial: your secret key never leaves your side and is
 never sent to Paiflow. The sign step is always yours, and curl alone can't do it, which is why the
 examples below use `stellar tx sign` or the Stellar SDK between the two calls. It also limits what a
 leaked API token can do: prepare an envelope, and relay one that your key already signed. It can't
@@ -576,3 +578,93 @@ land. This feature adds no coordination to those other surfaces.
 Maintainer staging check: run two successive payouts to different recipients and verify both
 recipient destinations and all pipeline balances. No staging transaction was performed by these
 tests.
+
+## Recover a pending transaction
+
+Use the deployment's `pfk_` token with `GET /api/v1/deployments/{id}/transactions/{txHash}`:
+
+```bash
+curl "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/transactions/$TX_HASH" \
+  -H "Authorization: Bearer $PAIFLOW_TOKEN"
+```
+
+The response includes `data.txHash`, `network`, `status`, and a confirmed `ledger` when available.
+`SUCCESS` and `FAILED` are final; `FAILED` includes `error.code: ONCHAIN_FAILED`.
+`REJECTED` reports a recorded submission refusal, rather than an on-chain failure.
+`PENDING` means acceptance is known but finality is unavailable. `UNKNOWN` means the attempt is
+attributed to this deployment but neither acceptance nor finality is established. Neither an
+unknown state, missing events nor an RPC error makes a fresh payment safe: keep the original hash
+and resolve its outcome rather than building another payment.
+
+Poll after 2 seconds, then back off exponentially with jitter to 30 seconds. Stop on finality;
+honor `Retry-After` on 429 and back off on 502. Limits are 60 lookups/minute per token across all
+hashes, plus 60 RPC reads/minute per deployment across tokens. Production requires shared Redis
+for the RPC budget and returns 502 while it is unavailable. RPC reads have a 10-second timeout.
+This GET never sends a transaction or runs the pipeline; it may reconcile existing outcome records.
+
+Coverage includes recorded execute attempts, queued webhook callbacks and early releases with an
+audit record, and ingested deployment events. A submission outside Paiflow can be attributed if
+its RPC envelope directly invokes a contract in the deployment's pipeline on this network.
+Indirect calls and transfers to a contract alone cannot establish attribution. Unattributed hashes
+return 404; this does not prove the transaction failed or was never submitted. Deployment tokens
+cannot read another deployment's records.
+
+Confirmation audit actions alone establish attribution but do not supply retained finality;
+if their RPC envelope and any terminal record/event are unavailable, lookup returns `UNKNOWN`.
+
+RPC history is limited by the provider. Stored terminal outcomes and ingested events remain
+readable after expiry; other historical transactions may be unavailable. A previously accepted
+transaction can remain `PENDING` after it falls outside RPC history until further evidence is
+available. This endpoint does not guarantee historical recovery or webhook retry idempotency.
+
+## Retry webhook rewards safely
+
+Deploy a standard **HTTP Webhook → Pay full amount** (or Split) flow, copy its URL and
+webhook secret from the authenticated owner deployment page, and fund it through
+`/trigger/{deploymentId}` with a wallet-signed deposit. Funding does not execute the flow.
+The recipients remain configured in the deployment; Dev mode is not required.
+
+Send the callback from your server after verifying the completed task. Use one stable key
+per logical event and reuse that key and payload for every retry:
+
+```bash
+curl -X POST "$PAIFLOW/api/webhooks/$DEPLOYMENT_ID" \
+  -H "x-webhook-secret: $PAIFLOW_WEBHOOK_SECRET" \
+  -H "Idempotency-Key: task-completed-42" \
+  -H "Content-Type: application/json" \
+  -d '{"escrow":true,"amount":"100000000"}'
+```
+
+This requests 10 tokens from the pre-funded pool. Omitting `amount` or using `"0"` releases
+all available funds. The relayer signs the release; the callback secret is separate from
+`pfk_`. Keep both credentials server-side.
+
+A keyed response includes `{ data: { attemptId, network, status, txHash?, ledger?, error? } }`.
+HTTP 202 with `Retry-After: 2` means `PENDING` or `UNKNOWN`; HTTP 200 reports finality or a
+submission/preparation rejection. Never treat HTTP success as payout confirmation.
+Repeat the same callback to check its existing attempt, or use the deployment's `pfk_`
+token with the transaction lookup endpoint once a hash is available. Back off with jitter,
+honor 429 `Retry-After`, and retry reads after 502. Callback rate limit: 20 requests/minute
+per deployment/client IP; replays also share the deployment's transaction RPC budget.
+
+Keys accept 1–128 letters, digits, dots, underscores, colons or hyphens, are case-sensitive,
+and are scoped to a deployment. Changed effective arguments return 409. Stroop strings are
+normalized (`"000100"` equals `"100"`); omitted escrow amount equals zero. Escrow ignores
+`from` and `auth`; native non-escrow execution fingerprints its source and signed auth entries.
+No callback bodies, secrets or signed envelopes are stored in the attempt table.
+
+The database reserves the key before preparation and persists the transaction hash before
+sending. Concurrent callbacks and later retries cannot prepare or send another transaction
+for that event. Keyed sends also disable the legacy sequence-error rebuild loop. There is
+**no automatic key expiry, deletion or lease takeover**; deployment deletion removes its
+attempts, and event keys must not be purged while the deployment remains usable. An
+interrupted worker before a hash is recorded can leave `UNKNOWN` without a hash indefinitely.
+An uncertain send retains the original hash. Missing RPC history does not prove failure;
+operator investigation is required for unrecoverable attempts. Never switch to a fresh key
+or an unkeyed callback merely because an attempt is uncertain.
+
+Unkeyed requests keep their existing behavior: each callback can create another payout.
+Idempotency covers only callers reusing the same key; it does not deduplicate different event
+keys, operator releases or other funding/execution paths, and is not an unconditional
+exactly-once payout guarantee. Both new migrations must be applied before rollout; only
+isolated local tests have run, with no live webhook payout or application database migration.

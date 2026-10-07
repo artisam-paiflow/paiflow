@@ -1,4 +1,6 @@
 import {
+  TransactionStatusSchema,
+  WebhookAttemptResponseSchema,
   DemoTokenSchema,
   EXECUTE_PREREQUISITES,
   PayoutPrepareSchema,
@@ -47,6 +49,17 @@ const XLM_SAC_TESTNET = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYS
 const USDC_SAC_TESTNET = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
 
 export const examples = {
+  webhookPending: {
+    data: {
+      attemptId: "c112ab0a-ec40-4b0f-8d1d-65d13edfe40c",
+      txHash: EXAMPLE_TX_HASH,
+      network: "testnet",
+      status: "PENDING",
+    },
+  },
+  transactionStatus: {
+    data: { txHash: EXAMPLE_TX_HASH, network: "testnet", status: "SUCCESS", ledger: 1842917 },
+  },
   payoutRequest: {
     amount: "1000000000",
     from: EXAMPLE_FROM,
@@ -306,9 +319,9 @@ export const openApiDocument = {
         "(`Authorization: Bearer pfk_…`) that the deployment's owner mints in the **API access** " +
         "panel on the deployment page. A token reaches exactly one deployment.",
       "",
-      "**The API never signs.** `execute` returns an unsigned envelope; you sign it with the " +
+      "**Execute deposits are signed by the caller.** `execute` returns an unsigned envelope; you sign it with the " +
         "`from` key, which stays on your side, and post it to `execute/submit`. A leaked token can " +
-        "only prepare and relay what you signed.",
+        "prepare and relay a deposit you signed. Webhook and early-release operations use the relayer.",
       "",
       'Successful responses are `{ "data": … }`. Errors are `{ "error": { code, message, fields?, details? } }`:',
       "",
@@ -336,6 +349,11 @@ export const openApiDocument = {
   },
   servers: [{ url: "https://paiflow.xyz", description: "Public instance (Stellar testnet)" }],
   tags: [
+    {
+      name: "Webhooks",
+      description:
+        "Authenticated callbacks releasing a pre-funded flow, optionally deduplicated by application-event key.",
+    },
     {
       name: "Payouts",
       description: "Coordinate immediate deposits to one mutable Pay with a per-payment recipient.",
@@ -366,6 +384,95 @@ export const openApiDocument = {
     },
   ],
   paths: {
+    "/api/webhooks/{id}": {
+      post: {
+        tags: ["Webhooks"],
+        operationId: "executeWebhook",
+        summary: "Release a webhook flow, with optional durable event idempotency",
+        description:
+          "Authenticate with x-webhook-secret, not pfk_. Deposit funding separately. For pre-funded release use escrow:true and a stroop amount; omitted amount or zero releases the whole available pool. Idempotency-Key is optional: matching requests return the original attempt without another send; different effective arguments return 409. Keys are deployment-scoped, never automatically expire, and store only key/request digests. One hash is persisted before sending; keyed sends never rebuild/resubmit automatically. Interrupted preparation without a hash remains UNKNOWN and requires operator review. Unknown/missing RPC evidence never authorizes another payment. Use the same key to poll and a pfk_ token for the transaction lookup endpoint. Unkeyed requests retain legacy behavior and can each release another payout. Fixed recipients with Dev mode off. Rate limit: 20/minute per deployment/client IP; keyed replays additionally share transaction lookup RPC limits.",
+        security: [{ webhookSecret: [] }],
+        parameters: [
+          deploymentIdParam,
+          {
+            name: "Idempotency-Key",
+            in: "header",
+            required: false,
+            schema: { type: "string", pattern: "^[A-Za-z0-9._:-]{1,128}$" },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: json(
+            {
+              type: "object",
+              properties: {
+                escrow: { type: "boolean", default: false },
+                amount: { type: "string", pattern: "^[0-9]+$" },
+                from: {
+                  type: "string",
+                  description:
+                    "Required for native non-escrow execution; requires signed Soroban authorization.",
+                },
+                auth: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Signed Soroban auth entries for non-escrow execution.",
+                },
+              },
+            },
+            { escrow: true, amount: "100000000" },
+          ),
+        },
+        responses: {
+          "200": {
+            description: "Legacy result, or keyed terminal/submission-rejected attempt.",
+            content: json({
+              oneOf: [
+                dataEnvelope("#/components/schemas/WebhookAttemptResponse"),
+                {
+                  type: "object",
+                  properties: {
+                    data: {
+                      type: "object",
+                      required: ["txHash"],
+                      additionalProperties: false,
+                      properties: {
+                        txHash: { type: "string" },
+                        status: { type: "string", enum: ["PENDING"] },
+                      },
+                    },
+                  },
+                },
+              ],
+            }),
+          },
+          "202": {
+            description:
+              "Original keyed attempt is PENDING or UNKNOWN; retry the same key. No new transaction is submitted on replay.",
+            headers: {
+              "Retry-After": {
+                schema: { type: "string" },
+                description: "Suggested seconds before polling the same key.",
+              },
+            },
+            content: json(
+              dataEnvelope("#/components/schemas/WebhookAttemptResponse"),
+              examples.webhookPending,
+            ),
+          },
+          ...errorsFor()(
+            "FORBIDDEN",
+            "NOT_FOUND",
+            "VALIDATION",
+            "CONFLICT",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+            "INTERNAL",
+          ),
+        },
+      },
+    },
     "/api/v1/deployments/{id}/payouts": {
       post: {
         tags: ["Payouts"],
@@ -611,6 +718,42 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/v1/deployments/{id}/transactions/{txHash}": {
+      get: {
+        tags: ["Execute"],
+        operationId: "getTransactionStatus",
+        summary: "Look up an attributed transaction without resubmitting",
+        description:
+          "Accepts this deployment's pfk_ token. SUCCESS and FAILED are final; REJECTED means submission refusal, not on-chain failure. PENDING requires known acceptance. UNKNOWN means an attributed attempt has no established acceptance or finality; it never authorizes a new payment. Unattributed hashes return 404, including missing outside submissions. Supports execute records, queued webhook audit records, early-release audit records, ingested events and verified direct pipeline invocations in recent RPC envelopes. Outside indirect calls and token transfers alone are unsupported. Stored terminal outcomes and ingested events survive RPC retention; missing historical evidence cannot be reconstructed. Poll after 2 seconds, exponentially back off with jitter to 30 seconds; honor Retry-After on 429. RPC failures return 502, never FAILED. One bounded RPC read per request, at most 60/min per deployment across tokens; production requires shared Redis for that RPC budget. " +
+          rate(V1_RATE_LIMITS.transactions, "per token across transaction hashes"),
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          deploymentIdParam,
+          {
+            name: "txHash",
+            in: "path",
+            required: true,
+            schema: { type: "string", pattern: "^[0-9a-fA-F]{64}$" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Attributed transaction lifecycle.",
+            content: json(
+              dataEnvelope("#/components/schemas/TransactionStatus"),
+              examples.transactionStatus,
+            ),
+          },
+          ...errorsFor()(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "VALIDATION",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+          ),
+        },
+      },
+    },
     "/api/v1/deployments/{id}/events": {
       get: {
         tags: ["Events"],
@@ -824,6 +967,12 @@ export const openApiDocument = {
   },
   components: {
     securitySchemes: {
+      webhookSecret: {
+        type: "apiKey",
+        in: "header",
+        name: "x-webhook-secret",
+        description: "The webhook deployment's server-only callback secret.",
+      },
       bearerAuth: {
         type: "http",
         scheme: "bearer",
@@ -963,6 +1112,37 @@ export const openApiDocument = {
             minLength: 10,
             maxLength: 200000,
             description: ExecuteSubmitSchema.shape.signedXdr.description,
+          },
+        },
+      },
+      WebhookAttemptResponse: {
+        type: "object",
+        required: ["attemptId", "network", "status"],
+        properties: {
+          attemptId: { type: "string", format: "uuid" },
+          txHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+          network: { type: "string", enum: WebhookAttemptResponseSchema.shape.network.options },
+          status: { type: "string", enum: WebhookAttemptResponseSchema.shape.status.options },
+          ledger: { type: "integer", minimum: 1 },
+          error: {
+            type: "object",
+            required: ["code", "message"],
+            properties: { code: { type: "string" }, message: { type: "string" } },
+          },
+        },
+      },
+      TransactionStatus: {
+        type: "object",
+        required: ["txHash", "network", "status"],
+        properties: {
+          txHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+          network: { type: "string", enum: TransactionStatusSchema.shape.network.options },
+          status: { type: "string", enum: TransactionStatusSchema.shape.status.options },
+          ledger: { type: "integer", minimum: 1 },
+          error: {
+            type: "object",
+            required: ["code", "message"],
+            properties: { code: { type: "string" }, message: { type: "string" } },
           },
         },
       },

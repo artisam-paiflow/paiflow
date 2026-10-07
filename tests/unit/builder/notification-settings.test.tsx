@@ -83,10 +83,21 @@ describe("notification settings dialog", () => {
       const heading = screen.getByRole("heading", { name: "Email notifications" });
       expect(document.activeElement).toBe(heading);
       expect(screen.getByRole("dialog", { name: "Email notifications" })).toBeTruthy();
-      await user.click(screen.getByRole("button", { name: "Close" }));
+      await user.click(screen.getByRole("textbox", { name: "Send to" }));
+      expect(onClose).not.toHaveBeenCalled();
+      const dialog = screen.getByRole("dialog");
+      // A drag that starts inside the panel must not dismiss it when released outside.
+      fireEvent.pointerDown(heading);
+      fireEvent.click(dialog);
+      expect(onClose).not.toHaveBeenCalled();
+      await user.click(dialog);
       expect(onClose).toHaveBeenCalledTimes(1);
-      fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+      await user.click(screen.getByRole("button", { name: "Done" }));
       expect(onClose).toHaveBeenCalledTimes(2);
+      await user.click(screen.getByRole("button", { name: "Close" }));
+      expect(onClose).toHaveBeenCalledTimes(3);
+      fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+      expect(onClose).toHaveBeenCalledTimes(4);
     } finally {
       if (previous) Object.defineProperty(HTMLDialogElement.prototype, "showModal", previous);
       else Reflect.deleteProperty(HTMLDialogElement.prototype, "showModal");
