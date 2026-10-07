@@ -46,6 +46,7 @@ import { TRIGGER, signedEnvelope } from "../api/v1/execute-fixtures";
 
 const hashOf = (signed: string) =>
   (TransactionBuilder.fromXDR(signed, Networks.TESTNET) as Transaction).hash().toString("hex");
+let webhookTx: Transaction;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -53,7 +54,8 @@ beforeEach(() => {
   RELAYER.secret = relayer.secret();
   RELAYER.address = relayer.publicKey();
   mockInvoke.webhookExecuteOperation.mockReturnValue({});
-  mockChannels.buildRelayerTx.mockResolvedValue({});
+  webhookTx = TransactionBuilder.fromXDR(signedEnvelope(), Networks.TESTNET) as Transaction;
+  mockChannels.buildRelayerTx.mockResolvedValue(webhookTx);
 });
 
 describe("classifySend", () => {
@@ -125,19 +127,20 @@ describe("submitWebhookExecuteTx", () => {
   });
 
   it("PENDING and DUPLICATE are both PENDING, told apart by the flag", async () => {
-    mockRpc.sendTransaction.mockResolvedValueOnce({ status: "PENDING", hash: "h" });
+    const hash = webhookTx.hash().toString("hex");
+    mockRpc.sendTransaction.mockResolvedValueOnce({ status: "PENDING", hash });
     expect(await submitWebhookExecuteTx(opts)).toEqual({
       status: "PENDING",
-      txHash: "h",
+      txHash: hash,
       duplicate: false,
     });
     // The channel is told about the unfinished transaction, so its next holder waits for it.
-    expect(mockChannels.trackPending).toHaveBeenCalledWith("h");
+    expect(mockChannels.trackPending).toHaveBeenCalledWith(hash, webhookTx.timeBounds?.maxTime);
 
-    mockRpc.sendTransaction.mockResolvedValueOnce({ status: "DUPLICATE", hash: "h" });
+    mockRpc.sendTransaction.mockResolvedValueOnce({ status: "DUPLICATE", hash });
     expect(await submitWebhookExecuteTx(opts)).toEqual({
       status: "PENDING",
-      txHash: "h",
+      txHash: hash,
       duplicate: true,
     });
   });

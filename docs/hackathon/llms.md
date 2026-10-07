@@ -84,11 +84,12 @@ After your server verifies the completed goal, release from the funded pool with
 # Run on your app server; keep PAIFLOW_WEBHOOK_SECRET server-side.
 curl -sS --fail-with-body -X POST "$PAIFLOW/api/webhooks/$DEPLOYMENT_ID" \
   -H "x-webhook-secret: $PAIFLOW_WEBHOOK_SECRET" \
+  -H "Idempotency-Key: task-completed-42" \
   -H 'Content-Type: application/json' \
   --data '{"escrow":true,"amount":"100000000"}'
 ```
 
-This releases 10 tokens from the pool. Check the response and transaction status before marking the reward paid; the callback can return `PENDING`.
+This requests 10 tokens from the pool. Use one stable `Idempotency-Key` per logical task completion and reuse the same key and payload for every retry. The keyed callback returns an `attemptId`, `network`, `status`, and `txHash` when available. HTTP 202 means `PENDING` or `UNKNOWN`, not a confirmed payout; repeat the keyed callback or use `GET /api/v1/deployments/:id/transactions/:txHash` with the deployment's `pfk_` token to check finality. Changed effective arguments return 409. Keys never automatically expire or reopen; an interrupted preparation can remain `UNKNOWN` without a hash and requires operator review. Never use a fresh key or omit it merely because the outcome is uncertain. Unkeyed callbacks remain supported and can each pay again. See [webhook retry rules](../api/README.md#retry-webhook-rewards-safely).
 
 ## Subscription — `subscription`
 

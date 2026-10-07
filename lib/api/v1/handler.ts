@@ -10,6 +10,8 @@ import { guardBeforeAuth, markTokenKnown, recordAuthFailure } from "./pre-auth";
 
 export type V1RouteOptions = {
   rateLimit: { limit: number; windowSeconds: number };
+  /** Stable route bucket for paths with caller-controlled segments such as a transaction hash. */
+  rateLimitRoute?: string;
 };
 
 export type V1Params = { id: string };
@@ -65,7 +67,7 @@ export function v1Route<P extends V1Params>(
       const params = await ctx.params;
       if (!isUuid(params.id)) throw new AppError("NOT_FOUND", "Deployment not found");
 
-      const route = new URL(req.url).pathname.replace(params.id, ":id");
+      const route = opts.rateLimitRoute ?? new URL(req.url).pathname.replace(params.id, ":id");
       const ip = clientIp(req);
       const raw = bearerDeploymentToken(req);
       const tokenHash = raw ? hashApiToken(raw) : null;
