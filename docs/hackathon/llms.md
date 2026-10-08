@@ -171,6 +171,19 @@ The usual trigger QR opens this hosted page (or the allowance page for a subscri
 
 # 4. The `/api/v1` API
 
+On builds containing capabilities discovery, `GET /api/v1/deployments/:id/capabilities` with the
+deployment's bearer token returns `data` with `network`, `triggerType`, initial `inputAsset` metadata,
+`configurationSource: "deployment_snapshot"` and `operations`. Operation keys are `execute`,
+`events`, `transactions`, `releaseEarly`, `payouts`, `webhook` and `subscriptionAllowance`. Each has
+`status` (`supported`, `conditional` or `unsupported`), `authentication`, `requirements` and
+candidate `nodeIds`. This is recorded integration support, not live readiness: no RPC or transaction
+is performed, and current funds, deadlines, consent and eligibility must be checked through the
+operation's state/preparation endpoint. Initial asset metadata may be stale after Dev mutations;
+null means unavailable. Standard flows cannot choose per-payment recipients. Webhook callbacks
+still require `x-webhook-secret`; allowance approval requires the configured subscriber's wallet.
+Discovery never returns credentials, recipient/subscriber addresses or private graph settings.
+Limit: 60 requests/minute per token; confirmed deployments on this environment's network only.
+
 ## Authentication and integration boundary
 
 Use `Authorization: Bearer pfk_<64 lowercase hex characters>`. A token is bound to exactly one deployment. Mint it in **API access** on the team's confirmed deployment; it is shown only once. Store it on the app server. Missing, malformed, unknown, expired, revoked or wrong-deployment tokens all return HTTP 401 `UNAUTHENTICATED`, with `A valid API token for this deployment is required`. A malformed deployment UUID is 404. Revocation takes effect on the next call.
@@ -185,6 +198,7 @@ Success uses `{ "data": ... }`; preparation and submission return HTTP 200. Erro
 
 | Method and path                               | Limit                                           |
 | --------------------------------------------- | ----------------------------------------------- |
+| `GET /api/v1/deployments/:id/capabilities`    | 60 / 60 seconds per token                       |
 | `POST /api/v1/deployments/:id/execute`        | 30 / 60 seconds per token                       |
 | `POST /api/v1/deployments/:id/execute/submit` | 30 / 60 seconds per token                       |
 | `GET /api/v1/deployments/:id/events`          | 120 / 60 seconds per token                      |

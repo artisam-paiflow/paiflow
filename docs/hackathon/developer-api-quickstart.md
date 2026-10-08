@@ -29,6 +29,14 @@ export AMOUNT='10000000'
 export BASE="$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID"
 ```
 
+On builds containing capabilities discovery, call `GET "$BASE/capabilities"` with the same bearer
+token first. It reports the network, initial input-asset metadata, trigger type, supported operations
+and their requirements. `supported` describes an integration path; `conditional` needs additional
+checks at its state/preparation endpoint. Neither guarantees current balances, consent or payout.
+Standard flows report per-payment `payouts` as unsupported. Webhook callbacks need their separate
+secret, and subscription approvals need the configured customer's wallet. Discovery returns neither
+credential nor recipient/subscriber details and does not send transactions.
+
 `amount` is a **positive integer string in stroops of the input asset**: 1 XLM = `"10000000"`, 10 USDC = `"100000000"`. Use `bigint` for arithmetic and strings in JSON. The `from` account supplies the deposit, pays the fee and signs. It must be funded on testnet; recipients of USDC or another issued asset need the corresponding trustline.
 
 ```bash
@@ -119,7 +127,7 @@ Errors use `{ "error": { "code": "…", "message": "…", "fields": { … } } }`
 | `429` | Back off using `Retry-After`.                                                        |
 | `502` | For submission, retry the same signed envelope; avoid duplicate payments.            |
 
-Per-token limits per minute: execute and submit **30 each**, events **120**, payout preparation **10**, payout submission **30**, early release **10**.
+Per-token limits per minute: capabilities and transaction lookup **60 each**, execute and submit **30 each**, events **120**, payout preparation **10**, payout submission **30**, early release **10**.
 
 - [API reference](../api/README.md)
 - [Hackathon API and flow context](llms.md)
