@@ -119,10 +119,48 @@ describe.skipIf(!url)("request history on disposable PostgreSQL and Redis", () =
     expect(await h.db!.analyticsDelivery.findUnique({ where: { id: business } })).not.toBeNull();
     await h.db!.analyticsDelivery.delete({ where: { id: business } });
   });
+  it("expires request rows and outbox during Redis read failure, preserving business events", async () => {
+    const old = record({ occurredAt: new Date(Date.now() - 31 * 86400000).toISOString() });
+    const business = randomUUID();
+    await h.db!.apiRequestLog.create({ data: { ...old, occurredAt: new Date(old.occurredAt) } });
+    await h.db!.analyticsDelivery.createMany({
+      data: [
+        {
+          id: old.id,
+          distinctId: "synthetic",
+          event: "api_request_completed",
+          properties: {},
+          occurredAt: new Date(old.occurredAt),
+        },
+        {
+          id: business,
+          distinctId: "synthetic",
+          event: "transaction_outcome",
+          properties: {},
+          occurredAt: new Date(old.occurredAt),
+        },
+      ],
+    });
+    const read = vi.spyOn(h.redis!, "zrange").mockRejectedValue(new Error("offline"));
+    try {
+      const result = await drainApiRequests();
+      expect(result).toMatchObject({ removed: 1, analyticsRemoved: 1, queueAvailable: false });
+      expect(await h.db!.apiRequestLog.findUnique({ where: { id: old.id } })).toBeNull();
+      expect(await h.db!.analyticsDelivery.findUnique({ where: { id: old.id } })).toBeNull();
+      expect(await h.db!.analyticsDelivery.findUnique({ where: { id: business } })).not.toBeNull();
+    } finally {
+      read.mockRestore();
+      await h.db!.analyticsDelivery.delete({ where: { id: business } });
+    }
+  });
   it("reports attributed outcomes, explicit preparation links, same-hash recovery and scheduled jobs", async () => {
     const client = h.db!;
     const user = await client.user.create({
-      data: { username: `issue847-${randomUUID()}`, passwordHash: "synthetic" },
+      data: {
+        username: `issue847-${randomUUID()}`,
+        passwordHash: "synthetic",
+        analyticsAudience: "INTERNAL",
+      },
     });
     const flow = await client.flow.create({
       data: {
@@ -157,6 +195,7 @@ describe.skipIf(!url)("request history on disposable PostgreSQL and Redis", () =
       apiTokenId: token.id,
       deploymentId: deployment.id,
       callerType: "deployment_token" as const,
+      audience: "INTERNAL" as const,
       method: "POST" as const,
     };
     const time = Date.now() - 20000;
@@ -170,6 +209,7 @@ describe.skipIf(!url)("request history on disposable PostgreSQL and Redis", () =
           deploymentId: deployment.id,
           apiTokenId: token.id,
           callerAccountId: user.id,
+          audience: "INTERNAL",
           outcome: "CONFIRMED",
           submittedAt: new Date(time + 1000),
           confirmedAt: new Date(time + 5000),
@@ -240,7 +280,7 @@ describe.skipIf(!url)("request history on disposable PostgreSQL and Redis", () =
           attemptCount: 1,
         },
       });
-      const report = await apiRequestReport(options());
+      const report = await apiRequestReport({ ...options(), audience: "INTERNAL" });
       expect(report.preparation).toEqual([
         expect.objectContaining({ preparations: "2", explicitly_linked_submissions: "1" }),
       ]);
@@ -290,12 +330,50 @@ describe.skipIf(!url)("request history on disposable PostgreSQL and Redis", () =
           audience: "EXTERNAL",
         }),
       );
+      // The owner still has access after reclassification; historical transaction
+      // audience must remain INTERNAL even when polls/retries are now EXTERNAL.
+      await queueApiRequest(
+        record({
+          ...base,
+          method: "GET",
+          endpoint: "/api/v1/deployments/:id/transactions/:txHash",
+          status: 200,
+          errorCode: null,
+          txHash: hash,
+          audience: "EXTERNAL",
+        }),
+      );
+      await queueApiRequest(
+        record({
+          ...failed,
+          id: randomUUID(),
+          requestId: randomUUID(),
+          audience: "EXTERNAL",
+        }),
+      );
+      await queueApiRequest(
+        record({
+          ...retry,
+          id: randomUUID(),
+          requestId: randomUUID(),
+          audience: "EXTERNAL",
+        }),
+      );
       await drainApiRequests();
       const externalReport = await apiRequestReport({ ...options(), audience: "EXTERNAL" });
       expect(externalReport.weeks).toEqual([
         expect.objectContaining({ calling_accounts: "1", confirmed_accounts: "0" }),
       ]);
       expect(externalReport.outcomes).toEqual([]);
+      expect(externalReport.recovery).toEqual([
+        expect.objectContaining({
+          failed_submit_requests: "1",
+          recovered_same_hash_within_24h: "0",
+        }),
+      ]);
+      expect(externalReport.activation).toEqual([
+        expect.objectContaining({ tokens_with_confirmed_transactions: "0" }),
+      ]);
     } finally {
       await client.signedTransaction.deleteMany({ where: { deploymentId: deployment.id } });
       await client.deployment.delete({ where: { id: deployment.id } });

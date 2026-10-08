@@ -55,79 +55,84 @@ export async function queueApiRequest(record: ApiRequestRecord): Promise<boolean
 }
 /** Retries keep the same record ID. A crash after DB commit before removal is harmless. */
 export async function drainApiRequests() {
-  const client = redis();
   let persisted = 0;
-  if (client) {
-    const members = await redisDeadline(client.zrange(REQUEST_QUEUE, 0, 199));
-    const invalid: string[] = [];
-    const valid: { member: string; record: ApiRequestRecord }[] = [];
-    for (const member of members) {
-      try {
-        valid.push({ member, record: ApiRequestRecordSchema.parse(JSON.parse(member)) });
-      } catch {
-        invalid.push(member);
+  try {
+    const client = redis();
+    if (client) {
+      const members = await redisDeadline(client.zrange(REQUEST_QUEUE, 0, 199));
+      const invalid: string[] = [];
+      const valid: { member: string; record: ApiRequestRecord }[] = [];
+      for (const member of members) {
+        try {
+          valid.push({ member, record: ApiRequestRecordSchema.parse(JSON.parse(member)) });
+        } catch {
+          invalid.push(member);
+        }
+      }
+      if (invalid.length) {
+        await redisDeadline(client.zrem(REQUEST_QUEUE, ...invalid));
+        await redisDeadline(client.hincrby(REQUEST_HEALTH, "invalid", invalid.length));
+      }
+      if (valid.length) {
+        try {
+          const result = await db.$transaction(
+            async (tx) => {
+              const result = await tx.apiRequestLog.createMany({
+                data: valid.map(({ record }) => ({
+                  ...record,
+                  occurredAt: new Date(record.occurredAt),
+                })),
+                skipDuplicates: true,
+              });
+              await tx.analyticsDelivery.createMany({
+                data: valid.map(({ record }) => ({
+                  id: record.id,
+                  distinctId: record.accountId ?? `request:${record.id}`,
+                  event: "api_request_completed",
+                  personProfile: false,
+                  occurredAt: new Date(record.occurredAt),
+                  properties: {
+                    request_id: record.requestId,
+                    endpoint: record.endpoint,
+                    method: record.method,
+                    http_status: record.status,
+                    duration_ms: record.durationMs,
+                    error_code: record.errorCode,
+                    api_token_id: record.apiTokenId,
+                    token_creator_id: record.tokenCreatorId,
+                    deployment_id: record.deploymentId,
+                    tx_hash: record.txHash,
+                    account_id: record.accountId ?? "",
+                    caller_type: record.callerType,
+                    audience: record.audience,
+                    stellar_network: record.network,
+                    app_env: record.environment,
+                    app_version: record.appVersion,
+                    tracking_version: record.trackingVersion,
+                  },
+                })),
+                skipDuplicates: true,
+              });
+              return result;
+            },
+            { timeout: 2000 },
+          );
+          persisted = result.count;
+          await redisDeadline(client.zrem(REQUEST_QUEUE, ...valid.map((v) => v.member)));
+          await redisDeadline(client.hincrby(REQUEST_HEALTH, "persisted", persisted));
+        } catch {
+          await redisDeadline(client.hincrby(REQUEST_HEALTH, "delivery_failures", 1));
+          log.warn(
+            { reason: "persist_failed", batch: valid.length },
+            "API telemetry delivery incomplete",
+          );
+        }
       }
     }
-    if (invalid.length) {
-      await redisDeadline(client.zrem(REQUEST_QUEUE, ...invalid));
-      await redisDeadline(client.hincrby(REQUEST_HEALTH, "invalid", invalid.length));
-    }
-    if (valid.length) {
-      try {
-        const result = await db.$transaction(
-          async (tx) => {
-            const result = await tx.apiRequestLog.createMany({
-              data: valid.map(({ record }) => ({
-                ...record,
-                occurredAt: new Date(record.occurredAt),
-              })),
-              skipDuplicates: true,
-            });
-            await tx.analyticsDelivery.createMany({
-              data: valid.map(({ record }) => ({
-                id: record.id,
-                distinctId: record.accountId ?? `request:${record.id}`,
-                event: "api_request_completed",
-                personProfile: false,
-                occurredAt: new Date(record.occurredAt),
-                properties: {
-                  request_id: record.requestId,
-                  endpoint: record.endpoint,
-                  method: record.method,
-                  http_status: record.status,
-                  duration_ms: record.durationMs,
-                  error_code: record.errorCode,
-                  api_token_id: record.apiTokenId,
-                  token_creator_id: record.tokenCreatorId,
-                  deployment_id: record.deploymentId,
-                  tx_hash: record.txHash,
-                  account_id: record.accountId ?? "",
-                  caller_type: record.callerType,
-                  audience: record.audience,
-                  stellar_network: record.network,
-                  app_env: record.environment,
-                  app_version: record.appVersion,
-                  tracking_version: record.trackingVersion,
-                },
-              })),
-              skipDuplicates: true,
-            });
-            return result;
-          },
-          { timeout: 2000 },
-        );
-        persisted = result.count;
-        await redisDeadline(client.zrem(REQUEST_QUEUE, ...valid.map((v) => v.member)));
-        await redisDeadline(client.hincrby(REQUEST_HEALTH, "persisted", persisted));
-      } catch {
-        await redisDeadline(client.hincrby(REQUEST_HEALTH, "delivery_failures", 1));
-        log.warn(
-          { reason: "persist_failed", batch: valid.length },
-          "API telemetry delivery incomplete",
-        );
-      }
-    }
+  } catch {
+    log.warn({ reason: "drain_failed" }, "API telemetry delivery incomplete");
   }
+  // Retention runs even when queue reads, removal or health counters fail.
   // One indexed bounded delete each tick; never scan/delete an unbounded backlog.
   const removed = await db.$transaction(
     async (tx) => {

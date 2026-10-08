@@ -115,6 +115,49 @@ describe("bounded API telemetry delivery", () => {
     expect(h.db.apiRequestLog.createMany).not.toHaveBeenCalled();
     expect(h.redis.hincrby).toHaveBeenCalledWith(expect.any(String), "invalid", 1);
   });
+  it.each(["read", "invalid removal", "committed removal", "persistence counter"])(
+    "expires both DB histories when Redis fails during %s",
+    async (failure) => {
+      const offline = new Error("offline");
+      if (failure === "read") h.redis.zrange.mockRejectedValue(offline);
+      else if (failure === "invalid removal") {
+        h.redis.zrange.mockResolvedValue(['{"body":"secret"}']);
+        h.redis.zrem.mockRejectedValue(offline);
+      } else if (failure === "committed removal") {
+        h.redis.zrange.mockResolvedValue([JSON.stringify(record)]);
+        h.redis.zrem.mockRejectedValue(offline);
+      } else {
+        h.redis.zrange.mockResolvedValue([JSON.stringify(record)]);
+        h.db.apiRequestLog.createMany.mockRejectedValue(new Error("db failed"));
+        h.redis.hincrby.mockRejectedValue(offline);
+      }
+      h.db.$executeRaw.mockImplementation((sql) =>
+        Promise.resolve(sql.join("").startsWith("DELETE") ? 1 : 0),
+      );
+      expect(await drainApiRequests()).toMatchObject({ removed: 1, analyticsRemoved: 1 });
+      const deletes = h.db.$executeRaw.mock.calls
+        .map(([sql]) => sql.join(""))
+        .filter((sql) => sql.startsWith("DELETE"));
+      expect(deletes).toHaveLength(2);
+      expect(deletes[0]).toContain('DELETE FROM "ApiRequestLog"');
+      expect(deletes[1]).toContain('DELETE FROM "AnalyticsDelivery"');
+      expect(deletes[1]).toContain("event = 'api_request_completed'");
+    },
+  );
+  it("expires both DB histories when the Redis queue read times out", async () => {
+    vi.useFakeTimers();
+    try {
+      h.redis.zrange.mockReturnValue(new Promise(() => {}));
+      const promise = drainApiRequests();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(await promise).toMatchObject({ removed: 0, analyticsRemoved: 0 });
+      expect(
+        h.db.$executeRaw.mock.calls.filter(([sql]) => sql.join("").startsWith("DELETE")),
+      ).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("exports DB delivery health when Redis is still connecting", async () => {
     h.redis.status = "connecting";
     h.db.analyticsDelivery.count.mockResolvedValue(12);

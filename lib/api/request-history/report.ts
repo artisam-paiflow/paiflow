@@ -38,7 +38,7 @@ export async function apiRequestReport(input: z.infer<typeof ApiRequestReportSch
       SELECT date_trunc('week', "occurredAt") AS week,
         count(DISTINCT "accountId")::text AS calling_accounts,
         count(DISTINCT r."accountId") FILTER (WHERE s.outcome = 'CONFIRMED' AND s."deploymentId"=r."deploymentId" AND s."callerAccountId"=r."accountId" AND s."createdAt">=${start} AND s."createdAt"<${end})::text AS confirmed_accounts
-      FROM "ApiRequestLog" r LEFT JOIN "SignedTransaction" s ON s."txHash" = r."txHash" AND s.network = r.network
+      FROM "ApiRequestLog" r LEFT JOIN "SignedTransaction" s ON s."txHash" = r."txHash" AND s.network = r.network AND s.audience = r.audience
       WHERE r."trackingVersion" = ${API_HISTORY_VERSION} AND r.network = ${options.network}
         AND r.environment = ${options.environment} AND r.audience = ${options.audience}::"AnalyticsAudience"
         AND r."occurredAt" >= ${start} AND r."occurredAt" < ${end}
@@ -103,7 +103,7 @@ export async function apiRequestReport(input: z.infer<typeof ApiRequestReportSch
               AND retry.network=failed.network AND retry.audience=failed.audience AND retry."accountId"=failed."accountId"
               AND retry.endpoint=failed.endpoint AND retry."occurredAt">failed."occurredAt"
               AND retry."occurredAt"<failed."occurredAt"+interval '24 hours'
-              AND retry.status<400 AND t.outcome='CONFIRMED'
+              AND retry.status<400 AND t.outcome='CONFIRMED' AND t.audience=retry.audience
           ))::text AS recovered_same_hash_within_24h
         FROM "ApiRequestLog" failed WHERE failed."trackingVersion"=${API_HISTORY_VERSION}
           AND failed.network=${options.network} AND failed.environment=${options.environment}
