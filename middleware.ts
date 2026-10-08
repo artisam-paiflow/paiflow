@@ -14,6 +14,7 @@ const PUBLIC_PATHS = [
   /^\/register$/,
   /^\/forgot-password$/,
   /^\/auth\/new-password$/,
+  /^\/auth\/error$/,
   /^\/api\/auth(\/.*)?$/,
   /^\/api\/health$/,
   /^\/api\/cron\/.*/,

@@ -13,6 +13,7 @@ type AdminUser = {
   createdAt: string;
   lastLoginAt: string | null;
   lockedUntil: string | null;
+  hasPassword: boolean;
 };
 
 export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
@@ -224,7 +225,7 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
                 )}
                 {/* Setting a password on a sandbox account would replace the
                     sentinel with a working credential — see lib/sandbox.ts. */}
-                {u.role !== "SANDBOX" && (
+                {u.role !== "SANDBOX" && u.hasPassword && (
                   <button
                     onClick={() => {
                       const pw = prompt("New password (min 12 chars):");

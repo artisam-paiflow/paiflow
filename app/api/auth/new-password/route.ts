@@ -37,11 +37,17 @@ export async function POST(req: NextRequest) {
         userId: true,
         expiresAt: true,
         usedAt: true,
-        user: { select: { id: true, isActive: true, username: true } },
+        user: { select: { id: true, isActive: true, username: true, passwordHash: true } },
       },
     });
 
-    if (!record || record.usedAt || record.expiresAt < new Date() || !record.user?.isActive) {
+    if (
+      !record ||
+      record.usedAt ||
+      record.expiresAt < new Date() ||
+      !record.user?.isActive ||
+      !record.user.passwordHash
+    ) {
       throw new AppError("VALIDATION", INVALID_TOKEN_MSG);
     }
 

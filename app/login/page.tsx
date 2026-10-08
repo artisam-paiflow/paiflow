@@ -1,8 +1,9 @@
+import Link from "next/link";
+import { env } from "@/lib/env";
+import Logo from "@/components/app/logo";
+import GoogleButton from "@/components/auth/google-button";
 import LoginForm from "@/components/auth/login-form";
 import SandboxEntry from "@/components/auth/sandbox-entry";
-import Link from "next/link";
-import Logo from "@/components/app/logo";
-import { env } from "@/lib/env";
 
 export const metadata = { title: "Sign in · Paiflow" };
 
@@ -37,5 +38,13 @@ async function LoginFormWrapper({
   params: Promise<{ from?: string; error?: string; reason?: string }>;
 }) {
   const p = await params;
-  return <LoginForm from={p.from} error={p.error} reason={p.reason} />;
+  return (
+    <>
+      {" "}
+      {env().GOOGLE_AUTH_ENABLED ? (
+        <GoogleButton from={p.from} authOrigin={new URL(env().AUTH_URL).origin} />
+      ) : null}
+      <LoginForm from={p.from} error={p.error} reason={p.reason} />
+    </>
+  );
 }

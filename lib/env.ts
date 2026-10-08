@@ -197,6 +197,10 @@ const EnvSchema = z.object({
   AUTH_RP_ID: z.string().default("localhost"),
   AUTH_RP_NAME: z.string().default("Paiflow"),
   ALLOW_PUBLIC_REGISTRATION: boolish,
+  GOOGLE_AUTH_ENABLED: boolish,
+  ALLOW_GOOGLE_REGISTRATION: boolish,
+  GOOGLE_CLIENT_ID: optionalString,
+  GOOGLE_CLIENT_SECRET: optionalString,
   // Offers a no-account, limited sandbox session from the login page.
   SANDBOX_ENABLED: boolish,
 
@@ -475,6 +479,31 @@ export function env(): EnvShape {
     throw new Error("TTL fee budget name and limit must be configured together");
   }
 
+  if (
+    parsed.data.GOOGLE_AUTH_ENABLED &&
+    (!parsed.data.GOOGLE_CLIENT_ID || !parsed.data.GOOGLE_CLIENT_SECRET)
+  ) {
+    throw new Error("Google authentication requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
+  }
+  if (parsed.data.ALLOW_GOOGLE_REGISTRATION && !parsed.data.GOOGLE_AUTH_ENABLED) {
+    throw new Error("Google registration requires GOOGLE_AUTH_ENABLED=true");
+  }
+  if (parsed.data.GOOGLE_AUTH_ENABLED) {
+    const origin = new URL(parsed.data.AUTH_URL);
+    if (
+      origin.username ||
+      origin.password ||
+      origin.search ||
+      origin.hash ||
+      origin.pathname !== "/" ||
+      (origin.protocol !== "https:" &&
+        !(origin.protocol === "http:" && origin.hostname === "localhost"))
+    ) {
+      throw new Error(
+        "Google authentication requires AUTH_URL to be an HTTPS origin (HTTP localhost allowed)",
+      );
+    }
+  }
   cached = parsed.data;
   return cached;
 }

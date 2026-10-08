@@ -26,6 +26,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       throw new AppError("FORBIDDEN", "A sandbox account's role and password cannot be changed");
     }
 
+    if (body.resetPassword && !target.passwordHash)
+      throw new AppError(
+        "FORBIDDEN",
+        "Google-only accounts use Google recovery; local password enrollment is unavailable",
+      );
+
     const data: {
       role?: Role;
       analyticsAudience?: "INTERNAL" | "EXTERNAL" | "UNCLASSIFIED";
