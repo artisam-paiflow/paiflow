@@ -72,7 +72,7 @@ export default function ApiOperationGuide({
   }
   const webhookUrl = `${origin}/api/webhooks/${deploymentId}`;
   const webhookEnabled = capabilities.operations.webhook.status === "supported";
-  const webhookExample = `curl -X POST '${webhookUrl}' \\\n  -H 'x-webhook-secret: YOUR_WEBHOOK_SECRET' \\\n  -H 'Idempotency-Key: reward-event-123' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"escrow":true}'`;
+  const webhookExample = `curl -X POST '${webhookUrl}' \\\n  -H 'x-webhook-secret: YOUR_WEBHOOK_SECRET' \\\n  -H 'Idempotency-Key: reward-event-123' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"escrow":true,"amount":"10000000"}'`;
   const tokenExample = deploymentTokenExample(deploymentId, capabilities, origin, "YOUR_API_TOKEN");
   const supported = (Object.keys(OPERATION_LABELS) as Array<keyof typeof OPERATION_LABELS>).filter(
     (key) => capabilities.operations[key].status !== "unsupported",
@@ -131,7 +131,9 @@ export default function ApiOperationGuide({
             </div>
           ) : null}
           <p className="text-label-sm text-on-surface-variant mt-3">
-            For this escrow example, fund the reward pool first using the deployment overview.
+            Fund the reward pool first using the deployment overview. This example requests one unit
+            of the input asset: amount is in stroops (10000000 is one unit). Set it to your intended
+            reward amount; omitting amount or using "0" releases the entire available pool.
             Non-escrow callbacks require the source account’s signed authorization.
           </p>
           <CodeExample label="Escrow reward callback" value={webhookExample} copy={copy} />

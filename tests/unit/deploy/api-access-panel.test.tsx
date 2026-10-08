@@ -94,7 +94,11 @@ describe("deployment integration instructions", () => {
     const callback = writeText.mock.calls.at(-1)![0];
     expect(callback).toContain("x-webhook-secret: YOUR_WEBHOOK_SECRET");
     expect(callback).toContain("Idempotency-Key: reward-event-123");
-    expect(callback).toContain('"escrow":true');
+    const payload = JSON.parse(callback.match(/-d '([^']+)'/)![1]!);
+    expect(payload).toEqual({ escrow: true, amount: "10000000" });
+    expect(screen.getByText(/omitting amount or using/).textContent).toContain(
+      "releases the entire available pool",
+    );
     expect(callback).not.toContain("synthetic-secret");
     expect(callback).not.toContain("Authorization: Bearer");
     expect(screen.getByText(/interrupted preparation/)).toBeTruthy();
