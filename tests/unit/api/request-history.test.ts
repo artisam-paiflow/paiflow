@@ -15,6 +15,7 @@ vi.mock("@/lib/api/v1/pre-auth", () => ({
 vi.mock("@/lib/rate-limit", () => ({ clientIp: () => "127.0.0.1", enforceRateLimit: mocks.limit }));
 vi.mock("@/lib/api/request-history/delivery", () => ({ queueApiRequest: mocks.queue }));
 import { v1Route } from "@/lib/api/v1/handler";
+import { eventProperties } from "@/lib/analytics/event-policy";
 import { AppError } from "@/lib/errors";
 import { linkApiTransaction } from "@/lib/api/request-history/context";
 import {
@@ -127,6 +128,16 @@ describe("API request history boundary", () => {
       "a".repeat(64),
       "b".repeat(64),
     ]);
+  });
+  it("records the capabilities endpoint through storage and PostHog validation", async () => {
+    await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
+      NextResponse.json({}),
+    )(request("capabilities"), ctx);
+    const record = ApiRequestRecordSchema.parse(mocks.queue.mock.calls[0]![0]);
+    expect(record.endpoint).toBe("/api/v1/deployments/:id/capabilities");
+    expect(eventProperties("api_request_completed", { endpoint: record.endpoint })).toEqual({
+      endpoint: record.endpoint,
+    });
   });
   it("normalizes unknown and hash-bearing paths", () => {
     expect(requestEndpoint(`/api/v1/deployments/credential/transactions/credential`)).toBe(
