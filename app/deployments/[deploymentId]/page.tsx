@@ -13,6 +13,8 @@ import {
   type StellarNetwork,
 } from "@/lib/stellar/explorer";
 import { log } from "@/lib/log";
+import { env } from "@/lib/env";
+import { deploymentCapabilities } from "@/lib/api/v1/capabilities";
 
 export const dynamic = "force-dynamic";
 
@@ -179,7 +181,6 @@ export default async function DeploymentPage({
           status={d.status}
           qrUrl={qrUrl}
           graph={graph}
-          webhookSecret={d.webhookSecret}
           pipeline={pipeline}
           templateKind={d.flow.templateKind}
           errorMessage={d.errorMessage ?? null}
@@ -196,7 +197,12 @@ export default async function DeploymentPage({
         />
 
         {d.status === "CONFIRMED" && user.role !== Role.SANDBOX ? (
-          <ApiAccessPanel deploymentId={d.id} />
+          <ApiAccessPanel
+            key={d.id}
+            deploymentId={d.id}
+            capabilities={d.network === env().STELLAR_NETWORK ? deploymentCapabilities(d) : null}
+            webhookSecret={d.webhookSecret}
+          />
         ) : null}
       </main>
     </>

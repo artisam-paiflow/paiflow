@@ -374,7 +374,7 @@ a terminal — no coding.
    Label to `alpha` and Expires to **30 days**, then click **CREATE TOKEN**.
    - [ ] A token starting with `pfk_` appears, marked _"COPY THIS TOKEN NOW. IT WILL NOT BE SHOWN
          AGAIN."_ Copy it into your note.
-   - Ignore the **PREPARE AN EXECUTION** command under it — running a flow through the API needs
+   - Skip the **PREPARE A PAYMENT** command under it — running a flow through the API needs
      a signing step that isn't part of this round.
 2. Build the events address from the deployment page's own address. If the page is
    `https://…/deployments/1234abcd-…`, the events address is
