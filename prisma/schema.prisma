@@ -151,6 +151,7 @@ model AnalyticsDelivery {
   nextAttemptAt DateTime  @default(now())
 
   @@index([deliveredAt, nextAttemptAt])
+  @@index([event, occurredAt])
 }
 
 model User {
@@ -398,6 +399,7 @@ model StreamerClaimJob {
   deployment Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
 
   @@index([status, runAt])
+  @@index([runAt])
   @@index([deploymentId, nodeId, status])
   @@index([contractAddress, status])
 }
@@ -525,6 +527,7 @@ model PayrollRun {
   @@index([deploymentId, runAt])
   @@index([deploymentId, createdAt])
   @@index([status, runAt])
+  @@index([runAt])
 }
 
 model PayrollPayout {
@@ -579,6 +582,7 @@ model OffRampPayoutJob {
   payrollPayout PayrollPayout? @relation(fields: [payrollPayoutId], references: [id], onDelete: Cascade)
 
   @@index([status, runAt])
+  @@index([runAt])
   @@index([status, runAt, lockedAt])
   @@index([deploymentId])
   @@index([deploymentId, status])
@@ -846,4 +850,37 @@ model WebhookAttempt {
 
   @@unique([deploymentId, keyHash])
   @@index([deploymentId, network, txHash])
+}
+
+/// Future-only API telemetry. IDs are snapshots, not identity claims for unknown callers.
+model ApiRequestLog {
+  id                   String            @id @db.Uuid
+  requestId            String
+  occurredAt           DateTime
+  accountId            String?           @db.Uuid
+  tokenCreatorId       String?           @db.Uuid
+  apiTokenId           String?           @db.Uuid
+  deploymentId         String?           @db.Uuid
+  txHash               String?
+  preparationRequestId String?           @db.Uuid
+  callerType           String
+  method               String
+  endpoint             String
+  status               Int
+  durationMs           Int
+  errorCode            String?
+  network              String
+  environment          String
+  appVersion           String
+  audience             AnalyticsAudience
+  trackingVersion      String
+  persistedAt          DateTime          @default(now())
+
+  @@index([occurredAt, id])
+  @@index([network, environment, audience, occurredAt])
+  @@index([accountId, occurredAt])
+  @@index([apiTokenId, occurredAt])
+  @@index([endpoint, occurredAt])
+  @@index([txHash])
+  @@index([preparationRequestId, apiTokenId])
 }

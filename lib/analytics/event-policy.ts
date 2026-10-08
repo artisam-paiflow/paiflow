@@ -1,6 +1,18 @@
 import { sanitizeEntry } from "./sanitize";
 import type { EventName } from "./events";
 const PROPERTIES: Record<EventName, readonly string[]> = {
+  api_request_completed: [
+    "request_id",
+    "endpoint",
+    "method",
+    "http_status",
+    "duration_ms",
+    "error_code",
+    "api_token_id",
+    "token_creator_id",
+    "deployment_id",
+    "tx_hash",
+  ],
   login_succeeded: ["method"],
   login_failed: ["reason"],
   wallet_connect_succeeded: ["surface", "wallet_id", "wallet_address", "connection_id"],
@@ -184,6 +196,7 @@ const VALUES = new Set([
   "unhandled_rejection",
 ]);
 const CODES = new Set([
+  "HTTP_ERROR",
   "VALIDATION",
   "UPSTREAM_RPC",
   "RATE_LIMITED",
@@ -215,6 +228,24 @@ const WALLETS = new Set([
   "stellarwalletskit",
 ]);
 function approvedValue(key: string, value: unknown): unknown {
+  if (["request_id", "api_token_id", "token_creator_id"].includes(key))
+    return value === null
+      ? null
+      : typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value)
+        ? value
+        : undefined;
+  if (key === "endpoint")
+    return typeof value === "string" &&
+      /^\/api\/v1\/deployments\/:id\/(events|execute(?:\/submit)?|payouts(?:\/submit)?|release-early|transactions\/:txHash|:unknown)$/.test(
+        value,
+      )
+      ? value
+      : undefined;
+  if (key === "method")
+    return ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].includes(String(value))
+      ? value
+      : undefined;
+
   if (value === null) return null;
   if (key.endsWith("_address")) return sanitizeEntry(key, value);
   if (["flow_id", "deployment_id", "connection_id"].includes(key))
@@ -289,6 +320,7 @@ function approvedValue(key: string, value: unknown): unknown {
       "contract_count",
       "created_to_confirmed_ms",
       "elapsed_ms",
+      "duration_ms",
       "disconnect_count",
       "lag_ms",
       "ledger",

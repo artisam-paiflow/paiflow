@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { linkApiTransaction } from "@/lib/api/request-history/context";
 import { audit } from "@/lib/audit";
 import { v1Route } from "@/lib/api/v1/handler";
 import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
@@ -17,6 +18,7 @@ export const POST = v1Route(
     const input = await parseReleaseBody(req);
     const released = await releaseTimelockBranchBefore(deployment, input.nodeId);
 
+    linkApiTransaction(released.txHash);
     await audit({
       action: "API_TIMELOCK_RELEASE_BEFORE",
       userId: deployment.ownerId,
