@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { Role, type Deployment, type DeploymentApiToken } from "@prisma/client";
 import { db } from "@/lib/db";
 import { hashApiToken } from "@/lib/auth/api-token";
+import { audienceFor, type Audience } from "@/lib/analytics/policy";
 import { AppError } from "@/lib/errors";
 
 /** `pfk_` + 32 random bytes as hex. Anything else is refused before the DB is
@@ -13,6 +14,7 @@ export const DEPLOYMENT_API_TOKEN_PATTERN = /^pfk_[0-9a-f]{64}$/;
 export type DeploymentTokenAuth = {
   token: Omit<DeploymentApiToken, "tokenHash">;
   deployment: Deployment;
+  analyticsAudience: Audience;
 };
 
 // One message for every refusal: a caller probing with a stolen or guessed
@@ -48,7 +50,9 @@ export async function requireDeploymentToken(
   const row = await db.deploymentApiToken.findUnique({
     where: { tokenHash: hashApiToken(raw) },
     include: {
-      deployment: { include: { owner: { select: { isActive: true, role: true } } } },
+      deployment: {
+        include: { owner: { select: { isActive: true, role: true, analyticsAudience: true } } },
+      },
     },
   });
 
@@ -75,5 +79,5 @@ export async function requireDeploymentToken(
 
   const { tokenHash: _tokenHash, deployment, ...token } = row;
   const { owner: _owner, ...deploymentRow } = deployment;
-  return { token, deployment: deploymentRow };
+  return { token, deployment: deploymentRow, analyticsAudience: audienceFor(_owner) };
 }
