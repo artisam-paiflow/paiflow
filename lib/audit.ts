@@ -7,6 +7,7 @@ export type AuditAction =
   | "USER_LOGIN"
   | "USER_LOGIN_FAILED"
   | "USER_LOGOUT"
+  | "USER_GOOGLE_LINK"
   | "USER_REGISTER"
   | "SANDBOX_CREATE"
   | "USER_UPDATE"

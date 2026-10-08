@@ -36,6 +36,11 @@ export async function POST(req: NextRequest) {
 
     const row = await db.user.findUnique({ where: { id: user.id } });
     if (!row) throw new AppError("NOT_FOUND", "User not found");
+    if (!row.passwordHash)
+      throw new AppError(
+        "FORBIDDEN",
+        "This account uses Google recovery and has no local password",
+      );
     const ok = await verifyPassword(row.passwordHash, body.currentPassword);
     if (!ok) throw new AppError("FORBIDDEN", "Current password is incorrect");
 

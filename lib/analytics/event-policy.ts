@@ -350,7 +350,13 @@ export function eventProperties(
   const out: Record<string, unknown> = {};
   for (const key of PROPERTIES[name]) {
     if (!Object.hasOwn(props, key)) continue;
-    const value = approvedValue(key, props[key]);
+    const value =
+      name === "login_succeeded" && key === "method"
+        ? typeof props[key] === "string" &&
+          ["password", "ticket", "google"].includes(props[key] as string)
+          ? props[key]
+          : undefined
+        : approvedValue(key, props[key]);
     if (value !== undefined) out[key] = value;
   }
   return out;

@@ -158,7 +158,7 @@ model User {
   id             String    @id @default(uuid()) @db.Uuid
   username       String    @unique
   email          String?   @unique
-  passwordHash   String
+  passwordHash   String?
   role           Role      @default(USER)
   isActive       Boolean   @default(true)
   failedLogins   Int       @default(0)
@@ -172,6 +172,8 @@ model User {
   updatedAt      DateTime  @updatedAt
   lastLoginAt    DateTime?
 
+  googleIdentities    GoogleIdentity[]
+  googleLinkIntents   GoogleLinkIntent[]
   flows               Flow[]
   deployments         Deployment[]
   passkeys            Passkey[]
@@ -883,4 +885,30 @@ model ApiRequestLog {
   @@index([endpoint, occurredAt])
   @@index([txHash])
   @@index([preparationRequestId, apiTokenId])
+}
+
+/// Only validated provider identity is retained; no OAuth tokens are stored.
+model GoogleIdentity {
+  id                String   @id @default(uuid()) @db.Uuid
+  provider          String   @default("google")
+  providerAccountId String
+  userId            String   @db.Uuid
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@unique([userId, provider])
+}
+
+/// Short-lived, one-use consent to link Google to a recently authenticated account.
+model GoogleLinkIntent {
+  id             String   @id @default(uuid()) @db.Uuid
+  tokenHash      String   @unique
+  userId         String   @db.Uuid
+  sessionVersion Int
+  expiresAt      DateTime
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }

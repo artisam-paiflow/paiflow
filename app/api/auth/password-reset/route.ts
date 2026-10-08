@@ -46,12 +46,12 @@ export async function POST(req: NextRequest) {
 
     const user = await db.user.findUnique({
       where: { email: body.email },
-      select: { id: true, email: true, username: true, isActive: true },
+      select: { id: true, email: true, username: true, isActive: true, passwordHash: true },
     });
 
     // Always return the same response shape regardless of whether the email
     // belongs to a known account. Only do real work when it does.
-    if (!user || !user.email || !user.isActive) {
+    if (!user || !user.email || !user.isActive || !user.passwordHash) {
       log.info(
         { ip, email: body.email, found: Boolean(user) },
         "password-reset: request for unknown/inactive email — returning generic ok",

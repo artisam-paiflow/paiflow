@@ -23,11 +23,17 @@ export async function GET(req: NextRequest) {
         createdAt: true,
         lastLoginAt: true,
         lockedUntil: true,
+        passwordHash: true,
       },
       orderBy: { createdAt: "desc" },
       take: 100,
     });
-    return NextResponse.json({ data: items });
+    return NextResponse.json({
+      data: items.map(({ passwordHash, ...user }) => ({
+        ...user,
+        hasPassword: Boolean(passwordHash),
+      })),
+    });
   });
 }
 

@@ -1,18 +1,28 @@
 import { requirePageSession } from "@/lib/auth";
+import { googleErrorMessage } from "@/lib/auth/google-messages";
 import { db } from "@/lib/db";
-import Topbar from "@/components/app/topbar";
-import PasskeyManager from "@/components/account/passkeys";
+import { env } from "@/lib/env";
 import ChangePassword from "@/components/account/change-password";
+import PasskeyManager from "@/components/account/passkeys";
+import Topbar from "@/components/app/topbar";
+import GoogleButton from "@/components/auth/google-button";
 
 export const dynamic = "force-dynamic";
 
-export default async function Account() {
+export default async function Account({
+  searchParams,
+}: {
+  searchParams: Promise<{ googleError?: string; googleLinked?: string }>;
+}) {
+  const params = await searchParams;
   const user = await requirePageSession();
   const me = await db.user.findUnique({
     where: { id: user.id },
     select: {
       username: true,
       email: true,
+      passwordHash: true,
+      googleIdentities: { select: { id: true } },
       role: true,
       createdAt: true,
       lastLoginAt: true,
@@ -42,7 +52,41 @@ export default async function Account() {
           />
         </section>
 
-        <ChangePassword />
+        {params.googleError ? (
+          <p role="alert" className="text-error mt-md">
+            {googleErrorMessage(params.googleError)}
+          </p>
+        ) : null}
+        {params.googleLinked && me?.googleIdentities.length ? (
+          <p role="status" className="text-secondary mt-md">
+            Google is linked to your account.
+          </p>
+        ) : null}
+        {me?.passwordHash ? (
+          <ChangePassword />
+        ) : (
+          <p className="text-on-surface-variant mt-md">
+            This account has no local password. Use Google account recovery if you lose access.
+          </p>
+        )}
+        {env().GOOGLE_AUTH_ENABLED && user.role !== "SANDBOX" ? (
+          <section className="glass-panel mt-md p-md rounded-xl">
+            <h2 className="text-on-surface">Google sign-in</h2>
+            {me?.googleIdentities.length ? (
+              <p className="text-on-surface-variant mt-3">
+                Google is linked. Your existing account and permissions are preserved.
+              </p>
+            ) : (
+              <>
+                <p className="text-on-surface-variant mt-3">
+                  Link Google within five minutes of signing in. If needed, sign out using the menu
+                  and sign in again before returning here.
+                </p>
+                <GoogleButton link authOrigin={new URL(env().AUTH_URL).origin} />
+              </>
+            )}
+          </section>
+        ) : null}
         <PasskeyManager />
       </main>
     </>
