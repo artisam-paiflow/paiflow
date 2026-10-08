@@ -82,7 +82,7 @@
     "ioredis": "^5.4.1",
     "lucide-react": "^0.469.0",
     "minio": "^8.0.3",
-    "next": "^15.5.25",
+    "next": "^15.5.27",
     "next-auth": "5.0.0-beta.32",
     "pino": "^9.5.0",
     "posthog-js": "^1.433.4",

@@ -16,6 +16,7 @@ import { GET } from "@/app/api/v1/openapi.json/route";
 import { APP_ERROR_STATUS } from "@/lib/errors";
 import { ERROR_STATUS, examples, openApiDocument } from "@/lib/api/v1/openapi";
 import {
+  DeploymentCapabilitiesSchema,
   TransactionStatusSchema,
   WebhookAttemptResponseSchema,
   ApiTokenSchema,
@@ -117,6 +118,7 @@ describe("OpenAPI document", () => {
   });
 
   const parses: Array<[string, z.ZodTypeAny, unknown]> = [
+    ["deployment capabilities", DeploymentCapabilitiesSchema, examples.capabilities.data],
     ["keyed webhook", WebhookAttemptResponseSchema, examples.webhookPending.data],
     ["transaction status", TransactionStatusSchema, examples.transactionStatus.data],
     ["payout request", PayoutPrepareSchema, examples.payoutRequest],
@@ -179,6 +181,7 @@ describe("Postman collection", () => {
           .body,
       ) as unknown;
     expect(body("Get demo token", "201 Created")).toEqual(examples.demoTokenResponse);
+    expect(body("Get deployment capabilities", "200 OK")).toEqual(examples.capabilities);
     expect(body("Prepare execute", "200 OK")).toEqual(examples.executeResponse);
     expect(body("Submit execute", "200 SUCCESS")).toEqual(examples.submitSuccess);
     expect(body("Submit execute", "200 FAILED")).toEqual(examples.submitFailed);

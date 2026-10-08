@@ -4,6 +4,8 @@ import { withErrorHandler } from "@/lib/errors";
 import { CRON_LIMITS } from "@/lib/cron/config";
 import { withCronLease } from "@/lib/cron/lease";
 import { reconcileTransactions } from "@/lib/stellar/reconcile-transactions";
+import { log } from "@/lib/log";
+import { drainApiRequests } from "@/lib/api/request-history/delivery";
 import { deliverOutbox } from "@/lib/analytics/outbox";
 export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
@@ -15,7 +17,22 @@ export async function POST(req: NextRequest) {
       async () => {
         const outcomes = await reconcileTransactions();
         const analytics = await deliverOutbox(CRON_LIMITS.analyticsDelivery);
-        return { ...outcomes, analytics };
+        let requests: Awaited<ReturnType<typeof drainApiRequests>> | { unavailable: true };
+        try {
+          requests = await drainApiRequests();
+        } catch {
+          log.warn(
+            { code: "API_TELEMETRY_DELIVERY_FAILED" },
+            "API telemetry maintenance incomplete",
+          );
+          requests = { unavailable: true };
+        }
+        const requestAnalytics = await deliverOutbox({
+          batch: 50,
+          budgetMs: 2000,
+          requestEvents: true,
+        });
+        return { ...outcomes, analytics, requests, requestAnalytics };
       },
     );
     return NextResponse.json({

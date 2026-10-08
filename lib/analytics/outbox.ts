@@ -33,12 +33,16 @@ export async function enqueueAnalytics(
     skipDuplicates: true,
   });
 }
-export async function deliverOutbox({ batch = 50, budgetMs = 10_000 } = {}) {
+export async function deliverOutbox({ batch = 50, budgetMs = 10_000, requestEvents = false } = {}) {
   const started = Date.now();
   let delivered = 0;
   let attempted = 0;
   const due = await db.analyticsDelivery.findMany({
-    where: { deliveredAt: null, nextAttemptAt: { lte: new Date() } },
+    where: {
+      deliveredAt: null,
+      nextAttemptAt: { lte: new Date() },
+      event: requestEvents ? "api_request_completed" : { not: "api_request_completed" },
+    },
     orderBy: { nextAttemptAt: "asc" },
     take: batch,
   });

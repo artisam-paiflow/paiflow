@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { linkApiTransaction } from "@/lib/api/request-history/context";
 import { AppError } from "@/lib/errors";
 import { v1Route } from "@/lib/api/v1/handler";
 import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
@@ -27,6 +28,7 @@ export const POST = v1Route(
       token.id,
       tx.hash().toString("hex"),
     );
+    linkApiTransaction(tx.hash().toString("hex"));
     const data = await submitPreparedDeposit({
       tx,
       wait,

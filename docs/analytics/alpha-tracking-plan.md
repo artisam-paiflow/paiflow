@@ -229,3 +229,9 @@ Filters always include policy version, explicit network, audience and start/end;
    finality, outcome deduplication and sensitive-surface capture exclusions.
 6. Compare a read-only DB export with matching PostHog series, stating delivery lag
    and observed-journey limits. Do not backfill or repair historical records.
+
+## API request history
+
+Future-only API request history and developer-report definitions are documented in
+[API request history v1](api-request-history-v1.md). Its cutover and HTTP denominators
+are independent of existing usage-v2 business outcomes.

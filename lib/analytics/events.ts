@@ -47,6 +47,18 @@ type DeployStage = "wallet" | "prepare" | "sign" | "submit" | "finality_timeout"
 type TriggerStage = "wallet" | "prepare" | "sign" | "submit" | "onchain" | "status_poll";
 
 export type EventMap = {
+  api_request_completed: {
+    request_id: string;
+    endpoint: string;
+    method: string;
+    http_status: number;
+    duration_ms: number;
+    error_code: string | null;
+    api_token_id: string | null;
+    token_creator_id: string | null;
+    deployment_id: string | null;
+    tx_hash: string | null;
+  };
   // 1. Setup & access
   login_succeeded: { method: "password" | "ticket" };
   login_failed: { reason: "bad_password" | "locked" };

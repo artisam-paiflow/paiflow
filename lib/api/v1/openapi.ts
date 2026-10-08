@@ -1,4 +1,5 @@
 import {
+  DeploymentCapabilitiesSchema,
   TransactionStatusSchema,
   WebhookAttemptResponseSchema,
   DemoTokenSchema,
@@ -48,7 +49,46 @@ const EXAMPLE_TX_HASH = "94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a
 const XLM_SAC_TESTNET = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 const USDC_SAC_TESTNET = "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA";
 
+const capabilityExample = (
+  status: string,
+  authentication = "deployment_token",
+  requirements: string[] = [],
+  nodeIds: string[] = [],
+) => ({ status, authentication, requirements, nodeIds });
+
 export const examples = {
+  capabilities: {
+    data: {
+      deploymentId: EXAMPLE_DEPLOYMENT_ID,
+      network: "testnet",
+      configurationSource: "deployment_snapshot",
+      triggerType: "deposit",
+      inputAsset: { kind: "native" },
+      operations: {
+        execute: capabilityExample("supported", "deployment_token", [
+          "The paying wallet signs the prepared deposit; simulation checks current configuration.",
+        ]),
+        events: capabilityExample("supported", "deployment_token", [
+          "Recorded events can lag the chain.",
+        ]),
+        transactions: capabilityExample("supported", "deployment_token", [
+          "Only attributable transactions can be read; missing evidence does not prove failure.",
+        ]),
+        releaseEarly: capabilityExample("unsupported", "deployment_token", [
+          "No deployed timelock branch supports early release.",
+        ]),
+        payouts: capabilityExample("unsupported", "deployment_token", [
+          "Standard flows use configured recipients; per-payment recipients require an eligible Dev flow.",
+        ]),
+        webhook: capabilityExample("unsupported", "webhook_secret", [
+          "Requires a deployed webhook trigger with HTTP callbacks enabled.",
+        ]),
+        subscriptionAllowance: capabilityExample("unsupported", "subscriber_wallet", [
+          "Requires a subscription deployment.",
+        ]),
+      },
+    },
+  },
   webhookPending: {
     data: {
       attemptId: "c112ab0a-ec40-4b0f-8d1d-65d13edfe40c",
@@ -350,6 +390,10 @@ export const openApiDocument = {
   servers: [{ url: "https://paiflow.xyz", description: "Public instance (Stellar testnet)" }],
   tags: [
     {
+      name: "Capabilities",
+      description: "Discover deployment integration paths and their prerequisites.",
+    },
+    {
       name: "Webhooks",
       description:
         "Authenticated callbacks releasing a pre-funded flow, optionally deduplicated by application-event key.",
@@ -384,6 +428,32 @@ export const openApiDocument = {
     },
   ],
   paths: {
+    "/api/v1/deployments/{id}/capabilities": {
+      get: {
+        tags: ["Capabilities"],
+        operationId: "getDeploymentCapabilities",
+        summary: "Discover a deployment's supported integration paths",
+        description: [
+          DeploymentCapabilitiesSchema.description,
+          "Requires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.",
+          "Operations are execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
+          "Returns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.",
+          rate(V1_RATE_LIMITS.capabilities, "per token"),
+        ].join("\n\n"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        responses: {
+          "200": {
+            description: "Deployment integration support and prerequisites, not live readiness.",
+            content: json(
+              dataEnvelope("#/components/schemas/DeploymentCapabilities"),
+              examples.capabilities,
+            ),
+          },
+          ...errors("UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND", "VALIDATION", "RATE_LIMITED"),
+        },
+      },
+    },
     "/api/webhooks/{id}": {
       post: {
         tags: ["Webhooks"],
@@ -988,6 +1058,103 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      CapabilityOperation: {
+        type: "object",
+        additionalProperties: false,
+        required: ["status", "authentication", "requirements", "nodeIds"],
+        properties: {
+          status: { type: "string", enum: ["supported", "conditional", "unsupported"] },
+          authentication: {
+            type: "string",
+            enum: ["deployment_token", "webhook_secret", "subscriber_wallet"],
+          },
+          requirements: { type: "array", items: { type: "string" } },
+          nodeIds: { type: "array", items: { type: "string" } },
+        },
+      },
+      DeploymentCapabilities: {
+        type: "object",
+        additionalProperties: false,
+        description: DeploymentCapabilitiesSchema.description,
+        required: [
+          "deploymentId",
+          "network",
+          "configurationSource",
+          "triggerType",
+          "inputAsset",
+          "operations",
+        ],
+        properties: {
+          deploymentId: { type: "string", format: "uuid" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          configurationSource: { type: "string", const: "deployment_snapshot" },
+          triggerType: {
+            type: "string",
+            enum: [
+              "deposit",
+              "webhook",
+              "subscription",
+              "payroll",
+              "schedule",
+              "oracle",
+              "unknown",
+            ],
+          },
+          inputAsset: {
+            description: DeploymentCapabilitiesSchema.shape.inputAsset.description,
+            oneOf: [
+              { type: "null" },
+              {
+                type: "object",
+                additionalProperties: false,
+                required: ["kind"],
+                properties: { kind: { const: "native", type: "string" } },
+              },
+              {
+                type: "object",
+                additionalProperties: false,
+                required: ["kind", "symbol"],
+                properties: {
+                  kind: { const: "known", type: "string" },
+                  symbol: { const: "USDC", type: "string" },
+                },
+              },
+              {
+                type: "object",
+                additionalProperties: false,
+                required: ["kind", "code", "issuer"],
+                properties: {
+                  kind: { const: "custom", type: "string" },
+                  code: { type: "string", pattern: "^[A-Za-z0-9]{1,12}$" },
+                  issuer: { type: "string", pattern: "^G[A-Z2-7]{55}$" },
+                },
+              },
+            ],
+          },
+          operations: {
+            type: "object",
+            additionalProperties: false,
+            required: [
+              "execute",
+              "events",
+              "transactions",
+              "releaseEarly",
+              "payouts",
+              "webhook",
+              "subscriptionAllowance",
+            ],
+            properties: {
+              execute: { $ref: "#/components/schemas/CapabilityOperation" },
+              events: { $ref: "#/components/schemas/CapabilityOperation" },
+              transactions: { $ref: "#/components/schemas/CapabilityOperation" },
+              releaseEarly: { $ref: "#/components/schemas/CapabilityOperation" },
+              payouts: { $ref: "#/components/schemas/CapabilityOperation" },
+              webhook: { $ref: "#/components/schemas/CapabilityOperation" },
+              subscriptionAllowance: { $ref: "#/components/schemas/CapabilityOperation" },
+            },
+          },
+        },
+      },
       Error: {
         type: "object",
         required: ["error"],
