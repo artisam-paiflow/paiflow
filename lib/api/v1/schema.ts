@@ -231,3 +231,61 @@ export const WebhookAttemptResponseSchema = TransactionStatusSchema.partial({
 }).extend({
   attemptId: z.string().uuid(),
 });
+
+/** Discovery describes integration support, not live execution readiness. */
+export const CapabilityOperationSchema = z
+  .object({
+    status: z.enum(["supported", "conditional", "unsupported"]),
+    authentication: z.enum(["deployment_token", "webhook_secret", "subscriber_wallet"]),
+    requirements: z.array(z.string()),
+    nodeIds: z.array(z.string()),
+  })
+  .strict();
+export type CapabilityOperation = z.infer<typeof CapabilityOperationSchema>;
+
+export const CapabilitiesAssetSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("native") }).strict(),
+  z.object({ kind: z.literal("known"), symbol: z.literal("USDC") }).strict(),
+  z
+    .object({
+      kind: z.literal("custom"),
+      code: z.string().regex(/^[A-Za-z0-9]{1,12}$/),
+      issuer: z.string().refine(StrKey.isValidEd25519PublicKey),
+    })
+    .strict(),
+]);
+
+export const DeploymentCapabilitiesSchema = z
+  .object({
+    deploymentId: z.string().uuid(),
+    network: z.enum(["testnet", "mainnet"]),
+    configurationSource: z.literal("deployment_snapshot"),
+    triggerType: z.enum([
+      "deposit",
+      "webhook",
+      "subscription",
+      "payroll",
+      "schedule",
+      "oracle",
+      "unknown",
+    ]),
+    inputAsset: CapabilitiesAssetSchema.nullable().describe(
+      "Initial asset metadata from the deployment snapshot, or null when unavailable. Not a live contract read; mutable configuration may have changed.",
+    ),
+    operations: z
+      .object({
+        execute: CapabilityOperationSchema,
+        events: CapabilityOperationSchema,
+        transactions: CapabilityOperationSchema,
+        releaseEarly: CapabilityOperationSchema,
+        payouts: CapabilityOperationSchema,
+        webhook: CapabilityOperationSchema,
+        subscriptionAllowance: CapabilityOperationSchema,
+      })
+      .strict(),
+  })
+  .strict()
+  .describe(
+    "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.",
+  );
+export type DeploymentCapabilities = z.infer<typeof DeploymentCapabilitiesSchema>;

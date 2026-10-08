@@ -149,6 +149,42 @@ export FROM=G...                  # the funded account that deposits and signs
 export FROM_SECRET=S...           # its secret key; stays on your machine
 ```
 
+### Discover the deployment's capabilities
+
+On builds containing the capabilities endpoint, check your deployment before choosing an integration:
+
+```bash
+curl -sS "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/capabilities" \
+  -H "Authorization: Bearer $PAIFLOW_TOKEN"
+```
+
+`data` contains `deploymentId`, `network`, `triggerType`, `inputAsset`,
+`configurationSource: "deployment_snapshot"` and `operations`. The operation keys are
+`execute`, `events`, `transactions`, `releaseEarly`, `payouts`, `webhook` and
+`subscriptionAllowance`. Each has a `status`, `authentication`, `requirements` and `nodeIds`:
+
+- **`supported`**: the integration path exists for the recorded deployment. This does not promise
+  the next transaction will succeed; balances, deadlines, trustlines and simulation still apply.
+- **`conditional`**: a candidate path exists, but its own state/preparation endpoint must establish
+  eligibility. Payouts must verify current connectivity, amounts and balances; subscription approval
+  must verify subscription classification, the configured subscriber and active state.
+- **`unsupported`**: no matching path can be established from the recorded deployment metadata.
+
+Standard On Receive flows support `execute` with configured recipients; they report `payouts` as
+unsupported. Dev payout candidate `nodeIds` include only mutable crypto Pay nodes reachable through
+immediate Split or amount-condition paths. A delayed path or swap is not a payout candidate.
+`releaseEarly.nodeIds` lists timelock branches, excluding strict Hold contracts. For webhook flows,
+`execute` is unsupported and `webhook` uses **`webhook_secret`**, obtained separately by the owner.
+Subscription allowance uses **`subscriber_wallet`** consent; the discovery token does not authorize
+either operation.
+
+Discovery makes no RPC calls and sends no transactions. `inputAsset` is the **initial snapshot
+metadata**, or null when unavailable; Dev mutations may have changed it. Discovery never returns
+webhook secrets, API credentials, recipient/subscriber addresses, bank details, KYC or notification
+settings. Responses are `no-store`, require a confirmed deployment on this environment's network,
+and are limited to **60 requests/minute per token**. A network mismatch returns 422. Use discovery
+when selecting an integration, rather than polling it as a live balance or readiness check.
+
 ### 1. Prepare
 
 `amount` is in **stroops** of the flow's input asset, as a string: 1 XLM = `10000000`.
@@ -450,6 +486,7 @@ hackathon venue's Wi-Fi) does not pay for one broken script:
 | `POST …/execute/submit`                       | 30 per minute                                             |
 | `POST …/release-early`                        | 10 per minute                                             |
 | `GET …/events`                                | 120 per minute                                            |
+| `GET …/capabilities`                          | 60 per minute                                             |
 | `GET /api/v1/openapi.json`                    | 60 per minute per client IP (no token)                    |
 | `POST /api/v1/demo-token`                     | 3 per hour per client IP, 60 per hour instance-wide       |
 | Token management (owner session, not the API) | 20 per minute per signed-in user, across all three routes |
