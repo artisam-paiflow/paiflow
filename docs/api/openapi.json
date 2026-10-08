@@ -13,6 +13,10 @@
   ],
   "tags": [
     {
+      "name": "Capabilities",
+      "description": "Discover deployment integration paths and their prerequisites."
+    },
+    {
       "name": "Webhooks",
       "description": "Authenticated callbacks releasing a pre-funded flow, optionally deduplicated by application-event key."
     },
@@ -46,6 +50,178 @@
     }
   ],
   "paths": {
+    "/api/v1/deployments/{id}/capabilities": {
+      "get": {
+        "tags": ["Capabilities"],
+        "operationId": "getDeploymentCapabilities",
+        "summary": "Discover a deployment's supported integration paths",
+        "description": "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.\n\nRequires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.\n\nOperations are execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.\n\nReturns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.\n\nRate limit: 60 requests per 60 seconds per token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Deployment id (UUID). A malformed id is a 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deployment integration support and prerequisites, not live readiness.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DeploymentCapabilities"
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "deploymentId": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d",
+                    "network": "testnet",
+                    "configurationSource": "deployment_snapshot",
+                    "triggerType": "deposit",
+                    "inputAsset": {
+                      "kind": "native"
+                    },
+                    "operations": {
+                      "execute": {
+                        "status": "supported",
+                        "authentication": "deployment_token",
+                        "requirements": [
+                          "The paying wallet signs the prepared deposit; simulation checks current configuration."
+                        ],
+                        "nodeIds": []
+                      },
+                      "events": {
+                        "status": "supported",
+                        "authentication": "deployment_token",
+                        "requirements": ["Recorded events can lag the chain."],
+                        "nodeIds": []
+                      },
+                      "transactions": {
+                        "status": "supported",
+                        "authentication": "deployment_token",
+                        "requirements": [
+                          "Only attributable transactions can be read; missing evidence does not prove failure."
+                        ],
+                        "nodeIds": []
+                      },
+                      "releaseEarly": {
+                        "status": "unsupported",
+                        "authentication": "deployment_token",
+                        "requirements": ["No deployed timelock branch supports early release."],
+                        "nodeIds": []
+                      },
+                      "payouts": {
+                        "status": "unsupported",
+                        "authentication": "deployment_token",
+                        "requirements": [
+                          "Standard flows use configured recipients; per-payment recipients require an eligible Dev flow."
+                        ],
+                        "nodeIds": []
+                      },
+                      "webhook": {
+                        "status": "unsupported",
+                        "authentication": "webhook_secret",
+                        "requirements": [
+                          "Requires a deployed webhook trigger with HTTP callbacks enabled."
+                        ],
+                        "nodeIds": []
+                      },
+                      "subscriptionAllowance": {
+                        "status": "unsupported",
+                        "authentication": "subscriber_wallet",
+                        "requirements": ["Requires a subscription deployment."],
+                        "nodeIds": []
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: Missing, unknown, revoked or expired token, or a token for another deployment. One message for every case.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "A valid API token for this deployment is required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`FORBIDDEN`: Not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: Malformed deployment id, or a deployment that is not (or no longer) confirmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`VALIDATION`: The body or query failed validation (`fields` names each problem), or the network refused the request as built.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION",
+                    "message": "Invalid input",
+                    "fields": {
+                      "amount": ["Must be a whole number of stroops"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`RATE_LIMITED`: Too many requests in the window: the per-token limit, or, for a token not issued or used in the last 30 days, the per-address limit on looking such tokens up (see the rate limits above).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/webhooks/{id}": {
       "post": {
         "tags": ["Webhooks"],
@@ -1755,6 +1931,161 @@
       }
     },
     "schemas": {
+      "CapabilityOperation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "authentication", "requirements", "nodeIds"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["supported", "conditional", "unsupported"]
+          },
+          "authentication": {
+            "type": "string",
+            "enum": ["deployment_token", "webhook_secret", "subscriber_wallet"]
+          },
+          "requirements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "nodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DeploymentCapabilities": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.",
+        "required": [
+          "deploymentId",
+          "network",
+          "configurationSource",
+          "triggerType",
+          "inputAsset",
+          "operations"
+        ],
+        "properties": {
+          "deploymentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "network": {
+            "type": "string",
+            "enum": ["testnet", "mainnet"]
+          },
+          "configurationSource": {
+            "type": "string",
+            "const": "deployment_snapshot"
+          },
+          "triggerType": {
+            "type": "string",
+            "enum": [
+              "deposit",
+              "webhook",
+              "subscription",
+              "payroll",
+              "schedule",
+              "oracle",
+              "unknown"
+            ]
+          },
+          "inputAsset": {
+            "description": "Initial asset metadata from the deployment snapshot, or null when unavailable. Not a live contract read; mutable configuration may have changed.",
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind"],
+                "properties": {
+                  "kind": {
+                    "const": "native",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "symbol"],
+                "properties": {
+                  "kind": {
+                    "const": "known",
+                    "type": "string"
+                  },
+                  "symbol": {
+                    "const": "USDC",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "code", "issuer"],
+                "properties": {
+                  "kind": {
+                    "const": "custom",
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9]{1,12}$"
+                  },
+                  "issuer": {
+                    "type": "string",
+                    "pattern": "^G[A-Z2-7]{55}$"
+                  }
+                }
+              }
+            ]
+          },
+          "operations": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "execute",
+              "events",
+              "transactions",
+              "releaseEarly",
+              "payouts",
+              "webhook",
+              "subscriptionAllowance"
+            ],
+            "properties": {
+              "execute": {
+                "$ref": "#/components/schemas/CapabilityOperation"
+              },
+              "events": {
+                "$ref": "#/components/schemas/CapabilityOperation"
+              },
+              "transactions": {
+                "$ref": "#/components/schemas/CapabilityOperation"
+              },
+              "releaseEarly": {
+                "$ref": "#/components/schemas/CapabilityOperation"
+              },
+              "payouts": {
+                "$ref": "#/components/schemas/CapabilityOperation"
+              },
+              "webhook": {
+                "$ref": "#/components/schemas/CapabilityOperation"
+              },
+              "subscriptionAllowance": {
+                "$ref": "#/components/schemas/CapabilityOperation"
+              }
+            }
+          }
+        }
+      },
       "Error": {
         "type": "object",
         "required": ["error"],

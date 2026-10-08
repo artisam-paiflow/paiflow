@@ -7,6 +7,9 @@ const { reconcile, deliver, lease } = vi.hoisted(() => ({
   lease: vi.fn(),
 }));
 vi.mock("@/lib/stellar/reconcile-transactions", () => ({ reconcileTransactions: reconcile }));
+vi.mock("@/lib/api/request-history/delivery", () => ({
+  drainApiRequests: vi.fn(async () => ({ persisted: 0 })),
+}));
 vi.mock("@/lib/analytics/outbox", () => ({ deliverOutbox: deliver }));
 vi.mock("@/lib/cron/lease", () => ({ withCronLease: lease }));
 

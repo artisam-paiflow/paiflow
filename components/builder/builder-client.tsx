@@ -36,6 +36,7 @@ import { sendWithRateLimitRetry } from "./autosave-retry.utils";
 import { createSaveCoordinator, type SaveOutcome } from "./save-outcome.utils";
 import CanvasConfigPanel from "./canvas-config-panel";
 import Palette from "./palette";
+import PaletteSidebar from "./palette-sidebar";
 import DeployButton from "./deploy-button";
 import EnglishPreview from "./english-preview";
 import SenderKycDialog from "./sender-kyc-dialog";
@@ -250,7 +251,9 @@ function Builder({
   // How the open panel was opened: only a keyboard open moves focus into it.
   const [openedBy, setOpenedBy] = useState<"keyboard" | "pointer">("pointer");
   const [chatCollapsed, setChatCollapsed] = useState(true);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarPinned, setSidebarPinned] = useState(false);
+  const sidebarCollapsed = !sidebarOpen && !sidebarPinned;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingAddresses, setPendingAddresses] = useState<string[]>([]);
@@ -311,14 +314,7 @@ function Builder({
   }, [refreshAddressBook]);
 
   useEffect(() => {
-    const stored = localStorage.getItem("sidebarCollapsed");
-    if (stored === "true") {
-      setSidebarCollapsed(true);
-    } else if (stored === null && window.matchMedia(NARROW_VIEWPORT_QUERY).matches) {
-      // No explicit preference yet: default collapsed on narrow viewports so the
-      // canvas isn't squeezed to nothing by a fixed 260px sidebar.
-      setSidebarCollapsed(true);
-    }
+    setSidebarPinned(localStorage.getItem("sidebarPinned") === "true");
     setReady(true);
   }, []);
 
@@ -793,7 +789,6 @@ function Builder({
   }
 
   const isValid = validation.ok;
-  const templateKind = validation.ok ? validation.templateKind : null;
   const pipeline = validation.ok ? validation.pipeline : undefined;
   const errors = useMemo(() => (validation.ok ? [] : validation.errors), [validation]);
   useValidationTracking(errors, flowNodes);
@@ -841,94 +836,122 @@ function Builder({
           gridTemplateColumns: sidebarCollapsed ? "40px minmax(0, 1fr)" : "260px minmax(0, 1fr)",
         }}
       >
-        <Palette
-          onAdd={addNode}
-          flowNodes={flowNodes}
-          templateKind={templateKind}
-          pipeline={pipeline}
-          collapsed={sidebarCollapsed}
-          devMode={devMode}
-          features={features}
-          onToggleCollapse={() => {
-            setSidebarCollapsed((v) => {
-              const next = !v;
-              localStorage.setItem("sidebarCollapsed", String(next));
-              return next;
-            });
+        <PaletteSidebar
+          onOpenChange={(open) => {
+            setSidebarOpen(open);
             setHasAnimated(true);
           }}
-        />
+        >
+          <Palette
+            onAdd={addNode}
+            flowNodes={flowNodes}
+            collapsed={sidebarCollapsed}
+            pinned={sidebarPinned}
+            devMode={devMode}
+            features={features}
+            onExpand={() => {
+              setSidebarOpen(true);
+              setHasAnimated(true);
+            }}
+            onTogglePin={() => {
+              const next = !sidebarPinned;
+              setSidebarPinned(next);
+              localStorage.setItem("sidebarPinned", String(next));
+              setSidebarOpen(true);
+              setHasAnimated(true);
+            }}
+          />
+        </PaletteSidebar>
 
-        <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_1fr]">
-          {/* Row 1: Deploy → editable title */}
-          <div className="px-md gap-md max-md:gap-sm flex flex-wrap items-center py-3 max-md:flex-nowrap max-md:px-3 max-md:py-2">
-            <DeployButton
-              flowId={flowId}
-              disabled={!isValid}
-              pending={deployPending}
-              errorCount={errors.length}
-              onClick={async (e) => {
-                e.preventDefault();
-                if (!isValid || deployPendingRef.current) return;
-                deployPendingRef.current = true;
-                setDeployPending(true);
-                try {
-                  await saves.navigateAfterSave(saveGraph(graph, name, true), () => {
-                    if (!unmounted.current) window.location.href = `/flows/${flowId}/deploy`;
-                  });
-                } finally {
-                  deployPendingRef.current = false;
-                  if (!unmounted.current) setDeployPending(false);
-                }
+        <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_1fr]">
+          {/* Top row: Deploy, title, English preview, and settings */}
+          <div className="px-md gap-md max-md:gap-sm flex flex-wrap items-stretch py-3 max-md:px-3 max-md:py-2">
+            <div className="flex max-w-full min-w-0 flex-col justify-between gap-2 max-md:w-full">
+              <div className="gap-md max-md:gap-sm flex min-w-0 items-center">
+                <DeployButton
+                  flowId={flowId}
+                  disabled={!isValid}
+                  pending={deployPending}
+                  errorCount={errors.length}
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    if (!isValid || deployPendingRef.current) return;
+                    deployPendingRef.current = true;
+                    setDeployPending(true);
+                    try {
+                      await saves.navigateAfterSave(saveGraph(graph, name, true), () => {
+                        if (!unmounted.current) window.location.href = `/flows/${flowId}/deploy`;
+                      });
+                    } finally {
+                      deployPendingRef.current = false;
+                      if (!unmounted.current) setDeployPending(false);
+                    }
+                  }}
+                />
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  aria-label="Flow name"
+                  className="text-headline-sm max-md:text-body-lg text-on-surface max-w-[24ch] min-w-[12ch] flex-1 border-0 bg-transparent px-0 py-1 font-semibold tracking-[-0.01em] outline-none focus:outline-none max-md:min-w-0 md:flex-initial"
+                  style={{ fieldSizing: "content" } as React.CSSProperties}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                {!sandbox && (
+                  <button
+                    id="notification-settings-button"
+                    type="button"
+                    aria-expanded={notificationsOpen}
+                    aria-label="Email notifications"
+                    className="border-outline-variant/40 bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface inline-flex size-8 shrink-0 items-center justify-center rounded-lg border transition-colors pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+                    onClick={() => setNotificationsOpen((v) => !v)}
+                  >
+                    <span aria-hidden="true" className="material-symbols-outlined">
+                      mail
+                    </span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={devMode}
+                  aria-label="Dev mode"
+                  onClick={() => {
+                    if (!devMode) track("off_script_feature_used", { feature: "dev_mode_on" });
+                    setDevMode((v) => !v);
+                  }}
+                  title={
+                    devMode
+                      ? "Dev mode ON — pay / split / subscription nodes deploy as mutable variants you fill via the API"
+                      : "Dev mode OFF — recipients and amounts are fixed at design time"
+                  }
+                  className={cn(
+                    "text-label-sm inline-flex min-h-8 shrink-0 items-center justify-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors max-md:px-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
+                    devMode
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant hover:text-on-surface",
+                  )}
+                >
+                  <span aria-hidden="true" className="material-symbols-outlined text-[16px]">
+                    {devMode ? "toggle_on" : "toggle_off"}
+                  </span>
+                  <span className="max-md:sr-only">Dev mode</span>
+                </button>
+              </div>
+            </div>
+            <EnglishPreview
+              english={english}
+              showValidBadge={isValid && !!pipeline && pipeline.length > 0}
+              hasFiatPayout={hasFiatPayout}
+              hasSenderKyc={!!senderKyc}
+              devMode={devMode}
+              errorCount={isValid ? 0 : errors.length}
+              onOpenKyc={() => setKycDialogOpen(true)}
+              onOpenErrors={() => {
+                track("errors_modal_opened", { error_count: errors.length });
+                setErrorsModalOpen(true);
               }}
             />
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              aria-label="Flow name"
-              className="text-headline-sm max-md:text-body-lg text-on-surface max-w-[40ch] min-w-[12ch] flex-1 border-0 bg-transparent px-0 py-1 font-semibold tracking-[-0.01em] outline-none focus:outline-none max-md:min-w-0"
-              style={{ fieldSizing: "content" } as React.CSSProperties}
-            />
-            {!sandbox && (
-              <button
-                id="notification-settings-button"
-                type="button"
-                aria-expanded={notificationsOpen}
-                aria-label="Email notifications"
-                className="border-outline-variant/40 bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface inline-flex size-11 shrink-0 items-center justify-center rounded-lg border transition-colors"
-                onClick={() => setNotificationsOpen((v) => !v)}
-              >
-                <span aria-hidden="true" className="material-symbols-outlined">
-                  mail
-                </span>
-              </button>
-            )}
-            <button
-              type="button"
-              role="switch"
-              aria-checked={devMode}
-              aria-label="Dev mode"
-              onClick={() => {
-                if (!devMode) track("off_script_feature_used", { feature: "dev_mode_on" });
-                setDevMode((v) => !v);
-              }}
-              title={
-                devMode
-                  ? "Dev mode ON — pay / split / subscription nodes deploy as mutable variants you fill via the API"
-                  : "Dev mode OFF — recipients and amounts are fixed at design time"
-              }
-              className={cn(
-                "text-label-sm inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors max-md:px-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
-                devMode
-                  ? "border-primary/40 bg-primary/10 text-primary"
-                  : "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant hover:text-on-surface",
-              )}
-            >
-              <span aria-hidden="true" className="material-symbols-outlined text-[16px]">
-                {devMode ? "toggle_on" : "toggle_off"}
-              </span>
-              <span className="max-md:sr-only">Dev mode</span>
-            </button>
           </div>
 
           {!sandbox && notificationsOpen && (
@@ -941,22 +964,7 @@ function Builder({
               }}
             />
           )}
-          {/* Row 2: English Preview */}
-          <EnglishPreview
-            english={english}
-            showValidBadge={isValid && !!pipeline && pipeline.length > 0}
-            hasFiatPayout={hasFiatPayout}
-            hasSenderKyc={!!senderKyc}
-            devMode={devMode}
-            errorCount={isValid ? 0 : errors.length}
-            onOpenKyc={() => setKycDialogOpen(true)}
-            onOpenErrors={() => {
-              track("errors_modal_opened", { error_count: errors.length });
-              setErrorsModalOpen(true);
-            }}
-          />
-
-          {/* Row 3: Canvas */}
+          {/* Canvas */}
           <div
             ref={canvasRef}
             tabIndex={-1}
