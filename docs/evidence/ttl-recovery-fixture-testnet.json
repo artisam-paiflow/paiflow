@@ -1,0 +1,185 @@
+{
+  "environment": "hackathon-testing",
+  "network": "TESTNET",
+  "createdAt": "2026-10-04T23:23:54.298Z",
+  "budget": {
+    "name": "ttl804-testnet-20261004",
+    "limitStroops": "1500000000"
+  },
+  "maxFeeStroops": "500000000",
+  "admin": "GALWPCNQW5XZG4IZANOR4URL2ZQWYR2OK65O3YVIUVTOE7P3NS3MLPQZ",
+  "recipient": "GCQYW67TRIN6QPRFKYSRBF5XJGFFUPG7Y6EKONJODPUPYTBWW6SMI5WS",
+  "relayer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+  "graph": {
+    "nodes": [
+      {
+        "id": "webhook",
+        "type": "webhook",
+        "config": {
+          "asset": {
+            "kind": "native"
+          },
+          "relayer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD"
+        }
+      },
+      {
+        "id": "pay",
+        "type": "pay",
+        "config": {
+          "recipient": "GCQYW67TRIN6QPRFKYSRBF5XJGFFUPG7Y6EKONJODPUPYTBWW6SMI5WS",
+          "asset": {
+            "kind": "native"
+          },
+          "mode": "percentage",
+          "percentage": 100,
+          "fullAmount": false,
+          "fillValueViaApi": false
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "webhook-pay",
+        "source": "webhook",
+        "target": "pay"
+      }
+    ]
+  },
+  "transactions": [
+    {
+      "hash": "783ba6596c57900f42d9887cd973ee65cd558db5e7767d64fc2444e92160c342",
+      "declaredFeeStroops": "704205",
+      "purpose": "fixture-setup",
+      "netFeeStroops": "606832",
+      "ledger": 5026532,
+      "fees": {
+        "hash": "783ba6596c57900f42d9887cd973ee65cd558db5e7767d64fc2444e92160c342",
+        "ledger": 5026532,
+        "payer": "GALWPCNQW5XZG4IZANOR4URL2ZQWYR2OK65O3YVIUVTOE7P3NS3MLPQZ",
+        "operation": "invokeHostFunction",
+        "declaredFeeStroops": "704205",
+        "initiallyChargedStroops": "704205",
+        "refundStroops": "97373",
+        "netFeeStroops": "606832",
+        "resultFeeChargedStroops": "606832",
+        "rentFeeStroops": "584640",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "704205"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-97373"
+          }
+        ]
+      }
+    },
+    {
+      "hash": "61b562873e56091d4b30c3da98f19600599a5a0de7dd16b4475e194b1d0401e5",
+      "declaredFeeStroops": "608993",
+      "purpose": "fixture-deposit",
+      "netFeeStroops": "522714",
+      "ledger": 5026533,
+      "fees": {
+        "hash": "61b562873e56091d4b30c3da98f19600599a5a0de7dd16b4475e194b1d0401e5",
+        "ledger": 5026533,
+        "payer": "GALWPCNQW5XZG4IZANOR4URL2ZQWYR2OK65O3YVIUVTOE7P3NS3MLPQZ",
+        "operation": "invokeHostFunction",
+        "declaredFeeStroops": "608993",
+        "initiallyChargedStroops": "608993",
+        "refundStroops": "86279",
+        "netFeeStroops": "522714",
+        "resultFeeChargedStroops": "522714",
+        "rentFeeStroops": "510183",
+        "feeEvents": [
+          {
+            "stage": "before",
+            "amountStroops": "608993"
+          },
+          {
+            "stage": "after",
+            "amountStroops": "-86279"
+          }
+        ]
+      }
+    }
+  ],
+  "phase": "awaiting-natural-expiry",
+  "registeredForMaintenance": false,
+  "limitations": [
+    "Fixture setup is preparation, not recovery/payment evidence.",
+    "No DB deployment is registered, so background maintenance will not renew these instances.",
+    "Admin private key is disposable and is not persisted; the existing relayer can later release escrow."
+  ],
+  "friendbotFunded": true,
+  "payerBefore": {
+    "address": "GALWPCNQW5XZG4IZANOR4URL2ZQWYR2OK65O3YVIUVTOE7P3NS3MLPQZ",
+    "latestLedger": 5026531,
+    "balanceStroops": "100000000000",
+    "sequence": "21588781962362880"
+  },
+  "pipeline": [
+    {
+      "nodeId": "webhook",
+      "contractAddress": "CB45SMSGGVRBYPCLO6J3HP4IWWACFKB3762WYKFHV4R6VSJ6A77OA7KA",
+      "templateKind": "WEBHOOK",
+      "implementation": {
+        "version": 1,
+        "bindings": [
+          {
+            "blockId": "webhook",
+            "blockType": "webhook",
+            "role": "trigger"
+          }
+        ]
+      }
+    },
+    {
+      "nodeId": "pay",
+      "contractAddress": "CAIS64XNDGLYRRZGNPX2J4FGQOJGWHZ4VC2OVMZTNHXJH7SJGDSA2MS7",
+      "templateKind": "PAYER",
+      "implementation": {
+        "version": 1,
+        "bindings": [
+          {
+            "blockId": "pay",
+            "blockType": "pay",
+            "role": "action"
+          }
+        ]
+      }
+    }
+  ],
+  "instances": [
+    {
+      "address": "CB45SMSGGVRBYPCLO6J3HP4IWWACFKB3762WYKFHV4R6VSJ6A77OA7KA",
+      "latestLedger": 5026533,
+      "liveUntilLedger": 5147491,
+      "valueSha256": "d72964b94462cfdd64cc31d7dae1a093d5ddb2fd90ddc0dbf0f991556cdba5ec",
+      "wasmHash": "bcf0ad2d7cedc728bd24cee8f20efa289efc3d5d8f24ed8a513fe393a5507d6c"
+    },
+    {
+      "address": "CAIS64XNDGLYRRZGNPX2J4FGQOJGWHZ4VC2OVMZTNHXJH7SJGDSA2MS7",
+      "latestLedger": 5026533,
+      "liveUntilLedger": 5147491,
+      "valueSha256": "4847d2971d8ba5bda59e369efcfe9ddecd262eeb3e461c7d5160d608c6f7289e",
+      "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f"
+    }
+  ],
+  "balancesStroops": {
+    "CB45SMSGGVRBYPCLO6J3HP4IWWACFKB3762WYKFHV4R6VSJ6A77OA7KA": "10000000",
+    "CAIS64XNDGLYRRZGNPX2J4FGQOJGWHZ4VC2OVMZTNHXJH7SJGDSA2MS7": "0",
+    "GCQYW67TRIN6QPRFKYSRBF5XJGFFUPG7Y6EKONJODPUPYTBWW6SMI5WS": "100000000000"
+  },
+  "payerAfter": {
+    "address": "GALWPCNQW5XZG4IZANOR4URL2ZQWYR2OK65O3YVIUVTOE7P3NS3MLPQZ",
+    "latestLedger": 5026533,
+    "balanceStroops": "99988870454",
+    "sequence": "21588781962362882"
+  },
+  "setupFees": {
+    "declaredFeeStroops": "1313198",
+    "netFeeStroops": "1129546"
+  }
+}

@@ -149,11 +149,12 @@ impl Swapper {
     //
     // `from` is whoever calls, so this is permissionless: any account can
     // authorize as itself and swap `asset_in` sitting idle here. That is
-    // acceptable because the output can only reach `next_steps[0]` or stay in
-    // this contract, so nothing is divertible; the splitter's version has no
-    // auth at all, so this is the stricter of the two. In practice there is no
-    // idle balance, because the trigger transfers and calls `execute_step` in
-    // one transaction.
+    // output can only reach the stored `next_steps[0]`. Unlike standard Pay
+    // and Split, this path deliberately does not require the stored parent.
+    // Fixed destinations do not prevent a caller choosing the timing or
+    // amount of an idle-balance swap. Normal trigger execution transfers and
+    // invokes in one transaction; unsolicited transfers can still leave an
+    // idle balance. See docs/soroban-smart-contracts.md section 4.1.1.
     pub fn receive_and_forward(
         env: Env,
         from: Address,
@@ -305,7 +306,7 @@ fn invoke_execute_step(env: &Env, target: &Address, asset: &Address, amount: &i1
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::testutils::{Address as _, Ledger};
+    use soroban_sdk::testutils::{Address as _, Ledger, MockAuth, MockAuthInvoke};
     use soroban_sdk::{contract, contracterror, contractimpl, token, vec, Env};
 
     // ---------------------------------------------------------------------
@@ -735,6 +736,43 @@ mod test {
             "stored next step paid"
         );
         assert_eq!(w.tok_out.balance(&decoy), 0, "forged next step got nothing");
+        assert_eq!(w.tok_out.balance(&swapper), 0);
+    }
+
+    #[test]
+    fn authenticated_stranger_can_swap_idle_funds_only_to_stored_destination() {
+        let w = world(100_000 * XLM, 100_000 * XLM, true);
+        let swapper = deploy(&w, 100, 300, true);
+        w.tok_in
+            .mock_all_auths()
+            .transfer(&w.parent, &swapper, &(10 * XLM));
+        let stranger = Address::generate(&w.env);
+        let forged = vec![
+            &w.env,
+            WorkflowTarget {
+                address: stranger.clone(),
+                data: String::from_str(&w.env, ""),
+            },
+        ];
+        w.env.mock_auths(&[MockAuth {
+            address: &stranger,
+            invoke: &MockAuthInvoke {
+                contract: &swapper,
+                fn_name: "receive_and_forward",
+                args: (&stranger, &w.tok_in.address, 5 * XLM, &forged).into_val(&w.env),
+                sub_invokes: &[],
+            },
+        }]);
+        SwapperClient::new(&w.env, &swapper).receive_and_forward(
+            &stranger,
+            &w.tok_in.address,
+            &(5 * XLM),
+            &forged,
+        );
+        assert_eq!(w.env.auths()[0].0, stranger);
+        assert_eq!(w.tok_in.balance(&swapper), 5 * XLM);
+        assert_eq!(w.tok_out.balance(&stranger), 0);
+        assert!(w.tok_out.balance(&w.next) > 0);
         assert_eq!(w.tok_out.balance(&swapper), 0);
     }
 

@@ -14,3 +14,6 @@ soroban-sdk = { workspace = true }
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
 paiflow-splitter = { path = "../splitter" }
+deposit_trigger = { path = "../../triggers/deposit_trigger" }
+paiflow-subscription = { path = "../../triggers/subscription" }
+paiflow-webhook = { path = "../../triggers/webhook" }

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { sep7PaymentUri } from "@/lib/stellar/sep7";
 import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
 
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const { id } = await ctx.params;
@@ -23,3 +24,5 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ data: { uri } });
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "owner");

@@ -92,13 +92,18 @@
         >.
       </p>
       <p class="mt-md text-body-md text-on-surface-variant">
-        Product analytics are sent to PostHog (US) while the app is in beta. We use them to see where
-        people get stuck. While you are signed in they are tied to an internal account ID, never
-        your username or email. Secret keys, transaction payloads and the addresses you pay to are
-        stripped from analytics events before they leave your browser. The public address of the
-        wallet you sign with is included, with the transaction hash, so a transaction can be traced
-        back to the account that signed it. A transaction you sign without being signed in is
-        recorded under that public wallet address alone, with no account or profile behind it.
+        Product analytics are sent to PostHog (US) when enabled. They help us understand product
+        use and errors. Approved navigation and builder controls record stable action identifiers,
+        without their visible text, labels, form contents or account and credential panels.
+        Errors use categories and safe diagnostic locations rather than unrestricted messages.
+        Signed-in activity uses an internal account ID, never your username or email. Public signing
+        wallet addresses and transaction hashes are included deliberately for transaction traceability;
+        recipient addresses, private keys, signed transaction payloads and graph contents are excluded.
+        Anonymous signing activity has no account profile. API caller IDs and account IDs remain
+        separate from the wallet that signs. Wallet connections and submitted transaction outcomes
+        are also stored in our database; unsuccessful analytics delivery may be retried. New analytics
+        disable geographic enrichment and do not collect country, city or coordinates. Historical
+        records remain under their earlier collection policy.
         <strong>We do not record your screen or your session.</strong>
       </p>
       <p class="mt-md text-body-md text-on-surface-variant">

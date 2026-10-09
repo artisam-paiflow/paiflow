@@ -31,8 +31,8 @@ export default function EnglishPreview({
   const showErrors = errorCount > 0;
 
   return (
-    <div className="px-md pb-2 max-md:px-3 max-md:pb-1">
-      <div className="glass-panel px-md py-sm max-w-2xl rounded-xl max-md:px-3 max-md:py-1.5">
+    <div className="w-[640px] max-w-full min-w-0 shrink-0 max-md:order-last max-md:w-full">
+      <div className="glass-panel px-md py-sm h-full rounded-xl max-md:px-3 max-md:py-1.5">
         <div className="flex flex-wrap items-center gap-2">
           <div className="text-label-sm text-primary font-mono tracking-[0.08em] uppercase">
             English Preview

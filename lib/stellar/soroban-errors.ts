@@ -26,6 +26,7 @@ export type ContractErrorKey =
   | "conditional"
   | "router"
   | "timelock"
+  | "timelock_branch"
   | "multisig"
   | "deposit_trigger"
   | "webhook"
@@ -135,7 +136,8 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     },
     8: {
       name: "NotConfigured",
-      friendly: "This contract hasn't been configured yet — fill in the recipients first.",
+      friendly:
+        "This flow's Split step has no recipients yet. Set them in Dev values on the deployment page.",
     },
   },
   swapper: {
@@ -276,7 +278,8 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     },
     4: {
       name: "NotConfigured",
-      friendly: "This contract hasn't been configured yet — fill in the payment details first.",
+      friendly:
+        "This flow's Pay step has no recipient yet. Set it in Dev values on the deployment page, or per payment through POST /api/v1/deployments/:id/payouts.",
     },
   },
   payroll: {
@@ -389,6 +392,27 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     5: {
       name: "Overflow",
       friendly: "The amount overflowed — try a smaller amount.",
+    },
+  },
+  timelock_branch: {
+    1: ALREADY_INITIALIZED,
+    2: { name: "Unauthorized", friendly: "This action isn't authorized." },
+    3: {
+      name: "ConditionNotMet",
+      friendly:
+        "That side isn't open at this time: before the deadline only the before side is, from it on only the after side.",
+    },
+    4: {
+      name: "NothingToRelease",
+      friendly: "There's no balance to release.",
+    },
+    5: {
+      name: "Overflow",
+      friendly: "The amount overflowed — try a smaller amount.",
+    },
+    6: {
+      name: "InvalidBranch",
+      friendly: "Each side of a time condition needs exactly one step connected.",
     },
   },
   multisig: {
@@ -514,6 +538,8 @@ export function contractKeyForTemplate(templateKind: string): ContractErrorKey |
       return "deposit_trigger";
     case "ROUTER":
       return "router";
+    case "TIMELOCK_BRANCH":
+      return "timelock_branch";
     case "TIMELOCK":
       return "timelock";
     case "WEBHOOK":

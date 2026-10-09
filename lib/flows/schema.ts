@@ -2,6 +2,7 @@ import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
 import { formatStroops } from "@/lib/utils";
 import { bpsSchema, TOTAL_BPS } from "./primitives";
+import { looksLikeSecretSeed, SECRET_SEED_MESSAGE } from "./secret-seed";
 
 const PENDING_PREFIX = "PENDING:";
 
@@ -56,10 +57,6 @@ function validAddress(s: string): boolean {
   return StrKey.isValidEd25519PublicKey(s) || isPendingAddress(s);
 }
 
-function validSplitRecipientAddress(s: string): boolean {
-  return StrKey.isValidEd25519PublicKey(s) || StrKey.isValidContract(s) || isPendingAddress(s);
-}
-
 export const AssetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("native") }),
   z.object({
@@ -84,10 +81,21 @@ export const AssetSchema = z.discriminatedUnion("kind", [
 ]);
 export type Asset = z.infer<typeof AssetSchema>;
 
-const stellarAccount = z.string().refine((s) => validAddress(s), "Invalid Stellar address");
-const splitRecipientAddress = z
-  .string()
-  .refine((s) => validSplitRecipientAddress(s), "Invalid Stellar address");
+// Any string parses. The builder autosaves the whole graph on every keystroke,
+// so a half-typed or cleared address has to save, or every PATCH 422s and the
+// user's other edits are lost with it (#588). `lib/flows/address-rules.ts`
+// holds the real check (a complete G… — or C… for a split recipient — or a
+// PENDING: placeholder), and validateFlow applies it, so /deployments/prepare
+// still refuses anything else. A custom asset's issuer is not typed in any
+// panel and stays strict above.
+//
+// The one thing refused at parse time is a string that could be a secret seed
+// (S…): no address starts with S, and a pasted secret key must never be
+// stored in Flow.graph (CLAUDE.md §0). The panel clears such a paste before it
+// is sent, so this only stops a direct API write.
+const notSecretSeed = (s: string) => !looksLikeSecretSeed(s);
+const stellarAccount = z.string().refine(notSecretSeed, SECRET_SEED_MESSAGE);
+const splitRecipientAddress = z.string().refine(notSecretSeed, SECRET_SEED_MESSAGE);
 
 export const OnReceiveTrigger = z.object({
   id: z.string().min(1),
@@ -176,6 +184,7 @@ export const PayAction = z.object({
   config: z
     .object({
       recipient: stellarAccount,
+      email: z.string().max(254).optional(),
       asset: AssetSchema,
       mode: z.enum(["fixed", "percentage"]).optional(),
       amountStroops: z
@@ -192,19 +201,18 @@ export const PayAction = z.object({
       accountNumber: z.string().optional(),
       bankCode: z.string().optional(),
     })
-    .refine(
-      (c) => {
-        if (c.fullAmount || c.fillValueViaApi) return true;
-        if (c.mode === "fixed") return !!c.amountStroops && c.amountStroops !== "0";
-        if (c.mode === "percentage") return c.percentage !== undefined && c.percentage > 0;
-        return false;
-      },
-      { message: "Invalid pay configuration for the selected mode" },
-    ),
+    // Only the mode is structural here. A zero or missing amount/percentage is
+    // what a half-edited panel autosaves (a cleared field, a fresh switch to
+    // percentage), so it must parse or every save 422s and the edit is lost
+    // (#583). `validateFlow` refuses it before deploy, with a field error.
+    .refine((c) => c.fullAmount || c.fillValueViaApi || c.mode !== undefined, {
+      message: "Invalid pay configuration for the selected mode",
+    }),
 });
 
 const SplitRecipientBase = z.object({
   address: splitRecipientAddress,
+  email: z.string().max(254).optional(),
   label: z.string().max(64).optional(),
   payoutMode: z.enum(["crypto", "fiat"]).optional(),
   // Bank destination for fiat payouts. Required at design time for immutable
@@ -215,33 +223,22 @@ const SplitRecipientBase = z.object({
   bankCode: z.string().optional(),
 });
 
-export const SplitRecipient = z
-  .discriminatedUnion("mode", [
-    SplitRecipientBase.extend({
-      mode: z.literal("percentage"),
-      bps: z.number().int().min(1).max(10_000),
-    }),
-    SplitRecipientBase.extend({
-      mode: z.literal("fixed"),
-      amountStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
-    }),
-  ])
-  .refine(
-    (r) => {
-      // Contract addresses are always fiat destinations (cash-out contracts).
-      if (StrKey.isValidContract(r.address)) {
-        return r.payoutMode === "fiat";
-      }
-      // Wallet addresses may be crypto or, in payroll contexts, fiat with bank
-      // details. The more specific "wallet + fiat" rules are enforced in
-      // validateFlow depending on trigger type and dev mode.
-      return true;
-    },
-    {
-      message: "Contract addresses (C...) must use fiat payout.",
-      path: ["address"],
-    },
-  );
+export const SplitRecipient = z.discriminatedUnion("mode", [
+  SplitRecipientBase.extend({
+    mode: z.literal("percentage"),
+    // 0 parses so a cleared or not-yet-set share can autosave (#583);
+    // `validateFlow` refuses it before deploy.
+    bps: bpsSchema(),
+  }),
+  SplitRecipientBase.extend({
+    mode: z.literal("fixed"),
+    amountStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string"),
+  }),
+]);
+// A C… contract as a crypto recipient used to be refused here, which 422d an
+// autosave the moment one was pasted (#588). `addressIssues` refuses it on
+// the recipient's address field instead: a contract is only ever a fiat
+// (cash-out) destination.
 export type SplitRecipient = z.infer<typeof SplitRecipient>;
 
 // Backward compatibility: older flows stored recipients with `bps` but no
@@ -255,68 +252,129 @@ function hydrateSplitRecipient(r: unknown): unknown {
 
 export function migrateFlowGraph(raw: unknown): unknown {
   if (!raw || typeof raw !== "object") return raw;
-  const graph = raw as { nodes?: unknown[] };
+  const graph = raw as {
+    nodes?: unknown[];
+    edges?: unknown[];
+    positions?: Record<string, unknown>;
+  };
   if (!Array.isArray(graph.nodes)) return raw;
+  const record = (value: unknown): Record<string, unknown> | undefined =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  const emailIds = new Set<string>();
+  const emails = new Map<string, string>();
+  for (const value of graph.nodes) {
+    const node = record(value);
+    if (node?.type !== "email_notify") continue;
+    if (typeof node.id === "string") emailIds.add(node.id);
+    const rows = record(node.config)?.recipients;
+    if (!Array.isArray(rows)) continue;
+    for (const value of rows) {
+      const row = record(value);
+      // Invalid legacy drafts are discarded rather than making a saved flow unloadable.
+      if (
+        typeof row?.address === "string" &&
+        typeof row.email === "string" &&
+        row.email.trim().length <= 254 &&
+        isValidEmailAddress(row.email.trim()) &&
+        !emails.has(row.address)
+      ) {
+        emails.set(row.address, row.email.trim());
+      }
+    }
+  }
+  const copyEmail = (value: unknown, addressKey: string): unknown => {
+    const row = record(value);
+    if (!row) return value;
+    const address = row[addressKey];
+    const email = typeof address === "string" ? emails.get(address) : undefined;
+    return email && !row.email ? { ...row, email } : value;
+  };
   return {
     ...graph,
-    nodes: graph.nodes.map((n) => {
-      if (!n || typeof n !== "object") return n;
-      const node = n as { type?: unknown; config?: { recipients?: unknown[] } };
-      if (node.type === "split" && Array.isArray(node.config?.recipients)) {
-        return {
-          ...node,
-          config: {
-            ...node.config,
-            recipients: node.config.recipients.map(hydrateSplitRecipient),
-          },
-        };
-      }
-      if (node.type === "subscription" && node.config && typeof node.config === "object") {
-        const cfg = node.config as { intervalAmount?: unknown; intervalUnit?: unknown };
-        if (cfg.intervalAmount === undefined || cfg.intervalUnit === undefined) {
+    ...(Array.isArray(graph.edges)
+      ? {
+          edges: graph.edges.filter((value) => {
+            const edge = record(value);
+            return !emailIds.has(String(edge?.source)) && !emailIds.has(String(edge?.target));
+          }),
+        }
+      : {}),
+    ...(graph.positions
+      ? {
+          positions: Object.fromEntries(
+            Object.entries(graph.positions).filter(([id]) => !emailIds.has(id)),
+          ),
+        }
+      : {}),
+    nodes: graph.nodes
+      .filter((value) => record(value)?.type !== "email_notify")
+      .map((value) => {
+        const original = record(value);
+        const n =
+          original?.type === "pay"
+            ? { ...original, config: copyEmail(original.config, "recipient") }
+            : value;
+        if (!n || typeof n !== "object") return n;
+        const node = n as { type?: unknown; config?: { recipients?: unknown[] } };
+        if (node.type === "split" && Array.isArray(node.config?.recipients)) {
           return {
             ...node,
             config: {
               ...node.config,
-              intervalAmount: 1,
-              intervalUnit: "day",
+              recipients: node.config.recipients.map((r) =>
+                hydrateSplitRecipient(copyEmail(r, "address")),
+              ),
             },
           };
         }
-      }
-      if (node.type === "payroll" && node.config && typeof node.config === "object") {
-        const cfg = node.config as { fillScheduleViaApi?: unknown };
-        if (cfg.fillScheduleViaApi === undefined) {
-          return {
-            ...node,
-            config: {
-              ...node.config,
-              fillScheduleViaApi: false,
-            },
-          };
+        if (node.type === "subscription" && node.config && typeof node.config === "object") {
+          const cfg = node.config as { intervalAmount?: unknown; intervalUnit?: unknown };
+          if (cfg.intervalAmount === undefined || cfg.intervalUnit === undefined) {
+            return {
+              ...node,
+              config: {
+                ...node.config,
+                intervalAmount: 1,
+                intervalUnit: "day",
+              },
+            };
+          }
         }
-      }
-      if (node.type === "pay" && node.config && typeof node.config === "object") {
-        const cfg = node.config as { fillValueViaApi?: unknown; mode?: unknown };
-        const updates: Record<string, unknown> = {};
-        if (cfg.fillValueViaApi === undefined) {
-          updates.fillValueViaApi = false;
+        if (node.type === "payroll" && node.config && typeof node.config === "object") {
+          const cfg = node.config as { fillScheduleViaApi?: unknown };
+          if (cfg.fillScheduleViaApi === undefined) {
+            return {
+              ...node,
+              config: {
+                ...node.config,
+                fillScheduleViaApi: false,
+              },
+            };
+          }
         }
-        if (cfg.mode === undefined) {
-          updates.mode = "fixed";
+        if (node.type === "pay" && node.config && typeof node.config === "object") {
+          const cfg = node.config as { fillValueViaApi?: unknown; mode?: unknown };
+          const updates: Record<string, unknown> = {};
+          if (cfg.fillValueViaApi === undefined) {
+            updates.fillValueViaApi = false;
+          }
+          if (cfg.mode === undefined) {
+            updates.mode = "fixed";
+          }
+          if (Object.keys(updates).length > 0) {
+            return {
+              ...node,
+              config: {
+                ...node.config,
+                ...updates,
+              },
+            };
+          }
         }
-        if (Object.keys(updates).length > 0) {
-          return {
-            ...node,
-            config: {
-              ...node.config,
-              ...updates,
-            },
-          };
-        }
-      }
-      return n;
-    }),
+        return n;
+      }),
   };
 }
 
@@ -459,6 +517,17 @@ export const ConditionLogic = z.object({
   ]),
 });
 
+export const HoldAction = z.object({
+  id: z.string().min(1),
+  type: z.literal("hold"),
+  config: z.object({}).strict(),
+});
+export const ReturnToOwnerAction = z.object({
+  id: z.string().min(1),
+  type: z.literal("return_to_owner"),
+  config: z.object({}).strict(),
+});
+
 export const FlowNodeSchema = z.discriminatedUnion("type", [
   OnReceiveTrigger,
   OnScheduleTrigger,
@@ -474,13 +543,34 @@ export const FlowNodeSchema = z.discriminatedUnion("type", [
   EmailNotifyAction,
   CashOutAction,
   ConditionLogic,
+  HoldAction,
+  ReturnToOwnerAction,
 ]);
 export type FlowNode = z.infer<typeof FlowNodeSchema>;
+
+/**
+ * Which output of a condition an edge leaves from: `"true"` when the condition
+ * is met, `"false"` when it is not. The value doubles as the React Flow source
+ * handle id on the condition node.
+ *
+ * Only a condition with two outputs may carry `"false"` (today the amount
+ * kinds, see `lib/flows/branches.ts`); `lib/flows/validate.ts` refuses it
+ * anywhere else. The schema does not, because the builder autosaves the whole
+ * graph and a user who switches a wired amount condition to a time condition
+ * must still be able to save while the validator tells them to move the edge.
+ *
+ * Absent on every edge saved before branches existed. `edgeBranch()` reads a
+ * handle-less edge out of a condition as `"true"`, which is what such an edge
+ * always meant: the steps that run when the condition holds.
+ */
+export const EdgeBranchSchema = z.enum(["true", "false"]);
+export type EdgeBranch = z.infer<typeof EdgeBranchSchema>;
 
 export const FlowEdgeSchema = z.object({
   id: z.string().min(1),
   source: z.string().min(1),
   target: z.string().min(1),
+  sourceHandle: EdgeBranchSchema.optional(),
 });
 export type FlowEdge = z.infer<typeof FlowEdgeSchema>;
 
@@ -510,7 +600,13 @@ export const SenderKycSchema = z.object({
 });
 export type SenderKyc = z.infer<typeof SenderKycSchema>;
 
-export const FlowGraphSchema = z.object({
+export const NotifySchema = z.object({
+  mode: z.enum(["off", "every_transaction", "shortfalls_only"]),
+  // Drafts autosave on each keystroke; validity is checked separately.
+  sendTo: z.string().max(254),
+});
+
+const FlowGraphShape = z.object({
   nodes: z.array(FlowNodeSchema).max(40),
   edges: z.array(FlowEdgeSchema).max(80),
   // Dev mode turns this flow into a parameterized one: nodes with a dev
@@ -518,12 +614,15 @@ export const FlowGraphSchema = z.object({
   // variant whose recipients / amounts / schedule can be left blank at design
   // time and filled or changed later via the API.
   devMode: z.boolean().optional(),
+  notify: NotifySchema.optional(),
   senderKyc: SenderKycSchema.optional(),
   // Canvas layout: node positions keyed by node id. UI-only state — ignored by
   // validation and pipeline compilation, but persisted with the flow so the
   // builder reopens with the same arrangement instead of re-cascading nodes.
   positions: z.record(z.string(), z.object({ x: z.number(), y: z.number() })).optional(),
 });
+// Every stored-graph reader and save boundary converts legacy nodes before parsing.
+export const FlowGraphSchema = z.preprocess(migrateFlowGraph, FlowGraphShape);
 export type FlowGraph = z.infer<typeof FlowGraphSchema>;
 
 export const FlowSaveSchema = z.object({
@@ -550,10 +649,15 @@ export type ActionNode =
   | z.infer<typeof SwapAction>
   | z.infer<typeof YieldAction>
   | z.infer<typeof EmailNotifyAction>
-  | z.infer<typeof CashOutAction>;
+  | z.infer<typeof CashOutAction>
+  | z.infer<typeof HoldAction>
+  | z.infer<typeof ReturnToOwnerAction>;
 export type LogicNode = z.infer<typeof ConditionLogic>;
 
-export type ContractActionNode = Exclude<ActionNode, { type: "email_notify" }>;
+export type ContractActionNode = Exclude<
+  ActionNode,
+  { type: "email_notify" | "hold" | "return_to_owner" }
+>;
 
 export function isTrigger(n: FlowNode): n is TriggerNode {
   return (
@@ -572,6 +676,8 @@ export function isAction(n: FlowNode): n is ActionNode {
     n.type === "split" ||
     n.type === "swap" ||
     n.type === "yield" ||
+    n.type === "hold" ||
+    n.type === "return_to_owner" ||
     n.type === "email_notify" ||
     n.type === "cash_out"
   );
@@ -677,4 +783,38 @@ export function sourceAmountStroops(graph: FlowGraph): string | undefined {
     }
   }
   return undefined;
+}
+
+/** Strip personal notification data before handing a graph to a public surface. */
+export function withoutNotificationEmails(graph: FlowGraph): FlowGraph {
+  const { notify: _notify, senderKyc, ...rest } = graph;
+  const publicKyc = senderKyc ? (({ email: _email, ...kyc }) => kyc)(senderKyc) : undefined;
+  return {
+    ...rest,
+    ...(publicKyc ? { senderKyc: publicKyc } : {}),
+    nodes: graph.nodes
+      .filter((n) => n.type !== "email_notify")
+      .map((n) => {
+        if (n.type === "pay") {
+          const { email: _email, ...config } = n.config;
+          return { ...n, config };
+        }
+        if (n.type === "split")
+          return {
+            ...n,
+            config: {
+              ...n.config,
+              recipients: n.config.recipients.map((r) => {
+                const { email: _email, ...recipient } = r;
+                return recipient;
+              }),
+            },
+          };
+        return n;
+      }),
+  };
+}
+
+export function sandboxNotifications(graph: FlowGraph): FlowGraph {
+  return { ...withoutNotificationEmails(graph), notify: { mode: "off", sendTo: "" } };
 }

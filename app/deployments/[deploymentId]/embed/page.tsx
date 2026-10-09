@@ -1,46 +1,36 @@
 import { notFound } from "next/navigation";
+import { z } from "zod";
 import { db } from "@/lib/db";
-import { FlowGraphSchema } from "@/lib/flows/schema";
-import DeploymentView from "@/components/deploy/deployment-view";
+import { projectPublicEmbed, PUBLIC_EVENT_SELECT } from "@/lib/deployments/public-embed";
+import PublicDeploymentView from "@/components/deploy/public-deployment-view";
 import Logo from "@/components/app/logo";
-import { isStellarNetwork, type StellarNetwork } from "@/lib/stellar/explorer";
-import { log } from "@/lib/log";
 
 export const dynamic = "force-dynamic";
 
 export default async function EmbedPage({ params }: { params: Promise<{ deploymentId: string }> }) {
   const { deploymentId } = await params;
-  const d = await db.deployment.findUnique({
-    where: { id: deploymentId },
-    include: {
+  if (!z.string().uuid().safeParse(deploymentId).success) notFound();
+  // Internal snapshot determines payment eligibility; only its safe link is published.
+  // Never load webhook credentials, owner records or tokens.
+  const deployment = await db.deployment.findUnique({
+    where: { id: deploymentId, serviceState: "ACTIVE" },
+    select: {
+      id: true,
+      status: true,
+      contractAddress: true,
+      network: true,
+      graphSnapshot: true,
+      pipelineSnapshot: true,
       flow: { select: { templateKind: true } },
-      events: { orderBy: [{ ledger: "desc" }, { eventId: "desc" }], take: 50 },
+      events: {
+        orderBy: [{ ledger: "desc" }, { eventId: "desc" }],
+        take: 50,
+        select: PUBLIC_EVENT_SELECT,
+      },
     },
   });
-  if (!d || d.status !== "CONFIRMED" || !d.contractAddress) notFound();
-  const graphResult = FlowGraphSchema.safeParse(d.graphSnapshot);
-  if (!graphResult.success) notFound();
-  const graph = graphResult.data;
-
-  const network: StellarNetwork | null = isStellarNetwork(d.network) ? d.network : null;
-  if (!network && d.network) {
-    log.warn(
-      { deploymentId: d.id, network: d.network },
-      "deployment.network is not a known StellarNetwork; explorer link disabled",
-    );
-  }
-
-  const pipeline = d.pipelineSnapshot as Array<{
-    nodeId: string;
-    contractAddress: string;
-    templateKind: string;
-  }> | null;
-  const isPipeline = pipeline?.[0]?.templateKind === "DEPOSIT_TRIGGER";
-
-  const qrUrl =
-    isPipeline || d.flow.templateKind === "SPLITTER"
-      ? `/api/deployments/${d.id}/qr?action=trigger`
-      : null;
+  const data = deployment ? projectPublicEmbed(deployment) : null;
+  if (!data) notFound();
 
   return (
     <main className="px-margin py-md mx-auto max-w-4xl">
@@ -49,27 +39,7 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
         <span className="text-outline-variant">·</span>
         <span>EMBED</span>
       </div>
-      <DeploymentView
-        deploymentId={d.id}
-        contractAddress={d.contractAddress}
-        network={network}
-        status={d.status}
-        qrUrl={qrUrl}
-        graph={graph}
-        webhookSecret={d.webhookSecret}
-        pipeline={pipeline}
-        templateKind={d.flow.templateKind}
-        errorMessage={null}
-        initialEvents={d.events.map((e) => ({
-          id: e.id,
-          kind: e.kind,
-          ledger: e.ledger,
-          txHash: e.txHash,
-          payload: e.payload,
-          decodedData: e.decodedData as Record<string, unknown> | null,
-          occurredAt: e.occurredAt.toISOString(),
-        }))}
-      />
+      <PublicDeploymentView key={data.deploymentId} data={data} />
     </main>
   );
 }

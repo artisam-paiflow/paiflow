@@ -1,0 +1,389 @@
+{
+  "measuredAt": "2026-10-06T07:33:09.106Z",
+  "sourceSha256": {
+    "tests/rehearsal/dashboard-balance-workload.test.ts": "bb098b44589d861c6efb764873941ca02a4f5b0a9281806e5988155cdd349a1d",
+    "lib/hooks/balance-refresh-scheduler.ts": "db7d92a17b26c4f15533d4225903e791147070e737e9bf371aecd98dfdaf7524",
+    "lib/stellar/dashboard-balance-admission.ts": "5a92676baffd9a34e6b250045500c15cc8ab52203384c2ca25a9cbea0866a5c4",
+    "lib/stellar/dashboard-balance-cache.ts": "ba2dc203742acc313cadede3df2fafd46f9d8383edb123aa41f841316c4a7bff",
+    "lib/stellar/balances.ts": "c2ab4aa4246758bbe65909e29c2316cd0a7b8cb449cc80cf1b7d5a70a1255c82",
+    "lib/stellar/balance.ts": "d4226e9cbf1f6878e5f13e0eccb66d55e74fbdc21d9c065b568297c043581963",
+    "lib/stellar/events.ts": "b7c63960b6036b6385cb66b3dc7b98c8769ef2db7f31f80e9e88d4af5b0b99c4"
+  },
+  "environment": "virtual-time; mocked RPC/DB; no live traffic",
+  "durationMs": 600000,
+  "pipelines": 100,
+  "contractsPerPipeline": 10,
+  "targetsPerDashboard": 8,
+  "visibleTabs": 10,
+  "outageMs": [120000, 180000],
+  "reports": [
+    {
+      "shared": false,
+      "latencyMs": 350,
+      "activeLimit": 2,
+      "endpointReads": 316,
+      "calls": {
+        "balances": 1729,
+        "transactions": 140,
+        "automation": 56,
+        "events": 2200
+      },
+      "successes": {
+        "balances": 1701,
+        "transactions": 135,
+        "automation": 54,
+        "events": 1800
+      },
+      "rejectedRpc": 435,
+      "overloads": 4,
+      "partial": 38,
+      "peakRpc": 11,
+      "peakDashboardRpc": 4,
+      "admission": {
+        "active": 0,
+        "queued": 0,
+        "peakActive": 2,
+        "peakQueued": 8,
+        "rejected": 4
+      },
+      "cache": {
+        "entries": 10,
+        "hits": 95,
+        "joins": 0,
+        "refreshes": 221
+      },
+      "balanceAgeP95Ms": 42010,
+      "endpointLatencyP95Ms": 1750,
+      "eventComplete": 900,
+      "eventFailed": 100,
+      "eventCursorAgeMaxMs": 60000,
+      "transactions": 45,
+      "automation": 18,
+      "backlogAtEnd": 3,
+      "backlogAfterDrain": 0,
+      "externalRequests": 0
+    },
+    {
+      "shared": false,
+      "latencyMs": 350,
+      "activeLimit": 4,
+      "endpointReads": 314,
+      "calls": {
+        "balances": 1747,
+        "transactions": 140,
+        "automation": 56,
+        "events": 2200
+      },
+      "successes": {
+        "balances": 1719,
+        "transactions": 135,
+        "automation": 54,
+        "events": 1800
+      },
+      "rejectedRpc": 435,
+      "overloads": 0,
+      "partial": 38,
+      "peakRpc": 11,
+      "peakDashboardRpc": 8,
+      "admission": {
+        "active": 0,
+        "queued": 0,
+        "peakActive": 4,
+        "peakQueued": 6,
+        "rejected": 0
+      },
+      "cache": {
+        "entries": 10,
+        "hits": 95,
+        "joins": 0,
+        "refreshes": 219
+      },
+      "balanceAgeP95Ms": 42010,
+      "endpointLatencyP95Ms": 1750,
+      "eventComplete": 900,
+      "eventFailed": 100,
+      "eventCursorAgeMaxMs": 60000,
+      "transactions": 45,
+      "automation": 18,
+      "backlogAtEnd": 3,
+      "backlogAfterDrain": 0,
+      "externalRequests": 0
+    },
+    {
+      "shared": false,
+      "latencyMs": 3000,
+      "activeLimit": 2,
+      "endpointReads": 179,
+      "calls": {
+        "balances": 636,
+        "transactions": 140,
+        "automation": 56,
+        "events": 2120
+      },
+      "successes": {
+        "balances": 617,
+        "transactions": 135,
+        "automation": 54,
+        "events": 1886
+      },
+      "rejectedRpc": 260,
+      "overloads": 27,
+      "partial": 95,
+      "peakRpc": 24,
+      "peakDashboardRpc": 4,
+      "admission": {
+        "active": 0,
+        "queued": 0,
+        "peakActive": 2,
+        "peakQueued": 8,
+        "rejected": 90
+      },
+      "cache": {
+        "entries": 10,
+        "hits": 38,
+        "joins": 0,
+        "refreshes": 174
+      },
+      "balanceAgeP95Ms": 133960,
+      "endpointLatencyP95Ms": 30680,
+      "eventComplete": 934,
+      "eventFailed": 66,
+      "eventCursorAgeMaxMs": 60000,
+      "transactions": 45,
+      "automation": 18,
+      "backlogAtEnd": 4,
+      "backlogAfterDrain": 0,
+      "externalRequests": 0
+    },
+    {
+      "shared": false,
+      "latencyMs": 3000,
+      "activeLimit": 4,
+      "endpointReads": 228,
+      "calls": {
+        "balances": 1241,
+        "transactions": 140,
+        "automation": 56,
+        "events": 2120
+      },
+      "successes": {
+        "balances": 1199,
+        "transactions": 135,
+        "automation": 54,
+        "events": 1886
+      },
+      "rejectedRpc": 283,
+      "overloads": 11,
+      "partial": 82,
+      "peakRpc": 28,
+      "peakDashboardRpc": 8,
+      "admission": {
+        "active": 0,
+        "queued": 0,
+        "peakActive": 4,
+        "peakQueued": 6,
+        "rejected": 42
+      },
+      "cache": {
+        "entries": 10,
+        "hits": 75,
+        "joins": 0,
+        "refreshes": 203
+      },
+      "balanceAgeP95Ms": 77760,
+      "endpointLatencyP95Ms": 33240,
+      "eventComplete": 934,
+      "eventFailed": 66,
+      "eventCursorAgeMaxMs": 60000,
+      "transactions": 45,
+      "automation": 18,
+      "backlogAtEnd": 4,
+      "backlogAfterDrain": 0,
+      "externalRequests": 0
+    },
+    {
+      "shared": true,
+      "latencyMs": 350,
+      "activeLimit": 2,
+      "endpointReads": 1778,
+      "calls": {
+        "balances": 805,
+        "transactions": 140,
+        "automation": 56,
+        "events": 2200
+      },
+      "successes": {
+        "balances": 801,
+        "transactions": 135,
+        "automation": 54,
+        "events": 1800
+      },
+      "rejectedRpc": 411,
+      "overloads": 0,
+      "partial": 40,
+      "peakRpc": 10,
+      "peakDashboardRpc": 2,
+      "admission": {
+        "active": 0,
+        "queued": 0,
+        "peakActive": 1,
+        "peakQueued": 0,
+        "rejected": 0
+      },
+      "cache": {
+        "entries": 1,
+        "hits": 880,
+        "joins": 815,
+        "refreshes": 93
+      },
+      "balanceAgeP95Ms": 1050,
+      "endpointLatencyP95Ms": 1750,
+      "eventComplete": 900,
+      "eventFailed": 100,
+      "eventCursorAgeMaxMs": 60000,
+      "transactions": 45,
+      "automation": 18,
+      "backlogAtEnd": 3,
+      "backlogAfterDrain": 0,
+      "externalRequests": 0
+    },
+    {
+      "shared": true,
+      "latencyMs": 350,
+      "activeLimit": 4,
+      "endpointReads": 1778,
+      "calls": {
+        "balances": 805,
+        "transactions": 140,
+        "automation": 56,
+        "events": 2200
+      },
+      "successes": {
+        "balances": 801,
+        "transactions": 135,
+        "automation": 54,
+        "events": 1800
+      },
+      "rejectedRpc": 411,
+      "overloads": 0,
+      "partial": 40,
+      "peakRpc": 10,
+      "peakDashboardRpc": 2,
+      "admission": {
+        "active": 0,
+        "queued": 0,
+        "peakActive": 1,
+        "peakQueued": 0,
+        "rejected": 0
+      },
+      "cache": {
+        "entries": 1,
+        "hits": 880,
+        "joins": 815,
+        "refreshes": 93
+      },
+      "balanceAgeP95Ms": 1050,
+      "endpointLatencyP95Ms": 1750,
+      "eventComplete": 900,
+      "eventFailed": 100,
+      "eventCursorAgeMaxMs": 60000,
+      "transactions": 45,
+      "automation": 18,
+      "backlogAtEnd": 3,
+      "backlogAfterDrain": 0,
+      "externalRequests": 0
+    },
+    {
+      "shared": true,
+      "latencyMs": 3000,
+      "activeLimit": 2,
+      "endpointReads": 80,
+      "calls": {
+        "balances": 112,
+        "transactions": 140,
+        "automation": 56,
+        "events": 2120
+      },
+      "successes": {
+        "balances": 108,
+        "transactions": 135,
+        "automation": 54,
+        "events": 1886
+      },
+      "rejectedRpc": 245,
+      "overloads": 0,
+      "partial": 80,
+      "peakRpc": 20,
+      "peakDashboardRpc": 2,
+      "admission": {
+        "active": 0,
+        "queued": 0,
+        "peakActive": 1,
+        "peakQueued": 0,
+        "rejected": 0
+      },
+      "cache": {
+        "entries": 1,
+        "hits": 0,
+        "joins": 144,
+        "refreshes": 16
+      },
+      "balanceAgeP95Ms": 9000,
+      "endpointLatencyP95Ms": 30000,
+      "eventComplete": 934,
+      "eventFailed": 66,
+      "eventCursorAgeMaxMs": 60000,
+      "transactions": 45,
+      "automation": 18,
+      "backlogAtEnd": 4,
+      "backlogAfterDrain": 0,
+      "externalRequests": 0
+    },
+    {
+      "shared": true,
+      "latencyMs": 3000,
+      "activeLimit": 4,
+      "endpointReads": 80,
+      "calls": {
+        "balances": 112,
+        "transactions": 140,
+        "automation": 56,
+        "events": 2120
+      },
+      "successes": {
+        "balances": 108,
+        "transactions": 135,
+        "automation": 54,
+        "events": 1886
+      },
+      "rejectedRpc": 245,
+      "overloads": 0,
+      "partial": 80,
+      "peakRpc": 20,
+      "peakDashboardRpc": 2,
+      "admission": {
+        "active": 0,
+        "queued": 0,
+        "peakActive": 1,
+        "peakQueued": 0,
+        "rejected": 0
+      },
+      "cache": {
+        "entries": 1,
+        "hits": 0,
+        "joins": 144,
+        "refreshes": 16
+      },
+      "balanceAgeP95Ms": 9000,
+      "endpointLatencyP95Ms": 30000,
+      "eventComplete": 934,
+      "eventFailed": 66,
+      "eventCursorAgeMaxMs": 60000,
+      "transactions": 45,
+      "automation": 18,
+      "backlogAtEnd": 4,
+      "backlogAfterDrain": 0,
+      "externalRequests": 0
+    }
+  ]
+}

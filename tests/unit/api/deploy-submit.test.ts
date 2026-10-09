@@ -1,3 +1,22 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
+vi.mock("@/lib/analytics/outcomes", () => ({
+  recordTransactionOutcome: vi.fn(async () => false),
+  beginTransactionSubmission: vi.fn(async () => undefined),
+  transactionObservation: vi.fn(async () => undefined),
+}));
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeTx } = vi.hoisted(
@@ -8,6 +27,7 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeT
         findFirst: vi.fn(),
         findUnique: vi.fn(),
         update: vi.fn(),
+        updateMany: vi.fn(async () => ({ count: 1 })),
       },
       employee: {
         create: vi.fn(),
@@ -18,6 +38,8 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeT
       offRampSenderProfile: {
         upsert: vi.fn(),
       },
+      user: { findUnique: vi.fn(async () => null) },
+      analyticsDelivery: { createMany: vi.fn(async () => ({ count: 1 })) },
       signedTransaction: {
         createMany: vi.fn(async () => ({ count: 1 })),
       },
@@ -31,6 +53,12 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeT
       STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
       STELLAR_RELAYER_ADDRESS: null as string | null,
       LOG_LEVEL: "silent",
+      FEATURE_DEV_MODE_ENABLED: true,
+      NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+      NEXT_PUBLIC_APP_ENV: "local",
+      STELLAR_NETWORK: "testnet",
+      STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID: undefined as string | undefined,
+      STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL: undefined as string | undefined,
     };
 
     const mockRedis = {
@@ -86,6 +114,7 @@ vi.mock("@stellar/stellar-sdk", async () => {
 import { POST } from "@/app/api/deployments/[id]/submit/route";
 import { audit } from "@/lib/audit";
 import { captureServer } from "@/lib/analytics/server";
+import { requireSession } from "@/lib/auth";
 
 const auditActions = () => vi.mocked(audit).mock.calls.map(([a]) => a.action);
 const capturedEvents = () => vi.mocked(captureServer).mock.calls.map(([, event]) => event);
@@ -125,9 +154,177 @@ function makePrismaError(code: string, message: string) {
 }
 
 describe("deployments/[id]/submit", () => {
+  it.each([
+    { graphSnapshot: { devMode: true }, pipelineSnapshot: [] },
+    { graphSnapshot: null, pipelineSnapshot: [{ templateKind: "PAYER_DEV" }] },
+  ])("refuses a previously prepared Dev deployment after disablement: %j", async (snapshots) => {
+    mockEnv.FEATURE_DEV_MODE_ENABLED = false;
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment(snapshots));
+    const response = await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(response.status).toBe(422);
+    expect((await response.json()).error.code).toBe("VALIDATION");
+    expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
+    expect(mockDb.deployment.update).not.toHaveBeenCalled();
+    expect(mockDb.deployment.updateMany).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEnv.FEATURE_DEV_MODE_ENABLED = true;
     mockFromXDR.mockImplementation(() => fakeTx("aabbccdd"));
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = undefined;
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = undefined;
+    vi.mocked(requireSession).mockResolvedValue({
+      id: "user-1",
+      username: "test-user",
+      role: "USER",
+    });
+  });
+
+  it("returns accepted rehearsal submissions without confirmation/setup or failure events", async () => {
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = "flow-1";
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = new Date(
+      Date.now() + 60_000,
+    ).toISOString();
+    vi.mocked(requireSession).mockResolvedValue({
+      id: "user-1",
+      username: "test-admin",
+      role: "ADMIN",
+    });
+    mockDb.deployment.findFirst.mockResolvedValue(
+      makeDeployment({ flowId: "flow-1", network: "testnet" }),
+    );
+    mockDeploy.submitDeployTx.mockResolvedValue({ status: "SUBMITTED", txHash: TX_HASH });
+    const response = await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toEqual({ status: "SUBMITTED", txHash: TX_HASH });
+    expect(mockDeploy.submitDeployTx).toHaveBeenCalledWith("signed-xdr", {
+      confirmation: "reconcile",
+    });
+    expect(mockDb.deployment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "dep-1", ownerId: "user-1" } }),
+    );
+    expect(mockDb.deployment.update).toHaveBeenCalledTimes(1);
+    expect(mockDb.deployment.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "SUBMITTED", deployTxHash: TX_HASH } }),
+    );
+    expect(mockDb.employee.create).not.toHaveBeenCalled();
+    expect(auditActions()).toEqual(["DEPLOY_SUBMIT"]);
+    expect(vi.mocked(audit)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ reconciliationRehearsal: true }),
+      }),
+    );
+    expect(capturedEvents()).not.toContain("deploy_confirmed");
+    expect(capturedEvents()).not.toContain("deploy_failed");
+  });
+
+  it.each([
+    ["USER", "flow-1", "testnet"],
+    ["SANDBOX", "flow-1", "testnet"],
+    ["ADMIN", "other-flow", "testnet"],
+    ["ADMIN", "flow-1", "mainnet"],
+  ] as const)("keeps ordinary confirmation for %s / %s / %s", async (role, flowId, network) => {
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = "flow-1";
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = new Date(
+      Date.now() + 60_000,
+    ).toISOString();
+    vi.mocked(requireSession).mockResolvedValue({ id: "user-1", username: "test-user", role });
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment({ flowId, network }));
+    mockDeploy.submitDeployTx.mockResolvedValue({
+      status: "FAILED",
+      txHash: TX_HASH,
+      failureCode: "FINALITY_UNKNOWN",
+    });
+    await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(mockDeploy.submitDeployTx).toHaveBeenCalledWith("signed-xdr");
+  });
+
+  it("cannot use the rehearsal to bypass deployment ownership", async () => {
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = "flow-1";
+    mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = new Date(
+      Date.now() + 60_000,
+    ).toISOString();
+    vi.mocked(requireSession).mockResolvedValue({
+      id: "user-1",
+      username: "test-admin",
+      role: "ADMIN",
+    });
+    mockDb.deployment.findFirst.mockResolvedValue(null);
+    const response = await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(response.status).toBe(404);
+    expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
+    expect(mockDb.deployment.update).not.toHaveBeenCalled();
+  });
+
+  it("keeps a finality timeout submitted for server reconciliation", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+    mockDeploy.submitDeployTx.mockResolvedValue({
+      status: "FAILED",
+      txHash: TX_HASH,
+      errorMessage: "Timed out waiting for finality",
+      failureCode: "FINALITY_UNKNOWN",
+    });
+    const response = await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toEqual({ status: "SUBMITTED", txHash: TX_HASH });
+    expect(mockDb.deployment.update).toHaveBeenCalledTimes(1);
+    expect(mockDb.deployment.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "SUBMITTED", deployTxHash: TX_HASH } }),
+    );
+    expect(auditActions()).not.toContain("DEPLOY_FAIL");
+    expect(capturedEvents()).not.toContain("deploy_failed");
+  });
+
+  it("retains prepared block bindings when confirming a deployment", async () => {
+    const pipeline = [
+      {
+        nodeId: "p",
+        contractAddress: "CABC",
+        templateKind: "STREAMER",
+        implementation: {
+          version: 1,
+          bindings: [
+            { blockId: "t", blockType: "on_schedule", role: "schedule" },
+            { blockId: "p", blockType: "split", role: "distribution" },
+          ],
+        },
+      },
+    ];
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment({ pipelineSnapshot: pipeline }));
+    mockDeploy.submitDeployTx.mockResolvedValue({ status: "SUCCESS", txHash: TX_HASH });
+    mockDb.deployment.update.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+      id: "dep-1",
+      status: "CONFIRMED",
+      serviceState: "ACTIVE",
+      deployTxHash: TX_HASH,
+      contractAddress: "CABC",
+      pipelineSnapshot: pipeline,
+    });
+    const res = await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.pipeline).toEqual(pipeline);
+    const confirmation = mockDb.deployment.update.mock.calls[1]?.[0].data;
+    expect(confirmation.status).toBe("CONFIRMED");
+    // Confirmation updates status/finality fields without replacing the prepared snapshot.
+    expect(confirmation).not.toHaveProperty("pipelineSnapshot");
   });
 
   it("returns idempotently when a concurrent request already confirmed (P2025 race-loser)", async () => {
@@ -145,6 +342,7 @@ describe("deployments/[id]/submit", () => {
     mockDb.deployment.findUnique.mockResolvedValue({
       id: "dep-1",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       deployTxHash: TX_HASH,
       contractAddress: "CABC",
       pipelineSnapshot: [{ nodeId: "n1", contractAddress: "CABC", templateKind: "SPLITTER" }],
@@ -176,6 +374,7 @@ describe("deployments/[id]/submit", () => {
     mockDb.deployment.findUnique.mockResolvedValue({
       id: "dep-1",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       deployTxHash: "different-hash",
       contractAddress: "CABC",
       pipelineSnapshot: [{ nodeId: "n1", contractAddress: "CABC", templateKind: "SPLITTER" }],
@@ -250,7 +449,7 @@ describe("deployments/[id]/submit", () => {
       expect(mockDb.deployment.update).toHaveBeenCalledTimes(2);
       expect(mockDb.deployment.update.mock.calls.at(-1)?.[0]).toEqual({
         where: { id: "dep-1", status: "SUBMITTED" },
-        data: { status: "PENDING_SIGNATURE" },
+        data: { status: "PENDING_SIGNATURE", deployTxHash: null },
       });
       expect(auditActions()).toEqual(["DEPLOY_SUBMIT"]);
       expect(capturedEvents()).not.toContain("deploy_failed");
@@ -261,6 +460,7 @@ describe("deployments/[id]/submit", () => {
       mockDb.deployment.update.mockResolvedValue({
         id: "dep-1",
         status: "CONFIRMED",
+        serviceState: "ACTIVE",
         deployTxHash: TX_HASH,
         contractAddress: "CABC",
         pipelineSnapshot: [{ nodeId: "n1", contractAddress: "CABC", templateKind: "SPLITTER" }],
@@ -287,7 +487,7 @@ describe("deployments/[id]/submit", () => {
       expect((await second.json()).data).toMatchObject({ status: "CONFIRMED", txHash: TX_HASH });
       expect(mockDeploy.submitDeployTx).toHaveBeenCalledTimes(2);
       expect(auditActions()).toEqual(["DEPLOY_SUBMIT", "DEPLOY_SUBMIT", "DEPLOY_CONFIRM"]);
-      expect(capturedEvents().filter((e) => e === "transaction_signed")).toHaveLength(1);
+      expect(mockDb.analyticsDelivery.createMany).toHaveBeenCalledTimes(1);
       expect(capturedEvents()).not.toContain("deploy_failed");
     });
 
@@ -309,11 +509,24 @@ describe("deployments/[id]/submit", () => {
     });
   });
 
-  it("rejects a signed XDR that does not match the prepared transaction", async () => {
+  it.each([false, true])("rejects mismatched signed XDR (rehearsal: %s)", async (rehearsal) => {
+    if (rehearsal) {
+      mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = "flow-1";
+      mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = new Date(
+        Date.now() + 60_000,
+      ).toISOString();
+      vi.mocked(requireSession).mockResolvedValue({
+        id: "user-1",
+        username: "test-admin",
+        role: "ADMIN",
+      });
+    }
     mockFromXDR.mockImplementation((...args: unknown[]) =>
       fakeTx(args[0] === "unsigned-xdr" ? "aabbccdd" : "11223344"),
     );
-    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment());
+    mockDb.deployment.findFirst.mockResolvedValue(
+      makeDeployment({ flowId: "flow-1", network: "testnet" }),
+    );
 
     const req = makeRequest({ deploymentId: "dep-1", signedXdr: "tampered-signed-xdr" });
     const res = await POST(req, makeContext("dep-1"));
@@ -357,6 +570,7 @@ describe("deployments/[id]/submit", () => {
     mockDb.deployment.update.mockResolvedValue({
       id: "dep-1",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       deployTxHash: TX_HASH,
       contractAddress: "CABC",
       pipelineSnapshot,
@@ -392,6 +606,7 @@ describe("deployments/[id]/submit", () => {
     mockDb.deployment.update.mockResolvedValue({
       id: "dep-1",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       deployTxHash: TX_HASH,
       contractAddress: "CABC",
       pipelineSnapshot,
@@ -419,6 +634,7 @@ describe("deployments/[id]/submit", () => {
     mockDb.deployment.update.mockResolvedValue({
       id: "dep-1",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       deployTxHash: TX_HASH,
       contractAddress: "CABC",
       pipelineSnapshot,
@@ -484,6 +700,7 @@ describe("deployments/[id]/submit", () => {
       mockDb.deployment.update.mockResolvedValue({
         id: "dep-1",
         status: "CONFIRMED",
+        serviceState: "ACTIVE",
         deployTxHash: TX_HASH,
         contractAddress: "CSUB",
         pipelineSnapshot: [{ nodeId: "n1", contractAddress: "CSUB", templateKind: "SUBSCRIPTION" }],
@@ -537,6 +754,7 @@ describe("deployments/[id]/submit", () => {
     mockDb.deployment.update.mockResolvedValue({
       id: "dep-1",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       deployTxHash: TX_HASH,
       contractAddress: "CSUBDEV",
       pipelineSnapshot: [

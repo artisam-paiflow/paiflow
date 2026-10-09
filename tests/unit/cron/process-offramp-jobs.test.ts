@@ -1,3 +1,17 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { OffRampPayoutJobStatus, OffRampJobSource } from "@prisma/client";
 
@@ -118,6 +132,7 @@ const baseJob = {
   updatedAt: new Date(),
   deployment: {
     status: "CONFIRMED",
+    serviceState: "ACTIVE",
     graphSnapshot: {},
     pipelineSnapshot: [],
     offRampSenderProfile: {
@@ -531,14 +546,15 @@ describe("process-offramp-jobs", () => {
     expect(mockProvider.quote).not.toHaveBeenCalled();
   });
 
-  it("cancels jobs for non-confirmed deployments", async () => {
+  it("keeps committed jobs eligible when deployment transaction status changes", async () => {
     const job = { ...baseJob, deployment: { ...baseJob.deployment, status: "DRAFT" } };
     mockJobs.getDueOffRampJobs.mockResolvedValue([job]);
 
     const res = await POST(makeRequest("cron-secret"));
     const json = await res.json();
 
-    expect(json.data.cancelled).toBe(1);
-    expect(mockJobs.cancelPendingOffRampJobs).toHaveBeenCalledWith(mockDb, "dep-1");
+    expect(json.data.cancelled).toBe(0);
+    expect(mockJobs.cancelPendingOffRampJobs).not.toHaveBeenCalled();
+    expect(mockJobs.claimOffRampJob).toHaveBeenCalled();
   });
 });

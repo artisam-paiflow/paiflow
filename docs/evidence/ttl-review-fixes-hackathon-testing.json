@@ -1,0 +1,100 @@
+{
+  "environment": "hackathon-testing",
+  "network": "TESTNET",
+  "at": "2026-10-05T00:22:54.173021+00:00",
+  "runtimeCommit": "97261d161396800edfac6aa63ee017451df96799",
+  "source": "tracked-only git archive; no local memory, credentials or unrelated untracked files",
+  "deployment": {
+    "id": "e4a14507-5fdf-4866-a5e6-29c383d66108",
+    "status": "SUCCESS",
+    "createdAt": "2026-10-05T00:17:45.791Z"
+  },
+  "migration": {
+    "name": "20261005000000_ttl_fixture_setup_claim",
+    "applied": true,
+    "fixtureSetupClaimedAt": "2026-10-04T23:24:05.188Z",
+    "originalReservationTimestampPreserved": true
+  },
+  "configuration": {
+    "applicationVariablesUnchanged": true,
+    "sharedConfigurationUnchanged": true,
+    "sharedConfigurationSha256": "327aadfa2285ab3d33fe1a6bae7d34bb35cc130a9e956a342da30490ca42e377",
+    "sharedHashInput": "JSON.stringify({templates, factories}); all rows, ordered by id/network",
+    "paidMaintenanceEnabled": false,
+    "maxFeeStroops": "500000000",
+    "campaignName": "ttl804-testnet-20261004",
+    "campaignLimitStroops": "1500000000",
+    "channelsConfigured": 0
+  },
+  "campaign": {
+    "committedStroops": "1313198",
+    "reservationCount": 2,
+    "remainingConservativeStroops": "1498686802",
+    "unchanged": true
+  },
+  "http": {
+    "at": "2026-10-05T00:22:00.589664+00:00",
+    "baseUrl": "https://pinkraft-prod.up.railway.app",
+    "health": {
+      "status": "ok",
+      "version": "dev",
+      "db": "ok",
+      "redis": "ok",
+      "rpc": "ok"
+    },
+    "missingSecretStatus": 403,
+    "wrongSecretStatus": 403,
+    "authenticatedInventory": {
+      "status": 200,
+      "durationMs": 3993,
+      "dryRun": true,
+      "deployments": 5,
+      "submissions": 0,
+      "truncated": true,
+      "budgetExhausted": false,
+      "moreDeployments": true,
+      "partialPipelines": true,
+      "failedDeploymentCount": 0,
+      "failedTargetCount": 0,
+      "leaseHeld": false
+    }
+  },
+  "fixtureReadOnly": {
+    "environment": "hackathon-testing",
+    "network": "TESTNET",
+    "at": "2026-10-05T00:19:02.485Z",
+    "phase": "awaiting-natural-expiry",
+    "before": [
+      {
+        "address": "CB45SMSGGVRBYPCLO6J3HP4IWWACFKB3762WYKFHV4R6VSJ6A77OA7KA",
+        "latestLedger": 5027191,
+        "liveUntilLedger": 5147491,
+        "valueSha256": "d72964b94462cfdd64cc31d7dae1a093d5ddb2fd90ddc0dbf0f991556cdba5ec",
+        "wasmHash": "bcf0ad2d7cedc728bd24cee8f20efa289efc3d5d8f24ed8a513fe393a5507d6c"
+      },
+      {
+        "address": "CAIS64XNDGLYRRZGNPX2J4FGQOJGWHZ4VC2OVMZTNHXJH7SJGDSA2MS7",
+        "latestLedger": 5027191,
+        "liveUntilLedger": 5147491,
+        "valueSha256": "4847d2971d8ba5bda59e369efcfe9ddecd262eeb3e461c7d5160d608c6f7289e",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f"
+      }
+    ],
+    "networkSubmissions": 0,
+    "confirmedTransactions": 0,
+    "transactions": [],
+    "verification": "not-started"
+  },
+  "independentReview": {
+    "originalFindingsResolved": 2,
+    "actionableRegressions": 0,
+    "scope": "source and local evidence; no external activity"
+  },
+  "localEvidence": "ttl-review-fixes-local.json",
+  "networkSubmissionsDuringFixes": 0,
+  "limitations": [
+    "No paid cron execution, restoration or downstream payment during the fixes.",
+    "CLI upload health version is dev; commit provenance is the archive and deployment message.",
+    "#804 release evidence remains incomplete; paid maintenance and recurring scheduling remain disabled."
+  ]
+}

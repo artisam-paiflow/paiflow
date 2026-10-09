@@ -33,14 +33,18 @@ export class AppError extends Error {
   /** Raw technical detail (e.g. a Soroban diagnostic dump) for the UI to
    * expose behind a "show details" affordance. Never shown by default. */
   readonly details?: string;
+  /** Advisory whole seconds until a caller may retry; sent as `Retry-After`. */
+  readonly retryAfterSeconds?: number;
 
   constructor(
     code: AppErrorCode,
     message: string,
     fields?: Record<string, string[]>,
     details?: string,
+    retryAfterSeconds?: number,
   ) {
     super(message);
+    this.retryAfterSeconds = retryAfterSeconds;
     this.code = code;
     this.fields = fields;
     this.status = APP_ERROR_STATUS[code];
@@ -72,7 +76,13 @@ export function errorResponse(err: unknown): NextResponse {
     }
     return NextResponse.json(
       { error: { code: err.code, message: err.message, fields: err.fields, details: err.details } },
-      { status: err.status },
+      {
+        status: err.status,
+        headers:
+          err.retryAfterSeconds !== undefined
+            ? { "Retry-After": String(err.retryAfterSeconds) }
+            : undefined,
+      },
     );
   }
   if (err instanceof ZodError) {

@@ -5,9 +5,14 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { env, soroswapRouterAddress, SWAP_ROUTER_UNSET_MESSAGE } from "@/lib/env";
-import { FlowGraphSchema, getPendingLabels } from "@/lib/flows/schema";
+import {
+  FlowGraphSchema,
+  migrateFlowGraph,
+  sandboxNotifications,
+  getPendingLabels,
+} from "@/lib/flows/schema";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
@@ -16,6 +21,12 @@ import { getWasmHashes } from "@/lib/stellar/config";
 import { stellarRelayerAddress, offRampTreasuryAddress } from "@/lib/env";
 import { Role } from "@prisma/client";
 import { SANDBOX_TEMPLATE_KINDS } from "@/lib/sandbox";
+import { assertNoHiddenSurfaces, serverFeatures } from "@/lib/features";
+
+const PrepareInputSchema = z.object({
+  flowId: z.string().uuid(),
+  sourceAccount: z.string().optional(),
+});
 
 const PrepareSchema = z.object({
   flowId: z.string().uuid(),
@@ -28,18 +39,30 @@ export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const rl = await rateLimit(`deploy:${user.id}`, 10, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many deploys");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many deploys");
 
-    const body = PrepareSchema.parse(await req.json());
+    const input = PrepareInputSchema.parse(await req.json());
     const network = env().STELLAR_NETWORK;
 
     const flow = await db.flow.findFirst({
-      where: { id: body.flowId, ownerId: user.id },
+      where: { id: input.flowId, ownerId: user.id },
     });
     if (!flow) throw new AppError("NOT_FOUND", "Flow not found");
 
-    const graph = FlowGraphSchema.parse(flow.graph);
-    const v = validateFlow(graph);
+    const parsedGraph = FlowGraphSchema.parse(migrateFlowGraph(flow.graph));
+    const graph = user.role === "SANDBOX" ? sandboxNotifications(parsedGraph) : parsedGraph;
+    if (
+      graph.nodes.some((node) => node.type === "return_to_owner") &&
+      !StrKey.isValidEd25519PublicKey(input.sourceAccount ?? "")
+    ) {
+      throw new AppError("VALIDATION", "Return to owner requires the deploying wallet address");
+    }
+    const body = PrepareSchema.parse(input);
+
+    // Switched-off surfaces (#722) are refused on their node here, so an old
+    // flow, an AI edit or a crafted save cannot deploy a hidden block.
+    const features = serverFeatures();
+    const v = validateFlow(graph, { features, ignoreOwnerEmail: true });
     if (!v.ok) {
       throw new AppError("VALIDATION", "Flow is invalid", issuesToFields(v.errors));
     }
@@ -88,7 +111,16 @@ export async function POST(req: NextRequest) {
       throw new AppError("VALIDATION", SWAP_ROUTER_UNSET_MESSAGE);
     }
 
-    const pipeline = flowToPipeline(v.graph, relayerAddress, offRampTreasuryAddress());
+    const pipeline = flowToPipeline(v.graph, relayerAddress, offRampTreasuryAddress(), {
+      ownerAddress: body.sourceAccount,
+    });
+    // Second line behind the graph check above: the contract kinds actually
+    // being deployed, the way the sandbox guard reads every pipeline node.
+    assertNoHiddenSurfaces(
+      v.graph,
+      pipeline.map((n) => n.templateKind),
+      features,
+    );
 
     // Ensure every pipeline node has a corresponding WASM template on-chain.
     const wasmHashes = await getWasmHashes(network);
@@ -105,6 +137,7 @@ export async function POST(req: NextRequest) {
         templateKind: node.templateKind,
         wasmHash: hash,
         params: node.params,
+        implementation: node.implementation,
       };
     });
 

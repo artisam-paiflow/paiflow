@@ -1,18 +1,19 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import SwapQuotePreview from "@/components/builder/swap-quote-preview";
-import TrustlineWarnings from "@/components/deploy/trustline-warnings";
+import { toast } from "sonner";
+import type { TemplateKind } from "@prisma/client";
 import type { Asset } from "@/lib/flows/schema";
 import type { TrustlineCheck } from "@/lib/stellar/trustline-check";
-import { toast } from "sonner";
 import { toastError } from "@/lib/friendly-toast";
+import { implementationLabel } from "@/lib/flows/implementation";
 import { TEMPLATE_LABELS } from "@/lib/flows/template-labels";
-import type { TemplateKind } from "@prisma/client";
 import { apiError } from "@/lib/friendly-error";
 import { trackWalletConnection } from "@/lib/wallet-tracking";
 import { track } from "@/lib/analytics/client";
 import { classifyError } from "@/lib/analytics/classify-error";
+import SwapQuotePreview from "@/components/builder/swap-quote-preview";
+import TrustlineWarnings from "@/components/deploy/trustline-warnings";
 
 type WalletKit = {
   getAddress: () => Promise<{ address: string }>;
@@ -65,7 +66,12 @@ export default function DeployReview({
 }) {
   const [busy, setBusy] = useState(false);
   const [pipeline, setPipeline] = useState<
-    Array<{ nodeId: string; contractAddress: string; templateKind: TemplateKind }>
+    Array<{
+      nodeId: string;
+      contractAddress: string;
+      templateKind: TemplateKind;
+      implementation?: unknown;
+    }>
   >([]);
   const isMainnet = network === "mainnet";
   const swapCount = swapPreviews?.length ?? 0;
@@ -136,7 +142,11 @@ export default function DeployReview({
       });
       const subData = await submit.json();
       if (!submit.ok) throw apiError(subData, "Submit failed");
-      toast.success("Contract deployed.");
+      toast.success(
+        subData.data.status === "CONFIRMED"
+          ? "Contract deployed."
+          : "Transaction submitted; waiting for confirmation.",
+      );
       window.location.href = `/deployments/${prepData.data.deploymentId}`;
     } catch (err) {
       // deploy_confirmed and the chain-side failure are captured server-side;
@@ -210,7 +220,7 @@ export default function DeployReview({
                 </span>
                 <div className="min-w-0">
                   <span className="text-label-md text-on-surface font-mono">
-                    {TEMPLATE_LABELS[node.templateKind]}
+                    {implementationLabel(node.implementation) ?? TEMPLATE_LABELS[node.templateKind]}
                   </span>
                   <div className="text-label-sm text-on-surface-variant truncate font-mono">
                     {node.contractAddress}

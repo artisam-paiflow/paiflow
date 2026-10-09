@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
 import {
   readPayrollRecipients,
@@ -29,14 +30,14 @@ const PostSchema = z.object({
  * endpoint is the bookkeeping follow-up: it reads the current on-chain
  * recipients, creates the run record, and spawns off-ramp jobs if enabled.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
     const body = PostSchema.parse(await req.json());
 
     const rl = await rateLimit(`payroll-record:${user.id}`, 30, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many payroll run recordings");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many payroll run recordings");
 
     const where = { id, ownerId: user.id };
     const d = await db.deployment.findFirst({
@@ -223,3 +224,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
   });
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "dev");

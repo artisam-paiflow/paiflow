@@ -4,19 +4,15 @@ import { AppError } from "@/lib/errors";
 import { env, stellarPassphrase } from "@/lib/env";
 import { v1Route } from "@/lib/api/v1/handler";
 import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
-import { envelopeExpiresAt, resolveSwapperPipeline } from "@/lib/api/v1/execute";
-import {
-  EXECUTE_PREREQUISITES,
-  ExecutePrepareSchema,
-  type ExecutePrepared,
-} from "@/lib/api/v1/schema";
+import { envelopeExpiresAt, resolveExecutablePipeline } from "@/lib/api/v1/execute";
+import { ExecutePrepareSchema, type ExecutePrepared } from "@/lib/api/v1/schema";
 import { clientIp } from "@/lib/rate-limit";
 import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
-import { SimulationError } from "@/lib/stellar/sim-error";
+import { prepareFailure } from "@/lib/api/v1/prepare-error";
 import { prepareTriggerTx } from "@/lib/stellar/trigger";
 
 /**
- * Prepare the unsigned deposit that executes a swapper flow. The caller signs
+ * Prepare the unsigned deposit that executes a deposit-triggered flow. The caller signs
  * it with the `from` key and posts it to `…/execute/submit`; no key is held here.
  */
 export const POST = v1Route(
@@ -27,7 +23,7 @@ export const POST = v1Route(
         throw new AppError("VALIDATION", "Request body must be valid JSON");
       }),
     );
-    const { nodes, triggerAddress } = resolveSwapperPipeline(deployment);
+    const { nodes, triggerAddress } = resolveExecutablePipeline(deployment);
 
     const { xdr } = await prepareTriggerTx({
       contractAddress: triggerAddress,
@@ -60,26 +56,3 @@ export const POST = v1Route(
     return NextResponse.json({ data });
   },
 );
-
-function prepareFailure(err: unknown): AppError {
-  if (err instanceof AppError) {
-    // A simulation revert is about this deposit, not the RPC being down: an
-    // unfunded `from`, a missing trustline, a pool with no liquidity.
-    if (err instanceof SimulationError) {
-      return new AppError(
-        "VALIDATION",
-        `${err.message} ${EXECUTE_PREREQUISITES}`,
-        undefined,
-        err.details,
-      );
-    }
-    return err;
-  }
-  if (err instanceof Error && err.message.startsWith("Account not found")) {
-    return new AppError(
-      "INSUFFICIENT_FUNDS",
-      `The \`from\` account does not exist on this network. ${EXECUTE_PREREQUISITES}`,
-    );
-  }
-  return new AppError("UPSTREAM_RPC", "The Soroban RPC request failed; try again");
-}

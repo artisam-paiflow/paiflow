@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import type { TemplateKind } from "@prisma/client";
 
 const SenderSchema = z.object({
@@ -56,7 +57,7 @@ async function requireOffRampDeployment(id: string, userId: string) {
   return d;
 }
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
@@ -70,13 +71,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   });
 }
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
     const rlKey = `offramp-sender:${user.id}`;
     const rl = await rateLimit(rlKey, 30, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many sender profile updates");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many sender profile updates");
     await requireOffRampDeployment(id, user.id);
 
     const body = PostSchema.parse(await req.json());
@@ -95,3 +96,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ data: { profile } });
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "dev");
+
+export const POST = deploymentServiceRoute(POSTHandler, "dev");

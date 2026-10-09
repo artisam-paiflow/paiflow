@@ -3,11 +3,12 @@
  * Extends the time-to-live of Soroban contract *code* entries (uploaded WASM)
  * and contract *instance* entries (a deployed contract's own storage).
  *
- * The two expire independently. A contract's `bump_ttl` extends only its
- * instance; the WASM code entry every instance points at is extended only by an
- * `extendFootprintTtl` operation naming its ledger key, and an instance whose
- * contract never calls `extend_ttl` — the factory, for one — is extended the
- * same way. Either expiry breaks deploys until the entry is restored.
+ * The two expire independently. Rust instance().extend_ttl extends both the
+ * instance and its shared WASM, checking their TTLs independently. External
+ * extendFootprintTtl operations extend only their named keys. Expired durable
+ * entries must be restored; Protocol 23 invocation simulation can include
+ * automatic restoration. This legacy manual script covers explicit/env targets;
+ * /api/cron/maintain-ttl inventories DB snapshots and actual deployed code.
  *
  * Usage:
  *   pnpm contracts:extend-ttl --network=testnet

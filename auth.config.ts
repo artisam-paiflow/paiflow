@@ -10,7 +10,7 @@ type Role = "ADMIN" | "USER" | "SANDBOX";
 
 export const authConfig: NextAuthConfig = {
   trustHost: true,
-  pages: { signIn: "/login" },
+  pages: { signIn: "/login", error: "/auth/error" },
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 7 },
   cookies: {
     sessionToken: {
@@ -61,6 +61,7 @@ export const authConfig: NextAuthConfig = {
     },
     async jwt({ token, user }) {
       if (user) {
+        token.authenticatedAt = Date.now();
         token.id = (user as { id: string }).id;
         token.role = (user as { role: Role }).role;
         token.username = (user as { username: string }).username;
@@ -73,6 +74,7 @@ export const authConfig: NextAuthConfig = {
     },
     async session({ session, token }) {
       if (token && session.user) {
+        (session.user as { authenticatedAt?: unknown }).authenticatedAt = token.authenticatedAt;
         session.user.id = (token.id as string) ?? "";
         (session.user as { role?: Role }).role = (token.role as Role) ?? "USER";
         (session.user as { username?: string }).username = (token.username as string) ?? "";

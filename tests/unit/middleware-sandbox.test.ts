@@ -38,6 +38,7 @@ const ALLOWED = [
   `/api/deployments/${DEPLOYMENT}`,
   `/api/deployments/${DEPLOYMENT}/submit`,
   `/api/deployments/${DEPLOYMENT}/status`,
+  `/api/deployments/${DEPLOYMENT}/retirement`,
   `/api/deployments/${DEPLOYMENT}/events`,
   `/api/deployments/${DEPLOYMENT}/balances`,
   `/api/deployments/${DEPLOYMENT}/trigger`,
@@ -90,6 +91,9 @@ const BLOCKED = [
   "/api/v1",
   `/api/v1/deployments/${DEPLOYMENT}/execute`,
   `/api/v1/deployments/${DEPLOYMENT}/events`,
+  // Relayer-signed early release of a timelock branch (#751).
+  `/api/deployments/${DEPLOYMENT}/release-early`,
+  `/api/v1/deployments/${DEPLOYMENT}/release-early`,
   // File upload and storage.
   "/api/files",
   `/api/files/${DEPLOYMENT}`,

@@ -1,0 +1,144 @@
+{
+  "at": "2026-10-04T12:12:50.839104+00:00",
+  "environment": "hackathon-testing",
+  "network": "TESTNET",
+  "deploymentId": "d99fcbb9-36bc-4f3d-8ba5-135a7567eccc",
+  "status": "SUCCESS",
+  "codeCommit": "1b89b9f2d9565930b20268c9a8db76f3a36b081e",
+  "changedVariableNames": ["STELLAR_TTL_MAX_FEE_STROOPS"],
+  "feeCapStroops": "500000000",
+  "paidMaintenanceEnabled": false,
+  "channels": "unset",
+  "httpStatus": 200,
+  "inventory": {
+    "dryRun": true,
+    "deployments": 5,
+    "submissions": 0,
+    "truncated": true,
+    "budgetExhausted": false,
+    "moreDeployments": true,
+    "partialPipelines": false,
+    "details": [
+      {
+        "target": "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742954
+      },
+      {
+        "target": "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742958
+      },
+      {
+        "target": "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5",
+        "kind": "instance",
+        "status": "healthy",
+        "liveUntilLedger": 5121061
+      },
+      {
+        "target": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 5119519
+      },
+      {
+        "target": "3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742951
+      }
+    ],
+    "failedDeployments": [],
+    "scans": [
+      {
+        "deploymentId": "deployment-1",
+        "totalTargets": 2,
+        "nextOffset": 0
+      },
+      {
+        "deploymentId": "deployment-2",
+        "totalTargets": 2,
+        "nextOffset": 0
+      },
+      {
+        "deploymentId": "deployment-3",
+        "totalTargets": 2,
+        "nextOffset": 0
+      },
+      {
+        "deploymentId": "deployment-4",
+        "totalTargets": 2,
+        "nextOffset": 0
+      },
+      {
+        "deploymentId": "deployment-5",
+        "totalTargets": 2,
+        "nextOffset": 0
+      }
+    ],
+    "sharedScan": {
+      "totalTargets": 22,
+      "nextOffset": 6
+    }
+  },
+  "publicCodeRead": {
+    "at": "2026-10-04T12:08:50.303Z",
+    "latestLedger": 5018428,
+    "requested": 25,
+    "returned": 25,
+    "due": [],
+    "earliest": [
+      {
+        "hash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+        "liveUntil": 5116155,
+        "remaining": 97727
+      },
+      {
+        "hash": "1d9d2f5f4ae558b48c3701f1dc4c332b5fe318104c993dd6a400597b49d07221",
+        "liveUntil": 5116156,
+        "remaining": 97728
+      },
+      {
+        "hash": "232dca3682e469969614db0f40d955bee12175a49e9afd5a6175e067407291da",
+        "liveUntil": 5116157,
+        "remaining": 97729
+      },
+      {
+        "hash": "fb2fb73fca6d385a2bd8c6f8cddc47ef5653b29a1ddf69387b7d988eef54adce",
+        "liveUntil": 5119518,
+        "remaining": 101090
+      },
+      {
+        "hash": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+        "liveUntil": 5119519,
+        "remaining": 101091
+      }
+    ]
+  }
+}

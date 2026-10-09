@@ -55,7 +55,7 @@ The host exposes **host objects** (vectors, maps, addresses, big integers) and *
 | **Persistent** | Expensive | Independent TTL, can be restored   | User balances, long-term data            |
 | **Temporary**  | Cheap     | Deleted at TTL, cannot be restored | Oracles, signatures, ephemeral data      |
 
-All ledger entries have a **TTL (time-to-live)** and must be periodically "bumped" to stay alive. This is called **state archival**.
+All ledger entries have a **TTL (time-to-live)** and must be periodically "bumped" to stay alive. This is called **state archival**. Execution TTL maintenance and the bounded background inventory are documented in [Storage lifetime maintenance](storage-lifetime.md).
 
 ### 2.4 Authorization
 
@@ -157,14 +157,253 @@ here, because a copy of either goes stale silently.
 
 Two things are not obvious from reading one crate:
 
-- **How a crate joins a pipeline.** The inbound edge is `execute_step(env, asset, amount)`, invoked
-  by the upstream node — 11 crates implement it. The outbound edge is a stored
+- **How a crate joins a pipeline.** The inbound edge uses `execute_step(env, asset, amount)` or
+  `receive_and_forward(env, from, asset, amount, next_steps)`, depending on the caller and callee.
+  These are not universally interchangeable; see the execution policy below. The outbound edge is a stored
   `Vec<WorkflowTarget>` (`{ address, data }`), exposed by `next_steps()` on the 7 crates that
   forward, of which 4 also expose `set_next_steps()` for post-deploy rewiring. A crate with neither
   can only sit at the end of a pipeline.
 - **`_dev` variants.** `splitter_dev`, `payer_dev`, `subscription_dev` and `cash_out_dev` are
   on-chain-mutable counterparts of their siblings, swapped in when a flow has `devMode` set so that
   values left blank at design time can be filled after deploy. See `CLAUDE.md` §2.
+
+#### 4.1.1 Execution authorization and compatibility
+
+The policy agreed in [#788](https://github.com/webnxt-2030/pinkraft/issues/788) requires the stored
+parent's authorization for both standard Pay/Split pipeline entry points. Their receiving entry
+point also rejects a `from` different from that parent. Authenticating an arbitrary supplied caller
+would establish identity without establishing pipeline authority. Both wrappers use the same
+private execution logic within each contract; payout math, fixed accumulation, stored destinations,
+and nonterminal forwarding retain their existing semantics.
+
+This matrix describes standard execution paths at the #788 implementation. It does not claim that
+every template supports every inbound interface or that every mutating function is parent-only.
+Admin settings/refunds and subscriber consent retain their own authorization rules.
+
+| Contract/path                                | Authority required                                    | Execution semantics                                                                                                                                                                                                                    |
+| -------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Receive `deposit`                            | Depositor                                             | Pulls the depositor's tokens, transfers, then calls downstream `execute_step` atomically.                                                                                                                                              |
+| Subscription `charge` / `charge_by_relayer`  | Stored admin / stored relayer, respectively           | Uses subscriber allowance, transfers, then calls downstream `receive_and_forward` with the subscription as `from`. Schedule advances after success.                                                                                    |
+| Webhook `execute`                            | Stored relayer and funding sender                     | Pulls tokens and calls downstream `receive_and_forward` with the webhook as `from`.                                                                                                                                                    |
+| Webhook `execute_escrow`                     | Stored relayer                                        | Sends held funds and calls the same downstream receiving interface. `deposit` separately requires its depositor.                                                                                                                       |
+| Pay/Split `execute_step`                     | Stored parent                                         | Executes against already transferred funds.                                                                                                                                                                                            |
+| Pay/Split `receive_and_forward`              | Stored parent; supplied `from` must equal parent      | Same execution logic. Caller-supplied next steps are ignored; stored destinations control forwarding.                                                                                                                                  |
+| Split `distribute`                           | Funding sender                                        | Deliberately public funded entry: pulls the authorized sender's tokens rather than merely trusting a declared deposit. Existing accumulation/forwarding behavior is retained.                                                          |
+| Swap `execute_step`                          | Stored parent                                         | Swaps transferred input and invokes the one stored downstream `execute_step`.                                                                                                                                                          |
+| Swap `receive_and_forward`                   | Supplied caller                                       | Deliberately public exception; see the retained-funds review below.                                                                                                                                                                    |
+| Amount router `execute_step`                 | Stored parent                                         | Routes the transferred amount to a stored branch using `execute_step`.                                                                                                                                                                 |
+| Timelock / branching timelock `execute_step` | Stored parent                                         | Records incoming funds. Release requires the stored admin or a configured distinct relayer and the applicable time/side/Hold rules.                                                                                                    |
+| Multisig `receive_and_forward`               | No sender/parent authorization in current source      | Adds the declared amount to pending accounting. `approve_by` authenticates a configured signer; `release` is public after the approval threshold and forwards with `receive_and_forward`. This receiving policy needs separate review. |
+| Streamer `execute_step` / `top_up` / `claim` | Stored parent / funding sender / public, respectively | Public claims distribute only vested funds to stored recipients; pause/reclaim use admin authorization and configured gates.                                                                                                           |
+| Factory `deploy_pipeline`                    | Deploying source                                      | Deploys the supplied blueprints atomically; no execution-interface policy is imposed by the factory.                                                                                                                                   |
+
+A directly invoking contract satisfies authorization for its own address at the immediate callee.
+Deeper calls that consume that address's authority need explicit authorization; simulation and
+signing requirements remain. See [Stellar authorization](https://developers.stellar.org/docs/learn/fundamentals/contract-development/authorization).
+Native integration tests exercise real Receive, Subscription, and both Webhook paths with specific
+funding/relayer authorizations, real Pay/Split downstream chains, and unauthorized-call rollback.
+
+**Swap exception review.** A caller can authenticate itself and choose the amount and timing of a
+swap of input tokens already held by Swap, even without being its parent or depositing new funds.
+The asset, router, slippage setting, and destination come from storage; caller-supplied next steps
+cannot redirect the output. Partial swaps can leave input behind. The output bound uses current
+pool reserves and the deadline is relative to the invocation, so these checks do not bind an idle
+balance to its owner's chosen execution time or an independent market price. Fixed destinations
+alone do not establish that arbitrary timing is harmless. #788 preserves the agreed exception;
+the tests include a specifically authenticated stranger swapping part of an idle balance only to
+the stored destination. A stricter policy requires a separate agreed behavior change.
+
+**Follow-up findings from the interface review (#788).** Multisig currently lacks `execute_step`,
+so a Receive/upstream step that invokes that function cannot enter it. Its Rust constructor takes
+five arguments after `Env`, whereas `pipelineNodeConstructorArgs` in `lib/stellar/scval.ts` encodes
+six, including a parent absent from Multisig storage. Its unauthenticated receiving accounting also
+requires review. Subscription/Webhook cannot invoke a condition exposing only `execute_step` via
+their receiving interface without an adapter or compiler support. These are existing integration
+findings, not fixes included in the Pay/Split change; do not imply those combinations are supported.
+Oracle/legacy yield, payroll/off-ramp, and dev variants are outside this optimization scope.
+
+**Compatibility and release.** Pay/Split preserve public function names, positional arguments,
+historical argument names (including Payer's `_from`), error discriminants, storage keys, and payout
+event shapes. #788 introduced template `Version = 2`; #795 advances the standard Pay/Split
+versions to 3 as described below; #797 advances them to 4 (§4.1.3). No new version getter is introduced.
+Requiring parent authorization is a behavior change even with an unchanged call signature.
+Direct integrations that used `receive_and_forward` as a public action now need the configured
+parent to invoke/authorize it and must supply that parent as `from`. Token receipt is still an
+upstream invariant, not something the receiving function independently proves; normal callers
+must transfer and invoke atomically, and trusted parents must not report deposits twice.
+
+The three standard triggers expose a native `rlib` alongside their WASM artifact so the integration
+tests can register their actual implementations. Payer's added dependencies on them are local,
+test-only workspace dependencies; no third-party dependency or production call path is added.
+
+Release this change by building and uploading the new standard Payer/Splitter WASM for each intended
+environment, validating representative simulations/signing and deployments on testnet, then syncing
+the selected template hashes into that environment's database per §4.3. Preserve the existing
+factory; these constructors need no factory redeployment. Hash synchronization reads
+`STELLAR_NETWORK`, so verify the target environment before running it (see
+[`CLAUDE.md` §7.5](../CLAUDE.md#75-networks)). Record the previous hashes for a new-deployment rollback.
+New WASM and hash synchronization change which templates future deployments use; they do not
+upgrade existing instances. Existing standard Pay/Split have no upgrade entry point. Treat any
+migration as a separately planned redeployment, including retained funds, allowances, downstream
+wiring, and durable pipeline snapshots. Existing instances remain on their previous policy until
+that migration occurs. This implementation does not upload WASM, change live hashes, or migrate
+deployed flows.
+
+### 4.1.2 Exact monetary arithmetic (#795)
+
+Standard Pay/Split versions 3 and Streamer version 5 replace failed monetary calculations with
+explicit contract errors. Existing error numbers remain unchanged; the appended errors are
+Payer `ArithmeticOverflow = 4`, `InvalidPercentage = 5`, Splitter `ArithmeticOverflow = 8`, and
+Streamer `ArithmeticOverflow = 12`. Public function signatures, storage keys, authorization,
+forwarding, and event shapes remain unchanged.
+
+Percentage shares use the exact identity
+`floor(amount * bps / 10000) = (amount / 10000) * bps + floor((amount % 10000) * bps / 10000)`
+for nonnegative integer amounts and `0 <= bps <= 10000`. This avoids an overflowing intermediate
+product while retaining integer rounding across the full i128 range. Split/Streamer still give
+the final recipient the remainder. A genuinely unrepresentable sum/product/subtraction aborts
+execution instead of substituting zero or keeping an old total. Tests verify that failures roll
+back prior token transfers and accounting; injected invalid legacy state in defensive tests is
+not a configuration that the new constructors accept.
+
+Payer rejects negative configured amounts and percentages above 100%. Fixed-mode payments still
+pay the smaller of the incoming and configured amounts. Splitter rejects negative minimums,
+negative recipient amounts, zero-valued recipients, mixed modes, and fixed totals exceeding i128.
+Streamer rejects a window whose maximum vested amount
+`floor((end_ts - start_ts) / interval_seconds) * amount_per_interval` exceeds i128. It retains its
+existing recipient weights, whole-interval vesting, public claim policy, and pause/retrieval
+behavior. Intentional time saturation and valid zero results remain; only failed monetary
+arithmetic becomes an explicit error. Fixed scheduled recipient amounts still compile to basis
+point weights with their existing rounding behavior; #795 does not redesign that compilation.
+
+Shared deployment validation checks standard payment amounts and fixed totals before encoding.
+Compiled Streamer parameters supply the lifetime bound, including default windows, occurrences,
+partial final intervals, and legacy rate conversion. Draft schemas still accept incomplete
+amounts for autosave. Mutable/dev contract improvements and payroll are deferred; deferred mutable
+values remain compatible. Schedule flows still use the standard Streamer even in dev mode, so
+the Streamer lifetime check applies there too.
+
+The shared Rust percentage helper is compiled into the three existing crates without a new crate
+or dependency. The test-only token exercises the full i128 range; it does not claim that classic
+Stellar assets support balances of that size. This is correctness work, with no measured throughput
+or capacity improvement claimed.
+
+Activation follows the release process in §4.3: upload the three new standard WASM artifacts and
+sync the intended environment's selected hashes only after testnet rehearsal. The factory needs
+no change. Existing immutable instances remain on their old WASM and require separately planned
+redeployment. This implementation does not change live hashes, flags, databases, or existing flows.
+
+### 4.1.3 Terminal Pay/Split forwarding (#797)
+
+Standard Pay/Split version 4 returns from `forward_remaining` immediately when stored `NextSteps`
+is empty, before constructing a token client or invoking `balance`. This removes one explicit
+on-chain token balance invocation per terminal helper execution, including Split's direct
+`distribute` after a fixed deposit below the payout threshold. The parent-driven Split entry
+points still call the helper only after a distribution. Dev variants are unchanged.
+
+For nonempty steps, the helper still reads the **entire current contract balance**, transfers a
+positive balance to the first stored target, emits `forward`, and invokes that target atomically.
+Earlier retained funds are included. Fixed Split clears its accumulator only after successful
+downstream execution, as before; removing a next step does not clear retained accounting. Payouts,
+last-recipient rounding, fixed shortfalls, parent/admin authorization, events, and TTL behavior
+are preserved. A terminal execution no longer depends on the removed balance call succeeding;
+required token transfers and their checks still run.
+
+The integration suite uses a test-only token with counted/rejectable explicit `balance` calls
+and separate internal transfer reads. It covers fixed/percentage modes, both parent execution
+entry points, direct Split distribution, partial Pay, accumulated Split shortfalls, zero balance,
+admin next-step changes, earlier retained funds, first-target routing, and rollback on balance or
+downstream failure. Parent-driven cases run with real contract authorization and no permissive
+auth mocks; direct deposits/admin setters use specific authorization trees. Existing real-token
+and trigger authorization regressions remain in the suite.
+
+**Comparable local measurements (2026-10-03).** Baseline `4bcdc958` (version 3) versus this change
+(version 4), Rust 1.95.0, locked `soroban-sdk` 26.0.1 / host 26.1.3. Each fresh fixture holds 118
+stroops and executes terminal `execute_step(asset, 101)`: Pay pays 100 fixed or 50 at 50%; Split
+pays 60/40 fixed or 60/41 at 60%/40%. The prior 17 stroops remain retained. Measurements cover
+only that invocation, excluding constructor and funding work, using the SDK's built-in Stellar
+asset contract and mocked account-parent authorization. Resource limits remain enabled.
+
+| Execution     | Native instructions before → after | Local release-WASM instructions before → after | Local WASM memory bytes before → after |
+| ------------- | ---------------------------------: | ---------------------------------------------: | -------------------------------------: |
+| Pay fixed     |                  337,035 → 272,817 |                              892,015 → 821,601 |                  1,266,531 → 1,257,840 |
+| Pay 50%       |                  333,752 → 269,534 |                              870,483 → 800,069 |                  1,266,403 → 1,257,712 |
+| Split fixed   |                  607,760 → 539,802 |                          1,274,272 → 1,200,118 |                  1,306,056 → 1,297,297 |
+| Split 60%/40% |                  540,721 → 472,763 |                          1,135,537 → 1,061,383 |                  1,295,861 → 1,287,102 |
+
+Native estimates exclude guest VM execution. The compiled-WASM figures execute the actual release
+artifacts in the local test host; they are **not network RPC simulations**. The SDK estimates do
+not model all transaction/XDR work. For these fixtures, disk reads (1), memory reads (Pay 7 /
+Split 8), writes (Pay 3 / fixed Split 5 / percentage Split 4), read/write bytes, and event sizes
+are unchanged. Removing a balance invocation does not imply fewer distinct ledger entries:
+payout transfers already access those balances. No network fee or capacity improvement is claimed.
+
+Reproduce with the ignored measurement test in `contracts/actions/payer/tests/support/terminal-forwarding.rs`:
+
+```bash
+cd contracts
+# Native implementation on the current source revision:
+cargo test --locked -p payer --test execution-auth profile_terminal_execution -- --ignored --nocapture
+# Build on each revision and copy payer.wasm / paiflow_splitter.wasm to separate directories:
+cargo build --locked --release --target wasm32v1-none -p payer -p paiflow-splitter
+# Repeat using each directory with the same measurement fixture:
+PAIFLOW_PROFILE_WASM_DIR=/path/to/artifacts cargo test --locked -p payer --test execution-auth profile_terminal_execution -- --ignored --nocapture
+```
+
+The baseline checkout needs the same test harness to reproduce native measurements; local WASM
+measurements can use this checkout's harness for both artifact sets. Compiled `contractspecv0`
+streams, extracted with `stellar contract info interface --output xdr-base64`, compare identical
+for each contract. Public signatures, error discriminants, and storage keys are unchanged. Only
+the stored template `Version` advances. Release WASM sizes are Pay 17,725 → 17,701 bytes and Split
+21,529 → 21,510 bytes with the existing workspace release profile.
+
+The [isolated public-testnet rehearsal](terminal-forwarding-testnet.md) verified deployed terminal
+and nonterminal trigger chains, retained funds, submitted failure rollback, genuine Freighter
+application deployment/signing, durable snapshots, and actual v3/v4 RPC simulation resources.
+Its uploaded WASM and disposable application database did not change shared runtime configuration.
+Activation follows §4.3 and the compatibility/redeployment boundaries in §4.1.1. Intended-environment
+template hash synchronization and existing-flow redeployment remain separate release work.
+Source changes do not upgrade deployed instances. The factory needs no change.
+
+### 4.1.4 Combined Subscription preflight (#799)
+
+Standard Subscription **version 6** adds a read-only `state()` returning a `SubscriptionState`
+contract struct with `is_cancelled: bool`, `next_charge_at: u64`, `amount_per_period: i128`, and
+`subscriber`, `asset`, `relayer` addresses. All six fields are observed in one simulation. The
+getter does not write storage, extend TTL, emit events, or require authorization. Existing
+getters, constructor arguments, storage keys, authorization, events, cancellation/resubscription,
+amounts, and schedule advancement remain unchanged. Compiled ABI comparison adds only the getter
+and struct. Dev Subscription is unchanged.
+
+`lib/stellar/subscription-state.ts` checks exact map fields and ScVal types, valid account/contract
+addresses (asset must be a contract), positive i128 amount, and u64 schedule bounds. Amounts cross
+its boundary as decimal strings; the cron uses bigint for allowance comparison. The cron rejects
+schedule timestamps outside JavaScript Date bounds before persisting them.
+
+Only a matching WasmVm/MissingValue host diagnostic naming the missing `state` export on the
+requested contract selects legacy getters. Missing diagnostic evidence, missing storage, RPC
+outages, restoration requests, and malformed results fail preflight. Unsupported capability is
+remembered only within that cron run, then probed again next run. No persistent capability or
+combined-state cache is introduced. Legacy immutable amount/subscriber/asset caching remains,
+and Dev amount/subscriber/relayer reads stay fresh. Token allowance is a separate fresh read.
+
+The successful new-instance uncached preflight uses **4 RPC requests** (account + state,
+account + allowance), versus **14** for the original uncached getters. An old standard instance
+costs **16** on its first visit in a run, including the failed capability probe; later unsupported
+visits avoid that probe. Warm legacy immutable caches reduce the original preflight to **8**
+(**10** including an initial probe). Dev retains its original path. Cancelled/not-due new
+instances exit after **2**, compared with **4** on the original path (**6** with an initial probe).
+These counts exclude signing/building/submission/finality and post-charge schedule reads.
+
+Preflight is advisory. The charge still enforces auth, cancellation, due/end time and token rules
+on-chain; source loading under the relayer/channel lock and signing simulations are unchanged.
+Catch-up and final reconciliation still read `next_charge_at` fresh after execution.
+
+Release WASM SHA-256: `7f1a95be6bc08ccf147b098c2b110ae73ea9b89f9d97efa755e3a250e1103e88`.
+Activation follows §4.3 and requires separately authorized release work; immutable existing
+instances continue through legacy getters. This optimization does not claim lower transaction
+fees, universal latency gains, or production capacity. TESTNET evidence and limits are recorded in
+[`subscription-state-testnet.md`](subscription-state-testnet.md).
 
 ### 4.2 Contract build pipeline
 
@@ -307,7 +546,7 @@ When a user hits "Deploy" on a flow:
    - Returns unsigned **XDR** plus the pre-computed pipeline (`nodeId`, `contractAddress`, `salt`,
      `templateKind`). `/api/deployments/prepare` stores that as `Deployment.pipelineSnapshot` — the
      durable `nodeId → contractAddress → templateKind` map everything downstream resolves through
-     (`lib/flows/pipeline-snapshot.ts`), rather than re-deriving it from the graph.
+     (`lib/pipeline-snapshot.ts`), rather than re-deriving it from the graph.
 
 2. **User signs** — Client-side via stellar-wallets-kit (Freighter, xBull, Albedo, etc.)
 
@@ -356,6 +595,42 @@ This gives users a real-time feed of their contract's activity.
 `PipelineNode[]` — one entry per contract to deploy, each with its `templateKind`, WASM hash and
 constructor params. It is an array, not a single template: one flow generally deploys several
 contracts. `CLAUDE.md` §2 traces the full graph → params → XDR → snapshot chain.
+
+Each newly compiled entry also carries `implementation: { version: 1, bindings: [...] }`
+([#801](https://github.com/webnxt-2030/pinkraft/issues/801)). A binding records the original visual
+`blockId`, `blockType`, and implementation `role`. The compiler emits this metadata together with
+the contract parameters; it is not a later reconstruction from an editable graph. The existing
+pipeline IDs, order, constructor arguments, and address calculation remain unchanged.
+
+Receive → Pay and Subscription → Split retain separate trigger/action bindings. Schedule →
+Pay/Split binds both the schedule and distribution to the same Streamer entry. A Hold binding
+records a `strict_lock` rule on its time condition, while Return to owner retains its visual type
+on its immutable Payer implementation. An oracle condition's absorbed Pay/Split is bound as
+distribution on the Conditional. Generated fiat payout contracts record `payout_sink` and the
+zero-based recipient index within the originating Pay/Split block. These describe existing
+compilation behavior; they do not make unsupported compositions executable.
+
+`lib/flows/implementation.ts` parses versioned metadata and checks every visual block's coverage,
+binding roles, contract kinds, originating references, duplicates, and generated-recipient
+references. Where compilation synthesizes fiat payouts, every fiat recipient requires one generated child,
+matched to the parent constructor reference, originating block/index, and cash-out parent ID.
+Existing external cash-out recipients preserved by Dev non-payroll compilation remain dependencies
+and do not require generated children. Validation and preparation use these checks before deployment. Preparation persists
+the metadata beside the resolved address in the existing `pipelineSnapshot` JSON array;
+confirmation preserves that snapshot. No database migration or Rust ABI change is required.
+
+Deployment review, the “Where blocks run” view, and live balances display the recorded associations.
+Balance reads and totals deduplicate contract addresses; event polling continues to poll each
+address once regardless of bindings. Older snapshots and unrecognized metadata versions retain
+existing contract behavior and show block associations as unavailable; monitoring never recompiles
+them to invent a mapping. Dev mutation paths preserve existing metadata; additional contracts
+created later by mutation retain the unavailable-association fallback unless their writer records
+bindings. Recipient indexes refer to the roster at compilation, not subsequent mutable rosters.
+
+Product authority: [SPEC.md §3.3](../SPEC.md#33-logic) states, “Hold is absorbed into that condition
+and has no contract of its own.” [§3.2](../SPEC.md#32-actions) also defines the generated cash-out
+contracts behind fiat Pay/Split recipients. Explicit associations account for these relationships
+without requiring a contract per block or claiming a fee or throughput improvement.
 
 ---
 
@@ -535,7 +810,7 @@ SSE is simpler, works through most load balancers without sticky sessions, and a
 
 ### Why Polling Instead of Webhooks?
 
-Soroban RPC does not provide a push/webhook mechanism for events (events are ephemeral, only kept ~1 week). Paiflow uses Railway cron jobs hitting `GET /api/cron/poll-events` every minute to poll `getEvents` with a cursor. This is simple and reliable, at the cost of up to 60s latency.
+Soroban RPC does not provide a push/webhook mechanism for events (events are ephemeral, only kept ~1 week). Paiflow uses Railway cron jobs hitting `GET /api/cron/poll-events` every minute to poll `getEvents` with a cursor. This is simple and reliable, at the cost of up to 60s latency. Reads that need to be fresher poll one deployment on demand: the trigger page's `tx-status`, the SSE stream on connect, `/api/v1` `execute/submit`, and `GET /api/v1/deployments/{id}/events` when the deployment's cursor is more than 10 s old.
 
 ---
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import {
@@ -7,7 +8,7 @@ import {
   readStreamerRetrieveAllowed,
 } from "@/lib/stellar/relayer";
 
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
 
@@ -43,3 +44,5 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     });
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "public");

@@ -8,10 +8,12 @@ type AdminUser = {
   id: string;
   username: string;
   role: "ADMIN" | "USER" | "SANDBOX";
+  analyticsAudience: "INTERNAL" | "EXTERNAL" | "SANDBOX" | "UNCLASSIFIED";
   isActive: boolean;
   createdAt: string;
   lastLoginAt: string | null;
   lockedUntil: string | null;
+  hasPassword: boolean;
 };
 
 export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
@@ -37,6 +39,9 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
               ...x,
               ...(typeof body.isActive === "boolean" ? { isActive: body.isActive } : {}),
               ...(body.role ? { role: body.role as AdminUser["role"] } : {}),
+              ...(body.analyticsAudience
+                ? { analyticsAudience: body.analyticsAudience as AdminUser["analyticsAudience"] }
+                : {}),
               ...(body.unlock ? { lockedUntil: null } : {}),
             }
           : x,
@@ -52,6 +57,7 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
         username: String(form.get("username") ?? ""),
         password: String(form.get("password") ?? ""),
         role: String(form.get("role") ?? "USER"),
+        analyticsAudience: String(form.get("analyticsAudience") ?? ""),
       }),
     });
     const body = await r.json().catch(() => ({}));
@@ -80,7 +86,7 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
       {showCreate && (
         <form
           action={create}
-          className="glass-panel mt-md grid grid-cols-[1fr_1fr_120px_auto] gap-2 rounded-xl p-3"
+          className="glass-panel mt-md grid grid-cols-1 gap-2 rounded-xl p-3 md:grid-cols-[1fr_1fr_120px_150px_auto]"
         >
           <input name="username" placeholder="username" className="admin-input" required />
           <input
@@ -94,6 +100,20 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
           <select name="role" className="admin-input">
             <option value="USER">USER</option>
             <option value="ADMIN">ADMIN</option>
+          </select>
+          <select
+            name="analyticsAudience"
+            aria-label="Analytics audience"
+            className="admin-input"
+            required
+            defaultValue=""
+          >
+            <option value="" disabled>
+              Choose audience
+            </option>
+            <option value="INTERNAL">Internal</option>
+            <option value="EXTERNAL">External</option>
+            <option value="UNCLASSIFIED">Unclassified</option>
           </select>
           <button className="bg-primary text-label-sm text-on-primary inline-flex items-center gap-1 rounded-lg px-3 py-1.5 font-mono font-bold transition-all hover:-translate-y-px hover:shadow-[0_0_16px_rgba(255,177,196,0.5)] active:scale-95">
             <span className="material-symbols-outlined text-[14px]">check</span>
@@ -118,10 +138,11 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
         </form>
       )}
 
-      <div className="glass-panel mt-md overflow-hidden rounded-xl">
-        <div className="bg-surface-container/60 px-md text-label-sm text-on-surface-variant grid grid-cols-[1.5fr_120px_80px_80px_120px_1fr] gap-3 py-2.5 font-mono">
+      <div className="glass-panel mt-md overflow-x-auto rounded-xl">
+        <div className="bg-surface-container/60 px-md text-label-sm text-on-surface-variant grid grid-cols-[1.5fr_120px_150px_80px_80px_120px_1fr] gap-3 py-2.5 font-mono">
           <span>USERNAME</span>
           <span>ROLE</span>
+          <span>AUDIENCE</span>
           <span>ACTIVE</span>
           <span>LOCKED</span>
           <span>CREATED</span>
@@ -131,7 +152,7 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
           {users.map((u) => (
             <div
               key={u.id}
-              className="px-md text-body-md hover:bg-surface-container-high/40 grid grid-cols-[1.5fr_120px_80px_80px_120px_1fr] items-center gap-3 py-2 transition-colors"
+              className="px-md text-body-md hover:bg-surface-container-high/40 grid grid-cols-[1.5fr_120px_150px_80px_80px_120px_1fr] items-center gap-3 py-2 transition-colors"
             >
               <span className="text-on-surface truncate">{u.username}</span>
               {/* A SANDBOX row is read-only: the select has no matching option,
@@ -150,6 +171,20 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
                 >
                   <option value="USER">USER</option>
                   <option value="ADMIN">ADMIN</option>
+                </select>
+              )}
+              {u.role === "SANDBOX" ? (
+                <span className="text-label-sm">Sandbox</span>
+              ) : (
+                <select
+                  value={u.analyticsAudience}
+                  aria-label={`Analytics audience for ${u.username}`}
+                  onChange={(e) => patch(u.id, { analyticsAudience: e.target.value })}
+                  className="admin-input"
+                >
+                  <option value="UNCLASSIFIED">Unclassified</option>
+                  <option value="INTERNAL">Internal</option>
+                  <option value="EXTERNAL">External</option>
                 </select>
               )}
               <span
@@ -190,7 +225,7 @@ export default function AdminUserList({ initial }: { initial: AdminUser[] }) {
                 )}
                 {/* Setting a password on a sandbox account would replace the
                     sentinel with a working credential — see lib/sandbox.ts. */}
-                {u.role !== "SANDBOX" && (
+                {u.role !== "SANDBOX" && u.hasPassword && (
                   <button
                     onClick={() => {
                       const pw = prompt("New password (min 12 chars):");

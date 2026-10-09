@@ -15,13 +15,18 @@ export async function POST(req: NextRequest) {
     // update re-checks the status, so a deployment confirmed in between is kept
     // and, because its count is 0, not reported as a failure either.
     const stuck = await db.deployment.findMany({
-      where: { status: "SUBMITTED", createdAt: { lt: cutoff } },
+      where: {
+        status: "SUBMITTED",
+        serviceState: "ACTIVE",
+        createdAt: { lt: cutoff },
+        signedTransactions: { none: { trackingVersion: "usage-v2" } },
+      },
       select: { id: true, ownerId: true, flowId: true },
     });
     const counts = await Promise.all(
       stuck.map(async (d) => {
         const { count } = await db.deployment.updateMany({
-          where: { id: d.id, status: "SUBMITTED" },
+          where: { id: d.id, status: "SUBMITTED", serviceState: "ACTIVE" },
           data: { status: "FAILED", errorMessage: "Timed out before finality" },
         });
         if (count === 1) {

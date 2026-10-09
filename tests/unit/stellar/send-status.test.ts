@@ -7,19 +7,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Keypair, TransactionBuilder, Networks, type Transaction } from "@stellar/stellar-sdk";
 
-const { mockRpc, mockInvoke, RELAYER } = vi.hoisted(() => ({
+const { mockRpc, mockInvoke, mockChannels, RELAYER } = vi.hoisted(() => ({
   mockRpc: { getTransaction: vi.fn(), sendTransaction: vi.fn() },
-  mockInvoke: { prepareWebhookExecuteInvocation: vi.fn() },
+  mockInvoke: { webhookExecuteOperation: vi.fn(), webhookEscrowOperation: vi.fn() },
+  mockChannels: { buildRelayerTx: vi.fn(), trackPending: vi.fn() },
   RELAYER: { secret: "", address: "" },
 }));
 
 vi.mock("@/lib/db", () => ({ db: {} }));
+vi.mock("@/lib/analytics/outcomes", () => ({
+  recordTransactionOutcome: vi.fn(async () => false),
+  beginTransactionSubmission: vi.fn(async () => undefined),
+  transactionObservation: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/stellar/client", () => ({
   sorobanRpc: () => mockRpc,
   horizon: vi.fn(),
   withRelayerLock: <T>(fn: () => Promise<T>) => fn(),
 }));
 vi.mock("@/lib/stellar/invoke", () => mockInvoke);
+vi.mock("@/lib/stellar/relayer-channels", () => ({
+  withRelayerChannel: <T>(fn: (channel: unknown) => Promise<T>) =>
+    fn({ trackPending: mockChannels.trackPending }),
+  buildRelayerTx: mockChannels.buildRelayerTx,
+}));
 vi.mock("@/lib/env", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/env")>()),
   stellarRelayerSecretKey: () => RELAYER.secret,
@@ -28,19 +39,23 @@ vi.mock("@/lib/env", async (importOriginal) => ({
 
 import { AppError } from "@/lib/errors";
 import { submitDeployTx } from "@/lib/stellar/deploy";
+import { recordTransactionOutcome, transactionObservation } from "@/lib/analytics/outcomes";
 import { classifySend, SEND_NOT_ACCEPTED_MESSAGE } from "@/lib/stellar/send-status";
 import { submitTriggerTx, submitWebhookExecuteTx } from "@/lib/stellar/trigger";
 import { TRIGGER, signedEnvelope } from "../api/v1/execute-fixtures";
 
 const hashOf = (signed: string) =>
   (TransactionBuilder.fromXDR(signed, Networks.TESTNET) as Transaction).hash().toString("hex");
+let webhookTx: Transaction;
 
 beforeEach(() => {
   vi.clearAllMocks();
   const relayer = Keypair.random();
   RELAYER.secret = relayer.secret();
   RELAYER.address = relayer.publicKey();
-  mockInvoke.prepareWebhookExecuteInvocation.mockResolvedValue({ tx: { sign: vi.fn() } });
+  mockInvoke.webhookExecuteOperation.mockReturnValue({});
+  webhookTx = TransactionBuilder.fromXDR(signedEnvelope(), Networks.TESTNET) as Transaction;
+  mockChannels.buildRelayerTx.mockResolvedValue(webhookTx);
 });
 
 describe("classifySend", () => {
@@ -112,23 +127,69 @@ describe("submitWebhookExecuteTx", () => {
   });
 
   it("PENDING and DUPLICATE are both PENDING, told apart by the flag", async () => {
-    mockRpc.sendTransaction.mockResolvedValueOnce({ status: "PENDING", hash: "h" });
+    const hash = webhookTx.hash().toString("hex");
+    mockRpc.sendTransaction.mockResolvedValueOnce({ status: "PENDING", hash });
     expect(await submitWebhookExecuteTx(opts)).toEqual({
       status: "PENDING",
-      txHash: "h",
+      txHash: hash,
       duplicate: false,
     });
+    // The channel is told about the unfinished transaction, so its next holder waits for it.
+    expect(mockChannels.trackPending).toHaveBeenCalledWith(hash, webhookTx.timeBounds?.maxTime);
 
-    mockRpc.sendTransaction.mockResolvedValueOnce({ status: "DUPLICATE", hash: "h" });
+    mockRpc.sendTransaction.mockResolvedValueOnce({ status: "DUPLICATE", hash });
     expect(await submitWebhookExecuteTx(opts)).toEqual({
       status: "PENDING",
-      txHash: "h",
+      txHash: hash,
       duplicate: true,
     });
   });
 });
 
 describe("submitDeployTx", () => {
+  it.each(["PENDING", "DUPLICATE"])(
+    "rehearsal records %s acceptance and leaves finality to cron",
+    async (status) => {
+      const signed = signedEnvelope();
+      mockRpc.sendTransaction.mockResolvedValue({ status, hash: hashOf(signed) });
+      expect(await submitDeployTx(signed, { confirmation: "reconcile" })).toEqual({
+        status: "SUBMITTED",
+        txHash: hashOf(signed),
+      });
+      expect(recordTransactionOutcome).toHaveBeenCalledWith(
+        hashOf(signed),
+        "ACCEPTED",
+        expect.any(Object),
+      );
+      expect(transactionObservation).not.toHaveBeenCalled();
+      expect(mockRpc.getTransaction).not.toHaveBeenCalled();
+    },
+  );
+  it.each(["TRY_AGAIN_LATER", "ERROR"])("rehearsal does not call %s accepted", async (status) => {
+    const signed = signedEnvelope();
+    mockRpc.sendTransaction.mockResolvedValue({ status, hash: hashOf(signed) });
+    const result = await submitDeployTx(signed, { confirmation: "reconcile" });
+    expect(result.status).toBe(status === "ERROR" ? "FAILED" : "NOT_ACCEPTED");
+    expect(recordTransactionOutcome).not.toHaveBeenCalledWith(
+      hashOf(signed),
+      "ACCEPTED",
+      expect.any(Object),
+    );
+    expect(mockRpc.getTransaction).not.toHaveBeenCalled();
+  });
+  it("leaves ambiguous send errors unresolved during the rehearsal", async () => {
+    const signed = signedEnvelope();
+    mockRpc.sendTransaction.mockRejectedValueOnce(new Error("RPC unavailable"));
+    await expect(submitDeployTx(signed, { confirmation: "reconcile" })).rejects.toThrow(
+      "RPC unavailable",
+    );
+    expect(recordTransactionOutcome).toHaveBeenCalledWith(
+      hashOf(signed),
+      "UNRESOLVED",
+      expect.objectContaining({ failureCode: "RPC_UNAVAILABLE" }),
+    );
+    expect(mockRpc.getTransaction).not.toHaveBeenCalled();
+  });
   it("TRY_AGAIN_LATER answers NOT_ACCEPTED at once, without polling the unqueued hash", async () => {
     const signed = signedEnvelope();
     mockRpc.sendTransaction.mockResolvedValue({ status: "TRY_AGAIN_LATER", hash: hashOf(signed) });

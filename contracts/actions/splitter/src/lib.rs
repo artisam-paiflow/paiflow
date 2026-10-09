@@ -1,4 +1,7 @@
 #![no_std]
+#[path = "../../../payment-math.rs"]
+mod payment_math;
+
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
     vec, Address, Env, IntoVal, String, Vec,
@@ -45,9 +48,10 @@ pub enum Error {
     Unauthorized = 5,
     InvalidAmount = 6,
     MixedModeNotAllowed = 7,
+    ArithmeticOverflow = 8,
 }
 
-const VERSION: u32 = 1;
+const VERSION: u32 = 4;
 const TOTAL_BPS: u32 = 10_000;
 const TTL_THRESHOLD: u32 = 50_000;
 const TTL_EXTEND_TO: u32 = 500_000;
@@ -72,9 +76,18 @@ impl Splitter {
         if recipients.is_empty() {
             panic_with_error!(&env, Error::NoRecipients);
         }
+        if min_amount < 0 {
+            panic_with_error!(&env, Error::InvalidAmount);
+        }
         let mut total_bps: u32 = 0;
         let mut total_fixed: i128 = 0;
         for r in recipients.iter() {
+            if r.amount < 0 || (r.bps == 0 && r.amount == 0) {
+                panic_with_error!(&env, Error::InvalidAmount);
+            }
+            if r.bps > TOTAL_BPS {
+                panic_with_error!(&env, Error::BpsSumInvalid);
+            }
             if r.bps > 0 && r.amount > 0 {
                 panic_with_error!(&env, Error::MixedModeNotAllowed);
             }
@@ -83,7 +96,7 @@ impl Splitter {
                 .unwrap_or_else(|| panic_with_error!(&env, Error::BpsSumInvalid));
             total_fixed = total_fixed
                 .checked_add(r.amount)
-                .unwrap_or_else(|| panic_with_error!(&env, Error::BpsSumInvalid));
+                .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
         }
 
         if total_fixed > 0 {
@@ -198,48 +211,8 @@ impl Splitter {
     }
 
     pub fn execute_step(env: Env, asset: Address, amount: i128) {
-        bump_ttl(&env);
-        let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
-        parent.require_auth();
-
-        let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-        if asset != stored_asset {
-            panic_with_error!(&env, Error::Unauthorized);
-        }
-        if amount <= 0 {
-            panic_with_error!(&env, Error::InvalidAmount);
-        }
-        if env
-            .storage()
-            .instance()
-            .get::<_, bool>(&Key::Paused)
-            .unwrap_or(false)
-        {
-            panic_with_error!(&env, Error::Paused);
-        }
-
-        let total_fixed: i128 = env
-            .storage()
-            .instance()
-            .get(&Key::TotalFixedAmount)
-            .unwrap_or(0);
-        let distributed = if total_fixed > 0 {
-            handle_fixed_deposit(&env, &asset, amount)
-        } else {
-            let recipients: Vec<Recipient> =
-                env.storage().instance().get(&Key::Recipients).unwrap();
-            do_split(&env, &asset, &recipients, amount);
-            true
-        };
-
-        if distributed {
-            let recipients: Vec<Recipient> =
-                env.storage().instance().get(&Key::Recipients).unwrap();
-            #[allow(deprecated)]
-            env.events()
-                .publish((symbol_short!("payout"), parent.clone()), recipients);
-            forward_remaining(&env, &asset);
-        }
+        let parent = require_parent(&env, None);
+        execute_split(&env, &asset, amount, &parent);
     }
 
     /// Called by receive_and_forward triggers (webhook, oracle, subscription).
@@ -251,45 +224,8 @@ impl Splitter {
         amount: i128,
         _next_steps: Vec<WorkflowTarget>,
     ) {
-        bump_ttl(&env);
-        let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-        if asset != stored_asset {
-            panic_with_error!(&env, Error::Unauthorized);
-        }
-        if amount <= 0 {
-            panic_with_error!(&env, Error::InvalidAmount);
-        }
-        if env
-            .storage()
-            .instance()
-            .get::<_, bool>(&Key::Paused)
-            .unwrap_or(false)
-        {
-            panic_with_error!(&env, Error::Paused);
-        }
-
-        let total_fixed: i128 = env
-            .storage()
-            .instance()
-            .get(&Key::TotalFixedAmount)
-            .unwrap_or(0);
-        let distributed = if total_fixed > 0 {
-            handle_fixed_deposit(&env, &asset, amount)
-        } else {
-            let recipients: Vec<Recipient> =
-                env.storage().instance().get(&Key::Recipients).unwrap();
-            do_split(&env, &asset, &recipients, amount);
-            true
-        };
-
-        if distributed {
-            let recipients: Vec<Recipient> =
-                env.storage().instance().get(&Key::Recipients).unwrap();
-            #[allow(deprecated)]
-            env.events()
-                .publish((symbol_short!("payout"), from.clone()), recipients);
-            forward_remaining(&env, &asset);
-        }
+        let parent = require_parent(&env, Some(&from));
+        execute_split(&env, &asset, amount, &parent);
     }
 
     fn require_admin(env: &Env) {
@@ -307,16 +243,18 @@ fn do_split(env: &Env, asset: &Address, recipients: &Vec<Recipient>, amount: i12
     while i < len {
         let r = recipients.get(i).unwrap();
         let share: i128 = if i == last_idx {
-            amount.checked_sub(distributed).unwrap_or(0)
-        } else {
             amount
-                .checked_mul(r.bps as i128)
-                .and_then(|v| v.checked_div(TOTAL_BPS as i128))
-                .unwrap_or(0)
+                .checked_sub(distributed)
+                .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow))
+        } else {
+            payment_math::percentage_share(amount, r.bps)
+                .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow))
         };
         if share > 0 {
             client.transfer(&env.current_contract_address(), &r.address, &share);
-            distributed = distributed.checked_add(share).unwrap_or(distributed);
+            distributed = distributed
+                .checked_add(share)
+                .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow));
             if r.is_cash_out {
                 invoke_receive_and_forward(env, &r.address, asset, &share);
             }
@@ -333,7 +271,7 @@ fn handle_fixed_deposit(env: &Env, asset: &Address, amount: i128) -> bool {
         .unwrap_or(0);
     let new_balance = balance
         .checked_add(amount)
-        .unwrap_or_else(|| panic_with_error!(&env, Error::InvalidAmount));
+        .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow));
     env.storage()
         .instance()
         .set(&Key::AccumulatedBalance, &new_balance);
@@ -346,7 +284,9 @@ fn handle_fixed_deposit(env: &Env, asset: &Address, amount: i128) -> bool {
     if new_balance >= total_fixed {
         let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
         do_split_fixed(env, asset, &recipients);
-        let remaining = new_balance.checked_sub(total_fixed).unwrap_or(0);
+        let remaining = new_balance
+            .checked_sub(total_fixed)
+            .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow));
         env.storage()
             .instance()
             .set(&Key::AccumulatedBalance, &remaining);
@@ -359,7 +299,9 @@ fn handle_fixed_deposit(env: &Env, asset: &Address, amount: i128) -> bool {
                 amount,
                 new_balance,
                 total_fixed,
-                total_fixed.checked_sub(new_balance).unwrap_or(0),
+                total_fixed
+                    .checked_sub(new_balance)
+                    .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow)),
             ),
         );
         false
@@ -378,6 +320,58 @@ fn do_split_fixed(env: &Env, asset: &Address, recipients: &Vec<Recipient>) {
     }
 }
 
+fn require_parent(env: &Env, from: Option<&Address>) -> Address {
+    let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
+    if let Some(from) = from {
+        if from != &parent {
+            panic_with_error!(env, Error::Unauthorized);
+        }
+    }
+    parent.require_auth();
+    parent
+}
+
+fn execute_split(env: &Env, asset: &Address, amount: i128, parent: &Address) {
+    bump_ttl(env);
+
+    let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+    if asset != &stored_asset {
+        panic_with_error!(env, Error::Unauthorized);
+    }
+    if amount <= 0 {
+        panic_with_error!(env, Error::InvalidAmount);
+    }
+    if env
+        .storage()
+        .instance()
+        .get::<_, bool>(&Key::Paused)
+        .unwrap_or(false)
+    {
+        panic_with_error!(env, Error::Paused);
+    }
+
+    let total_fixed: i128 = env
+        .storage()
+        .instance()
+        .get(&Key::TotalFixedAmount)
+        .unwrap_or(0);
+    let distributed = if total_fixed > 0 {
+        handle_fixed_deposit(env, asset, amount)
+    } else {
+        let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
+        do_split(env, asset, &recipients, amount);
+        true
+    };
+
+    if distributed {
+        let recipients: Vec<Recipient> = env.storage().instance().get(&Key::Recipients).unwrap();
+        #[allow(deprecated)]
+        env.events()
+            .publish((symbol_short!("payout"), parent.clone()), recipients);
+        forward_remaining(env, asset);
+    }
+}
+
 fn bump_ttl(env: &Env) {
     env.storage()
         .instance()
@@ -390,11 +384,12 @@ fn forward_remaining(env: &Env, asset: &Address) {
         .instance()
         .get(&Key::NextSteps)
         .unwrap_or_else(|| Vec::new(env));
-    let client = token::Client::new(env, asset);
-    let balance = client.balance(&env.current_contract_address());
+    if next_steps.is_empty() {
+        return;
+    }
 
-    let has_steps = !next_steps.is_empty();
-    let forward_amount = if has_steps && balance > 0 { balance } else { 0 };
+    let client = token::Client::new(env, asset);
+    let forward_amount = client.balance(&env.current_contract_address());
 
     if forward_amount > 0 {
         if let Some(step) = next_steps.first() {
@@ -666,7 +661,7 @@ mod test {
 
         tok.transfer(&predecessor, &contract_id, &10_000_000);
         client.receive_and_forward(
-            &predecessor,
+            &parent,
             &asset.address(),
             &10_000_000,
             &Vec::<WorkflowTarget>::new(&env),
@@ -712,7 +707,7 @@ mod test {
         client.pause();
         tok.transfer(&predecessor, &contract_id, &10_000_000);
         client.receive_and_forward(
-            &predecessor,
+            &parent,
             &asset.address(),
             &10_000_000,
             &Vec::<WorkflowTarget>::new(&env),
@@ -759,7 +754,7 @@ mod test {
 
         tok.transfer(&predecessor, &contract_id, &10_000_000);
         client.receive_and_forward(
-            &predecessor,
+            &parent,
             &asset.address(),
             &10_000_000,
             &Vec::<WorkflowTarget>::new(&env),
@@ -950,7 +945,7 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #2)")]
+    #[should_panic(expected = "Error(Contract, #6)")]
     fn constructor_rejects_all_fixed_zero_total() {
         let env = Env::default();
         env.mock_all_auths();
@@ -1383,3 +1378,7 @@ mod test {
         assert_eq!(tok.balance(&contract_id), 0);
     }
 }
+
+#[cfg(test)]
+#[path = "arithmetic-tests.rs"]
+mod arithmetic_tests;

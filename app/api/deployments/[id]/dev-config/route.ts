@@ -1,8 +1,10 @@
+import { requireFeature } from "@/lib/features";
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import type { PipelineSnapshotNode } from "@/lib/flows/pipeline-snapshot";
+import type { PipelineSnapshotNode } from "@/lib/pipeline-snapshot";
 import { readDevIsConfigured } from "@/lib/stellar/dev-mutate";
 
 const DEV_KINDS = new Set(["PAYER_DEV", "SPLITTER_DEV", "SUBSCRIPTION_DEV"]);
@@ -10,10 +12,12 @@ const DEV_KINDS = new Set(["PAYER_DEV", "SPLITTER_DEV", "SUBSCRIPTION_DEV"]);
 /**
  * List the dev (`_DEV`) nodes of a deployment and their on-chain
  * configured/blank status, so an API consumer knows what still needs filling.
+ * Read-only and sets no recipient, so it has no trustline warning (#723).
  */
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(_req);
+    requireFeature("devMode");
     const { id } = await ctx.params;
 
     const d = await db.deployment.findFirst({ where: { id, ownerId: user.id } });
@@ -42,3 +46,5 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ data: { deploymentId: d.id, devMode: nodes.length > 0, nodes } });
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "dev");

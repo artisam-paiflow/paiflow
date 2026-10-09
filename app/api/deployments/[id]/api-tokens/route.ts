@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { clientIp } from "@/lib/rate-limit";
+import { markTokenKnown } from "@/lib/api/v1/pre-auth";
 import { CreateApiTokenSchema } from "@/lib/api/v1/schema";
 import {
   API_TOKEN_SELECT,
@@ -24,7 +26,7 @@ const LIST_LIMIT = 100;
  *
  * Tokens the public demo route minted are left out of both halves — see `demoTokenIdentity`.
  */
-export async function GET(_req: NextRequest, ctx: Ctx) {
+async function GETHandler(_req: NextRequest, ctx: Ctx) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     const { deployment } = await requireTokenManager(id);
@@ -51,7 +53,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 }
 
 /** Mint a token for this deployment. The plaintext is in this response only. */
-export async function POST(req: NextRequest, ctx: Ctx) {
+async function POSTHandler(req: NextRequest, ctx: Ctx) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     const { user, deployment } = await requireTokenManager(id);
@@ -101,6 +103,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       });
     });
 
+    // Before the plaintext is returned, so a failed-auth block on the caller's address never
+    // refuses the token's first use (lib/api/v1/pre-auth.ts).
+    await markTokenKnown(tokenHash, expiresAt);
+
     await audit({
       action: "API_TOKEN_CREATED",
       userId: user.id,
@@ -112,3 +118,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ data: { ...token, token: plaintext } }, { status: 201 });
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "owner");
+
+export const POST = deploymentServiceRoute(POSTHandler, "owner");

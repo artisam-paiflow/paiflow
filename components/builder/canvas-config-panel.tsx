@@ -10,6 +10,7 @@ import type { FlowNode, FlowGraph } from "@/lib/flows/schema";
 import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
 import type { ValidationIssue } from "@/lib/flows/validate";
+import type { FeatureFlags } from "@/lib/feature-flags";
 
 type CanvasConfigPanelProps = {
   selectedId: string;
@@ -30,6 +31,8 @@ type CanvasConfigPanelProps = {
   focusOnOpen: boolean;
   network: StellarNetwork;
   routerContractId?: string;
+  features: FeatureFlags;
+  sandbox?: boolean;
 };
 
 const NODE_ANCHOR_OFFSET_X = 240;
@@ -51,6 +54,8 @@ export default function CanvasConfigPanel({
   focusOnOpen,
   network,
   routerContractId,
+  features,
+  sandbox,
 }: CanvasConfigPanelProps) {
   const { getNode, screenToFlowPosition } = useReactFlow();
   const { x, y, zoom } = useViewport();
@@ -242,6 +247,8 @@ export default function CanvasConfigPanel({
         addressBookError={addressBookError}
         network={network}
         routerContractId={routerContractId}
+        features={features}
+        sandbox={sandbox}
         hideHeader
         className="border-0"
       />

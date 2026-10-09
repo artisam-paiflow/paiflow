@@ -1,11 +1,13 @@
+import { requireFeature } from "@/lib/features";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { rateLimit } from "@/lib/rate-limit";
-import { findPipelineNode } from "@/lib/flows/pipeline-snapshot";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
+import { findPipelineNode } from "@/lib/pipeline-snapshot";
 import { updateBankByRelayer } from "@/lib/stellar/dev-mutate";
 import type { FlowGraph } from "@/lib/flows/schema";
 
@@ -25,14 +27,18 @@ const BodySchema = z.object({
  * The relayer signs the on-chain `update_bank` call, and we persist the bank
  * details into the deployment's saved graph snapshot so the event indexer can
  * snapshot them when it creates the OffRampPayoutJob.
+ *
+ * No trustline warning (#723): this sets bank details, not a wallet, and the
+ * sink pays the off-ramp treasury rather than a recipient account.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
+    requireFeature("devMode");
     const { id } = await ctx.params;
     const rlKey = `dev-mutate:${user.id}`;
     const rl = await rateLimit(rlKey, 30, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many dev mutations");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many dev mutations");
     const body = BodySchema.parse(await req.json());
 
     const d = await db.deployment.findFirst({ where: { id, ownerId: user.id } });
@@ -83,3 +89,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
   });
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "dev");

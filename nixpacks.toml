@@ -13,4 +13,4 @@ cmds = [
 ]
 
 [start]
-cmd = "pnpm db:migrate:deploy && pnpm start"
+cmd = "sh scripts/start-railway.sh"

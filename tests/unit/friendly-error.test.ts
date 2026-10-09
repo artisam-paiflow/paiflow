@@ -2,6 +2,20 @@ import { describe, expect, it } from "vitest";
 import { apiError, friendlyError } from "@/lib/friendly-error";
 
 describe("friendlyError", () => {
+  it("maps Wallets Kit rejection objects without exposing ext", () => {
+    expect(friendlyError({ code: -1, message: "User declined access", ext: "private" })).toEqual({
+      message: "Transaction cancelled in your wallet.",
+    });
+  });
+
+  it("ignores malformed object messages and unrelated payload fields", () => {
+    expect(
+      friendlyError({ code: -1, message: 123, ext: "User rejected" }, "Deploy failed"),
+    ).toEqual({
+      message: "Deploy failed",
+    });
+  });
+
   it("maps wallet rejections", () => {
     expect(friendlyError(new Error("User declined access")).message).toBe(
       "Transaction cancelled in your wallet.",

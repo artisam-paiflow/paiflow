@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+  createBalanceRefreshScheduler,
+  balanceRetryAfter,
+} from "@/lib/hooks/balance-refresh-scheduler";
 import { useDocumentVisibility } from "@/lib/hooks/use-document-visibility";
 import { cn, formatAmount, shortAddr } from "@/lib/utils";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
@@ -23,7 +27,6 @@ export default function LiveBalances({
   network,
   refreshTick = 0,
 }: LiveBalancesProps) {
-  const [balances, setBalances] = useState<WorkflowBalances>({ totals: [], nodes: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -33,65 +36,60 @@ export default function LiveBalances({
     nodes: [],
   });
   const isVisible = useDocumentVisibility();
+  const scheduler = useRef<ReturnType<typeof createBalanceRefreshScheduler> | null>(null);
+  const lastTick = useRef(refreshTick);
 
   useEffect(() => {
-    if (!loading) {
-      setDisplayBalances(balances);
-    }
-  }, [loading, balances]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let interval: ReturnType<typeof setInterval> | null = null;
-
-    async function load() {
+    let obsolete = false;
+    setDisplayBalances({ totals: [], nodes: [] });
+    setError(null);
+    setHasFetched(false);
+    setLoading(false);
+    lastTick.current = refreshTick;
+    const current = createBalanceRefreshScheduler(async (signal) => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/deployments/${deploymentId}/balances`);
+        const res = await fetch(`/api/deployments/${deploymentId}/balances`, { signal });
+        if (obsolete) return;
         if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as {
-            error?: { message?: string };
-          };
-          throw apiError(body, `HTTP ${res.status}`);
+          const body: unknown = await res.json().catch(() => ({}));
+          if (!obsolete) setError(apiError(body, `HTTP ${res.status}`).message);
+          return { retryMs: balanceRetryAfter(res.headers.get("Retry-After")) };
         }
         const data = (await res.json()) as WorkflowBalances;
-        if (!cancelled) {
-          setBalances(data);
-          setError(null);
-        }
+        if (obsolete) return;
+        setDisplayBalances(data);
+        setError(null);
+        if (data.freshness && data.freshness.status !== "fresh") return { retryMs: 0 };
       } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-        }
+        if (!obsolete) setError(err instanceof Error ? err.message : String(err));
+        return { retryMs: 0 };
       } finally {
-        if (!cancelled) {
+        if (!obsolete) {
           setLoading(false);
           setHasFetched(true);
         }
       }
-    }
-
-    function start() {
-      load();
-      interval = setInterval(load, 10_000);
-    }
-
-    function stop() {
-      if (interval) {
-        clearInterval(interval);
-        interval = null;
-      }
-    }
-
-    if (isVisible) {
-      start();
-    }
-
+    });
+    scheduler.current = current;
+    // Visibility changes reuse this scheduler, including an active request/backoff.
+    current.setVisible(document.visibilityState === "visible");
     return () => {
-      cancelled = true;
-      stop();
+      obsolete = true;
+      current.stop();
     };
-  }, [deploymentId, refreshTick, isVisible]);
+    // refreshTick has a separate coalescing effect; it must not restart a fetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deploymentId, network]);
+
+  useEffect(() => {
+    scheduler.current?.setVisible(isVisible);
+  }, [isVisible]);
+  useEffect(() => {
+    if (lastTick.current === refreshTick) return;
+    lastTick.current = refreshTick;
+    scheduler.current?.request();
+  }, [refreshTick]);
 
   async function copy(text: string) {
     try {
@@ -123,7 +121,7 @@ export default function LiveBalances({
           <span
             className={cn(
               "material-symbols-outlined text-on-surface-variant transition-opacity",
-              loading && "animate-spin opacity-100",
+              loading && "opacity-100 motion-safe:animate-spin",
               !loading && "opacity-60",
             )}
             aria-hidden
@@ -145,17 +143,65 @@ export default function LiveBalances({
         </div>
       </div>
 
+      <p role="status" className="text-body-sm text-on-surface-variant mt-md">
+        {loading ? "Refreshing balances… " : ""}
+        {error
+          ? "Balances are stale. "
+          : displayBalances.freshness?.status === "partial"
+            ? "Partial balances — totals include successful reads only. "
+            : displayBalances.freshness?.status === "stale"
+              ? "Balances are stale. "
+              : ""}
+        {displayBalances.freshness?.targets.some((target) => target.readAt) && (
+          <span>
+            Oldest successful read:{" "}
+            <time>
+              {new Date(
+                Math.min(
+                  ...displayBalances.freshness.targets
+                    .filter((target) => target.readAt)
+                    .map((target) => Date.parse(target.readAt!)),
+                ),
+              ).toLocaleString()}
+            </time>
+            .
+          </span>
+        )}
+      </p>
+      {displayBalances.freshness?.targets
+        .filter((target) => target.stale)
+        .map((target) => (
+          <p
+            key={`${target.nodeId}:${target.contractAddress}:${target.symbol}`}
+            className="text-body-sm text-on-surface-variant mt-2"
+          >
+            {shortAddr(target.contractAddress)}:{" "}
+            {target.balanceStroops !== null
+              ? `Last known ${formatAmount(target.balanceStroops)} ${target.symbol ?? ""} (stale)`
+              : "Balance unavailable"}
+            {target.readAt && (
+              <span>
+                {" "}
+                · <time>{new Date(target.readAt).toLocaleString()}</time>
+              </span>
+            )}
+          </p>
+        ))}
+
       {error && (
         <div className="bg-error-container/30 text-error mt-md border-error/30 text-body-sm rounded border px-3 py-2">
           {error}
         </div>
       )}
 
-      {!hasBalances && !error && (hasFetched || !loading) && (
-        <p className="text-body-md text-on-surface-variant mt-md">
-          This workflow does not currently hold any contract balances.
-        </p>
-      )}
+      {!hasBalances &&
+        !error &&
+        hasFetched &&
+        (!displayBalances.freshness || displayBalances.freshness.totalsComplete) && (
+          <p className="text-body-md text-on-surface-variant mt-md">
+            This workflow does not currently hold any contract balances.
+          </p>
+        )}
 
       {hasBalances && (
         <div className="mt-md flex flex-wrap gap-4">
@@ -193,7 +239,7 @@ export default function LiveBalances({
                 >
                   <div className="flex flex-col gap-0.5">
                     <span className="text-label-sm text-on-surface-variant font-mono">
-                      {node.templateKind}
+                      {node.implementationLabel ?? node.templateKind}
                     </span>
                     <div className="flex items-center gap-2">
                       {explorerUrl ? (

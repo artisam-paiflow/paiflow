@@ -1,7 +1,10 @@
 import Link from "next/link";
-import RegisterForm from "@/components/auth/register-form";
 import { env } from "@/lib/env";
 import Logo from "@/components/app/logo";
+import GoogleButton from "@/components/auth/google-button";
+import RegisterForm from "@/components/auth/register-form";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Create account · Paiflow" };
 
@@ -18,9 +21,13 @@ export default function RegisterPage() {
         Create account.
       </h1>
 
+      {env().GOOGLE_AUTH_ENABLED && env().ALLOW_GOOGLE_REGISTRATION ? (
+        <GoogleButton authOrigin={new URL(env().AUTH_URL).origin} />
+      ) : null}
+
       {allowed ? (
         <RegisterForm />
-      ) : (
+      ) : env().GOOGLE_AUTH_ENABLED && env().ALLOW_GOOGLE_REGISTRATION ? null : (
         <div className="glass-panel mt-md p-md rounded-xl">
           <div className="text-label-sm text-tertiary flex items-center gap-2 font-mono">
             <span className="material-symbols-outlined text-[14px]">lock</span>

@@ -517,8 +517,9 @@ The effect classes described in [§3](#3-effects-the-visual-signatures) — `.gl
 
 Two things that look like details and are not:
 
-- **Fonts are self-hosted at build time** via `next/font/google` and `next/font/local` in
-  `app/layout.tsx`. Do not add a `fonts.googleapis.com` `@import`: it was deliberately removed in
+- **Fonts are bundled locally** in `app/fonts/` and self-hosted via `next/font/local` in
+  `app/layout.tsx`, so builds do not download fonts from Google. Do not add a
+  `fonts.googleapis.com` `@import`: it was deliberately removed in
   PR #51, and `lib/csp.ts` sets `font-src: 'self' data:`, so the browser would block it and every
   webfont on the page would fall back.
 - **Dark-only is enforced, not assumed** — `darkMode: "class"` in `tailwind.config.ts`, plus the

@@ -1,9 +1,34 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
+vi.mock("@/lib/stellar/dashboard-balance-cache", () => ({ invalidateDashboardBalances: vi.fn() }));
+import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { nativeToScVal, xdr } from "@stellar/stellar-sdk";
-import { EVENTS_PAGE_LIMIT, MAX_EVENT_PAGES_PER_POLL, pollEventsFor } from "@/lib/stellar/events";
+import { Contract, StrKey, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import {
+  EVENTS_PAGE_LIMIT,
+  MAX_EVENT_PAGES_PER_POLL,
+  MAX_EVENT_CONTRACTS_PER_REQUEST,
+  advanceEventCursor,
+  pollEventsFor,
+  pollEventsForWithOutcome,
+} from "@/lib/stellar/events";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
+import { redis } from "@/lib/redis";
+import { createCashOutJob } from "@/lib/offramp/jobs";
 import { EventKind, TemplateKind } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
@@ -13,9 +38,15 @@ const ADDR_B = "GAA5Z4XWC6K2RHP7K4BAVPUGDL3EUD5PGGBHJ7S2RFWAFHTTLHXN6CFZ";
 vi.mock("@/lib/stellar/client");
 vi.mock("@/lib/db", () => ({
   db: {
-    deployment: { findUnique: vi.fn() },
-    contractEvent: { create: vi.fn() },
-    eventCursor: { upsert: vi.fn() },
+    deployment: { findUnique: vi.fn(), updateMany: vi.fn(async () => ({ count: 1 })) },
+    contractEvent: {
+      create: vi.fn(),
+      findUniqueOrThrow: vi.fn(async () => ({ id: "existing-event" })),
+    },
+    eventCursor: {
+      updateMany: vi.fn(async () => ({ count: 1 })),
+      createMany: vi.fn(async () => ({ count: 1 })),
+    },
   },
 }));
 
@@ -24,11 +55,14 @@ vi.mock("@/lib/redis", () => ({
   eventChannel: (id: string) => `events:${id}`,
 }));
 
+vi.mock("@/lib/offramp/jobs", () => ({ createCashOutJob: vi.fn(async () => ({ id: "job" })) }));
+
 vi.mock("@/lib/log", () => ({
   log: { warn: vi.fn(), info: vi.fn() },
 }));
 
 function makeMockEvent(opts: {
+  contractAddress?: string;
   topic: unknown[];
   value: unknown;
   ledger: number;
@@ -37,7 +71,7 @@ function makeMockEvent(opts: {
 }) {
   return {
     type: "contract" as const,
-    contractId: "C123",
+    contractId: { contractId: () => opts.contractAddress ?? "C123" },
     id: `evt-${opts.ledger}-${opts.txHash}`,
     pagingToken: `pt-${opts.ledger}`,
     topic: opts.topic.map((t) => nativeToScVal(t)),
@@ -73,6 +107,156 @@ describe("pollEventsFor", () => {
     vi.clearAllMocks();
   });
 
+  it("polls a shared implementation's address once despite multiple bindings or snapshot aliases", async () => {
+    const node = {
+      nodeId: "p",
+      contractAddress: "C123",
+      templateKind: "STREAMER",
+      implementation: {
+        version: 1,
+        bindings: [
+          { blockId: "t", blockType: "on_schedule", role: "schedule" },
+          { blockId: "p", blockType: "split", role: "distribution" },
+        ],
+      },
+    };
+    vi.mocked(db.deployment.findUnique).mockResolvedValue({
+      id: "dep-1",
+      contractAddress: "C123",
+      status: "CONFIRMED",
+      serviceState: "ACTIVE",
+      cursor: { lastLedger: 500 },
+      pipelineSnapshot: [node, { ...node, nodeId: "alias" }],
+      graphSnapshot: null,
+      flow: { templateKind: TemplateKind.STREAMER },
+    } as unknown as Prisma.PromiseReturnType<typeof db.deployment.findUnique>);
+    const getEvents = vi.fn(async () => ({ events: [], latestLedger: 600 }));
+    mockServer({ getEvents });
+    expect(await pollEventsFor("dep-1")).toBe(0);
+    expect(getEvents).toHaveBeenCalledTimes(1);
+    expect(getEvents.mock.calls[0]).toEqual([
+      expect.objectContaining({ filters: [{ type: "contract", contractIds: ["C123"] }] }),
+    ]);
+  });
+
+  it("routes mixed SDK emitters through their own decoders and assets in DB and Redis", async () => {
+    const root = StrKey.encodeContract(Buffer.alloc(32, 1));
+    const downstream = StrKey.encodeContract(Buffer.alloc(32, 2));
+    vi.mocked(db.deployment.findUnique).mockResolvedValue({
+      id: "dep-1",
+      contractAddress: root,
+      status: "CONFIRMED",
+      serviceState: "ACTIVE",
+      cursor: { lastLedger: 500 },
+      flow: { templateKind: TemplateKind.SWAPPER },
+      graphSnapshot: {
+        nodes: [
+          { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+          {
+            id: "w",
+            type: "webhook",
+            config: { asset: { kind: "known", symbol: "USDC" }, relayer: ADDR_A },
+          },
+        ],
+        edges: [],
+      },
+      pipelineSnapshot: [
+        { nodeId: "t", contractAddress: root, templateKind: TemplateKind.DEPOSIT_TRIGGER },
+        { nodeId: "w", contractAddress: downstream, templateKind: TemplateKind.WEBHOOK },
+      ],
+    } as never);
+    const event = (address: string, topic: string) => ({
+      ...makeMockEvent({
+        topic: [topic, ADDR_A],
+        value: "100",
+        ledger: 600,
+        txHash: address,
+        ledgerClosedAt: "2026-10-06T00:00:00Z",
+      }),
+      contractId: new Contract(address),
+    });
+    const getEvents = vi.fn(async () => ({
+      events: [event(downstream, "execute"), event(root, "deposit")],
+      latestLedger: 600,
+    }));
+    mockServer({ getEvents });
+    vi.mocked(db.contractEvent.create).mockResolvedValue({ id: "row" } as never);
+    const publish = vi.fn(async (_channel: string, _payload: string) => 1);
+    vi.mocked(redis).mockReturnValue({ publish } as unknown as ReturnType<typeof redis>);
+    try {
+      const result = await pollEventsForWithOutcome("dep-1");
+      expect(getEvents).toHaveBeenCalledTimes(1);
+      expect(result).toMatchObject({ status: "complete", written: 2 });
+      expect(result.contracts.map((scan) => scan.written)).toEqual([1, 1]);
+      const rows = vi.mocked(db.contractEvent.create).mock.calls.map(([arg]) => arg.data);
+      expect(rows).toMatchObject([
+        {
+          payload: { contractAddress: downstream },
+          kind: "RECEIVE",
+          decodedData: { from: ADDR_A, amount: "100", asset: "USDC" },
+        },
+        {
+          payload: { contractAddress: root },
+          kind: "RECEIVE",
+          decodedData: { from: ADDR_A, amount: "100", asset: "XLM" },
+        },
+      ]);
+      expect(publish.mock.calls.map((call) => JSON.parse(call[1]!))).toMatchObject(
+        rows.map((row) => ({ payload: row.payload, decodedData: row.decodedData })),
+      );
+    } finally {
+      vi.mocked(redis).mockReturnValue(null);
+    }
+  });
+
+  it("resolves each cash-out destination using the event's emitting node", async () => {
+    const banks = ["Alice", "Bob"].map((accountName, i) => ({
+      id: `bank-${i}`,
+      type: "cash_out",
+      config: {
+        asset: { kind: "native" },
+        accountName,
+        accountNumber: `111${i}`,
+        bankCode: "BASECPH",
+      },
+    }));
+    vi.mocked(db.deployment.findUnique).mockResolvedValue({
+      id: "dep-1",
+      contractAddress: "C123",
+      status: "CONFIRMED",
+      serviceState: "ACTIVE",
+      cursor: { lastLedger: 500 },
+      flow: { templateKind: TemplateKind.SPLITTER },
+      graphSnapshot: { nodes: banks, edges: [] },
+      pipelineSnapshot: banks.map((node, i) => ({
+        nodeId: node.id,
+        contractAddress: `Cbank${i}`,
+        templateKind: TemplateKind.CASH_OUT,
+      })),
+    } as never);
+    mockServer({
+      getEvents: async () => ({
+        latestLedger: 600,
+        events: banks.map((_, i) =>
+          makeMockEvent({
+            contractAddress: `Cbank${i}`,
+            topic: ["cash_out", ADDR_A],
+            value: "100",
+            ledger: 600,
+            txHash: `cash-${i}`,
+            ledgerClosedAt: "2026-10-06T00:00:00Z",
+          }),
+        ),
+      }),
+    });
+    vi.mocked(db.contractEvent.create).mockResolvedValue({ id: "row" } as never);
+    expect(await pollEventsFor("dep-1")).toBe(2);
+    expect(vi.mocked(createCashOutJob).mock.calls.map(([, args]) => args)).toMatchObject([
+      { bankAccountName: "Alice", bankAccountNumber: "1110", amountStroops: "100" },
+      { bankAccountName: "Bob", bankAccountNumber: "1111", amountStroops: "100" },
+    ]);
+  });
+
   it("returns 0 when deployment is not found", async () => {
     vi.mocked(db.deployment.findUnique).mockResolvedValue(null);
     const result = await pollEventsFor("dep-1");
@@ -84,6 +268,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: null,
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: null,
       deployTxHash: null,
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -110,6 +295,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: null,
       deployTxHash: null,
       flow: null,
@@ -136,6 +322,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 400 },
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -151,10 +338,10 @@ describe("pollEventsFor", () => {
     const result = await pollEventsFor("dep-1");
     expect(result).toBe(1);
     expect(db.contractEvent.create).toHaveBeenCalledTimes(1);
-    expect(db.eventCursor.upsert).toHaveBeenCalledWith({
-      where: { deploymentId: "dep-1" },
-      update: { lastLedger: 500 },
-      create: { deploymentId: "dep-1", lastLedger: 500 },
+    expect(invalidateDashboardBalances).toHaveBeenCalledExactlyOnceWith("dep-1", "tx1");
+    expect(db.eventCursor.updateMany).toHaveBeenCalledWith({
+      where: { deploymentId: "dep-1", lastLedger: { lte: 500 } },
+      data: { lastLedger: 500 },
     });
   });
 
@@ -163,6 +350,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 0 },
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -194,6 +382,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: null,
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -210,10 +399,9 @@ describe("pollEventsFor", () => {
     const result = await pollEventsFor("dep-1");
     expect(result).toBe(1);
     expect(db.contractEvent.create).toHaveBeenCalledTimes(1);
-    expect(db.eventCursor.upsert).toHaveBeenCalledWith({
-      where: { deploymentId: "dep-1" },
-      update: { lastLedger: 900 },
-      create: { deploymentId: "dep-1", lastLedger: 900 },
+    expect(db.eventCursor.updateMany).toHaveBeenCalledWith({
+      where: { deploymentId: "dep-1", lastLedger: { lte: 900 } },
+      data: { lastLedger: 900 },
     });
   });
 
@@ -222,6 +410,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: null,
       deployTxHash: null,
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -240,6 +429,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: null,
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -270,6 +460,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 400 },
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -305,6 +496,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 400 },
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -341,6 +533,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 500 },
       deployTxHash: "dtx1",
       graphSnapshot: null,
@@ -385,6 +578,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 500 },
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SWAPPER },
@@ -437,7 +631,7 @@ describe("pollEventsFor: the inbound asset of a RECEIVE", () => {
         config: { assetIn: XLM, assetOut: USDC, slippageBps: 100, deadlineSecs: 300 },
       },
     ],
-    edges: [{ source: "t", target: "s" }],
+    edges: [{ id: "ts", source: "t", target: "s" }],
   };
 
   function mockDeployment(over: Record<string, unknown>) {
@@ -445,6 +639,7 @@ describe("pollEventsFor: the inbound asset of a RECEIVE", () => {
       id: "dep-1",
       contractAddress: TRIGGER_ADDR,
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 500 },
       deployTxHash: "dtx1",
       graphSnapshot: null,
@@ -525,7 +720,7 @@ describe("pollEventsFor: the inbound asset of a RECEIVE", () => {
           { id: "t", type: "on_receive", config: { asset: XLM } },
           { id: "y", type: "yield", config: { asset: USDC, vault: ADDR_B } },
         ],
-        edges: [{ source: "t", target: "y" }],
+        edges: [{ id: "ty", source: "t", target: "y" }],
       },
       pipelineSnapshot: [
         { nodeId: "y", contractAddress: TRIGGER_ADDR, templateKind: TemplateKind.YIELD },
@@ -674,11 +869,22 @@ describe("pollEventsFor: RPC scan windows", () => {
       ledgerClosedAt: "2026-09-15T00:00:00Z",
     });
 
+  // Root + four quiet nodes fill the first request; C456 belongs to the second.
+  const separateGroups = () => [
+    ...Array.from({ length: MAX_EVENT_CONTRACTS_PER_REQUEST - 1 }, (_, i) => ({
+      nodeId: `quiet-${i}`,
+      contractAddress: `Cquiet${i}`,
+      templateKind: TemplateKind.PAYER,
+    })),
+    { nodeId: "pay", contractAddress: "C456", templateKind: TemplateKind.PAYER },
+  ];
+
   function deployment(lastLedger: number, pipeline: unknown[] = []) {
     vi.mocked(db.deployment.findUnique).mockResolvedValue({
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger },
       deployTxHash: "dtx1",
       pipelineSnapshot: pipeline,
@@ -699,10 +905,472 @@ describe("pollEventsFor: RPC scan windows", () => {
     return spy;
   }
 
-  const cursorWritten = () => vi.mocked(db.eventCursor.upsert).mock.calls.at(-1)?.[0].update;
+  const cursorWritten = () => vi.mocked(db.eventCursor.updateMany).mock.calls.at(-1)?.[0].data;
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it.each([1, 5, 6, 10, 11, 26])(
+    "scans %i unique contracts in bounded sequential groups",
+    async (count) => {
+      const nodes = Array.from({ length: count - 1 }, (_, i) => ({
+        nodeId: `n${i}`,
+        contractAddress: `C${i}`,
+        templateKind: TemplateKind.PAYER,
+      }));
+      deployment(100, [...nodes, ...nodes]);
+      let active = 0;
+      let peak = 0;
+      const spy = server(async () => {
+        peak = Math.max(peak, ++active);
+        await Promise.resolve();
+        active--;
+        return { events: [], latestLedger: 200 };
+      });
+      const result = await pollEventsForWithOutcome("dep-1");
+      expect(result.status).toBe("complete");
+      expect(result.contracts).toHaveLength(count);
+      expect(spy).toHaveBeenCalledTimes(Math.ceil(count / MAX_EVENT_CONTRACTS_PER_REQUEST));
+      expect(peak).toBe(1);
+      const ids = spy.mock.calls.flatMap(([req]) => {
+        expect(req.filters).toHaveLength(1);
+        expect(req.filters[0]!.contractIds.length).toBeLessThanOrEqual(5);
+        expect(req).toMatchObject({ startLedger: 101, limit: EVENTS_PAGE_LIMIT });
+        return req.filters[0]!.contractIds;
+      });
+      expect(ids).toEqual(["C123", ...nodes.map((node) => node.contractAddress)]);
+      expect(cursorWritten()).toEqual({ lastLedger: 200 });
+    },
+  );
+
+  it.each(["unknown", "missing", "other-group"])("stops safely at an %s emitter", async (mode) => {
+    deployment(100, separateGroups());
+    const bad = {
+      ...payout(150),
+      contractId:
+        mode === "missing"
+          ? undefined
+          : { contractId: () => (mode === "other-group" ? "C456" : "Cunknown") },
+    };
+    server(async (req) => ({
+      events: req.filters[0]!.contractIds[0] === "C123" ? [payout(120), bad, payout(160)] : [],
+      latestLedger: 200,
+    }));
+    vi.mocked(db.contractEvent.create).mockResolvedValue({ id: "row" } as never);
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      written: 1,
+      scannedThrough: 149,
+      reasons: ["unexpected-emitter"],
+    });
+    expect(db.contractEvent.create).toHaveBeenCalledTimes(1);
+    expect(cursorWritten()).toEqual({ lastLedger: 149 });
+  });
+
+  it.each([150, 499])(
+    "ingests a mixed-emitter ledger with %i events per contract without stalling",
+    async (perContract) => {
+      const pipeline = separateGroups().slice(0, MAX_EVENT_CONTRACTS_PER_REQUEST - 1);
+      const addresses = ["C123", ...pipeline.map((node) => node.contractAddress)];
+      deployment(149, pipeline);
+      const events = addresses.flatMap((contractAddress) =>
+        Array.from({ length: perContract }, (_, i) =>
+          makeMockEvent({
+            contractAddress,
+            topic: ["release"],
+            value: "100",
+            ledger: 150,
+            txHash: `${contractAddress}-${i}`,
+            ledgerClosedAt: "2026-10-06T00:00:00Z",
+          }),
+        ),
+      );
+      const spy = server(async (req) => {
+        const offset = req.cursor ? Number(req.cursor.split("-")[1]) + 1 : 0;
+        const page = events.slice(offset, offset + EVENTS_PAGE_LIMIT);
+        return {
+          events: page,
+          latestLedger: 200,
+          cursor:
+            page.length === EVENTS_PAGE_LIMIT
+              ? cursorAt(150, offset + page.length - 1)
+              : cursorAt(200),
+        };
+      });
+      const stored = new Set<string>();
+      const persist = async ({ data }: { data: { eventId: string } }) => {
+        if (stored.has(data.eventId)) throw { code: "P2002" };
+        stored.add(data.eventId);
+        return { id: data.eventId };
+      };
+      vi.mocked(db.contractEvent.create).mockImplementation(
+        persist as unknown as typeof db.contractEvent.create,
+      );
+      const expectedPages = Math.ceil(events.length / EVENTS_PAGE_LIMIT);
+      const first = await pollEventsForWithOutcome("dep-1");
+      expect(first).toMatchObject({
+        status: "complete",
+        written: events.length,
+        scannedThrough: 200,
+        reasons: [],
+      });
+      expect(first.contracts.map((scan) => scan.written)).toEqual(addresses.map(() => perContract));
+      expect(stored.size).toBe(events.length);
+      expect(spy).toHaveBeenCalledTimes(expectedPages);
+      expect(expectedPages).toBeLessThanOrEqual(MAX_EVENT_PAGES_PER_POLL * addresses.length);
+      expect(cursorWritten()).toEqual({ lastLedger: 200 });
+      const invalidationsBeforeReplay = vi.mocked(invalidateDashboardBalances).mock.calls.length;
+      // An overlapping caller that read the older durable ledger replays safely.
+      expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+        status: "complete",
+        written: 0,
+        scannedThrough: 200,
+      });
+      expect(stored.size).toBe(events.length);
+      expect(vi.mocked(invalidateDashboardBalances).mock.calls).toHaveLength(
+        invalidationsBeforeReplay,
+      );
+      vi.mocked(db.contractEvent.create).mockResolvedValue({ id: "row" } as never);
+    },
+  );
+
+  it("caps a busy mixed-emitter scan at the pooled allowance and leaves its ledger incomplete", async () => {
+    const pipeline = separateGroups().slice(0, MAX_EVENT_CONTRACTS_PER_REQUEST - 1);
+    const addresses = ["C123", ...pipeline.map((node) => node.contractAddress)];
+    deployment(149, pipeline);
+    let eventIndex = 0;
+    const spy = server(async () => {
+      const events = Array.from({ length: EVENTS_PAGE_LIMIT }, () => {
+        const contractAddress = addresses[eventIndex % addresses.length]!;
+        return {
+          ...payout(150, eventIndex++),
+          contractId: { contractId: () => contractAddress },
+        };
+      });
+      return { events, cursor: cursorAt(150, eventIndex - 1), latestLedger: 200 };
+    });
+    vi.mocked(db.contractEvent.create).mockResolvedValue({ id: "row" } as never);
+    const result = await pollEventsForWithOutcome("dep-1");
+    expect(result).toMatchObject({
+      status: "partial",
+      scannedThrough: 149,
+      reasons: ["page-limit"],
+    });
+    expect(spy).toHaveBeenCalledTimes(MAX_EVENT_PAGES_PER_POLL * MAX_EVENT_CONTRACTS_PER_REQUEST);
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("replays a busy emitter's partial ledger to recover a quieter emitter's failed event", async () => {
+    deployment(100, [{ nodeId: "pay", contractAddress: "C456", templateKind: TemplateKind.PAYER }]);
+    const busy = Array.from({ length: EVENTS_PAGE_LIMIT }, (_, i) => payout(150, i));
+    const quiet = makeMockEvent({
+      contractAddress: "C456",
+      topic: ["release"],
+      value: "100",
+      ledger: 150,
+      txHash: "quiet",
+      ledgerClosedAt: "2026-10-06T00:00:00Z",
+    });
+    const spy = server(async (req) =>
+      req.cursor
+        ? { events: [quiet], cursor: cursorAt(200), latestLedger: 200 }
+        : { events: busy, cursor: cursorAt(150, 99), latestLedger: 200 },
+    );
+    const stored = new Set<string>();
+    let fail = true;
+    const persist = async ({ data }: { data: { eventId: string } }) => {
+      if (data.eventId === quiet.id && fail) throw new Error("db failure");
+      if (stored.has(data.eventId)) throw { code: "P2002" };
+      stored.add(data.eventId);
+      return { id: data.eventId };
+    };
+    vi.mocked(db.contractEvent.create).mockImplementation(
+      persist as unknown as typeof db.contractEvent.create,
+    );
+    const first = await pollEventsForWithOutcome("dep-1");
+    expect(first).toMatchObject({
+      status: "partial",
+      scannedThrough: 149,
+      written: EVENTS_PAGE_LIMIT,
+    });
+    expect(first.contracts.map((scan) => scan.written)).toEqual([EVENTS_PAGE_LIMIT, 0]);
+    expect(spy.mock.calls[1]![0]).toMatchObject({
+      cursor: cursorAt(150, 99),
+      filters: [{ contractIds: ["C123", "C456"] }],
+    });
+    expect(spy.mock.calls[1]![0].startLedger).toBeUndefined();
+    deployment(149, [{ nodeId: "pay", contractAddress: "C456", templateKind: TemplateKind.PAYER }]);
+    fail = false;
+    const second = await pollEventsForWithOutcome("dep-1");
+    expect(second).toMatchObject({ status: "complete", scannedThrough: 200, written: 1 });
+    expect(second.contracts.map((scan) => scan.written)).toEqual([0, 1]);
+    expect(stored.size).toBe(EVENTS_PAGE_LIMIT + 1);
+    vi.mocked(db.contractEvent.create).mockResolvedValue({ id: "row" } as never);
+  });
+
+  it("stops before an unstored event and recovers it on the next poll", async () => {
+    deployment(100);
+    const events = [payout(120), payout(150), payout(160)];
+    server(async () => ({ events, cursor: cursorAt(200), latestLedger: 200 }));
+    vi.mocked(db.contractEvent.create)
+      .mockResolvedValueOnce({ id: "stored" } as never)
+      .mockRejectedValueOnce(new Error("database unavailable"));
+
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      written: 1,
+      scannedThrough: 149,
+      reasons: ["insert-error"],
+    });
+    expect(cursorWritten()).toEqual({ lastLedger: 149 });
+    expect(db.contractEvent.create).toHaveBeenCalledTimes(2);
+
+    deployment(149);
+    server(async () => ({ events: events.slice(1), cursor: cursorAt(200), latestLedger: 200 }));
+    vi.mocked(db.contractEvent.create).mockResolvedValue({ id: "recovered" } as never);
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "complete",
+      written: 2,
+      scannedThrough: 200,
+      reasons: [],
+    });
+    expect(cursorWritten()).toEqual({ lastLedger: 200 });
+  });
+
+  it("replays earlier events in the same ledger harmlessly after an insert failure", async () => {
+    deployment(149);
+    const events = [payout(150, 1), payout(150, 2), payout(151)];
+    server(async () => ({ events, cursor: cursorAt(200), latestLedger: 200 }));
+    vi.mocked(db.contractEvent.create)
+      .mockResolvedValueOnce({ id: "stored" } as never)
+      .mockRejectedValueOnce(new Error("db failure"));
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      written: 1,
+      scannedThrough: 149,
+    });
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
+    vi.mocked(db.contractEvent.create)
+      .mockRejectedValueOnce({ code: "P2002" })
+      .mockResolvedValue({ id: "recovered" } as never);
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "complete",
+      written: 2,
+      scannedThrough: 200,
+    });
+  });
+
+  it("does not claim coverage if the first event at the start ledger cannot be stored", async () => {
+    deployment(100);
+    server(async () => ({ events: [payout(101)], latestLedger: 200 }));
+    vi.mocked(db.contractEvent.create).mockRejectedValueOnce(new Error("db failure"));
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "failed",
+      written: 0,
+      scannedThrough: 100,
+      reasons: ["insert-error"],
+    });
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("does not initialize a cursor from a failed first scan", async () => {
+    vi.mocked(db.deployment.findUnique).mockResolvedValue({
+      id: "dep-1",
+      contractAddress: "C123",
+      status: "CONFIRMED",
+      serviceState: "ACTIVE",
+      cursor: null,
+      deployTxHash: "dtx1",
+      flow: { templateKind: TemplateKind.SPLITTER },
+    } as never);
+    vi.mocked(sorobanRpc).mockReturnValue({
+      getTransaction: async () => ({ status: "SUCCESS", ledger: 1000 }),
+      getEvents: async () => {
+        throw new Error("rpc down");
+      },
+      getHealth: async () => ({ oldestLedger: 1, latestLedger: 2000 }),
+    } as never);
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "failed",
+      scannedThrough: 0,
+    });
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
+    expect(db.eventCursor.createMany).not.toHaveBeenCalled();
+  });
+
+  it("preserves full-page coverage when a later page's insert fails in the same ledger", async () => {
+    deployment(100);
+    const full = Array.from({ length: EVENTS_PAGE_LIMIT }, (_, i) => payout(150, i));
+    server(async (req) =>
+      req.cursor
+        ? { events: [payout(150, 999)], cursor: cursorAt(200), latestLedger: 200 }
+        : { events: full, cursor: cursorAt(150, 99), latestLedger: 200 },
+    );
+    for (let i = 0; i < EVENTS_PAGE_LIMIT; i++) {
+      vi.mocked(db.contractEvent.create).mockResolvedValueOnce({ id: "stored" } as never);
+    }
+    vi.mocked(db.contractEvent.create).mockRejectedValueOnce(new Error("insert failure"));
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      written: EVENTS_PAGE_LIMIT,
+      scannedThrough: 149,
+      reasons: ["insert-error"],
+    });
+    expect(cursorWritten()).toEqual({ lastLedger: 149 });
+    vi.mocked(db.contractEvent.create).mockResolvedValue({ id: "stored" } as never);
+  });
+
+  it("reports a full page without a continuation cursor as partial", async () => {
+    deployment(100);
+    server(async () => ({
+      events: Array.from({ length: EVENTS_PAGE_LIMIT }, (_, i) => payout(150, i)),
+      latestLedger: 200,
+    }));
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      scannedThrough: 149,
+      reasons: ["missing-cursor"],
+    });
+  });
+
+  it("distinguishes first-page failure from later-page partial coverage", async () => {
+    deployment(100);
+    server(async () => {
+      throw new Error("rpc unavailable");
+    });
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "failed",
+      written: 0,
+      scannedThrough: 100,
+      reasons: ["rpc-error"],
+    });
+    server(async (req) => {
+      if (req.cursor) throw new Error("later page unavailable");
+      return { events: [], cursor: cursorAt(150), latestLedger: 200 };
+    });
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      written: 0,
+      scannedThrough: 150,
+      reasons: ["rpc-error"],
+    });
+  });
+
+  it("reports empty scans and already caught-up scans as complete", async () => {
+    deployment(100);
+    server(async () => ({ events: [], cursor: cursorAt(200), latestLedger: 200 }));
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "complete",
+      written: 0,
+      scannedThrough: 200,
+    });
+    vi.mocked(db.eventCursor.updateMany).mockClear();
+    deployment(200);
+    server(
+      async () => {
+        throw new Error("ahead of tip");
+      },
+      1,
+      200,
+    );
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "complete",
+      written: 0,
+      scannedThrough: 200,
+    });
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("reports page limits and retention gaps instead of complete coverage", async () => {
+    deployment(100);
+    server(async () => ({ events: [], cursor: cursorAt(150), latestLedger: 200 }));
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      scannedThrough: 150,
+      reasons: ["page-limit"],
+    });
+    server(
+      async (req) => {
+        if (req.startLedger === 101) throw new Error("outside retention");
+        return { events: [], cursor: cursorAt(200), latestLedger: 200 };
+      },
+      140,
+      200,
+    );
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "partial",
+      scannedThrough: 200,
+      reasons: ["retention-gap"],
+    });
+    expect(db.deployment.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "dep-1",
+        serviceState: { not: "RETIRED" },
+        retirementCoverageGap: null,
+      },
+      data: {
+        retirementCoverageGap: expect.stringContaining("ledger 101"),
+        retirementReconciledAt: null,
+      },
+    });
+  });
+
+  it("does not advance coverage if detected retention gaps cannot be persisted", async () => {
+    deployment(100);
+    const spy = server(
+      async () => {
+        throw new Error("outside retention");
+      },
+      140,
+      200,
+    );
+    vi.mocked(db.deployment.updateMany).mockRejectedValueOnce(new Error("database unavailable"));
+    await expect(pollEventsForWithOutcome("dep-1")).rejects.toThrow("database unavailable");
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("reports mixed contract outcomes and holds coverage at the least advanced contract", async () => {
+    deployment(100, separateGroups());
+    server(async (req) => {
+      if (req.filters[0]!.contractIds[0] === "C456") throw new Error("rpc unavailable");
+      return { events: [], latestLedger: 200 };
+    });
+    const result = await pollEventsForWithOutcome("dep-1");
+    expect(result).toMatchObject({
+      status: "partial",
+      scannedThrough: 100,
+      written: 0,
+      reasons: ["rpc-error"],
+    });
+    expect(result.contracts.map((scan) => scan.status)).toEqual([
+      ...Array(MAX_EVENT_CONTRACTS_PER_REQUEST).fill("complete"),
+      "failed",
+    ]);
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("reports unavailable deployments and missing start state as skipped", async () => {
+    vi.mocked(db.deployment.findUnique).mockResolvedValue(null);
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "skipped",
+      scannedThrough: null,
+      reasons: ["deployment-unavailable"],
+    });
+    deployment(100);
+    vi.mocked(db.deployment.findUnique).mockResolvedValue({
+      id: "dep-1",
+      contractAddress: "C123",
+      status: "CONFIRMED",
+      serviceState: "ACTIVE",
+      flow: { templateKind: TemplateKind.SPLITTER },
+    } as never);
+    expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({
+      status: "skipped",
+      scannedThrough: null,
+      reasons: ["missing-start-ledger"],
+    });
   });
 
   it("follows the cursor across empty windows and ingests an event past the first one", async () => {
@@ -798,24 +1466,22 @@ describe("pollEventsFor: RPC scan windows", () => {
     expect(await pollEventsFor("dep-1")).toBe(0);
     expect(spy).toHaveBeenCalledTimes(1);
     expect(log.warn).not.toHaveBeenCalled();
-    expect(db.eventCursor.upsert).not.toHaveBeenCalled();
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
   });
 
   it("does not advance the cursor when one of the pipeline's contracts fails to scan", async () => {
-    deployment(100_000, [
-      { nodeId: "pay", contractAddress: "C456", templateKind: TemplateKind.PAYER },
-    ]);
+    deployment(100_000, separateGroups());
     server(async (req) => {
       if (req.filters[0]!.contractIds[0] === "C456") throw new Error("rpc down");
       return { events: [payout(100_500)], cursor: cursorAt(101_000), latestLedger: 101_000 };
     });
 
     expect(await pollEventsFor("dep-1")).toBe(1);
-    expect(db.eventCursor.upsert).not.toHaveBeenCalled();
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
   });
 
   it("moves the cursor only as far as the least-advanced contract", async () => {
-    deployment(0, [{ nodeId: "pay", contractAddress: "C456", templateKind: TemplateKind.PAYER }]);
+    deployment(0, separateGroups());
     server(async (req) =>
       req.filters[0]!.contractIds[0] === "C456"
         ? { events: [], cursor: cursorAt(10_000), latestLedger: 90_000 }
@@ -828,9 +1494,7 @@ describe("pollEventsFor: RPC scan windows", () => {
   });
 
   it("keeps a contract's completed pages when a later page fails", async () => {
-    deployment(100_000, [
-      { nodeId: "pay", contractAddress: "C456", templateKind: TemplateKind.PAYER },
-    ]);
+    deployment(100_000, separateGroups());
     server(async (req) => {
       if (req.filters[0]!.contractIds[0] !== "C456") {
         return { events: [], cursor: cursorAt(150_000), latestLedger: 150_000 };
@@ -841,10 +1505,48 @@ describe("pollEventsFor: RPC scan windows", () => {
 
     await pollEventsFor("dep-1");
     expect(log.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ contractAddress: "C456", scannedThrough: 110_000 }),
+      expect.objectContaining({ contractIds: ["C456"], scannedThrough: 110_000 }),
       "getEvents page failed",
     );
     // Ledgers past C456's last complete page are re-read next poll, so nothing is skipped.
     expect(cursorWritten()).toEqual({ lastLedger: 110_000 });
+  });
+});
+
+describe("advanceEventCursor", () => {
+  const where = { deploymentId: "dep-1", lastLedger: { lte: 500 } };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("moves an existing cursor forward with one conditional update", async () => {
+    vi.mocked(db.eventCursor.updateMany).mockResolvedValueOnce({ count: 1 });
+    await advanceEventCursor("dep-1", 500);
+    expect(db.eventCursor.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.eventCursor.updateMany).toHaveBeenCalledWith({ where, data: { lastLedger: 500 } });
+    expect(db.eventCursor.createMany).not.toHaveBeenCalled();
+  });
+
+  it("creates the cursor on a deployment's first poll", async () => {
+    vi.mocked(db.eventCursor.updateMany).mockResolvedValueOnce({ count: 0 });
+    vi.mocked(db.eventCursor.createMany).mockResolvedValueOnce({ count: 1 });
+    await advanceEventCursor("dep-1", 500);
+    expect(db.eventCursor.createMany).toHaveBeenCalledWith({
+      data: [{ deploymentId: "dep-1", lastLedger: 500 }],
+      skipDuplicates: true,
+    });
+    expect(db.eventCursor.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a cursor that is already ahead, and retries only the conditional update", async () => {
+    vi.mocked(db.eventCursor.updateMany).mockResolvedValue({ count: 0 });
+    vi.mocked(db.eventCursor.createMany).mockResolvedValueOnce({ count: 0 });
+    await advanceEventCursor("dep-1", 500);
+    expect(db.eventCursor.updateMany).toHaveBeenCalledTimes(2);
+    for (const [arg] of vi.mocked(db.eventCursor.updateMany).mock.calls) {
+      expect(arg).toEqual({ where, data: { lastLedger: 500 } });
+    }
+    vi.mocked(db.eventCursor.updateMany).mockResolvedValue({ count: 1 });
   });
 });

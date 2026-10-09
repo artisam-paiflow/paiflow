@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { Role, type Deployment, type DeploymentApiToken } from "@prisma/client";
 import { db } from "@/lib/db";
 import { hashApiToken } from "@/lib/auth/api-token";
+import { audienceFor, type Audience } from "@/lib/analytics/policy";
 import { AppError } from "@/lib/errors";
 
 /** `pfk_` + 32 random bytes as hex. Anything else is refused before the DB is
@@ -13,13 +14,23 @@ export const DEPLOYMENT_API_TOKEN_PATTERN = /^pfk_[0-9a-f]{64}$/;
 export type DeploymentTokenAuth = {
   token: Omit<DeploymentApiToken, "tokenHash">;
   deployment: Deployment;
+  analyticsAudience: Audience;
 };
 
 // One message for every refusal: a caller probing with a stolen or guessed
 // token must not learn whether it was unknown, revoked, expired or bound to
-// another deployment.
-const refused = () =>
+// another deployment. Also what `lib/api/v1/pre-auth.ts` answers a recently
+// refused token with, so a cached refusal reads the same as a looked-up one.
+export const refusedDeploymentToken = () =>
   new AppError("UNAUTHENTICATED", "A valid API token for this deployment is required");
+const refused = refusedDeploymentToken;
+
+/** The request's `Authorization: Bearer pfk_…` token when it is well-formed, else null. No DB. */
+export function bearerDeploymentToken(req: NextRequest): string | null {
+  const match = /^Bearer\s+(\S+)$/i.exec(req.headers.get("authorization")?.trim() ?? "");
+  const raw = match?.[1];
+  return raw && DEPLOYMENT_API_TOKEN_PATTERN.test(raw) ? raw : null;
+}
 
 /**
  * Authenticate an `/api/v1` request against one deployment.
@@ -33,14 +44,15 @@ export async function requireDeploymentToken(
   req: NextRequest,
   deploymentId: string,
 ): Promise<DeploymentTokenAuth> {
-  const match = /^Bearer\s+(\S+)$/i.exec(req.headers.get("authorization")?.trim() ?? "");
-  const raw = match?.[1];
-  if (!raw || !DEPLOYMENT_API_TOKEN_PATTERN.test(raw)) throw refused();
+  const raw = bearerDeploymentToken(req);
+  if (!raw) throw refused();
 
   const row = await db.deploymentApiToken.findUnique({
     where: { tokenHash: hashApiToken(raw) },
     include: {
-      deployment: { include: { owner: { select: { isActive: true, role: true } } } },
+      deployment: {
+        include: { owner: { select: { isActive: true, role: true, analyticsAudience: true } } },
+      },
     },
   });
 
@@ -49,7 +61,8 @@ export async function requireDeploymentToken(
     row.revokedAt ||
     (row.expiresAt && row.expiresAt.getTime() <= Date.now()) ||
     row.deploymentId !== deploymentId ||
-    !row.deployment.owner.isActive
+    !row.deployment.owner.isActive ||
+    row.deployment.serviceState !== "ACTIVE"
   ) {
     throw refused();
   }
@@ -67,5 +80,5 @@ export async function requireDeploymentToken(
 
   const { tokenHash: _tokenHash, deployment, ...token } = row;
   const { owner: _owner, ...deploymentRow } = deployment;
-  return { token, deployment: deploymentRow };
+  return { token, deployment: deploymentRow, analyticsAudience: audienceFor(_owner) };
 }

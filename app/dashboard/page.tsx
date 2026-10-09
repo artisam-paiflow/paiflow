@@ -3,12 +3,14 @@ import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import Topbar from "@/components/app/topbar";
+import DeleteFlowButton from "@/components/flows/delete-flow-button";
 import NewFlowButton from "@/components/flows/new-flow-button";
 import { isStellarNetwork, stellarExpertContractUrl } from "@/lib/stellar/explorer";
 
 export const dynamic = "force-dynamic";
 
 const statusBadge: Record<string, { label: string; cls: string; dot?: string }> = {
+  RETIRING: { label: "RETIRING", cls: "border-tertiary/30 text-tertiary" },
   DRAFT: {
     label: "DRAFT",
     cls: "bg-surface-container-high/40 border-outline-variant/40 text-on-surface-variant",
@@ -50,11 +52,12 @@ export default async function Dashboard() {
   const [flows, deployments] = await Promise.all([
     db.flow.findMany({
       where: { ownerId: user.id },
+      include: { _count: { select: { deployments: true } } },
       orderBy: { updatedAt: "desc" },
       take: 20,
     }),
     db.deployment.findMany({
-      where: { ownerId: user.id },
+      where: { ownerId: user.id, serviceState: { not: "RETIRED" } },
       orderBy: { createdAt: "desc" },
       take: 10,
       include: { flow: { select: { name: true } } },
@@ -135,31 +138,33 @@ export default async function Dashboard() {
           ) : (
             <div className="gap-md grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {flows.map((f) => (
-                <Link
-                  key={f.id}
-                  href={`/flows/${f.id}`}
-                  className="glass-panel group gap-sm p-md hover:border-primary/50 flex flex-col rounded-xl transition-all duration-200 hover:shadow-[0_0_24px_-8px_rgba(255,177,196,0.5)]"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-label-sm text-primary inline-flex items-center gap-2 font-mono">
-                      <span className="bg-primary h-1.5 w-1.5 rounded-full" />
-                      {f.templateKind?.toUpperCase() ?? "FLOW"}
-                    </span>
-                    <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-[16px] transition-colors">
-                      arrow_outward
-                    </span>
-                  </div>
-                  <h3 className="text-headline-sm text-on-surface truncate">{f.name}</h3>
-                  <div className="text-label-sm text-on-surface-variant mt-auto flex items-center gap-2 font-mono">
-                    <span className="material-symbols-outlined text-[14px]">schedule</span>
-                    {new Date(f.updatedAt).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
-                </Link>
+                <div key={f.id} className="glass-panel rounded-xl">
+                  <Link
+                    href={`/flows/${f.id}`}
+                    className="glass-panel group gap-sm p-md hover:border-primary/50 flex flex-col rounded-xl transition-all duration-200 hover:shadow-[0_0_24px_-8px_rgba(255,177,196,0.5)]"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-label-sm text-primary inline-flex items-center gap-2 font-mono">
+                        <span className="bg-primary h-1.5 w-1.5 rounded-full" />
+                        {f.templateKind?.toUpperCase() ?? "FLOW"}
+                      </span>
+                      <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-[16px] transition-colors">
+                        arrow_outward
+                      </span>
+                    </div>
+                    <h3 className="text-headline-sm text-on-surface truncate">{f.name}</h3>
+                    <div className="text-label-sm text-on-surface-variant mt-auto flex items-center gap-2 font-mono">
+                      <span className="material-symbols-outlined text-[14px]">schedule</span>
+                      {new Date(f.updatedAt).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                  </Link>
+                  <DeleteFlowButton flowId={f.id} hasDeployments={f._count.deployments > 0} />
+                </div>
               ))}
             </div>
           )}
@@ -193,7 +198,9 @@ export default async function Dashboard() {
                 </thead>
                 <tbody className="divide-outline-variant/10 divide-y">
                   {deployments.map((d) => {
-                    const badge = statusBadge[d.status] ?? {
+                    const badge = statusBadge[
+                      d.serviceState === "RETIRING" ? "RETIRING" : d.status
+                    ] ?? {
                       label: d.status?.toUpperCase() ?? "—",
                       cls: "bg-surface-container-high/40 border-outline-variant/30 text-on-surface-variant",
                     };
