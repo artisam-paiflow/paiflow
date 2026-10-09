@@ -1,0 +1,893 @@
+PAIFLOW — CONSOLIDATED ALPHA TESTING FEEDBACK
+Customer feedback documentation | September 2026
+Prepared: 8 October 2026
+
+PURPOSE AND METHOD
+We began with usability testing to identify barriers before wider customer
+discovery through planned hackathons and developer events.
+Nine participants contributed written feedback: eight external testers and
+one project member who piloted the protocol. Users 1, 2, 3, 6 and 7 followed
+the full protocol: asynchronous recorded usability testing with on-camera
+responses to prepared questions, plus written answers and screenshots.
+Users 4, 5, 8 and 9 followed the quick-test protocol and supplied written
+feedback and screenshots without video. User1 is the project-member pilot,
+as documented in the repository cohort records.
+
+This consolidation is based on all nine written feedback files. Participant roles and blockchain
+experience vary; this is a mixed usability cohort, not a validated customer
+segment. Participation was primarily to help test the app.
+
+Source evidence folder:
+https://drive.google.com/drive/folders/1eco_yc1XwVxY-bI6KoJfWEiukZe-FvP3
+
+HOW TO READ THIS DOCUMENT
+The summary below is an interpretation of the written responses. The
+appendix preserves the submitted questions and answers, including missing
+ratings, wording and task-number inconsistencies. Names and email addresses
+are redacted; dates, roles and feedback remain. User numbers match the Drive
+folder labels and are not the repository's tester-N pseudonyms.
+
+KEY FINDINGS AND EVIDENCE
+1. Plain-English flow previews help explain payment behavior.
+   All four quick testers named the English Preview as the source used to
+   interpret the split. Full testers also said it matched their intended
+   flow. Sources: users 1–9. This supports comprehension with a preview;
+   it does not establish complete understanding of contract execution.
+
+2. Canvas navigation remains a usability barrier.
+   Six participants reported issues with dragging, zooming, scrolling,
+   panel positioning or canvas navigation. Sources: users 2, 3, 4, 5, 6, 7.
+
+3. Wallet signing and deployment need clearer explanations.
+   Four full-session participants expressed uncertainty about signing,
+   deployment or what happens next. Sources: users 2, 3, 6, 7.
+   Some quick-test answers also conflated deploying with paying recipients.
+   Sources: users 4, 8.
+
+4. Independent task completion is uneven.
+   Three quick testers reported enabling Deploy; one did not. Reported
+   times were 30, 5 and 10 minutes for the three who did. Sources: users
+   4, 5, 8, 9. These are self-reports for a quick-test flow, not measured
+   completion times for every flow or proof of a two-minute setup claim.
+
+5. Real-money trust remains conditional or mixed.
+   Users 1 and 2 explicitly declined real-money use at this stage; users
+   6 and 7 made trust conditional on security. Users 4 and 8 requested
+   evidence of safety/security in their recommendation explanations.
+   User3 explicitly expressed willingness to trust the app. These answers
+   do not demonstrate verified security, real-money adoption or demand.
+
+6. Mobile payment guidance needs improvement.
+   Three of four quick testers were unsure how to proceed with payment.
+   Sources: users 4, 5, 8. Mobile layout and zoom concerns also appeared.
+   Sources: users 5, 8, 9.
+
+7. Error handling works for some users but not consistently.
+   Several full testers found validation useful, while user2 struggled
+   with a technical refusal message. User1 requested clearer identification
+   of the recipient missing a trustline. Sources: users 1, 2, 3, 6, 7.
+
+IMPLICATIONS FOR CUSTOMER DEVELOPMENT
+Supported: previews can help users interpret flows, and participants report
+building working testnet flows.
+Partially supported: the visual builder is accessible to some participants,
+but navigation, mobile interactions and authorization comprehension remain
+barriers.
+Not yet validated: demand from the proposed customer segment, repeat use
+beyond testing, willingness to pay, and readiness to transact real funds.
+Suggested priorities: improve canvas navigation, clarify deployment versus
+execution and wallet signing, make errors actionable, and simplify mobile
+payment guidance. These are recommendations derived from feedback, not a
+claim that particular changes have already shipped in response to it.
+
+======================================================================
+APPENDIX — ALL NINE WRITTEN FEEDBACK SUBMISSIONS
+======================================================================
+
+
+USER1 — Full asynchronous usability session
+Source: https://drive.google.com/file/d/1wCwaYUYxeHyeSb15KTvLoDID_I-bQmmm/view
+
+PAIFLOW ALPHA — ANSWERS
+Name: [redacted] Date: 9/17/26____________________
+1. ABOUT YOU (fill in before you start)
+1. What best describes your role?
+(fintech/DeFi founder or PM · software engineer · SMB operator or finance manager · freelancer/creator · crypto-native user · other)
+Web3 Developer and crypto-native user.
+2. What made you interested in trying Paiflow?
+I’m a crypto-native user, and I found Paiflow interesting because it can simplify multiple transactions and allow them to be completed with a single signing.
+2. QUICK RATINGS (fill in at the end, 1 = poor, 5 = excellent)
+[ 4 ] How easy was it to understand what Paiflow does at first glance?
+[ 3 ] How intuitive was the drag-and-drop canvas?
+[ 5 ] How smooth was connecting your wallet and deploying?
+[ 3 ] How trustworthy does Paiflow feel for real money?
+3. DURING THE TESTS
+T1 — Before you clicked DEPLOY TO TESTNET, what did you think was about to happen? Could you tell what Freighter was asking you to sign?
+I expected the contract to be deployed to testnet. The Review & Deploy page also clearly explained what was going to happen before I signed, including the English Preview, the pipeline architecture, the contracts that would be created, and the network being used. Because of that, I already had a clear idea of what I was about to deploy. Yes, I also understood what Freighter was asking me to sign because I already have experience with crypto and blockchain transactions.
+T2 — Before checking Freighter, did you already believe the USDC had arrived? What made you sure or unsure?
+Yes. I was confident that the USDC had arrived because I could already see the transaction recorded on Stellar Expert.
+T3 — Were the error messages enough to fix things on your own? Clearest one? Most confusing one?
+Yes. The error messages were clear enough for me to understand and fix the issues on my own. I did not encounter any error message that I found particularly confusing.
+T4 — First flow you built from scratch. Where did you hesitate?
+I did not hesitate at any point while building the flow.
+T5 — Did you read the English Preview before deploying? Did it match what you'd built?
+Yes. I read the English Preview before deploying, and it accurately matched the flow I had built.
+T6 — The payment was refused. Did you understand why, and what to do next?
+Yes, I understood why because I already have knowledge about trustlines. However, I think new users may get confused because they may not know what a trustline is or how to fix the issue. It would be better if the error were clearly labeled and included simple instructions explaining what went wrong and how the user can resolve it.
+T7 — What did you set out to build? Did it work? What was missing?
+I created a flow using a Receive trigger followed by a Split action with three recipients. At first, it did not work because one of the recipients did not have the required trustline. What I think is missing is clearer identification of which specific recipient has the problem. The system should clearly show which recipient needs to configure or add a trustline so the user can resolve the issue immediately.
+4. CLOSING QUESTIONS
+1. In your own words, what does Paiflow do?
+Paiflow simplifies blockchain transactions by allowing users to automate transaction flows instead of manually performing each transaction one by one.
+2. Would you trust Paiflow with real money today? What would have to change?
+Not yet. Paiflow is still in its early stage and currently operates on testnet. Before I would trust it with real money, I would want to see a more mature and thoroughly tested mainnet version with stronger reliability, clearer error handling, and a proven track record of successful transactions.
+3. 0-10, how likely are you to recommend Paiflow? [ 7 ]
+Why that number, and not one higher?
+I would rate it a 7 because I can already see its value, especially for people who use crypto for payments, payroll, or repeated transactions. It can significantly simplify and automate these processes. I would rate it higher once the UI, error handling, and overall user experience become more polished and beginner-friendly.
+4. What did you like most?
+I liked the Split transaction feature the most because it allows me to send funds to multiple people with a single signing instead of creating separate transactions for every recipient.
+5. What should we fix or improve first?
+The UI should be improved first, especially the error labels and instructions. Errors should clearly explain what went wrong, where the problem occurred, and what the user needs to do to fix it.
+6. What one feature would make Paiflow significantly more useful?
+I would like a feature that can automatically split an incoming asset into different assets based on percentages. For example, when the flow receives XLM, it could automatically swap 50% into USDC, 30% into another asset, and 20% into another asset. This could also be useful for automated DCA strategies.
+7. How comfortable were you with blockchain before today? Did that change?
+I was already very comfortable with blockchain before testing Paiflow, so my level of comfort did not significantly change.
+8. Anything you expected to find and didn't?
+None.
+9. May we follow up? If yes, your email:
+Yes, [email redacted]
+5. ANYTHING ELSE
+Anything that annoyed, confused or delighted you that we didn't ask about?
+None.
+
+======================================================================
+
+
+USER2 — Full asynchronous usability session
+Source: https://drive.google.com/file/d/1SXYgLJtdaJuSdJ-DEJQQh75VmmFuaE5W/view
+
+PAIFLOW ALPHA — ANSWERS
+Name: [redacted] 
+Date: September 22, 2026
+
+= ABOUT YOU (fill in before you start) =
+1. What best describes your role?
+(fintech/DeFi founder or PM · software engineer · SMB operator or finance manager ·
+freelancer/creator · crypto-native user · other)
+> A fresh graduate and an aspiring software engineer · web designer · freelancer · graphic designer
+
+2. What made you interested in trying Paiflow?
+> Based on my understanding, Paiflow helps navigate and organize how payments and transactions flows in a system. With this in mind, I believe that this has a promising future - integrating this will help future transactions to be faster and smoother.
+
+= QUICK RATINGS (fill in at the end, 1 = poor, 5 = excellent) =
+How easy was it to understand what Paiflow does at first glance? [ ]
+How intuitive was the drag-and-drop canvas? [ ]
+How smooth was connecting your wallet and deploying? [ ]
+How trustworthy does Paiflow feel for real money? [ ]
+
+= DURING THE TESTS (answer each test's Interview box from the guide) =
+T1 > The transaction will push through based on the transaction flow we created. However, I am slightly confused and have no idea with that the confirmation is all about - the details, but I know that this is for the transaction to push through.
+
+T2 > Yes, the error messages are good and meaningful enough for users to find the problem without asking anyone. The clearest one is the first trial, and no messages kept me guessing, but I think the error message might not be seen easily by the users because of the color of the system.
+
+T3 > I didn't hesitate with the flow and process itself since it's clear and easy to do, but the dragging of components made me wonder if the dragging feature is working or not, well I guess it didn't work for me. But for hesitations with creating the transaction flow, there is no confusion.
+
+T4 > Yes, because you asked me to read but I think in the future, some users won't be able to read this section, especially for those who already uses Paiflow more than a few times. And yes, it matched with what I am expecting.
+
+T5 > I did understand that there is an error, but I wasn't able to understand the specific error itself since the error message is very technical and needs to be worked on. And no, I don't know how to fix it if that is the error message I get.
+
+T6 > From what we did, it allowed us to access and retrieve the transaction data. And I believe, this token is for viewing only and not for changing something, however, I do believe that tokens can still access something and that is why we should be careful handling one. And to be honest, I am not too comfortable sharing a token since it is a security measure to protect our data.
+
+T7 > I tried to explore and experiment with the flow. Split something to 40% and 60% for Recipients A and B respectively. Afterwards, Add another pay for Recipient A with 8 XML, and 6 XML for Recipient B. The Split component worked, but the other pay components, no transactions were pushed through. I went looking for the results.
+
+
+= CLOSING QUESTIONS =
+1. In your own words, what does Paiflow do? Imagine explaining it to a colleague
+who's never seen it.
+> A system that allows you to transact money digitally with your own transaction process flow.
+
+2. Would you trust Paiflow with real money today? If not, what specifically would
+have to change first?
+> As of the moment, I would not trust Paiflow with real money because I need to know more about the security level it possess so that I can ensure that my money is being transacted safely.
+
+3. 0-10, how likely are you to recommend Paiflow to someone who needs
+programmable payouts? [8]
+Why that number, and not one higher?
+> The system is programmable and allows the users to do their own transaction flows. Not higher because I want to know the security and credibility of the system in making sure my money is safe during transactions.
+
+4. What did you like most?
+> Programmable and customizable transaction flows.
+
+5. What should we fix or improve first?
+> Further security measurements and some UI/UX interactivity and mood.
+
+6. What one feature would make Paiflow significantly more useful to you?
+> How users can customize their own transaction flow.
+
+7. How comfortable were you with blockchain and smart contracts before today,
+and did anything in this session change that?
+> Kind of skeptical with trusting my money through blockchains, but upon learning about Paiflow, I think I have a better view with blockchain apps.
+
+8. Was there anything you expected to find and didn't?
+> Maybe more transactional blocks or process we can use, but for now, since the app is in its early phases, everything is good for me.
+
+9. May we follow up with you? If yes, your email:
+> Yes, [email redacted]
+
+= ANYTHING ELSE =
+Anything that annoyed, confused or delighted you that we didn't ask about:
+> Maybe in UI/UX wise, there are still room for improvements. One is during the creation of flows, whenever I clicked on something, I need to zoom out or drag the screen to view the closable panel. Another would be the error messages we encountered in Test 5, we can fix it. The draggable components from the sidebar, we can also improve that one. But overall, from what I have explored, most of the things are already good.
+
+======================================================================
+
+
+USER3 — Full asynchronous usability session
+Source: https://drive.google.com/file/d/1mKpbyKR_9KUR_2XN-9Q1Tq_I0R0MfujD/view
+
+PAIFLOW ALPHA — ANSWERS 
+Name: [redacted] 
+Date: 09-23-2026
+/= ABOUT YOU (fill in before you start) /= 
+
+1. What best describes your role? (fintech/DeFi founder or PM · software engineer · SMB operator or finance manager · freelancer/creator · crypto-native user · other)
+ > Other. I'm just an alpha tester who was overjoyed to experience testing something beyond my ability
+
+2. What made you interested in trying Paiflow?
+ > The fact that it is about cryptocurrency which is one of the most famous source of income by some traders made me interested in trying Paiflow, also it piques my interest to test something that you cannot you anytime a day.
+
+/= QUICK RATINGS (fill in at the end, 1 = poor, 5 = excellent) /= 
+How easy was it to understand what Paiflow does at first glance?   [4] 
+How intuitive was the drag-and-drop canvas?                        [5] 
+How smooth was connecting your wallet and deploying?               [5]
+How trustworthy does Paiflow feel for real money?                  [4] 
+/= DURING THE TESTS (answer each test's Interview box from the guide) /= 
+T1 > before I deployed the flow using testnet I thought it will just redirect me to a receipt page just like other apps but when the freighter wallet popped up, I didn't knew exactly what were being asked to sign since Im new on using the app. I really had to check freighter before believing that the money or the transaction really went through.
+
+T2 > Yes, the error messages were on point and it will really guide you where you made a mistake.
+
+T3 > At first I hesitated on deleting the place holder recipients because I treated them as a guide but I was sure on everything else
+
+T4 > Yes I did, reading the English preview really is helpful because it discusses to you what will happen and what should you expect.
+
+T5 > From the message alone, I knew that it was refused and at first I didn't know what to do to fix it but after a few tries and thinking I pulled it off.
+
+T6 > Token for me is like a key on a house, token serves as your piece to enter something and it also serves as your protection for cyber attacks.
+
+T7 > I decided to build another split exchange and usdc to xlm change and I both get them to work.
+
+/= CLOSING QUESTIONS /= 
+1. In your own words, what does Paiflow do? Imagine explaining it to a colleague who's never seen it. 
+ > Paiflow is like a banking app but utilizes cryptocurrency for exchange but unlike typical banking apps, Paiflow uses something better for its program flow.
+
+2. Would you trust Paiflow with real money today? If not, what specifically would have to change first?
+ > Yes, I would
+
+3. 0-10, how likely are you to recommend Paiflow to someone who needs programmable payouts?   [8]
+Why that number, and not one higher? 
+ > I gave an 8 because I think the more testing the app gets the more it will grow higher and I think its still too soon to give it a 10.
+4. What did you like most? 
+ > I liked the most is the live feed part, even though it has a slight delay after the transaction, I still find it cool
+
+5. What should we fix or improve first? 
+ > I think the developers should make the sandbox a little bit small since you cant really scroll down going to the bottom after pointing out your cursor on the side of the sandbox.
+
+6. What one feature would make Paiflow significantly more useful to you?
+ > The Live feed part because as an end user I think most users would love to see the transaction details immediately instead of checking it on history or such.
+
+7. How comfortable were you with blockchain and smart contracts before today, and did anything in this session change that?
+ > Im kind of comfortable with blockchain and smart contracts even before because I myself tried to make one for our project as an IT student.
+
+8. Was there anything you expected to find and didn't? > 9. May we follow up with you? If yes, your email: 
+> None that I expected.
+/= ANYTHING ELSE /= 
+Anything that annoyed, confused or delighted you that we didn't ask about:
+ > None
+
+======================================================================
+
+
+USER4 — Quick usability test (written feedback only)
+Source: https://drive.google.com/file/d/1TUaahkQwxx3MtdPjZOI1T2tz3FBGxMbt/view
+
+PAIFLOW QUICK TEST — ALPHA TESTER RESPONSE
+==========================================
+
+Tester     : [redacted]
+Submitted  : 22 Sep 2026, 17:04
+Role       : Crypto-native user
+Email      : [email redacted] (OK to follow up)
+Screenshots: https://drive.google.com/drive/folders/1yY1iKOsJAqRufRW5yELQkC9b4OJ2NrvJ?usp=drive_link
+
+
+SCORES
+------
+  Blockchain / smart-contract comfort before today .... 3 / 5
+  Easy to understand what Paiflow does at a glance .... 4 / 5
+  Drag-and-drop canvas intuitiveness .................. 4 / 5
+  Trustworthy for real money .......................... 4 / 5
+  Likely to recommend (0–10) .......................... 8
+
+  Why 8 and not higher?
+    We just need a proof if its working properly and safe thats all
+
+
+1. FIRST IMPRESSIONS
+--------------------
+Q: What does Paiflow do?
+A: It's a drag-and-drop builder for creating crypto payment automations
+
+Q: Who do you think it is for?
+A: Small businesses or individuals who want to automate crypto payments/payouts
+
+Q: What would you expect to happen if you clicked the main button?
+A: The deploy would go live and execute the split automatically, not something
+   to actually test by clicking it.
+
+
+2. READING A FLOW
+-----------------
+Q: When money arrives in this flow, who gets paid, and how much does each get?
+A: Alice gets 60% (60 USDC), Bob gets 30% (30 USDC), and Charlie gets 10%
+   (10 USDC) — triggered whenever the contract receives at least 100 USDC.
+
+Q: Where on the screen did you find that out?
+A: The sentence at the top (English Preview)
+
+Q: Did you notice the sentence at the top of the builder before this question
+   mentioned it?
+A: Yes, I read it
+
+
+3. BUILDING AND DEPLOYING
+-------------------------
+Q: Did you get the DEPLOY button to un-grey?
+A: Yes, without the hint
+
+Q: Roughly how many minutes did it take?
+A: 30
+
+Q: Where did you get stuck, or hesitate longest?
+A: Finding the Error Notif and also the deploy button
+
+Q: Copy the sentence at the top of the builder (English Preview) as it reads now.
+A: "When this contract receives XLM, split XLM — 60% to Alice, 40% to Charlie."
+
+Q: On the review page: in your own words, what would pressing DEPLOY TO TESTNET
+   have done?
+A: It would have deployed the Shop flow as a live smart contract on the Stellar
+   testnet. From then on, any XLM payment it receives would automatically
+   trigger the split sending 60% to me and 40% to my partner without needing
+   to click anything else.
+
+Q: Was there anything on the review page you didn't understand?
+A: No, it was clear
+
+
+4. PAYMENT PAGES (PHONE)
+------------------------
+Q: What is the first page asking you to do?
+A: Arrange Properly the trigger on received and action that have a recipients
+
+Q: If you wanted to pay, would you know what to do next?
+A: Not sure
+
+Q: What would you need first?
+A: Open the first box which is Trigger on Received
+
+Q: What does the second page tell you has happened?
+A: Review and Deploy
+
+Q: Was anything hard to read or cut off on your phone?
+A: Nothing
+
+
+5. WRAP-UP
+----------
+Q: In your own words, what does Paiflow do? (explaining to a colleague)
+A: Paiflow do is life a crypto wallet but have a ai you can use it in your
+   business because they can track the percentage of the business partnets
+   and also it easy to use drag  and drop
+
+Q: What should we fix or improve first?
+A: the box when i open it not fitting on the screen its hard to to scroll to
+   make it minimize just lock it the editing page so we can edit at the same
+   time while not making a move of the box
+
+Q: Was there anything you expected to find and didn't?
+A: None
+
+======================================================================
+
+
+USER5 — Quick usability test (written feedback only)
+Source: https://drive.google.com/file/d/1Pxs7Ty4tlR5fM4P9ivYaDWLJ8BRQeBB7/view
+
+PAIFLOW QUICK TEST — ALPHA TESTER RESPONSE
+==========================================
+
+Tester     : [redacted]
+Submitted  : 24 Sep 2026, 15:11
+Role       : Crypto-native user
+Email      : [email redacted] (OK to follow up)
+Screenshots: https://drive.google.com/drive/folders/1NU9hsIjxi9F48lsx3pKBR86hNm2CyFib?usp=sharing
+
+
+SCORES
+------
+  Blockchain / smart-contract comfort before today .... 3 / 5
+  Easy to understand what Paiflow does at a glance .... 2 / 5
+  Drag-and-drop canvas intuitiveness .................. 2 / 5
+  Trustworthy for real money .......................... 3 / 5
+  Likely to recommend (0–10) .......................... 7
+
+  Why 7 and not higher?
+    it's somehow inconvenient for me. there are pages that are hard to
+    navigate since it wasn't steady, i still had to zoom in and out to
+    configure.
+
+
+1. FIRST IMPRESSIONS
+--------------------
+Q: What does Paiflow do?
+A: I think it's a third party app that splits the money once received.
+
+Q: Who do you think it is for?
+A: For companies with different shareholders.
+
+Q: What would you expect to happen if you clicked the main button?
+A: not sure
+
+
+2. READING A FLOW
+-----------------
+Q: When money arrives in this flow, who gets paid, and how much does each get?
+A: 60% to me and 40% to partner
+
+Q: Where on the screen did you find that out?
+A: The sentence at the top (English Preview)
+
+Q: Did you notice the sentence at the top of the builder before this question
+   mentioned it?
+A: Yes, I read it
+
+
+3. BUILDING AND DEPLOYING
+-------------------------
+Q: Did you get the DEPLOY button to un-grey?
+A: No
+
+Q: Roughly how many minutes did it take?
+A: (no answer)
+
+Q: Where did you get stuck, or hesitate longest?
+A: When im configuring split block
+
+Q: Copy the sentence at the top of the builder (English Preview) as it reads now.
+A: "When this contract receives USDC, split USDC — 60% to Me, 40% to Partner."
+
+Q: On the review page: in your own words, what would pressing DEPLOY TO TESTNET
+   have done?
+A: i think the automation will be ready to use anytime once deployed
+
+Q: Was there anything on the review page you didn't understand?
+A: None
+
+
+4. PAYMENT PAGES (PHONE)
+------------------------
+Q: What is the first page asking you to do?
+A: Connect wallet and trigger
+
+Q: If you wanted to pay, would you know what to do next?
+A: Not sure
+
+Q: What would you need first?
+A: A wallet
+
+Q: What does the second page tell you has happened?
+A: Transaction History
+
+Q: Was anything hard to read or cut off on your phone?
+A: not necessarily hard to read but the thing that i don't like about it is
+   it's a bit hassle since i still had to scroll it sideways to see the full
+   transaction history. i think it's better if the live events page is steady
+
+
+5. WRAP-UP
+----------
+Q: In your own words, what does Paiflow do? (explaining to a colleague)
+A: paiflow is like a splitwise app where the money can be divided into
+   multiple people. and also can be used by the company to divide the real
+   money into it's shareholders anytime.
+
+Q: What should we fix or improve first?
+A: the interface. i think it's better if the live events page is steady rather
+   than having it zoom in and out by the users.
+
+Q: Was there anything you expected to find and didn't?
+A: none
+
+======================================================================
+
+
+USER6 — Full asynchronous usability session
+Source: https://drive.google.com/file/d/1C9sXDM8Rz258l6E-JcK6opymKzfRFELu/view
+
+PAIFLOW ALPHA — ANSWERS
+Name: [redacted] 
+Date: Sept. 29, 2026
+
+
+== ABOUT YOU (fill in before you start) ==
+1. What best describes your role?
+(fintech/DeFi founder or PM · software engineer · SMB operator or finance manager · freelancer/creator · crypto-native user · other)
+> Software Engineer
+
+
+2. What made you interested in trying Paiflow?
+> Blockchain is another area of technology that I want to explore, but I have limited knowledge about it. I heard that this app can make it easier for people like me to use blockchain and integrate it into my workflow.
+
+
+== QUICK RATINGS (fill in at the end, 1 = poor, 5 = excellent) ==
+How easy was it to understand what Paiflow does at first glance? [4]
+How intuitive was the drag-and-drop canvas? [3]
+How smooth was connecting your wallet and deploying? [4]
+How trustworthy does Paiflow feel for real money? [4]
+How clear were the Swap block's settings? [3]
+
+
+== DURING THE TESTS (answer each test's Interview box from the guide) ==
+T1 > I thought that the transaction was being processed already. But I have no clue what is next and the in-depth happenings.
+
+
+T2 > It was pretty easy to understand and follow. I just need to have an idea on what to do so that I can easily follow the error.
+
+
+T3 > I did not hesitate.
+
+
+T4 > Yes, it matched perfectly.
+
+
+T5 > Yes, it was straightforward. 
+
+
+T6 > I think the token allows the developers for automation processes. If I know that the developer is trusted, I would be comfortable handling one out.
+
+
+T7 > I just set up a simple build, since I’m not really familiar yet with things it can do. But it worked, my flow did what it was supposed to do. 
+
+
+== CLOSING QUESTIONS ==
+1. In your own words, what does Paiflow do? Imagine explaining it to a colleague
+who's never seen it.
+> Paiflow is life sketching what you want to do with your transactions, the flow of it. 
+
+
+2. Would you trust Paiflow with real money today? If not, what specifically would
+have to change first?
+> I would trust them, if they just make sure that transactions are well secured. 
+
+
+3. 0-10, how likely are you to recommend Paiflow to someone who needs
+programmable payouts? [9]
+Why that number, and not one higher?
+> I could give it a 10, but there is I guess room for improvement on UI/UX. Functional wise, this app/website is really good. I just need to be more familiar with it.
+
+
+4. What did you like most?
+> Pretty straightforward, simple to follow.
+
+
+5. What should we fix or improve first?
+> I think the UI/UX part, there are some parts where it feels hard to use only because of the frontend part, like dragging and also the zoom to focus parts.
+
+
+6. What one feature would make Paiflow significantly more useful to you?
+> Splitting feature is a really good and useful tool for me.
+
+
+7. How comfortable were you with blockchain before today, and smart contracts b and did anything in this session change that?
+> Still not quite familiar with it, but I guess if I have to use this more, I would be more familiar and would know blockchain and smart contracts better.
+
+
+8. Was there anything you expected to find and didn't?
+> I did not.
+
+
+9. May we follow up with you? If yes, your email:
+> Yes, [email redacted]
+
+
+== ANYTHING ELSE ==
+Anything that annoyed, confused or delighted you that we didn't ask about:
+> The canvas part, it’s really hard to navigate especially when zooming in or out and moving them.
+
+======================================================================
+
+
+USER7 — Full asynchronous usability session
+Source: https://drive.google.com/file/d/19yu0ncsJ3bFjuEhwgTBTrYBiqXFKvBEL/view
+
+PAIFLOW ALPHA — ANSWERS
+Name: [redacted] 
+Date: 9/29/2026
+
+= ABOUT YOU (fill in before you start) =
+1. What best describes your role
+(fintechDeFi founder or PM · software engineer · SMB operator or finance manager ·
+freelancercreator · crypto-native user · other)
+> Software Engineer
+
+2. What made you interested in trying Paiflow
+> I was encouraged to try Paiflow by my colleague.
+
+= QUICK RATINGS (fill in at the end, 1 = poor, 5 = excellent) =
+How easy was it to understand what Paiflow does at first glance [4]
+How intuitive was the drag-and-drop canvas [4]
+How smooth was connecting your wallet and deploying [5]
+How trustworthy does Paiflow feel for real money [4]
+
+= DURING THE TESTS (answer each test's Interview box from the guide) =
+T1 - I thought the automation is now set. I could not tell what I was being asked to sign. I believed that the usdc already arrived before I checked Freighter.
+T2 - Yes the error messages were enough to fix the problem on my own. Both error messages were clear, I was able to solve or revert back to the working flow immediately. Yes, the ring visibility is quite confusing to track for me.
+T3 - I was unsure if i had to switch to my main account before triggering the automation.
+T4 - I did not. But the English preview matched the flow I thought I was building.
+T5 - Yes, the refusal message informed me on what need to be fixed before I can send USDC to Recipient B which is a trust line for USDC.
+T6 - This token allows developers to utilize automation to access the capabilities of the flows in PaiFlow programmatically allowing them to use the flow without accessing the web app. I would be comfortable handling one to a developer for them to come up with solutions in which PaiFlow would be helpful. 
+T7 - I set out to build a flow that swaps xlm to usdc on receive and splits them to two recipients. There was no blockers and I just needed to create a trust line for Recipient B.  
+
+= CLOSING QUESTIONS =
+1. In your own words, what does Paiflow do Imagine explaining it to a colleague
+who's never seen it.
+
+Paiflow automates the process of receiving and paying XLM and USDC. Its like setting up a flow on where your money goes.  
+
+2. Would you trust Paiflow with real money today If not, what specifically would
+have to change first
+I would trust Paiflow with real money if they ensure that the transactions would be secure. The automation has a lot of potential for users and would be of great help especially for businesses.
+
+3. 0-10, how likely are you to recommend Paiflow to someone who needs
+programmable payouts [9]
+Why that number, and not one higher
+
+I need it needs further development in UI/UX at least. The canvas is always zoomed it was quite annoying.
+
+4. What did you like most
+The creation of flows is smooth and understandable. It provided informative error messages when I mess up something.
+
+5. What should we fix or improve first
+UI/UX design of some component especially navigating the canvas.
+
+6. What one feature would make Paiflow significantly more useful to you
+As of the moment the navigation of the canvas in order for me to navigate it more efficiently.
+
+7. How comfortable were you with blockchain and smart contracts before today,
+and did anything in this session change that
+I am new to blockchain and in smart contracts but Paiflow gave me a comfortable introduction to it. 
+
+8. Was there anything you expected to find and didn't
+None.
+
+9. May we follow up with you If yes, your email
+Yes, [email redacted]
+
+= ANYTHING ELSE =
+Anything that annoyed, confused or delighted you that we didn't ask about
+
+The canvas is always zoomed-in and I had a difficult time navigating the canvas.
+Also for some reason my mouse disappears on the canvas when "Use graphics acceleration when available" is enabled in my browser's system settings.
+
+======================================================================
+
+
+USER8 — Quick usability test (written feedback only)
+Source: https://drive.google.com/file/d/15VPTVIbzmWu_PaBQIoEBPSgu5ryoHtfd/view
+
+PAIFLOW QUICK TEST — ANSWERS
+Name: [redacted] 
+Submitted: 9/29/2026 18:37
+
+1. What does Paiflow do?
+> shows the homepage with button that says "build a flow"
+
+2. Who do you think it is for?
+> Based on the information shown, I think its for transaction, payment
+
+3. What would you expect to happen if you clicked the main button?
+> it will go to another page
+
+4. When money arrives in this flow, who gets paid, and how much does each get?
+> 60% to Alice, 30% to Bob, 10% to Charlie
+
+5. Where on the screen did you find that out?
+> The sentence at the top (English Preview)
+
+6. Did you notice the sentence at the top of the builder before this question mentioned it?
+> Yes, I read it
+
+7. Did you get the DEPLOY button to un-grey?
+> Yes, without the hint
+
+8. Roughly how many minutes did it take?
+> 5
+
+9. Where did you get stuck, or hesitate longest?
+> Nowhere
+
+10. Copy the sentence at the top of the builder (English Preview) as it reads now.
+> When this contract receives XLM, split XLM — 60% to Me, 40% to Partner.
+
+11. On the review page: in your own words, what would pressing DEPLOY TO TESTNET have done?
+> pressing deploy means the shares will go to the specific account who will received it
+
+12. Was there anything on the review page you didn't understand?
+> the pipeline preview
+
+13. What is the first page asking you to do?
+> to install the app
+
+14. If you wanted to pay, would you know what to do next?
+> Not sure
+
+15. What would you need first?
+> instruction
+
+16. What does the second page tell you has happened?
+> second page tells me the shares have been split and paid out
+
+17. Was anything hard to read or cut off on your phone?
+> none
+
+18. What best describes your role?
+> Crypto-native user
+
+19. How comfortable were you with blockchain and smart contracts before today?
+> 4
+
+20. How easy was it to understand what Paiflow does at first glance?
+> 3
+
+21. How intuitive was the drag-and-drop canvas?
+> 5
+
+22. How trustworthy does Paiflow feel for real money?
+> 4
+
+23. 0–10, how likely are you to recommend Paiflow to someone who needs programmable payouts?
+> 9
+
+24. Why that number, and not one higher?
+> i think its already good, with the blockchain and easy way for doing payouts, but not one higher since it still needs to be really secured since this is app is about finance or money
+
+25. In your own words, what does Paiflow do? Imagine explaining it to a colleague who's never seen it.
+> So paiflow do is it gives you an easier way to distribute or give a shares or a money to a specific people without having you have a trouble in calculating it or distributing it or dividing it to a group of people , and it actually has live events wherein you can see the payouts you made for transparency
+
+26. What should we fix or improve first?
+> the ui for phone users
+
+27. Was there anything you expected to find and didn't?
+> nothing
+
+28. May we follow up with you? If yes, your email.
+> [email redacted]
+
+29. Link to your screenshots folder
+> https://drive.google.com/drive/folders/19sfO8QHuZb1XNYn7jBfd6cvR3o-VllT3?usp=drive_link
+
+30. Could you change Max slippage on your phone?
+> Yes, with some trouble
+
+31. Did anything get covered, cut off, or zoom in while you did it? What?
+> zoom in, im using Techno
+
+32. How easy was the builder to use on your phone, compared with your laptop?
+> 3
+
+======================================================================
+
+
+USER9 — Quick usability test (written feedback only)
+Source: https://drive.google.com/file/d/1KZFzY-_XnDncLBG3EKB6MWwswFI9UtnK/view
+
+PAIFLOW QUICK TEST — ANSWERS
+Name: [redacted] 
+Submitted: 9/29/2026 22:59
+
+1. What does Paiflow do?
+> money exchange thru stellar network
+
+2. Who do you think it is for?
+> its a fast exchange lunch at stellar network
+
+3. What would you expect to happen if you clicked the main button?
+> explain the feature  how it works and roadmaps
+
+4. When money arrives in this flow, who gets paid, and how much does each get?
+> 60% to alice, 30% to Bob and 10% to Charlie
+
+5. Where on the screen did you find that out?
+> The sentence at the top (English Preview)
+
+6. Did you notice the sentence at the top of the builder before this question mentioned it?
+> Yes, I read it
+
+7. Did you get the DEPLOY button to un-grey?
+> Yes, without the hint
+
+8. Roughly how many minutes did it take?
+> 10mins
+
+9. Where did you get stuck, or hesitate longest?
+> Nowhere
+
+10. Copy the sentence at the top of the builder (English Preview) as it reads now.
+> When this contract receives XLM, split XLM — 60% to owner, 40% to partner.
+
+11. On the review page: in your own words, what would pressing DEPLOY TO TESTNET have done?
+> it was i aspected it should. it needs confirmation before deployment
+
+12. Was there anything on the review page you didn't understand?
+> all are well instruct
+
+13. What is the first page asking you to do?
+> the pay page
+
+14. If you wanted to pay, would you know what to do next?
+> Yes
+
+15. What would you need first?
+> instruction
+
+16. What does the second page tell you has happened?
+> the live page
+
+17. Was anything hard to read or cut off on your phone?
+> a little bit
+
+18. What best describes your role?
+> Crypto-native user
+
+19. How comfortable were you with blockchain and smart contracts before today?
+> 4
+
+20. How easy was it to understand what Paiflow does at first glance?
+> 3
+
+21. How intuitive was the drag-and-drop canvas?
+> 3
+
+22. How trustworthy does Paiflow feel for real money?
+> 4
+
+23. 0–10, how likely are you to recommend Paiflow to someone who needs programmable payouts?
+> 7
+
+24. Why that number, and not one higher?
+> based on the experience and complexity.
+
+25. In your own words, what does Paiflow do? Imagine explaining it to a colleague who's never seen it.
+> its a blockchain exchange that handles money thru stellar network
+
+26. What should we fix or improve first?
+> all are alright
+
+27. Was there anything you expected to find and didn't?
+> n/a
+
+28. May we follow up with you? If yes, your email.
+> [email redacted]
+
+29. Link to your screenshots folder
+> https://drive.google.com/drive/folders/1s1r44JAX4WcpsdcSQz4jsk05PJottsTM?usp=sharing
+
+30. Could you change Max slippage on your phone?
+> Yes, easily
+
+31. Did anything get covered, cut off, or zoom in while you did it? What?
+> its all working fine
+
+32. How easy was the builder to use on your phone, compared with your laptop?
+> 4
+
+======================================================================
