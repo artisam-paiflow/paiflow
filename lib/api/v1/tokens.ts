@@ -103,7 +103,7 @@ export async function requireTokenManager(
   await enforceRateLimit({ key: `api-tokens:${user.id}`, ...V1_RATE_LIMITS.apiTokens });
 
   const deployment = await db.deployment.findFirst({
-    where: { id: deploymentId, ownerId: user.id },
+    where: { id: deploymentId, serviceState: "ACTIVE", ownerId: user.id },
     select: { id: true, status: true },
   });
   if (!deployment) throw new AppError("NOT_FOUND", "Deployment not found");

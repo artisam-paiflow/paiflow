@@ -7,6 +7,7 @@ import { reconcileTransactions } from "@/lib/stellar/reconcile-transactions";
 import { log } from "@/lib/log";
 import { drainApiRequests } from "@/lib/api/request-history/delivery";
 import { deliverOutbox } from "@/lib/analytics/outbox";
+import { reconcileRetirements } from "@/lib/deployments/retirement";
 export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
@@ -32,7 +33,8 @@ export async function POST(req: NextRequest) {
           budgetMs: 2000,
           requestEvents: true,
         });
-        return { ...outcomes, analytics, requests, requestAnalytics };
+        const retirements = await reconcileRetirements();
+        return { ...outcomes, analytics, requests, requestAnalytics, retirements };
       },
     );
     return NextResponse.json({

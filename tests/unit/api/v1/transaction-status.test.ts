@@ -1,3 +1,17 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Account,
@@ -49,6 +63,7 @@ const hash = "a".repeat(64);
 const contract = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 const deployment = {
   id,
+  serviceState: "ACTIVE",
   network: "testnet",
   pipelineSnapshot: [{ contractAddress: contract }],
 } as unknown as Deployment;
@@ -305,7 +320,7 @@ describe("token-only route", () => {
   it("refuses a token bound to another deployment", async () => {
     mocks.token.mockResolvedValue({
       deploymentId: "other",
-      deployment: { owner: { isActive: true } },
+      deployment: { serviceState: "ACTIVE", owner: { isActive: true } },
     });
     expect((await call(`pfk_${"b".repeat(64)}`)).status).toBe(401);
     expect(mocks.rpc).not.toHaveBeenCalled();

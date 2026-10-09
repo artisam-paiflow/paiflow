@@ -4,6 +4,7 @@ import { Role } from "@prisma/client";
 import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
+import RetirementPanel from "@/components/deploy/retirement-panel";
 import DeploymentView from "@/components/deploy/deployment-view";
 import ApiAccessPanel from "@/components/deploy/api-access-panel";
 import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
@@ -13,6 +14,9 @@ import {
   type StellarNetwork,
 } from "@/lib/stellar/explorer";
 import { log } from "@/lib/log";
+import { env } from "@/lib/env";
+import { isFeatureEnabled } from "@/lib/features";
+import { deploymentCapabilities } from "@/lib/api/v1/capabilities";
 
 export const dynamic = "force-dynamic";
 
@@ -57,13 +61,32 @@ export default async function DeploymentPage({
   const user = await requirePageSession();
   const { deploymentId } = await params;
   const d = await db.deployment.findFirst({
-    where: { id: deploymentId, ownerId: user.id },
+    where: { id: deploymentId, ownerId: user.id, serviceState: { not: "RETIRED" } },
     include: {
       flow: { select: { name: true, templateKind: true } },
       events: { orderBy: [{ ledger: "desc" }, { eventId: "desc" }], take: 50 },
     },
   });
   if (!d) notFound();
+  if (d.serviceState === "RETIRING")
+    return (
+      <>
+        <Topbar username={user.username} />
+        <main className="px-margin py-lg mx-auto max-w-4xl">
+          <Link href="/dashboard">Back to dashboard</Link>
+          <h1 className="text-headline-sm mt-4">{d.flow.name}</h1>
+          <RetirementPanel
+            deploymentId={d.id}
+            initial={{
+              serviceState: d.serviceState,
+              retirementBlocker: d.retirementBlocker,
+              retirementCutoffLedger: d.retirementCutoffLedger,
+              retirementReconciledAt: d.retirementReconciledAt?.toISOString(),
+            }}
+          />
+        </main>
+      </>
+    );
 
   const graphResult = FlowGraphSchema.safeParse(d.graphSnapshot);
   if (!graphResult.success) notFound();
@@ -172,14 +195,14 @@ export default async function DeploymentPage({
         </div>
 
         <DeploymentView
-          canEditDevValues={user.role !== Role.SANDBOX}
+          devModeEnabled={isFeatureEnabled("devMode")}
+          canEditDevValues={user.role !== Role.SANDBOX && isFeatureEnabled("devMode")}
           deploymentId={d.id}
           contractAddress={d.contractAddress}
           network={network}
           status={d.status}
           qrUrl={qrUrl}
           graph={graph}
-          webhookSecret={d.webhookSecret}
           pipeline={pipeline}
           templateKind={d.flow.templateKind}
           errorMessage={d.errorMessage ?? null}
@@ -196,8 +219,17 @@ export default async function DeploymentPage({
         />
 
         {d.status === "CONFIRMED" && user.role !== Role.SANDBOX ? (
-          <ApiAccessPanel deploymentId={d.id} />
+          <ApiAccessPanel
+            key={d.id}
+            deploymentId={d.id}
+            capabilities={d.network === env().STELLAR_NETWORK ? deploymentCapabilities(d) : null}
+            webhookSecret={d.webhookSecret}
+          />
         ) : null}
+        <RetirementPanel
+          deploymentId={d.id}
+          initial={{ serviceState: d.serviceState, retirementBlocker: null }}
+        />
       </main>
     </>
   );

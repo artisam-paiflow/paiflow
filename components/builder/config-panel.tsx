@@ -187,7 +187,7 @@ export default function ConfigPanel({
   const trigger = graph.nodes.find(isTrigger);
   const triggerType = trigger?.type ?? null;
   const sourceAmount = sourceAmountStroops(graph);
-  const devMode = graph.devMode === true;
+  const devMode = features.devMode && graph.devMode === true;
 
   // Native fiat payout (bank transfer via an auto-generated cash-out contract)
   // is available on pay/split nodes for non-dev flows whose payouts route

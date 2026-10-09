@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -25,7 +26,7 @@ function isSubscriptionLike(templateKind: string): boolean {
   return templateKind === "SUBSCRIPTION" || templateKind === "SUBSCRIPTION_DEV";
 }
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     await enforceWriteRateLimit("payrollWrite", user.id);
@@ -70,3 +71,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
   });
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "owner");

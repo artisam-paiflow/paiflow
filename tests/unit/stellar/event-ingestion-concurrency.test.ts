@@ -10,7 +10,11 @@ import { Prisma, TemplateKind } from "@prisma/client";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { sorobanRpc } from "@/lib/stellar/client";
-import { EVENTS_PAGE_LIMIT, pollEventsForWithOutcome } from "@/lib/stellar/events";
+import {
+  EVENTS_PAGE_LIMIT,
+  pollEventsForWithOutcome,
+  reconcileStoredCashOutObligations,
+} from "@/lib/stellar/events";
 
 const controls = vi.hoisted(() => ({
   beforeInsert: undefined as ((args: Prisma.ContractEventCreateArgs) => Promise<void>) | undefined,
@@ -146,6 +150,7 @@ async function makeDeployment(options: { firstPoll?: boolean; grouped?: boolean 
       ownerId: userId,
       network: "testnet",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       contractAddress,
       deployTxHash: randomBytes(32).toString("hex"),
       graphSnapshot: {},
@@ -192,6 +197,7 @@ afterEach(() => {
 });
 
 afterAll(async () => {
+  await db.offRampPayoutJob.deleteMany({ where: { deploymentId: { in: deployments } } });
   await db.deployment.deleteMany({ where: { id: { in: deployments } } });
   if (flowId) await db.flow.deleteMany({ where: { id: flowId } });
   if (userId) await db.user.deleteMany({ where: { id: userId } });
@@ -460,4 +466,90 @@ describe("event ingestion with real PostgreSQL concurrency", () => {
     expect(controls.publish).toHaveBeenCalledTimes(2);
     expect(controls.invalidate).toHaveBeenCalledTimes(2);
   });
+});
+
+it("recovers pre-cutoff payroll cash-outs and links exact existing jobs without duplicating them", async () => {
+  const { id, contractAddress } = await makeDeployment();
+  const payrollFlow = await db.flow.create({
+    data: {
+      ownerId: userId,
+      name: "cutoff payroll",
+      templateKind: "PAYROLL",
+      graph: {},
+      parameters: {},
+    },
+  });
+  await db.deployment.update({ where: { id }, data: { flowId: payrollFlow.id } });
+  try {
+    await db.employee.create({
+      data: {
+        deploymentId: id,
+        address: SENDER,
+        amountStroops: "100",
+        payoutMode: "FIAT",
+        cashOutContractAddress: contractAddress,
+        bankDetail: {
+          create: { accountName: "Test", accountNumber: "00000001", bankCode: "TEST" },
+        },
+      },
+    });
+    const run = await db.payrollRun.create({
+      data: {
+        deploymentId: id,
+        runAt: new Date(),
+        totalStroops: "100",
+        txHash: randomBytes(32).toString("hex"),
+      },
+    });
+    const linked = await db.offRampPayoutJob.create({
+      data: {
+        deploymentId: id,
+        source: "CASH_OUT",
+        payrollRunId: run.id,
+        sourceAddress: SENDER,
+        amountStroops: "100",
+        bankAccountName: "Test",
+        bankAccountNumber: "00000001",
+        bankCode: "TEST",
+        runAt: new Date(),
+      },
+    });
+    for (const [ledger, hash] of [
+      [150, run.txHash!],
+      [160, randomBytes(32).toString("hex")],
+      [201, randomBytes(32).toString("hex")],
+    ] as const) {
+      await db.contractEvent.create({
+        data: {
+          deploymentId: id,
+          eventId: `${id}-${ledger}`,
+          kind: "CASH_OUT",
+          ledger,
+          txHash: hash,
+          payload: { contractAddress },
+          decodedData: { source: SENDER, amount: "100" },
+          occurredAt: new Date(),
+        },
+      });
+    }
+    // The second, same-sized payment is a distinct obligation. Its hash has no
+    // legacy run/job, so avoid the conservative legacy guard by linking the first
+    // exact payroll match before recovering the second.
+    expect(await reconcileStoredCashOutObligations(id, 200)).toBe(true);
+    expect(await db.offRampPayoutJob.count({ where: { deploymentId: id } })).toBe(2);
+    expect(
+      (await db.offRampPayoutJob.findUniqueOrThrow({ where: { id: linked.id } }))
+        .originatingEventId,
+    ).not.toBeNull();
+    expect(await reconcileStoredCashOutObligations(id, 200)).toBe(true);
+    expect(await db.offRampPayoutJob.count({ where: { deploymentId: id } })).toBe(2);
+    expect(
+      await db.contractEvent.count({
+        where: { deploymentId: id, ledger: 201, cashOutObligation: null },
+      }),
+    ).toBe(1);
+  } finally {
+    await db.deployment.update({ where: { id }, data: { flowId } });
+    await db.flow.delete({ where: { id: payrollFlow.id } });
+  }
 });

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -25,7 +26,7 @@ const LIST_LIMIT = 100;
  *
  * Tokens the public demo route minted are left out of both halves — see `demoTokenIdentity`.
  */
-export async function GET(_req: NextRequest, ctx: Ctx) {
+async function GETHandler(_req: NextRequest, ctx: Ctx) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     const { deployment } = await requireTokenManager(id);
@@ -52,7 +53,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 }
 
 /** Mint a token for this deployment. The plaintext is in this response only. */
-export async function POST(req: NextRequest, ctx: Ctx) {
+async function POSTHandler(req: NextRequest, ctx: Ctx) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     const { user, deployment } = await requireTokenManager(id);
@@ -117,3 +118,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ data: { ...token, token: plaintext } }, { status: 201 });
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "owner");
+
+export const POST = deploymentServiceRoute(POSTHandler, "owner");

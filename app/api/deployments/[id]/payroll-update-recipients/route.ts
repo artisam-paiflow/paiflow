@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
-import { refuseNewFiatRecipients } from "@/lib/features";
+import { refuseNewFiatRecipients, requireDevConfiguration } from "@/lib/features";
 import { preparePayrollUpdateRecipientsInvocation } from "@/lib/stellar/invoke";
 import {
   submitUpdateRecipientsByRelayer,
@@ -55,7 +56,7 @@ const PostSchema = z.object({
 type Recipient = z.infer<typeof RecipientSchema>;
 type NormalizedRecipient = Omit<Recipient, "address"> & { address: string };
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
     await enforceWriteRateLimit("payrollWrite", user.id);
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
+    requireDevConfiguration(d.graphSnapshot, d.pipelineSnapshot);
     if (d.flow.templateKind !== "PAYROLL") {
       throw new AppError("VALIDATION", "Deployment is not a payroll");
     }
@@ -307,3 +309,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
   });
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "dev");

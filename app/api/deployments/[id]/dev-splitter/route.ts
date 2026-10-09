@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { DevSplitterSchema, type DevSplitRecipient } from "@/lib/dev/schema";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
@@ -6,7 +7,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { audit } from "@/lib/audit";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
-import { refuseNewFiatRecipients } from "@/lib/features";
+import { requireFeature, refuseNewFiatRecipients } from "@/lib/features";
 import { findPipelineNode, type PipelineSnapshotNode } from "@/lib/pipeline-snapshot";
 import {
   updateRecipientsByRelayer,
@@ -32,9 +33,10 @@ type NormalizedRecipient = Omit<Recipient, "address"> & { address: string };
  * CASH_OUT_DEV sink per recipient; the sink deploy/update-bank calls are awaited,
  * but the splitter update_recipients call is submitted and returned pending.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
+    requireFeature("devMode");
     const { id } = await ctx.params;
     const rlKey = `dev-mutate:${user.id}`;
     const rl = await rateLimit(rlKey, 30, 60);
@@ -218,3 +220,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
   });
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "dev");

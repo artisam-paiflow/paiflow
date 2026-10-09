@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -29,7 +30,7 @@ const PostSchema = z.object({
  * endpoint is the bookkeeping follow-up: it reads the current on-chain
  * recipients, creates the run record, and spawns off-ramp jobs if enabled.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
@@ -223,3 +224,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
   });
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "dev");

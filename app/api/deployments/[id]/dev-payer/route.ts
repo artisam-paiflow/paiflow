@@ -1,4 +1,6 @@
+import { requireFeature } from "@/lib/features";
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { DevPayerSchema } from "@/lib/dev/schema";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
@@ -13,9 +15,10 @@ import { graphNodeAsset, trustlineWarnings } from "@/lib/stellar/trustline-warni
 /**
  * Fill / change the recipient + value of a deployed PAYER_DEV node. Relayer-signed.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
+    requireFeature("devMode");
     const { id } = await ctx.params;
     const rlKey = `dev-mutate:${user.id}`;
     const rl = await rateLimit(rlKey, 30, 60);
@@ -70,3 +73,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
   });
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "dev");

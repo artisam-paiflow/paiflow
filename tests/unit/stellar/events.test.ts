@@ -1,3 +1,17 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/stellar/dashboard-balance-cache", () => ({ invalidateDashboardBalances: vi.fn() }));
 import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -24,8 +38,11 @@ const ADDR_B = "GAA5Z4XWC6K2RHP7K4BAVPUGDL3EUD5PGGBHJ7S2RFWAFHTTLHXN6CFZ";
 vi.mock("@/lib/stellar/client");
 vi.mock("@/lib/db", () => ({
   db: {
-    deployment: { findUnique: vi.fn() },
-    contractEvent: { create: vi.fn() },
+    deployment: { findUnique: vi.fn(), updateMany: vi.fn(async () => ({ count: 1 })) },
+    contractEvent: {
+      create: vi.fn(),
+      findUniqueOrThrow: vi.fn(async () => ({ id: "existing-event" })),
+    },
     eventCursor: {
       updateMany: vi.fn(async () => ({ count: 1 })),
       createMany: vi.fn(async () => ({ count: 1 })),
@@ -107,6 +124,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 500 },
       pipelineSnapshot: [node, { ...node, nodeId: "alias" }],
       graphSnapshot: null,
@@ -128,6 +146,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: root,
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 500 },
       flow: { templateKind: TemplateKind.SWAPPER },
       graphSnapshot: {
@@ -205,6 +224,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 500 },
       flow: { templateKind: TemplateKind.SPLITTER },
       graphSnapshot: { nodes: banks, edges: [] },
@@ -248,6 +268,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: null,
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: null,
       deployTxHash: null,
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -274,6 +295,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: null,
       deployTxHash: null,
       flow: null,
@@ -300,6 +322,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 400 },
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -327,6 +350,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 0 },
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -358,6 +382,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: null,
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -385,6 +410,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: null,
       deployTxHash: null,
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -403,6 +429,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: null,
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -433,6 +460,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 400 },
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -468,6 +496,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 400 },
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -504,6 +533,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 500 },
       deployTxHash: "dtx1",
       graphSnapshot: null,
@@ -548,6 +578,7 @@ describe("pollEventsFor", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 500 },
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SWAPPER },
@@ -608,6 +639,7 @@ describe("pollEventsFor: the inbound asset of a RECEIVE", () => {
       id: "dep-1",
       contractAddress: TRIGGER_ADDR,
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger: 500 },
       deployTxHash: "dtx1",
       graphSnapshot: null,
@@ -852,6 +884,7 @@ describe("pollEventsFor: RPC scan windows", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: { lastLedger },
       deployTxHash: "dtx1",
       pipelineSnapshot: pipeline,
@@ -1146,6 +1179,7 @@ describe("pollEventsFor: RPC scan windows", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       cursor: null,
       deployTxHash: "dtx1",
       flow: { templateKind: TemplateKind.SPLITTER },
@@ -1269,6 +1303,32 @@ describe("pollEventsFor: RPC scan windows", () => {
       scannedThrough: 200,
       reasons: ["retention-gap"],
     });
+    expect(db.deployment.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "dep-1",
+        serviceState: { not: "RETIRED" },
+        retirementCoverageGap: null,
+      },
+      data: {
+        retirementCoverageGap: expect.stringContaining("ledger 101"),
+        retirementReconciledAt: null,
+      },
+    });
+  });
+
+  it("does not advance coverage if detected retention gaps cannot be persisted", async () => {
+    deployment(100);
+    const spy = server(
+      async () => {
+        throw new Error("outside retention");
+      },
+      140,
+      200,
+    );
+    vi.mocked(db.deployment.updateMany).mockRejectedValueOnce(new Error("database unavailable"));
+    await expect(pollEventsForWithOutcome("dep-1")).rejects.toThrow("database unavailable");
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(db.eventCursor.updateMany).not.toHaveBeenCalled();
   });
 
   it("reports mixed contract outcomes and holds coverage at the least advanced contract", async () => {
@@ -1303,6 +1363,7 @@ describe("pollEventsFor: RPC scan windows", () => {
       id: "dep-1",
       contractAddress: "C123",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       flow: { templateKind: TemplateKind.SPLITTER },
     } as never);
     expect(await pollEventsForWithOutcome("dep-1")).toMatchObject({

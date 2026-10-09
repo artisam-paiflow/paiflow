@@ -11,6 +11,7 @@ import {
 } from "@stellar/stellar-sdk";
 import { z } from "zod";
 import { TemplateKind } from "@prisma/client";
+import { withDeploymentBatch } from "@/lib/deployments/service-work";
 import { env, stellarFactoryAddress, stellarPassphrase, stellarWasmHash } from "@/lib/env";
 import { db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
@@ -437,6 +438,7 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
       where: {
         network: config.STELLAR_NETWORK,
         status: "CONFIRMED",
+        serviceState: "ACTIVE",
         owner: { role: { not: "SANDBOX" } },
       },
       orderBy: [{ ttlCheckedAt: { sort: "asc", nulls: "first" } }, { id: "asc" }],
@@ -533,11 +535,19 @@ export async function runTtlMaintenance(): Promise<TtlSummary> {
         log.warn({ deploymentId: deployment.id }, "TTL inventory failed");
       }
     }
-    // Pool instance reads across flows; getLedgerEntries batches never exceed 100 keys.
-    const hashes = await inspect(
-      work.flatMap(({ chunk }) => chunk.map((target) => ({ target, kind: "instance" as const }))),
+    await withDeploymentBatch(
+      work.map(({ deployment }) => deployment.id),
+      "ttl-maintenance",
+      async (admittedIds) => {
+        const admitted = new Set(admittedIds);
+        const hashes = await inspect(
+          work
+            .filter(({ deployment }) => admitted.has(deployment.id))
+            .flatMap(({ chunk }) => chunk.map((target) => ({ target, kind: "instance" as const }))),
+        );
+        await inspect(hashes.map((target) => ({ target, kind: "code" })));
+      },
     );
-    await inspect(hashes.map((target) => ({ target, kind: "code" })));
     const failures = new Set(
       result.details
         .filter((d) => d.status === "failed" && d.reason === "Target inventory unavailable")

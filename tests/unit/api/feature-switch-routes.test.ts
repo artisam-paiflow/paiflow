@@ -1,3 +1,17 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 /**
  * #722: the server side of the surface switches. A switched-off surface is
  * refused where it would be NEW use (prepare, submit, its own routes), while a
@@ -13,7 +27,7 @@ import type { NextRequest } from "next/server";
 
 const { mockDb, mockAuth, mockGroq, mockDeploy, mockRelayer } = vi.hoisted(() => ({
   mockDb: {
-    flow: { findFirst: vi.fn(), update: vi.fn() },
+    flow: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
     employee: { findMany: vi.fn() },
     deployment: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   },
@@ -53,6 +67,7 @@ vi.mock("@/lib/stellar/config", () => ({
 const SWITCHES = [
   "FEATURE_OFFRAMP_ENABLED",
   "FEATURE_PAYROLL_ENABLED",
+  "FEATURE_DEV_MODE_ENABLED",
   "FEATURE_AI_ASSISTANT_ENABLED",
   "FEATURE_ORACLE_CONDITION_ENABLED",
 ] as const;
@@ -190,7 +205,7 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe("env: the four switches", () => {
+describe("env: the surface switches", () => {
   async function features() {
     vi.resetModules();
     return (await import("@/lib/features")).serverFeatures();
@@ -200,6 +215,7 @@ describe("env: the four switches", () => {
     expect(await features()).toEqual({
       offramp: true,
       payroll: true,
+      devMode: true,
       aiAssistant: true,
       oracleCondition: true,
     });
@@ -209,18 +225,24 @@ describe("env: the four switches", () => {
 
   it.each(["false", "0", "off", "no", "FALSE", " False "])("reads %j as off", async (v) => {
     process.env.FEATURE_PAYROLL_ENABLED = v;
+    process.env.FEATURE_DEV_MODE_ENABLED = v;
     expect((await features()).payroll).toBe(false);
+    expect((await features()).devMode).toBe(false);
   });
 
   it.each(["true", "1", "on", "yes", "TRUE"])("reads %j as on", async (v) => {
     process.env.FEATURE_OFFRAMP_ENABLED = v;
+    process.env.FEATURE_DEV_MODE_ENABLED = v;
     expect((await features()).offramp).toBe(true);
+    expect((await features()).devMode).toBe(true);
   });
 
   it("reads a value it cannot parse as OFF instead of crashing every route", async () => {
     process.env.FEATURE_AI_ASSISTANT_ENABLED = "flase";
+    process.env.FEATURE_DEV_MODE_ENABLED = "flase";
     const f = await features();
     expect(f.aiAssistant).toBe(false);
+    expect(f.devMode).toBe(false);
     expect(f.payroll).toBe(true);
     // env() still parses, so crons and live deployments are unaffected.
     const { env } = await import("@/lib/env");
@@ -234,6 +256,16 @@ describe("POST /api/deployments/prepare", () => {
     const { POST } = await import("@/app/api/deployments/prepare/route");
     return POST(jsonRequest({ flowId: ID, sourceAccount: SOURCE }) as never);
   }
+
+  it("refuses a Dev graph before simulation and still prepares a standard flow", async () => {
+    setSwitch("FEATURE_DEV_MODE_ENABLED", "false");
+    const res = await prepare({ ...ORACLE_GRAPH, devMode: true });
+    expect(res.status).toBe(422);
+    expect((await res.json()).error.fields.devMode[0]).toMatch(/Dev mode is turned off/);
+    expect(mockDeploy.preparePipelineDeployTx).not.toHaveBeenCalled();
+    expect(mockDb.deployment.create).not.toHaveBeenCalled();
+    expect((await prepare(ORACLE_GRAPH)).status).toBe(200);
+  });
 
   it.each([
     ["payroll", "FEATURE_PAYROLL_ENABLED", PAYROLL_GRAPH, "nodes.t", /Payroll is turned off/],
@@ -268,6 +300,24 @@ describe("POST /api/deployments/prepare", () => {
 });
 
 describe("pipeline kinds, the second line behind the graph check", () => {
+  it("blocks prepared Dev graphs, malformed saved graphs and every _DEV pipeline kind", async () => {
+    setSwitch("FEATURE_DEV_MODE_ENABLED", "false");
+    const { assertPreparedDeploymentAllowed } = await import("@/lib/features");
+    for (const graph of [
+      { ...ORACLE_GRAPH, devMode: true },
+      { devMode: true, nodes: "old" },
+    ]) {
+      expect(() => assertPreparedDeploymentAllowed(graph, [])).toThrow(/Dev mode is turned off/);
+    }
+    for (const kind of ["PAYER_DEV", "SPLITTER_DEV", "SUBSCRIPTION_DEV", "CASH_OUT_DEV"]) {
+      expect(() => assertPreparedDeploymentAllowed({}, [{ templateKind: kind }])).toThrow(
+        /turned off/,
+      );
+    }
+    expect(() =>
+      assertPreparedDeploymentAllowed(ORACLE_GRAPH, [{ templateKind: "PAYER" }]),
+    ).not.toThrow();
+  });
   it("refuses a contract kind of a switched-off surface even when no node names it", async () => {
     const { assertNoHiddenSurfaces } = await import("@/lib/features");
     const { ALL_FEATURES_ON } = await import("@/lib/feature-flags");
@@ -326,6 +376,33 @@ describe("AI assistant routes", () => {
 });
 
 describe("payroll routes", () => {
+  it("refuses dev-payroll creation independently of the Payroll switch", async () => {
+    setSwitch("FEATURE_DEV_MODE_ENABLED", "false");
+    const { POST } = await import("@/app/api/deployments/dev-payroll/route");
+    const response = await POST(jsonRequest({}));
+    expect(response.status).toBe(404);
+    expect((await response.json()).error.message).toMatch(/Dev mode is turned off/);
+    expect(mockDeploy.deployPipelineByRelayer).not.toHaveBeenCalled();
+  });
+
+  it("blocks shared Payroll configuration routes for Dev deployments", async () => {
+    setSwitch("FEATURE_DEV_MODE_ENABLED", "false");
+    mockDb.deployment.findFirst.mockResolvedValue({
+      id: ID,
+      graphSnapshot: { devMode: true },
+      pipelineSnapshot: [],
+      flow: { templateKind: "PAYROLL" },
+    });
+    const { POST } = await import("@/app/api/deployments/[id]/payroll-update-recipients/route");
+    const response = await POST(
+      jsonRequest({ recipients: [{ address: SOURCE, amount: "1" }] }),
+      ctx(),
+    );
+    expect(response.status).toBe(404);
+    const bank = await import("@/app/api/deployments/[id]/employees/bank/route");
+    expect((await bank.POST(jsonRequest({}), ctx())).status).toBe(404);
+    expect((await bank.DELETE(jsonRequest({}), ctx())).status).toBe(404);
+  });
   it("POST /api/deployments/dev-payroll (a new payroll deploy) answers 404 when off", async () => {
     setSwitch("FEATURE_PAYROLL_ENABLED", "false");
     const { POST } = await import("@/app/api/deployments/dev-payroll/route");
@@ -347,6 +424,33 @@ describe("payroll routes", () => {
     expect(res.status).toBe(200);
     expect((await res.json()).data).toEqual({ isCancelled: false, contractAddress: "CSUB" });
   });
+});
+
+describe("Dev-specific routes", () => {
+  const routes = {
+    "dev-config": async () => (await import("@/app/api/deployments/[id]/dev-config/route")).GET,
+    "dev-payer": async () => (await import("@/app/api/deployments/[id]/dev-payer/route")).POST,
+    "dev-splitter": async () =>
+      (await import("@/app/api/deployments/[id]/dev-splitter/route")).POST,
+    "dev-subscription": async () =>
+      (await import("@/app/api/deployments/[id]/dev-subscription/route")).POST,
+    "dev-cash-out": async () =>
+      (await import("@/app/api/deployments/[id]/dev-cash-out/route")).POST,
+  };
+  it.each(Object.entries(routes))(
+    "%s is unavailable without reading the body or deployment",
+    async (_route, load) => {
+      setSwitch("FEATURE_DEV_MODE_ENABLED", "false");
+      const handler = await load();
+      const request = jsonRequest({});
+      const readBody = vi.spyOn(request, "json");
+      const response = await handler(request, ctx());
+      expect(response.status).toBe(404);
+      expect((await response.json()).error.message).toMatch(/Dev mode is turned off/);
+      expect(mockDb.deployment.findFirst).not.toHaveBeenCalled();
+      expect(readBody).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("off-ramp routes", () => {
@@ -444,6 +548,33 @@ describe("refuseNewFiatRecipients: existing fiat recipients keep updating", () =
 });
 
 describe("flow save and validate", () => {
+  it("cannot change a saved Dev graph through address resolution while off", async () => {
+    setSwitch("FEATURE_DEV_MODE_ENABLED", "false");
+    mockDb.flow.findFirst.mockResolvedValue({ id: ID, graph: { ...ORACLE_GRAPH, devMode: true } });
+    const { POST } = await import("@/app/api/flows/[id]/resolve-addresses/route");
+    const response = await POST(jsonRequest({ addresses: { Bob: SOURCE } }), ctx());
+    expect(response.status).toBe(422);
+    expect((await response.json()).error.fields.devMode[0]).toMatch(/Dev mode is turned off/);
+    expect(mockDb.flow.update).not.toHaveBeenCalled();
+  });
+  it("rejects Dev flow creation and graph updates without persisting them", async () => {
+    setSwitch("FEATURE_DEV_MODE_ENABLED", "false");
+    const graph = { ...ORACLE_GRAPH, devMode: true };
+    const { POST } = await import("@/app/api/flows/route");
+    const created = await POST(jsonRequest({ name: "Dev", graph }));
+    expect(created.status).toBe(422);
+    expect((await created.json()).error.fields.devMode[0]).toMatch(/Dev mode is turned off/);
+    expect(mockDb.flow.create).not.toHaveBeenCalled();
+    mockDb.flow.findFirst.mockResolvedValue({ id: ID, name: "Old Dev", graph });
+    const { PATCH } = await import("@/app/api/flows/[id]/route");
+    expect((await PATCH(jsonRequest({ graph }), ctx())).status).toBe(422);
+    expect(mockDb.flow.update).not.toHaveBeenCalled();
+    mockDb.flow.update.mockResolvedValue({ id: ID });
+    expect((await PATCH(jsonRequest({ graph: { ...graph, devMode: false } }), ctx())).status).toBe(
+      200,
+    );
+    expect(mockDb.flow.update).toHaveBeenCalledOnce();
+  });
   it("PATCH (autosave) still saves an old flow holding a switched-off block", async () => {
     setSwitch("FEATURE_PAYROLL_ENABLED", "false");
     mockDb.flow.findFirst.mockResolvedValue({
@@ -475,8 +606,8 @@ describe("flow save and validate", () => {
 });
 
 describe("what keeps running for existing deployments", () => {
-  // The crons, the SSE stream and the deployment pages operate pipelines that
-  // are already on chain. None of them may read a switch.
+  // Crons, SSE and webhook execution operate pipelines already on chain.
+  // Presentation on deployment pages can hide Dev configuration separately.
   function sources(dir: string): string[] {
     return readdirSync(dir).flatMap((f) => {
       const p = join(dir, f);
@@ -488,11 +619,10 @@ describe("what keeps running for existing deployments", () => {
     });
   }
 
-  it("no cron, SSE or deployment page imports the switches", () => {
+  it("no cron, SSE or webhook reads the switches", () => {
     const files = [
       ...sources("app/api/cron"),
       "app/api/deployments/[id]/events/route.ts",
-      ...sources("app/deployments"),
       ...sources("app/api/webhooks"),
     ];
     const readers = files.filter((f) =>

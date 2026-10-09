@@ -42,6 +42,13 @@ async function sessionUser(token: Token): Promise<Record<string, unknown>> {
 }
 
 describe("auth jwt callback", () => {
+  it("freezes recent authentication at sign-in, not at rolling refresh", async () => {
+    const signedIn = await jwt({}, USER);
+    expect(typeof signedIn.authenticatedAt).toBe("number");
+    const refreshed = await jwt({ ...signedIn });
+    expect(refreshed.authenticatedAt).toBe(signedIn.authenticatedAt);
+    expect((await sessionUser(refreshed)).authenticatedAt).toBe(signedIn.authenticatedAt);
+  });
   it("copies the user's sessionVersion onto the token at sign-in", async () => {
     const token = await jwt({}, USER);
     expect(token).toMatchObject({

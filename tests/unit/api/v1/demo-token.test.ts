@@ -1,3 +1,17 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 /**
  * The public demo token endpoint: how an unauthenticated reviewer gets a working
  * `pfk_` credential for the partner API (SOW §3.8).
@@ -59,6 +73,7 @@ function swapperDeployment(overrides: Record<string, unknown> = {}) {
   return {
     id: DEMO_ID,
     status: "CONFIRMED",
+    serviceState: "ACTIVE",
     network: "testnet",
     pipelineSnapshot: [
       { nodeId: "trigger-1", templateKind: "DEPOSIT_TRIGGER", contractAddress: "C".repeat(56) },

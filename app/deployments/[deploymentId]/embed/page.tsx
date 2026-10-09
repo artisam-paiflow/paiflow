@@ -13,7 +13,7 @@ export default async function EmbedPage({ params }: { params: Promise<{ deployme
   // Internal snapshot determines payment eligibility; only its safe link is published.
   // Never load webhook credentials, owner records or tokens.
   const deployment = await db.deployment.findUnique({
-    where: { id: deploymentId },
+    where: { id: deploymentId, serviceState: "ACTIVE" },
     select: {
       id: true,
       status: true,

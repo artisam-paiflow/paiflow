@@ -1,3 +1,17 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
 import { Keypair } from "@stellar/stellar-sdk";
@@ -9,6 +23,14 @@ const { mockDb, mockRpc } = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/redis", () => ({ redis: () => null }));
 vi.mock("@/lib/stellar/client", () => ({ sorobanRpc: mockRpc }));
+const config = vi.hoisted(() => ({ devModeEnabled: true }));
+vi.mock("@/lib/env", async (original) => {
+  const module = await original<typeof import("@/lib/env")>();
+  return {
+    ...module,
+    env: () => ({ ...module.env(), FEATURE_DEV_MODE_ENABLED: config.devModeEnabled }),
+  };
+});
 
 import { GET } from "@/app/api/v1/deployments/[id]/capabilities/route";
 import { DeploymentCapabilitiesSchema } from "@/lib/api/v1/schema";
@@ -59,6 +81,7 @@ async function data() {
 }
 
 beforeEach(() => {
+  config.devModeEnabled = true;
   vi.clearAllMocks();
   token = newToken();
   mockDb.deploymentApiToken.update.mockResolvedValue({});
@@ -66,6 +89,20 @@ beforeEach(() => {
 });
 
 describe("deployment capabilities", () => {
+  it("stops advertising mutable payouts when Dev mode is off, retaining execution and reads", async () => {
+    config.devModeEnabled = false;
+    authorize({
+      graphSnapshot: { ...graph, devMode: true },
+      pipelineSnapshot: [pipeline[0], { ...pipeline[1], templateKind: "PAYER_DEV" }],
+    });
+    const result = await data();
+    expect(result.operations.payouts.status).toBe("unsupported");
+    expect(result.operations.payouts.nodeIds).toEqual([]);
+    expect(result.operations.payouts.requirements.join(" ")).toContain("Dev mode is turned off");
+    expect(result.operations.execute.status).toBe("supported");
+    expect(result.operations.events.status).toBe("supported");
+    expect(result.operations.transactions.status).toBe("supported");
+  });
   it("supports standard deposit execution and monitoring without offering mutable recipients", async () => {
     const result = await data();
     expect(result.network).toBe("testnet");

@@ -4,6 +4,7 @@ import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
 import { AppError } from "@/lib/errors";
 import { env } from "@/lib/env";
+import { isFeatureEnabled } from "@/lib/features";
 import { conditionBranchTargets } from "@/lib/flows/branches";
 import { FlowGraphSchema, isTrigger, type FlowGraph } from "@/lib/flows/schema";
 import {
@@ -126,7 +127,8 @@ export function deploymentCapabilities(
       ? CapabilitiesAssetSchema.safeParse(headBlock.config.asset)
       : null;
   const releaseNodes = nodes.filter((node) => node.templateKind === "TIMELOCK_BRANCH");
-  const payNodeIds = payoutCandidates(nodes, recordedGraph);
+  const devModeEnabled = isFeatureEnabled("devMode");
+  const payNodeIds = devModeEnabled ? payoutCandidates(nodes, recordedGraph) : [];
   const subscriptionTrigger = recordedGraph?.nodes.find(isTrigger);
   const allowanceCandidate =
     triggerType === "subscription" &&
@@ -179,6 +181,7 @@ export function deploymentCapabilities(
             payNodeIds,
           )
         : operation("unsupported", [
+            ...(!devModeEnabled ? ["Dev mode is turned off on this server."] : []),
             "Per-payment recipients require a deposit-triggered Dev flow with a deployed mutable crypto Pay on an immediate Split or amount-condition path. Standard flows use configured recipients.",
           ]),
       webhook: webhookEnabled

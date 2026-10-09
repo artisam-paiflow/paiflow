@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { withErrorHandler } from "@/lib/errors";
 import { publicEmbedDeployment, publicEmbedEvents } from "@/lib/deployments/public-embed-reads";
 
 export const dynamic = "force-dynamic";
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     await publicEmbedDeployment(req, id);
@@ -13,3 +14,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     );
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "public");

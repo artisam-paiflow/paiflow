@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -25,7 +26,7 @@ const isUuid = (v: string) => z.string().uuid().safeParse(v).success;
  * Cursor-based pagination on (createdAt, id): pass the returned `nextCursor`
  * back as `?cursor=` to fetch the next page.
  */
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
 
@@ -87,3 +88,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return NextResponse.json(RunListResponseSchema.parse({ data, nextCursor }));
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "dev");

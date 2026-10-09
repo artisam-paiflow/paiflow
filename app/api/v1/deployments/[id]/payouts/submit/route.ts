@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { linkApiTransaction } from "@/lib/api/request-history/context";
 import { AppError } from "@/lib/errors";
+import { requireFeature } from "@/lib/features";
 import { v1Route } from "@/lib/api/v1/handler";
 import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
 import { ExecuteSubmitQuerySchema, PayoutSubmitSchema } from "@/lib/api/v1/schema";
@@ -13,6 +14,7 @@ import { clientIp } from "@/lib/rate-limit";
 export const POST = v1Route(
   { rateLimit: V1_RATE_LIMITS.payoutsSubmit },
   async ({ req, params, token, deployment }) => {
+    requireFeature("devMode");
     const input = PayoutSubmitSchema.parse(
       await req.json().catch(() => {
         throw new AppError("VALIDATION", "Request body must be valid JSON");

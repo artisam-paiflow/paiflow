@@ -236,8 +236,9 @@ impl SubscriptionDev {
 
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         let contract = env.current_contract_address();
-        let expiration_ledger = env.ledger().sequence().saturating_add(1);
-        token::Client::new(&env, &asset).approve(&subscriber, &contract, &0, &expiration_ledger);
+        // Zero-amount revocation permits expiration 0. Keep its authorization
+        // arguments stable between simulation and execution on a later ledger.
+        token::Client::new(&env, &asset).approve(&subscriber, &contract, &0, &0);
 
         env.storage().instance().set(&Key::Cancelled, &true);
 
@@ -581,5 +582,23 @@ mod test {
         assert_eq!(client.start_time(), 5000);
         assert_eq!(client.interval_seconds(), 120);
         assert_eq!(client.next_charge_at(), 5000);
+    }
+
+    fn cancellation_fixture(env: &Env) -> (Address, Address, Address, Address) {
+        let payer = Address::generate(env);
+        let (contract, asset, admin, _) = deploy(
+            env,
+            Some(payer.clone()),
+            200,
+            START_TIME,
+            INTERVAL,
+            END_TIME,
+        );
+        (admin, payer, contract, asset)
+    }
+
+    // Run the same cancellation invariants against every implementation.
+    mod cancellation {
+        include!("../../../testutils/unsubscribe.rs");
     }
 }

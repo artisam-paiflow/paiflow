@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -17,7 +18,7 @@ export const runtime = "nodejs";
 
 const { perCaller, ipBackstop } = CALLER_RATE_LIMITS.balances;
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await getSessionUser();
     if (!user) {
@@ -88,3 +89,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return NextResponse.json(balances, { headers: { "Cache-Control": "private, no-store" } });
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "owner");

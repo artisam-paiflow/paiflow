@@ -1,3 +1,17 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { mockDb, mockRelayer, horizonMock } = vi.hoisted(() => ({
@@ -28,7 +42,10 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: vi.fn(async () => ({ ok: true })) }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
 vi.mock("@/lib/stellar/dev-mutate", () => mockRelayer);
-vi.mock("@/lib/features", () => ({ refuseNewFiatRecipients: vi.fn() }));
+vi.mock("@/lib/features", async (original) => ({
+  ...(await original<typeof import("@/lib/features")>()),
+  refuseNewFiatRecipients: vi.fn(),
+}));
 vi.mock("@/lib/employees", () => ({
   syncEmployees: vi.fn(),
   deriveFiatPlaceholderAddress: () => "GFIATPLACEHOLDER",

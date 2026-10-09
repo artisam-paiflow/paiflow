@@ -1,15 +1,20 @@
-import { Account, StrKey, TransactionBuilder } from "@stellar/stellar-sdk";
-import { beforeEach, expect, it, vi } from "vitest";
+import { Account, Keypair, Networks, StrKey, TransactionBuilder } from "@stellar/stellar-sdk";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { FlowGraphSchema } from "@/lib/flows/schema";
 import { flowToPipeline } from "@/lib/flows/to-params";
 
-const { getAccount, simulate, assemble } = vi.hoisted(() => ({
-  getAccount: vi.fn(),
-  simulate: vi.fn(),
-  assemble: vi.fn(),
-}));
+const { getAccount, simulate, assemble, prepareSubmission, send, buildRelayer } = vi.hoisted(
+  () => ({
+    getAccount: vi.fn(),
+    simulate: vi.fn(),
+    assemble: vi.fn(),
+    prepareSubmission: vi.fn(),
+    send: vi.fn(),
+    buildRelayer: vi.fn(),
+  }),
+);
 vi.mock("@/lib/stellar/client", () => ({
-  sorobanRpc: () => ({ getAccount, simulateTransaction: simulate }),
+  sorobanRpc: () => ({ getAccount, simulateTransaction: simulate, sendTransaction: send }),
   horizon: () => ({}),
 }));
 vi.mock("@/lib/stellar/config", () => ({
@@ -19,6 +24,16 @@ vi.mock("@stellar/stellar-sdk", async (original) => {
   const actual = await original<typeof import("@stellar/stellar-sdk")>();
   return { ...actual, rpc: { ...actual.rpc, assembleTransaction: assemble } };
 });
+vi.mock("@/lib/deployments/service-work", () => ({ prepareServiceDeployment: prepareSubmission }));
+vi.mock("@/lib/analytics/outcomes", () => ({
+  beginTransactionSubmission: vi.fn(),
+  recordTransactionOutcome: vi.fn(),
+  transactionObservation: vi.fn(),
+}));
+vi.mock("@/lib/stellar/relayer-channels", () => ({
+  withRelayerChannel: (fn: (channel: object) => Promise<unknown>) => fn({}),
+  buildRelayerTx: buildRelayer,
+}));
 import { preparePipelineDeployTx } from "@/lib/stellar/deploy";
 
 const ACCOUNT = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
@@ -78,3 +93,58 @@ it("rejects missing coverage before loading an account or simulating", async () 
   expect(getAccount).not.toHaveBeenCalled();
   expect(simulate).not.toHaveBeenCalled();
 });
+
+afterEach(() => {
+  delete process.env.STELLAR_RELAYER_SECRET_KEY;
+  delete process.env.STELLAR_RELAYER_ADDRESS;
+});
+it.each([false, true])(
+  "binds the exact signed hash and prepared pipeline to the single send gate (checkpoint error: %s)",
+  async (checkpointError) => {
+    const relayer = Keypair.random();
+    process.env.STELLAR_RELAYER_ADDRESS = relayer.publicKey();
+    process.env.STELLAR_RELAYER_SECRET_KEY = relayer.secret();
+    vi.resetModules();
+    const { deployPipelineByRelayer } = await import("@/lib/stellar/deploy");
+    const nodes = flowToPipeline(graph).map((node) => ({ ...node, wasmHash: "a".repeat(64) }));
+    let prepared: ReturnType<TransactionBuilder["build"]>;
+    buildRelayer.mockImplementation(async ({ operation }) => {
+      prepared = new TransactionBuilder(new Account(relayer.publicKey(), "1"), {
+        fee: "100",
+        networkPassphrase: Networks.TESTNET,
+      })
+        .addOperation(operation)
+        .setTimeout(180)
+        .build();
+      return prepared;
+    });
+    prepareSubmission.mockImplementation((hash, pipeline) => {
+      expect(hash).toBe(prepared.hash().toString("hex"));
+      expect(pipeline).toHaveLength(nodes.length);
+      expect(pipeline[0]).toMatchObject({
+        nodeId: nodes[0]!.nodeId,
+        templateKind: nodes[0]!.templateKind,
+        implementation: nodes[0]!.implementation,
+      });
+      expect(StrKey.isValidContract(pipeline[0].contractAddress)).toBe(true);
+      if (checkpointError) throw new Error("Checkpoint unavailable");
+    });
+    send.mockImplementation(async (tx) => {
+      expect(prepareSubmission).toHaveBeenCalledOnce();
+      expect(tx.hash()).toEqual(prepared.hash());
+      return { status: "ERROR", hash: tx.hash().toString("hex") };
+    });
+    if (checkpointError) {
+      await expect(deployPipelineByRelayer({ graph, nodes })).rejects.toThrow(
+        "Checkpoint unavailable",
+      );
+      expect(send).not.toHaveBeenCalled();
+    } else {
+      await expect(deployPipelineByRelayer({ graph, nodes })).resolves.toMatchObject({
+        status: "FAILED",
+        pipeline: expect.any(Array),
+      });
+      expect(send).toHaveBeenCalledOnce();
+    }
+  },
+);

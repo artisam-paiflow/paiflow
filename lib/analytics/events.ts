@@ -60,7 +60,7 @@ export type EventMap = {
     tx_hash: string | null;
   };
   // 1. Setup & access
-  login_succeeded: { method: "password" | "ticket" };
+  login_succeeded: { method: "password" | "ticket" | "google" };
   login_failed: { reason: "bad_password" | "locked" };
   wallet_connect_succeeded: { surface: WalletSurface; wallet_id: string; wallet_address: string };
   error_shown: { error_class: ErrorClass; error_code: string | null; message_key: string };

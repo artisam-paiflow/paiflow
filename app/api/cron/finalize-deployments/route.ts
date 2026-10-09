@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
     const stuck = await db.deployment.findMany({
       where: {
         status: "SUBMITTED",
+        serviceState: "ACTIVE",
         createdAt: { lt: cutoff },
         signedTransactions: { none: { trackingVersion: "usage-v2" } },
       },
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     const counts = await Promise.all(
       stuck.map(async (d) => {
         const { count } = await db.deployment.updateMany({
-          where: { id: d.id, status: "SUBMITTED" },
+          where: { id: d.id, status: "SUBMITTED", serviceState: "ACTIVE" },
           data: { status: "FAILED", errorMessage: "Timed out before finality" },
         });
         if (count === 1) {

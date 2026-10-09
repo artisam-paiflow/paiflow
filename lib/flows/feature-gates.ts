@@ -33,6 +33,14 @@ export function hiddenSurfaceIssues(graph: FlowGraph, features: FeatureFlags): V
   const off = disabledSurfaces(features);
   if (off.length === 0) return [];
   const issues: ValidationIssue[] = [];
+  if (graph.devMode && !features.devMode) {
+    issues.push({
+      path: "devMode",
+      code: "FEATURE_DISABLED",
+      message: "Dev mode is disabled (FEATURE_DEV_MODE_ENABLED=false)",
+      friendlyMessage: `${featureOffMessage("devMode")} ${FEATURE_GATED_BLOCKS.devMode.remedy}`,
+    });
+  }
   for (const n of graph.nodes) {
     for (const s of nodeSurfaces(n, off)) {
       issues.push({

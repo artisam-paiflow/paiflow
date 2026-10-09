@@ -19,6 +19,7 @@ import { formatStroops } from "@/lib/utils";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import { apiError } from "@/lib/friendly-error";
 import { track } from "@/lib/analytics/client";
+import { usesDevMode } from "@/lib/feature-flags";
 
 function evtKey(ev: Evt): string {
   return ev.eventId ?? `${ev.txHash}:${ev.kind}:${ev.ledger}`;
@@ -32,11 +33,11 @@ export default function DeploymentView({
   qrUrl,
   initialEvents,
   graph,
-  webhookSecret,
   pipeline,
   templateKind,
   errorMessage,
   canEditDevValues = false,
+  devModeEnabled = true,
 }: {
   deploymentId: string;
   contractAddress: string | null;
@@ -45,11 +46,11 @@ export default function DeploymentView({
   qrUrl: string | null;
   initialEvents: Evt[];
   graph: FlowGraph | null;
-  webhookSecret: string | null;
   pipeline?: MonitoredPipelineNode[] | null;
   templateKind?: string | null;
   errorMessage: string | null;
   canEditDevValues?: boolean;
+  devModeEnabled?: boolean;
 }) {
   const explorerUrl =
     contractAddress && network ? stellarExpertContractUrl(contractAddress, network) : null;
@@ -228,7 +229,6 @@ export default function DeploymentView({
   }
 
   const isWeb2Webhook = graph?.nodes.find(isTrigger)?.type === "web2_webhook";
-  const appUrl = typeof window !== "undefined" ? window.location.origin : "";
   const streamerNode = pipeline?.find((n) => n.templateKind === "STREAMER");
   const isStreamer = !!streamerNode;
   const isSubscription = templateKind === "SUBSCRIPTION";
@@ -533,6 +533,7 @@ export default function DeploymentView({
           )}
           {isPayroll && payrollNode?.contractAddress && network && graph && (
             <PayrollPanel
+              canEditRecipients={devModeEnabled || !usesDevMode(graph, pipeline)}
               deploymentId={deploymentId}
               contractAddress={payrollNode.contractAddress}
               network={network}
@@ -715,7 +716,7 @@ export default function DeploymentView({
             network={network}
             graph={graph}
             status={status}
-            canEdit={canEditDevValues}
+            canEdit={canEditDevValues && devModeEnabled}
           />
           {status === "FAILED" ? (
             <div className="mt-md border-error/30 bg-error-container/20 flex items-start gap-2 rounded-lg border p-3">
@@ -783,48 +784,6 @@ export default function DeploymentView({
                         </button>
                       </div>
                     </div>
-                    <div>
-                      <div className="text-label-sm text-on-surface-variant font-mono uppercase">
-                        Webhook URL
-                      </div>
-                      <div className="mt-1 flex items-start gap-2">
-                        <span className="text-on-surface font-mono text-[12px] break-all">
-                          {appUrl}/api/webhooks/{deploymentId}
-                        </span>
-                        <button
-                          onClick={() => copy(`${appUrl}/api/webhooks/${deploymentId}`)}
-                          aria-label="Copy webhook URL"
-                          title="Copy webhook URL"
-                          className="text-on-surface-variant hover:text-primary shrink-0 transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">
-                            content_copy
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-                    {webhookSecret && (
-                      <div>
-                        <div className="text-label-sm text-on-surface-variant font-mono uppercase">
-                          Secret token
-                        </div>
-                        <div className="mt-1 flex items-start gap-2">
-                          <span className="text-on-surface font-mono text-[12px] break-all">
-                            {webhookSecret}
-                          </span>
-                          <button
-                            onClick={() => copy(webhookSecret)}
-                            aria-label="Copy webhook secret"
-                            title="Copy webhook secret"
-                            className="text-on-surface-variant hover:text-primary shrink-0 transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-[14px]">
-                              content_copy
-                            </span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
                     <a
                       href={`/trigger/${deploymentId}`}
                       className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 inline-block rounded border px-3 py-1.5 font-mono text-xs transition-colors"

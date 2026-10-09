@@ -54,6 +54,7 @@ export function tokenRow(
     expiresAt: null,
     revokedAt: null,
     deployment: {
+      serviceState: "ACTIVE",
       id: DEPLOYMENT_ID,
       ownerId: OWNER_ID,
       status: "CONFIRMED",

@@ -133,8 +133,9 @@ impl Payroll {
 
         let asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
         let contract = env.current_contract_address();
-        let expiration_ledger = env.ledger().sequence().saturating_add(1);
-        token::Client::new(&env, &asset).approve(&employer, &contract, &0, &expiration_ledger);
+        // Zero-amount revocation permits expiration 0. Keep its authorization
+        // arguments stable between simulation and execution on a later ledger.
+        token::Client::new(&env, &asset).approve(&employer, &contract, &0, &0);
 
         env.storage().instance().set(&Key::Cancelled, &true);
 
@@ -486,5 +487,24 @@ mod test {
         let payroll = PayrollClient::new(&env, &contract_id);
         env.ledger().set_timestamp(END_TIME);
         payroll.charge();
+    }
+
+    fn cancellation_fixture(env: &Env) -> (Address, Address, Address, Address) {
+        let admin = Address::generate(env);
+        let payer = Address::generate(env);
+        let recipients = vec![env, recipient(env, Address::generate(env), 200)];
+        let (contract, asset) = deploy_contract(
+            env,
+            admin.clone(),
+            payer.clone(),
+            Address::generate(env),
+            recipients,
+        );
+        (admin, payer, contract, asset)
+    }
+
+    // Run the same cancellation invariants against every implementation.
+    mod cancellation {
+        include!("../../../testutils/unsubscribe.rs");
     }
 }

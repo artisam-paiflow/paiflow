@@ -100,6 +100,10 @@ try {
     `const emit = (context: object, message: string) => process.stdout.write(JSON.stringify({ ...context, message }) + "\\n"); export const log = { info: emit, warn: emit, error: emit };\n`,
   );
   await write(
+    "lib/deployments/service-work.ts",
+    "export async function assertDeploymentService(_id: string) {}\n",
+  );
+  await write(
     "lib/redis.ts",
     `
 import { EventEmitter } from "node:events";

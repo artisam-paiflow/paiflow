@@ -26,6 +26,7 @@ import {
   SWAP_ROUTER_UNSET_MESSAGE,
 } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { prepareServiceDeployment } from "@/lib/deployments/service-work";
 import { assertNoHiddenSurfaces } from "@/lib/features";
 import type { PipelineNode, PipelineNodeParams } from "@/lib/flows/to-params";
 import type { FlowGraph } from "@/lib/flows/schema";
@@ -439,6 +440,13 @@ export async function deployPipelineByRelayer(opts: {
   return withRelayerChannel(async (channel) => {
     const prepared = await preparePipelineDeployTxFromPlan(relayerAddress, plan, channel);
 
+    // Attach every child address to the exact envelope identity. The SDK send
+    // gate checkpoints both atomically with its durable admission before sending.
+    // The request may die after finality but before its confirmation checkpoint.
+    const preparedHash = TransactionBuilder.fromXDR(prepared.xdr, stellarPassphrase())
+      .hash()
+      .toString("hex");
+    prepareServiceDeployment(preparedHash, prepared.pipeline);
     const result = await submitDeployTx(prepared.xdr);
     if (result.status === "NOT_ACCEPTED") {
       // Nothing to resubmit here: the envelope lives only inside this lock, and

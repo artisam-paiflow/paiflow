@@ -2,6 +2,7 @@ import "server-only";
 import crypto from "crypto";
 import type { NextRequest } from "next/server";
 import { z, ZodError } from "zod";
+import { assertDeploymentService, withDeploymentWork } from "@/lib/deployments/service-work";
 import { env } from "@/lib/env";
 import { queueApiRequest } from "@/lib/api/request-history/delivery";
 import {
@@ -108,7 +109,11 @@ export function v1Route<P extends V1Params>(
             windowSeconds: opts.rateLimit.windowSeconds,
           });
 
-          return await fn({ req, params, ...auth });
+          if (req.method === "GET") {
+            await assertDeploymentService(params.id);
+            return await fn({ req, params, ...auth });
+          }
+          return await withDeploymentWork(params.id, route, () => fn({ req, params, ...auth }));
         } catch (error) {
           failureCode =
             error instanceof AppError

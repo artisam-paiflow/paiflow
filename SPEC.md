@@ -232,6 +232,12 @@ Fiat payouts:
 
 Deferred configuration:
 
+- `FEATURE_DEV_MODE_ENABLED=false` hides Dev builder and deployment configuration controls,
+  rejects Dev flow creation/graph updates and new deployments (including prepared submissions),
+  and disables `dev-*` APIs and v1 per-payment recipient payouts. Existing contract execution,
+  cancellation, status/event reads and scheduled automation continue. The flag defaults on;
+  set it explicitly to false in the hackathon environment.
+
 - Addresses may be left **pending** at design time and resolved before deploy.
 - "Fill via API after deploy" (an empty split roster, `fillValueViaApi`, `fillScheduleViaApi`) is
   only legal in dev mode, where the deployed contract is mutable. Background:
@@ -275,9 +281,17 @@ history is the git log.
 
 ## 4. Authentication & Authorization
 
-### 4.1 Primary: username + password
+### 4.1 Username/password and Google sign-in
 
-- Auth.js v5 Credentials provider.
+- Auth.js v5 Credentials provider and opt-in Google OpenID Connect sign-in.
+- Google availability, new Google registration and password registration are independently gated.
+  New Google accounts have no local password and receive `USER` / `EXTERNAL`; audience is analytics
+  classification only and does not restrict access. Existing accounts can explicitly link Google
+  with recent authentication while retaining their role, classification, email and resources.
+  Matching email alone never merges accounts; sandbox accounts cannot link Google.
+- Google-only accounts recover through Google. Local password change/reset and admin reset cannot
+  enroll a password. Existing password recovery remains available. Configuration and hosted
+  verification: [`docs/google-sign-in.md`](./docs/google-sign-in.md).
 - Argon2id hashing (`memoryCost: 19456 KiB, timeCost: 2, parallelism: 1`).
 - Lockout: 5 failed attempts → 15-minute lock (`User.lockedUntil`). Counter resets on success.
 - Passwords: minimum 12 characters; rejected if the username appears as a substring; checked against
@@ -290,8 +304,8 @@ history is the git log.
 
 - WebAuthn via `@simplewebauthn/*`, `rpId = AUTH_RP_ID`.
 - Stored per-user in `Passkey`. The signature counter is incremented on assertion to detect clones.
-- A user with passkeys still has a password; the passkey is an addition, never the only factor on
-  file.
+- Passkeys are an additional sign-in method for password or Google accounts. A Google-created
+  user may have passkeys without a local password; Google remains their account recovery method.
 
 ### 4.3 Authorization
 

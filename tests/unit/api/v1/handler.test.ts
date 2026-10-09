@@ -1,3 +1,21 @@
+// Admission is tested with real PostgreSQL in deployments/retirement.test.ts.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  withDeploymentBatch: async (
+    ids: string[],
+    _kind: string,
+    fn: (ids: string[]) => Promise<unknown>,
+  ) => fn(ids),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
@@ -32,7 +50,7 @@ let tokenSeq = 0;
 function authAs(tokenId: string) {
   mockRequireDeploymentToken.mockResolvedValue({
     token: { id: tokenId },
-    deployment: { id: DEPLOYMENT_ID },
+    deployment: { serviceState: "ACTIVE", id: DEPLOYMENT_ID },
   });
 }
 
@@ -58,7 +76,7 @@ describe("v1Route", () => {
       req,
       params: { id: DEPLOYMENT_ID },
       token: { id: `token-${tokenSeq}` },
-      deployment: { id: DEPLOYMENT_ID },
+      deployment: { serviceState: "ACTIVE", id: DEPLOYMENT_ID },
     });
   });
 

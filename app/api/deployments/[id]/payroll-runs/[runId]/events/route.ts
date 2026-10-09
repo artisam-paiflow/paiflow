@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -10,7 +11,7 @@ import { loadPayrollEvents } from "@/lib/payroll/event-feed-source";
  * deployment-level feed, filtered to the run's own rows (its payouts and their
  * off-ramp jobs). 404s if the run does not belong to the deployment.
  */
-export async function GET(
+async function GETHandler(
   req: NextRequest,
   ctx: { params: Promise<{ id: string; runId: string }> },
 ) {
@@ -44,3 +45,5 @@ export async function GET(
     return NextResponse.json(FeedResponseSchema.parse(page));
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "dev");

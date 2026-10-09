@@ -11,6 +11,7 @@ import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
 import { upsertAddress } from "@/lib/address-book";
+import { refuseIfFeatureOff } from "@/lib/features";
 
 const ResolveSchema = z.object({
   addresses: z.record(
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!flow) throw new AppError("NOT_FOUND", "Flow not found");
 
     const graph = structuredClone(flow.graph) as FlowGraph;
+    if (graph.devMode) refuseIfFeatureOff("devMode", "devMode");
     let replaced = 0;
 
     // Build a lookup: lowercased label → real address

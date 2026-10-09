@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { confirmDeployment } from "@/lib/deployments/confirm";
 import { isDeploymentReconciliationRehearsal } from "@/lib/deployments/reconciliation-rehearsal";
 import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
@@ -45,7 +46,7 @@ function confirmedDeploymentResponse(deployment: {
   });
 }
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     await enforceWriteRateLimit("deploymentSubmit", user.id);
@@ -219,3 +220,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     );
   });
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "owner");

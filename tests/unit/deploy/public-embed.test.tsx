@@ -1,3 +1,17 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
@@ -23,6 +37,7 @@ vi.mock("@/components/app/topbar", () => ({ default: () => null }));
 import EmbedPage from "@/app/deployments/[deploymentId]/embed/page";
 import OwnerPage from "@/app/deployments/[deploymentId]/page";
 import OwnerView from "@/components/deploy/deployment-view";
+import ApiAccessPanel from "@/components/deploy/api-access-panel";
 import PublicView from "@/components/deploy/public-deployment-view";
 import { projectPublicEmbed, type PublicEmbedData } from "@/lib/deployments/public-embed";
 
@@ -230,8 +245,13 @@ describe("private owner page", () => {
   it("retains secret access behind the owner-scoped query", async () => {
     const page = await OwnerPage({ params: params() });
     expect(session).toHaveBeenCalledOnce();
-    expect(db.deployment.findFirst.mock.calls[0]?.[0].where).toEqual({ id: ID, ownerId: "owner" });
-    expect(findComponent(page, OwnerView)?.props.webhookSecret).toBe(PRIVATE);
+    expect(db.deployment.findFirst.mock.calls[0]?.[0].where).toEqual({
+      id: ID,
+      ownerId: "owner",
+      serviceState: { not: "RETIRED" },
+    });
+    expect(findComponent(page, ApiAccessPanel)?.props.webhookSecret).toBe(PRIVATE);
+    expect(findComponent(page, OwnerView)?.props).not.toHaveProperty("webhookSecret");
   });
 
   it("does not expose the owner page to another team", async () => {

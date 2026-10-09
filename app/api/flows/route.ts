@@ -9,6 +9,7 @@ import { FlowSaveSchema, sandboxNotifications } from "@/lib/flows/schema";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
+import { refuseIfFeatureOff } from "@/lib/features";
 
 const ListQuerySchema = z.object({
   cursor: z.string().optional(),
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest) {
     if (!rl.ok) throw rateLimitedError(rl, "Too many writes");
 
     const body = FlowSaveSchema.parse(await req.json());
+    if (body.graph.devMode) refuseIfFeatureOff("devMode", "devMode");
     if (user.role === "SANDBOX") body.graph = sandboxNotifications(body.graph);
     else if (!body.graph.notify) {
       const account = await db.user.findUnique({ where: { id: user.id }, select: { email: true } });

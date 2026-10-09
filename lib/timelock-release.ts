@@ -1,6 +1,7 @@
 import "server-only";
 import { Prisma, Role, TemplateKind, TimelockMode, type TimelockRelease } from "@prisma/client";
 import { z } from "zod";
+import { runDeploymentWork } from "@/lib/deployments/service-work";
 import { db } from "@/lib/db";
 import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { log } from "@/lib/log";
@@ -113,7 +114,11 @@ function relayerEligible(now: Date): Prisma.TimelockReleaseWhereInput {
     // Rows only ever exist for deployments the discovery below loaded, which
     // already excludes sandbox owners; this keeps it true if an owner's role
     // or a deployment's status changes afterwards.
-    deployment: { status: "CONFIRMED", owner: { role: { not: Role.SANDBOX } } },
+    deployment: {
+      serviceState: "ACTIVE",
+      status: "CONFIRMED",
+      owner: { role: { not: Role.SANDBOX } },
+    },
     AND: [
       { OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }] },
       {
@@ -160,6 +165,7 @@ export async function discoverTimelocks(now: Date): Promise<number> {
   const deployments = await db.deployment.findMany({
     where: {
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       owner: { role: { not: Role.SANDBOX } },
       timelockReleases: { none: {} },
       OR: AUTO_RELEASE_TEMPLATE_KINDS.map((kind) => ({
@@ -264,6 +270,7 @@ export async function selectDueTimelocks(now: Date): Promise<TimelockRelease[]> 
         OR (t."mode" = 'BEFORE' AND t."unlockAt" >= (${nowUtc}::timestamptz AT TIME ZONE 'UTC'))
       )
       AND d."status" = 'CONFIRMED'
+      AND d."serviceState" = 'ACTIVE'
       AND u."role" <> 'SANDBOX'
       AND EXISTS (
         SELECT 1 FROM "ContractEvent" e
@@ -461,7 +468,10 @@ export async function runAutoRelease(
       break;
     }
     // A run can take minutes; backoff and leases are measured from each probe.
-    details.push(await probe(row, new Date(Math.max(now.getTime(), Date.now()))));
+    const detail = await runDeploymentWork(row.deploymentId, "auto-release", () =>
+      probe(row, new Date(Math.max(now.getTime(), Date.now()))),
+    );
+    if (detail) details.push(detail);
   }
 
   return {

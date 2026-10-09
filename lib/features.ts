@@ -7,6 +7,7 @@ import { AppError } from "@/lib/errors";
 import {
   disabledTemplateKinds,
   featureOffMessage,
+  usesDevMode,
   type FeatureFlags,
   type FeatureSurface,
 } from "@/lib/feature-flags";
@@ -43,6 +44,7 @@ export function serverFeatures(): FeatureFlags {
   return {
     offramp: switchOn("FEATURE_OFFRAMP_ENABLED", e.FEATURE_OFFRAMP_ENABLED),
     payroll: switchOn("FEATURE_PAYROLL_ENABLED", e.FEATURE_PAYROLL_ENABLED),
+    devMode: switchOn("FEATURE_DEV_MODE_ENABLED", e.FEATURE_DEV_MODE_ENABLED),
     aiAssistant: switchOn("FEATURE_AI_ASSISTANT_ENABLED", e.FEATURE_AI_ASSISTANT_ENABLED),
     oracleCondition: switchOn(
       "FEATURE_ORACLE_CONDITION_ENABLED",
@@ -65,6 +67,11 @@ export function requireFeature(surface: FeatureSurface): void {
   if (!isFeatureEnabled(surface)) {
     throw new AppError("NOT_FOUND", featureOffMessage(surface));
   }
+}
+
+/** Shared Payroll routes also serve standard deployments; gate Dev configuration only. */
+export function requireDevConfiguration(graph: unknown, pipeline: unknown): void {
+  if (usesDevMode(graph, pipeline)) requireFeature("devMode");
 }
 
 /**
@@ -152,6 +159,13 @@ export function assertPreparedDeploymentAllowed(
   pipelineSnapshot: unknown,
   features: FeatureFlags = serverFeatures(),
 ): void {
+  // Check the raw flag too: an old or malformed graph must not bypass the
+  // gate merely because schema parsing failed or it has no _DEV nodes.
+  if (usesDevMode(graphSnapshot, []) && !features.devMode) {
+    throw new AppError("VALIDATION", featureOffMessage("devMode"), {
+      devMode: [featureOffMessage("devMode")],
+    });
+  }
   const parsed = FlowGraphSchema.safeParse(migrateFlowGraph(graphSnapshot));
   const kinds = Array.isArray(pipelineSnapshot)
     ? (pipelineSnapshot as Array<{ templateKind?: TemplateKind }>)

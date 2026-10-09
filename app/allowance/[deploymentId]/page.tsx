@@ -25,7 +25,7 @@ export default async function AllowancePage({
   });
   if (!AllowanceDeploymentIdSchema.safeParse(deploymentId).success) notFound();
   const kind = await db.deployment.findFirst({
-    where: { id: deploymentId, status: "CONFIRMED" },
+    where: { id: deploymentId, serviceState: "ACTIVE", status: "CONFIRMED" },
     select: { flow: { select: { templateKind: true } } },
   });
   if (!kind || !["SUBSCRIPTION", "PAYROLL"].includes(kind.flow.templateKind)) notFound();
@@ -53,7 +53,7 @@ export default async function AllowancePage({
   // Payroll retains its existing session/token boundary despite the shared URL.
   await requirePageSession();
   const d = await db.deployment.findFirst({
-    where: { id: deploymentId, status: "CONFIRMED" },
+    where: { id: deploymentId, serviceState: "ACTIVE", status: "CONFIRMED" },
     include: {
       flow: { select: { name: true, templateKind: true } },
     },
