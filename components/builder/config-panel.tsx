@@ -5,25 +5,32 @@ import type { FlowNode, FlowGraph } from "@/lib/flows/schema";
 import {
   isPendingAddress,
   bpsToPct,
-  pctToBps,
   sourceAmountStroops,
   isTrigger,
   TOTAL_BPS,
   assetLabel,
   stroopsToDisplay,
-  tokenAmountToStroops,
   splitTotalFixedStroops,
   type SplitRecipient,
 } from "@/lib/flows/schema";
 import { cn, formatStroops, shortAddr } from "@/lib/utils";
 import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
+import { RecipientEmailField } from "./notification-settings";
 import AddressInput from "./address-input";
 import type { AddressEntry } from "@/lib/address-book.types";
 import type { StellarNetwork } from "@/lib/stellar/explorer";
-import { computeAssetFlow, FIAT_PAYOUT_TRIGGERS, type ValidationIssue } from "@/lib/flows/validate";
-import { nodeIssues } from "@/lib/flows/issue-paths";
+import { computeAssetFlow, type ValidationIssue } from "@/lib/flows/validate";
+import { fieldErrorUnder, nodeIssues } from "@/lib/flows/issue-paths";
+import type { FeatureFlags } from "@/lib/feature-flags";
 import { AssetField, Field } from "./panels/asset-fields";
+import { defaultShares } from "./panels/split-shares.utils";
+import {
+  fiatPayoutAvailable as fiatAvailable,
+  showPayoutModeSelect,
+} from "./panels/payout-mode.utils";
 import SwapPanel from "./panels/swap-panel";
+import { BpsDraftInput } from "./inputs/bps-draft-input";
+import { StroopsDraftInput } from "./inputs/stroops-draft-input";
 
 /**
  * Sentinel for an address field a developer chose to leave blank at design time
@@ -123,6 +130,9 @@ type Props = {
    * so the title isn't duplicated.
    */
   hideHeader?: boolean;
+  /** Surface switches from the server (#722). */
+  features: FeatureFlags;
+  sandbox?: boolean;
 };
 
 export default function ConfigPanel({
@@ -139,6 +149,8 @@ export default function ConfigPanel({
   network,
   routerContractId,
   hideHeader = false,
+  features,
+  sandbox = false,
 }: Props) {
   const expectedAsset = useMemo(
     () => (node ? (computeAssetFlow(graph).get(node.id) ?? null) : null),
@@ -158,6 +170,9 @@ export default function ConfigPanel({
   );
 
   const fieldError = (name: string): string | null => nodeErrors.field.get(name) ?? null;
+  // Every AssetField edits `config.asset`; a Zod issue lands under it
+  // (`asset.code`, `asset.issuer`), validateFlow's mismatch on it (#407).
+  const assetError = fieldErrorUnder(nodeErrors.field, "asset");
 
   if (!node) {
     return (
@@ -172,15 +187,18 @@ export default function ConfigPanel({
   const trigger = graph.nodes.find(isTrigger);
   const triggerType = trigger?.type ?? null;
   const sourceAmount = sourceAmountStroops(graph);
-  const devMode = graph.devMode === true;
+  const devMode = features.devMode && graph.devMode === true;
 
   // Native fiat payout (bank transfer via an auto-generated cash-out contract)
   // is available on pay/split nodes for non-dev flows whose payouts route
   // through the payer/splitter. Payroll also allows it in dev mode (bank
   // details are filled via the API after deploy).
-  const fiatPayoutAvailable =
-    triggerType === "payroll" ||
-    (!devMode && triggerType !== null && FIAT_PAYOUT_TRIGGERS.has(triggerType));
+  // Off on this server (#722), fiat is not offered; a pay step saved with it
+  // still shows the selector, so it can be switched back to crypto.
+  const fiatPayoutAvailable = fiatAvailable(features.offramp, triggerType, devMode);
+  const payPayoutSelect =
+    node.type === "pay" &&
+    showPayoutModeSelect(fiatPayoutAvailable, features.offramp, node.config.payoutMode);
 
   // Payroll distributions must be fixed salary amounts. If a user switches an
   // existing percentage split to a payroll trigger, convert the recipients to
@@ -272,6 +290,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -280,14 +299,11 @@ export default function ConfigPanel({
             label={`Minimum amount (${assetLabel(node.config.asset)}), optional`}
             error={fieldError("minAmountStroops")}
           >
-            <input
+            <StroopsDraftInput
               className="input font-mono"
-              value={
-                node.config.minAmountStroops ? formatStroops(node.config.minAmountStroops) : ""
-              }
+              value={node.config.minAmountStroops}
               placeholder="Any amount"
-              onChange={(e) => {
-                const stroops = tokenAmountToStroops(e.target.value);
+              onChange={(stroops) => {
                 onChange({
                   ...node,
                   config: { ...node.config, minAmountStroops: stroops || undefined },
@@ -504,8 +520,15 @@ export default function ConfigPanel({
 
       {node.type === "pay" && (
         <>
+          {!sandbox && (
+            <RecipientEmailField
+              value={node.config.email}
+              onChange={(email) => onChange({ ...node, config: { ...node.config, email } })}
+            />
+          )}
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -542,7 +565,7 @@ export default function ConfigPanel({
             </ApiFillField>
           )}
 
-          {fiatPayoutAvailable && (
+          {payPayoutSelect && (
             <div className="space-y-2 pt-1">
               <Field label="Payout mode">
                 <select
@@ -576,11 +599,13 @@ export default function ConfigPanel({
                   }}
                 >
                   <option value="crypto">Crypto (wallet)</option>
-                  <option value="fiat">Fiat (bank transfer)</option>
+                  <option value="fiat" disabled={!fiatPayoutAvailable}>
+                    Fiat (bank transfer)
+                  </option>
                 </select>
               </Field>
 
-              {node.config.payoutMode === "fiat" && !devMode && (
+              {fiatPayoutAvailable && node.config.payoutMode === "fiat" && !devMode && (
                 <>
                   <Field label="Account name" error={fieldError("accountName")}>
                     <input
@@ -627,7 +652,7 @@ export default function ConfigPanel({
                 </>
               )}
 
-              {node.config.payoutMode === "fiat" && devMode && (
+              {fiatPayoutAvailable && node.config.payoutMode === "fiat" && devMode && (
                 <div className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-300">
                   Bank details configured via API after deploy.
                 </div>
@@ -665,15 +690,15 @@ export default function ConfigPanel({
               label={`Amount per interval (${assetLabel(node.config.asset)})`}
               error={fieldError("amountStroops")}
             >
-              <input
+              <StroopsDraftInput
                 className="input"
-                value={node.config.amountStroops ? formatStroops(node.config.amountStroops) : ""}
-                onChange={(e) =>
+                value={node.config.amountStroops}
+                onChange={(stroops) =>
                   onChange({
                     ...node,
                     config: {
                       ...node.config,
-                      amountStroops: tokenAmountToStroops(e.target.value),
+                      amountStroops: stroops,
                     },
                   } as FlowNode)
                 }
@@ -732,17 +757,15 @@ export default function ConfigPanel({
                       label={`Amount (${assetLabel(node.config.asset)})`}
                       error={fieldError("amountStroops")}
                     >
-                      <input
+                      <StroopsDraftInput
                         className="input"
-                        value={
-                          node.config.amountStroops ? formatStroops(node.config.amountStroops) : ""
-                        }
-                        onChange={(e) =>
+                        value={node.config.amountStroops}
+                        onChange={(stroops) =>
                           onChange({
                             ...node,
                             config: {
                               ...node.config,
-                              amountStroops: tokenAmountToStroops(e.target.value),
+                              amountStroops: stroops,
                             },
                           })
                         }
@@ -770,7 +793,13 @@ export default function ConfigPanel({
                               ...node,
                               config: {
                                 ...node.config,
-                                percentage: isNaN(v) ? 0 : Math.min(100, Math.max(0, v)),
+                                // A cleared field leaves the percentage unset
+                                // instead of snapping to 0; validateFlow asks
+                                // for one before deploy (#583).
+                                percentage:
+                                  e.target.value === "" || isNaN(v)
+                                    ? undefined
+                                    : Math.min(100, Math.max(0, v)),
                               },
                             });
                           }}
@@ -792,6 +821,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -811,7 +841,13 @@ export default function ConfigPanel({
                       ...node.config,
                       recipients: e.target.checked
                         ? []
-                        : [{ address: "", mode: "percentage" as const, bps: 0 }],
+                        : [
+                            {
+                              address: "PENDING:unnamed",
+                              mode: "percentage" as const,
+                              bps: TOTAL_BPS,
+                            },
+                          ],
                     },
                   } as FlowNode)
                 }
@@ -852,16 +888,11 @@ export default function ConfigPanel({
                 }
                 error={fieldError("amountPerIntervalStroops")}
               >
-                <input
+                <StroopsDraftInput
                   className="input"
-                  value={
-                    node.config.amountPerIntervalStroops
-                      ? formatStroops(node.config.amountPerIntervalStroops)
-                      : ""
-                  }
+                  value={node.config.amountPerIntervalStroops}
                   placeholder="Amount released each interval"
-                  onChange={(e) => {
-                    const stroops = tokenAmountToStroops(e.target.value);
+                  onChange={(stroops) => {
                     onChange({
                       ...node,
                       config: {
@@ -892,6 +923,8 @@ export default function ConfigPanel({
               addressBookError={addressBookError}
               fieldErrors={nodeErrors.field}
               onChange={onChange}
+              offrampEnabled={features.offramp}
+              sandbox={sandbox}
             />
           )}
         </>
@@ -901,6 +934,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -929,6 +963,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -944,6 +979,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -1004,15 +1040,15 @@ export default function ConfigPanel({
                 label={`Amount per period (${assetLabel(node.config.asset)})`}
                 error={fieldError("amountPerPeriodStroops")}
               >
-                <input
+                <StroopsDraftInput
                   className="input"
-                  value={formatStroops(node.config.amountPerPeriodStroops)}
-                  onChange={(e) =>
+                  value={node.config.amountPerPeriodStroops}
+                  onChange={(stroops) =>
                     onChange({
                       ...node,
                       config: {
                         ...node.config,
-                        amountPerPeriodStroops: tokenAmountToStroops(e.target.value),
+                        amountPerPeriodStroops: stroops,
                       },
                     })
                   }
@@ -1149,6 +1185,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -1334,6 +1371,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -1373,6 +1411,7 @@ export default function ConfigPanel({
         <>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -1398,43 +1437,12 @@ export default function ConfigPanel({
         </>
       )}
 
-      {node.type === "email_notify" && (
-        <>
-          <EmailRecipientsField
-            node={node}
-            graph={graph}
-            onChange={onChange}
-            error={fieldError("recipients")}
-          />
-          <Field label="Subject" error={fieldError("subject")}>
-            <input
-              className="input"
-              value={node.config.subject}
-              placeholder="Payment notification"
-              onChange={(e) =>
-                onChange({
-                  ...node,
-                  config: { ...node.config, subject: e.target.value },
-                } as FlowNode)
-              }
-            />
-          </Field>
-          <Field label="Body" error={fieldError("body")}>
-            <textarea
-              className="input"
-              rows={5}
-              value={node.config.body}
-              placeholder="A payment of {{amount}} {{asset}} was received."
-              onChange={(e) =>
-                onChange({
-                  ...node,
-                  config: { ...node.config, body: e.target.value },
-                } as FlowNode)
-              }
-            />
-          </Field>
-          <EmailVariablesHint graph={graph} nodeId={node.id} />
-        </>
+      {(node.type === "hold" || node.type === "return_to_owner") && (
+        <p className="text-on-surface-variant text-body-sm">
+          {node.type === "hold"
+            ? "Connect Hold to the before side of a time condition. Funds stay strictly locked until the deadline, then follow the after destination. Early release is impossible."
+            : "Returns 100% of the incoming amount to the wallet that signs deployment. The recipient is resolved during preparation and stays immutable, including in dev mode. Connect directly after an amount, time, or multisig condition."}
+        </p>
       )}
 
       {node.type === "cash_out" && (
@@ -1451,6 +1459,7 @@ export default function ConfigPanel({
           </div>
           <AssetField
             asset={node.config.asset}
+            error={assetError}
             onChange={(asset) =>
               onChange({ ...node, config: { ...node.config, asset } } as FlowNode)
             }
@@ -1554,7 +1563,7 @@ export default function ConfigPanel({
                 }
               }}
             >
-              <option value="amount_gt">amount ≥</option>
+              <option value="amount_gt">amount &gt;</option>
               <option value="amount_lt">amount &lt;</option>
               <option value="time_after">time after</option>
               <option value="time_before">time before</option>
@@ -1562,11 +1571,10 @@ export default function ConfigPanel({
           </Field>
           {(node.config.kind === "amount_gt" || node.config.kind === "amount_lt") && (
             <Field label="Threshold" error={fieldError("amountStroops")}>
-              <input
+              <StroopsDraftInput
                 className="input"
-                value={formatStroops(node.config.amountStroops)}
-                onChange={(e) => {
-                  const stroops = tokenAmountToStroops(e.target.value);
+                value={node.config.amountStroops}
+                onChange={(stroops) => {
                   const next =
                     node.config.kind === "amount_gt"
                       ? { kind: "amount_gt" as const, amountStroops: stroops }
@@ -1663,6 +1671,14 @@ export default function ConfigPanel({
                       ))}
                     </select>
                   </Field>
+                  <p className="text-on-surface-variant text-[11px] leading-snug">
+                    The funds are held until released.{" "}
+                    {cfg.kind === "time_before"
+                      ? "True is released before this time; False at or after it."
+                      : "True is released at or after this time; False before it."}{" "}
+                    Connect a step to both outputs. The before side can be released early by your
+                    wallet; the automatic release runs at or after this time.
+                  </p>
                 </>
               );
             })()}
@@ -1674,21 +1690,28 @@ export default function ConfigPanel({
                   <Field label="Signers" error={fieldError("signers")}>
                     {cfg.signers.map((s, i) => (
                       <div key={i} className="mb-1 flex gap-1">
-                        <AddressInput
-                          value={s}
-                          placeholder="G... or PENDING:label"
-                          onChange={(address) => {
-                            const next = [...cfg.signers];
-                            next[i] = address;
-                            onChange({ ...node, config: { ...cfg, signers: next } } as FlowNode);
-                          }}
-                          pending={isPendingAddress(s)}
-                          error={!!fieldError(`signers.${i}`)}
-                          addressBook={addressBook}
-                          onAddressBookChange={refreshAddressBook}
-                          addressBookLoading={addressBookLoading}
-                          addressBookError={addressBookError}
-                        />
+                        <div className="grid min-w-0 flex-1 gap-0.5">
+                          <AddressInput
+                            value={s}
+                            placeholder="G... or PENDING:label"
+                            onChange={(address) => {
+                              const next = [...cfg.signers];
+                              next[i] = address;
+                              onChange({ ...node, config: { ...cfg, signers: next } } as FlowNode);
+                            }}
+                            pending={isPendingAddress(s)}
+                            error={!!fieldError(`signers.${i}`)}
+                            addressBook={addressBook}
+                            onAddressBookChange={refreshAddressBook}
+                            addressBookLoading={addressBookLoading}
+                            addressBookError={addressBookError}
+                          />
+                          {fieldError(`signers.${i}`) && (
+                            <span className="text-error text-[10px] leading-snug">
+                              {fieldError(`signers.${i}`)}
+                            </span>
+                          )}
+                        </div>
                         <button
                           onClick={() => {
                             const next = cfg.signers.filter((_, j) => j !== i);
@@ -1738,7 +1761,7 @@ export default function ConfigPanel({
       )}
 
       <style jsx>{`
-        :global(.input) {
+        :global([data-testid="config-panel"] .input) {
           background-color: #0a0a0f;
           border: 1px solid #27272a;
           padding: 0.4rem 0.6rem;
@@ -1763,6 +1786,8 @@ function SplitRecipientsEditor({
   addressBookError,
   fieldErrors,
   onChange,
+  offrampEnabled,
+  sandbox,
 }: {
   node: Extract<FlowNode, { type: "split" }>;
   trigger: FlowNode | undefined;
@@ -1775,6 +1800,9 @@ function SplitRecipientsEditor({
   /** Per-field validation messages for this node, keyed by config path. */
   fieldErrors?: Map<string, string>;
   onChange: (n: FlowNode) => void;
+  /** Off on this server (#722): fiat is not offered, only switched away from. */
+  offrampEnabled: boolean;
+  sandbox?: boolean;
 }) {
   const onAddressBookChange = refreshAddressBook ?? (() => {});
   const listError = fieldErrors?.get("recipients") ?? null;
@@ -1787,9 +1815,7 @@ function SplitRecipientsEditor({
   const triggerType = trigger?.type ?? null;
   const isPayroll = triggerType === "payroll";
   const isStreamer = triggerType === "on_schedule";
-  const fiatPayoutAvailable =
-    triggerType === "payroll" ||
-    (!devMode && triggerType !== null && FIAT_PAYOUT_TRIGGERS.has(triggerType));
+  const fiatPayoutAvailable = fiatAvailable(offrampEnabled, triggerType, devMode);
   const mode = isPayroll ? "fixed" : (node.config.recipients[0]?.mode ?? "percentage");
   const totalFixed = splitTotalFixedStroops(node.config.recipients);
   const minAmount = trigger?.type === "on_receive" ? trigger.config.minAmountStroops : undefined;
@@ -1866,6 +1892,10 @@ function SplitRecipientsEditor({
       if (r.mode === "percentage") modeCache.current.bps.set(i, r.bps);
       else modeCache.current.amountStroops.set(i, r.amountStroops);
     });
+    // A recipient with no cached share gets an even part of what the cached
+    // ones leave, so switching a fresh fixed split to percentage lands on a
+    // valid 100% instead of writing 0 into every share (#583).
+    const fresh = defaultShares(node.config.recipients.map((_, i) => modeCache.current.bps.get(i)));
     const next = node.config.recipients.map((r, i) => {
       // Preserve mode-independent fields (payout/bank details) across the switch.
       const base = {
@@ -1877,7 +1907,7 @@ function SplitRecipientsEditor({
         bankCode: r.bankCode,
       };
       if (newMode === "percentage") {
-        return { ...base, mode: "percentage" as const, bps: modeCache.current.bps.get(i) ?? 0 };
+        return { ...base, mode: "percentage" as const, bps: fresh[i] ?? 0 };
       }
       return {
         ...base,
@@ -2016,45 +2046,20 @@ function SplitRecipientsEditor({
                     </div>
                     {isPercentage ? (
                       <Field label="Share" error={recipientError(i, "bps")}>
-                        <div className="relative">
-                          <input
-                            className="input pr-5 text-right"
-                            value={
-                              r.bps === 0
-                                ? ""
-                                : (() => {
-                                    const pct = bpsToPct(r.bps);
-                                    return pct === Math.floor(pct) ? `${pct}` : `${pct.toFixed(1)}`;
-                                  })()
-                            }
-                            placeholder="0"
-                            onChange={(e) => {
-                              const v = Number(e.target.value);
-                              updateRecipient(i, {
-                                ...r,
-                                bps: isNaN(v) ? 0 : Math.min(10000, Math.max(0, pctToBps(v))),
-                              } as SplitRecipient);
-                            }}
-                          />
-                          <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[11px] text-zinc-500">
-                            %
-                          </span>
-                        </div>
+                        <BpsDraftInput
+                          className="input pr-5 text-right"
+                          value={r.bps}
+                          placeholder="0"
+                          onChange={(bps) => updateRecipient(i, { ...r, bps } as SplitRecipient)}
+                        />
                       </Field>
                     ) : (
                       <Field label="Amount" error={recipientError(i, "amountStroops")}>
-                        <input
+                        <StroopsDraftInput
                           className="input text-right"
-                          value={
-                            (r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops
-                              ? formatStroops(
-                                  (r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops,
-                                )
-                              : ""
-                          }
+                          value={(r as Extract<SplitRecipient, { mode: "fixed" }>).amountStroops}
                           placeholder="0"
-                          onChange={(e) => {
-                            const stroops = tokenAmountToStroops(e.target.value);
+                          onChange={(stroops) => {
                             updateRecipient(i, {
                               ...r,
                               amountStroops: stroops || "0",
@@ -2112,45 +2117,27 @@ function SplitRecipientsEditor({
                         {isPercentage ? "Share" : `Amount (${assetLabel(node.config.asset)})`}
                       </span>
                       {isPercentage ? (
-                        <div className="relative">
-                          <input
-                            className={cn(
-                              "input pr-5 text-right",
-                              recipientError(i, "bps") && "!border-error/70",
-                            )}
-                            value={
-                              r.bps === 0
-                                ? ""
-                                : (() => {
-                                    const pct = bpsToPct(r.bps);
-                                    return pct === Math.floor(pct) ? `${pct}` : `${pct.toFixed(1)}`;
-                                  })()
-                            }
-                            placeholder="0"
-                            onChange={(e) => {
-                              const v = Number(e.target.value);
-                              updateRecipient(i, {
-                                ...r,
-                                bps: isNaN(v) ? 0 : Math.min(10000, Math.max(0, pctToBps(v))),
-                              } as SplitRecipient);
-                            }}
-                          />
-                          <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[11px] text-zinc-500">
-                            %
-                          </span>
-                        </div>
+                        <BpsDraftInput
+                          className={cn(
+                            "input pr-5 text-right",
+                            recipientError(i, "bps") && "!border-error/70",
+                          )}
+                          aria-label={`Share for ${summaryLabel}`}
+                          value={r.bps}
+                          placeholder="0"
+                          onChange={(bps) => updateRecipient(i, { ...r, bps } as SplitRecipient)}
+                        />
                       ) : (
                         <>
                           <div className="relative">
-                            <input
+                            <StroopsDraftInput
                               className={cn(
                                 "input pr-5 text-right",
                                 recipientError(i, "amountStroops") && "!border-error/70",
                               )}
-                              value={r.amountStroops ? formatStroops(r.amountStroops) : ""}
+                              value={r.amountStroops}
                               placeholder="0"
-                              onChange={(e) => {
-                                const stroops = tokenAmountToStroops(e.target.value);
+                              onChange={(stroops) => {
                                 updateRecipient(i, {
                                   ...r,
                                   amountStroops: stroops || "0",
@@ -2199,7 +2186,7 @@ function SplitRecipientsEditor({
                   </>
                 )}
 
-                {fiatPayoutAvailable && (
+                {showPayoutModeSelect(fiatPayoutAvailable, offrampEnabled, r.payoutMode) && (
                   <div className="space-y-2 pt-1">
                     <Field label="Payout mode">
                       <select
@@ -2237,11 +2224,13 @@ function SplitRecipientsEditor({
                         }}
                       >
                         <option value="crypto">Crypto (wallet)</option>
-                        <option value="fiat">Fiat (bank transfer)</option>
+                        <option value="fiat" disabled={!fiatPayoutAvailable}>
+                          Fiat (bank transfer)
+                        </option>
                       </select>
                     </Field>
 
-                    {r.payoutMode === "fiat" && !devMode && (
+                    {fiatPayoutAvailable && r.payoutMode === "fiat" && !devMode && (
                       <>
                         <Field label="Account name" error={recipientError(i, "accountName")}>
                           <input
@@ -2288,7 +2277,13 @@ function SplitRecipientsEditor({
                       </>
                     )}
 
-                    {r.payoutMode === "fiat" && devMode && (
+                    {!sandbox && (
+                      <RecipientEmailField
+                        value={r.email}
+                        onChange={(email) => updateRecipient(i, { ...r, email })}
+                      />
+                    )}
+                    {fiatPayoutAvailable && r.payoutMode === "fiat" && devMode && (
                       <div className="rounded border border-amber-800/40 bg-amber-950/20 px-2 py-1 text-[10px] text-amber-300">
                         Bank details configured via API after deploy.
                       </div>
@@ -2438,147 +2433,6 @@ function ApiFillField({
 function ApiFillHint({ show, children }: { show: boolean; children: React.ReactNode }) {
   if (!show) return null;
   return <div className="mt-0.5 text-[11px] text-amber-400/80">{children}</div>;
-}
-
-function EmailVariablesHint({ graph, nodeId }: { graph: FlowGraph; nodeId: string }) {
-  const parentEdge = graph.edges.find((e) => e.target === nodeId);
-  const parent = parentEdge ? graph.nodes.find((n) => n.id === parentEdge.source) : undefined;
-
-  const variables = ["kind", "ledger", "txHash", "eventId", "walletAddress"];
-  if (parent?.type === "condition") {
-    if (parent.config.kind === "amount_gt" || parent.config.kind === "amount_lt") {
-      variables.push("amount", "threshold", "condition");
-    } else if (parent.config.kind === "oracle_gte") {
-      variables.push("price", "amount", "threshold", "condition");
-    } else if (parent.config.kind === "multisig") {
-      variables.push("signer", "condition");
-    } else {
-      variables.push("condition");
-    }
-  } else {
-    variables.push("amount", "asset", "from", "recipient");
-    if (parent?.type === "split" && parent.config.recipients[0]?.mode === "fixed") {
-      variables.push("balance", "needed", "remaining", "shortfall");
-    }
-  }
-
-  return (
-    <div className="rounded border border-zinc-800 bg-zinc-900/50 p-2 text-xs text-zinc-400">
-      <div className="mb-1 font-medium text-zinc-300">Available variables</div>
-      <div className="flex flex-wrap gap-1">
-        {variables.map((v) => (
-          <code key={v} className="rounded bg-zinc-800 px-1 py-0.5 text-[10px]">
-            {"{{"}
-            {v}
-            {"}}"}
-          </code>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function EmailRecipientsField({
-  node,
-  graph,
-  onChange,
-  error,
-}: {
-  node: Extract<FlowNode, { type: "email_notify" }>;
-  graph: FlowGraph;
-  onChange: (n: FlowNode) => void;
-  error?: string | null;
-}) {
-  const parentEdge = graph.edges.find((e) => e.target === node.id);
-  const parent = parentEdge ? graph.nodes.find((n) => n.id === parentEdge.source) : undefined;
-  const isSplit = parent?.type === "split";
-  // A pay parent's recipient is "" while its address field is cleared, and a row
-  // written then would fail `EmailRecipient.address` on every later save, long
-  // after the pay node itself was fixed.
-  const placeholderAddress = (parent?.type === "pay" && parent.config.recipient) || "_";
-
-  let rows: { address: string; email: string }[];
-  if (isSplit) {
-    rows = parent.config.recipients.map((r) => ({
-      address: r.address,
-      email: node.config.recipients.find((e) => e.address === r.address)?.email ?? "",
-    }));
-  } else {
-    rows = node.config.recipients.length
-      ? node.config.recipients.map((r) => ({
-          address: r.address || placeholderAddress,
-          email: r.email,
-        }))
-      : [{ address: placeholderAddress, email: "" }];
-  }
-
-  const updateEmail = (idx: number, email: string) => {
-    const next = rows.map((r, i) => (i === idx ? { ...r, email: email.trim() } : r));
-    onChange({ ...node, config: { ...node.config, recipients: next } } as FlowNode);
-  };
-
-  const addRow = () => {
-    onChange({
-      ...node,
-      config: { ...node.config, recipients: [...rows, { address: placeholderAddress, email: "" }] },
-    } as FlowNode);
-  };
-
-  const removeRow = (idx: number) => {
-    onChange({
-      ...node,
-      config: { ...node.config, recipients: rows.filter((_, i) => i !== idx) },
-    } as FlowNode);
-  };
-
-  return (
-    <Field label="Recipients" error={error}>
-      <div className="space-y-2">
-        {rows.map((r, idx) => (
-          <div key={idx} className="flex items-center gap-2">
-            {isSplit && (
-              <input
-                className="input flex-1 font-mono text-xs"
-                value={r.address}
-                placeholder="G..."
-                readOnly
-              />
-            )}
-            <input
-              type="email"
-              className="input flex-1 text-xs"
-              value={r.email}
-              placeholder="alice@example.com"
-              onChange={(e) => updateEmail(idx, e.target.value)}
-            />
-            {!isSplit && rows.length > 1 && (
-              <button
-                type="button"
-                className="px-1 text-zinc-500 hover:text-red-400"
-                onClick={() => removeRow(idx)}
-              >
-                ×
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-      {!isSplit && (
-        <button
-          type="button"
-          className="mt-2 rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
-          onClick={addRow}
-        >
-          + Add recipient
-        </button>
-      )}
-      {isSplit && (
-        <div className="mt-1 text-xs text-zinc-500">
-          One email is required for each split recipient.
-        </div>
-      )}
-    </Field>
-  );
 }
 
 function remainingPct(recipients: SplitRecipient[]): number {

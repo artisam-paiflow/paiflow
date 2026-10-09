@@ -1,47 +1,29 @@
+import { requireFeature } from "@/lib/features";
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { StrKey } from "@stellar/stellar-sdk";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
+import { DevPayerSchema } from "@/lib/dev/schema";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { audit } from "@/lib/audit";
-import { rateLimit } from "@/lib/rate-limit";
-import { findPipelineNode } from "@/lib/flows/pipeline-snapshot";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
+import { findPipelineNode } from "@/lib/pipeline-snapshot";
 import { updatePaymentByRelayer } from "@/lib/stellar/dev-mutate";
-
-const BodySchema = z
-  .object({
-    nodeId: z.string().optional(),
-    recipient: z
-      .string()
-      .refine((s) => StrKey.isValidEd25519PublicKey(s), "Invalid Stellar address")
-      .optional(),
-    mode: z.enum(["fixed", "percentage"]).optional(),
-    amountStroops: z.string().regex(/^\d+$/, "Amount must be a positive integer string").optional(),
-    percentage: z.number().min(0).max(100).optional(),
-  })
-  .refine(
-    (b) =>
-      b.mode === "percentage"
-        ? b.percentage === undefined || b.percentage > 0
-        : b.amountStroops === undefined || b.amountStroops !== "0",
-    {
-      message:
-        "Provide a positive amountStroops for fixed mode or a positive percentage for percentage mode",
-    },
-  );
+import { graphNodeAsset, trustlineWarnings } from "@/lib/stellar/trustline-warnings";
 
 /**
  * Fill / change the recipient + value of a deployed PAYER_DEV node. Relayer-signed.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
+    requireFeature("devMode");
     const { id } = await ctx.params;
     const rlKey = `dev-mutate:${user.id}`;
     const rl = await rateLimit(rlKey, 30, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many dev mutations");
-    const body = BodySchema.parse(await req.json());
+    if (!rl.ok) throw rateLimitedError(rl, "Too many dev mutations");
+    const body = DevPayerSchema.parse(await req.json());
 
     const d = await db.deployment.findFirst({ where: { id, ownerId: user.id } });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
@@ -59,6 +41,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           ? "0"
           : undefined;
 
+    // Advisory (#723): started before the write, never rejects, never blocks it.
+    const asset = graphNodeAsset(d.graphSnapshot, node.nodeId, "pay");
+    const warningsPromise =
+      body.recipient && asset
+        ? trustlineWarnings([{ nodeId: node.nodeId, address: body.recipient, asset }])
+        : Promise.resolve([]);
+
     const result = await updatePaymentByRelayer(node.contractAddress, {
       recipient: body.recipient,
       amountStroops,
@@ -68,6 +57,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       throw new AppError("UPSTREAM_RPC", result.errorMessage ?? "update_payment failed");
     }
 
+    invalidateDashboardBalances(d.id, result.txHash);
     await audit({
       action: "DEV_UPDATE_PAYMENT",
       userId: user.id,
@@ -75,7 +65,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
 
     return NextResponse.json({
-      data: { txHash: result.txHash, contractAddress: node.contractAddress },
+      data: {
+        txHash: result.txHash,
+        contractAddress: node.contractAddress,
+        warnings: await warningsPromise,
+      },
     });
   });
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "dev");

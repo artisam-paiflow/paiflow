@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { getSessionUser } from "@/lib/auth";
@@ -12,7 +13,7 @@ import { audit, needsSubmitRow } from "@/lib/audit";
 
 const SubmitSchema = z.object({ signedXdr: z.string().min(10).max(200_000) });
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     const ip = clientIp(req);
@@ -80,3 +81,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ data: { txHash: result.txHash } });
   });
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "public");

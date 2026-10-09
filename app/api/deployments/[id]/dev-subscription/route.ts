@@ -1,18 +1,21 @@
+import { requireFeature } from "@/lib/features";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { rateLimit } from "@/lib/rate-limit";
-import { findPipelineNode } from "@/lib/flows/pipeline-snapshot";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
+import { findPipelineNode } from "@/lib/pipeline-snapshot";
 import {
   setSubscriptionAmountByRelayer,
   updateScheduleByRelayer,
   updateSubscriberByRelayer,
   type DevMutateResult,
 } from "@/lib/stellar/dev-mutate";
+import { graphNodeAsset, trustlineWarnings } from "@/lib/stellar/trustline-warnings";
 
 const BodySchema = z
   .object({
@@ -43,13 +46,14 @@ const BodySchema = z
  * and/or schedule. Each provided field is applied as a separate relayer-signed
  * transaction; all tx hashes are returned.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
+    requireFeature("devMode");
     const { id } = await ctx.params;
     const rlKey = `dev-mutate:${user.id}`;
     const rl = await rateLimit(rlKey, 30, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many dev mutations");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many dev mutations");
     const body = BodySchema.parse(await req.json());
 
     const d = await db.deployment.findFirst({ where: { id, ownerId: user.id } });
@@ -57,6 +61,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
     const node = findPipelineNode(d.pipelineSnapshot, "SUBSCRIPTION_DEV", body.nodeId);
     const addr = node.contractAddress;
+
+    // Advisory (#723): the subscriber is charged in the asset, so it must hold
+    // the trustline. Started before the writes, never rejects, never blocks them.
+    const asset = graphNodeAsset(d.graphSnapshot, node.nodeId, "subscription");
+    const warningsPromise =
+      body.subscriber && asset
+        ? trustlineWarnings([{ nodeId: node.nodeId, address: body.subscriber, asset }])
+        : Promise.resolve([]);
 
     const applied: Array<{ field: string; txHash: string }> = [];
     const fail = (label: string, r: DevMutateResult) => {
@@ -99,6 +111,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       metadata: { deploymentId: d.id, nodeId: node.nodeId, applied },
     });
 
-    return NextResponse.json({ data: { applied, contractAddress: addr } });
+    return NextResponse.json({
+      data: { applied, contractAddress: addr, warnings: await warningsPromise },
+    });
   });
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "dev");

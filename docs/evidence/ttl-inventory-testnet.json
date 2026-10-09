@@ -1,0 +1,40 @@
+{
+  "network": "TESTNET",
+  "createdAt": "2026-10-04T02:51:53.851Z",
+  "dryRun": true,
+  "submissions": 0,
+  "instances": [
+    {
+      "target": "CDEFJIHT5XS44HNEC6N3VXK4KCUMX3BRWABY62U4GESJQZOUNZC4BGV3",
+      "kind": "instance",
+      "status": "healthy",
+      "liveUntilLedger": 5611678
+    },
+    {
+      "target": "CDOCA2DC4N3YQVZVBPERU52TAM3YI32OHQCWC4P6BOLZ5XCXMLZBCAJB",
+      "kind": "instance",
+      "status": "healthy",
+      "liveUntilLedger": 5611671
+    }
+  ],
+  "actualCode": [
+    {
+      "target": "ffeafaf98d297f32398edb7f8960f2404086343b0e0acba8ad3c147d5d312204",
+      "kind": "code",
+      "status": "healthy",
+      "liveUntilLedger": 5611679
+    },
+    {
+      "target": "bcf0ad2d7cedc728bd24cee8f20efa289efc3d5d8f24ed8a513fe393a5507d6c",
+      "kind": "code",
+      "status": "healthy",
+      "liveUntilLedger": 5611672
+    }
+  ],
+  "persistedChecks": 2,
+  "duplicateSnapshotEntriesDeduplicated": true,
+  "limitations": [
+    "Ran the real maintenance runner against isolated scratch PostgreSQL and public TESTNET RPC, not the HTTP cron endpoint.",
+    "No signing or submission; paid maintenance and expiry restoration not exercised."
+  ]
+}

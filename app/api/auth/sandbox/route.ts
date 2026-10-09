@@ -6,7 +6,7 @@ import { env } from "@/lib/env";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitedError } from "@/lib/rate-limit";
 import { saveChallenge } from "@/lib/passkey/challenges";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
@@ -31,12 +31,13 @@ export async function POST(req: NextRequest) {
     }
     // Two caps, because this endpoint creates a row with no credential of any
     // kind behind it. The per-IP one is the useful signal; the instance-wide one
-    // is the backstop, since clientIp() trusts the first X-Forwarded-For entry
-    // and an attacker sets that header freely.
+    // is the backstop, since clientIp() is only as honest as the edge in front
+    // of the app (#433): behind a proxy that passes X-Forwarded-For through, the
+    // caller would choose its own address.
     const ip = clientIp(req);
     const perIp = await rateLimit(`sandbox:${ip}`, 5, 60 * 10);
     if (!perIp.ok) {
-      throw new AppError("RATE_LIMITED", "Too many sandbox sessions from this address");
+      throw rateLimitedError(perIp, "Too many sandbox sessions from this address");
     }
     const global = await rateLimit("sandbox:global", 120, 60 * 60);
     // `shared` is false when rateLimit() fell back to its per-process bucket
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
       throw new AppError("RATE_LIMITED", "The sandbox is unavailable right now. Try again later.");
     }
     if (!global.ok) {
-      throw new AppError("RATE_LIMITED", "The sandbox is busy right now. Try again shortly.");
+      throw rateLimitedError(global, "The sandbox is busy right now. Try again shortly.");
     }
 
     // See lib/sandbox.ts: a sentinel, not a hash, so no password can open this
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest) {
         username,
         passwordHash,
         role: Role.SANDBOX,
+        analyticsAudience: "SANDBOX",
         flows: {
           create: {
             name: SANDBOX_STARTER_NAME,

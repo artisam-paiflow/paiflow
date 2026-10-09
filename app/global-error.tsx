@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { analyticsClient } from "@/lib/analytics/client";
+import { trackException } from "@/lib/analytics/client";
 
 /**
  * The HTML-level fallback when the root layout itself fails. Inlines all
@@ -16,7 +16,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    analyticsClient()?.captureException(error, { digest: error.digest });
+    trackException(error, "render");
   }, [error]);
   return (
     <html lang="en">

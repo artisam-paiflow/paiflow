@@ -1,0 +1,129 @@
+{
+  "network": "TESTNET",
+  "createdAt": "2026-10-04T02:45:05.941Z",
+  "fixtureSigner": "GD5ETW3WBOJXAJY5A5XUUUJOS6U6TCN6TNJQO6FRZCHLMHABOT5FKUJK",
+  "transactions": [
+    {
+      "label": "webhook upload",
+      "hash": "3b46bb7906315b5303980fb1c24084114e7964914cacbbf80d81110792cfcbcc",
+      "ledger": 5011667,
+      "feeChargedStroops": "56126347"
+    },
+    {
+      "label": "webhook deploy",
+      "hash": "488e6b3cc2ee96a872541841910fe1609f522b3a5d0cefbb68b26d9ec3315123",
+      "ledger": 5011668,
+      "feeChargedStroops": "212984"
+    },
+    {
+      "label": "webhook deposit",
+      "hash": "1762366e088aab0116b54812bd7ca1ac20a92d61c5c69db1ea1f913458a81c58",
+      "ledger": 5011669,
+      "feeChargedStroops": "501284"
+    },
+    {
+      "label": "webhook escrow trigger",
+      "hash": "0b2289169b3a695b197e1f016ec8a938fd9d5c8f86b9b8b7b1ba8c8d6ff32af9",
+      "ledger": 5011670,
+      "feeChargedStroops": "5143"
+    },
+    {
+      "label": "webhook instance TTL extension",
+      "hash": "89e7cf6231e67b7840295bbceea65073c29ba5b1853ad0d2c849fa9d81373e77",
+      "ledger": 5011671,
+      "feeChargedStroops": "804433"
+    },
+    {
+      "label": "webhook actual-code TTL extension",
+      "hash": "5b3f0b9471034111999368bf790c75705f3f9c939ac2bb60faa927af3bb0a9c2",
+      "ledger": 5011672,
+      "feeChargedStroops": "221949455"
+    },
+    {
+      "label": "subscription upload",
+      "hash": "9004e41a9a56862287332b5444a1aff6dde5d9463a5b0767d7f2b83d31486a6b",
+      "ledger": 5011673,
+      "feeChargedStroops": "88005539"
+    },
+    {
+      "label": "subscription deploy",
+      "hash": "a30b61fd58a81ca3a5ad76a9ab532cb607bdd992a3e1f0edfb96898b467c8a0f",
+      "ledger": 5011674,
+      "feeChargedStroops": "390069"
+    },
+    {
+      "label": "subscription approve",
+      "hash": "6000c841925840a4b24f62c3a848077c672cc21d70cc8e01a8c9dde818ef4ce4",
+      "ledger": 5011676,
+      "feeChargedStroops": "17432"
+    },
+    {
+      "label": "subscription relayer charge",
+      "hash": "f811a7c1765149d286ff2699e119dbf4b17e8a713a0693cfcd1b3f0cfbba651b",
+      "ledger": 5011677,
+      "feeChargedStroops": "507270"
+    },
+    {
+      "label": "subscription instance TTL extension",
+      "hash": "f520bfd6ca378bc330d26b724a3fb4b77a84f76258c3513835d445b60ca08c63",
+      "ledger": 5011678,
+      "feeChargedStroops": "1499988"
+    },
+    {
+      "label": "subscription actual-code TTL extension",
+      "hash": "940c66590f692091dc06ade417d91d024a074ddfba3571e1140c8cbdd5ba27c6",
+      "ledger": 5011679,
+      "feeChargedStroops": "347975490"
+    }
+  ],
+  "contracts": [
+    {
+      "kind": "webhook",
+      "version": 2,
+      "address": "CDOCA2DC4N3YQVZVBPERU52TAM3YI32OHQCWC4P6BOLZ5XCXMLZBCAJB",
+      "wasmHash": "bcf0ad2d7cedc728bd24cee8f20efa289efc3d5d8f24ed8a513fe393a5507d6c",
+      "actualCodeHash": "bcf0ad2d7cedc728bd24cee8f20efa289efc3d5d8f24ed8a513fe393a5507d6c",
+      "initialInstanceTtl": 120959,
+      "initialCodeTtl": 120958,
+      "instanceExtension": {
+        "beforeLiveUntil": 5132627,
+        "afterLiveUntil": 5611671,
+        "remainingLedgers": 600000
+      },
+      "actual-codeExtension": {
+        "beforeLiveUntil": 5132626,
+        "afterLiveUntil": 5611672,
+        "remainingLedgers": 600000
+      }
+    },
+    {
+      "kind": "subscription",
+      "version": 7,
+      "address": "CDEFJIHT5XS44HNEC6N3VXK4KCUMX3BRWABY62U4GESJQZOUNZC4BGV3",
+      "wasmHash": "ffeafaf98d297f32398edb7f8960f2404086343b0e0acba8ad3c147d5d312204",
+      "actualCodeHash": "ffeafaf98d297f32398edb7f8960f2404086343b0e0acba8ad3c147d5d312204",
+      "initialInstanceTtl": 120959,
+      "initialCodeTtl": 120958,
+      "instanceExtension": {
+        "beforeLiveUntil": 5132633,
+        "afterLiveUntil": 5611678,
+        "remainingLedgers": 600000
+      },
+      "actual-codeExtension": {
+        "beforeLiveUntil": 5132632,
+        "afterLiveUntil": 5611679,
+        "remainingLedgers": 600000
+      }
+    }
+  ],
+  "friendbotFunded": true,
+  "complete": true,
+  "limitations": [
+    "Disposable fixtures used no downstream targets; no complete pipeline forwarding was tested.",
+    "No archived entry was restored; automatic/separate restoration remains unit-mocked verification.",
+    "Native contract TTL threshold tests cover low TTL; live TESTNET entries began above threshold.",
+    "Background cron, channel auth, and shared template activation were not exercised or changed.",
+    "Recorded feeChargedStroops comes from successful transaction result and may precede resource-fee refunds."
+  ],
+  "initialTtlObservation": "Fresh TESTNET entries started around120959 ledgers, above50000 threshold, so constructor/mutations did not extend until an explicit footprint extension. Instance and actual WASM code were separately extended to600000."
+}

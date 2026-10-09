@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
-import { AppError } from "@/lib/errors";
+import { AppError, withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { storage } from "@/lib/files/storage";
 
 export const runtime = "nodejs";
@@ -34,12 +35,15 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 }
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { id } = await ctx.params;
-  const session = await getSessionUser();
-  if (!session) return new Response("Unauthorized", { status: 401 });
-  const f = await db.fileAsset.findFirst({ where: { id, ownerId: session.id } });
-  if (!f) return new Response("Not found", { status: 404 });
-  await storage().remove(f.storageKey);
-  await db.fileAsset.delete({ where: { id } });
-  return new Response(null, { status: 204 });
+  return withErrorHandler(async () => {
+    const { id } = await ctx.params;
+    const session = await getSessionUser();
+    if (!session) throw new AppError("UNAUTHENTICATED", "Authentication required");
+    await enforceWriteRateLimit("fileDelete", session.id);
+    const f = await db.fileAsset.findFirst({ where: { id, ownerId: session.id } });
+    if (!f) throw new AppError("NOT_FOUND", "File not found");
+    await storage().remove(f.storageKey);
+    await db.fileAsset.delete({ where: { id } });
+    return new Response(null, { status: 204 });
+  });
 }

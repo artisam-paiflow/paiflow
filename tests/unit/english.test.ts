@@ -234,7 +234,11 @@ describe("flowToEnglish", () => {
         { id: "e2", source: "c", target: "a" },
       ],
     });
-    expect(out).toContain("only if amount ≥ 5 XLM");
+    // The handle-less edge is the True branch; nothing is on False yet.
+    expect(out).toContain("if the amount is more than 5 XLM, split XLM");
+    expect(out).toContain(
+      "otherwise, nothing is connected yet (connect a step to the False output)",
+    );
   });
 
   it("describes a pay node with percentage mode", () => {
@@ -284,49 +288,6 @@ describe("flowToEnglish", () => {
       edges: [{ id: "e1", source: "t", target: "a" }],
     });
     expect(out).toContain("pay full incoming XLM");
-  });
-
-  describe("email_notify", () => {
-    const payWithEmail = (recipients: { address: string; email: string }[]) =>
-      flowToEnglish({
-        nodes: [
-          { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
-          {
-            id: "a",
-            type: "pay",
-            config: { recipient: ADDR, asset: { kind: "native" }, mode: "fixed", fullAmount: true },
-          },
-          { id: "e", type: "email_notify", config: { recipients, subject: "", body: "" } },
-        ],
-        edges: [
-          { id: "e1", source: "t", target: "a" },
-          { id: "e2", source: "a", target: "e" },
-        ],
-      });
-
-    it("lists the recipients' emails", () => {
-      expect(
-        payWithEmail([
-          { address: ADDR, email: "a@example.com" },
-          { address: ADDR, email: "b@example.com" },
-        ]),
-      ).toMatch(/, and send email notifications to a@example\.com, b@example\.com\.$/);
-    });
-
-    it("says nothing about email while the node has no recipients", () => {
-      const out = payWithEmail([]);
-      expect(out).not.toContain("email");
-      expect(out).toMatch(/pay full incoming XLM[^,]*\.$/);
-    });
-
-    it("leaves blank rows out of the list", () => {
-      const out = payWithEmail([
-        { address: ADDR, email: "" },
-        { address: ADDR, email: "a@example.com" },
-      ]);
-      expect(out).toMatch(/send email notifications to a@example\.com\.$/);
-      expect(payWithEmail([{ address: ADDR, email: "" }])).not.toContain("email");
-    });
   });
 
   it("describes a web2_webhook → swap → pay flow", () => {

@@ -1110,7 +1110,10 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 name = "payer"
 version = "0.1.0"
 dependencies = [
+ "deposit_trigger",
  "paiflow-splitter",
+ "paiflow-subscription",
+ "paiflow-webhook",
  "soroban-sdk",
 ]
 
@@ -1801,6 +1804,13 @@ dependencies = [
 
 [[package]]
 name = "timelock"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
+name = "timelock_branch"
 version = "0.1.0"
 dependencies = [
  "soroban-sdk",

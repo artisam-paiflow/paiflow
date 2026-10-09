@@ -1,3 +1,17 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 /**
  * The public demo token endpoint: how an unauthenticated reviewer gets a working
  * `pfk_` credential for the partner API (SOW §3.8).
@@ -39,19 +53,27 @@ const { mockDb, mockRateLimit, mockAudit, mockLog } = vi.hoisted(() => {
 // drags NextAuth into the runtime. The route itself never calls it — this is an anonymous
 // endpoint. Same stub the sibling token tests use.
 vi.mock("@/lib/auth", () => ({ requireSession: vi.fn() }));
+// Errors are built with the AppError of the registry the route was just imported into.
+const errs = vi.hoisted(() => ({ make: (m: string): Error => new Error(m) }));
+
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/audit", () => ({ audit: mockAudit }));
 vi.mock("@/lib/log", () => ({ log: mockLog }));
-vi.mock("@/lib/rate-limit", () => ({
-  rateLimit: mockRateLimit,
-  clientIp: vi.fn(() => "203.0.113.9"),
-}));
+vi.mock("@/lib/rate-limit", () => {
+  return {
+    rateLimitedError: (_r: unknown, message: string) => errs.make(message),
+    rateLimit: mockRateLimit,
+    clientIp: vi.fn(() => "203.0.113.9"),
+    noteLimiterFallback: vi.fn(),
+  };
+});
 
 /** A CONFIRMED swapper pipeline, the shape `resolveSwapperPipeline` accepts. */
 function swapperDeployment(overrides: Record<string, unknown> = {}) {
   return {
     id: DEMO_ID,
     status: "CONFIRMED",
+    serviceState: "ACTIVE",
     network: "testnet",
     pipelineSnapshot: [
       { nodeId: "trigger-1", templateKind: "DEPOSIT_TRIGGER", contractAddress: "C".repeat(56) },
@@ -68,6 +90,8 @@ function swapperDeployment(overrides: Record<string, unknown> = {}) {
 async function post(body?: unknown) {
   vi.resetModules();
   const { POST } = await import("@/app/api/v1/demo-token/route");
+  const { AppError } = await import("@/lib/errors");
+  errs.make = (m) => new AppError("RATE_LIMITED", m);
   const init: RequestInit = { method: "POST" };
   if (body !== undefined) {
     init.body = JSON.stringify(body);
@@ -217,8 +241,8 @@ describe("POST /api/v1/demo-token — abuse controls", () => {
   });
 
   it("refuses when the instance-wide cap has no shared limiter behind it", async () => {
-    // rateLimit() degrades to a per-process bucket when Redis is unreachable. clientIp() trusts
-    // the first X-Forwarded-For hop, so that cap is the only real bound on how many live
+    // rateLimit() degrades to a per-process bucket when Redis is unreachable. clientIp() is only
+    // as honest as the edge in front of the app (#433), so that cap is the only real bound on how many live
     // credentials this route can mint — it fails closed rather than trusting a per-replica count.
     mockRateLimit.mockImplementation(async (key: string) => ({
       ok: true,
@@ -253,16 +277,17 @@ describe("POST /api/v1/demo-token — an unusable demo deployment", () => {
     expect(mockDb.deploymentApiToken.create).not.toHaveBeenCalled();
   });
 
-  it("refuses a non-swapper pipeline without leaking the internal reason", async () => {
+  it("refuses a pipeline that does not start with a deposit trigger without leaking the internal reason", async () => {
     const { status, body } = await refusal(
       swapperDeployment({
         pipelineSnapshot: [
-          { nodeId: "trigger-1", templateKind: "DEPOSIT_TRIGGER", contractAddress: "C".repeat(56) },
-          { nodeId: "action-1", templateKind: "SPLITTER", contractAddress: "D".repeat(56) },
+          { nodeId: "trigger-1", templateKind: "SUBSCRIPTION", contractAddress: "C".repeat(56) },
+          { nodeId: "action-1", templateKind: "SWAPPER", contractAddress: "D".repeat(56) },
         ],
       }),
     );
     expect(status).toBe(500);
+    expect(JSON.stringify(body)).not.toContain("subscription");
     expect(JSON.stringify(body)).not.toContain("swapper");
     expect(JSON.stringify(body)).not.toContain("SWAPPER");
     // The operator still gets the real reason.

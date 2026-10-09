@@ -1,0 +1,1043 @@
+{
+  "issue": 799,
+  "network": "TESTNET",
+  "scope": "Disposable fixtures; production Route Handler and relayer execution with test database selection/update stubs; no shared activation",
+  "setup": {
+    "network": "TESTNET",
+    "transactions": [
+      {
+        "label": "upload v5",
+        "hash": "f8e3dfd755efd66508e2c4ba4c46037128fba17e94326a8c4579c8c15b70ae0b",
+        "ledger": 5002783,
+        "status": "SUCCESS"
+      },
+      {
+        "label": "deploy v5",
+        "hash": "89d35c63fe9486957c4a4b5b36887b2781dddb7e93358da636fd85e24bc3e13c",
+        "ledger": 5002784,
+        "status": "SUCCESS"
+      },
+      {
+        "label": "approve CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "hash": "b84a716cd914069157c30f1c281a212f1642088cb52924e1ce9995bc3629f21a",
+        "ledger": 5002785,
+        "status": "SUCCESS"
+      },
+      {
+        "label": "upload v6",
+        "hash": "4037135598a9d7d8fa36038caa807a06d4f4c9abc99391044709becf7da01102",
+        "ledger": 5002786,
+        "status": "SUCCESS"
+      },
+      {
+        "label": "deploy v6",
+        "hash": "48b3f93bf67280133acc510534fd443944f548d51351bc6dadf11a4659031048",
+        "ledger": 5002787,
+        "status": "SUCCESS"
+      },
+      {
+        "label": "approve CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "hash": "24bb837a4bfc366980c15b08c2590c34b42a5f919586ae67700323e28271a154",
+        "ledger": 5002788,
+        "status": "SUCCESS"
+      },
+      {
+        "label": "unsubscribe CCQM4Q2ILPQX464BNAMF5ITFUPGQ3SR7LZWVWY26IANMYFI3NXBVJMUW",
+        "hash": "096e595051a78c0e7f0b58666367f90f24c3861362cc8e0ed6d7012aeeeed8e1",
+        "ledger": 5002790,
+        "status": "FAILED"
+      },
+      {
+        "label": "set_relayer CCQM4Q2ILPQX464BNAMF5ITFUPGQ3SR7LZWVWY26IANMYFI3NXBVJMUW",
+        "hash": "5baba7105adb8203af152c63d9803e191bcba6c970f17b823e87fca9ddef7ecf",
+        "ledger": 5002792,
+        "status": "SUCCESS"
+      },
+      {
+        "label": "set_relayer CCQM4Q2ILPQX464BNAMF5ITFUPGQ3SR7LZWVWY26IANMYFI3NXBVJMUW",
+        "hash": "9e5ec1f190810df47274c6e03eeb4622ed5c440164786685df3680028f12b3ee",
+        "ledger": 5002794,
+        "status": "SUCCESS"
+      },
+      {
+        "label": "approve CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "hash": "0e2c04f1561cc6422bd95e6da7f2ae48d07ef78c604801b54edd03e163f3932f",
+        "ledger": 5002795,
+        "status": "SUCCESS"
+      }
+    ],
+    "artifacts": {
+      "v5": "1d9d2f5f4ae558b48c3701f1dc4c332b5fe318104c993dd6a400597b49d07221",
+      "v6": "7f1a95be6bc08ccf147b098c2b110ae73ea9b89f9d97efa755e3a250e1103e88"
+    },
+    "fixtures": {
+      "v5": "CCH74GXEXT5NO6O53KKKIST4TKLP4TD4ZEHPQA4CORUJJCUGEWBFJJ2P",
+      "v6": "CCQM4Q2ILPQX464BNAMF5ITFUPGQ3SR7LZWVWY26IANMYFI3NXBVJMUW"
+    },
+    "checks": [
+      {
+        "label": "initial getter equivalence",
+        "status": "PASS",
+        "state": {
+          "amount_per_period": "200",
+          "asset": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+          "is_cancelled": false,
+          "next_charge_at": "1791037488",
+          "relayer": "GAJXSJR4AUZU2A3XJYSRHZ7BUBKJPDR44FVOIIOWEH7AFYDEPOVJPF5A",
+          "subscriber": "GC226V73ROG6UAW5XWYG3QCRUAUBMHBKSX7UZBZ2EJDPZ6KKBPHUKDVV"
+        }
+      },
+      {
+        "label": "cancellation harness limitation",
+        "status": "LIMITATION",
+        "reason": "Nested token approve authorization failed at inclusion; execution-ledger-dependent argument observed; precise root cause not isolated. Contract unchanged."
+      },
+      {
+        "label": "failed cancellation rollback getter equivalence",
+        "status": "PASS",
+        "state": {
+          "amount_per_period": "200",
+          "asset": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+          "is_cancelled": false,
+          "next_charge_at": "1791037488",
+          "relayer": "GAJXSJR4AUZU2A3XJYSRHZ7BUBKJPDR44FVOIIOWEH7AFYDEPOVJPF5A",
+          "subscriber": "GC226V73ROG6UAW5XWYG3QCRUAUBMHBKSX7UZBZ2EJDPZ6KKBPHUKDVV"
+        }
+      },
+      {
+        "label": "rotated relayer getter equivalence",
+        "status": "PASS",
+        "state": {
+          "amount_per_period": "200",
+          "asset": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+          "is_cancelled": false,
+          "next_charge_at": "1791037488",
+          "relayer": "GCB5FXP3P6WQAUYNKKMCTFK37WS6YHCY6ZVUDYZVWCDOWFM6UKISLHFS",
+          "subscriber": "GC226V73ROG6UAW5XWYG3QCRUAUBMHBKSX7UZBZ2EJDPZ6KKBPHUKDVV"
+        }
+      }
+    ],
+    "protocol": {
+      "version": "29.0.0-b2b701685c79aee17fe4eb22dbd08a5dfd11594d",
+      "commitHash": "b2b701685c79aee17fe4eb22dbd08a5dfd11594d",
+      "buildTimestamp": "2026-09-22T14:52:44",
+      "captiveCoreVersion": "stellar-core 29.0.0 (4eb83337380a29ad0907f4e32196ce97b8dc7649)",
+      "protocolVersion": 29
+    }
+  },
+  "scheduler": [
+    {
+      "version": "v5",
+      "contract": "CCH74GXEXT5NO6O53KKKIST4TKLP4TD4ZEHPQA4CORUJJCUGEWBFJJ2P",
+      "result": {
+        "platformCharged": 1,
+        "userCharged": 0,
+        "skipped": 0,
+        "failed": 0,
+        "details": [
+          {
+            "deploymentId": "v5",
+            "contractAddress": "CCH74GXEXT5NO6O53KKKIST4TKLP4TD4ZEHPQA4CORUJJCUGEWBFJJ2P",
+            "status": "charged"
+          }
+        ],
+        "truncated": false
+      },
+      "before": "1791037472",
+      "after": "1791041072",
+      "subscriberTokenDelta": "-200",
+      "preflight": [
+        {
+          "method": "getAccount",
+          "ms": 305.0886849999997
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "state",
+          "ms": 306.67194800000016
+        },
+        {
+          "method": "getAccount",
+          "ms": 306.4854129999999
+        },
+        {
+          "method": "getAccount",
+          "ms": 308.44840799999974
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "is_cancelled",
+          "ms": 406.9707620000004
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "next_charge_at",
+          "ms": 408.6486209999998
+        },
+        {
+          "method": "getAccount",
+          "ms": 250.58090900000025
+        },
+        {
+          "method": "getAccount",
+          "ms": 263.3247259999998
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "subscriber",
+          "ms": 350.2331459999996
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "amount_per_period",
+          "ms": 363.732176
+        },
+        {
+          "method": "getAccount",
+          "ms": 919.9549740000002
+        },
+        {
+          "method": "getAccount",
+          "ms": 921.3508780000002
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "asset",
+          "ms": 407.90639699999974
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "relayer",
+          "ms": 409.50211899999977
+        },
+        {
+          "method": "getAccount",
+          "ms": 306.968124
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "allowance",
+          "ms": 277.48485900000014
+        }
+      ],
+      "preflightRequests": 16,
+      "preflightRpcMs": 6513.352144999999,
+      "elapsedMs": 11570.892428,
+      "allCalls": [
+        {
+          "method": "getAccount",
+          "ms": 305.0886849999997
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "state",
+          "ms": 306.67194800000016
+        },
+        {
+          "method": "getAccount",
+          "ms": 306.4854129999999
+        },
+        {
+          "method": "getAccount",
+          "ms": 308.44840799999974
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "is_cancelled",
+          "ms": 406.9707620000004
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "next_charge_at",
+          "ms": 408.6486209999998
+        },
+        {
+          "method": "getAccount",
+          "ms": 250.58090900000025
+        },
+        {
+          "method": "getAccount",
+          "ms": 263.3247259999998
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "subscriber",
+          "ms": 350.2331459999996
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "amount_per_period",
+          "ms": 363.732176
+        },
+        {
+          "method": "getAccount",
+          "ms": 919.9549740000002
+        },
+        {
+          "method": "getAccount",
+          "ms": 921.3508780000002
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "asset",
+          "ms": 407.90639699999974
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "relayer",
+          "ms": 409.50211899999977
+        },
+        {
+          "method": "getAccount",
+          "ms": 306.968124
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "allowance",
+          "ms": 277.48485900000014
+        },
+        {
+          "method": "getAccount",
+          "ms": 312.70928099999946
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "charge_by_relayer",
+          "ms": 307.12159099999917
+        },
+        {
+          "method": "sendTransaction",
+          "ms": 303.26006899999993
+        },
+        {
+          "method": "getTransaction",
+          "ms": 307.2180360000002
+        },
+        {
+          "method": "getTransaction",
+          "ms": 254.73512299999857
+        },
+        {
+          "method": "getTransaction",
+          "ms": 328.6282579999988
+        },
+        {
+          "method": "getTransaction",
+          "ms": 546.0206309999994
+        },
+        {
+          "method": "getAccount",
+          "ms": 306.39008900000044
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "next_charge_at",
+          "ms": 410.4628510000002
+        },
+        {
+          "method": "getAccount",
+          "ms": 262.1951740000004
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "next_charge_at",
+          "ms": 454.39637700000094
+        }
+      ],
+      "transaction": {
+        "hash": "589629831edefe759b881be15f9205fc0bc9c3836f1a2f17338429392fdcb560",
+        "status": "SUCCESS",
+        "ledger": 5002802
+      }
+    },
+    {
+      "version": "v6",
+      "contract": "CCQM4Q2ILPQX464BNAMF5ITFUPGQ3SR7LZWVWY26IANMYFI3NXBVJMUW",
+      "result": {
+        "platformCharged": 1,
+        "userCharged": 0,
+        "skipped": 0,
+        "failed": 0,
+        "details": [
+          {
+            "deploymentId": "v6",
+            "contractAddress": "CCQM4Q2ILPQX464BNAMF5ITFUPGQ3SR7LZWVWY26IANMYFI3NXBVJMUW",
+            "status": "charged"
+          }
+        ],
+        "truncated": false
+      },
+      "before": "1791037488",
+      "after": "1791041088",
+      "subscriberTokenDelta": "-200",
+      "preflight": [
+        {
+          "method": "getAccount",
+          "ms": 379.7725470000005
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "state",
+          "ms": 452.93567800000164
+        },
+        {
+          "method": "getAccount",
+          "ms": 365.2343629999996
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "allowance",
+          "ms": 511.3359629999977
+        }
+      ],
+      "preflightRequests": 4,
+      "preflightRpcMs": 1709.2785509999994,
+      "elapsedMs": 7241.863301000001,
+      "allCalls": [
+        {
+          "method": "getAccount",
+          "ms": 379.7725470000005
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "state",
+          "ms": 452.93567800000164
+        },
+        {
+          "method": "getAccount",
+          "ms": 365.2343629999996
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "allowance",
+          "ms": 511.3359629999977
+        },
+        {
+          "method": "getAccount",
+          "ms": 613.9529939999993
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "charge_by_relayer",
+          "ms": 513.1726119999985
+        },
+        {
+          "method": "sendTransaction",
+          "ms": 302.8804940000009
+        },
+        {
+          "method": "getTransaction",
+          "ms": 369.6922430000013
+        },
+        {
+          "method": "getTransaction",
+          "ms": 586.6456369999978
+        },
+        {
+          "method": "getAccount",
+          "ms": 308.21500599999854
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "next_charge_at",
+          "ms": 392.4648279999965
+        },
+        {
+          "method": "getAccount",
+          "ms": 323.964052000003
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "next_charge_at",
+          "ms": 613.9804569999978
+        }
+      ],
+      "transaction": {
+        "hash": "317a0fded4709016933ea88b97ed0c7ef680261b3fdf021d23625008d33c44e5",
+        "status": "SUCCESS",
+        "ledger": 5002804
+      }
+    }
+  ],
+  "readTiming": [
+    {
+      "version": "v5",
+      "contract": "CCH74GXEXT5NO6O53KKKIST4TKLP4TD4ZEHPQA4CORUJJCUGEWBFJJ2P",
+      "requests": 14,
+      "wallMs": 2617.1279320000003,
+      "calls": [
+        {
+          "method": "getAccount",
+          "ms": 328.00050699999997
+        },
+        {
+          "method": "getAccount",
+          "ms": 561.621254
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "is_cancelled",
+          "ms": 267.809808
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "next_charge_at",
+          "ms": 744.151965
+        },
+        {
+          "method": "getAccount",
+          "ms": 306.3499650000001
+        },
+        {
+          "method": "getAccount",
+          "ms": 308.32189600000015
+        },
+        {
+          "method": "getAccount",
+          "ms": 354.24692600000003
+        },
+        {
+          "method": "getAccount",
+          "ms": 392.88258299999984
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "subscriber",
+          "ms": 306.044973
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "amount_per_period",
+          "ms": 509.9399189999999
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "asset",
+          "ms": 481.007558
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "relayer",
+          "ms": 488.051469
+        },
+        {
+          "method": "getAccount",
+          "ms": 345.43640800000003
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "allowance",
+          "ms": 306.7537320000001
+        }
+      ],
+      "state": {
+        "isCancelled": false,
+        "nextChargeAt": "1791041072",
+        "amountPerPeriod": "200",
+        "subscriber": "GC226V73ROG6UAW5XWYG3QCRUAUBMHBKSX7UZBZ2EJDPZ6KKBPHUKDVV",
+        "asset": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "relayer": "GAJXSJR4AUZU2A3XJYSRHZ7BUBKJPDR44FVOIIOWEH7AFYDEPOVJPF5A"
+      },
+      "allowance": "1800",
+      "note": "Read-sequence comparison after successful charge; schedule now in future. No charge submitted."
+    },
+    {
+      "version": "v6",
+      "contract": "CCQM4Q2ILPQX464BNAMF5ITFUPGQ3SR7LZWVWY26IANMYFI3NXBVJMUW",
+      "requests": 4,
+      "wallMs": 1534.7207329999997,
+      "calls": [
+        {
+          "method": "getAccount",
+          "ms": 266.433544
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "state",
+          "ms": 448.58500500000036
+        },
+        {
+          "method": "getAccount",
+          "ms": 409.10679600000003
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "allowance",
+          "ms": 407.92356199999995
+        }
+      ],
+      "state": {
+        "isCancelled": false,
+        "nextChargeAt": "1791041088",
+        "amountPerPeriod": "200",
+        "subscriber": "GC226V73ROG6UAW5XWYG3QCRUAUBMHBKSX7UZBZ2EJDPZ6KKBPHUKDVV",
+        "asset": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "relayer": "GAJXSJR4AUZU2A3XJYSRHZ7BUBKJPDR44FVOIIOWEH7AFYDEPOVJPF5A"
+      },
+      "allowance": "1800",
+      "note": "Read-sequence comparison after successful charge; schedule now in future. No charge submitted."
+    },
+    {
+      "version": "v5",
+      "contract": "CCH74GXEXT5NO6O53KKKIST4TKLP4TD4ZEHPQA4CORUJJCUGEWBFJJ2P",
+      "requests": 14,
+      "wallMs": 2765.6384959999996,
+      "calls": [
+        {
+          "method": "getAccount",
+          "ms": 615.2691940000004
+        },
+        {
+          "method": "getAccount",
+          "ms": 615.9030680000005
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "next_charge_at",
+          "ms": 510.31761600000027
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "is_cancelled",
+          "ms": 511.51575800000046
+        },
+        {
+          "method": "getAccount",
+          "ms": 307.4480730000005
+        },
+        {
+          "method": "getAccount",
+          "ms": 307.9372680000006
+        },
+        {
+          "method": "getAccount",
+          "ms": 309.2312519999996
+        },
+        {
+          "method": "getAccount",
+          "ms": 319.5569409999998
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "relayer",
+          "ms": 408.6672440000002
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "amount_per_period",
+          "ms": 408.2236119999998
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "subscriber",
+          "ms": 409.86004799999955
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "asset",
+          "ms": 480.9928119999995
+        },
+        {
+          "method": "getAccount",
+          "ms": 427.7219239999995
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "allowance",
+          "ms": 408.89089200000035
+        }
+      ],
+      "state": {
+        "isCancelled": false,
+        "nextChargeAt": "1791041072",
+        "amountPerPeriod": "200",
+        "subscriber": "GC226V73ROG6UAW5XWYG3QCRUAUBMHBKSX7UZBZ2EJDPZ6KKBPHUKDVV",
+        "asset": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "relayer": "GAJXSJR4AUZU2A3XJYSRHZ7BUBKJPDR44FVOIIOWEH7AFYDEPOVJPF5A"
+      },
+      "allowance": "1800",
+      "note": "Read-sequence comparison after successful charge; schedule now in future. No charge submitted."
+    },
+    {
+      "version": "v6",
+      "contract": "CCQM4Q2ILPQX464BNAMF5ITFUPGQ3SR7LZWVWY26IANMYFI3NXBVJMUW",
+      "requests": 4,
+      "wallMs": 1331.0853699999998,
+      "calls": [
+        {
+          "method": "getAccount",
+          "ms": 306.0917360000003
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "state",
+          "ms": 308.0221300000003
+        },
+        {
+          "method": "getAccount",
+          "ms": 305.2272550000007
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "allowance",
+          "ms": 410.3060480000004
+        }
+      ],
+      "state": {
+        "isCancelled": false,
+        "nextChargeAt": "1791041088",
+        "amountPerPeriod": "200",
+        "subscriber": "GC226V73ROG6UAW5XWYG3QCRUAUBMHBKSX7UZBZ2EJDPZ6KKBPHUKDVV",
+        "asset": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "relayer": "GAJXSJR4AUZU2A3XJYSRHZ7BUBKJPDR44FVOIIOWEH7AFYDEPOVJPF5A"
+      },
+      "allowance": "1800",
+      "note": "Read-sequence comparison after successful charge; schedule now in future. No charge submitted."
+    },
+    {
+      "version": "v5",
+      "contract": "CCH74GXEXT5NO6O53KKKIST4TKLP4TD4ZEHPQA4CORUJJCUGEWBFJJ2P",
+      "requests": 14,
+      "wallMs": 2252.304967,
+      "calls": [
+        {
+          "method": "getAccount",
+          "ms": 306.16326200000003
+        },
+        {
+          "method": "getAccount",
+          "ms": 329.3875509999998
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "next_charge_at",
+          "ms": 307.4914110000009
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "is_cancelled",
+          "ms": 489.10616200000004
+        },
+        {
+          "method": "getAccount",
+          "ms": 307.51042600000073
+        },
+        {
+          "method": "getAccount",
+          "ms": 308.6781380000011
+        },
+        {
+          "method": "getAccount",
+          "ms": 310.2159709999996
+        },
+        {
+          "method": "getAccount",
+          "ms": 317.06077000000005
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "relayer",
+          "ms": 353.4341320000003
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "amount_per_period",
+          "ms": 375.31944400000066
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "subscriber",
+          "ms": 388.5376919999999
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "asset",
+          "ms": 387.03488599999946
+        },
+        {
+          "method": "getAccount",
+          "ms": 318.77257400000053
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "allowance",
+          "ms": 409.48602199999914
+        }
+      ],
+      "state": {
+        "isCancelled": false,
+        "nextChargeAt": "1791041072",
+        "amountPerPeriod": "200",
+        "subscriber": "GC226V73ROG6UAW5XWYG3QCRUAUBMHBKSX7UZBZ2EJDPZ6KKBPHUKDVV",
+        "asset": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "relayer": "GAJXSJR4AUZU2A3XJYSRHZ7BUBKJPDR44FVOIIOWEH7AFYDEPOVJPF5A"
+      },
+      "allowance": "1800",
+      "note": "Read-sequence comparison after successful charge; schedule now in future. No charge submitted."
+    },
+    {
+      "version": "v6",
+      "contract": "CCQM4Q2ILPQX464BNAMF5ITFUPGQ3SR7LZWVWY26IANMYFI3NXBVJMUW",
+      "requests": 4,
+      "wallMs": 1228.222407000001,
+      "calls": [
+        {
+          "method": "getAccount",
+          "ms": 306.97707600000103
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "state",
+          "ms": 307.2814789999993
+        },
+        {
+          "method": "getAccount",
+          "ms": 285.9621560000014
+        },
+        {
+          "method": "simulateTransaction",
+          "fn": "allowance",
+          "ms": 326.9157439999999
+        }
+      ],
+      "state": {
+        "isCancelled": false,
+        "nextChargeAt": "1791041088",
+        "amountPerPeriod": "200",
+        "subscriber": "GC226V73ROG6UAW5XWYG3QCRUAUBMHBKSX7UZBZ2EJDPZ6KKBPHUKDVV",
+        "asset": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "relayer": "GAJXSJR4AUZU2A3XJYSRHZ7BUBKJPDR44FVOIIOWEH7AFYDEPOVJPF5A"
+      },
+      "allowance": "1800",
+      "note": "Read-sequence comparison after successful charge; schedule now in future. No charge submitted."
+    }
+  ],
+  "independentRequery": {
+    "checkedAt": "2026-10-03T14:33:20.907Z",
+    "transactions": [
+      {
+        "label": "upload v5",
+        "hash": "f8e3dfd755efd66508e2c4ba4c46037128fba17e94326a8c4579c8c15b70ae0b",
+        "status": "SUCCESS",
+        "ledger": 5002783
+      },
+      {
+        "label": "deploy v5",
+        "hash": "89d35c63fe9486957c4a4b5b36887b2781dddb7e93358da636fd85e24bc3e13c",
+        "status": "SUCCESS",
+        "ledger": 5002784
+      },
+      {
+        "label": "approve CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "hash": "b84a716cd914069157c30f1c281a212f1642088cb52924e1ce9995bc3629f21a",
+        "status": "SUCCESS",
+        "ledger": 5002785
+      },
+      {
+        "label": "upload v6",
+        "hash": "4037135598a9d7d8fa36038caa807a06d4f4c9abc99391044709becf7da01102",
+        "status": "SUCCESS",
+        "ledger": 5002786
+      },
+      {
+        "label": "deploy v6",
+        "hash": "48b3f93bf67280133acc510534fd443944f548d51351bc6dadf11a4659031048",
+        "status": "SUCCESS",
+        "ledger": 5002787
+      },
+      {
+        "label": "approve CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "hash": "24bb837a4bfc366980c15b08c2590c34b42a5f919586ae67700323e28271a154",
+        "status": "SUCCESS",
+        "ledger": 5002788
+      },
+      {
+        "label": "unsubscribe CCQM4Q2ILPQX464BNAMF5ITFUPGQ3SR7LZWVWY26IANMYFI3NXBVJMUW",
+        "hash": "096e595051a78c0e7f0b58666367f90f24c3861362cc8e0ed6d7012aeeeed8e1",
+        "status": "FAILED",
+        "ledger": 5002790,
+        "errors": [
+          [
+            "Unauthorized function call for address",
+            "GC226V73ROG6UAW5XWYG3QCRUAUBMHBKSX7UZBZ2EJDPZ6KKBPHUKDVV"
+          ],
+          [
+            "contract call failed",
+            "approve",
+            [
+              "GC226V73ROG6UAW5XWYG3QCRUAUBMHBKSX7UZBZ2EJDPZ6KKBPHUKDVV",
+              "CCQM4Q2ILPQX464BNAMF5ITFUPGQ3SR7LZWVWY26IANMYFI3NXBVJMUW",
+              "0",
+              5002791
+            ]
+          ],
+          "escalating error to VM trap from failed host function call: call"
+        ]
+      },
+      {
+        "label": "set_relayer CCQM4Q2ILPQX464BNAMF5ITFUPGQ3SR7LZWVWY26IANMYFI3NXBVJMUW",
+        "hash": "5baba7105adb8203af152c63d9803e191bcba6c970f17b823e87fca9ddef7ecf",
+        "status": "SUCCESS",
+        "ledger": 5002792
+      },
+      {
+        "label": "set_relayer CCQM4Q2ILPQX464BNAMF5ITFUPGQ3SR7LZWVWY26IANMYFI3NXBVJMUW",
+        "hash": "9e5ec1f190810df47274c6e03eeb4622ed5c440164786685df3680028f12b3ee",
+        "status": "SUCCESS",
+        "ledger": 5002794
+      },
+      {
+        "label": "approve CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "hash": "0e2c04f1561cc6422bd95e6da7f2ae48d07ef78c604801b54edd03e163f3932f",
+        "status": "SUCCESS",
+        "ledger": 5002795
+      },
+      {
+        "label": "actual scheduler v5",
+        "hash": "589629831edefe759b881be15f9205fc0bc9c3836f1a2f17338429392fdcb560",
+        "status": "SUCCESS",
+        "ledger": 5002802
+      },
+      {
+        "label": "actual scheduler v6",
+        "hash": "317a0fded4709016933ea88b97ed0c7ef680261b3fdf021d23625008d33c44e5",
+        "status": "SUCCESS",
+        "ledger": 5002804
+      },
+      {
+        "label": "upload v5",
+        "hash": "155956eb5e64b52dc03c7441a147e572e14db0239c075c26713fa181cd3527d0",
+        "status": "SUCCESS",
+        "ledger": 5002665
+      },
+      {
+        "label": "deploy v5",
+        "hash": "f406f0834703ca52ea5738171251be010ee7b62410be320962821f6b97b932be",
+        "status": "SUCCESS",
+        "ledger": 5002666
+      },
+      {
+        "label": "approve CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "hash": "d0b07eee8b6dfe70af42522d0d5eeacce9a3204db19df4ace1be16b006c12e5a",
+        "status": "SUCCESS",
+        "ledger": 5002667
+      },
+      {
+        "label": "upload v6",
+        "hash": "f08bafd16cd55bc68a6eee3856091c14a4786a12c4a1f601fa09b4abab128150",
+        "status": "SUCCESS",
+        "ledger": 5002668
+      },
+      {
+        "label": "deploy v6",
+        "hash": "7995ff92e01a41ac8c915aee6d944d9d54b3ea3a48c7985b6e0ed62d3b9ad3cc",
+        "status": "SUCCESS",
+        "ledger": 5002669
+      },
+      {
+        "label": "approve CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "hash": "639f9375c4545f99bc5886f00506dd305b5a95f51778e7a91abb7dcd5ef1fd27",
+        "status": "SUCCESS",
+        "ledger": 5002670
+      },
+      {
+        "label": "upload v5",
+        "hash": "f6a83562c32f5b6e3c612f374507b7b66cd17ace590fa9ea21a15431694313dc",
+        "status": "SUCCESS",
+        "ledger": 5002739
+      },
+      {
+        "label": "deploy v5",
+        "hash": "5f40b71f85b5a32248647529b102d58df669948f5bfa608e304f5607b3dd7e65",
+        "status": "SUCCESS",
+        "ledger": 5002740
+      },
+      {
+        "label": "approve CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "hash": "acb5f8abae8b43fc05279e58d53c786276fb5883c84fd7ab871034d03bce2045",
+        "status": "SUCCESS",
+        "ledger": 5002741
+      },
+      {
+        "label": "upload v6",
+        "hash": "60e2ec61d06eda316d702cdba41ba96fecffb2cdf46bed61ef763455d6cdb5ce",
+        "status": "SUCCESS",
+        "ledger": 5002742
+      },
+      {
+        "label": "deploy v6",
+        "hash": "90f8bb7ee853671b3dae1efd9b99345ce62fcdf30f486c27cd114270791f9bea",
+        "status": "SUCCESS",
+        "ledger": 5002743
+      },
+      {
+        "label": "approve CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "hash": "139490d0be9021b0abc79dbfb8604c5b1fcbacc6b0f7f75ed6c168b21338adf2",
+        "status": "SUCCESS",
+        "ledger": 5002744
+      },
+      {
+        "label": "unsubscribe CBZBFI75MVOPBTII6P4KYMFDARBYBTGPR5UVTXST7SPDUHJJJKBDCGSC",
+        "hash": "4f96111342a742784fcda23da05327b768bad0fddedebfa00517ea6aeb7b672a",
+        "status": "FAILED",
+        "ledger": 5002746,
+        "errors": [
+          [
+            "Unauthorized function call for address",
+            "GDRFI5CSFYILXBQ5PDMCL43CG2F5WHIMMLSPGR23X4XPCAEOWQJ5LWCZ"
+          ],
+          [
+            "contract call failed",
+            "approve",
+            [
+              "GDRFI5CSFYILXBQ5PDMCL43CG2F5WHIMMLSPGR23X4XPCAEOWQJ5LWCZ",
+              "CBZBFI75MVOPBTII6P4KYMFDARBYBTGPR5UVTXST7SPDUHJJJKBDCGSC",
+              "0",
+              5002747
+            ]
+          ],
+          "escalating error to VM trap from failed host function call: call"
+        ]
+      },
+      {
+        "label": "initial cancellation attempt",
+        "hash": "9eb7f92af292a5507b046c59d888ab6c873cf12f6d06261e19e33e7ebf4b5b9b",
+        "status": "FAILED",
+        "ledger": 5002672,
+        "errors": [
+          [
+            "Unauthorized function call for address",
+            "GCVDGLGFT5KH7NUWJXKIFNQU7CW32PPE25J3YIDCO2C5ISTSWEVQYBWK"
+          ],
+          [
+            "contract call failed",
+            "approve",
+            [
+              "GCVDGLGFT5KH7NUWJXKIFNQU7CW32PPE25J3YIDCO2C5ISTSWEVQYBWK",
+              "CC3K5N7XJ4LG3RAAHCPFZGQMXZJEVI2ERXHL6QH2P6U6OC3GAZ6HVT5T",
+              "0",
+              5002673
+            ]
+          ],
+          "escalating error to VM trap from failed host function call: call"
+        ]
+      }
+    ],
+    "artifacts": [
+      {
+        "version": "v5",
+        "contract": "CCH74GXEXT5NO6O53KKKIST4TKLP4TD4ZEHPQA4CORUJJCUGEWBFJJ2P",
+        "hash": "1d9d2f5f4ae558b48c3701f1dc4c332b5fe318104c993dd6a400597b49d07221",
+        "storedVersion": 5,
+        "liveUntilLedgerSeq": 5123743
+      },
+      {
+        "version": "v6",
+        "contract": "CCQM4Q2ILPQX464BNAMF5ITFUPGQ3SR7LZWVWY26IANMYFI3NXBVJMUW",
+        "hash": "7f1a95be6bc08ccf147b098c2b110ae73ea9b89f9d97efa755e3a250e1103e88",
+        "storedVersion": 6,
+        "liveUntilLedgerSeq": 5123746
+      }
+    ]
+  }
+}

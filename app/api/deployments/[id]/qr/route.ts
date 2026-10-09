@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import QRCode from "qrcode";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { sep7PaymentUri } from "@/lib/stellar/sep7";
@@ -17,7 +18,7 @@ const Query = z.object({
   amount: z.string().regex(/^\d+$/).optional(),
 });
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSessionUser();
   if (!session) return new Response("Unauthorized", { status: 401 });
   const { id } = await ctx.params;
@@ -157,3 +158,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     },
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "owner");

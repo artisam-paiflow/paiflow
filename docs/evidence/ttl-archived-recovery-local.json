@@ -1,0 +1,282 @@
+{
+  "network": "isolated LOCAL",
+  "passphrase": "Standalone Network ; February 2017",
+  "transactions": [
+    {
+      "label": "native SAC",
+      "hash": "810c56d063e0e3115aea872d049747f9bc55bbb558fe7be5e507c93927321a85",
+      "ledger": 477,
+      "feeCharged": "31347",
+      "feeBound": "71373"
+    },
+    {
+      "label": "Pay v4 upload",
+      "hash": "d1b962f26bad714151a40d4223799f3972475c621f25e915f2ebe3f8e28acfce",
+      "ledger": 478,
+      "feeCharged": "460718",
+      "feeBound": "529499"
+    },
+    {
+      "label": "historical Webhook v1 upload",
+      "hash": "b4133db7143aa82f96ee261e08fa74d35e6c0027039bdfaf9794adc8d2dae3f9",
+      "ledger": 479,
+      "feeCharged": "347475",
+      "feeBound": "407237"
+    },
+    {
+      "label": "Pay v4 deploy",
+      "hash": "02f97919d52845da50257bc04f00f22b740e0c0c53e5d04bf385523b042e0bda",
+      "ledger": 480,
+      "feeCharged": "48916",
+      "feeBound": "88950"
+    },
+    {
+      "label": "historical Webhook v1 deploy",
+      "hash": "b69520705593586a7f9b1c1c1125187a75e04972c9f0b10d9da3df0a6af53841",
+      "ledger": 481,
+      "feeCharged": "48039",
+      "feeBound": "88071"
+    },
+    {
+      "label": "escrow deposit",
+      "hash": "075ddd69d27e73a6004503baf360027523ad92bd85a6c1f4dd2933b1040380fd",
+      "ledger": 483,
+      "feeCharged": "192238",
+      "feeBound": "251811"
+    }
+  ],
+  "fixture": {
+    "relayer": "GA7J5F4G4HFOYXYBC5EY7MITPOPMFNQL3KNKWAGC3ZIFXZYM7YSRETLT",
+    "recipient": "GBMVANLGCWRWDWMS5KFYLFYTIEPAAUSYKHEPV7PVMDK4NWHG6725D4LZ",
+    "asset": "CDMLFMKMMD7MWZP3FKUBZPVHTUEDLSX4BYGYKH4GCESXYHS3IHQ4EIG4",
+    "webhook": "CAKT56EGIBDM7YHWMB3RBDIQZNES77S6N3DCWKA6YIZODULZ7UMOBJKM",
+    "pay": "CCLGGFR2GWBYGL6KA3UD6ATBY4L7ONU3OELPCS42KG3BOP52J7EF5TEV",
+    "webhookWasmHash": "5f274da25dffabcfa058e802541963eeb1923ae59731d0b19d4fc56637cd7745",
+    "payWasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+    "amount": "10000000",
+    "beforeExpiryLedger": 1057,
+    "secondEscrowInitialEntries": [
+      {
+        "key": "AAAABgAAAAEVPviGQEbP4PZgdxCNEMtJL/5ebsYrKB7CMuHRef0Y4AAAABQAAAAB",
+        "liveUntilLedgerSeq": 1236
+      },
+      {
+        "key": "AAAAB18nTaJd/6vPoFjoAlQZY+6xkjrllzHQsZ1PxWY3zXdF",
+        "liveUntilLedgerSeq": 1236
+      }
+    ],
+    "entrySnapshotPurpose": "Entries after the second independently funded escrow deposit at ledger1057; first source-lane expiry is recorded separately in ttl-expired-recovery-local.json."
+  },
+  "date": "2026-10-04",
+  "scope": "Actual application submitWebhookExecuteTx/buildRelayerTx/withRelayerChannel funded-channel lane. Physically archived Webhook instance and code restored via genuine Core/RPC, no mocks or application policy changes.",
+  "limits": [
+    "Actual ledgerCloseMetaV2 evictedKeys at ledger1237 proves physical eviction of both instance and code. Core archived/live markers plus restored transaction metadata then verify recovery through funded-channel invocation.",
+    "Historical Webhookv1 proves immutable existing pipeline recovery; current Webhookv2/Subscriptionv7 downstream execution is verified separately on public TESTNET.",
+    "Legacy separate restorePreamble remains automated-test coverage; live protocol26 RPC uses automatic restoration."
+  ],
+  "physicalArchiveFixture": {
+    "deposit": {
+      "hash": "40cc1dfe5b68843964b09d69e5cfcdc3344f0d0b5a60db1e379890ecfe54e7c6",
+      "status": "SUCCESS",
+      "ledger": 1057,
+      "amountStroops": "10000000"
+    },
+    "entries": [
+      {
+        "key": "AAAABgAAAAEVPviGQEbP4PZgdxCNEMtJL/5ebsYrKB7CMuHRef0Y4AAAABQAAAAB",
+        "liveUntilLedgerSeq": 1236
+      },
+      {
+        "key": "AAAAB18nTaJd/6vPoFjoAlQZY+6xkjrllzHQsZ1PxWY3zXdF",
+        "liveUntilLedgerSeq": 1236
+      }
+    ],
+    "recipient": "GBMVANLGCWRWDWMS5KFYLFYTIEPAAUSYKHEPV7PVMDK4NWHG6725D4LZ",
+    "webhook": "CAKT56EGIBDM7YHWMB3RBDIQZNES77S6N3DCWKA6YIZODULZ7UMOBJKM",
+    "pay": "CCLGGFR2GWBYGL6KA3UD6ATBY4L7ONU3OELPCS42KG3BOP52J7EF5TEV"
+  },
+  "recovery": {
+    "expiredAtLedger": 1285,
+    "expiredEntriesReturned": 2,
+    "initialLiveUntilMaximum": 1236,
+    "simulationKind": "automatic restoration",
+    "automaticArchivedEntryIndexes": [1, 4],
+    "recipientBefore": "100010000000",
+    "physicalCoreArchiveProof": {
+      "ledgerSeq": 1260,
+      "entries": [
+        {
+          "liveUntilLedgerSeq": 0,
+          "state": "archived"
+        },
+        {
+          "liveUntilLedgerSeq": 0,
+          "state": "archived"
+        }
+      ],
+      "requestedKeys": [
+        "AAAABgAAAAEVPviGQEbP4PZgdxCNEMtJL/5ebsYrKB7CMuHRef0Y4AAAABQAAAAB",
+        "AAAAB18nTaJd/6vPoFjoAlQZY+6xkjrllzHQsZ1PxWY3zXdF"
+      ]
+    },
+    "expectedChannelSource": "GC7EZ52Q2UJPOAIGNZIOKDMSJFITCCOAFQXPUNNYRQM7XQEPX7V5MOAX",
+    "expiredEntriesReturnedWithExpiredTtl": [
+      {
+        "key": "AAAABgAAAAEVPviGQEbP4PZgdxCNEMtJL/5ebsYrKB7CMuHRef0Y4AAAABQAAAAB",
+        "liveUntilLedgerSeq": 0
+      },
+      {
+        "key": "AAAAB18nTaJd/6vPoFjoAlQZY+6xkjrllzHQsZ1PxWY3zXdF",
+        "liveUntilLedgerSeq": 0
+      }
+    ],
+    "submission": {
+      "status": "PENDING",
+      "txHash": "46aa267a0c690a0fbacacd52206f9a0ce204051f4c28472f4e4e3bf33ad4ce9e",
+      "duplicate": false
+    },
+    "confirmed": {
+      "status": "SUCCESS",
+      "hash": "46aa267a0c690a0fbacacd52206f9a0ce204051f4c28472f4e4e3bf33ad4ce9e",
+      "ledger": 1286,
+      "feeChargedResult": "250229",
+      "sourceAccount": "GC7EZ52Q2UJPOAIGNZIOKDMSJFITCCOAFQXPUNNYRQM7XQEPX7V5MOAX"
+    },
+    "restoredMetaEntries": [
+      {
+        "type": "ttl",
+        "keyHash": "cd57e454272f80744468a8631fd43ddd23cec4c539aa5baa0159ae692a56a178",
+        "liveUntilLedgerSeq": 1465
+      },
+      {
+        "type": "ttl",
+        "keyHash": "f389e942ecdf462df2e18a4662755bc6bd33332ffda748af8d1a77f0dac33a6e",
+        "liveUntilLedgerSeq": 1465
+      },
+      {
+        "type": "contractCode",
+        "hash": "5f274da25dffabcfa058e802541963eeb1923ae59731d0b19d4fc56637cd7745"
+      },
+      {
+        "type": "contractData",
+        "contract": "CAKT56EGIBDM7YHWMB3RBDIQZNES77S6N3DCWKA6YIZODULZ7UMOBJKM",
+        "key": "AAAAFA==",
+        "value": {
+          "executableWasmHash": "5f274da25dffabcfa058e802541963eeb1923ae59731d0b19d4fc56637cd7745",
+          "storage": {
+            "Admin": "GA7J5F4G4HFOYXYBC5EY7MITPOPMFNQL3KNKWAGC3ZIFXZYM7YSRETLT",
+            "Asset": "CDMLFMKMMD7MWZP3FKUBZPVHTUEDLSX4BYGYKH4GCESXYHS3IHQ4EIG4",
+            "NextSteps": [
+              {
+                "address": "CCLGGFR2GWBYGL6KA3UD6ATBY4L7ONU3OELPCS42KG3BOP52J7EF5TEV",
+                "data": ""
+              }
+            ],
+            "Relayer": "GA7J5F4G4HFOYXYBC5EY7MITPOPMFNQL3KNKWAGC3ZIFXZYM7YSRETLT",
+            "Version": 1
+          }
+        }
+      }
+    ],
+    "logicalExpiryVsPhysicalEviction": "Core explicitly reported both instance and code archived before invocation and live after confirmed restoration; RPC reads return archived durable values too.",
+    "recipientAfter": "100020000000",
+    "deliveredStroops": "10000000",
+    "webhookBalance": "0",
+    "payBalance": "0",
+    "restoredEntries": [
+      {
+        "key": "AAAABgAAAAEVPviGQEbP4PZgdxCNEMtJL/5ebsYrKB7CMuHRef0Y4AAAABQAAAAB",
+        "liveUntilLedgerSeq": 1465
+      },
+      {
+        "key": "AAAAB18nTaJd/6vPoFjoAlQZY+6xkjrllzHQsZ1PxWY3zXdF",
+        "liveUntilLedgerSeq": 1465
+      }
+    ],
+    "emptyEscrowReject": "Error: The contract doesn't hold enough balance to cover this payout.",
+    "feeEvents": [
+      {
+        "stage": "transactionEventStageBeforeAllTxes",
+        "topics": ["fee", "GC7EZ52Q2UJPOAIGNZIOKDMSJFITCCOAFQXPUNNYRQM7XQEPX7V5MOAX"],
+        "amount": "296538"
+      },
+      {
+        "stage": "transactionEventStageAfterAllTxes",
+        "topics": ["fee", "GC7EZ52Q2UJPOAIGNZIOKDMSJFITCCOAFQXPUNNYRQM7XQEPX7V5MOAX"],
+        "amount": "-46309"
+      }
+    ],
+    "declaredFeeStroops": "296538",
+    "refundedFeeStroops": "46309",
+    "netFeeStroops": "250229",
+    "contractEvents": [
+      {
+        "contract": "CDMLFMKMMD7MWZP3FKUBZPVHTUEDLSX4BYGYKH4GCESXYHS3IHQ4EIG4",
+        "topics": [
+          "transfer",
+          "CAKT56EGIBDM7YHWMB3RBDIQZNES77S6N3DCWKA6YIZODULZ7UMOBJKM",
+          "CCLGGFR2GWBYGL6KA3UD6ATBY4L7ONU3OELPCS42KG3BOP52J7EF5TEV",
+          "native"
+        ],
+        "value": "10000000"
+      },
+      {
+        "contract": "CDMLFMKMMD7MWZP3FKUBZPVHTUEDLSX4BYGYKH4GCESXYHS3IHQ4EIG4",
+        "topics": [
+          "transfer",
+          "CCLGGFR2GWBYGL6KA3UD6ATBY4L7ONU3OELPCS42KG3BOP52J7EF5TEV",
+          "GBMVANLGCWRWDWMS5KFYLFYTIEPAAUSYKHEPV7PVMDK4NWHG6725D4LZ",
+          "native"
+        ],
+        "value": "10000000"
+      },
+      {
+        "contract": "CCLGGFR2GWBYGL6KA3UD6ATBY4L7ONU3OELPCS42KG3BOP52J7EF5TEV",
+        "topics": ["pay", "GBMVANLGCWRWDWMS5KFYLFYTIEPAAUSYKHEPV7PVMDK4NWHG6725D4LZ"],
+        "value": ["CDMLFMKMMD7MWZP3FKUBZPVHTUEDLSX4BYGYKH4GCESXYHS3IHQ4EIG4", "10000000"]
+      },
+      {
+        "contract": "CAKT56EGIBDM7YHWMB3RBDIQZNES77S6N3DCWKA6YIZODULZ7UMOBJKM",
+        "topics": ["escrow", "CAKT56EGIBDM7YHWMB3RBDIQZNES77S6N3DCWKA6YIZODULZ7UMOBJKM"],
+        "value": "10000000"
+      }
+    ],
+    "physicalCoreLiveAfter": {
+      "ledgerSeq": 1322,
+      "entries": [
+        {
+          "liveUntilLedgerSeq": 1465,
+          "state": "live"
+        },
+        {
+          "liveUntilLedgerSeq": 1465,
+          "state": "live"
+        }
+      ],
+      "requestedKeys": [
+        "AAAABgAAAAEVPviGQEbP4PZgdxCNEMtJL/5ebsYrKB7CMuHRef0Y4AAAABQAAAAB",
+        "AAAAB18nTaJd/6vPoFjoAlQZY+6xkjrllzHQsZ1PxWY3zXdF"
+      ]
+    },
+    "immutableConfigurationAssertions": {
+      "allPassed": true,
+      "webhook": ["Admin", "Asset", "Relayer", "Version", "NextSteps"],
+      "pay": "Downstream Pay remains same live contract used by first verified expiry case."
+    },
+    "physicalEvictionLedgerCloseMeta": [
+      {
+        "ledger": 1237,
+        "evictedKeys": [
+          "AAAABgAAAAEVPviGQEbP4PZgdxCNEMtJL/5ebsYrKB7CMuHRef0Y4AAAABQAAAAB",
+          "AAAAB18nTaJd/6vPoFjoAlQZY+6xkjrllzHQsZ1PxWY3zXdF"
+        ]
+      }
+    ]
+  },
+  "networkConfig": {
+    "protocol": 26,
+    "minPersistentTtl": 180,
+    "startingEvictionScanLevel": 1,
+    "coreArchiveQuery": "getledgerentry queryserver11628"
+  }
+}

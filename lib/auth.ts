@@ -1,19 +1,26 @@
 import "server-only";
-import type { NextRequest } from "next/server";
-import { redirect } from "next/navigation";
-import NextAuth from "next-auth";
-import Credentials from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@auth/prisma-adapter";
-import { z } from "zod";
-import { db } from "./db";
-import { env } from "./env";
-import { log } from "./log";
-import { audit } from "./audit";
-import { AppError } from "./errors";
-import { hashApiToken } from "./auth/api-token";
-import { isSessionCurrent } from "./auth/session-version";
-import { captureServer } from "./analytics/server";
 import { Role } from "@prisma/client";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import type { NextRequest } from "next/server";
+import NextAuth, { type NextAuthConfig } from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
+import { z } from "zod";
+import { captureServer } from "@/lib/analytics/server";
+import { audit } from "@/lib/audit";
+import { hashApiToken } from "@/lib/auth/api-token";
+import {
+  googleAdapter,
+  resolveGoogleUser,
+  GoogleAuthError,
+  GOOGLE_LINK_COOKIE,
+} from "@/lib/auth/google";
+import { isSessionCurrent } from "@/lib/auth/session-version";
+import { db } from "@/lib/db";
+import { env } from "@/lib/env";
+import { AppError } from "@/lib/errors";
+import { log } from "@/lib/log";
 import { authConfig as edgeConfig } from "@/auth.config";
 
 // Lazy-load argon2 so it isn't statically reachable from non-auth route
@@ -103,7 +110,7 @@ async function authorizeUser(input: unknown): Promise<{
     return null;
   }
 
-  const ok = await verifyPassword(user.passwordHash, password);
+  const ok = await verifyPassword(user.passwordHash ?? "", password);
   if (!ok) {
     const failed = user.failedLogins + 1;
     const lock =
@@ -134,9 +141,109 @@ async function authorizeUser(input: unknown): Promise<{
 
 export const fullAuthConfig = {
   ...edgeConfig,
-  adapter: PrismaAdapter(db),
+  adapter: googleAdapter,
+  logger: {
+    // Auth.js causes/debug payloads can contain callback query and token sets.
+    error() {
+      log.error("Authentication request failed");
+    },
+    warn() {
+      log.warn("Authentication configuration warning");
+    },
+    debug() {},
+  },
+  callbacks: {
+    ...edgeConfig.callbacks,
+    async signIn({ account, profile }) {
+      if (account?.provider !== "google") return true;
+      const current = await auth();
+      const user = current?.user as
+        | { id?: string; sessionVersion?: number; authenticatedAt?: unknown }
+        | undefined;
+      const session =
+        user?.id && typeof user.sessionVersion === "number"
+          ? {
+              id: user.id,
+              sessionVersion: user.sessionVersion,
+              authenticatedAt: user.authenticatedAt,
+            }
+          : null;
+      if (user?.id && !session)
+        return `${env().AUTH_URL.replace(/\/$/, "")}/auth/error?error=account-disabled`;
+      const jar = await cookies();
+      const intent = jar.get(GOOGLE_LINK_COOKIE)?.value;
+      // Clear regardless of success. Database consumption is atomic and remains
+      // authoritative if two callbacks carry the same browser cookie.
+      if (intent)
+        jar.set(GOOGLE_LINK_COOKIE, "", {
+          path: "/",
+          secure: process.env.NODE_ENV === "production",
+          httpOnly: true,
+          sameSite: "lax",
+          maxAge: 0,
+        });
+      try {
+        await resolveGoogleUser(profile, account.providerAccountId, session, intent);
+        return true;
+      } catch (error) {
+        if (error instanceof GoogleAuthError) {
+          return `${env().AUTH_URL.replace(/\/$/, "")}/${session ? "account?googleError=" : "auth/error?error="}${error.reason}`;
+        }
+        throw error;
+      }
+    },
+    async jwt(params) {
+      // Refuse a deactivated account between callback provisioning and issuance.
+      if (params.user && params.account?.provider === "google") {
+        const row = await db.user.findUnique({ where: { id: params.user.id } });
+        if (
+          !row?.isActive ||
+          row.role === Role.SANDBOX ||
+          row.sessionVersion !== (params.user as { sessionVersion?: number }).sessionVersion
+        )
+          return null;
+        params.user = { ...params.user, ...row };
+      }
+      return edgeConfig.callbacks!.jwt!(params);
+    },
+  },
+  events: {
+    async signIn({ user, account }) {
+      if (account?.provider !== "google" || !user.id) return;
+      const version = (user as { sessionVersion?: number }).sessionVersion;
+      if (typeof version !== "number") return;
+      const updated = await db.user.updateMany({
+        where: {
+          id: user.id,
+          isActive: true,
+          role: { not: Role.SANDBOX },
+          sessionVersion: version,
+        },
+        data: { lastLoginAt: new Date(), failedLogins: 0, lockedUntil: null },
+      });
+      // Auth.js still emits this event when jwt returned null. Do not record a
+      // successful login or refresh a deactivated/revoked account in that case.
+      if (updated.count !== 1) return;
+      await audit({ action: "USER_LOGIN", userId: user.id, metadata: { method: "google" } });
+      void captureServer(user.id, "login_succeeded", { method: "google" });
+    },
+  },
   secret: env().AUTH_SECRET,
   providers: [
+    ...(env().GOOGLE_AUTH_ENABLED
+      ? [
+          Google({
+            clientId: env().GOOGLE_CLIENT_ID,
+            clientSecret: env().GOOGLE_CLIENT_SECRET,
+            checks: ["pkce", "state", "nonce"],
+            authorization: {
+              params: { scope: "openid email", access_type: "online", prompt: "select_account" },
+            },
+            // No provider access/refresh/ID tokens survive into persisted state.
+            account: () => ({}),
+          }),
+        ]
+      : []),
     Credentials({
       name: "Credentials",
       credentials: {
@@ -146,7 +253,7 @@ export const fullAuthConfig = {
       authorize: authorizeUser,
     }),
   ],
-};
+} satisfies NextAuthConfig;
 
 export const { handlers, auth, signIn, signOut } = NextAuth(fullAuthConfig);
 

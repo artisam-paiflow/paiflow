@@ -15,7 +15,7 @@ export default async function TriggerPage({
 }) {
   const { deploymentId } = await params;
   const d = await db.deployment.findFirst({
-    where: { id: deploymentId, status: "CONFIRMED" },
+    where: { id: deploymentId, status: "CONFIRMED", serviceState: "ACTIVE" },
     include: {
       flow: { select: { name: true, templateKind: true } },
     },

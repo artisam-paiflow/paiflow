@@ -21,6 +21,26 @@ describe("testerUsernames", () => {
     ]);
   });
 
+  it("pads numbers without truncating or changing the default", () => {
+    expect(testerUsernames(1, 12, "team", 2)).toEqual(
+      Array.from({ length: 12 }, (_, i) => `team${String(i + 1).padStart(2, "0")}`),
+    );
+    expect(testerUsernames(99, 100, "team", 2)).toEqual(["team99", "team100"]);
+    expect(testerUsernames(1, 1, "team")).toEqual(["team1"]);
+  });
+  it.each([-1, 1.5, NaN, Infinity, 33])("rejects invalid padding %s", (pad) => {
+    expect(() => testerUsernames(1, 2, "team", pad)).toThrow(/pad/);
+  });
+  it.each([
+    [1, Infinity],
+    [1, NaN],
+    [1, 2.5],
+    [1, Number.MAX_SAFE_INTEGER + 1],
+    [-1, 2],
+  ])("rejects invalid ranges %s..%s", (from, to) => {
+    expect(() => testerUsernames(from, to)).toThrow(/Bad range/);
+  });
+
   it("rejects a backwards, zero or fractional range", () => {
     expect(() => testerUsernames(10, 6)).toThrow(/Bad range/);
     expect(() => testerUsernames(0, 3)).toThrow(/Bad range/);

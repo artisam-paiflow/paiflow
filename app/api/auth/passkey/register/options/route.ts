@@ -3,12 +3,14 @@ import { generateRegistrationOptions } from "@simplewebauthn/server";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { saveChallenge } from "@/lib/passkey/challenges";
 import { rp } from "@/lib/passkey/rp";
 
 export async function POST() {
   return withErrorHandler(async () => {
     const user = await requireSession();
+    await enforceWriteRateLimit("passkeyManage", user.id);
     const existing = await db.passkey.findMany({
       where: { userId: user.id },
       select: { credentialId: true, transports: true },

@@ -1,0 +1,3742 @@
+{
+  "environment": "hackathon-testing",
+  "network": "TESTNET",
+  "date": "2026-10-04",
+  "codeCommit": "1b89b9f2d9565930b20268c9a8db76f3a36b081e",
+  "scope": "Actual deployed Next HTTP cron, Railway PostgreSQL/Redis, public TESTNET RPC. No staging access during this rehearsal. No shared artifact activation, wallet payments, or recurring scheduler registration.",
+  "inventory": {
+    "environment": "hackathon-testing",
+    "origin": "https://pinkraft-prod.up.railway.app",
+    "network": "TESTNET",
+    "createdAt": "2026-10-04T10:24:46.504Z",
+    "ticks": [
+      {
+        "at": "2026-10-04T10:24:50.994Z",
+        "durationMs": 4035,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 1
+        },
+        "details": [
+          {
+            "target": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "055bb5c94bc0dac259f08a6adc97e9305fbf901d5facbdcbbedf799810f474bd",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742956
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-1",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-2",
+            "totalTargets": 3,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-3",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-4",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-5",
+            "totalTargets": 2,
+            "nextOffset": 1
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:26:13.574Z",
+        "durationMs": 5532,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 2
+        },
+        "details": [
+          {
+            "target": "100399b3f899be056e0e5c22d7ecafd3104c65d6a94215a864299807f0042fcd",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742962
+          },
+          {
+            "target": "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6",
+            "kind": "instance",
+            "status": "healthy",
+            "liveUntilLedger": 5121061
+          },
+          {
+            "target": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5116155
+          },
+          {
+            "target": "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742958
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-6",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-7",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-8",
+            "totalTargets": 3,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-9",
+            "totalTargets": 3,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-1",
+            "totalTargets": 2,
+            "nextOffset": 0
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:26:19.201Z",
+        "durationMs": 5626,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 3
+        },
+        "details": [
+          {
+            "target": "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742749
+          },
+          {
+            "target": "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742954
+          },
+          {
+            "target": "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742958
+          },
+          {
+            "target": "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1d9d2f5f4ae558b48c3701f1dc4c332b5fe318104c993dd6a400597b49d07221",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5116156
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-2",
+            "totalTargets": 3,
+            "nextOffset": 2
+          },
+          {
+            "deploymentId": "deployment-3",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-4",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-5",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-6",
+            "totalTargets": 2,
+            "nextOffset": 0
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:26:24.154Z",
+        "durationMs": 4953,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 4
+        },
+        "details": [
+          {
+            "target": "232dca3682e469969614db0f40d955bee12175a49e9afd5a6175e067407291da",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5116157
+          },
+          {
+            "target": "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5",
+            "kind": "instance",
+            "status": "healthy",
+            "liveUntilLedger": 5121061
+          },
+          {
+            "target": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5119519
+          },
+          {
+            "target": "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742749
+          },
+          {
+            "target": "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742954
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-7",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-8",
+            "totalTargets": 3,
+            "nextOffset": 2
+          },
+          {
+            "deploymentId": "deployment-9",
+            "totalTargets": 3,
+            "nextOffset": 2
+          },
+          {
+            "deploymentId": "deployment-1",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-2",
+            "totalTargets": 3,
+            "nextOffset": 0
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:26:27.802Z",
+        "durationMs": 3647,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 5
+        },
+        "details": [
+          {
+            "target": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6",
+            "kind": "instance",
+            "status": "healthy",
+            "liveUntilLedger": 5121061
+          },
+          {
+            "target": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5116155
+          },
+          {
+            "target": "2d3c99b5aeacbbc7cda0f3aad8bc98bc42c708260e9ee223ab28056ebf078de0",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5119991
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-3",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-4",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-5",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-6",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-7",
+            "totalTargets": 2,
+            "nextOffset": 1
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:26:32.206Z",
+        "durationMs": 4403,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 6
+        },
+        "details": [
+          {
+            "target": "3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742951
+          },
+          {
+            "target": "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742954
+          },
+          {
+            "target": "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742958
+          },
+          {
+            "target": "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-8",
+            "totalTargets": 3,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-9",
+            "totalTargets": 3,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-1",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-2",
+            "totalTargets": 3,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-3",
+            "totalTargets": 2,
+            "nextOffset": 0
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:26:37.427Z",
+        "durationMs": 5221,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 7
+        },
+        "details": [
+          {
+            "target": "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742954
+          },
+          {
+            "target": "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742958
+          },
+          {
+            "target": "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5",
+            "kind": "instance",
+            "status": "healthy",
+            "liveUntilLedger": 5121061
+          },
+          {
+            "target": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5119519
+          },
+          {
+            "target": "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5116155
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-4",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-5",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-6",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-7",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-8",
+            "totalTargets": 3,
+            "nextOffset": 1
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:26:41.188Z",
+        "durationMs": 3761,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 8
+        },
+        "details": [
+          {
+            "target": "503c7dc8c8731b3df6eb2929114bd25c062dfdbea2d46c73a37d693f0676fc3f",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742952
+          },
+          {
+            "target": "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742749
+          },
+          {
+            "target": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-9",
+            "totalTargets": 3,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-1",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-2",
+            "totalTargets": 3,
+            "nextOffset": 2
+          },
+          {
+            "deploymentId": "deployment-3",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-4",
+            "totalTargets": 2,
+            "nextOffset": 1
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:26:46.029Z",
+        "durationMs": 4841,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 9
+        },
+        "details": [
+          {
+            "target": "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6",
+            "kind": "instance",
+            "status": "healthy",
+            "liveUntilLedger": 5121061
+          },
+          {
+            "target": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5116155
+          },
+          {
+            "target": "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742749
+          },
+          {
+            "target": "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "5529d368e5305f7688dd8d2d655fe48c4123be0110cdc9c167bce025d8d11c20",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742963
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-5",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-6",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-7",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-8",
+            "totalTargets": 3,
+            "nextOffset": 2
+          },
+          {
+            "deploymentId": "deployment-9",
+            "totalTargets": 3,
+            "nextOffset": 2
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:26:50.038Z",
+        "durationMs": 4008,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": false,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 10
+        },
+        "details": [
+          {
+            "target": "6c798758965b391c581c992b6d54396e2d91cee23b8ac931ea831d6db243b3f5",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742965
+          },
+          {
+            "target": "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742958
+          },
+          {
+            "target": "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742954
+          },
+          {
+            "target": "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-1",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-2",
+            "totalTargets": 3,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-3",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-4",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-5",
+            "totalTargets": 2,
+            "nextOffset": 0
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:26:55.167Z",
+        "durationMs": 5129,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 11
+        },
+        "details": [
+          {
+            "target": "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742954
+          },
+          {
+            "target": "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5",
+            "kind": "instance",
+            "status": "healthy",
+            "liveUntilLedger": 5121061
+          },
+          {
+            "target": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5119519
+          },
+          {
+            "target": "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "75ba6d8e71770bcbd98c1181473cca5d33d4646655c95786be8ed99155d77502",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742947
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-6",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-7",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-8",
+            "totalTargets": 3,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-9",
+            "totalTargets": 3,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-1",
+            "totalTargets": 2,
+            "nextOffset": 1
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:26:59.034Z",
+        "durationMs": 3867,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 12
+        },
+        "details": [
+          {
+            "target": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5119519
+          },
+          {
+            "target": "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-2",
+            "totalTargets": 3,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-3",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-4",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-5",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-6",
+            "totalTargets": 2,
+            "nextOffset": 1
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:27:03.773Z",
+        "durationMs": 4739,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 13
+        },
+        "details": [
+          {
+            "target": "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6",
+            "kind": "instance",
+            "status": "healthy",
+            "liveUntilLedger": 5121061
+          },
+          {
+            "target": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5116155
+          },
+          {
+            "target": "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742958
+          },
+          {
+            "target": "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742749
+          },
+          {
+            "target": "8010433a3c6c4ee8281ffa33a253a83ea00c8b1225061485592bd49b2654bec2",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742959
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-7",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-8",
+            "totalTargets": 3,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-9",
+            "totalTargets": 3,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-1",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-2",
+            "totalTargets": 3,
+            "nextOffset": 2
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:27:08.864Z",
+        "durationMs": 5090,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": false,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 14
+        },
+        "details": [
+          {
+            "target": "8143bb9947f380e92c2dd7c33010e1917fbc460bdd225e17d1b913491c0813f9",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5119520
+          },
+          {
+            "target": "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742954
+          },
+          {
+            "target": "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742958
+          },
+          {
+            "target": "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5",
+            "kind": "instance",
+            "status": "healthy",
+            "liveUntilLedger": 5121061
+          },
+          {
+            "target": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5119519
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-3",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-4",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-5",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-6",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-7",
+            "totalTargets": 2,
+            "nextOffset": 0
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:27:13.400Z",
+        "durationMs": 4535,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 15
+        },
+        "details": [
+          {
+            "target": "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742749
+          },
+          {
+            "target": "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742954
+          },
+          {
+            "target": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "8b5550b4770c2d03601f6392496e45689973d46c608a24e9f1dd60d91904cb78",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742955
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-8",
+            "totalTargets": 3,
+            "nextOffset": 2
+          },
+          {
+            "deploymentId": "deployment-9",
+            "totalTargets": 3,
+            "nextOffset": 2
+          },
+          {
+            "deploymentId": "deployment-1",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-2",
+            "totalTargets": 3,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-3",
+            "totalTargets": 2,
+            "nextOffset": 1
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:27:17.470Z",
+        "durationMs": 4070,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 16
+        },
+        "details": [
+          {
+            "target": "9fd83725816348bf04b594b07354991c3abb110ae6b8e21dcaa2c50a9d1063a0",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742957
+          },
+          {
+            "target": "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6",
+            "kind": "instance",
+            "status": "healthy",
+            "liveUntilLedger": 5121061
+          },
+          {
+            "target": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5116155
+          },
+          {
+            "target": "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742954
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-4",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-5",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-6",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-7",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-8",
+            "totalTargets": 3,
+            "nextOffset": 0
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:27:22.074Z",
+        "durationMs": 4603,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 17
+        },
+        "details": [
+          {
+            "target": "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742954
+          },
+          {
+            "target": "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742958
+          },
+          {
+            "target": "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "addd86767bd2691b26110b1c5fec071f48047ebc3ce7611a46a59b70c3329922",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742949
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-9",
+            "totalTargets": 3,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-1",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-2",
+            "totalTargets": 3,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-3",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-4",
+            "totalTargets": 2,
+            "nextOffset": 0
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:27:27.465Z",
+        "durationMs": 5390,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 18
+        },
+        "details": [
+          {
+            "target": "b26ca591192cf9c092447585f487a2b754e6285dfde7804df144f8116196fe46",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5119990
+          },
+          {
+            "target": "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742958
+          },
+          {
+            "target": "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742954
+          },
+          {
+            "target": "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5",
+            "kind": "instance",
+            "status": "healthy",
+            "liveUntilLedger": 5121061
+          },
+          {
+            "target": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5119519
+          },
+          {
+            "target": "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-5",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-6",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-7",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-8",
+            "totalTargets": 3,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-9",
+            "totalTargets": 3,
+            "nextOffset": 1
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:27:32.195Z",
+        "durationMs": 4729,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 19
+        },
+        "details": [
+          {
+            "target": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742749
+          },
+          {
+            "target": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "c2fae909c6db9659cc0249c98f9d699216a90625173aec13d41ac4a380471db0",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742948
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-1",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-2",
+            "totalTargets": 3,
+            "nextOffset": 2
+          },
+          {
+            "deploymentId": "deployment-3",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-4",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-5",
+            "totalTargets": 2,
+            "nextOffset": 1
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:27:37.191Z",
+        "durationMs": 4996,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 20
+        },
+        "details": [
+          {
+            "target": "e496a8cd0fad78f801ece1087c1f258ecb76684a09eca420d1222d5b6e9ca28b",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742953
+          },
+          {
+            "target": "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6",
+            "kind": "instance",
+            "status": "healthy",
+            "liveUntilLedger": 5121061
+          },
+          {
+            "target": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5116155
+          },
+          {
+            "target": "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742749
+          },
+          {
+            "target": "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742958
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-6",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-7",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-8",
+            "totalTargets": 3,
+            "nextOffset": 2
+          },
+          {
+            "deploymentId": "deployment-9",
+            "totalTargets": 3,
+            "nextOffset": 2
+          },
+          {
+            "deploymentId": "deployment-1",
+            "totalTargets": 2,
+            "nextOffset": 0
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:27:41.643Z",
+        "durationMs": 4452,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": false,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 21
+        },
+        "details": [
+          {
+            "target": "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742954
+          },
+          {
+            "target": "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742958
+          },
+          {
+            "target": "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "fb2fb73fca6d385a2bd8c6f8cddc47ef5653b29a1ddf69387b7d988eef54adce",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5119518
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-2",
+            "totalTargets": 3,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-3",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-4",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-5",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-6",
+            "totalTargets": 2,
+            "nextOffset": 0
+          }
+        ]
+      },
+      {
+        "at": "2026-10-04T10:27:47.060Z",
+        "durationMs": 5417,
+        "dryRun": true,
+        "deployments": 5,
+        "submissions": 0,
+        "truncated": true,
+        "budgetExhausted": false,
+        "moreDeployments": true,
+        "partialPipelines": true,
+        "sharedScan": {
+          "totalTargets": 22,
+          "nextOffset": 0
+        },
+        "details": [
+          {
+            "target": "CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK",
+            "kind": "instance",
+            "status": "healthy",
+            "liveUntilLedger": 7756749
+          },
+          {
+            "target": "3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742951
+          },
+          {
+            "target": "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5",
+            "kind": "instance",
+            "status": "healthy",
+            "liveUntilLedger": 5121061
+          },
+          {
+            "target": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 5119519
+          },
+          {
+            "target": "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742954
+          },
+          {
+            "target": "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          },
+          {
+            "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+            "kind": "code",
+            "status": "healthy",
+            "liveUntilLedger": 7742950
+          },
+          {
+            "target": "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6",
+            "kind": "instance",
+            "status": "due",
+            "liveUntilLedger": 0
+          }
+        ],
+        "failedDeployments": [],
+        "scans": [
+          {
+            "deploymentId": "deployment-7",
+            "totalTargets": 2,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-8",
+            "totalTargets": 3,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-9",
+            "totalTargets": 3,
+            "nextOffset": 0
+          },
+          {
+            "deploymentId": "deployment-1",
+            "totalTargets": 2,
+            "nextOffset": 1
+          },
+          {
+            "deploymentId": "deployment-2",
+            "totalTargets": 3,
+            "nextOffset": 1
+          }
+        ]
+      }
+    ],
+    "guards": {
+      "missingSecretStatus": 403,
+      "badSecretStatus": 403
+    },
+    "eligibleDeployments": 9,
+    "uniqueDeploymentInstances": 21,
+    "pipelineSizes": [2, 3, 2, 2, 2, 2, 2, 3, 3],
+    "migrationApplied": true,
+    "firstCompleteDeploymentCoverageTick": 6,
+    "sharedRotationTicks": 22,
+    "distinctTargets": [
+      {
+        "target": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742950
+      },
+      {
+        "target": "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "055bb5c94bc0dac259f08a6adc97e9305fbf901d5facbdcbbedf799810f474bd",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742956
+      },
+      {
+        "target": "100399b3f899be056e0e5c22d7ecafd3104c65d6a94215a864299807f0042fcd",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742962
+      },
+      {
+        "target": "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6",
+        "kind": "instance",
+        "status": "healthy",
+        "liveUntilLedger": 5121061
+      },
+      {
+        "target": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 5116155
+      },
+      {
+        "target": "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742958
+      },
+      {
+        "target": "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742749
+      },
+      {
+        "target": "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742954
+      },
+      {
+        "target": "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "1d9d2f5f4ae558b48c3701f1dc4c332b5fe318104c993dd6a400597b49d07221",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 5116156
+      },
+      {
+        "target": "232dca3682e469969614db0f40d955bee12175a49e9afd5a6175e067407291da",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 5116157
+      },
+      {
+        "target": "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5",
+        "kind": "instance",
+        "status": "healthy",
+        "liveUntilLedger": 5121061
+      },
+      {
+        "target": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 5119519
+      },
+      {
+        "target": "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "2d3c99b5aeacbbc7cda0f3aad8bc98bc42c708260e9ee223ab28056ebf078de0",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 5119991
+      },
+      {
+        "target": "3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742951
+      },
+      {
+        "target": "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW",
+        "kind": "instance",
+        "status": "due",
+        "liveUntilLedger": 0
+      },
+      {
+        "target": "503c7dc8c8731b3df6eb2929114bd25c062dfdbea2d46c73a37d693f0676fc3f",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742952
+      },
+      {
+        "target": "5529d368e5305f7688dd8d2d655fe48c4123be0110cdc9c167bce025d8d11c20",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742963
+      },
+      {
+        "target": "6c798758965b391c581c992b6d54396e2d91cee23b8ac931ea831d6db243b3f5",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742965
+      },
+      {
+        "target": "75ba6d8e71770bcbd98c1181473cca5d33d4646655c95786be8ed99155d77502",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742947
+      },
+      {
+        "target": "8010433a3c6c4ee8281ffa33a253a83ea00c8b1225061485592bd49b2654bec2",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742959
+      },
+      {
+        "target": "8143bb9947f380e92c2dd7c33010e1917fbc460bdd225e17d1b913491c0813f9",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 5119520
+      },
+      {
+        "target": "8b5550b4770c2d03601f6392496e45689973d46c608a24e9f1dd60d91904cb78",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742955
+      },
+      {
+        "target": "9fd83725816348bf04b594b07354991c3abb110ae6b8e21dcaa2c50a9d1063a0",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742957
+      },
+      {
+        "target": "addd86767bd2691b26110b1c5fec071f48047ebc3ce7611a46a59b70c3329922",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742949
+      },
+      {
+        "target": "b26ca591192cf9c092447585f487a2b754e6285dfde7804df144f8116196fe46",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 5119990
+      },
+      {
+        "target": "c2fae909c6db9659cc0249c98f9d699216a90625173aec13d41ac4a380471db0",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742948
+      },
+      {
+        "target": "e496a8cd0fad78f801ece1087c1f258ecb76684a09eca420d1222d5b6e9ca28b",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 7742953
+      },
+      {
+        "target": "fb2fb73fca6d385a2bd8c6f8cddc47ef5653b29a1ddf69387b7d988eef54adce",
+        "kind": "code",
+        "status": "healthy",
+        "liveUntilLedger": 5119518
+      },
+      {
+        "target": "CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK",
+        "kind": "instance",
+        "status": "healthy",
+        "liveUntilLedger": 7756749
+      }
+    ],
+    "endpointTotalMs": 103044,
+    "endpointP50Ms": 4739,
+    "endpointMaxMs": 5626,
+    "failedDeploymentAttempts": 0,
+    "budgetExhaustions": 0
+  },
+  "observedFeeSimulations": {
+    "at": "2026-10-04T10:27:54.441Z",
+    "network": "TESTNET",
+    "environment": "hackathon-testing",
+    "source": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+    "latest": {
+      "id": "2fb9514e3998f6a1006979697e7c7c69ad898ee19cd3cd76ae69db59bf0bbd79",
+      "sequence": 5017217,
+      "protocolVersion": 29
+    },
+    "targets": [
+      {
+        "target": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "entryBytes": 408,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "267818",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "kind": "code",
+        "liveUntilLedger": 7742950,
+        "archived": false,
+        "entryBytes": 3564,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "entryBytes": 408,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "267818",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "entryBytes": 408,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "267818",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "entryBytes": 408,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "267818",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "entryBytes": 408,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "267818",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "055bb5c94bc0dac259f08a6adc97e9305fbf901d5facbdcbbedf799810f474bd",
+        "kind": "code",
+        "liveUntilLedger": 7742956,
+        "archived": false,
+        "entryBytes": 8100,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "100399b3f899be056e0e5c22d7ecafd3104c65d6a94215a864299807f0042fcd",
+        "kind": "code",
+        "liveUntilLedger": 7742962,
+        "archived": false,
+        "entryBytes": 9980,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "entryBytes": 408,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "267818",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6",
+        "kind": "instance",
+        "liveUntilLedger": 5121061,
+        "archived": false,
+        "actualCodeHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+        "entryBytes": 408,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "833251",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+        "kind": "code",
+        "liveUntilLedger": 5116155,
+        "archived": false,
+        "entryBytes": 10284,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "184830417",
+        "defaultCapAccepts": false
+      },
+      {
+        "target": "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "entryBytes": 408,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "267818",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "entryBytes": 408,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "267818",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+        "entryBytes": 796,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "501360",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+        "kind": "code",
+        "liveUntilLedger": 7742958,
+        "archived": false,
+        "entryBytes": 22252,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+        "entryBytes": 700,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "443576",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+        "kind": "code",
+        "liveUntilLedger": 7742749,
+        "archived": false,
+        "entryBytes": 25464,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "entryBytes": 600,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "383385",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "kind": "code",
+        "liveUntilLedger": 7742954,
+        "archived": false,
+        "entryBytes": 18996,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "entryBytes": 600,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "383385",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+        "entryBytes": 952,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "595258",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "entryBytes": 600,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "383385",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "1d9d2f5f4ae558b48c3701f1dc4c332b5fe318104c993dd6a400597b49d07221",
+        "kind": "code",
+        "liveUntilLedger": 5116156,
+        "archived": false,
+        "entryBytes": 21876,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "331449366",
+        "defaultCapAccepts": false
+      },
+      {
+        "target": "232dca3682e469969614db0f40d955bee12175a49e9afd5a6175e067407291da",
+        "kind": "code",
+        "liveUntilLedger": 5116157,
+        "archived": false,
+        "entryBytes": 13128,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "218580911",
+        "defaultCapAccepts": false
+      },
+      {
+        "target": "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5",
+        "kind": "instance",
+        "liveUntilLedger": 5121061,
+        "archived": false,
+        "actualCodeHash": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+        "entryBytes": 952,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "1903359",
+        "defaultCapAccepts": false
+      },
+      {
+        "target": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+        "kind": "code",
+        "liveUntilLedger": 5119519,
+        "archived": false,
+        "entryBytes": 21624,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "345865773",
+        "defaultCapAccepts": false
+      },
+      {
+        "target": "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+        "entryBytes": 700,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "443576",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+        "entryBytes": 700,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "443576",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "entryBytes": 600,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "383385",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "2d3c99b5aeacbbc7cda0f3aad8bc98bc42c708260e9ee223ab28056ebf078de0",
+        "kind": "code",
+        "liveUntilLedger": 5119991,
+        "archived": false,
+        "entryBytes": 6688,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "106676849",
+        "defaultCapAccepts": false
+      },
+      {
+        "target": "3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023",
+        "kind": "code",
+        "liveUntilLedger": 7742951,
+        "archived": false,
+        "entryBytes": 1480,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "entryBytes": 600,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "383385",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW",
+        "kind": "instance",
+        "liveUntilLedger": 0,
+        "archived": true,
+        "actualCodeHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "entryBytes": 600,
+        "simulation": "success",
+        "operation": "restore",
+        "declaredFeeStroops": "383385",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "503c7dc8c8731b3df6eb2929114bd25c062dfdbea2d46c73a37d693f0676fc3f",
+        "kind": "code",
+        "liveUntilLedger": 7742952,
+        "archived": false,
+        "entryBytes": 5916,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "5529d368e5305f7688dd8d2d655fe48c4123be0110cdc9c167bce025d8d11c20",
+        "kind": "code",
+        "liveUntilLedger": 7742963,
+        "archived": false,
+        "entryBytes": 6452,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "6c798758965b391c581c992b6d54396e2d91cee23b8ac931ea831d6db243b3f5",
+        "kind": "code",
+        "liveUntilLedger": 7742965,
+        "archived": false,
+        "entryBytes": 4236,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "75ba6d8e71770bcbd98c1181473cca5d33d4646655c95786be8ed99155d77502",
+        "kind": "code",
+        "liveUntilLedger": 7742947,
+        "archived": false,
+        "entryBytes": 15092,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "8010433a3c6c4ee8281ffa33a253a83ea00c8b1225061485592bd49b2654bec2",
+        "kind": "code",
+        "liveUntilLedger": 7742959,
+        "archived": false,
+        "entryBytes": 24840,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "8143bb9947f380e92c2dd7c33010e1917fbc460bdd225e17d1b913491c0813f9",
+        "kind": "code",
+        "liveUntilLedger": 5119520,
+        "archived": false,
+        "entryBytes": 11904,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "185882387",
+        "defaultCapAccepts": false
+      },
+      {
+        "target": "8b5550b4770c2d03601f6392496e45689973d46c608a24e9f1dd60d91904cb78",
+        "kind": "code",
+        "liveUntilLedger": 7742955,
+        "archived": false,
+        "entryBytes": 22796,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "9fd83725816348bf04b594b07354991c3abb110ae6b8e21dcaa2c50a9d1063a0",
+        "kind": "code",
+        "liveUntilLedger": 7742957,
+        "archived": false,
+        "entryBytes": 4396,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "addd86767bd2691b26110b1c5fec071f48047ebc3ce7611a46a59b70c3329922",
+        "kind": "code",
+        "liveUntilLedger": 7742949,
+        "archived": false,
+        "entryBytes": 9924,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "b26ca591192cf9c092447585f487a2b754e6285dfde7804df144f8116196fe46",
+        "kind": "code",
+        "liveUntilLedger": 5119990,
+        "archived": false,
+        "entryBytes": 25464,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "404847162",
+        "defaultCapAccepts": false
+      },
+      {
+        "target": "c2fae909c6db9659cc0249c98f9d699216a90625173aec13d41ac4a380471db0",
+        "kind": "code",
+        "liveUntilLedger": 7742948,
+        "archived": false,
+        "entryBytes": 17048,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "e496a8cd0fad78f801ece1087c1f258ecb76684a09eca420d1222d5b6e9ca28b",
+        "kind": "code",
+        "liveUntilLedger": 7742953,
+        "archived": false,
+        "entryBytes": 4652,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      },
+      {
+        "target": "fb2fb73fca6d385a2bd8c6f8cddc47ef5653b29a1ddf69387b7d988eef54adce",
+        "kind": "code",
+        "liveUntilLedger": 5119518,
+        "archived": false,
+        "entryBytes": 17820,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "295335955",
+        "defaultCapAccepts": false
+      },
+      {
+        "target": "CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK",
+        "kind": "instance",
+        "liveUntilLedger": 7756749,
+        "archived": false,
+        "actualCodeHash": "3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023",
+        "entryBytes": 96,
+        "simulation": "success",
+        "operation": "extend",
+        "declaredFeeStroops": "11808",
+        "defaultCapAccepts": true
+      }
+    ],
+    "archivalSettings": {
+      "maxEntryTtl": 3110400,
+      "minTemporaryTtl": 720,
+      "minPersistentTtl": 120960,
+      "persistentRentRateDenominator": "1215",
+      "tempRentRateDenominator": "2430",
+      "maxEntriesToArchive": 1000,
+      "liveSorobanStateSizeWindowSampleSize": 30,
+      "liveSorobanStateSizeWindowSamplePeriod": 64,
+      "evictionScanSize": 500000,
+      "startingEvictionScanLevel": 7
+    }
+  },
+  "recovery": {
+    "environment": "hackathon-testing",
+    "network": "TESTNET",
+    "createdAt": "2026-10-04T10:32:33.934Z",
+    "configurations": [
+      {
+        "at": "2026-10-04T10:35:30.935Z",
+        "enabled": "true",
+        "capStroops": "100",
+        "deploymentId": "d13be60c-91c1-4f0d-ab4b-6028cf58467c"
+      },
+      {
+        "at": "2026-10-04T10:38:03.204Z",
+        "enabled": "true",
+        "capStroops": "1000000",
+        "deploymentId": "cbafbb9b-a0a4-4a59-9c80-2f376a6b8559"
+      },
+      {
+        "at": "2026-10-04T10:40:57.285Z",
+        "enabled": "false",
+        "capStroops": "1000000",
+        "deploymentId": "ffd52891-9c54-49b5-9ac3-740e46759edf"
+      }
+    ],
+    "transactions": [
+      {
+        "hash": "1f415af64bd0c4b7ce9c3be4b3c77ac73e951bbd3cfee0a5029ad11cd0df5a73",
+        "ledger": 5017341,
+        "source": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "declaredFeeStroops": "268004",
+        "resultFeeChargedStroops": "226962",
+        "feeEvents": [
+          {
+            "stage": "transactionEventStageBeforeAllTxes",
+            "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+            "amountStroops": "268004"
+          },
+          {
+            "stage": "transactionEventStageAfterAllTxes",
+            "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+            "amountStroops": "-41042"
+          }
+        ],
+        "restored": [
+          {
+            "type": "ttl",
+            "valueSha256": "421cf274a5734a6ea74e8fb00e94b5c2d0474a247c35d35b326d8d30ee7a200d"
+          },
+          {
+            "type": "contractData",
+            "valueSha256": "3a210ae38cedaf54637b8e4e71b6e6bb97f8dd3d236ffc18e484f46a1909b8a8"
+          }
+        ]
+      },
+      {
+        "hash": "4681d207b75b58c9512f9adb8f56d4692d0a01acb53f9b5159b4783914d4e53c",
+        "ledger": 5017342,
+        "source": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "declaredFeeStroops": "268004",
+        "resultFeeChargedStroops": "226962",
+        "feeEvents": [
+          {
+            "stage": "transactionEventStageBeforeAllTxes",
+            "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+            "amountStroops": "268004"
+          },
+          {
+            "stage": "transactionEventStageAfterAllTxes",
+            "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+            "amountStroops": "-41042"
+          }
+        ],
+        "restored": [
+          {
+            "type": "ttl",
+            "valueSha256": "562f8cdcb9ce128fed0c60b9e7d219b5c15d664aacd2ffd32e395baf8052f666"
+          },
+          {
+            "type": "contractData",
+            "valueSha256": "43073a2e2743c69099f1bf45abc69e09a4975908212ff33163230a2d7982f72f"
+          }
+        ]
+      },
+      {
+        "hash": "cd50ba48cb69b998a58335690cc9e4176ab54c9ec8a6a2f4be7e56094825da67",
+        "ledger": 5017343,
+        "source": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "declaredFeeStroops": "501718",
+        "resultFeeChargedStroops": "430257",
+        "feeEvents": [
+          {
+            "stage": "transactionEventStageBeforeAllTxes",
+            "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+            "amountStroops": "501718"
+          },
+          {
+            "stage": "transactionEventStageAfterAllTxes",
+            "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+            "amountStroops": "-71461"
+          }
+        ],
+        "restored": [
+          {
+            "type": "ttl",
+            "valueSha256": "1551be6a90d89e9d6a73e7c6426c0fc45ba5a098469bdc8647b46a825cc954ae"
+          },
+          {
+            "type": "contractData",
+            "valueSha256": "052678fe62d1ced191889f807a98dec543f21c0088ea269d6063baa6bce77c32"
+          }
+        ]
+      },
+      {
+        "hash": "69290d6be8dfe794c564babcca7ae9b5ffa3afc47a49c72962ee7dbf64363624",
+        "ledger": 5017344,
+        "source": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+        "declaredFeeStroops": "443892",
+        "resultFeeChargedStroops": "379957",
+        "feeEvents": [
+          {
+            "stage": "transactionEventStageBeforeAllTxes",
+            "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+            "amountStroops": "443892"
+          },
+          {
+            "stage": "transactionEventStageAfterAllTxes",
+            "payer": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+            "amountStroops": "-63935"
+          }
+        ],
+        "restored": [
+          {
+            "type": "ttl",
+            "valueSha256": "ececd432bc0405f4bcfe42f3e76de9fc9120a1df77c142347b16303ae5b1fc38"
+          },
+          {
+            "type": "contractData",
+            "valueSha256": "821419ae07244f6c06e79e76ba563d1fc1b7b1377c19341a0202626fc6cca49a"
+          }
+        ]
+      }
+    ],
+    "initialSettings": {
+      "enabled": "unset",
+      "capStroops": "unset",
+      "channels": "unset"
+    },
+    "source": "GDJABFKDUF7FB647ZMF6WXFBF3HMZIZ4LNJVEXTHYLBIJLYHHY673JFD",
+    "before": {
+      "latestLedger": 5017273,
+      "entries": [
+        {
+          "address": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+          "liveUntilLedger": 0,
+          "valueSha256": "aaf33793862fe6a1d343eaf89b876a8fc5ca8bc1ea497dbaa10cdaf7ace2deb0"
+        },
+        {
+          "address": "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR",
+          "liveUntilLedger": 0,
+          "valueSha256": "052678fe62d1ced191889f807a98dec543f21c0088ea269d6063baa6bce77c32"
+        },
+        {
+          "address": "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6",
+          "liveUntilLedger": 0,
+          "valueSha256": "e5431dd09b982f53ba04459f014511beae378751ac2227c6c0dda03cd2172a3c"
+        },
+        {
+          "address": "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP",
+          "liveUntilLedger": 0,
+          "valueSha256": "821419ae07244f6c06e79e76ba563d1fc1b7b1377c19341a0202626fc6cca49a"
+        },
+        {
+          "address": "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ",
+          "liveUntilLedger": 0,
+          "valueSha256": "5f7b3547baf86199046476ce700ab5af561a5c454b86e025530d2361360422eb"
+        },
+        {
+          "address": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+          "liveUntilLedger": 0,
+          "valueSha256": "ed4f0c7c2572c4e39720488ba7a2ab601506bf6f3c151567ed0d4e5a9a4f34f3"
+        },
+        {
+          "address": "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE",
+          "liveUntilLedger": 0,
+          "valueSha256": "46c121a05ee4a8b3df43f968aecc5953ac15150b3f3da8fc98894717e213f719"
+        },
+        {
+          "address": "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP",
+          "liveUntilLedger": 0,
+          "valueSha256": "2a5fed2512a9f8160faba4ca8b63dae7265e3d48b51c95cba35ac567fb1f1067"
+        },
+        {
+          "address": "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ",
+          "liveUntilLedger": 0,
+          "valueSha256": "a7bbfe3c7c7dd4f7f63e629cb4a2f7dfd023d4d2590e57c15b422063aa522275"
+        },
+        {
+          "address": "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK",
+          "liveUntilLedger": 0,
+          "valueSha256": "b44c19383775736a6903a7cd343a587f74aa2a5dd47842f1c7ea75be0f3b85b8"
+        },
+        {
+          "address": "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB",
+          "liveUntilLedger": 0,
+          "valueSha256": "526f3107efb70aa08c7d6455b19bae0e704cd1a17a745e3f9f1243496def949b"
+        },
+        {
+          "address": "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH",
+          "liveUntilLedger": 0,
+          "valueSha256": "67c1b44e9d062655964996081276d1f29c550d017a0f7e464fdc7ffe671451fa"
+        },
+        {
+          "address": "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6",
+          "liveUntilLedger": 0,
+          "valueSha256": "48ddbbc43bfcb54f0d44d273f500f4b4914d451825aceb19250220f84fc11591"
+        },
+        {
+          "address": "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6",
+          "liveUntilLedger": 5121061,
+          "valueSha256": "f839ae0952e8acabc2ee27439fc5d002e58c0ba22432e7a40d3a4f420e6624c6"
+        },
+        {
+          "address": "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5",
+          "liveUntilLedger": 5121061,
+          "valueSha256": "91069282fdb4d2d4b6229f2e136b221d52f19ad6c8a06d73f647940fdbf3bba0"
+        },
+        {
+          "address": "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW",
+          "liveUntilLedger": 0,
+          "valueSha256": "3a210ae38cedaf54637b8e4e71b6e6bb97f8dd3d236ffc18e484f46a1909b8a8"
+        },
+        {
+          "address": "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2",
+          "liveUntilLedger": 0,
+          "valueSha256": "34a2babb5acc26170d5b25b79c7f4cb5cbfaecb647b01f7ae170ba86f1a2423f"
+        },
+        {
+          "address": "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX",
+          "liveUntilLedger": 0,
+          "valueSha256": "c09e19ac95af8288910854c16e4db5af8c1ab5ea9163e99da59b9ca2d51f826a"
+        },
+        {
+          "address": "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF",
+          "liveUntilLedger": 0,
+          "valueSha256": "43073a2e2743c69099f1bf45abc69e09a4975908212ff33163230a2d7982f72f"
+        },
+        {
+          "address": "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT",
+          "liveUntilLedger": 0,
+          "valueSha256": "e216279528de55c72f0a1f9fdb4a561d18a6aca40127be33fd3fba7af5c7ae98"
+        },
+        {
+          "address": "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW",
+          "liveUntilLedger": 0,
+          "valueSha256": "1621d97858abe780420b99988821908741c2cc0dc0e7698717923b275b0661ef"
+        }
+      ]
+    },
+    "accountBefore": {
+      "atLedger": 5017273,
+      "balanceStroops": "100000000000",
+      "sequence": "20132642020130816"
+    },
+    "capRejection": {
+      "at": "2026-10-04T10:35:39.995Z",
+      "durationMs": 6058,
+      "dryRun": false,
+      "deployments": 5,
+      "submissions": 4,
+      "truncated": true,
+      "budgetExhausted": false,
+      "moreDeployments": true,
+      "partialPipelines": true,
+      "details": [
+        {
+          "target": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+          "kind": "instance",
+          "status": "failed",
+          "liveUntilLedger": 0,
+          "reason": "TTL maintenance fee exceeds configured cap"
+        },
+        {
+          "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+          "kind": "code",
+          "status": "healthy",
+          "liveUntilLedger": 7742950
+        },
+        {
+          "target": "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP",
+          "kind": "instance",
+          "status": "failed",
+          "liveUntilLedger": 0,
+          "reason": "TTL maintenance fee exceeds configured cap"
+        },
+        {
+          "target": "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK",
+          "kind": "instance",
+          "status": "failed",
+          "liveUntilLedger": 0,
+          "reason": "TTL maintenance fee exceeds configured cap"
+        },
+        {
+          "target": "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH",
+          "kind": "instance",
+          "status": "failed",
+          "liveUntilLedger": 0,
+          "reason": "TTL maintenance fee exceeds configured cap"
+        },
+        {
+          "target": "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6",
+          "kind": "instance",
+          "status": "healthy",
+          "liveUntilLedger": 5121061
+        },
+        {
+          "target": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+          "kind": "code",
+          "status": "healthy",
+          "liveUntilLedger": 5116155
+        },
+        {
+          "target": "055bb5c94bc0dac259f08a6adc97e9305fbf901d5facbdcbbedf799810f474bd",
+          "kind": "code",
+          "status": "healthy",
+          "liveUntilLedger": 7742956
+        }
+      ],
+      "failedDeployments": [],
+      "scans": [
+        {
+          "deploymentId": "deployment-3",
+          "totalTargets": 2,
+          "nextOffset": 1
+        },
+        {
+          "deploymentId": "deployment-4",
+          "totalTargets": 2,
+          "nextOffset": 1
+        },
+        {
+          "deploymentId": "deployment-5",
+          "totalTargets": 2,
+          "nextOffset": 1
+        },
+        {
+          "deploymentId": "deployment-6",
+          "totalTargets": 2,
+          "nextOffset": 1
+        },
+        {
+          "deploymentId": "deployment-7",
+          "totalTargets": 2,
+          "nextOffset": 1
+        }
+      ],
+      "sharedScan": {
+        "totalTargets": 22,
+        "nextOffset": 1
+      }
+    },
+    "accountAfterRejection": {
+      "atLedger": 5017310,
+      "balanceStroops": "100000000000",
+      "sequence": "20132642020130816"
+    },
+    "recovery": {
+      "at": "2026-10-04T10:38:29.119Z",
+      "durationMs": 22912,
+      "dryRun": false,
+      "deployments": 4,
+      "submissions": 4,
+      "truncated": true,
+      "budgetExhausted": true,
+      "moreDeployments": true,
+      "partialPipelines": true,
+      "details": [
+        {
+          "target": "100399b3f899be056e0e5c22d7ecafd3104c65d6a94215a864299807f0042fcd",
+          "kind": "code",
+          "status": "healthy",
+          "liveUntilLedger": 7742962
+        },
+        {
+          "target": "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW",
+          "kind": "instance",
+          "status": "restored",
+          "liveUntilLedger": 5138300,
+          "txHash": "1f415af64bd0c4b7ce9c3be4b3c77ac73e951bbd3cfee0a5029ad11cd0df5a73",
+          "feeStroops": "268004"
+        },
+        {
+          "target": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+          "kind": "code",
+          "status": "healthy",
+          "liveUntilLedger": 7742950
+        },
+        {
+          "target": "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF",
+          "kind": "instance",
+          "status": "restored",
+          "liveUntilLedger": 5138301,
+          "txHash": "4681d207b75b58c9512f9adb8f56d4692d0a01acb53f9b5159b4783914d4e53c",
+          "feeStroops": "268004"
+        },
+        {
+          "target": "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR",
+          "kind": "instance",
+          "status": "restored",
+          "liveUntilLedger": 5138302,
+          "txHash": "cd50ba48cb69b998a58335690cc9e4176ab54c9ec8a6a2f4be7e56094825da67",
+          "feeStroops": "501718"
+        },
+        {
+          "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+          "kind": "code",
+          "status": "healthy",
+          "liveUntilLedger": 7742958
+        },
+        {
+          "target": "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP",
+          "kind": "instance",
+          "status": "restored",
+          "liveUntilLedger": 5138303,
+          "txHash": "69290d6be8dfe794c564babcca7ae9b5ffa3afc47a49c72962ee7dbf64363624",
+          "feeStroops": "443892"
+        },
+        {
+          "target": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+          "kind": "code",
+          "status": "healthy",
+          "liveUntilLedger": 7742749
+        }
+      ],
+      "failedDeployments": [],
+      "scans": [
+        {
+          "deploymentId": "deployment-8",
+          "totalTargets": 3,
+          "nextOffset": 1
+        },
+        {
+          "deploymentId": "deployment-9",
+          "totalTargets": 3,
+          "nextOffset": 1
+        },
+        {
+          "deploymentId": "deployment-1",
+          "totalTargets": 2,
+          "nextOffset": 0
+        },
+        {
+          "deploymentId": "deployment-2",
+          "totalTargets": 3,
+          "nextOffset": 2
+        }
+      ],
+      "sharedScan": {
+        "totalTargets": 22,
+        "nextOffset": 2
+      }
+    },
+    "after": {
+      "latestLedger": 5017344,
+      "entries": [
+        {
+          "address": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+          "liveUntilLedger": 0,
+          "valueSha256": "aaf33793862fe6a1d343eaf89b876a8fc5ca8bc1ea497dbaa10cdaf7ace2deb0"
+        },
+        {
+          "address": "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR",
+          "liveUntilLedger": 5138302,
+          "valueSha256": "052678fe62d1ced191889f807a98dec543f21c0088ea269d6063baa6bce77c32"
+        },
+        {
+          "address": "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6",
+          "liveUntilLedger": 0,
+          "valueSha256": "e5431dd09b982f53ba04459f014511beae378751ac2227c6c0dda03cd2172a3c"
+        },
+        {
+          "address": "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP",
+          "liveUntilLedger": 5138303,
+          "valueSha256": "821419ae07244f6c06e79e76ba563d1fc1b7b1377c19341a0202626fc6cca49a"
+        },
+        {
+          "address": "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ",
+          "liveUntilLedger": 0,
+          "valueSha256": "5f7b3547baf86199046476ce700ab5af561a5c454b86e025530d2361360422eb"
+        },
+        {
+          "address": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+          "liveUntilLedger": 0,
+          "valueSha256": "ed4f0c7c2572c4e39720488ba7a2ab601506bf6f3c151567ed0d4e5a9a4f34f3"
+        },
+        {
+          "address": "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE",
+          "liveUntilLedger": 0,
+          "valueSha256": "46c121a05ee4a8b3df43f968aecc5953ac15150b3f3da8fc98894717e213f719"
+        },
+        {
+          "address": "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP",
+          "liveUntilLedger": 0,
+          "valueSha256": "2a5fed2512a9f8160faba4ca8b63dae7265e3d48b51c95cba35ac567fb1f1067"
+        },
+        {
+          "address": "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ",
+          "liveUntilLedger": 0,
+          "valueSha256": "a7bbfe3c7c7dd4f7f63e629cb4a2f7dfd023d4d2590e57c15b422063aa522275"
+        },
+        {
+          "address": "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK",
+          "liveUntilLedger": 0,
+          "valueSha256": "b44c19383775736a6903a7cd343a587f74aa2a5dd47842f1c7ea75be0f3b85b8"
+        },
+        {
+          "address": "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB",
+          "liveUntilLedger": 0,
+          "valueSha256": "526f3107efb70aa08c7d6455b19bae0e704cd1a17a745e3f9f1243496def949b"
+        },
+        {
+          "address": "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH",
+          "liveUntilLedger": 0,
+          "valueSha256": "67c1b44e9d062655964996081276d1f29c550d017a0f7e464fdc7ffe671451fa"
+        },
+        {
+          "address": "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6",
+          "liveUntilLedger": 0,
+          "valueSha256": "48ddbbc43bfcb54f0d44d273f500f4b4914d451825aceb19250220f84fc11591"
+        },
+        {
+          "address": "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6",
+          "liveUntilLedger": 5121061,
+          "valueSha256": "f839ae0952e8acabc2ee27439fc5d002e58c0ba22432e7a40d3a4f420e6624c6"
+        },
+        {
+          "address": "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5",
+          "liveUntilLedger": 5121061,
+          "valueSha256": "91069282fdb4d2d4b6229f2e136b221d52f19ad6c8a06d73f647940fdbf3bba0"
+        },
+        {
+          "address": "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW",
+          "liveUntilLedger": 5138300,
+          "valueSha256": "3a210ae38cedaf54637b8e4e71b6e6bb97f8dd3d236ffc18e484f46a1909b8a8"
+        },
+        {
+          "address": "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2",
+          "liveUntilLedger": 0,
+          "valueSha256": "34a2babb5acc26170d5b25b79c7f4cb5cbfaecb647b01f7ae170ba86f1a2423f"
+        },
+        {
+          "address": "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX",
+          "liveUntilLedger": 0,
+          "valueSha256": "c09e19ac95af8288910854c16e4db5af8c1ab5ea9163e99da59b9ca2d51f826a"
+        },
+        {
+          "address": "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF",
+          "liveUntilLedger": 5138301,
+          "valueSha256": "43073a2e2743c69099f1bf45abc69e09a4975908212ff33163230a2d7982f72f"
+        },
+        {
+          "address": "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT",
+          "liveUntilLedger": 0,
+          "valueSha256": "e216279528de55c72f0a1f9fdb4a561d18a6aca40127be33fd3fba7af5c7ae98"
+        },
+        {
+          "address": "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW",
+          "liveUntilLedger": 0,
+          "valueSha256": "1621d97858abe780420b99988821908741c2cc0dc0e7698717923b275b0661ef"
+        }
+      ]
+    },
+    "accountAfterRecovery": {
+      "atLedger": 5017344,
+      "balanceStroops": "99998735862",
+      "sequence": "20132642020130820"
+    },
+    "rollback": {
+      "at": "2026-10-04T10:41:04.948Z",
+      "durationMs": 4660,
+      "dryRun": true,
+      "deployments": 5,
+      "submissions": 0,
+      "truncated": true,
+      "budgetExhausted": false,
+      "moreDeployments": true,
+      "partialPipelines": false,
+      "details": [
+        {
+          "target": "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE",
+          "kind": "instance",
+          "status": "due",
+          "liveUntilLedger": 0
+        },
+        {
+          "target": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+          "kind": "code",
+          "status": "healthy",
+          "liveUntilLedger": 7742954
+        },
+        {
+          "target": "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ",
+          "kind": "instance",
+          "status": "due",
+          "liveUntilLedger": 0
+        },
+        {
+          "target": "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB",
+          "kind": "instance",
+          "status": "due",
+          "liveUntilLedger": 0
+        },
+        {
+          "target": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+          "kind": "code",
+          "status": "healthy",
+          "liveUntilLedger": 7742958
+        },
+        {
+          "target": "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6",
+          "kind": "instance",
+          "status": "due",
+          "liveUntilLedger": 0
+        },
+        {
+          "target": "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5",
+          "kind": "instance",
+          "status": "healthy",
+          "liveUntilLedger": 5121061
+        },
+        {
+          "target": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+          "kind": "code",
+          "status": "healthy",
+          "liveUntilLedger": 5119519
+        },
+        {
+          "target": "1d9d2f5f4ae558b48c3701f1dc4c332b5fe318104c993dd6a400597b49d07221",
+          "kind": "code",
+          "status": "healthy",
+          "liveUntilLedger": 5116156
+        }
+      ],
+      "failedDeployments": [],
+      "scans": [
+        {
+          "deploymentId": "deployment-3",
+          "totalTargets": 2,
+          "nextOffset": 0
+        },
+        {
+          "deploymentId": "deployment-4",
+          "totalTargets": 2,
+          "nextOffset": 0
+        },
+        {
+          "deploymentId": "deployment-5",
+          "totalTargets": 2,
+          "nextOffset": 0
+        },
+        {
+          "deploymentId": "deployment-6",
+          "totalTargets": 2,
+          "nextOffset": 0
+        },
+        {
+          "deploymentId": "deployment-7",
+          "totalTargets": 2,
+          "nextOffset": 0
+        }
+      ],
+      "sharedScan": {
+        "totalTargets": 22,
+        "nextOffset": 3
+      }
+    },
+    "finalSettings": {
+      "enabled": "false",
+      "capStroops": "1000000"
+    },
+    "allContractValuesPreserved": true,
+    "declaredTotalStroops": "1481618",
+    "refundTotalStroops": "217480",
+    "netTotalStroops": "1264138",
+    "payerBalanceReductionStroops": "1264138",
+    "restoredEntriesProvenByTransactionMetadata": true
+  },
+  "limitations": [
+    "Back-to-back calls measure coverage and endpoint latency, not an installed one-minute scheduler or a load/soak guarantee.",
+    "Observed workload is nine deployments with two or three unique instances each; expected larger-workload figures are projections.",
+    "Extension simulations include healthy entries. A no-op extension is not a future rent estimate; the runner acts only at the due threshold.",
+    "Four public TESTNET contract instances were genuinely restored; code entries were already live. No public expired-code restoration or invocation/payment-after-restoration was exercised.",
+    "Fee measurements are TESTNET observations. No mainnet budget is established or production activation authorized.",
+    "Successful due extension by the deployed cron and the actual browser/factory/wallet journey remain release checks; current shared Subscription/Webhook hashes were not activated.",
+    "The separate channel/lease follow-up proves both channel cases and held-lease blocking; injected failing inventory targets and long-run lease renewal remain untested in this environment."
+  ],
+  "channelAndLeaseChecks": {
+    "evidenceFile": "ttl-channels-lease-hackathon-testing.json",
+    "fundedChannelRestorations": 4,
+    "configuredUnfundedFallbackRestorations": 4,
+    "concurrentHeldLeaseCallsBlocked": 2,
+    "allApplicationVariablesMatchBaseline": true,
+    "finalPaidMaintenance": "false",
+    "finalSuccessfulDeployment": "39172609-350e-46c2-89f0-d4d0b32fc5b0"
+  }
+}

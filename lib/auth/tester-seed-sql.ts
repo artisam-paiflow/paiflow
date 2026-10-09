@@ -11,12 +11,7 @@ const ARGON2ID_HASH = /^\$argon2id\$v=\d+\$m=\d+,t=\d+,p=\d+\$[A-Za-z0-9+/]+\$[A
 
 export type TesterSeedRow = { username: string; passwordHash: string };
 
-export function testerUsernames(from: number, to: number, prefix = "tester"): string[] {
-  if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1 || to < from) {
-    throw new Error(`Bad range: --from ${from} --to ${to}`);
-  }
-  return Array.from({ length: to - from + 1 }, (_, i) => `${prefix}${from + i}`);
-}
+export { testerUsernames } from "@/lib/auth/tester-usernames";
 
 /**
  * One create-only statement for the accounts a tester round needs. The staging database is not

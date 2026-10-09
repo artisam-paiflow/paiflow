@@ -1,0 +1,162 @@
+{
+  "at": "2026-10-06T12:31:54.759Z",
+  "environment": "hackathon-testing",
+  "network": "TESTNET",
+  "status": "preflight-passed-awaiting-authentication",
+  "authorization": "User approved the bounded correctness campaign on 6 October 2026; no deployment, service-config change or relaxed budget was authorized.",
+  "deployment": {
+    "id": "0ea0dfed-e27f-4da6-bb20-94324c36aed0",
+    "commit": "2403ce282e9c7baf9f537fe021f8c7454a865ef2",
+    "imageDigest": "sha256:b896c42d188635099f78e0422474f7797a45797d7351841e56a427cc7f639b3a",
+    "replicas": 1
+  },
+  "revisionReview": {
+    "previousCommit": "36f46b8b71cd3e0de3962fd33429ea459a8e1e10",
+    "containsEventBatching": true,
+    "eventReaderSourceSha256": "212707ade90134a16ce5fbd039fefd372367148d50938e03fe405938dd67a487",
+    "githubSourceMatchesRuntime": true,
+    "interveningChanges": "Scoped deployment-reconciliation rehearsal, tests, docs and env schema; normal deployment confirmation remains the default. Existing rehearsal scope is not reused by this campaign.",
+    "localCheckoutDifference": "The checkout additionally wires dashboard balance invalidation into ingestion; live reader evidence must use the deployed source."
+  },
+  "configuration": {
+    "rpcHost": "soroban-testnet.stellar.org",
+    "paidTtlMaintenance": false,
+    "relayerChannels": 0,
+    "payrollEnabled": false,
+    "offrampEnabled": false,
+    "sandboxEnabled": false,
+    "publicRegistrationEnabled": false
+  },
+  "provider": {
+    "health": "healthy",
+    "passphrase": "Test SDF Network ; September 2015",
+    "protocolVersion": 29,
+    "latestLedger": 5053165,
+    "oldestLedger": 4932206,
+    "ledgerRetentionWindow": 120960
+  },
+  "rpc": {
+    "requestCount": 6,
+    "retries": 0,
+    "rateLimitErrors": 0,
+    "networkSubmissions": 0,
+    "calls": [
+      {
+        "method": "getHealth",
+        "at": "2026-10-06T12:23:33.674Z",
+        "durationMs": 379
+      },
+      {
+        "method": "getNetwork",
+        "at": "2026-10-06T12:23:35.055Z",
+        "durationMs": 272
+      },
+      {
+        "method": "getLedgerEntries",
+        "at": "2026-10-06T12:23:36.394Z",
+        "durationMs": 737,
+        "keys": 4,
+        "purpose": "factory instance and three existing template code entries"
+      },
+      {
+        "method": "getLedgerEntries",
+        "at": "2026-10-06T12:26:59.079Z",
+        "timestampMeaning": "completed inspection timestamp",
+        "keys": 3,
+        "purpose": "read WASM ABI specifications"
+      },
+      {
+        "method": "getLedgerEntries",
+        "at": "2026-10-06T12:31:52.173Z",
+        "durationMs": 317,
+        "keys": 2,
+        "purpose": "factory/native SAC instances"
+      },
+      {
+        "method": "getLedgerEntries",
+        "at": "2026-10-06T12:31:53.491Z",
+        "durationMs": 266,
+        "keys": 1,
+        "purpose": "factory WASM ABI"
+      }
+    ]
+  },
+  "contracts": {
+    "factory": "CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK",
+    "factoryLiveUntilLedger": 7756749,
+    "templates": [
+      {
+        "kind": "DEPOSIT_TRIGGER",
+        "wasmHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+        "liveUntilLedger": 5116155,
+        "requiredFunctionsPresent": ["__constructor", "deposit", "asset", "next_steps"]
+      },
+      {
+        "kind": "PAYER",
+        "wasmHash": "fb2fb73fca6d385a2bd8c6f8cddc47ef5653b29a1ddf69387b7d988eef54adce",
+        "liveUntilLedger": 5119518,
+        "requiredFunctionsPresent": [
+          "__constructor",
+          "execute_step",
+          "receive_and_forward",
+          "set_next_steps"
+        ]
+      },
+      {
+        "kind": "SPLITTER",
+        "wasmHash": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+        "liveUntilLedger": 5119519,
+        "requiredFunctionsPresent": [
+          "__constructor",
+          "execute_step",
+          "receive_and_forward",
+          "set_next_steps"
+        ]
+      }
+    ],
+    "factoryCode": {
+      "wasmHash": "3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023",
+      "liveUntilLedger": 7742951,
+      "deployPipelineInputs": ["source", "nodes"]
+    },
+    "nativeAsset": {
+      "contractAddress": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+      "executable": "contractExecutableStellarAsset"
+    }
+  },
+  "services": {
+    "completedMigrations": 57,
+    "redisPing": "PONG",
+    "heldSampledCronLeases": 0,
+    "eventsOccurredInSampled10Minutes": 0,
+    "confirmedDeployments": 17,
+    "pendingSignatureDeployments": 1,
+    "qualification": "Two read-only snapshots; not an aggregate RPC traffic or scheduler-headroom measurement."
+  },
+  "localFixtureValidation": {
+    "fixtures": ["A", "B"],
+    "valid": true,
+    "pipelineContractCounts": [5, 6],
+    "realFixtureAddressesAssigned": false,
+    "qualification": "Offline graph/schema/DAG/to-params validation with disposable public-address placeholders; deployed API validation and on-chain simulation remain required."
+  },
+  "financial": {
+    "signedTransactionAttempts": 0,
+    "reservedFeeStroops": "0",
+    "reservedPrincipalStroops": "0",
+    "actualFeeStroops": "0",
+    "friendbotFundingRequests": 0
+  },
+  "modifications": {
+    "appDbWrites": 0,
+    "serviceConfigurationWrites": 0,
+    "deployments": 0
+  },
+  "outstanding": [
+    "Authenticated test-owner session through normal sign-in; sandbox and public registration are disabled.",
+    "Deployed API graph validation and transaction simulations before signatures.",
+    "Fixture creation, payments, grouped/event-routing and pagination execution.",
+    "Real production 100-event same-ledger boundary if an eligible dense fixture exists."
+  ],
+  "inspectionToolCorrections": "An invalid deployment status and event timestamp field were corrected in read-only queries. New inspection Redis clients required waiting for ready before PING. These local inspection issues triggered no provider request retries, account login failures or service changes."
+}

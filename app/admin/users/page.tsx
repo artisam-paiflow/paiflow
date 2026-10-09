@@ -1,7 +1,7 @@
+import { Role } from "@prisma/client";
 import { requirePageSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import Topbar from "@/components/app/topbar";
-import { Role } from "@prisma/client";
 import AdminUserList from "@/components/admin/user-list";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +13,12 @@ export default async function AdminUsers() {
       id: true,
       username: true,
       role: true,
+      analyticsAudience: true,
       isActive: true,
       createdAt: true,
       lastLoginAt: true,
       lockedUntil: true,
+      passwordHash: true,
     },
     orderBy: { createdAt: "desc" },
     take: 200,
@@ -30,7 +32,8 @@ export default async function AdminUsers() {
           Users.
         </h1>
         <AdminUserList
-          initial={users.map((u) => ({
+          initial={users.map(({ passwordHash, ...u }) => ({
+            hasPassword: Boolean(passwordHash),
             ...u,
             createdAt: u.createdAt.toISOString(),
             lastLoginAt: u.lastLoginAt?.toISOString() ?? null,

@@ -1,3 +1,17 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
 
@@ -30,6 +44,8 @@ vi.mock("@/lib/rate-limit", () => ({
   enforceRateLimit: mockEnforceRateLimit,
   clientIp: () => "203.0.113.7",
 }));
+const mockMarkTokenKnown = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock("@/lib/api/v1/pre-auth", () => ({ markTokenKnown: mockMarkTokenKnown }));
 
 import { GET, POST } from "@/app/api/deployments/[id]/api-tokens/route";
 import { DELETE } from "@/app/api/deployments/[id]/api-tokens/[tokenId]/route";
@@ -99,6 +115,12 @@ describe("POST /api/deployments/:id/api-tokens", () => {
     const days = (created.data.expiresAt.getTime() - Date.now()) / 86_400_000;
     expect(days).toBeGreaterThan(29.9);
     expect(days).toBeLessThanOrEqual(30);
+  });
+
+  it("marks the new token known, so a failed-auth block on its address never refuses it (#524)", async () => {
+    const res = await POST(req("POST", { expiresInDays: 30 }), ctx());
+    const { data } = await res.json();
+    expect(mockMarkTokenKnown).toHaveBeenCalledWith(hashApiToken(data.token), expect.any(Date));
   });
 
   it("audits the creation without the plaintext or the hash", async () => {
@@ -221,7 +243,7 @@ describe("POST /api/deployments/:id/api-tokens", () => {
     const res = await POST(req("POST", {}), ctx());
     expect(res.status).toBe(404);
     expect(mockDb.deployment.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: DEP_ID, ownerId: USER.id } }),
+      expect.objectContaining({ where: { id: DEP_ID, ownerId: USER.id, serviceState: "ACTIVE" } }),
     );
   });
 

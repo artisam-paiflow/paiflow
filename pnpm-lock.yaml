@@ -44,7 +44,7 @@ importers:
         version: 2.11.2(@prisma/client@6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3))(@simplewebauthn/browser@14.0.0)(@simplewebauthn/server@14.0.1)
       "@creit.tech/stellar-wallets-kit":
         specifier: ^1.9.5
-        version: 1.9.5(@solana/sysvars@2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(@stellar/stellar-base@15.0.0)(@stellar/stellar-sdk@15.1.0)(@trezor/connect@9.6.2(@solana/sysvars@2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(tslib@2.8.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)))(@types/react@19.2.14)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(ioredis@5.10.1)(near-api-js@5.1.1)(react@19.2.6)(tslib@2.8.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+        version: 1.9.5(@solana/sysvars@2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(@stellar/stellar-base@15.0.0)(@stellar/stellar-sdk@16.3.1)(@trezor/connect@9.6.2(@solana/sysvars@2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(tslib@2.8.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)))(@types/react@19.2.14)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(ioredis@5.10.1)(near-api-js@5.1.1)(react@19.2.6)(tslib@2.8.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       "@hookform/resolvers":
         specifier: ^3.9.1
         version: 3.10.0(react-hook-form@7.75.0(react@19.2.6))
@@ -58,8 +58,8 @@ importers:
         specifier: ^14.0.1
         version: 14.0.1
       "@stellar/stellar-sdk":
-        specifier: ^15.1.0
-        version: 15.1.0
+        specifier: ^16.3.1
+        version: 16.3.1
       "@tanstack/react-query":
         specifier: ^5.62.7
         version: 5.100.10(react@19.2.6)
@@ -97,11 +97,11 @@ importers:
         specifier: ^8.0.3
         version: 8.0.7(patch_hash=38d9e8219dbf1a064c6338516df2c72fd7c9ab9fb1cf4e0dd2c8ed9390b63384)
       next:
-        specifier: ^15.5.25
-        version: 15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(@types/node@22.19.18)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: ^15.5.27
+        version: 15.5.27(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(@types/node@22.19.18)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       next-auth:
         specifier: 5.0.0-beta.32
-        version: 5.0.0-beta.32(@simplewebauthn/browser@14.0.0)(@simplewebauthn/server@14.0.1)(next@15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(@types/node@22.19.18)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
+        version: 5.0.0-beta.32(@simplewebauthn/browser@14.0.0)(@simplewebauthn/server@14.0.1)(next@15.5.27(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(@types/node@22.19.18)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
       pino:
         specifier: ^9.5.0
         version: 9.14.0
@@ -1258,83 +1258,89 @@ packages:
     peerDependencies:
       near-api-js: ^4.0.0 || ^5.0.0
 
-  "@next/env@15.5.25":
+  "@next/env@15.5.27":
     resolution:
-      {
-        integrity: sha512-42h1lLr07vl4gawALP1hsgRZjHB1xYa58JfUfHwr0f7jG/zhPakh5GHkADHXOC9ZxUvlQFOPIrp7s6qX4DezPQ==,
-      }
+      integrity: sha512-WC5hvVqiuFOcRyz6gKPeJkiVvSMf3scNeAV49CdWtVqxmUlzh8UKR6YHt9yiNkh8LngtzqSlVz07/Ma3ZAzchA==
 
-  "@next/swc-darwin-arm64@15.5.25":
+  "@next/swc-darwin-arm64@15.5.27":
     resolution:
-      {
-        integrity: sha512-w+RR0v/QuApnWEjRGm1z6gcObKwGMb5YPA7V3bzBEVSBpMFUXprer0tS27UxjUcEnqbhL7Zuzohej79B6rYmBg==,
-      }
-    engines: { node: ">= 10" }
-    cpu: [arm64]
-    os: [darwin]
+      integrity: sha512-fBA9QurmK4+uj4wNhmRTuO5zMVRaBHCvp6H93zTG/5i6Yi6TewbvbesXB8YQNj8T99Cwrow87hHiFV6wL/hyMA==
+    engines:
+      node: ">= 10"
+    cpu:
+      - arm64
+    os:
+      - darwin
 
-  "@next/swc-darwin-x64@15.5.25":
+  "@next/swc-darwin-x64@15.5.27":
     resolution:
-      {
-        integrity: sha512-QiGGBUSakt8S1H4Lt9Ehsh6Ja87axiBnQQgysOObvCbI7iUfJnRGntF1P64S4/ijuHFnSB8KLsEddkY3nN26uw==,
-      }
-    engines: { node: ">= 10" }
-    cpu: [x64]
-    os: [darwin]
+      integrity: sha512-FGZwJwry8qZNHxD/nfwrCwCHHrqx6epqItkkxbYcBQEQ2uw5S43bY83fQB5zbAsZE7TELMjoYkbhsQ4oKM7wwg==
+    engines:
+      node: ">= 10"
+    cpu:
+      - x64
+    os:
+      - darwin
 
-  "@next/swc-linux-arm64-gnu@15.5.25":
+  "@next/swc-linux-arm64-gnu@15.5.27":
     resolution:
-      {
-        integrity: sha512-ehLos/66zo0d/mJCU5u96a/VDcr01aaUrX0o/i16UdInxz8qPTCDSxGtjk/Lps1sIr1RJFdiX3hxc0fxJo+cPA==,
-      }
-    engines: { node: ">= 10" }
-    cpu: [arm64]
-    os: [linux]
+      integrity: sha512-GQulAaJYNF1RYuatlsw9/uzbKz4if2V7Ic9nVO+P0ljYPm4yBRTFIl6g5YkKTw40lMLbpy9edLoH44g3jSHMYA==
+    engines:
+      node: ">= 10"
+    cpu:
+      - arm64
+    os:
+      - linux
 
-  "@next/swc-linux-arm64-musl@15.5.25":
+  "@next/swc-linux-arm64-musl@15.5.27":
     resolution:
-      {
-        integrity: sha512-ZVMrqLiJ7DiChgmbkQwFtdhAnUkSH/4p7tB29QY+giATb0Q/XGHNRSKAb/B8XGDHRUaA67NepOW5W8u3ZRJBAA==,
-      }
-    engines: { node: ">= 10" }
-    cpu: [arm64]
-    os: [linux]
+      integrity: sha512-URFFsUmu8Pi0/1qdnUI7tx7keZw1Mt5zHfrIX1RfDG9Nih8DYxK54WZsDJUX2ZTlii1jgotL7qcbwKnSAES6xQ==
+    engines:
+      node: ">= 10"
+    cpu:
+      - arm64
+    os:
+      - linux
 
-  "@next/swc-linux-x64-gnu@15.5.25":
+  "@next/swc-linux-x64-gnu@15.5.27":
     resolution:
-      {
-        integrity: sha512-UOewtDGkTMJTiODrEdeLZ50yGb59xCZSriNpXkfPMxRRgwDkGc7i8mLWqV5076wEdb+Ca/XN7MhJyM3CupyNyQ==,
-      }
-    engines: { node: ">= 10" }
-    cpu: [x64]
-    os: [linux]
+      integrity: sha512-aJp74z7uvU5jQhyH7lyk+4qSRcTdKbKT9NQE3jiO9kWYkoHZjKi0zzHDbCoZ+v2sJDEiJ/z58R0UlWMGWNF3HA==
+    engines:
+      node: ">= 10"
+    cpu:
+      - x64
+    os:
+      - linux
 
-  "@next/swc-linux-x64-musl@15.5.25":
+  "@next/swc-linux-x64-musl@15.5.27":
     resolution:
-      {
-        integrity: sha512-UBHwA8AhkCZgtRfU1aJpunuAJe/6gZv6jDESQe4p5MjTb5V0YEeJBWCdNqx15Vj3x+5jmauRfeMJSjfQj9HGFQ==,
-      }
-    engines: { node: ">= 10" }
-    cpu: [x64]
-    os: [linux]
+      integrity: sha512-ILl2bQ8MbpvyMpY8AXljb3BXs0MJSC8HXZ6QV5AWpVS7ZELqNPtrHvhUk+SNarvjvICXX8bCS287TCi+gUFVYg==
+    engines:
+      node: ">= 10"
+    cpu:
+      - x64
+    os:
+      - linux
 
-  "@next/swc-win32-arm64-msvc@15.5.25":
+  "@next/swc-win32-arm64-msvc@15.5.27":
     resolution:
-      {
-        integrity: sha512-QcFcPRr16djk5IqK5+e8O80eZfgWzIvVBXfitIq0tQ/uc+eyfdoZ0NmKc0cnbIJyfVwREapKuG97YcxWA9gcpA==,
-      }
-    engines: { node: ">= 10" }
-    cpu: [arm64]
-    os: [win32]
+      integrity: sha512-1MB9Rh5y8TOPN2x7naNTJNkCZQav9c70AI7EBYXxsEewwOffC4DjjwBwKf20NBvcA+u+5jDv7nVmHxunlP2d7Q==
+    engines:
+      node: ">= 10"
+    cpu:
+      - arm64
+    os:
+      - win32
 
-  "@next/swc-win32-x64-msvc@15.5.25":
+  "@next/swc-win32-x64-msvc@15.5.27":
     resolution:
-      {
-        integrity: sha512-zREeykps3ndWr9egJgvJKqVkkDuaw6Zrrg23cYBos0ygydFkAWYU4+PaPVwXzP1eAYQJe53ShSK45iDM529BOg==,
-      }
-    engines: { node: ">= 10" }
-    cpu: [x64]
-    os: [win32]
+      integrity: sha512-XtYgpGOswgnyBWXzOEG6q9RhvnSw0CEZ0MbWqCsl5PISgt9EzvJvNW5mU5n1PsphX/lnamzxjgQXH2GUJL8nqg==
+    engines:
+      node: ">= 10"
+    cpu:
+      - x64
+    os:
+      - win32
 
   "@ngneat/elf-devtools@1.3.0":
     resolution:
@@ -1394,6 +1400,12 @@ packages:
         integrity: sha512-T/BoHgFXirb0ENSPBquzX0rcjXeM6Lo892a2jlYJkqk83LqZx0l1Of7DzlKJ6jkpvMrkHSnAcgb5JegL8SeIkQ==,
       }
     engines: { node: ">= 20.19.0" }
+
+  "@noble/ed25519@3.2.0":
+    resolution:
+      {
+        integrity: sha512-criDgRlnUA09hchYrTy/JUWPIEap5rZxQe6wDWzRx51oWWpDRcUpuNzlgPxDJaOK6AsW9c0wKcj3rKRv6t+bPQ==,
+      }
 
   "@noble/hashes@1.3.3":
     resolution:
@@ -2487,6 +2499,7 @@ packages:
         integrity: sha512-90EArG+eCCEzDGj3OJNoCtwpWDwxjv+rs/RNPhvg4bulpjN/CSRj+Ys/SalRcfM4/WRC5/qAfjzmJBAuquWhkA==,
       }
     engines: { node: ">=18.0.0" }
+    deprecated: This package is now rolled into @stellar/stellar-sdk. Please use @stellar/stellar-sdk to continue receiving updates and support.
 
   "@stellar/stellar-base@15.0.0":
     resolution:
@@ -2494,6 +2507,7 @@ packages:
         integrity: sha512-XQhxUr9BYiEcFcgc4oWcCMR9QJCny/GmmGsuwPKf/ieIcOeb5149KLHYx9mJCA0ea8QbucR2/GzV58QbXOTxQA==,
       }
     engines: { node: ">=20.0.0" }
+    deprecated: This package is now rolled into @stellar/stellar-sdk. Please use @stellar/stellar-sdk to continue receiving updates and support.
 
   "@stellar/stellar-sdk@13.3.0":
     resolution:
@@ -2502,12 +2516,12 @@ packages:
       }
     engines: { node: ">=18.0.0" }
 
-  "@stellar/stellar-sdk@15.1.0":
+  "@stellar/stellar-sdk@16.3.1":
     resolution:
       {
-        integrity: sha512-GsJUcWx2yboVzYdhTe/LHS3V1wVLSHkUkglC5bBoYWGJt31vzIhbSGno60NP9CdCTNkLJdnrsLJ63oA58Zvh5A==,
+        integrity: sha512-PPM1JA51NChSPyMkh+T9sHxJtP/v9e9Gcyc2BMNvnGvbZwqoKJclRSdPgmalLDAmTnTewGs7VMM9nRxDeCzzgQ==,
       }
-    engines: { node: ">=20.0.0" }
+    engines: { node: ">=22.0.0" }
     hasBin: true
 
   "@swc/helpers@0.5.15":
@@ -3541,6 +3555,12 @@ packages:
       }
     engines: { node: ">=0.6" }
 
+  bignumber.js@11.1.5:
+    resolution:
+      {
+        integrity: sha512-6WmzCNtUnfKpbozq+hOgWaZMMzORmYBwF1xZScyoIX3QRYWeKTtxxwDOW5tIz7C9BdjkIYHGTcelCLkXg0mndw==,
+      }
+
   bignumber.js@9.3.1:
     resolution:
       {
@@ -4490,12 +4510,26 @@ packages:
       }
     engines: { node: ">=0.8.x" }
 
+  eventsource-parser@3.1.1:
+    resolution:
+      {
+        integrity: sha512-EKN1vKAMcZ8MlYMpaNuxN6R9yakzH6uajHcHVTqWJzvu5pWw9DyhbP35HH8MVBQ+dZjAfDxk+A8NiR9KWaXiyQ==,
+      }
+    engines: { node: ">=18.0.0" }
+
   eventsource@2.0.2:
     resolution:
       {
         integrity: sha512-IzUmBGPR3+oUG9dUeXynyNmf91/3zUSJg1lCktzKw47OXuhco54U3r9B7O4XX+Rb1Itm9OZ2b0RkTs10bICOxA==,
       }
     engines: { node: ">=12.0.0" }
+
+  eventsource@4.1.1:
+    resolution:
+      {
+        integrity: sha512-D6bTRWh6KahHTK/m4WnjPQyEinNPf9eFLEZSEoj7d6fTibspnAVYfzHvirL7u/aoX5d9YYfIkBVAhmigUELk9w==,
+      }
+    engines: { node: ">=20.0.0" }
 
   expect-type@1.3.0:
     resolution:
@@ -5671,12 +5705,11 @@ packages:
       nodemailer:
         optional: true
 
-  next@15.5.25:
+  next@15.5.27:
     resolution:
-      {
-        integrity: sha512-OMWNulIIqKM2ykvC2qMjIt0IoavB4UB2SCs4iXJ6z6847FvyH8jBmBWcvrF5iuhTu8Przh20Fo/aoszIdqx4PA==,
-      }
-    engines: { node: ^18.18.0 || ^19.8.0 || >= 20.0.0 }
+      integrity: sha512-F82CrlPZ8GRxBH9RIIoR3qU1t5RT3dv1K8moe8SjlDEquiFipvEI13R1Om90TaUOEwShkWCMlg8+gvTNzfMhvg==
+    engines:
+      node: ^18.18.0 || ^19.8.0 || >= 20.0.0
     hasBin: true
     peerDependencies:
       "@opentelemetry/api": ^1.1.0
@@ -6712,6 +6745,13 @@ packages:
       }
     engines: { node: ">= 6.0.0", npm: ">= 3.0.0" }
 
+  smol-toml@1.9.0:
+    resolution:
+      {
+        integrity: sha512-hpd+HLON7HdZXqYchMM/+LaTTbdK0AU3NngIJ4KVyWbY9bfQqdL9cD+4yf6dUoU2Ap4VsU0JkQi6FxAI1B2mXQ==,
+      }
+    engines: { node: ">= 18" }
+
   socks-proxy-agent@8.0.5:
     resolution:
       {
@@ -7189,6 +7229,13 @@ packages:
       {
         integrity: sha512-JFNbkD1Svwe0KvGi8GOeLcP4kAWQ609twvCdcHxq1oSL8svv39ZuSvajcD8B+5D0eL4+s1Is2D/O6KN3qcTeRA==,
       }
+
+  uint8array-extras@1.6.0:
+    resolution:
+      {
+        integrity: sha512-8iAasVS4wUx0gPLjH8Xtz2PeDzTSiy8QiLGu2DT3X5GU+egFEQhpnbtkehbAwjvDcxIERmCYcysiODFmE3Ud0Q==,
+      }
+    engines: { node: ">=18" }
 
   uint8array-tools@0.0.8:
     resolution:
@@ -7795,7 +7842,7 @@ snapshots:
     dependencies:
       css-tree: 3.2.1
 
-  "@creit.tech/stellar-wallets-kit@1.9.5(@solana/sysvars@2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(@stellar/stellar-base@15.0.0)(@stellar/stellar-sdk@15.1.0)(@trezor/connect@9.6.2(@solana/sysvars@2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(tslib@2.8.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)))(@types/react@19.2.14)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(ioredis@5.10.1)(near-api-js@5.1.1)(react@19.2.6)(tslib@2.8.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))":
+  "@creit.tech/stellar-wallets-kit@1.9.5(@solana/sysvars@2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(@stellar/stellar-base@15.0.0)(@stellar/stellar-sdk@16.3.1)(@trezor/connect@9.6.2(@solana/sysvars@2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(tslib@2.8.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)))(@types/react@19.2.14)(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(ioredis@5.10.1)(near-api-js@5.1.1)(react@19.2.6)(tslib@2.8.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))":
     dependencies:
       "@albedo-link/intent": 0.12.0
       "@creit.tech/xbull-wallet-connect": 0.4.0
@@ -7810,7 +7857,7 @@ snapshots:
       "@ngneat/elf-persist-state": 1.2.1(rxjs@7.8.1)
       "@stellar/freighter-api": 5.0.0
       "@stellar/stellar-base": 15.0.0
-      "@trezor/connect-plugin-stellar": 9.2.1(@stellar/stellar-sdk@15.1.0)(@trezor/connect@9.6.2(@solana/sysvars@2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(tslib@2.8.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)))(tslib@2.8.1)
+      "@trezor/connect-plugin-stellar": 9.2.1(@stellar/stellar-sdk@16.3.1)(@trezor/connect@9.6.2(@solana/sysvars@2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(tslib@2.8.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)))(tslib@2.8.1)
       "@trezor/connect-web": 9.6.2(@solana/sysvars@2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(tslib@2.8.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       "@walletconnect/modal": 2.6.2(@types/react@19.2.14)(react@19.2.6)
       "@walletconnect/sign-client": 2.11.2(bufferutil@4.1.0)(ioredis@5.10.1)(utf-8-validate@6.0.6)
@@ -8420,30 +8467,30 @@ snapshots:
       near-api-js: 5.1.1
       rxjs: 7.8.1
 
-  "@next/env@15.5.25": {}
+  "@next/env@15.5.27": {}
 
-  "@next/swc-darwin-arm64@15.5.25":
+  "@next/swc-darwin-arm64@15.5.27":
     optional: true
 
-  "@next/swc-darwin-x64@15.5.25":
+  "@next/swc-darwin-x64@15.5.27":
     optional: true
 
-  "@next/swc-linux-arm64-gnu@15.5.25":
+  "@next/swc-linux-arm64-gnu@15.5.27":
     optional: true
 
-  "@next/swc-linux-arm64-musl@15.5.25":
+  "@next/swc-linux-arm64-musl@15.5.27":
     optional: true
 
-  "@next/swc-linux-x64-gnu@15.5.25":
+  "@next/swc-linux-x64-gnu@15.5.27":
     optional: true
 
-  "@next/swc-linux-x64-musl@15.5.25":
+  "@next/swc-linux-x64-musl@15.5.27":
     optional: true
 
-  "@next/swc-win32-arm64-msvc@15.5.25":
+  "@next/swc-win32-arm64-msvc@15.5.27":
     optional: true
 
-  "@next/swc-win32-x64-msvc@15.5.25":
+  "@next/swc-win32-x64-msvc@15.5.27":
     optional: true
 
   "@ngneat/elf-devtools@1.3.0": {}
@@ -8476,6 +8523,8 @@ snapshots:
   "@noble/curves@2.2.0":
     dependencies:
       "@noble/hashes": 2.2.0
+
+  "@noble/ed25519@3.2.0": {}
 
   "@noble/hashes@1.3.3": {}
 
@@ -9347,17 +9396,20 @@ snapshots:
       - debug
       - supports-color
 
-  "@stellar/stellar-sdk@15.1.0":
+  "@stellar/stellar-sdk@16.3.1":
     dependencies:
-      "@stellar/stellar-base": 15.0.0
+      "@noble/ed25519": 3.2.0
+      "@noble/hashes": 2.2.0
+      "@stellar/js-xdr": 4.0.0
       axios: 1.20.0
-      bignumber.js: 9.3.1
+      base32.js: 0.1.0
+      bignumber.js: 11.1.5
+      buffer: 6.0.3
       commander: 14.0.3
-      eventsource: 2.0.2
+      eventsource: 4.1.1
       feaxios: 0.0.23
-      randombytes: 2.1.0
-      toml: 4.3.0
-      urijs: 1.19.11
+      smol-toml: 1.9.0
+      uint8array-extras: 1.6.0
     transitivePeerDependencies:
       - debug
       - supports-color
@@ -9556,9 +9608,9 @@ snapshots:
       - expo-localization
       - react-native
 
-  "@trezor/connect-plugin-stellar@9.2.1(@stellar/stellar-sdk@15.1.0)(@trezor/connect@9.6.2(@solana/sysvars@2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(tslib@2.8.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)))(tslib@2.8.1)":
+  "@trezor/connect-plugin-stellar@9.2.1(@stellar/stellar-sdk@16.3.1)(@trezor/connect@9.6.2(@solana/sysvars@2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(tslib@2.8.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)))(tslib@2.8.1)":
     dependencies:
-      "@stellar/stellar-sdk": 15.1.0
+      "@stellar/stellar-sdk": 16.3.1
       "@trezor/connect": 9.6.2(@solana/sysvars@2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(tslib@2.8.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       "@trezor/utils": 9.4.1(tslib@2.8.1)
       tslib: 2.8.1
@@ -10295,6 +10347,8 @@ snapshots:
 
   big-integer@1.6.36: {}
 
+  bignumber.js@11.1.5: {}
+
   bignumber.js@9.3.1: {}
 
   bindings@1.5.0:
@@ -10846,7 +10900,13 @@ snapshots:
 
   events@3.3.0: {}
 
+  eventsource-parser@3.1.1: {}
+
   eventsource@2.0.2: {}
+
+  eventsource@4.1.1:
+    dependencies:
+      eventsource-parser: 3.1.1
 
   expect-type@1.3.0: {}
 
@@ -11514,18 +11574,18 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  next-auth@5.0.0-beta.32(@simplewebauthn/browser@14.0.0)(@simplewebauthn/server@14.0.1)(next@15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(@types/node@22.19.18)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6):
+  next-auth@5.0.0-beta.32(@simplewebauthn/browser@14.0.0)(@simplewebauthn/server@14.0.1)(next@15.5.27(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(@types/node@22.19.18)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6):
     dependencies:
       "@auth/core": 0.41.3(@simplewebauthn/browser@14.0.0)(@simplewebauthn/server@14.0.1)
-      next: 15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(@types/node@22.19.18)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      next: 15.5.27(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(@types/node@22.19.18)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react: 19.2.6
     optionalDependencies:
       "@simplewebauthn/browser": 14.0.0
       "@simplewebauthn/server": 14.0.1
 
-  next@15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(@types/node@22.19.18)(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
+  next@15.5.27(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(@types/node@22.19.18)(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
     dependencies:
-      "@next/env": 15.5.25
+      "@next/env": 15.5.27
       "@swc/helpers": 0.5.15
       caniuse-lite: 1.0.30001810
       postcss: 8.5.28
@@ -11533,14 +11593,14 @@ snapshots:
       react-dom: 19.2.6(react@19.2.6)
       styled-jsx: 5.1.6(react@19.2.6)
     optionalDependencies:
-      "@next/swc-darwin-arm64": 15.5.25
-      "@next/swc-darwin-x64": 15.5.25
-      "@next/swc-linux-arm64-gnu": 15.5.25
-      "@next/swc-linux-arm64-musl": 15.5.25
-      "@next/swc-linux-x64-gnu": 15.5.25
-      "@next/swc-linux-x64-musl": 15.5.25
-      "@next/swc-win32-arm64-msvc": 15.5.25
-      "@next/swc-win32-x64-msvc": 15.5.25
+      "@next/swc-darwin-arm64": 15.5.27
+      "@next/swc-darwin-x64": 15.5.27
+      "@next/swc-linux-arm64-gnu": 15.5.27
+      "@next/swc-linux-arm64-musl": 15.5.27
+      "@next/swc-linux-x64-gnu": 15.5.27
+      "@next/swc-linux-x64-musl": 15.5.27
+      "@next/swc-win32-arm64-msvc": 15.5.27
+      "@next/swc-win32-x64-msvc": 15.5.27
       "@opentelemetry/api": 1.9.1
       "@playwright/test": 1.59.1
       sharp: 0.35.5(@types/node@22.19.18)
@@ -12150,6 +12210,8 @@ snapshots:
 
   smart-buffer@4.2.0: {}
 
+  smol-toml@1.9.0: {}
+
   socks-proxy-agent@8.0.5:
     dependencies:
       agent-base: 7.1.4
@@ -12399,6 +12461,8 @@ snapshots:
       ua-is-frozen: 0.1.2
 
   ufo@1.6.4: {}
+
+  uint8array-extras@1.6.0: {}
 
   uint8array-tools@0.0.8: {}
 

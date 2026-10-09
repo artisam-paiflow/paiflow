@@ -60,6 +60,7 @@ export const SANDBOX_POLL_WINDOW_MS = 24 * 60 * 60 * 1000;
 export function cronPollableDeploymentWhere(now: Date): Prisma.DeploymentWhereInput {
   return {
     status: "CONFIRMED",
+    serviceState: "ACTIVE",
     // One object under NOT is NOT (a AND b): a row drops out only when it is
     // sandbox-owned and past the window. Every other owner is polled as before.
     NOT: {

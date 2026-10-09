@@ -27,10 +27,18 @@ function u64(n: number | bigint): xdr.ScVal {
 }
 
 function bool(b: boolean): xdr.ScVal {
-  return nativeToScVal(b, { type: "bool" });
+  return xdr.ScVal.scvBool(b);
 }
 
-// Mode is a #[contracttype] enum; in Soroban SDK v26 it serializes as
+/**
+ * The `Side` argument of timelock_branch's `release_by_relayer`: the list the
+ * caller intends to pay, which the contract checks against the ledger time.
+ */
+export function timelockSideArg(side: "before" | "after"): xdr.ScVal {
+  return enumVariant(side === "before" ? "Before" : "After");
+}
+
+// Mode and Side are #[contracttype] enums; in Soroban SDK v26 they serialize as
 // ScVal::Vec([ScVal::Symbol(variant_name)]) for fieldless variants.
 function enumVariant(name: string): xdr.ScVal {
   const variants = ["After", "Before"];
@@ -247,6 +255,18 @@ export function pipelineNodeConstructorArgs(
         u64(params.unlockTime),
         enumVariant(params.mode === "after" ? "After" : "Before"),
         workflowTargets(params.nextStepNodeIds, nodeAddresses),
+        addr(parentAddress),
+        addr(params.relayer ?? admin),
+      ];
+    }
+    case "timelock_branch": {
+      if (!parentAddress) throw new Error("Timelock branch requires a parent address");
+      return [
+        addr(admin),
+        addr(assetContractId(params.asset)),
+        u64(params.unlockTime),
+        workflowTargets(params.beforeNodeIds, nodeAddresses),
+        workflowTargets(params.afterNodeIds, nodeAddresses),
         addr(parentAddress),
         addr(params.relayer ?? admin),
       ];

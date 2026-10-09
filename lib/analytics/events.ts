@@ -47,8 +47,20 @@ type DeployStage = "wallet" | "prepare" | "sign" | "submit" | "finality_timeout"
 type TriggerStage = "wallet" | "prepare" | "sign" | "submit" | "onchain" | "status_poll";
 
 export type EventMap = {
+  api_request_completed: {
+    request_id: string;
+    endpoint: string;
+    method: string;
+    http_status: number;
+    duration_ms: number;
+    error_code: string | null;
+    api_token_id: string | null;
+    token_creator_id: string | null;
+    deployment_id: string | null;
+    tx_hash: string | null;
+  };
   // 1. Setup & access
-  login_succeeded: { method: "password" | "ticket" };
+  login_succeeded: { method: "password" | "ticket" | "google" };
   login_failed: { reason: "bad_password" | "locked" };
   wallet_connect_succeeded: { surface: WalletSurface; wallet_id: string; wallet_address: string };
   error_shown: { error_class: ErrorClass; error_code: string | null; message_key: string };
@@ -139,6 +151,22 @@ export type EventMap = {
     signed_by_source: boolean;
   };
 
+  transaction_outcome: {
+    deployment_id: string | null;
+    tx_hash: string;
+    signer_address: string;
+    kind: "deploy" | "trigger" | "invoke" | "api_execute";
+    outcome: "RECEIVED" | "ACCEPTED" | "UNRESOLVED" | "REJECTED" | "CONFIRMED" | "FAILED";
+    outcome_revision: number;
+    ledger: number | null;
+    failure_code: string | null;
+  };
+  exception_captured: {
+    stage: "runtime" | "unhandled_rejection" | "render";
+    error_class: ErrorClass;
+    error_code: string | null;
+    frames: string[];
+  };
   // 5. Verify
   deployment_page_viewed: { deployment_id: string; status: string };
   live_feed_disconnected: { deployment_id: string; disconnect_count: number };

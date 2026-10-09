@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
     const items = await db.deployment.findMany({
       where: {
         ownerId: user.id,
+        serviceState: { not: "RETIRED" },
         ...(q.flowId ? { flowId: q.flowId } : {}),
         ...(q.status ? { status: q.status as never } : {}),
       },
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
         id: true,
         contractAddress: true,
         status: true,
+        serviceState: true,
         network: true,
         createdAt: true,
         confirmedAt: true,

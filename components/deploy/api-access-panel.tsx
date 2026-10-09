@@ -5,7 +5,13 @@ import { toast } from "sonner";
 import { apiError } from "@/lib/friendly-error";
 import { toastError } from "@/lib/friendly-toast";
 import { track } from "@/lib/analytics/client";
-import { CreateApiTokenSchema, type ApiToken, type CreatedApiToken } from "@/lib/api/v1/schema";
+import {
+  CreateApiTokenSchema,
+  type ApiToken,
+  type CreatedApiToken,
+  type DeploymentCapabilities,
+} from "@/lib/api/v1/schema";
+import ApiOperationGuide, { deploymentTokenExample } from "./api-operation-guide";
 
 const INPUT =
   "border-outline-variant/40 bg-surface-container-lowest text-on-surface focus:border-primary focus:ring-primary rounded border px-3 py-2 font-mono text-[14px] focus:ring-1 focus:outline-none";
@@ -72,7 +78,15 @@ async function copy(text: string) {
   toast.success("Copied to clipboard.");
 }
 
-export default function ApiAccessPanel({ deploymentId }: { deploymentId: string }) {
+export default function ApiAccessPanel({
+  deploymentId,
+  capabilities,
+  webhookSecret,
+}: {
+  deploymentId: string;
+  capabilities: DeploymentCapabilities | null;
+  webhookSecret: string | null;
+}) {
   const base = `/api/deployments/${deploymentId}/api-tokens`;
   const [tokens, setTokens] = useState<ApiToken[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -82,6 +96,9 @@ export default function ApiAccessPanel({ deploymentId }: { deploymentId: string 
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<CreatedApiToken | null>(null);
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => setOrigin(window.location.origin), []);
 
   async function refresh() {
     try {
@@ -160,20 +177,20 @@ export default function ApiAccessPanel({ deploymentId }: { deploymentId: string 
     }
   }
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
   const curl = revealed
-    ? `curl -X POST ${origin}/api/v1/deployments/${deploymentId}/execute \\\n  -H "Authorization: Bearer ${revealed.token}" \\\n  -H "Content-Type: application/json"`
+    ? deploymentTokenExample(deploymentId, capabilities, origin, revealed.token)
     : "";
 
   return (
     <section className="glass-panel mt-md p-md rounded-xl" data-testid="api-access-panel">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-headline-sm text-on-surface">API access</h2>
-        <span className="text-label-sm text-on-surface-variant font-mono">/ DEPLOYMENT TOKENS</span>
+        <span className="text-label-sm text-on-surface-variant font-mono">
+          / DEVELOPER INTEGRATION
+        </span>
       </div>
       <p className="text-label-md text-on-surface-variant mt-2">
-        A token lets a backend call the Paiflow API for this deployment only. Every transaction is
-        still signed with the depositor&apos;s own key, so a token cannot move funds by itself.
+        Connect your backend to this deployment using the credentials required by each operation.
       </p>
       <p className="text-label-md text-on-surface-variant mt-1" data-testid="api-docs-links">
         {API_DOCS.map((d, i) => (
@@ -190,6 +207,24 @@ export default function ApiAccessPanel({ deploymentId }: { deploymentId: string 
           </span>
         ))}
       </p>
+
+      <ApiOperationGuide
+        deploymentId={deploymentId}
+        capabilities={capabilities}
+        webhookSecret={webhookSecret}
+        origin={origin}
+        copy={copy}
+      />
+
+      <div className="border-outline-variant/30 mt-md border-t pt-4">
+        <h3 className="text-label-md text-on-surface font-semibold">Deployment API tokens</h3>
+        <p className="text-label-sm text-on-surface-variant mt-1">
+          Send a token as Authorization: Bearer pfk_… to access this deployment’s API operations.
+          Deposits still require the paying wallet’s signature. Where supported, early release
+          authorizes the relayer to release held funds. These tokens do not replace webhook secrets
+          or subscriber wallet consent.
+        </p>
+      </div>
 
       <form onSubmit={create} className="mt-md gap-md grid md:grid-cols-[1fr_12rem_auto]">
         <label className="group grid gap-1.5">
@@ -270,24 +305,33 @@ export default function ApiAccessPanel({ deploymentId }: { deploymentId: string 
               <span className="material-symbols-outlined text-[16px]">content_copy</span>
             </button>
           </div>
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <span className="text-label-sm text-on-surface-variant font-mono">
-              PREPARE AN EXECUTION
-            </span>
-            <button
-              onClick={() => copy(curl)}
-              aria-label="Copy curl command"
-              className="text-on-surface-variant hover:text-primary shrink-0 transition-colors"
-            >
-              <span className="material-symbols-outlined text-[16px]">content_copy</span>
-            </button>
-          </div>
-          <pre
-            className="text-on-surface bg-surface-container-lowest mt-1 overflow-x-auto rounded px-2 py-1.5 font-mono text-[12px]"
-            data-testid="api-token-curl"
-          >
-            {curl}
-          </pre>
+          {capabilities ? (
+            <>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <span className="text-label-sm text-on-surface-variant font-mono">
+                  {capabilities?.operations.execute.status === "supported"
+                    ? "PREPARE A PAYMENT"
+                    : "READ PAYMENT EVENTS"}
+                </span>
+                <button
+                  onClick={() => copy(curl)}
+                  aria-label="Copy curl command"
+                  className="text-on-surface-variant hover:text-primary shrink-0 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                </button>
+              </div>
+              <pre
+                tabIndex={0}
+                role="region"
+                aria-label="API token example command"
+                className="text-on-surface bg-surface-container-lowest mt-1 overflow-x-auto rounded px-2 py-1.5 font-mono text-[12px]"
+                data-testid="api-token-curl"
+              >
+                {curl}
+              </pre>
+            </>
+          ) : null}
         </div>
       ) : null}
 

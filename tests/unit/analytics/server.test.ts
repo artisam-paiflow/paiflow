@@ -50,7 +50,7 @@ describe("captureServer", () => {
       distinct_id: "user-1",
       properties: {
         stage: "submit",
-        error_code: "<address>",
+        error_code: "UNKNOWN",
         app_env: "beta",
         source: "server",
       },
@@ -74,8 +74,10 @@ describe("captureServer", () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(init.body as string);
     expect(body.properties.signer_address).toBe(ACCOUNT);
-    expect(body.properties.template_kinds).toEqual(["SPLITTER", "<address>"]);
-    expect(body.properties).not.toHaveProperty("$process_person_profile");
+    expect(body.properties.template_kinds).toEqual(["SPLITTER"]);
+    expect(body.properties.$process_person_profile).toBe(true);
+    expect(body.properties.$geoip_disable).toBe(true);
+    expect(body.properties.$insert_id).toMatch(/^[a-f0-9-]{36}$/);
   });
 
   it("marks an event anonymous with personProfile: false", async () => {

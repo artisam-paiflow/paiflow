@@ -1,15 +1,19 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import { TransactionBuilder, Address, StrKey, rpc, scValToNative, xdr } from "@stellar/stellar-sdk";
+import { runDeploymentWork } from "@/lib/deployments/service-work";
+import { AppError } from "@/lib/errors";
 import { EventKind, TemplateKind } from "@prisma/client";
 import { sorobanRpc } from "./client";
 import { db } from "@/lib/db";
+import { changesDashboardBalance } from "@/lib/balance-events";
+import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { redis, eventChannel } from "@/lib/redis";
 import { log } from "@/lib/log";
 import { assetContractId } from "@/lib/stellar/assets";
-import { assetLabel, type FlowGraph } from "@/lib/flows/schema";
+import { assetLabel, FlowGraphSchema, migrateFlowGraph, type FlowGraph } from "@/lib/flows/schema";
 import { stellarPassphrase } from "@/lib/env";
-import { sendEmailNotificationsForEvent } from "@/lib/flows/notifications";
+import { sendEmailNotificationsForTransactions } from "@/lib/flow-notifications";
 import { inboundAssetForContract, type PipelineNodeSnapshot } from "@/lib/flows/event-assets";
 import { createCashOutJob } from "@/lib/offramp/jobs";
 import { bankDetailsFromGraph, eventCreatesOffRampJob } from "@/lib/offramp/cash-out-bank";
@@ -473,6 +477,20 @@ const TIMELOCK_REGISTRY: EventRegistry = {
   },
 };
 
+const TIMELOCK_BRANCH_REGISTRY: EventRegistry = {
+  receive: TIMELOCK_REGISTRY.receive!,
+  release: {
+    kind: EventKind.PAYOUT,
+    // The third topic names the list the release paid: "before" or "after".
+    decode: (topics, value) => {
+      const admin = topics[1] ?? null;
+      const branch = topics[2] ?? null;
+      const balance = value ?? null;
+      return admin && branch && balance !== null ? { admin, branch, balance } : null;
+    },
+  },
+};
+
 const MULTISIG_REGISTRY: EventRegistry = {
   receive: {
     kind: EventKind.RECEIVE,
@@ -526,6 +544,8 @@ function getRegistry(templateKind: TemplateKind): EventRegistry {
       return ROUTER_REGISTRY;
     case TemplateKind.TIMELOCK:
       return TIMELOCK_REGISTRY;
+    case TemplateKind.TIMELOCK_BRANCH:
+      return TIMELOCK_BRANCH_REGISTRY;
     case TemplateKind.MULTISIG:
       return MULTISIG_REGISTRY;
     case TemplateKind.CASH_OUT_DEV:
@@ -903,7 +923,9 @@ function stampInboundAsset(params: {
 }
 
 export const EVENTS_PAGE_LIMIT = 100;
-/** Bounds one poll's RPC calls per contract; a deployment far behind catches up over several polls. */
+/** RPC permits at most five contract IDs across a getEvents request. */
+export const MAX_EVENT_CONTRACTS_PER_REQUEST = 5;
+/** Page allowance per requested contract; groups retain the pre-batching total request budget. */
 export const MAX_EVENT_PAGES_PER_POLL = 5;
 
 /**
@@ -916,36 +938,80 @@ function cursorLedger(cursor: string | undefined): number | null {
   return Number(BigInt(toid) >> 32n);
 }
 
+export type EventScanStatus = "complete" | "partial" | "failed" | "skipped";
+export type EventScanReason =
+  | "rpc-error"
+  | "insert-error"
+  | "unexpected-emitter"
+  | "page-limit"
+  | "missing-cursor"
+  | "retention-gap"
+  | "deployment-unavailable"
+  | "missing-template"
+  | "missing-start-ledger"
+  | "deployment-ledger-error"
+  | "no-contracts";
+
 type ScanResult = {
   written: number;
-  /** Every event for the contract up to and including this ledger has been read. */
+  /** Every retained event through this ledger has been persisted or deduplicated. */
   scannedThrough: number;
-  ok: boolean;
+  status: Exclude<EventScanStatus, "skipped">;
+  reasons: EventScanReason[];
+};
+
+export type EventPollResult = {
+  status: EventScanStatus;
+  written: number;
+  /** Safe shared coverage for this attempt; null when no start ledger was available. */
+  scannedThrough: number | null;
+  /** Group members share scan coverage/status; written counts are per emitting contract. */
+  contracts: Array<ScanResult & { contractAddress: string }>;
+  reasons: EventScanReason[];
 };
 
 /**
- * Pages forward through a contract's events from `startLedger`. An RPC scans a
+ * Pages forward through a group's events from `startLedger`. An RPC scans a
  * bounded ledger window per call (10,000 on SDF testnet) and answers a window
  * with no events with an empty page and a cursor, so a single call from a stale
  * start ledger never reaches the tip: the cursor has to be followed.
  */
 async function pollEventsWithStartLedger(
   deploymentId: string,
-  contractAddress: string,
-  templateKind: TemplateKind,
+  contracts: PipelineNode[],
+  writtenByContract: Map<string, number>,
   startLedger: number,
   symbolMap: Map<string, string>,
   graph: FlowGraph | null,
   pipeline: PipelineNodeSnapshot[] | null,
   flowTemplateKind: TemplateKind,
+  cutoff?: number,
 ): Promise<ScanResult> {
   const server = sorobanRpc();
-  const filters = [{ type: "contract" as const, contractIds: [contractAddress] }];
-  const failed: ScanResult = { written: 0, scannedThrough: startLedger - 1, ok: false };
+  const contractIds = contracts.map((node) => node.contractAddress);
+  // Pool the former per-contract allowance: a mixed-emitter ledger must not
+  // become unreachable just because its events now share a page stream.
+  const maxPages = MAX_EVENT_PAGES_PER_POLL * contracts.length;
+  const emitters = new Map(contracts.map((node) => [node.contractAddress, node.templateKind]));
+  const filters = [{ type: "contract" as const, contractIds }];
+  const reasons: EventScanReason[] = [];
+  const failed: ScanResult = {
+    written: 0,
+    scannedThrough: startLedger - 1,
+    status: "failed",
+    reasons: ["rpc-error"],
+  };
 
+  if (cutoff !== undefined && startLedger > cutoff)
+    return { written: 0, scannedThrough: cutoff, status: "complete", reasons };
   let resp: rpc.Api.GetEventsResponse;
   try {
-    resp = await server.getEvents({ startLedger, filters, limit: EVENTS_PAGE_LIMIT });
+    resp = await server.getEvents({
+      startLedger,
+      ...(cutoff === undefined ? {} : { endLedger: cutoff + 1 }),
+      filters,
+      limit: EVENTS_PAGE_LIMIT,
+    });
   } catch (err) {
     // The RPC refuses a start ledger outside the range it holds, on either side.
     const health = await server.getHealth().then(
@@ -954,81 +1020,135 @@ async function pollEventsWithStartLedger(
     );
     // Ahead of the tip: a scan already caught up and no ledger has closed since.
     if (health && startLedger > health.latestLedger) {
-      return { written: 0, scannedThrough: startLedger - 1, ok: true };
+      return { written: 0, scannedThrough: startLedger - 1, status: "complete", reasons };
     }
     // Behind retention: those ledgers are gone for good; resume from the oldest one held.
     const oldestLedger = health?.oldestLedger ?? null;
     if (oldestLedger === null || startLedger >= oldestLedger) {
-      log.warn({ err, deploymentId, contractAddress, startLedger }, "getEvents failed");
+      log.warn({ err, deploymentId, contractIds, startLedger }, "getEvents failed");
       return failed;
     }
     log.warn(
-      { err, deploymentId, contractAddress, startLedger, oldestLedger },
+      { err, deploymentId, contractIds, startLedger, oldestLedger },
       "getEvents start ledger is past RPC retention; events before oldestLedger are unrecoverable",
     );
+    reasons.push("retention-gap");
+    // Record the missing coverage as soon as it is known, even if the retained
+    // history retry fails. Advancing a cursor later must not erase the gap.
+    await db.deployment.updateMany({
+      where: { id: deploymentId, serviceState: { not: "RETIRED" }, retirementCoverageGap: null },
+      data: {
+        retirementCoverageGap: `Event coverage starting at ledger ${startLedger} has a retention gap; verified archival reconciliation is required`,
+        retirementReconciledAt: null,
+      },
+    });
     try {
       resp = await server.getEvents({
         startLedger: oldestLedger,
+        ...(cutoff === undefined ? {} : { endLedger: cutoff + 1 }),
         filters,
         limit: EVENTS_PAGE_LIMIT,
       });
     } catch (retryErr) {
       log.warn(
-        { err: retryErr, deploymentId, contractAddress, oldestLedger },
+        { err: retryErr, deploymentId, contractIds, oldestLedger },
         "getEvents failed from the oldest retained ledger",
       );
-      return failed;
+      return { ...failed, reasons: [...reasons, "rpc-error"] };
     }
   }
 
   let written = 0;
+  let safeThrough = startLedger - 1;
   for (let page = 1; ; page++) {
     const events = resp.events ?? [];
-    written += await ingestEventPage(
+    const ingested = await ingestEventPage(
       deploymentId,
-      contractAddress,
-      templateKind,
-      events,
+      emitters,
+      writtenByContract,
+      cutoff === undefined ? events : events.filter((event) => event.ledger <= cutoff),
       symbolMap,
       graph,
       pipeline,
       flowTemplateKind,
     );
 
+    written += ingested.written;
+    if (ingested.failure !== null) {
+      // A ledger is atomic for coverage even if earlier events in it were stored.
+      // Stop here: retrying this ledger deduplicates those rows and recovers the failed one.
+      const scannedThrough = Math.max(safeThrough, ingested.failure.ledger - 1);
+      return {
+        written,
+        scannedThrough,
+        status: scannedThrough >= startLedger || written > 0 ? "partial" : "failed",
+        reasons: [...reasons, ingested.failure.reason],
+      };
+    }
+
     const full = events.length >= EVENTS_PAGE_LIMIT;
+    if (
+      cutoff !== undefined &&
+      (events.some((event) => event.ledger > cutoff) ||
+        (!full && (cursorLedger(resp.cursor) ?? resp.latestLedger) >= cutoff))
+    ) {
+      return { written, scannedThrough: cutoff, status: "complete", reasons };
+    }
     const at = cursorLedger(resp.cursor);
     if (!full && (at === null || at >= resp.latestLedger)) {
-      return { written, scannedThrough: resp.latestLedger, ok: true };
+      return { written, scannedThrough: resp.latestLedger, status: "complete", reasons };
     }
     // A full page may stop mid-ledger, so only the ledger before it is complete.
     // Re-reading that ledger next poll is harmless: eventId is unique.
     const scannedThrough = full ? (at ?? events[events.length - 1]!.ledger) - 1 : at!;
-    if (page >= MAX_EVENT_PAGES_PER_POLL || !resp.cursor) {
-      return { written, scannedThrough, ok: true };
+    safeThrough = Math.max(safeThrough, scannedThrough);
+    if (page >= maxPages || !resp.cursor) {
+      return {
+        written,
+        scannedThrough: safeThrough,
+        status: "partial",
+        reasons: [...reasons, !resp.cursor ? "missing-cursor" : "page-limit"],
+      };
     }
     try {
       resp = await server.getEvents({ cursor: resp.cursor, filters, limit: EVENTS_PAGE_LIMIT });
     } catch (err) {
-      log.warn({ err, deploymentId, contractAddress, scannedThrough }, "getEvents page failed");
+      log.warn({ err, deploymentId, contractIds, scannedThrough }, "getEvents page failed");
       // The pages already read are complete; keeping that progress lets a far-behind
       // deployment still catch up (before retention drops its ledgers) on a flaky RPC.
-      return { written, scannedThrough, ok: true };
+      return {
+        written,
+        scannedThrough: safeThrough,
+        status: "partial",
+        reasons: [...reasons, "rpc-error"],
+      };
     }
   }
 }
 
 async function ingestEventPage(
   deploymentId: string,
-  contractAddress: string,
-  templateKind: TemplateKind,
+  emitters: Map<string, TemplateKind>,
+  writtenByContract: Map<string, number>,
   events: rpc.Api.EventResponse[],
   symbolMap: Map<string, string>,
   graph: FlowGraph | null,
   pipeline: PipelineNodeSnapshot[] | null,
   flowTemplateKind: TemplateKind,
-): Promise<number> {
+): Promise<{
+  written: number;
+  failure: { ledger: number; reason: "insert-error" | "unexpected-emitter" } | null;
+}> {
   let written = 0;
   for (const ev of events) {
+    // The SDK parses the RPC's contractId into a Contract object. Never infer
+    // the emitter from the filter or the pipeline root: pages mix node kinds.
+    const contractAddress = ev.contractId?.contractId();
+    const templateKind = contractAddress ? emitters.get(contractAddress) : undefined;
+    if (!contractAddress || !templateKind) {
+      log.warn({ deploymentId, eventId: ev.id, contractAddress }, "unexpected event emitter");
+      return { written, failure: { ledger: ev.ledger, reason: "unexpected-emitter" } };
+    }
     const topics: EventTopics = (ev.topic ?? []).map((t) => {
       try {
         return scValToNative(t);
@@ -1053,25 +1173,38 @@ async function ingestEventPage(
       pipeline,
       contractAddress,
     });
-    const safePayload = convertBigInts({ topics, value }) as object;
+    const safePayload = convertBigInts({ topics, value, contractAddress }) as object;
     const safeDecodedData = convertBigInts(resolvedData) as Prisma.InputJsonValue | null;
 
+    let persisted = false;
     try {
-      const created = await db.contractEvent.create({
-        data: {
-          deploymentId,
-          eventId: ev.id,
-          kind,
-          ledger: ev.ledger,
-          txHash: ev.txHash,
-          payload: safePayload,
-          decodedData: (safeDecodedData ?? Prisma.JsonNull) as Prisma.InputJsonValue,
-          occurredAt: new Date(ev.ledgerClosedAt),
-        },
-      });
-      written += 1;
+      let fresh = true;
+      const created = await db.contractEvent
+        .create({
+          data: {
+            deploymentId,
+            eventId: ev.id,
+            kind,
+            ledger: ev.ledger,
+            txHash: ev.txHash,
+            payload: safePayload,
+            decodedData: (safeDecodedData ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+            occurredAt: new Date(ev.ledgerClosedAt),
+          },
+        })
+        .catch(async (error: unknown) => {
+          if ((error as { code?: string })?.code !== "P2002") throw error;
+          fresh = false;
+          return db.contractEvent.findUniqueOrThrow({ where: { eventId: ev.id } });
+        });
+      persisted = true;
+      if (fresh && changesDashboardBalance(kind))
+        invalidateDashboardBalances(deploymentId, ev.txHash);
+      if (fresh) written += 1;
+      if (fresh)
+        writtenByContract.set(contractAddress, (writtenByContract.get(contractAddress) ?? 0) + 1);
       const client = redis();
-      if (client) {
+      if (client && fresh) {
         log.info(
           { deploymentId, eventId: ev.id, kind, redisStatus: client.status },
           "event publisher: attempting redis publish",
@@ -1086,7 +1219,7 @@ async function ingestEventPage(
                 kind,
                 ledger: ev.ledger,
                 txHash: ev.txHash,
-                payload: { topics, value },
+                payload: { topics, value, contractAddress },
                 decodedData: resolvedData,
                 occurredAt: ev.ledgerClosedAt,
               }),
@@ -1101,11 +1234,11 @@ async function ingestEventPage(
           .catch((err) => {
             log.warn({ err, deploymentId, eventId: ev.id }, "redis publish failed");
           });
-      } else {
+      } else if (!client && fresh) {
         log.warn({ deploymentId, eventId: ev.id }, "event publisher: no redis client");
       }
 
-      // Fire-and-forget: cash_out events spawn off-ramp jobs so the PDAX leg
+      // Persist cash_out obligations before advancing the cursor so the PDAX leg
       // can run asynchronously. Payroll deployments are excluded: their jobs
       // are created by the payroll cron (with payrollRunId/employeeId) and
       // would otherwise be duplicated by the splitter's cash_out events.
@@ -1119,46 +1252,16 @@ async function ingestEventPage(
               ? resolvedData.amount
               : null;
         if (bank && source && amount) {
-          createCashOutJob(db, {
+          await createCashOutJob(db, {
             deploymentId,
+            originatingEventId: created.id,
+            replayingEvent: !fresh,
             sourceAddress: source,
             amountStroops: amount,
             bankAccountName: bank.accountName,
             bankAccountNumber: bank.accountNumber,
             bankCode: bank.bankCode,
-          })
-            .then((job) => {
-              log.info(
-                { deploymentId, eventId: created.id, jobId: job.id },
-                "cash_out off-ramp job created",
-              );
-            })
-            .catch(async (err) => {
-              const message = err instanceof Error ? err.message : String(err);
-              log.warn(
-                { err, deploymentId, eventId: created.id },
-                "cash_out event job creation failed; writing dead-letter record",
-              );
-              try {
-                await db.cashOutJobFailure.create({
-                  data: {
-                    deploymentId,
-                    contractEventId: created.id,
-                    sourceAddress: source,
-                    amountStroops: amount,
-                    bankAccountName: bank.accountName,
-                    bankAccountNumber: bank.accountNumber,
-                    bankCode: bank.bankCode,
-                    error: message,
-                  },
-                });
-              } catch (deadLetterErr) {
-                log.warn(
-                  { err: deadLetterErr, deploymentId, eventId: created.id },
-                  "cash_out dead-letter insert failed",
-                );
-              }
-            });
+          });
         } else {
           log.warn(
             {
@@ -1168,34 +1271,19 @@ async function ingestEventPage(
               hasSource: !!source,
               hasAmount: !!amount,
             },
-            "cash_out event missing bank/source/amount; skipping off-ramp job",
+            "cash_out obligation needs bank/source/amount reconciliation",
           );
+          return { written, failure: { ledger: ev.ledger, reason: "insert-error" } };
         }
       }
-
-      // Fire-and-forget: email notify decorators attached to this pipeline node.
-      sendEmailNotificationsForEvent({
-        deploymentId,
-        contractEventId: created.id,
-        event: {
-          kind,
-          ledger: ev.ledger,
-          txHash: ev.txHash,
-          eventId: ev.id,
-          decodedData: resolvedData as Record<string, unknown> | null,
-        },
-        graph,
-        pipeline,
-        contractAddress,
-      }).catch((err) => {
-        log.warn({ err, deploymentId, eventId: created.id }, "email notification dispatch failed");
-      });
     } catch (err) {
       const code = (err as { code?: string })?.code;
-      if (code !== "P2002") log.warn({ err, deploymentId }, "event upsert failed");
+      if (!persisted && code === "P2002") continue;
+      log.warn({ err, deploymentId, eventId: ev.id }, "event ingestion failed");
+      return { written, failure: { ledger: ev.ledger, reason: "insert-error" } };
     }
   }
-  return written;
+  return { written, failure: null };
 }
 
 type PipelineNode = {
@@ -1247,7 +1335,119 @@ async function findCashOutBank(
   return null;
 }
 
+/** Bounded recovery of persisted pre-cutoff cash-outs, including payroll events
+ * normally serviced by payroll jobs. Link exact run/hash matches before creating
+ * obligations; ambiguous legacy matches must be reconciled, never paid twice. */
+export async function reconcileStoredCashOutObligations(
+  deploymentId: string,
+  cutoff: number,
+): Promise<boolean> {
+  const deployment = await db.deployment.findUniqueOrThrow({
+    where: { id: deploymentId },
+    include: { flow: { select: { templateKind: true } } },
+  });
+  const graphResult = FlowGraphSchema.safeParse(deployment.graphSnapshot);
+  const pipeline = (deployment.pipelineSnapshot as PipelineNodeSnapshot[] | null) ?? [];
+  const rows = await db.contractEvent.findMany({
+    where: {
+      deploymentId,
+      kind: EventKind.CASH_OUT,
+      ledger: { lte: cutoff },
+      cashOutObligation: null,
+    },
+    orderBy: [{ ledger: "asc" }, { eventId: "asc" }],
+    take: 20,
+  });
+  for (const row of rows) {
+    const data = row.decodedData as Record<string, unknown> | null;
+    const payload = row.payload as Record<string, unknown> | null;
+    const source = typeof data?.source === "string" ? data.source : null;
+    const amount = typeof data?.amount === "string" ? data.amount : null;
+    const emitter = typeof payload?.contractAddress === "string" ? payload.contractAddress : source;
+    const bank = emitter
+      ? await findCashOutBank(
+          deploymentId,
+          graphResult.success ? graphResult.data : null,
+          emitter,
+          pipeline,
+        )
+      : null;
+    if (!bank || !source || !amount)
+      throw new AppError(
+        "CONFLICT",
+        `Cash-out event ${row.id} requires verified bank/source/amount recovery`,
+      );
+    await createCashOutJob(db, {
+      deploymentId,
+      originatingEventId: row.id,
+      replayingEvent: true,
+      ...(deployment.flow.templateKind === TemplateKind.PAYROLL
+        ? { payrollTxHash: row.txHash }
+        : {}),
+      sourceAddress: source,
+      amountStroops: amount,
+      bankAccountName: bank.accountName,
+      bankAccountNumber: bank.accountNumber,
+      bankCode: bank.bankCode,
+    });
+    await db.cashOutJobFailure.updateMany({
+      where: { contractEventId: row.id, retriedAt: null },
+      data: { retriedAt: new Date() },
+    });
+  }
+  return (
+    (await db.contractEvent.count({
+      where: {
+        deploymentId,
+        kind: EventKind.CASH_OUT,
+        ledger: { lte: cutoff },
+        cashOutObligation: null,
+      },
+    })) === 0
+  );
+}
+
+/** Compatible inserted-row count for SSE, transaction ingestion and manual/v1 callers. */
 export async function pollEventsFor(deploymentId: string): Promise<number> {
+  const result = await pollEventsForWithOutcome(deploymentId);
+  if (result.status !== "complete") {
+    log.warn({ deploymentId, ...result }, "event poll did not complete coverage");
+  }
+  return result.written;
+}
+
+export async function pollEventsForWithOutcome(
+  deploymentId: string,
+  options?: { retirementCutoff: number },
+): Promise<EventPollResult> {
+  const result = await runDeploymentWork(
+    deploymentId,
+    "event-poll",
+    () => pollEventsForWithOutcomeInner(deploymentId, options),
+    !!options,
+  );
+  return (
+    result ?? {
+      status: "skipped",
+      written: 0,
+      scannedThrough: null,
+      contracts: [],
+      reasons: ["deployment-unavailable"],
+    }
+  );
+}
+
+async function pollEventsForWithOutcomeInner(
+  deploymentId: string,
+  options?: { retirementCutoff: number },
+): Promise<EventPollResult> {
+  const skipped = (reason: EventScanReason): EventPollResult => ({
+    status: "skipped",
+    written: 0,
+    scannedThrough: null,
+    contracts: [],
+    reasons: [reason],
+  });
   const deployment = await db.deployment.findUnique({
     where: { id: deploymentId },
     include: {
@@ -1255,15 +1455,23 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
       flow: { select: { templateKind: true } },
     },
   });
-  if (!deployment?.contractAddress || deployment.status !== "CONFIRMED") return 0;
+  if (
+    !deployment?.contractAddress ||
+    deployment.status !== "CONFIRMED" ||
+    deployment.serviceState === "RETIRED" ||
+    (deployment.serviceState === "RETIRING" &&
+      options?.retirementCutoff !== deployment.retirementCutoffLedger)
+  )
+    return skipped("deployment-unavailable");
 
   const flowTemplateKind = deployment.flow?.templateKind;
   if (!flowTemplateKind) {
     log.warn({ deploymentId }, "pollEventsFor: flow templateKind not found, skipping");
-    return 0;
+    return skipped("missing-template");
   }
 
-  const symbolMap = buildAssetSymbolMap(deployment.graphSnapshot as FlowGraph | null);
+  const graph = FlowGraphSchema.safeParse(migrateFlowGraph(deployment.graphSnapshot)).data ?? null;
+  const symbolMap = buildAssetSymbolMap(graph);
 
   const contracts: PipelineNode[] = [];
   const seen = new Set<string>();
@@ -1296,7 +1504,7 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
 
   if (contracts.length === 0) {
     log.warn({ deploymentId }, "pollEventsFor: no contracts to poll, skipping");
-    return 0;
+    return skipped("no-contracts");
   }
 
   let startLedger: number;
@@ -1312,40 +1520,90 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
       emptySetSentinel = 0;
     } catch (err) {
       log.warn({ err, deploymentId }, "getDeploymentLedger failed, skipping");
-      return 0;
+      return { ...skipped("deployment-ledger-error"), status: "failed" };
     }
   } else {
     log.warn({ deploymentId }, "pollEventsFor: no cursor and no deployTxHash, skipping");
-    return 0;
+    return skipped("missing-start-ledger");
   }
 
+  const scans: EventPollResult["contracts"] = [];
   let totalWritten = 0;
   // The cursor is shared by every contract, so it may only move as far as the
   // least-advanced one; a failed scan holds it where it is.
   let scannedThrough = Number.POSITIVE_INFINITY;
 
-  for (const node of contracts) {
+  // Keep groups sequential: the cron already bounds deployment concurrency.
+  // All members share coverage because pagination spans every emitter in the group.
+  for (let offset = 0; offset < contracts.length; offset += MAX_EVENT_CONTRACTS_PER_REQUEST) {
+    const group = contracts.slice(offset, offset + MAX_EVENT_CONTRACTS_PER_REQUEST);
+    const writtenByContract = new Map<string, number>();
     const result = await pollEventsWithStartLedger(
       deploymentId,
-      node.contractAddress,
-      node.templateKind,
+      group,
+      writtenByContract,
       startLedger,
       symbolMap,
-      deployment.graphSnapshot as FlowGraph | null,
+      graph,
       (deployment.pipelineSnapshot as PipelineNodeSnapshot[] | null) ?? [],
       flowTemplateKind,
+      options?.retirementCutoff,
     );
+    for (const node of group) {
+      scans.push({
+        ...result,
+        contractAddress: node.contractAddress,
+        written: writtenByContract.get(node.contractAddress) ?? 0,
+      });
+    }
     totalWritten += result.written;
-    scannedThrough = Math.min(scannedThrough, result.ok ? result.scannedThrough : emptySetSentinel);
+    scannedThrough = Math.min(
+      scannedThrough,
+      result.status === "failed"
+        ? emptySetSentinel
+        : Math.max(emptySetSentinel, result.scannedThrough),
+    );
   }
 
+  const reasons = [...new Set(scans.flatMap((scan) => scan.reasons))];
   if (scannedThrough > emptySetSentinel) {
-    await db.eventCursor.upsert({
-      where: { deploymentId },
-      update: { lastLedger: scannedThrough },
-      create: { deploymentId, lastLedger: scannedThrough },
+    await advanceEventCursor(deploymentId, scannedThrough);
+    void sendEmailNotificationsForTransactions({
+      deploymentId,
+      startLedger,
+      throughLedger: scannedThrough,
+    }).catch((err) => {
+      log.warn({ err, deploymentId }, "email notification dispatch failed");
     });
   }
 
-  return totalWritten;
+  const status: EventScanStatus =
+    scans.every((scan) => scan.status === "complete") && !reasons.includes("retention-gap")
+      ? "complete"
+      : scans.every((scan) => scan.status === "failed")
+        ? "failed"
+        : "partial";
+  return { status, written: totalWritten, scannedThrough, contracts: scans, reasons };
+}
+
+/**
+ * Move the cursor forward, never back. The cron, the v1 events read, tx-status and the SSE
+ * handler all poll the same deployment, and a slower poll that read an older cursor would
+ * otherwise overwrite a newer one on finishing. Moving back is only wasted RPC (a re-scan's rows
+ * hit the `eventId` unique constraint), but it also re-stamps `updatedAt`, which the v1 events
+ * read uses as a recent-progress throttle, not proof of complete freshness.
+ * An equal ledger still stamps `updatedAt`: the poll did run.
+ */
+export async function advanceEventCursor(deploymentId: string, lastLedger: number): Promise<void> {
+  const notAhead = { deploymentId, lastLedger: { lte: lastLedger } };
+  const moved = await db.eventCursor.updateMany({ where: notAhead, data: { lastLedger } });
+  if (moved.count > 0) return;
+  const created = await db.eventCursor.createMany({
+    data: [{ deploymentId, lastLedger }],
+    skipDuplicates: true,
+  });
+  if (created.count > 0) return;
+  // Either the row is already ahead of us, or a concurrent first poll created it between the two
+  // statements; this second update settles the latter and is a no-op for the former.
+  await db.eventCursor.updateMany({ where: notAhead, data: { lastLedger } });
 }

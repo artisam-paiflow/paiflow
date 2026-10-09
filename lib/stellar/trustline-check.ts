@@ -83,6 +83,7 @@ function lookupAccount(address: string): Promise<AccountLookup> {
  */
 export async function checkPayoutTrustlines(
   recipients: PayoutRecipient[],
+  options: { fresh?: boolean; requireAccount?: boolean } = {},
 ): Promise<TrustlineCheck[]> {
   return Promise.all(
     recipients.map(async (r): Promise<TrustlineCheck> => {
@@ -94,18 +95,34 @@ export async function checkPayoutTrustlines(
       if (isPendingAddress(r.address) || !StrKey.isValidEd25519PublicKey(r.address)) {
         return { ...base, status: "skipped" };
       }
-      if (r.asset.kind === "native") return { ...base, status: "not_needed" };
+      if (r.asset.kind === "native") {
+        if (options.requireAccount) {
+          const account = await (options.fresh
+            ? fetchAccount(r.address)
+            : lookupAccount(r.address));
+          if (account.kind !== "found")
+            return {
+              ...base,
+              status: account.kind === "missing" ? "no_account" : "unknown",
+              assetCode: "XLM",
+              assetIssuer: "",
+            };
+        }
+        return { ...base, status: "not_needed" };
+      }
 
       let ref: AssetRef;
       try {
         const a = resolveAsset(r.asset);
-        ref = { assetCode: a.getCode(), assetIssuer: a.getIssuer() };
+        const issuer = a.getIssuer();
+        if (!issuer) throw new Error("A credit asset must have an issuer");
+        ref = { assetCode: a.getCode(), assetIssuer: issuer };
       } catch (err) {
         log.warn({ err, asset: r.asset }, "Payout asset did not resolve; trustline check skipped");
         return { ...base, status: "skipped" };
       }
 
-      const account = await lookupAccount(r.address);
+      const account = await (options.fresh ? fetchAccount(r.address) : lookupAccount(r.address));
       if (account.kind !== "found") {
         return { ...base, status: account.kind === "missing" ? "no_account" : "unknown", ...ref };
       }

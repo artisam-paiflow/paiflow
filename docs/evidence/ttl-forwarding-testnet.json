@@ -1,0 +1,230 @@
+{
+  "network": "TESTNET",
+  "createdAt": "2026-10-04T08:18:35.726Z",
+  "transactions": [
+    {
+      "label": "payer upload",
+      "hash": "4a05c26f56d40ef6da7adc6d128ecf8f886570fbef9e7594f31511d5e4e90f1a",
+      "ledger": 5015669,
+      "feeChargedStroops": "91395",
+      "declaredFeeStroops": "107422"
+    },
+    {
+      "label": "splitter upload",
+      "hash": "4b3a9c5af056a1b26583789bb16f786f2247ee0a9ba1fec3b09db7a6b561c9f9",
+      "ledger": 5015670,
+      "feeChargedStroops": "110335",
+      "declaredFeeStroops": "128024"
+    },
+    {
+      "label": "payer v4 deploy",
+      "hash": "5daf711897113f9eae05579152da8cb7b4e485f7b101f3f873daeacf0a8fce34",
+      "ledger": 5015671,
+      "feeChargedStroops": "323943",
+      "declaredFeeStroops": "380744"
+    },
+    {
+      "label": "webhook v2 deploy",
+      "hash": "9e15f48aaf5fe3151a2c2fdf2f02d3b22d0a3fa3c01249ed5756da1ad9c6f38e",
+      "ledger": 5015672,
+      "feeChargedStroops": "262283",
+      "declaredFeeStroops": "309851"
+    },
+    {
+      "label": "splitter v4 deploy",
+      "hash": "c7ee685ef841816cafa4e6bd9eee779ffd5c6b6959fa3dd30b89e90a1381e8f5",
+      "ledger": 5015673,
+      "feeChargedStroops": "507200",
+      "declaredFeeStroops": "591083"
+    },
+    {
+      "label": "subscription v7 deploy",
+      "hash": "8145094b1115bca707d388806477eed403e8b65c849003ee2e9408382b3a9e43",
+      "ledger": 5015674,
+      "feeChargedStroops": "442244",
+      "declaredFeeStroops": "516587"
+    },
+    {
+      "label": "webhook deposit 1 XLM",
+      "hash": "07306e54f9120e1281f9f097d1ddd0b3b461b968aff0b10ce56446f9938ce45b",
+      "ledger": 5015675,
+      "feeChargedStroops": "509224",
+      "declaredFeeStroops": "593317"
+    },
+    {
+      "label": "webhook escrow forwards through Pay",
+      "hash": "d6e1b63db899c077441f3ad78f41cd05604352a42a8f5cbf7ae1bc2d38b89de7",
+      "ledger": 5015676,
+      "feeChargedStroops": "514185",
+      "declaredFeeStroops": "598541"
+    },
+    {
+      "label": "subscription allowance 2 XLM",
+      "hash": "870a73eec2edcd30d26c3edc1a2a4b83798a7986fdb29d2b8edc69818f591b84",
+      "ledger": 5015678,
+      "feeChargedStroops": "17533",
+      "declaredFeeStroops": "28622"
+    },
+    {
+      "label": "subscription relayer charge forwards through Split",
+      "hash": "d88338eb9d24f34b569a8596e6e1a7430e8745a56e3a959038f75024dee0fb2c",
+      "ledger": 5015679,
+      "feeChargedStroops": "1028407",
+      "declaredFeeStroops": "1187471"
+    }
+  ],
+  "checks": [
+    {
+      "label": "initial token balances",
+      "passed": true,
+      "balancesStroops": {
+        "GDSPYQAAABIL7CDRSFUXV5QJCZYH74EOCSOZCYBKPKW2O7AWFFQFIA5O": "100000000000",
+        "GAZRVVTY4SQJ4UDHKC6T3YITOH6EJN5HYCJKIWPKNYW5QETOP44Z344E": "100000000000",
+        "CDZ7BS5G37DMCPDROOYHFLS2BEHK7ASLILRZ3C26JKVWO3IL2ZEU4VNP": "0",
+        "CAPSD4THB4ZRXKW3JEBO6PUMGRLFOKZDZHSYTRZA4E34GYPJFMR45YVQ": "0",
+        "CBME2Z7BTUHQE3K6TRQJ4VRTQGTXZDYCAH6AVJM4TFLTAQIAOS6NRFUF": "0",
+        "CBYDY6WPYUIPG5GELPRGFA6YZBPWTG7QIVYW7VPTJOJUDNP3P3TBFRFA": "0"
+      }
+    },
+    {
+      "label": "webhook funded before forwarding",
+      "passed": true,
+      "balancesStroops": {
+        "CDZ7BS5G37DMCPDROOYHFLS2BEHK7ASLILRZ3C26JKVWO3IL2ZEU4VNP": "10000000",
+        "CAPSD4THB4ZRXKW3JEBO6PUMGRLFOKZDZHSYTRZA4E34GYPJFMR45YVQ": "0",
+        "GDSPYQAAABIL7CDRSFUXV5QJCZYH74EOCSOZCYBKPKW2O7AWFFQFIA5O": "100000000000"
+      }
+    },
+    {
+      "label": "forged payer receive rejected",
+      "passed": true,
+      "simulationError": "HostError: Error(Contract, #2)\n\nEvent log (newest first):\n   0: [Diagnostic Event] contract:CAPSD4THB4ZRXKW3JEBO6PUMGRLFOKZDZHSYTRZA4E34GYPJFMR45YVQ, topics:[error, Error(Contract, #2)], data:\"escalating error to VM trap from failed host function call: fail_with_error\"\n   1: [Diagnostic Event] contract:CAPSD4THB4ZRXKW3JEBO6PUMGRLFOKZDZHSYTRZA4E34GYPJFMR45YVQ, topics:[error, Error(Contract, #2)], data:[\"failing with contract error\", 2]\n   2: [Diagnostic Event] topics:[fn_call, CAPSD4THB4ZRXKW3JEBO6PUMGRLFOKZDZHSYTRZA4E34GYPJFMR45YVQ, receive_and_forward], data:[GA4SHOLZULB6JAFZW7VMD3YZBPPALUCYYMBRD65SXKIEPTIKAYA4U5JT, CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC, 10000000, []]\n"
+    },
+    {
+      "label": "webhook -> Pay full amount delivered",
+      "passed": true,
+      "balancesStroops": {
+        "CDZ7BS5G37DMCPDROOYHFLS2BEHK7ASLILRZ3C26JKVWO3IL2ZEU4VNP": "0",
+        "CAPSD4THB4ZRXKW3JEBO6PUMGRLFOKZDZHSYTRZA4E34GYPJFMR45YVQ": "0",
+        "GDSPYQAAABIL7CDRSFUXV5QJCZYH74EOCSOZCYBKPKW2O7AWFFQFIA5O": "100010000000"
+      }
+    },
+    {
+      "label": "subscription -> Split exact 60/40 delivery",
+      "passed": true,
+      "balancesStroops": {
+        "CBME2Z7BTUHQE3K6TRQJ4VRTQGTXZDYCAH6AVJM4TFLTAQIAOS6NRFUF": "0",
+        "CBYDY6WPYUIPG5GELPRGFA6YZBPWTG7QIVYW7VPTJOJUDNP3P3TBFRFA": "0",
+        "GDSPYQAAABIL7CDRSFUXV5QJCZYH74EOCSOZCYBKPKW2O7AWFFQFIA5O": "100016000000",
+        "GAZRVVTY4SQJ4UDHKC6T3YITOH6EJN5HYCJKIWPKNYW5QETOP44Z344E": "100004000000"
+      }
+    },
+    {
+      "label": "one successful charge advances one interval and consumes exactly 1 XLM allowance",
+      "passed": true,
+      "nextChargeAt": "1791105542",
+      "allowanceStroops": "10000000"
+    },
+    {
+      "label": "premature second charge rejected",
+      "passed": true,
+      "simulationError": "HostError: Error(Contract, #5)\n\nEvent log (newest first):\n   0: [Diagnostic Event] contract:CBME2Z7BTUHQE3K6TRQJ4VRTQGTXZDYCAH6AVJM4TFLTAQIAOS6NRFUF, topics:[error, Error(Contract, #5)], data:\"escalating error to VM trap from failed host function call: fail_with_error\"\n   1: [Diagnostic Event] contract:CBME2Z7BTUHQE3K6TRQJ4VRTQGTXZDYCAH6AVJM4TFLTAQIAOS6NRFUF, topics:[error, Error(Contract, #5)], data:[\"failing with contract error\", 5]\n   2: [Diagnostic Event] topics:[fn_call, CBME2Z7BTUHQE3K6TRQJ4VRTQGTXZDYCAH6AVJM4TFLTAQIAOS6NRFUF, charge_by_relayer], data:Void\n"
+    },
+    {
+      "label": "forged splitter receive rejected",
+      "passed": true,
+      "simulationError": "HostError: Error(Contract, #5)\n\nEvent log (newest first):\n   0: [Diagnostic Event] contract:CBYDY6WPYUIPG5GELPRGFA6YZBPWTG7QIVYW7VPTJOJUDNP3P3TBFRFA, topics:[error, Error(Contract, #5)], data:\"escalating error to VM trap from failed host function call: fail_with_error\"\n   1: [Diagnostic Event] contract:CBYDY6WPYUIPG5GELPRGFA6YZBPWTG7QIVYW7VPTJOJUDNP3P3TBFRFA, topics:[error, Error(Contract, #5)], data:[\"failing with contract error\", 5]\n   2: [Diagnostic Event] topics:[fn_call, CBYDY6WPYUIPG5GELPRGFA6YZBPWTG7QIVYW7VPTJOJUDNP3P3TBFRFA, receive_and_forward], data:[GA4SHOLZULB6JAFZW7VMD3YZBPPALUCYYMBRD65SXKIEPTIKAYA4U5JT, CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC, 10000000, []]\n"
+    },
+    {
+      "label": "actual on-chain escrow, pay, charge and payout events match pipeline addresses",
+      "passed": true
+    }
+  ],
+  "contracts": [
+    {
+      "kind": "payer v4",
+      "address": "CAPSD4THB4ZRXKW3JEBO6PUMGRLFOKZDZHSYTRZA4E34GYPJFMR45YVQ",
+      "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f"
+    },
+    {
+      "kind": "webhook v2",
+      "address": "CDZ7BS5G37DMCPDROOYHFLS2BEHK7ASLILRZ3C26JKVWO3IL2ZEU4VNP",
+      "wasmHash": "bcf0ad2d7cedc728bd24cee8f20efa289efc3d5d8f24ed8a513fe393a5507d6c"
+    },
+    {
+      "kind": "splitter v4",
+      "address": "CBYDY6WPYUIPG5GELPRGFA6YZBPWTG7QIVYW7VPTJOJUDNP3P3TBFRFA",
+      "wasmHash": "14405917781ee8cb9476c8a43b6245a5bae033537d5c2de72dec2a7b27dabce5"
+    },
+    {
+      "kind": "subscription v7",
+      "address": "CBME2Z7BTUHQE3K6TRQJ4VRTQGTXZDYCAH6AVJM4TFLTAQIAOS6NRFUF",
+      "wasmHash": "ffeafaf98d297f32398edb7f8960f2404086343b0e0acba8ad3c147d5d312204"
+    }
+  ],
+  "fixtureSigner": "GA4SHOLZULB6JAFZW7VMD3YZBPPALUCYYMBRD65SXKIEPTIKAYA4U5JT",
+  "recipients": [
+    "GDSPYQAAABIL7CDRSFUXV5QJCZYH74EOCSOZCYBKPKW2O7AWFFQFIA5O",
+    "GAZRVVTY4SQJ4UDHKC6T3YITOH6EJN5HYCJKIWPKNYW5QETOP44Z344E"
+  ],
+  "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+  "friendbotFunded": true,
+  "subscriptionStartTime": "1791101942",
+  "events": [
+    {
+      "id": "0021542160092409856-0000000001",
+      "contractId": "CDZ7BS5G37DMCPDROOYHFLS2BEHK7ASLILRZ3C26JKVWO3IL2ZEU4VNP",
+      "ledger": 5015675,
+      "topic": ["deposit", "GA4SHOLZULB6JAFZW7VMD3YZBPPALUCYYMBRD65SXKIEPTIKAYA4U5JT"],
+      "value": "10000000"
+    },
+    {
+      "id": "0021542164387397632-0000000002",
+      "contractId": "CAPSD4THB4ZRXKW3JEBO6PUMGRLFOKZDZHSYTRZA4E34GYPJFMR45YVQ",
+      "ledger": 5015676,
+      "topic": ["pay", "GDSPYQAAABIL7CDRSFUXV5QJCZYH74EOCSOZCYBKPKW2O7AWFFQFIA5O"],
+      "value": ["CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC", "10000000"]
+    },
+    {
+      "id": "0021542164387397632-0000000003",
+      "contractId": "CDZ7BS5G37DMCPDROOYHFLS2BEHK7ASLILRZ3C26JKVWO3IL2ZEU4VNP",
+      "ledger": 5015676,
+      "topic": ["escrow", "CDZ7BS5G37DMCPDROOYHFLS2BEHK7ASLILRZ3C26JKVWO3IL2ZEU4VNP"],
+      "value": "10000000"
+    },
+    {
+      "id": "0021542177272250368-0000000004",
+      "contractId": "CBYDY6WPYUIPG5GELPRGFA6YZBPWTG7QIVYW7VPTJOJUDNP3P3TBFRFA",
+      "ledger": 5015679,
+      "topic": ["payout", "CBME2Z7BTUHQE3K6TRQJ4VRTQGTXZDYCAH6AVJM4TFLTAQIAOS6NRFUF"],
+      "value": [
+        {
+          "address": "GDSPYQAAABIL7CDRSFUXV5QJCZYH74EOCSOZCYBKPKW2O7AWFFQFIA5O",
+          "amount": "0",
+          "bps": 6000,
+          "is_cash_out": false
+        },
+        {
+          "address": "GAZRVVTY4SQJ4UDHKC6T3YITOH6EJN5HYCJKIWPKNYW5QETOP44Z344E",
+          "amount": "0",
+          "bps": 4000,
+          "is_cash_out": false
+        }
+      ]
+    },
+    {
+      "id": "0021542177272250368-0000000005",
+      "contractId": "CBME2Z7BTUHQE3K6TRQJ4VRTQGTXZDYCAH6AVJM4TFLTAQIAOS6NRFUF",
+      "ledger": 5015679,
+      "topic": ["charge", "GA4SHOLZULB6JAFZW7VMD3YZBPPALUCYYMBRD65SXKIEPTIKAYA4U5JT"],
+      "value": "10000000"
+    }
+  ],
+  "complete": true,
+  "limitations": [
+    "Public TESTNET contracts started above execution TTL threshold; no archival occurred.",
+    "Direct real SDK relayer-source signed calls; cron and funded-channel coverage is a separate fixture.",
+    "Native XLM SAC; two fresh funded recipient accounts; no shared configuration or mainnet changes.",
+    "Pay/Split downstream coverage; Hold release is not exercised here."
+  ]
+}

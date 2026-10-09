@@ -19,6 +19,7 @@ vi.mock("@/lib/redis", () => ({ redis: () => null }));
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: mockRateLimit,
   clientIp: () => "203.0.113.9",
+  noteLimiterFallback: vi.fn(),
 }));
 
 import { db } from "@/lib/db";
@@ -32,7 +33,7 @@ let flowId: string;
 let demoDeployment: string;
 let otherDeployment: string;
 
-/** A CONFIRMED swapper pipeline: what `resolveSwapperPipeline` requires. */
+/** A CONFIRMED swapper pipeline: what `resolveExecutablePipeline` requires. */
 const SWAPPER_SNAPSHOT = [
   { nodeId: "trigger-1", templateKind: "DEPOSIT_TRIGGER", contractAddress: `C${"A".repeat(55)}` },
   { nodeId: "action-1", templateKind: "SWAPPER", contractAddress: `C${"B".repeat(55)}` },

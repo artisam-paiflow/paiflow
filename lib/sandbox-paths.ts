@@ -70,9 +70,13 @@ const SANDBOX_PATHS = [
   /^\/api\/address-book(\/[^/]+)?$/,
   /^\/api\/soroswap\/quote$/,
   /^\/api\/audit\/wallet-connection$/,
+  /^\/api\/audit\/analytics-context$/,
   /^\/api\/deployments$/,
   /^\/api\/deployments\/prepare$/,
   new RegExp(`^/api/deployments/${ID}$`),
+  // Owners may end servicing of their own disposable deployments.
+  new RegExp(`^/api/deployments/${ID}/retirement$`),
+  new RegExp(`^/api/deployments/${ID}/embed/(events|activity|qr)$`),
   new RegExp(
     `^/api/deployments/${ID}/(submit|submit-trigger|trigger|tx-status|status|events|poll-events|balances|sep7|qr)$`,
   ),

@@ -43,14 +43,16 @@ export const ExecutePrepareSchema = z
       .regex(/^\d{1,39}$/, "Must be a whole number of stroops")
       // Zod still runs this after the regex fails, and BigInt("1.5") throws.
       .refine((s) => !/^\d{1,39}$/.test(s) || BigInt(s) > 0n, "Must be greater than zero")
-      .describe("Amount to deposit into the swapper flow, in stroops of its input asset."),
+      .describe(
+        "Amount to deposit into the flow's deposit trigger, in stroops of the flow's input asset.",
+      ),
     from: z
       .string()
       .refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar address")
       .describe("G-address that deposits, pays the fee and signs the returned envelope."),
   })
   .strict()
-  .describe(`Prepare the deposit that executes a swapper flow. ${EXECUTE_PREREQUISITES}`);
+  .describe(`Prepare the deposit that executes a deposit-triggered flow. ${EXECUTE_PREREQUISITES}`);
 export type ExecutePrepare = z.infer<typeof ExecutePrepareSchema>;
 
 export const ExecutePreparedSchema = z
@@ -62,7 +64,7 @@ export const ExecutePreparedSchema = z
       .string()
       .describe("ISO time after which the network refuses the envelope; prepare again."),
   })
-  .describe("An unsigned deposit that executes a swapper flow.");
+  .describe("An unsigned deposit that executes a deposit-triggered flow.");
 export type ExecutePrepared = z.infer<typeof ExecutePreparedSchema>;
 
 export const ExecuteSubmitSchema = z
@@ -77,7 +79,7 @@ export const ExecuteSubmitSchema = z
       ),
   })
   .strict()
-  .describe("Submit a signed deposit that executes a swapper flow.");
+  .describe("Submit a signed deposit that executes a deposit-triggered flow.");
 export type ExecuteSubmit = z.infer<typeof ExecuteSubmitSchema>;
 
 export const ExecuteSubmitQuerySchema = z.object({
@@ -100,8 +102,34 @@ export const ExecuteSubmittedSchema = z
     ledger: z.number().int().optional(),
     error: z.object({ code: z.string(), message: z.string() }).optional(),
   })
-  .describe("The outcome of executing a swapper flow.");
+  .describe("The outcome of executing a deposit-triggered flow.");
 export type ExecuteSubmitted = z.infer<typeof ExecuteSubmittedSchema>;
+
+export const ReleaseBeforeSchema = z
+  .object({
+    nodeId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(128)
+      .optional()
+      .describe(
+        "The timelock branch to release. Required when the deployment has more than one; " +
+          "otherwise it may be omitted.",
+      ),
+  })
+  .strict()
+  .describe("Release a timelock branch's before side now (work delivered), ahead of its deadline.");
+export type ReleaseBefore = z.infer<typeof ReleaseBeforeSchema>;
+
+export const ReleasedSchema = z
+  .object({
+    nodeId: z.string().describe("The timelock branch node that was released."),
+    txHash: z.string().describe("Hash of the confirmed release transaction, hex."),
+    ledger: z.number().int().optional(),
+  })
+  .describe("A confirmed early release of a timelock branch's before side.");
+export type Released = z.infer<typeof ReleasedSchema>;
 
 /** `GET /api/v1/deployments/{id}/events` query. Every value arrives as a string. */
 export const ListEventsQuerySchema = z
@@ -158,3 +186,106 @@ export const DemoTokenSchema = z
   })
   .describe("A short-lived token for the shared demo deployment on testnet.");
 export type DemoToken = z.infer<typeof DemoTokenSchema>;
+
+export const PayoutPrepareSchema = ExecutePrepareSchema.extend({
+  amount: ExecutePrepareSchema.shape.amount.refine(
+    (s) => !/^\d{1,39}$/.test(s) || BigInt(s) <= (1n << 127n) - 1n,
+    "Amount exceeds the contract i128 range",
+  ),
+  recipient: z
+    .string()
+    .refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar recipient account")
+    .describe("Account paid by the selected Pay; checked before any relayer mutation."),
+  nodeId: z
+    .string()
+    .min(1)
+    .max(128)
+    .optional()
+    .describe("Select one PAYER_DEV when the pipeline contains several."),
+})
+  .strict()
+  .describe("Configure one immediate dev Pay for this recipient, then prepare its deposit.");
+export type PayoutPrepare = z.infer<typeof PayoutPrepareSchema>;
+export const PayoutPreparedSchema = ExecutePreparedSchema.extend({ nodeId: z.string() });
+export type PayoutPrepared = z.infer<typeof PayoutPreparedSchema>;
+export const PayoutSubmitSchema = ExecuteSubmitSchema.describe(
+  "Submit exactly the transaction prepared by payouts for this token and deployment, with envelope signatures added.",
+);
+export type PayoutSubmit = z.infer<typeof PayoutSubmitSchema>;
+export const PayoutSubmittedSchema = ExecuteSubmittedSchema;
+export type PayoutSubmitted = z.infer<typeof PayoutSubmittedSchema>;
+
+/** Absence from RPC is uncertainty, never proof of failure. */
+export const TransactionStatusSchema = z.object({
+  txHash: z.string().regex(/^[0-9a-f]{64}$/),
+  network: z.enum(["testnet", "mainnet"]),
+  status: z.enum(["SUCCESS", "FAILED", "PENDING", "UNKNOWN", "REJECTED"]),
+  ledger: z.number().int().positive().optional(),
+  error: z.object({ code: z.string(), message: z.string() }).optional(),
+});
+export type TransactionStatus = z.infer<typeof TransactionStatusSchema>;
+
+/** Keyed webhook attempts may have no transaction hash if preparation was interrupted. */
+export const WebhookAttemptResponseSchema = TransactionStatusSchema.partial({
+  txHash: true,
+}).extend({
+  attemptId: z.string().uuid(),
+});
+
+/** Discovery describes integration support, not live execution readiness. */
+export const CapabilityOperationSchema = z
+  .object({
+    status: z.enum(["supported", "conditional", "unsupported"]),
+    authentication: z.enum(["deployment_token", "webhook_secret", "subscriber_wallet"]),
+    requirements: z.array(z.string()),
+    nodeIds: z.array(z.string()),
+  })
+  .strict();
+export type CapabilityOperation = z.infer<typeof CapabilityOperationSchema>;
+
+export const CapabilitiesAssetSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("native") }).strict(),
+  z.object({ kind: z.literal("known"), symbol: z.literal("USDC") }).strict(),
+  z
+    .object({
+      kind: z.literal("custom"),
+      code: z.string().regex(/^[A-Za-z0-9]{1,12}$/),
+      issuer: z.string().refine(StrKey.isValidEd25519PublicKey),
+    })
+    .strict(),
+]);
+
+export const DeploymentCapabilitiesSchema = z
+  .object({
+    deploymentId: z.string().uuid(),
+    network: z.enum(["testnet", "mainnet"]),
+    configurationSource: z.literal("deployment_snapshot"),
+    triggerType: z.enum([
+      "deposit",
+      "webhook",
+      "subscription",
+      "payroll",
+      "schedule",
+      "oracle",
+      "unknown",
+    ]),
+    inputAsset: CapabilitiesAssetSchema.nullable().describe(
+      "Initial asset metadata from the deployment snapshot, or null when unavailable. Not a live contract read; mutable configuration may have changed.",
+    ),
+    operations: z
+      .object({
+        execute: CapabilityOperationSchema,
+        events: CapabilityOperationSchema,
+        transactions: CapabilityOperationSchema,
+        releaseEarly: CapabilityOperationSchema,
+        payouts: CapabilityOperationSchema,
+        webhook: CapabilityOperationSchema,
+        subscriptionAllowance: CapabilityOperationSchema,
+      })
+      .strict(),
+  })
+  .strict()
+  .describe(
+    "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.",
+  );
+export type DeploymentCapabilities = z.infer<typeof DeploymentCapabilitiesSchema>;

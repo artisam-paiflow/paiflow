@@ -1,0 +1,586 @@
+{
+  "environment": "hackathon-testing",
+  "network": "TESTNET",
+  "at": "2026-10-05T11:03:01.108Z",
+  "configuration": {
+    "paidMaintenanceEnabled": false,
+    "maxFeeStroops": "500000000",
+    "campaignName": "ttl804-testnet-20261004",
+    "campaignLimitStroops": "1500000000",
+    "channelsConfigured": 0,
+    "rpcHost": "soroban-testnet.stellar.org"
+  },
+  "sourceHashes": {
+    "lib/stellar/ttl-maintenance.ts": "d4e9102f081063331b7b9bcad78a445a629f633d078e27fe8eb38a37e5e81fc1",
+    "lib/stellar/ttl-deadline.ts": "43950e988870b90908f4f33ef46caff5c588f594c4c8d025e23257d3cdb3b22d",
+    "app/api/cron/maintain-ttl/route.ts": "77c1ae2237bd60678a7a61a7324cfb3e49fab4fef7db210ef6822ca779120d42"
+  },
+  "latestLedger": 5034917,
+  "protocolVersion": 29,
+  "thresholdLedgers": 50000,
+  "extendToLedgers": 500000,
+  "budget": {
+    "limitStroops": "1500000000",
+    "committedStroops": "1313198",
+    "fixtureSetupClaimedAt": "2026-10-04T23:24:05.188Z",
+    "remainingStroops": "1498686802",
+    "reservationCount": 2,
+    "reservations": [
+      {
+        "txHash": "783ba6596c57900f42d9887cd973ee65cd558db5e7767d64fc2444e92160c342",
+        "payer": "GALWPCNQW5XZG4IZANOR4URL2ZQWYR2OK65O3YVIUVTOE7P3NS3MLPQZ",
+        "declaredFeeStroops": "704205",
+        "purpose": "fixture-setup",
+        "createdAt": "2026-10-04T23:24:05.188Z"
+      },
+      {
+        "txHash": "61b562873e56091d4b30c3da98f19600599a5a0de7dd16b4475e194b1d0401e5",
+        "payer": "GALWPCNQW5XZG4IZANOR4URL2ZQWYR2OK65O3YVIUVTOE7P3NS3MLPQZ",
+        "declaredFeeStroops": "608993",
+        "purpose": "fixture-deposit",
+        "createdAt": "2026-10-04T23:24:10.394Z"
+      }
+    ]
+  },
+  "inventory": {
+    "pipelineCount": 9,
+    "pipelineInstanceCount": 21,
+    "sharedTargets": [
+      "code:055bb5c94bc0dac259f08a6adc97e9305fbf901d5facbdcbbedf799810f474bd",
+      "code:100399b3f899be056e0e5c22d7ecafd3104c65d6a94215a864299807f0042fcd",
+      "code:1d9d2f5f4ae558b48c3701f1dc4c332b5fe318104c993dd6a400597b49d07221",
+      "code:232dca3682e469969614db0f40d955bee12175a49e9afd5a6175e067407291da",
+      "code:2d3c99b5aeacbbc7cda0f3aad8bc98bc42c708260e9ee223ab28056ebf078de0",
+      "code:3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023",
+      "code:472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+      "code:503c7dc8c8731b3df6eb2929114bd25c062dfdbea2d46c73a37d693f0676fc3f",
+      "code:5529d368e5305f7688dd8d2d655fe48c4123be0110cdc9c167bce025d8d11c20",
+      "code:6c798758965b391c581c992b6d54396e2d91cee23b8ac931ea831d6db243b3f5",
+      "code:75ba6d8e71770bcbd98c1181473cca5d33d4646655c95786be8ed99155d77502",
+      "code:78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+      "code:8010433a3c6c4ee8281ffa33a253a83ea00c8b1225061485592bd49b2654bec2",
+      "code:8143bb9947f380e92c2dd7c33010e1917fbc460bdd225e17d1b913491c0813f9",
+      "code:8b5550b4770c2d03601f6392496e45689973d46c608a24e9f1dd60d91904cb78",
+      "code:9fd83725816348bf04b594b07354991c3abb110ae6b8e21dcaa2c50a9d1063a0",
+      "code:addd86767bd2691b26110b1c5fec071f48047ebc3ce7611a46a59b70c3329922",
+      "code:b26ca591192cf9c092447585f487a2b754e6285dfde7804df144f8116196fe46",
+      "code:c2fae909c6db9659cc0249c98f9d699216a90625173aec13d41ac4a380471db0",
+      "code:e496a8cd0fad78f801ece1087c1f258ecb76684a09eca420d1222d5b6e9ca28b",
+      "code:fb2fb73fca6d385a2bd8c6f8cddc47ef5653b29a1ddf69387b7d988eef54adce",
+      "instance:CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK"
+    ],
+    "instanceCount": 24,
+    "codeCount": 27,
+    "instances": [
+      {
+        "address": "CBASBQCLBR46JIUYRZGI5WP3DVOXOW3TQMM3JEKUVKAG7ESXKLNV2QSB",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5138929,
+        "remainingLedgers": 104011,
+        "status": "healthy",
+        "wasmHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "valueSha256": "aaf33793862fe6a1d343eaf89b876a8fc5ca8bc1ea497dbaa10cdaf7ace2deb0"
+      },
+      {
+        "address": "CBCQFZNBHEKHPYCSR4V3RIWHFZQW2AI34MRQRHRCPZVDS235WPKKCXGR",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5138302,
+        "remainingLedgers": 103384,
+        "status": "healthy",
+        "wasmHash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+        "valueSha256": "052678fe62d1ced191889f807a98dec543f21c0088ea269d6063baa6bce77c32"
+      },
+      {
+        "address": "CBV6AXCQDELS4C5TCD4C6WT2XWLVVPWA3YEXY67MFU5JK24SM3QAW2S6",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 0,
+        "remainingLedgers": -5034918,
+        "status": "due",
+        "wasmHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "valueSha256": "e5431dd09b982f53ba04459f014511beae378751ac2227c6c0dda03cd2172a3c"
+      },
+      {
+        "address": "CCRKREBO2YGC3TLS74K5TCS7JZO3TU62XSUOWL5EUSG7TG7UI2AJDGQP",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5138303,
+        "remainingLedgers": 103385,
+        "status": "healthy",
+        "wasmHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+        "valueSha256": "821419ae07244f6c06e79e76ba563d1fc1b7b1377c19341a0202626fc6cca49a"
+      },
+      {
+        "address": "CBIIY5ZYX7AKFNAZCA2N62R2C2TLILAMV6WARS2IFQR2D5WPMO3O4UGQ",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5138930,
+        "remainingLedgers": 104012,
+        "status": "healthy",
+        "wasmHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "valueSha256": "5f7b3547baf86199046476ce700ab5af561a5c454b86e025530d2361360422eb"
+      },
+      {
+        "address": "CCXDYEUXKCQGEP4JEKSOFCDCGL222NI72AXA3ZL7DB23XH76R5LNKGBB",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5138947,
+        "remainingLedgers": 104029,
+        "status": "healthy",
+        "wasmHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "valueSha256": "ed4f0c7c2572c4e39720488ba7a2ab601506bf6f3c151567ed0d4e5a9a4f34f3"
+      },
+      {
+        "address": "CDKKZ24PYASO4OAANYGFIOFHFTBOWEOD6S36B6B4SNISSHDY2WDSY3RE",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 0,
+        "remainingLedgers": -5034918,
+        "status": "due",
+        "wasmHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "valueSha256": "46c121a05ee4a8b3df43f968aecc5953ac15150b3f3da8fc98894717e213f719"
+      },
+      {
+        "address": "CB4J76SYWBE3CPHLWYFT47Z2EDCRD3R2L2NWNDSNIXC24HGHJEWJBYMP",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5138948,
+        "remainingLedgers": 104030,
+        "status": "healthy",
+        "wasmHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "valueSha256": "2a5fed2512a9f8160faba4ca8b63dae7265e3d48b51c95cba35ac567fb1f1067"
+      },
+      {
+        "address": "CCV44HQKKQWBFK7R3CZ5XH7DCWIK7AFMOC6IIN6JVJMGR6C62HWBJDZZ",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 0,
+        "remainingLedgers": -5034918,
+        "status": "due",
+        "wasmHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "valueSha256": "a7bbfe3c7c7dd4f7f63e629cb4a2f7dfd023d4d2590e57c15b422063aa522275"
+      },
+      {
+        "address": "CDVKYIAZBS7W3R233OWJRJTLHQOOM32YJHQQA7MTIEICPLQ2XSX5THEK",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5138949,
+        "remainingLedgers": 104031,
+        "status": "healthy",
+        "wasmHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "valueSha256": "b44c19383775736a6903a7cd343a587f74aa2a5dd47842f1c7ea75be0f3b85b8"
+      },
+      {
+        "address": "CATHZNFIMYCZO2X3JXO4CQLS5LYP4EUUFIK6L5LWGSVXNJ32TLHUP6CB",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 0,
+        "remainingLedgers": -5034918,
+        "status": "due",
+        "wasmHash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+        "valueSha256": "526f3107efb70aa08c7d6455b19bae0e704cd1a17a745e3f9f1243496def949b"
+      },
+      {
+        "address": "CBRWS7L5WVFE7WJ6WFHVZ2EXYAYKQCAPEQY276UN5KRUQAJPM3SJJOPH",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5138950,
+        "remainingLedgers": 104032,
+        "status": "healthy",
+        "wasmHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "valueSha256": "67c1b44e9d062655964996081276d1f29c550d017a0f7e464fdc7ffe671451fa"
+      },
+      {
+        "address": "CCTJYRWMNJUB3QS47JO5ZQHOEEKDLJV5CAOE7FWETOOXMZ32ECYLHXW6",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 0,
+        "remainingLedgers": -5034918,
+        "status": "due",
+        "wasmHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "valueSha256": "48ddbbc43bfcb54f0d44d273f500f4b4914d451825aceb19250220f84fc11591"
+      },
+      {
+        "address": "CC2O3NL6LGNBQW27IEXESOJN4R3TWGOMAFNBV46G3DI476QV6JTRAFY6",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5121061,
+        "remainingLedgers": 86143,
+        "status": "healthy",
+        "wasmHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+        "valueSha256": "f839ae0952e8acabc2ee27439fc5d002e58c0ba22432e7a40d3a4f420e6624c6"
+      },
+      {
+        "address": "CAUQ5QY4XVDL6NSHQHMC2MFRHXDWZWSM63H2WMNDA4LWNAEOVYWMS7E5",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5121061,
+        "remainingLedgers": 86143,
+        "status": "healthy",
+        "wasmHash": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+        "valueSha256": "91069282fdb4d2d4b6229f2e136b221d52f19ad6c8a06d73f647940fdbf3bba0"
+      },
+      {
+        "address": "CAG4KWA7XWAIE5MRKAVRH2KC63NSM2CPG5TJMYVEPAFZ37XB4AS4DYWW",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5138300,
+        "remainingLedgers": 103382,
+        "status": "healthy",
+        "wasmHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "valueSha256": "3a210ae38cedaf54637b8e4e71b6e6bb97f8dd3d236ffc18e484f46a1909b8a8"
+      },
+      {
+        "address": "CACEYOKNNIWELKAQX7ITVW4YGG33F3IEO77L5VCGRO2H7Y6E224XNHG2",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5138927,
+        "remainingLedgers": 104009,
+        "status": "healthy",
+        "wasmHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+        "valueSha256": "34a2babb5acc26170d5b25b79c7f4cb5cbfaecb647b01f7ae170ba86f1a2423f"
+      },
+      {
+        "address": "CDVXYDB272X2YPJG43VCE64CXGUC4CMOFTIRDDG2YOBMRXMQ2BHV5NFX",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 0,
+        "remainingLedgers": -5034918,
+        "status": "due",
+        "wasmHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "valueSha256": "c09e19ac95af8288910854c16e4db5af8c1ab5ea9163e99da59b9ca2d51f826a"
+      },
+      {
+        "address": "CBICGV6EAXK7J4ZNP2PKLKWFEV7XYTGBAAVHIKCSEPQ24JLJRT77UCNF",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5138301,
+        "remainingLedgers": 103383,
+        "status": "healthy",
+        "wasmHash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "valueSha256": "43073a2e2743c69099f1bf45abc69e09a4975908212ff33163230a2d7982f72f"
+      },
+      {
+        "address": "CD4D3P66527AXYLPV2RK46AAM6AGVJNGOWTCGDATXYBOYQ3LHUV7JUZT",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5138928,
+        "remainingLedgers": 104010,
+        "status": "healthy",
+        "wasmHash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+        "valueSha256": "e216279528de55c72f0a1f9fdb4a561d18a6aca40127be33fd3fba7af5c7ae98"
+      },
+      {
+        "address": "CDTY2KQS4A4LLPG3UQMFMSDTJ6GJNOZ7KIK2CPTZNGZINUC6OGXRGAYW",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 0,
+        "remainingLedgers": -5034918,
+        "status": "due",
+        "wasmHash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "valueSha256": "1621d97858abe780420b99988821908741c2cc0dc0e7698717923b275b0661ef"
+      },
+      {
+        "address": "CB45SMSGGVRBYPCLO6J3HP4IWWACFKB3762WYKFHV4R6VSJ6A77OA7KA",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5147491,
+        "remainingLedgers": 112573,
+        "status": "healthy",
+        "wasmHash": "bcf0ad2d7cedc728bd24cee8f20efa289efc3d5d8f24ed8a513fe393a5507d6c",
+        "valueSha256": "d72964b94462cfdd64cc31d7dae1a093d5ddb2fd90ddc0dbf0f991556cdba5ec"
+      },
+      {
+        "address": "CAIS64XNDGLYRRZGNPX2J4FGQOJGWHZ4VC2OVMZTNHXJH7SJGDSA2MS7",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5147491,
+        "remainingLedgers": 112573,
+        "status": "healthy",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "valueSha256": "4847d2971d8ba5bda59e369efcfe9ddecd262eeb3e461c7d5160d608c6f7289e"
+      },
+      {
+        "address": "CBFZTEZZN2M7PV3LHM5TSHO6K45RDKT4ICX2YUNWRX6RXWVIOJ3KZJNK",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7756749,
+        "remainingLedgers": 2721831,
+        "status": "healthy",
+        "wasmHash": "3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023",
+        "valueSha256": "50c72fae9c55223c8497f5e3aaa94950a961540e9281f4ee31d5be19bb1315f8"
+      }
+    ],
+    "codes": [
+      {
+        "hash": "055bb5c94bc0dac259f08a6adc97e9305fbf901d5facbdcbbedf799810f474bd",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742956,
+        "remainingLedgers": 2708038,
+        "status": "healthy"
+      },
+      {
+        "hash": "100399b3f899be056e0e5c22d7ecafd3104c65d6a94215a864299807f0042fcd",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742962,
+        "remainingLedgers": 2708044,
+        "status": "healthy"
+      },
+      {
+        "hash": "1719ae70773f7784eaab57f561c7e80176d808ff623b57bee48a00c72436ed18",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742950,
+        "remainingLedgers": 2708032,
+        "status": "healthy"
+      },
+      {
+        "hash": "1d9d2f5f4ae558b48c3701f1dc4c332b5fe318104c993dd6a400597b49d07221",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5116156,
+        "remainingLedgers": 81238,
+        "status": "healthy"
+      },
+      {
+        "hash": "201e4fcc924ecce5ef8ee17505fb82ce75751c72a5e23f9ff733d01dcd55c417",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742958,
+        "remainingLedgers": 2708040,
+        "status": "healthy"
+      },
+      {
+        "hash": "232dca3682e469969614db0f40d955bee12175a49e9afd5a6175e067407291da",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5116157,
+        "remainingLedgers": 81239,
+        "status": "healthy"
+      },
+      {
+        "hash": "2d3c99b5aeacbbc7cda0f3aad8bc98bc42c708260e9ee223ab28056ebf078de0",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5119991,
+        "remainingLedgers": 85073,
+        "status": "healthy"
+      },
+      {
+        "hash": "3020bb44c41e358412e61565e0a132b16136b4414fc187afa628b968e6480023",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742951,
+        "remainingLedgers": 2708033,
+        "status": "healthy"
+      },
+      {
+        "hash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5116155,
+        "remainingLedgers": 81237,
+        "status": "healthy"
+      },
+      {
+        "hash": "503c7dc8c8731b3df6eb2929114bd25c062dfdbea2d46c73a37d693f0676fc3f",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742952,
+        "remainingLedgers": 2708034,
+        "status": "healthy"
+      },
+      {
+        "hash": "5529d368e5305f7688dd8d2d655fe48c4123be0110cdc9c167bce025d8d11c20",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742963,
+        "remainingLedgers": 2708045,
+        "status": "healthy"
+      },
+      {
+        "hash": "6c798758965b391c581c992b6d54396e2d91cee23b8ac931ea831d6db243b3f5",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742965,
+        "remainingLedgers": 2708047,
+        "status": "healthy"
+      },
+      {
+        "hash": "75ba6d8e71770bcbd98c1181473cca5d33d4646655c95786be8ed99155d77502",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742947,
+        "remainingLedgers": 2708029,
+        "status": "healthy"
+      },
+      {
+        "hash": "78e60ec76a351baeb7bc167c6eb553e3daf6f4ec5febb820d7cf970acb3fac91",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5119519,
+        "remainingLedgers": 84601,
+        "status": "healthy"
+      },
+      {
+        "hash": "8010433a3c6c4ee8281ffa33a253a83ea00c8b1225061485592bd49b2654bec2",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742959,
+        "remainingLedgers": 2708041,
+        "status": "healthy"
+      },
+      {
+        "hash": "8143bb9947f380e92c2dd7c33010e1917fbc460bdd225e17d1b913491c0813f9",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5119520,
+        "remainingLedgers": 84602,
+        "status": "healthy"
+      },
+      {
+        "hash": "88c75f4f49f8ed0fedba08ce538811bd326ba51a0c7066b94ab9065cb16a82c2",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742954,
+        "remainingLedgers": 2708036,
+        "status": "healthy"
+      },
+      {
+        "hash": "8b5550b4770c2d03601f6392496e45689973d46c608a24e9f1dd60d91904cb78",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742955,
+        "remainingLedgers": 2708037,
+        "status": "healthy"
+      },
+      {
+        "hash": "9fd83725816348bf04b594b07354991c3abb110ae6b8e21dcaa2c50a9d1063a0",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742957,
+        "remainingLedgers": 2708039,
+        "status": "healthy"
+      },
+      {
+        "hash": "addd86767bd2691b26110b1c5fec071f48047ebc3ce7611a46a59b70c3329922",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742949,
+        "remainingLedgers": 2708031,
+        "status": "healthy"
+      },
+      {
+        "hash": "b26ca591192cf9c092447585f487a2b754e6285dfde7804df144f8116196fe46",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5119990,
+        "remainingLedgers": 85072,
+        "status": "healthy"
+      },
+      {
+        "hash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5121109,
+        "remainingLedgers": 86191,
+        "status": "healthy"
+      },
+      {
+        "hash": "bcf0ad2d7cedc728bd24cee8f20efa289efc3d5d8f24ed8a513fe393a5507d6c",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5611672,
+        "remainingLedgers": 576754,
+        "status": "healthy"
+      },
+      {
+        "hash": "c2fae909c6db9659cc0249c98f9d699216a90625173aec13d41ac4a380471db0",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742948,
+        "remainingLedgers": 2708030,
+        "status": "healthy"
+      },
+      {
+        "hash": "e496a8cd0fad78f801ece1087c1f258ecb76684a09eca420d1222d5b6e9ca28b",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742953,
+        "remainingLedgers": 2708035,
+        "status": "healthy"
+      },
+      {
+        "hash": "e9482ff07fcf4791aa3f8deebeda6159081a04f13e8ac63c28e91b7f80b23d1a",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 7742749,
+        "remainingLedgers": 2707831,
+        "status": "healthy"
+      },
+      {
+        "hash": "fb2fb73fca6d385a2bd8c6f8cddc47ef5653b29a1ddf69387b7d988eef54adce",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5119518,
+        "remainingLedgers": 84600,
+        "status": "healthy"
+      }
+    ]
+  },
+  "fixture": {
+    "configurationMatches": true,
+    "registeredForMaintenance": false,
+    "expired": false,
+    "instances": [
+      {
+        "address": "CB45SMSGGVRBYPCLO6J3HP4IWWACFKB3762WYKFHV4R6VSJ6A77OA7KA",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5147491,
+        "remainingLedgers": 112573,
+        "status": "healthy",
+        "wasmHash": "bcf0ad2d7cedc728bd24cee8f20efa289efc3d5d8f24ed8a513fe393a5507d6c",
+        "valueSha256": "d72964b94462cfdd64cc31d7dae1a093d5ddb2fd90ddc0dbf0f991556cdba5ec"
+      },
+      {
+        "address": "CAIS64XNDGLYRRZGNPX2J4FGQOJGWHZ4VC2OVMZTNHXJH7SJGDSA2MS7",
+        "latestLedger": 5034918,
+        "liveUntilLedger": 5147491,
+        "remainingLedgers": 112573,
+        "status": "healthy",
+        "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+        "valueSha256": "4847d2971d8ba5bda59e369efcfe9ddecd262eeb3e461c7d5160d608c6f7289e"
+      }
+    ],
+    "codeHashes": [
+      "bcf0ad2d7cedc728bd24cee8f20efa289efc3d5d8f24ed8a513fe393a5507d6c",
+      "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f"
+    ],
+    "previousPaymentReserved": false
+  },
+  "rpc": {
+    "requestCount": 3,
+    "retries": 0,
+    "idleGapMs": 1000,
+    "calls": [
+      {
+        "method": "getLatestLedger",
+        "keyCount": 0,
+        "durationMs": 1050,
+        "latestLedger": 5034917
+      },
+      {
+        "method": "getLedgerEntries",
+        "keyCount": 24,
+        "durationMs": 629,
+        "latestLedger": 5034918
+      },
+      {
+        "method": "getLedgerEntries",
+        "keyCount": 27,
+        "durationMs": 1497,
+        "latestLedger": 5034918
+      }
+    ]
+  },
+  "networkSubmissions": 0,
+  "configurationWrites": 0,
+  "deployment": {
+    "id": "9994d0dc-ba38-4652-a1fd-4157109433e2",
+    "status": "SUCCESS",
+    "createdAt": "2026-10-05T10:15:21.549Z",
+    "message": "TTL optimizer merged commit 216ef8c2aae496847ac5c6d9198462ace632a468; bounded dry-run calibration; paid maintenance disabled",
+    "imageDigest": "sha256:de77bf151154224bd01d17a4654fef0bb610657cb8817fb16a87a0d90b121c32"
+  },
+  "runtimeCommit": "216ef8c2aae496847ac5c6d9198462ace632a468",
+  "comparisonToCalibration": {
+    "reference": "ttl-capacity-hackathon-testing.json",
+    "sourceHashesMatch": true,
+    "campaignCommittedStroopsUnchanged": true,
+    "reservationCountUnchanged": true,
+    "pipelineCountUnchanged": true
+  },
+  "eligibility": {
+    "dueCodeCount": 0,
+    "unknownCodeCount": 0,
+    "dueInstanceCount": 7,
+    "unknownInstanceCount": 0,
+    "minimumCodeRemainingLedgers": 81237,
+    "minimumCodeAboveThresholdLedgers": 31237,
+    "earliestDueCodeHash": "472061679c6b6fc313f70107c09ed7ca3d21ccd0aef15b082c2533632ee75602",
+    "earliestDueCodeLedger": 5066155,
+    "fixtureRecoveryEligibleFromLedger": 5147492,
+    "fixtureLedgersUntilRecoveryEligible": 112574,
+    "codeExtensionEligible": false,
+    "fixtureRecoveryEligible": false,
+    "decision": "No paid extension, restoration or payment: no inspected code is due and neither disposable fixture instance has expired."
+  },
+  "timeEstimates": {
+    "assumedSecondsPerLedger": 5,
+    "earliestDueCodeHours": 43.385,
+    "fixtureRecoveryDays": 6.515,
+    "qualification": "Planning approximations only, not guaranteed times or scheduled execution. Recheck actual ledgers, configuration and campaign reservations before any submission."
+  },
+  "limitations": [
+    "Read-only eligibility inspection from the application container, not an HTTP cron or wallet/factory rehearsal.",
+    "Public TESTNET getLatestLedger reported protocol 29; previous isolated physical-archive evidence used protocol 26 and does not replace a future public rehearsal.",
+    "Seven pre-existing non-fixture instances still reported due with live-until zero; they were not restored.",
+    "Fixture instance values and executable hashes match the saved manifest; this read does not reverify its funded balance or prove post-recovery payment.",
+    "Missing entries would remain unknown rather than prove archival; none were missing in this inspection.",
+    "A future extension of the earliest code may also delay its eventual archival. Keep the disposable fixture instances outside maintenance.",
+    "No recurring maintenance, scheduler, shared activation, staging or production access."
+  ]
+}

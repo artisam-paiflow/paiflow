@@ -1,6 +1,8 @@
 import "server-only";
-import type { Prisma, PrismaClient, SignedTxKind } from "@prisma/client";
-import { captureServer } from "./analytics/server";
+import type { Prisma, SignedTxKind } from "@prisma/client";
+import { enqueueAnalytics, deliverOutbox } from "./analytics/outbox";
+import { audienceFor, TRACKING_VERSION } from "./analytics/policy";
+import { env } from "./env";
 import { db } from "./db";
 import { log } from "./log";
 import type { SignerInfo } from "./stellar/signer";
@@ -30,6 +32,7 @@ export type SignedTransactionInput = {
   userId?: string | null;
   deploymentId?: string | null;
   ip?: string | null;
+  apiTokenId?: string | null;
 };
 
 /** The row for a parsed envelope, or null when the envelope could not be read. */
@@ -57,6 +60,11 @@ export function signedTransactionRow(
     kind: input.kind,
     network: input.network,
     ip: input.ip ?? null,
+    apiTokenId: input.apiTokenId ?? null,
+    trackingVersion: TRACKING_VERSION,
+    outcome: "RECEIVED",
+    submittedAt: new Date(),
+    nextCheckAt: new Date(Date.now() + 30_000),
   };
 }
 
@@ -71,12 +79,56 @@ export function signedTransactionRow(
  */
 export async function insertSignedTransaction(
   row: Prisma.SignedTransactionUncheckedCreateInput,
-  client: Prisma.TransactionClient | PrismaClient = db,
+  client?: Prisma.TransactionClient,
 ): Promise<boolean> {
+  if (!client) return db.$transaction((tx) => insertSignedTransaction(row, tx));
+  const user = row.userId
+    ? await client.user.findUnique({
+        where: { id: row.userId },
+        select: { id: true, role: true, analyticsAudience: true },
+      })
+    : row.apiTokenId
+      ? ((
+          await client.deploymentApiToken.findUnique({
+            where: { id: row.apiTokenId },
+            include: {
+              deployment: {
+                select: { owner: { select: { id: true, role: true, analyticsAudience: true } } },
+              },
+            },
+          })
+        )?.deployment.owner ?? null)
+      : null;
+  const audience = audienceFor(user);
   const { count } = await client.signedTransaction.createMany({
-    data: [row],
+    data: [{ ...row, audience, callerAccountId: user?.id ?? null }],
     skipDuplicates: true,
   });
+  if (count)
+    await enqueueAnalytics(client, {
+      key: `${row.network}:signed:${row.txHash}`,
+      distinctId:
+        row.userId ?? (row.apiTokenId ? `api:${row.apiTokenId}` : `wallet:${row.signerAddress}`),
+      name: "transaction_signed",
+      properties: {
+        deployment_id: row.deploymentId ?? null,
+        tx_hash: row.txHash,
+        signer_address: row.signerAddress,
+        kind: EVENT_KIND[row.kind],
+        signed_by_source: row.signedBySource ?? true,
+      },
+      context: {
+        audience,
+        account_id: user?.id ?? "",
+        caller_type: row.userId ? "session" : row.apiTokenId ? "api" : "wallet",
+        stellar_network: row.network,
+        app_env: env().NEXT_PUBLIC_APP_ENV,
+        app_version: process.env.NEXT_PUBLIC_APP_VERSION ?? "dev",
+        app_host: new URL(env().NEXT_PUBLIC_APP_URL).host,
+        tracking_version: TRACKING_VERSION,
+      },
+      personProfile: Boolean(row.userId),
+    });
   return count === 1;
 }
 
@@ -95,41 +147,21 @@ const EVENT_KIND: Record<SignedTxKind, "deploy" | "trigger" | "invoke" | "api_ex
  * the row is committed, never inside the transaction that writes it, and only
  * when `insertSignedTransaction` created the row — one event per hash.
  */
-export function captureTransactionSigned(row: Prisma.SignedTransactionUncheckedCreateInput): void {
-  const props = {
-    deployment_id: row.deploymentId ?? null,
-    tx_hash: row.txHash,
-    signer_address: row.signerAddress,
-    kind: EVENT_KIND[row.kind],
-    signed_by_source: row.signedBySource ?? true,
-  };
-  if (row.userId) {
-    void captureServer(row.userId, "transaction_signed", props);
-  } else {
-    void captureServer(`wallet:${row.signerAddress}`, "transaction_signed", props, {
-      personProfile: false,
+export function captureTransactionSigned(_row: Prisma.SignedTransactionUncheckedCreateInput): void {
+  // The transactional outbox owns the event. This only accelerates its delivery.
+  if (env().NEXT_PUBLIC_POSTHOG_KEY)
+    void deliverOutbox({ batch: 1, budgetMs: 2_000 }).catch(() => {
+      log.warn("analytics: immediate delivery unavailable; queued for reconciliation");
     });
-  }
 }
 
 /**
- * Best-effort variant for the public submit routes, which have no transaction
- * to join. It never throws into the response, but it logs at `error` rather
- * than `warn`: a silently lost traceability row is the failure that defeats
- * the feature, so it has to be loud.
+ * Durable write before submission. A DB failure stops the chain call, so a
+ * successful submission cannot silently lose its traceability record.
  */
 export async function recordSignedTransaction(input: SignedTransactionInput): Promise<void> {
   const row = signedTransactionRow(input);
-  if (!row) return;
-  let created: boolean;
-  try {
-    created = await insertSignedTransaction(row);
-  } catch (err) {
-    log.error(
-      { err, txHash: row.txHash, kind: row.kind, deploymentId: row.deploymentId ?? null },
-      "signed-tx: record failed",
-    );
-    return;
-  }
+  if (!row) throw new Error("Cannot record an unreadable signed envelope");
+  const created = await insertSignedTransaction(row);
   if (created) captureTransactionSigned(row);
 }

@@ -1,14 +1,25 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import type { FlowGraph, FlowNode, FlowEdge, Asset } from "@/lib/flows/schema";
-import { FlowGraphSchema, isTrigger, isAction, isLogic } from "@/lib/flows/schema";
+import {
+  EdgeBranchSchema,
+  FlowGraphSchema,
+  migrateFlowGraph,
+  isTrigger,
+  isAction,
+  isLogic,
+} from "@/lib/flows/schema";
 import type { PatchOp } from "./prompts";
 
 export function applyPatch(graph: FlowGraph, patch: PatchOp[]): FlowGraph {
+  let notify = graph.notify;
   const nodes = new Map<string, FlowNode>(graph.nodes.map((n) => [n.id, structuredClone(n)]));
   const edges = new Map<string, FlowEdge>(graph.edges.map((e) => [e.id, structuredClone(e)]));
 
   for (const op of patch) {
     switch (op.op) {
+      case "setNotify":
+        notify = op.notify;
+        break;
       case "updateNode": {
         const existing = nodes.get(op.id);
         if (!existing) throw new Error(`updateNode: node ${op.id} not found`);
@@ -48,10 +59,12 @@ export function applyPatch(graph: FlowGraph, patch: PatchOp[]): FlowGraph {
     }
   }
 
-  return {
+  return FlowGraphSchema.parse({
+    ...graph,
+    notify,
     nodes: Array.from(nodes.values()),
     edges: Array.from(edges.values()),
-  };
+  });
 }
 
 function makeEdgeId() {
@@ -329,6 +342,10 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
           } as FlowNode);
           break;
         }
+        case "hold":
+        case "return_to_owner":
+          nodes.push({ id, type, config: {} });
+          break;
         case "pay": {
           const mode = (data.mode === "percentage" ? "percentage" : "fixed") as
             | "fixed"
@@ -340,6 +357,7 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
             type: "pay",
             config: {
               recipient: sanitizeAddress(String(data.recipient ?? "")),
+              ...(typeof data.email === "string" ? { email: data.email } : {}),
               amountStroops: String(data.amountStroops ?? data.amount ?? "0"),
               asset: normalizeAsset(data.asset),
               mode,
@@ -356,6 +374,7 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
                 const rec = r as Record<string, unknown>;
                 return {
                   address: sanitizeAddress(String(rec.address ?? "")),
+                  ...(typeof rec.email === "string" ? { email: rec.email } : {}),
                   bps: Number(rec.bps ?? 0),
                   label: rec.label ? String(rec.label) : `Recipient ${j + 1}`,
                 };
@@ -471,10 +490,17 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
         return { id: `e${i}`, source: "", target: "" };
       }
       const edge = e as Record<string, unknown>;
+      // Keep a condition's True/False output: dropping "false" would silently
+      // turn the not-met side into the met side. A handle on any other source
+      // means nothing and would only trip validation, so it is dropped.
+      const source = String(edge.source ?? "");
+      const fromCondition = nodes.some((n) => n.id === source && n.type === "condition");
+      const branch = EdgeBranchSchema.safeParse(edge.sourceHandle);
       return {
         id: String(edge.id ?? `e${i}`),
-        source: String(edge.source ?? ""),
+        source,
         target: String(edge.target ?? ""),
+        ...(fromCondition && branch.success ? { sourceHandle: branch.data } : {}),
       };
     });
   } else {
@@ -489,7 +515,16 @@ export function normalizeFlowGraph(raw: unknown): NormalizeResult {
   });
 
   try {
-    const graph = FlowGraphSchema.parse({ nodes: rescued.nodes, edges: rescued.edges });
+    const graph = FlowGraphSchema.parse(
+      migrateFlowGraph({
+        nodes: rescued.nodes,
+        edges: rescued.edges,
+        notify: (raw as Record<string, unknown>).notify ?? {
+          mode: "every_transaction",
+          sendTo: "",
+        },
+      }),
+    );
     return { ok: true, graph };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

@@ -9,9 +9,11 @@ import { TEMPLATES } from "@/components/builder/palette";
 import { FlowNodeSchema } from "@/lib/flows/schema";
 
 describe("palette defaults", () => {
-  it("covers every node type the schema knows", () => {
+  it("covers every current node type while legacy Email Notify remains parseable", () => {
     const made = new Set(TEMPLATES.map((tpl) => tpl.make().type));
-    const known = FlowNodeSchema.options.map((option) => option.shape.type.value);
+    const known = FlowNodeSchema.options
+      .map((option) => option.shape.type.value)
+      .filter((type) => type !== "email_notify");
     expect([...made].sort()).toEqual([...known].sort());
   });
 

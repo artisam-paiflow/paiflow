@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Paiflow API v1",
-    "description": "Execute a deployed swapper flow and poll its events. Fill in the collection variables `deploymentId`, `apiToken` (minted by the deployment's owner in the API access panel), `from` and `amount`.\n\nThe API never signs. Run **Prepare execute**, sign the `unsignedXdr` variable it stores with the `from` key on your side (`stellar tx sign --sign-with-key S… --network testnet`), paste the result into `signedXdr`, then run **Submit execute**. Guide: docs/api/README.md in the repository.",
+    "description": "Execute a deployed deposit-triggered flow and poll its events. Fill in the collection variables `deploymentId`, `apiToken` (minted by the deployment's owner in the API access panel), `from` and `amount`.\n\nThe API never signs. Run **Prepare execute**, sign the `unsignedXdr` variable it stores with the `from` key on your side (`stellar tx sign --sign-with-key S\u2026 --network testnet`), paste the result into `signedXdr`, then run **Submit execute**. Guide: docs/api/README.md in the repository.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -50,6 +50,24 @@
     {
       "key": "cursor",
       "value": ""
+    },
+    {
+      "key": "recipient",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payoutNodeId",
+      "value": "pay",
+      "type": "string"
+    },
+    {
+      "key": "webhookSecret",
+      "value": ""
+    },
+    {
+      "key": "webhookEventKey",
+      "value": "task-completed-42"
     }
   ],
   "item": [
@@ -114,6 +132,43 @@
       ]
     },
     {
+      "name": "Get deployment capabilities",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/capabilities",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "capabilities"]
+        },
+        "description": "Discover recorded integration support and prerequisites. Requires the deployment token. Conditional support is not live eligibility; no transactions are sent."
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/capabilities",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "capabilities"]
+            },
+            "description": "Discover recorded integration support and prerequisites. Requires the deployment token. Conditional support is not live eligibility; no transactions are sent."
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"network\": \"testnet\",\n    \"configurationSource\": \"deployment_snapshot\",\n    \"triggerType\": \"deposit\",\n    \"inputAsset\": {\n      \"kind\": \"native\"\n    },\n    \"operations\": {\n      \"execute\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"The paying wallet signs the prepared deposit; simulation checks current configuration.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"events\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Recorded events can lag the chain.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"transactions\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Only attributable transactions can be read; missing evidence does not prove failure.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"releaseEarly\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"No deployed timelock branch supports early release.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"payouts\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Standard flows use configured recipients; per-payment recipients require an eligible Dev flow.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"webhook\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"webhook_secret\",\n        \"requirements\": [\n          \"Requires a deployed webhook trigger with HTTP callbacks enabled.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionAllowance\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      }\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
       "name": "OpenAPI document",
       "request": {
         "method": "GET",
@@ -166,7 +221,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"openapi\": \"3.1.0\",\n  \"info\": {\n    \"title\": \"Paiflow API v1\"\n  },\n  \"…\": \"…\"\n}"
+          "body": "{\n  \"openapi\": \"3.1.0\",\n  \"info\": {\n    \"title\": \"Paiflow API v1\"\n  },\n  \"\u2026\": \"\u2026\"\n}"
         }
       ]
     },
@@ -194,7 +249,7 @@
             }
           }
         },
-        "description": "Prepare the deposit that executes a swapper flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the swapper executes as the next pipeline step. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only swapper flows can be executed.\n\nRate limit: 30 requests per 60 seconds per token."
+        "description": "Prepare the deposit that executes a deposit-triggered flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run in the same transaction. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`.\n\nRate limit: 30 requests per 60 seconds per token."
       },
       "event": [
         {
@@ -247,7 +302,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"data\": {\n    \"xdr\": \"AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAAAAAAAAAAAABmxy2kAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB…(truncated)\",\n    \"networkPassphrase\": \"Test SDF Network ; September 2015\",\n    \"network\": \"testnet\",\n    \"expiresAt\": \"2026-09-15T09:03:00.000Z\"\n  }\n}"
+          "body": "{\n  \"data\": {\n    \"xdr\": \"AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAAAAAAAAAAAABmxy2kAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB\u2026(truncated)\",\n    \"networkPassphrase\": \"Test SDF Network ; September 2015\",\n    \"network\": \"testnet\",\n    \"expiresAt\": \"2026-09-15T09:03:00.000Z\"\n  }\n}"
         },
         {
           "name": "401 Unauthorized",
@@ -347,7 +402,7 @@
             }
           }
         },
-        "description": "Submit a signed deposit that executes a swapper flow.\n\nThe envelope must be the one `execute` returned, signed by `from`: anything but a single `deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a fee-bump envelope.\n\nIdempotent on the envelope hash: submitting the same `signedXdr` again never sends a second transaction, it reports the one already on the network. That is also how to check a `PENDING` result. A transaction that reached the network and failed is a `200` with `status: FAILED` and an `error`, not an HTTP error.\n\nRate limit: 30 requests per 60 seconds per token."
+        "description": "Submit a signed deposit that executes a deposit-triggered flow.\n\nThe envelope must be the one `execute` returned, signed by `from`: anything but a single `deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a fee-bump envelope.\n\nIdempotent on the envelope hash: submitting the same `signedXdr` again never sends a second transaction, it reports the one already on the network. That is also how to check a `PENDING` result. A transaction that reached the network and failed is a `200` with `status: FAILED` and an `error`, not an HTTP error.\n\nRate limit: 30 requests per 60 seconds per token."
       },
       "event": [
         {
@@ -477,6 +532,85 @@
       ]
     },
     {
+      "name": "Release early",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/release-early",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "release-early"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nodeId\": \"timelock-branch-1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Release a timelock branch's before side now (work delivered). Omit `nodeId` when the deployment has one timelock branch. Rate limit: 10 requests per 60 seconds per token."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('releases the before side', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().data.txHash).to.be.a('string');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/release-early",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "release-early"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nodeId\": \"timelock-branch-1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"nodeId\": \"timelock-branch-1\",\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"ledger\": 1842917\n  }\n}"
+        }
+      ]
+    },
+    {
       "name": "List events",
       "request": {
         "method": "GET",
@@ -504,7 +638,7 @@
             }
           ]
         },
-        "description": "Forward-paginated events the app decoded for this deployment's contracts, ascending by `(ledger, eventId)`. This is the app's record, not a raw chain feed: each event appears once (`eventId` is unique), and it can trail the chain by about a minute, because events arrive from a one-minute poller (a confirmed `execute/submit` ingests its own events straight away).\n\nA swap is `kind: PAYOUT` with `topic: \"swap\"` and `data` `{ assetIn, assetOut, amountIn, amountOut }`; amounts are stroops as strings.\n\nTo poll: store `nextCursor` and pass it back as `cursor`. While `hasMore` is true, ask again straight away; once it is false, wait and ask again with the same cursor. `nextCursor` is never null once the deployment has events: on an empty page it echoes the cursor you sent. It is null only when there are no events and no cursor was sent.\n\nRate limit: 120 requests per 60 seconds per token."
+        "description": "Forward-paginated events the app decoded for this deployment's contracts, ascending by `(ledger, eventId)`. This is the app's record, not a raw chain feed: each event appears once (`eventId` is unique).\n\n**Freshness.** When this deployment's events were last collected from the network more than 10 seconds ago, a call collects them first and waits up to 5 seconds for that before answering from the record. So an event usually appears within 10 to 20 seconds of its ledger closing, whoever submitted the transaction (a wallet paying the contract directly, a scanned SEP-7 QR, a scheduled charge), provided you keep polling. Collection is shared by every caller of the deployment: one at a time, and the next no sooner than 10 seconds after the last one ends, so polling faster than that does not make events arrive sooner. A call that arrives while a collection is already running, or when the network is slow, answers with what is recorded, and the event appears on a later call; a background poller also collects every minute. A confirmed `execute/submit` records its own events before it returns.\n\nA swap is `kind: PAYOUT` with `topic: \"swap\"` and `data` `{ assetIn, assetOut, amountIn, amountOut }`; amounts are stroops as strings.\n\nTo poll: store `nextCursor` and pass it back as `cursor`. While `hasMore` is true, ask again straight away; once it is false, wait and ask again with the same cursor. `nextCursor` is never null once the deployment has events: on an empty page it echoes the cursor you sent. It is null only when there are no events and no cursor was sent.\n\nRate limit: 120 requests per 60 seconds per token."
       },
       "event": [
         {
@@ -564,6 +698,412 @@
           "body": "{\n  \"data\": {\n    \"items\": [\n      {\n        \"id\": \"0c9d7a3e-5b1f-4e2a-8d6c-7f4b3a2e1d0c\",\n        \"eventId\": \"0007915171594088448-0000000001\",\n        \"kind\": \"RECEIVE\",\n        \"topic\": \"deposit\",\n        \"ledger\": 1842917,\n        \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n        \"occurredAt\": \"2026-09-15T09:00:12.000Z\",\n        \"data\": {\n          \"from\": \"GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY\",\n          \"amount\": \"1000000000\"\n        }\n      },\n      {\n        \"id\": \"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d\",\n        \"eventId\": \"0007915171594088448-0000000004\",\n        \"kind\": \"PAYOUT\",\n        \"topic\": \"swap\",\n        \"ledger\": 1842917,\n        \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n        \"occurredAt\": \"2026-09-15T09:00:12.000Z\",\n        \"data\": {\n          \"assetIn\": \"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC\",\n          \"assetOut\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n          \"amountIn\": \"1000000000\",\n          \"amountOut\": \"105594796\"\n        }\n      }\n    ],\n    \"nextCursor\": \"MTg0MjkxN3wwMDA3OTE1MTcxNTk0MDg4NDQ4LTAwMDAwMDAwMDQ\",\n    \"hasMore\": false\n  }\n}"
         }
       ]
+    },
+    {
+      "name": "Prepare payout",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\",\n  \"recipient\": \"{{recipient}}\",\n  \"nodeId\": \"{{payoutNodeId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination. Payout deposits expire after 60 seconds; execute keeps 180 seconds. Sign and submit before expiresAt. A 409 includes Retry-After when a held transaction is known: seconds until maxTime, rounded up (minimum 1). It is advisory; ledger-time expiry or finality is still required and a retry may return 409 again."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns an unsigned envelope', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const { data } = pm.response.json();",
+              "  pm.expect(data.xdr).to.be.a('string');",
+              "  pm.collectionVariables.set('unsignedXdr', data.xdr);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\",\n  \"recipient\": \"{{recipient}}\",\n  \"nodeId\": \"{{payoutNodeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination. Payout deposits expire after 60 seconds; execute keeps 180 seconds. Sign and submit before expiresAt. A 409 includes Retry-After when a held transaction is known: seconds until maxTime, rounded up (minimum 1). It is advisory; ledger-time expiry or finality is still required and a retry may return 409 again."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"xdr\": \"AAAAAgAAAADYXPYQYOTpvJD2BAs8oB9ej3hbUuLzjbut2WPA6+L0OQAB6IQADc4pAAAAAQAAAAEAAAAAAAAAAAAAAABmxy2kAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB\\u2026(truncated)\",\n    \"networkPassphrase\": \"Test SDF Network ; September 2015\",\n    \"network\": \"testnet\",\n    \"expiresAt\": \"2026-09-15T09:03:00.000Z\",\n    \"nodeId\": \"pay\"\n  }\n}"
+        },
+        {
+          "name": "401 Unauthorized",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\",\n  \"recipient\": \"{{recipient}}\",\n  \"nodeId\": \"{{payoutNodeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination. Payout deposits expire after 60 seconds; execute keeps 180 seconds. Sign and submit before expiresAt. A 409 includes Retry-After when a held transaction is known: seconds until maxTime, rounded up (minimum 1). It is advisory; ledger-time expiry or finality is still required and a retry may return 409 again."
+          },
+          "status": "Unauthorized",
+          "code": 401,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"A valid API token for this deployment is required\"\n  }\n}"
+        },
+        {
+          "name": "422 Validation",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\",\n  \"recipient\": \"{{recipient}}\",\n  \"nodeId\": \"{{payoutNodeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination. Payout deposits expire after 60 seconds; execute keeps 180 seconds. Sign and submit before expiresAt. A 409 includes Retry-After when a held transaction is known: seconds until maxTime, rounded up (minimum 1). It is advisory; ledger-time expiry or finality is still required and a retry may return 409 again."
+          },
+          "status": "Unprocessable Entity",
+          "code": 422,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"error\": {\n    \"code\": \"VALIDATION\",\n    \"message\": \"Invalid input\",\n    \"fields\": {\n      \"amount\": [\n        \"Must be a whole number of stroops\"\n      ]\n    }\n  }\n}"
+        },
+        {
+          "name": "409 Payout held",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"{{amount}}\",\n  \"from\": \"{{from}}\",\n  \"recipient\": \"{{recipient}}\",\n  \"nodeId\": \"{{payoutNodeId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination. Payout deposits expire after 60 seconds; execute keeps 180 seconds. Sign and submit before expiresAt. A 409 includes Retry-After when a held transaction is known: seconds until maxTime, rounded up (minimum 1). It is advisory; ledger-time expiry or finality is still required and a retry may return 409 again."
+          },
+          "status": "Conflict",
+          "code": 409,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Retry-After",
+              "value": "60"
+            }
+          ],
+          "body": "{\n  \"error\": {\n    \"code\": \"CONFLICT\",\n    \"message\": \"Another payout is preparing or can still execute; submit its prepared envelope or retry after finality\"\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Submit payout",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts/submit",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts", "submit"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "description": "Only the exact prepared deposit for this deployment and token is accepted, with envelope signatures added. Retry the same signedXdr on PENDING. Protection remains through uncertain outcomes and can only be replaced after finality or ledger-time expiry. Final retries cannot release newer holders."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('reports the outcome', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const { data } = pm.response.json();",
+              "  pm.expect(['SUCCESS', 'PENDING', 'FAILED']).to.include(data.status);",
+              "  pm.collectionVariables.set('txHash', data.txHash);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "200 SUCCESS",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts", "submit"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Only the exact prepared deposit for this deployment and token is accepted, with envelope signatures added. Retry the same signedXdr on PENDING. Protection remains through uncertain outcomes and can only be replaced after finality or ledger-time expiry. Final retries cannot release newer holders."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"status\": \"SUCCESS\",\n    \"ledger\": 1842917\n  }\n}"
+        },
+        {
+          "name": "200 PENDING",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts", "submit"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Only the exact prepared deposit for this deployment and token is accepted, with envelope signatures added. Retry the same signedXdr on PENDING. Protection remains through uncertain outcomes and can only be replaced after finality or ledger-time expiry. Final retries cannot release newer holders."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"status\": \"PENDING\"\n  }\n}"
+        },
+        {
+          "name": "200 FAILED",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts", "submit"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Only the exact prepared deposit for this deployment and token is accepted, with envelope signatures added. Retry the same signedXdr on PENDING. Protection remains through uncertain outcomes and can only be replaced after finality or ledger-time expiry. Final retries cannot release newer holders."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"status\": \"FAILED\",\n    \"ledger\": 1842917,\n    \"error\": {\n      \"code\": \"txTooLate\",\n      \"message\": \"The transaction's 180-second window expired before it reached the network. Prepare it again.\"\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get transaction status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/transactions/{{txHash}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "deployments", "{{deploymentId}}", "transactions", "{{txHash}}"]
+        },
+        "description": "Poll existing transaction without resubmitting; UNKNOWN never authorizes another payment."
+      },
+      "response": []
+    },
+    {
+      "name": "Release keyed webhook reward",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "x-webhook-secret",
+            "value": "{{webhookSecret}}"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{webhookEventKey}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"escrow\": true, \"amount\": \"100000000\" }",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/webhooks/{{deploymentId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "webhooks", "{{deploymentId}}"]
+        },
+        "description": "Requires a separately funded webhook deployment and its callback secret. Keep the same event key and payload for retries; changing payload conflicts. Keys never reopen automatically; UNKNOWN must not trigger a fresh payment. This route uses the relayer, not caller wallet signing."
+      },
+      "response": []
     }
   ]
 }

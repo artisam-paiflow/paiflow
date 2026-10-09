@@ -33,7 +33,14 @@ const ADMIN = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", username: "root", ro
 const TARGET_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 function target(overrides: Record<string, unknown> = {}) {
-  return { id: TARGET_ID, username: "someone", role: "USER", isActive: true, ...overrides };
+  return {
+    id: TARGET_ID,
+    username: "someone",
+    role: "USER",
+    isActive: true,
+    passwordHash: "existing-hash",
+    ...overrides,
+  };
 }
 
 function req(body: unknown): NextRequest {
@@ -62,6 +69,13 @@ beforeEach(() => {
 });
 
 describe("PATCH /api/admin/users/:id and sessionVersion", () => {
+  it("cannot add a local password to a Google-only account", async () => {
+    mockDb.user.findUnique.mockResolvedValue(target({ passwordHash: null }));
+    const response = await PATCH(req({ resetPassword: "correct horse battery" }), ctx());
+    expect(response.status).toBe(403);
+    expect(mockHashPassword).not.toHaveBeenCalled();
+    expect(mockDb.user.update).not.toHaveBeenCalled();
+  });
   it("bumps on deactivate", async () => {
     const data = await patchedData({ isActive: false });
     expect(data).toMatchObject({ isActive: false, sessionVersion: { increment: 1 } });

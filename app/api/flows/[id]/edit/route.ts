@@ -3,10 +3,11 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { issuesToFields } from "@/lib/flows/issues-to-fields";
 import { validateFlow } from "@/lib/flows/validate";
-import { isPendingAddress } from "@/lib/flows/schema";
+import { requireFeature, serverFeatures } from "@/lib/features";
+import { FlowGraphSchema, sandboxNotifications, isPendingAddress } from "@/lib/flows/schema";
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { applyPatch, autoConnectOrphans, stripZeroBpsRecipients } from "@/lib/ai/normalize";
 import { callGroq } from "@/lib/ai/groq";
@@ -134,7 +135,7 @@ async function tryEdit(
   const { graph: resolvedGraph } = autoResolvePending(patchedGraph, addressBook);
   patchedGraph = resolvedGraph;
 
-  const v = validateFlow(patchedGraph);
+  const v = validateFlow(patchedGraph, { features: serverFeatures() });
   if (!v.ok) {
     const errorMessages = v.errors.map((e) => `${e.path}: ${e.message}\n  → ${e.friendlyMessage}`);
     throw new AppError("VALIDATION", "The AI patch would create an invalid flow", {
@@ -234,7 +235,7 @@ async function retryEdit(
   const { graph: resolvedGraph } = autoResolvePending(patchedGraph, addressBook);
   patchedGraph = resolvedGraph;
 
-  const v = validateFlow(patchedGraph);
+  const v = validateFlow(patchedGraph, { features: serverFeatures() });
   if (!v.ok) {
     const errorMessages = v.errors.map((e) => `${e.path}: ${e.message}\n  → ${e.friendlyMessage}`);
     throw new AppError(
@@ -257,16 +258,18 @@ async function retryEdit(
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
+    // Off means the route is not there (#722): no model call, no rate-limit slot.
+    requireFeature("aiAssistant");
     const { id } = await ctx.params;
 
     const rl = await rateLimit(`flow:edit:${user.id}`, 10, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many editing requests. Slow down.");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many editing requests. Slow down.");
 
     const flow = await db.flow.findFirst({ where: { id, ownerId: user.id } });
     if (!flow) throw new AppError("NOT_FOUND", "Flow not found");
 
     const body = BodySchema.parse(await req.json());
-    const graph = flow.graph as FlowGraph;
+    const graph = FlowGraphSchema.parse(flow.graph);
     const addressBook = await getAddressBook(user.id);
 
     let result: Awaited<ReturnType<typeof tryEdit>>;
@@ -341,7 +344,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       });
     }
 
-    const v = validateFlow(result.patchedGraph);
+    if (user.role === "SANDBOX") result.patchedGraph = sandboxNotifications(result.patchedGraph);
+    const v = validateFlow(result.patchedGraph, { features: serverFeatures() });
     if (!v.ok) {
       const fieldErrors = issuesToFields(v.errors);
       throw new AppError("VALIDATION", "Patched flow is invalid", fieldErrors);

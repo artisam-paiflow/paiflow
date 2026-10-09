@@ -1,5 +1,8 @@
 #![no_std]
 #![allow(clippy::too_many_arguments)]
+#[path = "../../../payment-math.rs"]
+mod payment_math;
+
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
     vec, Address, Env, IntoVal, String, Vec,
@@ -32,9 +35,11 @@ pub enum Error {
     AlreadyInitialized = 1,
     Unauthorized = 2,
     InvalidAmount = 3,
+    ArithmeticOverflow = 4,
+    InvalidPercentage = 5,
 }
 
-const VERSION: u32 = 1;
+const VERSION: u32 = 4;
 const TTL_THRESHOLD: u32 = 50_000;
 const TTL_EXTEND_TO: u32 = 500_000;
 
@@ -58,8 +63,11 @@ impl Payer {
         if env.storage().instance().has(&Key::Admin) {
             panic_with_error!(&env, Error::AlreadyInitialized);
         }
-        if amount <= 0 && percentage_bps == 0 {
+        if amount < 0 || (amount == 0 && percentage_bps == 0) {
             panic_with_error!(&env, Error::InvalidAmount);
+        }
+        if percentage_bps > 10_000 {
+            panic_with_error!(&env, Error::InvalidPercentage);
         }
         env.storage().instance().set(&Key::Admin, &admin);
         env.storage().instance().set(&Key::Asset, &asset);
@@ -75,55 +83,8 @@ impl Payer {
     }
 
     pub fn execute_step(env: Env, asset: Address, amount: i128) {
-        bump_ttl(&env);
-        let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
-        parent.require_auth();
-
-        let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-        if asset != stored_asset {
-            panic_with_error!(&env, Error::Unauthorized);
-        }
-        if amount <= 0 {
-            panic_with_error!(&env, Error::InvalidAmount);
-        }
-
-        let percentage_bps: u32 = env
-            .storage()
-            .instance()
-            .get(&Key::PercentageBps)
-            .unwrap_or(0);
-        let recipient: Address = env.storage().instance().get(&Key::Recipient).unwrap();
-        let payment = if percentage_bps > 0 {
-            (amount * i128::from(percentage_bps)) / 10_000
-        } else {
-            let configured_amount: i128 = env.storage().instance().get(&Key::Amount).unwrap();
-            if amount > configured_amount {
-                configured_amount
-            } else {
-                amount
-            }
-        };
-
-        token::Client::new(&env, &asset).transfer(
-            &env.current_contract_address(),
-            &recipient,
-            &payment,
-        );
-
-        let is_cash_out: bool = env
-            .storage()
-            .instance()
-            .get(&Key::IsCashOut)
-            .unwrap_or(false);
-        if is_cash_out {
-            invoke_receive_and_forward(&env, &recipient, &asset, &payment);
-        }
-
-        forward_remaining(&env, &asset);
-
-        #[allow(deprecated)]
-        env.events()
-            .publish((symbol_short!("pay"), recipient), (asset, payment));
+        require_parent(&env, None);
+        execute_payment(&env, &asset, amount);
     }
 
     pub fn cancel(env: Env) {
@@ -185,53 +146,67 @@ impl Payer {
         amount: i128,
         _next_steps: Vec<WorkflowTarget>,
     ) {
-        bump_ttl(&env);
-        let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
-        if asset != stored_asset {
-            panic_with_error!(&env, Error::Unauthorized);
-        }
-        if amount <= 0 {
-            panic_with_error!(&env, Error::InvalidAmount);
-        }
-
-        let percentage_bps: u32 = env
-            .storage()
-            .instance()
-            .get(&Key::PercentageBps)
-            .unwrap_or(0);
-        let recipient: Address = env.storage().instance().get(&Key::Recipient).unwrap();
-        let payment = if percentage_bps > 0 {
-            (amount * i128::from(percentage_bps)) / 10_000
-        } else {
-            let configured_amount: i128 = env.storage().instance().get(&Key::Amount).unwrap();
-            if amount > configured_amount {
-                configured_amount
-            } else {
-                amount
-            }
-        };
-
-        token::Client::new(&env, &asset).transfer(
-            &env.current_contract_address(),
-            &recipient,
-            &payment,
-        );
-
-        let is_cash_out: bool = env
-            .storage()
-            .instance()
-            .get(&Key::IsCashOut)
-            .unwrap_or(false);
-        if is_cash_out {
-            invoke_receive_and_forward(&env, &recipient, &asset, &payment);
-        }
-
-        forward_remaining(&env, &asset);
-
-        #[allow(deprecated)]
-        env.events()
-            .publish((symbol_short!("pay"), recipient), (asset, payment));
+        require_parent(&env, Some(&_from));
+        execute_payment(&env, &asset, amount);
     }
+}
+
+fn require_parent(env: &Env, from: Option<&Address>) -> Address {
+    let parent: Address = env.storage().instance().get(&Key::ParentNode).unwrap();
+    if let Some(from) = from {
+        if from != &parent {
+            panic_with_error!(env, Error::Unauthorized);
+        }
+    }
+    parent.require_auth();
+    parent
+}
+
+fn execute_payment(env: &Env, asset: &Address, amount: i128) {
+    bump_ttl(env);
+
+    let stored_asset: Address = env.storage().instance().get(&Key::Asset).unwrap();
+    if asset != &stored_asset {
+        panic_with_error!(env, Error::Unauthorized);
+    }
+    if amount <= 0 {
+        panic_with_error!(env, Error::InvalidAmount);
+    }
+
+    let percentage_bps: u32 = env
+        .storage()
+        .instance()
+        .get(&Key::PercentageBps)
+        .unwrap_or(0);
+    let recipient: Address = env.storage().instance().get(&Key::Recipient).unwrap();
+    let payment = if percentage_bps > 0 {
+        payment_math::percentage_share(amount, percentage_bps)
+            .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow))
+    } else {
+        let configured_amount: i128 = env.storage().instance().get(&Key::Amount).unwrap();
+        if amount > configured_amount {
+            configured_amount
+        } else {
+            amount
+        }
+    };
+
+    token::Client::new(env, asset).transfer(&env.current_contract_address(), &recipient, &payment);
+
+    let is_cash_out: bool = env
+        .storage()
+        .instance()
+        .get(&Key::IsCashOut)
+        .unwrap_or(false);
+    if is_cash_out {
+        invoke_receive_and_forward(env, &recipient, asset, &payment);
+    }
+
+    forward_remaining(env, asset);
+
+    #[allow(deprecated)]
+    env.events()
+        .publish((symbol_short!("pay"), recipient), (asset.clone(), payment));
 }
 
 fn bump_ttl(env: &Env) {
@@ -246,11 +221,12 @@ fn forward_remaining(env: &Env, asset: &Address) {
         .instance()
         .get(&Key::NextSteps)
         .unwrap_or_else(|| Vec::new(env));
-    let client = token::Client::new(env, asset);
-    let balance = client.balance(&env.current_contract_address());
+    if next_steps.is_empty() {
+        return;
+    }
 
-    let has_steps = !next_steps.is_empty();
-    let forward_amount = if has_steps && balance > 0 { balance } else { 0 };
+    let client = token::Client::new(env, asset);
+    let forward_amount = client.balance(&env.current_contract_address());
 
     if forward_amount > 0 {
         if let Some(step) = next_steps.first() {
@@ -599,7 +575,7 @@ mod test {
 
         tok.transfer(&predecessor, &contract_id, &1_000);
         client.receive_and_forward(
-            &predecessor,
+            &parent,
             &asset.address(),
             &1_000,
             &Vec::<WorkflowTarget>::new(&env),
@@ -642,7 +618,7 @@ mod test {
 
         tok.transfer(&predecessor, &contract_id, &1_000);
         client.receive_and_forward(
-            &predecessor,
+            &parent,
             &asset.address(),
             &1_000,
             &Vec::<WorkflowTarget>::new(&env),
@@ -694,7 +670,7 @@ mod test {
 
         tok.transfer(&predecessor, &contract_id, &1_000);
         client.receive_and_forward(
-            &predecessor,
+            &parent,
             &asset.address(),
             &1_000,
             &Vec::<WorkflowTarget>::new(&env),
@@ -957,3 +933,7 @@ mod test {
         assert_eq!(tok.balance(&contract_id), 900);
     }
 }
+
+#[cfg(test)]
+#[path = "arithmetic-tests.rs"]
+mod arithmetic_tests;

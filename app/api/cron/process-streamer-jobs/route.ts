@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { StreamerClaimJobStatus } from "@prisma/client";
+import { runDeploymentWork } from "@/lib/deployments/service-work";
 import { db } from "@/lib/db";
 import { log } from "@/lib/log";
 import { withErrorHandler } from "@/lib/errors";
@@ -8,7 +9,7 @@ import {
   readStreamerAvailable,
   submitStreamerClaimByRelayerTx,
 } from "@/lib/stellar/relayer";
-import { withRelayerLock } from "@/lib/stellar/client";
+import { withRelayerChannel } from "@/lib/stellar/relayer-channels";
 import {
   cancelPendingStreamerJobs,
   getDueStreamerJobs,
@@ -56,153 +57,157 @@ export async function POST(req: NextRequest) {
     }> = [];
 
     for (const job of jobs) {
-      // Defensive: verify the deployment is still active.
-      const deployment = await db.deployment.findUnique({
-        where: { id: job.deploymentId },
-        select: { status: true },
-      });
-
-      if (!deployment || deployment.status !== "CONFIRMED") {
-        await cancelPendingStreamerJobs(db, job.deploymentId);
-        results.push({
-          jobId: job.id,
-          contractAddress: job.contractAddress,
-          status: "cancelled",
-          error: "Deployment no longer CONFIRMED",
+      await runDeploymentWork(job.deploymentId, "streamer-claim", async () => {
+        // Defensive: verify the deployment is still active.
+        const deployment = await db.deployment.findUnique({
+          where: { id: job.deploymentId },
+          select: { status: true },
         });
-        continue;
-      }
 
-      // Mark the job as running so a concurrent cron invocation does not
-      // pick it up again.
-      await rescheduleStreamerJob(db, job.id, {
-        status: StreamerClaimJobStatus.RUNNING,
-      });
-
-      try {
-        const available = await readStreamerAvailable(job.contractAddress);
-
-        if (available <= 0) {
-          await rescheduleStreamerJob(db, job.id, {
-            status: StreamerClaimJobStatus.SKIPPED,
-            lastError: "NothingToClaim (available <= 0)",
-          });
-          await scheduleNextStreamerClaimJobFromJob(db, job);
+        if (!deployment || deployment.status !== "CONFIRMED") {
+          await cancelPendingStreamerJobs(db, job.deploymentId);
           results.push({
             jobId: job.id,
             contractAddress: job.contractAddress,
-            status: "skipped",
+            status: "cancelled",
+            error: "Deployment no longer CONFIRMED",
           });
-          continue;
+          return;
         }
 
-        const submit = await withRelayerLock(async () => {
-          const { xdr } = await prepareStreamerClaimByRelayerTx(job.contractAddress);
-          return submitStreamerClaimByRelayerTx(xdr);
+        // Mark the job as running so a concurrent cron invocation does not
+        // pick it up again.
+        const claimed = await db.streamerClaimJob.updateMany({
+          where: { id: job.id, status: "PENDING" },
+          data: { status: "RUNNING" },
         });
+        if (!claimed.count) return;
 
-        if (submit.status === "SUCCESS") {
-          log.info(
-            {
+        try {
+          const available = await readStreamerAvailable(job.contractAddress);
+
+          if (available <= 0) {
+            await rescheduleStreamerJob(db, job.id, {
+              status: StreamerClaimJobStatus.SKIPPED,
+              lastError: "NothingToClaim (available <= 0)",
+            });
+            await scheduleNextStreamerClaimJobFromJob(db, job);
+            results.push({
               jobId: job.id,
-              deploymentId: job.deploymentId,
               contractAddress: job.contractAddress,
-              txHash: submit.txHash,
-              availableStroops: available.toString(),
-            },
-            "Streamer claim succeeded",
-          );
-          await rescheduleStreamerJob(db, job.id, {
-            status: StreamerClaimJobStatus.CLAIMED,
-            claimedAt: new Date(),
+              status: "skipped",
+            });
+            return;
+          }
+
+          const submit = await withRelayerChannel(async (channel) => {
+            const { xdr } = await prepareStreamerClaimByRelayerTx(job.contractAddress, channel);
+            return submitStreamerClaimByRelayerTx(xdr);
           });
-          await scheduleNextStreamerClaimJobFromJob(db, job);
-          results.push({
-            jobId: job.id,
-            contractAddress: job.contractAddress,
-            status: "claimed",
-          });
-        } else {
-          const errorMessage = submit.errorMessage ?? "Submission failed";
-          if (isRetryableError(errorMessage) && job.attemptCount < MAX_RETRY_ATTEMPTS) {
+
+          if (submit.status === "SUCCESS") {
+            log.info(
+              {
+                jobId: job.id,
+                deploymentId: job.deploymentId,
+                contractAddress: job.contractAddress,
+                txHash: submit.txHash,
+                availableStroops: available.toString(),
+              },
+              "Streamer claim succeeded",
+            );
+            await rescheduleStreamerJob(db, job.id, {
+              status: StreamerClaimJobStatus.CLAIMED,
+              claimedAt: new Date(),
+            });
+            await scheduleNextStreamerClaimJobFromJob(db, job);
+            results.push({
+              jobId: job.id,
+              contractAddress: job.contractAddress,
+              status: "claimed",
+            });
+          } else {
+            const errorMessage = submit.errorMessage ?? "Submission failed";
+            if (isRetryableError(errorMessage) && job.attemptCount < MAX_RETRY_ATTEMPTS) {
+              const retryAt = new Date(Date.now() + 60_000 * (job.attemptCount + 1));
+              await db.streamerClaimJob.update({
+                where: { id: job.id },
+                data: {
+                  status: StreamerClaimJobStatus.PENDING,
+                  runAt: retryAt,
+                  lastError: errorMessage,
+                  attemptCount: { increment: 1 },
+                },
+              });
+            } else {
+              await rescheduleStreamerJob(db, job.id, {
+                status: StreamerClaimJobStatus.FAILED,
+                lastError: errorMessage,
+              });
+              await scheduleNextStreamerClaimJobFromJob(db, job);
+            }
+            results.push({
+              jobId: job.id,
+              contractAddress: job.contractAddress,
+              status: "failed",
+              error: errorMessage,
+            });
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+
+          if (isKnownSkipError(message)) {
+            await rescheduleStreamerJob(db, job.id, {
+              status: StreamerClaimJobStatus.SKIPPED,
+              lastError: message,
+            });
+            await scheduleNextStreamerClaimJobFromJob(db, job);
+            results.push({
+              jobId: job.id,
+              contractAddress: job.contractAddress,
+              status: "skipped",
+            });
+          } else if (isRetryableError(message) && job.attemptCount < MAX_RETRY_ATTEMPTS) {
             const retryAt = new Date(Date.now() + 60_000 * (job.attemptCount + 1));
             await db.streamerClaimJob.update({
               where: { id: job.id },
               data: {
                 status: StreamerClaimJobStatus.PENDING,
                 runAt: retryAt,
-                lastError: errorMessage,
+                lastError: message,
                 attemptCount: { increment: 1 },
               },
             });
+            results.push({
+              jobId: job.id,
+              contractAddress: job.contractAddress,
+              status: "failed",
+              error: message,
+            });
           } else {
+            log.warn(
+              {
+                jobId: job.id,
+                deploymentId: job.deploymentId,
+                contractAddress: job.contractAddress,
+                error: message,
+              },
+              "Streamer claim failed",
+            );
             await rescheduleStreamerJob(db, job.id, {
               status: StreamerClaimJobStatus.FAILED,
-              lastError: errorMessage,
+              lastError: message,
             });
             await scheduleNextStreamerClaimJobFromJob(db, job);
-          }
-          results.push({
-            jobId: job.id,
-            contractAddress: job.contractAddress,
-            status: "failed",
-            error: errorMessage,
-          });
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-
-        if (isKnownSkipError(message)) {
-          await rescheduleStreamerJob(db, job.id, {
-            status: StreamerClaimJobStatus.SKIPPED,
-            lastError: message,
-          });
-          await scheduleNextStreamerClaimJobFromJob(db, job);
-          results.push({
-            jobId: job.id,
-            contractAddress: job.contractAddress,
-            status: "skipped",
-          });
-        } else if (isRetryableError(message) && job.attemptCount < MAX_RETRY_ATTEMPTS) {
-          const retryAt = new Date(Date.now() + 60_000 * (job.attemptCount + 1));
-          await db.streamerClaimJob.update({
-            where: { id: job.id },
-            data: {
-              status: StreamerClaimJobStatus.PENDING,
-              runAt: retryAt,
-              lastError: message,
-              attemptCount: { increment: 1 },
-            },
-          });
-          results.push({
-            jobId: job.id,
-            contractAddress: job.contractAddress,
-            status: "failed",
-            error: message,
-          });
-        } else {
-          log.warn(
-            {
+            results.push({
               jobId: job.id,
-              deploymentId: job.deploymentId,
               contractAddress: job.contractAddress,
+              status: "failed",
               error: message,
-            },
-            "Streamer claim failed",
-          );
-          await rescheduleStreamerJob(db, job.id, {
-            status: StreamerClaimJobStatus.FAILED,
-            lastError: message,
-          });
-          await scheduleNextStreamerClaimJobFromJob(db, job);
-          results.push({
-            jobId: job.id,
-            contractAddress: job.contractAddress,
-            status: "failed",
-            error: message,
-          });
+            });
+          }
         }
-      }
+      });
     }
 
     const claimed = results.filter((r) => r.status === "claimed").length;
