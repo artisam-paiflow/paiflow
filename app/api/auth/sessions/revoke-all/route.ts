@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireSession, signOut } from "@/lib/auth";
 import { withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { audit } from "@/lib/audit";
 
 export async function POST() {
   return withErrorHandler(async () => {
     const user = await requireSession();
+    await enforceWriteRateLimit("revokeAllSessions", user.id);
     await db.user.update({
       where: { id: user.id },
       data: { sessionVersion: { increment: 1 } },

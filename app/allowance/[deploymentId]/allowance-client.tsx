@@ -12,6 +12,8 @@ export default function AllowanceClient({
   network,
   assetLabel,
   templateKind,
+  subscriber,
+  isCancelled,
 }: {
   deploymentId: string;
   contractAddress: string;
@@ -19,6 +21,8 @@ export default function AllowanceClient({
   network: "testnet" | "mainnet";
   assetLabel: string;
   templateKind: "SUBSCRIPTION" | "PAYROLL";
+  subscriber?: string | null;
+  isCancelled?: boolean;
 }) {
   const [amount, setAmount] = useState("");
   const [amountSet, setAmountSet] = useState(false);
@@ -42,7 +46,7 @@ export default function AllowanceClient({
     <div className="bg-surface text-on-surface p-md flex min-h-screen flex-col items-center justify-center">
       <div className="space-y-md w-full max-w-sm">
         <div className="space-y-1 text-center">
-          <p className="text-label-sm text-primary font-mono">
+          <p data-testid="network-chip" className="text-label-sm text-primary font-mono">
             / ALLOWANCE · {network.toUpperCase()}
           </p>
           <h1 className="font-display text-[32px] leading-[1.1] font-semibold tracking-[-0.02em]">
@@ -105,12 +109,22 @@ export default function AllowanceClient({
             </button>
           )}
 
+          {templateKind === "SUBSCRIPTION" && (
+            <p className="text-label-sm text-on-surface-variant break-all">
+              {subscriber === null
+                ? "The team must configure the Dev subscriber before allowance approval."
+                : isCancelled
+                  ? "Subscription is cancelled. Ask the team to reactivate it."
+                  : `Approve with the configured subscriber wallet: ${subscriber}`}
+            </p>
+          )}
           <TriggerButton
             deploymentId={deploymentId}
             network={network}
             amount={amountSet ? tokenAmountToStroops(amount) : ""}
             mode="allowance"
             templateKind={templateKind}
+            disabled={templateKind === "SUBSCRIPTION" && (!subscriber || Boolean(isCancelled))}
           />
 
           <p className="text-label-sm text-on-surface-variant text-center font-mono">

@@ -1,6 +1,6 @@
 /**
  * #559: every Soroban and Horizon call must carry an HTTP timeout. stellar-sdk
- * 15.1.0 declares a `timeout` option on rpc.Server that its constructor ignores,
+ * 16.3.1 declares a `timeout` option on rpc.Server that its constructor ignores,
  * so this asserts the value the HTTP client actually uses, then proves that
  * value aborts a call to a server that never answers.
  */

@@ -6,9 +6,12 @@ import DeploymentCanvas from "./deployment-canvas";
 import { eventsReducer } from "./deployment-events";
 import { LiveEvents, type Evt } from "./live-events";
 import LiveBalances from "./live-balances";
+import PipelineImplementations, { type MonitoredPipelineNode } from "./pipeline-implementations";
 import ContractCallButton from "./contract-call-button";
 import SubscriptionRelayerPanel from "./subscription-relayer-panel";
 import PayrollPanel from "./payroll-panel";
+import DevValuesPanel from "./dev-values-panel";
+import ReleaseNowPanel from "./release-now-panel";
 import OffRampSenderForm from "@/components/payroll/offramp-sender-form";
 import type { FlowGraph } from "@/lib/flows/schema";
 import { assetLabel, isTrigger } from "@/lib/flows/schema";
@@ -16,6 +19,7 @@ import { formatStroops } from "@/lib/utils";
 import { stellarExpertContractUrl, type StellarNetwork } from "@/lib/stellar/explorer";
 import { apiError } from "@/lib/friendly-error";
 import { track } from "@/lib/analytics/client";
+import { usesDevMode } from "@/lib/feature-flags";
 
 function evtKey(ev: Evt): string {
   return ev.eventId ?? `${ev.txHash}:${ev.kind}:${ev.ledger}`;
@@ -29,10 +33,11 @@ export default function DeploymentView({
   qrUrl,
   initialEvents,
   graph,
-  webhookSecret,
   pipeline,
   templateKind,
   errorMessage,
+  canEditDevValues = false,
+  devModeEnabled = true,
 }: {
   deploymentId: string;
   contractAddress: string | null;
@@ -41,10 +46,11 @@ export default function DeploymentView({
   qrUrl: string | null;
   initialEvents: Evt[];
   graph: FlowGraph | null;
-  webhookSecret: string | null;
-  pipeline?: Array<{ nodeId: string; contractAddress: string; templateKind: string }> | null;
+  pipeline?: MonitoredPipelineNode[] | null;
   templateKind?: string | null;
   errorMessage: string | null;
+  canEditDevValues?: boolean;
+  devModeEnabled?: boolean;
 }) {
   const explorerUrl =
     contractAddress && network ? stellarExpertContractUrl(contractAddress, network) : null;
@@ -100,7 +106,8 @@ export default function DeploymentView({
     // One poll on mount, and one on each drop, reads the store directly.
     const pollOnce = () => {
       fetch(`/api/deployments/${deploymentId}/poll-events`)
-        // 401 and 429 (30/60s per IP, shared by every tab and reconnect) answer
+        // 401 and 429 (30/60s per deployment and user, under a looser per-IP
+        // backstop; see CALLER_RATE_LIMITS in lib/rate-limit.ts) answer
         // with `{ error }`, which has no events to merge.
         .then((r) => (r.ok ? r.json() : null))
         .then((body: { events?: Evt[] } | null) => {
@@ -222,12 +229,11 @@ export default function DeploymentView({
   }
 
   const isWeb2Webhook = graph?.nodes.find(isTrigger)?.type === "web2_webhook";
-  const appUrl = typeof window !== "undefined" ? window.location.origin : "";
   const streamerNode = pipeline?.find((n) => n.templateKind === "STREAMER");
   const isStreamer = !!streamerNode;
   const isSubscription = templateKind === "SUBSCRIPTION";
   const subscriptionNode = isSubscription
-    ? pipeline?.find((n) => n.templateKind === "SUBSCRIPTION")
+    ? pipeline?.find((n) => ["SUBSCRIPTION", "SUBSCRIPTION_DEV"].includes(n.templateKind))
     : null;
   const payrollNode = pipeline?.find((n) =>
     ["PAYROLL", "SUBSCRIPTION_DEV", "SUBSCRIPTION"].includes(n.templateKind),
@@ -237,6 +243,8 @@ export default function DeploymentView({
     (n) => n.templateKind === "CASH_OUT" || n.templateKind === "CASH_OUT_DEV",
   );
   const isCashOut = !!cashOutNode;
+  const timelockBranchIds =
+    pipeline?.filter((n) => n.templateKind === "TIMELOCK_BRANCH").map((n) => n.nodeId) ?? [];
   const triggerNode = graph?.nodes.find(isTrigger);
   const pauseAllowed =
     triggerNode?.type === "on_schedule" ? (triggerNode.config.pauseAllowed ?? true) : true;
@@ -246,6 +254,8 @@ export default function DeploymentView({
   const [isPaused, setIsPaused] = useState(false);
   const [retrieveAllowed, setRetrieveAllowed] = useState(retrieveAllowedFromConfig);
   const [allowance, setAllowance] = useState<bigint | null>(null);
+  const [currentSubscriber, setCurrentSubscriber] = useState<string | null>(null);
+  const [currentAssetLabel, setCurrentAssetLabel] = useState<string | null>(null);
   const [isCancelled, setIsCancelled] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -257,14 +267,17 @@ export default function DeploymentView({
         const json = (await res.json()) as {
           data: {
             allowance: string;
-            subscriber: string;
-            asset: { kind: string };
+            subscriber: string | null;
+            assetLabel: string;
+            asset: { kind: string } | null;
             isCancelled: boolean;
           };
         };
         if (!cancelled) {
           setAllowance(BigInt(json.data.allowance));
           setIsCancelled(json.data.isCancelled);
+          setCurrentSubscriber(json.data.subscriber);
+          setCurrentAssetLabel(json.data.assetLabel);
         }
       })
       .catch(() => {
@@ -310,6 +323,7 @@ export default function DeploymentView({
           <DeploymentCanvas graph={graph} pulseTick={pulse} />
         </section>
       )}
+      {pipeline && <PipelineImplementations pipeline={pipeline} network={network} />}
       <LiveBalances deploymentId={deploymentId} network={network} refreshTick={balanceTick} />
       <div className="gap-md grid grid-cols-1 lg:grid-cols-2">
         <section className="glass-panel p-md rounded-xl">
@@ -352,7 +366,7 @@ export default function DeploymentView({
                         Current allowance
                       </div>
                       <div className="text-on-surface mt-1 font-mono text-[12px]">
-                        {formatStroops(allowance.toString())} {assetLabel(triggerNode.config.asset)}
+                        {formatStroops(allowance.toString())} {currentAssetLabel ?? "—"}
                       </div>
                     </div>
                   )}
@@ -361,7 +375,7 @@ export default function DeploymentView({
                       Subscriber
                     </div>
                     <div className="text-on-surface mt-1 font-mono text-[12px] break-all">
-                      {triggerNode?.type === "subscription" ? triggerNode.config.subscriber : "—"}
+                      {currentSubscriber ?? "Subscriber needs configuration"}
                     </div>
                   </div>
                   <a
@@ -519,6 +533,7 @@ export default function DeploymentView({
           )}
           {isPayroll && payrollNode?.contractAddress && network && graph && (
             <PayrollPanel
+              canEditRecipients={devModeEnabled || !usesDevMode(graph, pipeline)}
               deploymentId={deploymentId}
               contractAddress={payrollNode.contractAddress}
               network={network}
@@ -688,6 +703,21 @@ export default function DeploymentView({
               Pause is disabled for this stream.
             </div>
           )}
+          {status === "CONFIRMED" && network && timelockBranchIds.length > 0 && (
+            <ReleaseNowPanel
+              onSuccess={() => dispatchEvents({ type: "refreshBalances" })}
+              deploymentId={deploymentId}
+              network={network}
+              nodeIds={timelockBranchIds}
+            />
+          )}
+          <DevValuesPanel
+            deploymentId={deploymentId}
+            network={network}
+            graph={graph}
+            status={status}
+            canEdit={canEditDevValues && devModeEnabled}
+          />
           {status === "FAILED" ? (
             <div className="mt-md border-error/30 bg-error-container/20 flex items-start gap-2 rounded-lg border p-3">
               <span className="material-symbols-outlined text-error mt-0.5 shrink-0 text-[16px]">
@@ -754,48 +784,6 @@ export default function DeploymentView({
                         </button>
                       </div>
                     </div>
-                    <div>
-                      <div className="text-label-sm text-on-surface-variant font-mono uppercase">
-                        Webhook URL
-                      </div>
-                      <div className="mt-1 flex items-start gap-2">
-                        <span className="text-on-surface font-mono text-[12px] break-all">
-                          {appUrl}/api/webhooks/{deploymentId}
-                        </span>
-                        <button
-                          onClick={() => copy(`${appUrl}/api/webhooks/${deploymentId}`)}
-                          aria-label="Copy webhook URL"
-                          title="Copy webhook URL"
-                          className="text-on-surface-variant hover:text-primary shrink-0 transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">
-                            content_copy
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-                    {webhookSecret && (
-                      <div>
-                        <div className="text-label-sm text-on-surface-variant font-mono uppercase">
-                          Secret token
-                        </div>
-                        <div className="mt-1 flex items-start gap-2">
-                          <span className="text-on-surface font-mono text-[12px] break-all">
-                            {webhookSecret}
-                          </span>
-                          <button
-                            onClick={() => copy(webhookSecret)}
-                            aria-label="Copy webhook secret"
-                            title="Copy webhook secret"
-                            className="text-on-surface-variant hover:text-primary shrink-0 transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-[14px]">
-                              content_copy
-                            </span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
                     <a
                       href={`/trigger/${deploymentId}`}
                       className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 inline-block rounded border px-3 py-1.5 font-mono text-xs transition-colors"

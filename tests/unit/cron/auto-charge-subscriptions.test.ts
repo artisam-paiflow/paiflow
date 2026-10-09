@@ -1,3 +1,17 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 /**
  * #581, on the subscription side. The tenant chooses the relayer URL and
  * everything its endpoint answers, so this cron must refuse a non-public URL
@@ -32,6 +46,7 @@ const { mockDb, mockEnv, mockRelayer, mockInvoke, mockClient, mockUrlGuard } = v
     readSubscriptionAsset: vi.fn(),
     readSubscriptionRelayer: vi.fn(),
     readTokenAllowance: vi.fn(),
+    readSubscriptionState: vi.fn(),
   };
 
   const mockInvoke = { prepareSubscriptionChargeByRelayerUnsigned: vi.fn() };
@@ -52,8 +67,14 @@ vi.mock("@/lib/env", () => ({
 }));
 vi.mock("@/lib/log", () => ({ log: { warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/stellar/relayer", () => mockRelayer);
+vi.mock("@/lib/stellar/subscription-state", () => ({
+  createSubscriptionStateReader: () => mockRelayer.readSubscriptionState,
+}));
 vi.mock("@/lib/stellar/invoke", () => mockInvoke);
 vi.mock("@/lib/stellar/client", () => mockClient);
+vi.mock("@/lib/stellar/relayer-channels", () => ({
+  withRelayerChannel: (fn: (channel: unknown) => unknown) => fn({}),
+}));
 // `importActual` keeps the real `UnsafeUrlError`, so `instanceof` in the route
 // still holds when a case throws one.
 vi.mock("@/lib/net/assert-public-url", async () => {
@@ -65,6 +86,7 @@ vi.mock("@/lib/net/assert-public-url", async () => {
 
 import { UnsafeUrlError } from "@/lib/net/assert-public-url";
 import { POST } from "@/app/api/cron/auto-charge-subscriptions/route";
+import { AppError } from "@/lib/errors";
 
 function makeRequest(secret?: string) {
   return {
@@ -116,6 +138,7 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockEnv.STELLAR_RELAYER_ADDRESS = "GDRELAYER";
+    mockRelayer.readSubscriptionState.mockResolvedValue(null);
     mockUrlGuard.assertPublicUrl.mockImplementation(async (raw: string) => new URL(raw));
   });
 
@@ -228,5 +251,160 @@ describe("auto-charge-subscriptions tenant relayer guards", () => {
       error: "User relayer did not return a success payload",
     });
     expect(json.data.skipped).toBe(0);
+  });
+});
+
+describe("auto-charge-subscriptions state preflight", () => {
+  function prime(templateKind = "SUBSCRIPTION", combined = true) {
+    primeUserDeployment();
+    mockDb.deployment.findMany.mockResolvedValue([
+      {
+        id: "dep-sub",
+        chargeEndAt: null,
+        chargeRelayerMode: ChargeRelayerMode.PLATFORM,
+        chargeRelayerAddress: "GDRELAYER",
+        nextChargeAt: now,
+        pipelineSnapshot: [{ nodeId: "sub", contractAddress: "C123", templateKind }],
+      },
+    ]);
+    mockRelayer.readSubscriptionRelayer.mockResolvedValue("GDRELAYER");
+    mockRelayer.readSubscriptionState.mockResolvedValue(
+      combined
+        ? {
+            isCancelled: false,
+            nextChargeAt: BigInt(duePast),
+            amountPerPeriod: "1000000",
+            subscriber: "GSUBSCRIBER",
+            asset: "CASSET",
+            relayer: "GDRELAYER",
+          }
+        : null,
+    );
+    // The combined path does not consume the legacy preflight schedule read.
+    if (combined)
+      mockRelayer.readSubscriptionNextChargeAt
+        .mockReset()
+        .mockResolvedValue(BigInt(duePast + 86400));
+    mockRelayer.prepareSubscriptionChargeByRelayerTx.mockResolvedValue({ xdr: "signed-fixture" });
+    mockRelayer.submitSubscriptionChargeByRelayerTx.mockResolvedValue({ status: "SUCCESS" });
+  }
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockEnv.STELLAR_RELAYER_ADDRESS = "GDRELAYER";
+    mockEnv.CONTRACT_READ_CACHE_ENABLED = false;
+  });
+  it("charges standard subscriptions with the combined state and fresh allowance/post-charge schedule", async () => {
+    prime();
+    const json = await (await POST(makeRequest("cron-secret"))).json();
+    expect(json.data.platformCharged).toBe(1);
+    for (const name of [
+      "readSubscriptionIsCancelled",
+      "readSubscriptionAmountPerPeriod",
+      "readSubscriptionSubscriber",
+      "readSubscriptionAsset",
+      "readSubscriptionRelayer",
+    ] as const)
+      expect(mockRelayer[name]).not.toHaveBeenCalled();
+    expect(mockRelayer.readSubscriptionState).toHaveBeenCalledWith("C123");
+    expect(mockRelayer.readTokenAllowance).toHaveBeenCalledWith({
+      tokenContractAddress: "CASSET",
+      owner: "GSUBSCRIBER",
+      spender: "C123",
+    });
+    expect(mockRelayer.readSubscriptionNextChargeAt).toHaveBeenCalledTimes(2);
+    expect(mockDb.deployment.update).toHaveBeenCalledWith({
+      where: { id: "dep-sub" },
+      data: { nextChargeAt: new Date((duePast + 86400) * 1000), lastChargedAt: expect.any(Date) },
+    });
+  });
+  it.each(["SUBSCRIPTION", "SUBSCRIPTION_DEV"])(
+    "keeps %s legacy reads functional",
+    async (kind) => {
+      prime(kind, false);
+      const json = await (await POST(makeRequest("cron-secret"))).json();
+      expect(json.data.platformCharged).toBe(1);
+      expect(mockRelayer.readSubscriptionAmountPerPeriod).toHaveBeenCalledTimes(1);
+      expect(mockRelayer.readSubscriptionSubscriber).toHaveBeenCalledTimes(1);
+      expect(mockRelayer.readSubscriptionNextChargeAt).toHaveBeenCalledTimes(3);
+      if (kind === "SUBSCRIPTION_DEV")
+        expect(mockRelayer.readSubscriptionState).not.toHaveBeenCalled();
+    },
+  );
+  it("reads Dev amount and subscriber fresh even with immutable cache enabled", async () => {
+    prime("SUBSCRIPTION_DEV", false);
+    mockEnv.CONTRACT_READ_CACHE_ENABLED = true;
+    const rows = await mockDb.deployment.findMany();
+    mockDb.deployment.findMany.mockResolvedValue([...rows, { ...rows[0], id: "dep-sub-2" }]);
+    mockRelayer.readSubscriptionNextChargeAt
+      .mockReset()
+      .mockResolvedValueOnce(BigInt(duePast))
+      .mockResolvedValueOnce(BigInt(duePast + 86400))
+      .mockResolvedValueOnce(BigInt(duePast + 86400))
+      .mockResolvedValueOnce(BigInt(duePast))
+      .mockResolvedValue(BigInt(duePast + 86400));
+    const json = await (await POST(makeRequest("cron-secret"))).json();
+    expect(json.data.platformCharged).toBe(2);
+    expect(mockRelayer.readSubscriptionAmountPerPeriod).toHaveBeenCalledTimes(2);
+    expect(mockRelayer.readSubscriptionSubscriber).toHaveBeenCalledTimes(2);
+    expect(mockRelayer.readSubscriptionAsset).toHaveBeenCalledTimes(1);
+  });
+  it.each(["cancelled", "expired", "not-due", "allowance", "relayer", "invalid-date"])(
+    "preserves %s outcome without signing",
+    async (scenario) => {
+      prime();
+      const state = await mockRelayer.readSubscriptionState();
+      mockRelayer.readSubscriptionState.mockClear();
+      if (scenario === "cancelled") state.isCancelled = true;
+      if (scenario === "not-due") state.nextChargeAt = BigInt(duePast + 86400);
+      if (scenario === "invalid-date") state.nextChargeAt = (1n << 64n) - 1n;
+      if (scenario === "relayer") state.relayer = "GROTATED";
+      if (scenario === "allowance") mockRelayer.readTokenAllowance.mockResolvedValue(0n);
+      if (scenario === "expired") {
+        const rows = await mockDb.deployment.findMany();
+        rows[0].chargeEndAt = new Date(0);
+      }
+      const json = await (await POST(makeRequest("cron-secret"))).json();
+      expect(json.data[scenario === "invalid-date" ? "failed" : "skipped"]).toBe(1);
+      expect(mockRelayer.prepareSubscriptionChargeByRelayerTx).not.toHaveBeenCalled();
+      if (["cancelled", "expired", "not-due", "invalid-date"].includes(scenario))
+        expect(mockRelayer.readTokenAllowance).not.toHaveBeenCalled();
+      if (["cancelled", "expired"].includes(scenario))
+        expect(mockDb.deployment.update).toHaveBeenCalledWith({
+          where: { id: "dep-sub" },
+          data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
+        });
+      if (scenario === "invalid-date") expect(mockDb.deployment.update).not.toHaveBeenCalled();
+    },
+  );
+  it("reports state RPC failure without falling back or changing scheduling", async () => {
+    prime();
+    mockRelayer.readSubscriptionState.mockRejectedValue(
+      new AppError("UPSTREAM_RPC", "Subscription state simulation failed"),
+    );
+    const json = await (await POST(makeRequest("cron-secret"))).json();
+    expect(json.data.failed).toBe(1);
+    expect(mockRelayer.readSubscriptionIsCancelled).not.toHaveBeenCalled();
+    expect(mockRelayer.prepareSubscriptionChargeByRelayerTx).not.toHaveBeenCalled();
+    expect(mockDb.deployment.update).not.toHaveBeenCalled();
+  });
+  it("keeps failed charges due and reads fresh next-charge time for catch-up", async () => {
+    prime();
+    mockRelayer.submitSubscriptionChargeByRelayerTx.mockResolvedValue({
+      status: "FAILED",
+      errorMessage: "network failure",
+    });
+    const failed = await (await POST(makeRequest("cron-secret"))).json();
+    expect(failed.data.failed).toBe(1);
+    expect(mockDb.deployment.update).not.toHaveBeenCalled();
+    expect(mockRelayer.readSubscriptionNextChargeAt).not.toHaveBeenCalled();
+    prime();
+    mockRelayer.readSubscriptionNextChargeAt
+      .mockReset()
+      .mockResolvedValueOnce(BigInt(duePast))
+      .mockResolvedValue(BigInt(duePast + 86400));
+    const success = await (await POST(makeRequest("cron-secret"))).json();
+    expect(success.data.platformCharged).toBe(2);
+    expect(mockRelayer.readSubscriptionState).toHaveBeenCalledTimes(2); // once in each cron run
+    expect(mockRelayer.readSubscriptionNextChargeAt).toHaveBeenCalledTimes(3);
   });
 });

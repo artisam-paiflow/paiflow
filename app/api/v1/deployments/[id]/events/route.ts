@@ -5,6 +5,7 @@ import { AppError } from "@/lib/errors";
 import { v1Route } from "@/lib/api/v1/handler";
 import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
 import { decodeCursor, encodeCursor } from "@/lib/api/v1/cursor";
+import { refreshEventsIfStale } from "@/lib/api/v1/events-freshness";
 import {
   ListEventsQuerySchema,
   type ContractEventItem,
@@ -33,16 +34,24 @@ function firstTopic(payload: Prisma.JsonValue): string | null {
 /**
  * Forward-paginated contract events for one deployment, ascending by `(ledger, eventId)`.
  *
- * Reads the app's `ContractEvent` record, never Soroban RPC: `eventId` is unique, so a partner
- * never sees a duplicate, and a tight polling loop costs one indexed query. Rows arrive from the
- * one-minute `cron/poll-events` run (and the execute submit path), so the feed can trail the chain
- * by about a minute.
+ * Serves the app's `ContractEvent` record: `eventId` is unique, so a partner never sees a
+ * duplicate. Rows arrive from the one-minute `cron/poll-events` run and the execute submit path;
+ * so that a payment Paiflow did not submit (a wallet paying the contract directly, a scanned SEP-7
+ * QR, a relayer action) does not wait for the cron, a read whose deployment cursor is older than
+ * `EVENTS_STALE_AFTER_MS` polls RPC first (`refreshEventsIfStale`). That poll is throttled per
+ * deployment, not per caller, so a tight polling loop still costs about one indexed query per call.
  */
 export const GET = v1Route({ rateLimit: V1_RATE_LIMITS.events }, async ({ req, deployment }) => {
   // Empty values are validated, not dropped: `?cursor=` from an unset client variable must be a
   // 422, never a silent restart from the first event.
   const query = ListEventsQuerySchema.parse(Object.fromEntries(new URL(req.url).searchParams));
   const after = query.cursor ? parseCursor(query.cursor) : null;
+
+  // After validation, so a malformed request never reaches RPC. `pollEventsFor` makes the same
+  // check, but skipping here also skips the cursor read and the refresh claim.
+  if (deployment.status === "CONFIRMED" && deployment.contractAddress) {
+    await refreshEventsIfStale(deployment.id);
+  }
 
   const rows = await db.contractEvent.findMany({
     where: {

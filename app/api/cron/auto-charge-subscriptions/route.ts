@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  runDeploymentWork,
+  beforeExternalRelayer,
+  observeExternalRelayer,
+} from "@/lib/deployments/service-work";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
-import { withErrorHandler } from "@/lib/errors";
+import { AppError, withErrorHandler } from "@/lib/errors";
 import { assertPublicUrl, UnsafeUrlError } from "@/lib/net/assert-public-url";
 import { createContractReadCache } from "@/lib/contract-read-cache";
 import {
@@ -18,10 +23,15 @@ import {
   readTokenAllowance,
 } from "@/lib/stellar/relayer";
 import { prepareSubscriptionChargeByRelayerUnsigned } from "@/lib/stellar/invoke";
-import { TENANT_RELAYER_TIMEOUT_MS, withRelayerLock } from "@/lib/stellar/client";
+import { createSubscriptionStateReader } from "@/lib/stellar/subscription-state";
+import { TENANT_RELAYER_TIMEOUT_MS } from "@/lib/stellar/client";
+import { withRelayerChannel } from "@/lib/stellar/relayer-channels";
 import { stellarPassphrase, stellarRelayerAddress } from "@/lib/env";
 import { ChargeRelayerMode } from "@prisma/client";
 import { requireCronSecret } from "@/lib/auth/cron-secret";
+import { CRON_LIMITS } from "@/lib/cron/config";
+import { cronDeadline } from "@/lib/cron/deadline";
+import { withCronLease } from "@/lib/cron/lease";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +51,14 @@ type ResultDetail = {
  * reclassified as an expected skip (#581).
  */
 class RelayerResponseError extends Error {}
+
+function chargeDate(seconds: bigint): Date {
+  // u64 timestamps can exceed JS/DB date bounds. Never persist an Invalid Date.
+  if (seconds < 0n || seconds > 8_640_000_000_000n) {
+    throw new AppError("UPSTREAM_RPC", "Subscription schedule timestamp is out of range");
+  }
+  return new Date(Number(seconds) * 1000);
+}
 
 /**
  * The tenant's relayer response is untrusted input — `signedXdr` is handed
@@ -107,53 +125,102 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const now = new Date();
-    const deployments = await db.deployment.findMany({
-      where: {
-        status: "CONFIRMED",
-        flow: { templateKind: { not: "PAYROLL" } },
-        chargeRelayerMode: { in: [ChargeRelayerMode.PLATFORM, ChargeRelayerMode.USER] },
-        OR: [{ nextChargeAt: { lte: now } }, { nextChargeAt: null }],
-      },
-      select: {
-        id: true,
-        chargeEndAt: true,
-        chargeRelayerMode: true,
-        chargeRelayerAddress: true,
-        chargeRelayerUrl: true,
-        chargeRelayerToken: true,
-        nextChargeAt: true,
-        pipelineSnapshot: true,
-      },
-    });
-
-    const results: ResultDetail[] = [];
-    let platformCharged = 0;
-    let userCharged = 0;
-
-    const readCache = createContractReadCache();
-    // Only cache reads with no on-chain setters. NOTE: SUBSCRIPTION_DEV exposes
-    // set_amount/update_subscriber, so for dev deployments these cached readers
-    // are bypassed below in favor of fresh reads. Every subscription variant
-    // exposes set_relayer, so the relayer is never cached (a stale value would
-    // defeat the relayer-mismatch safety check right after a rotation).
-    const readSubscriptionAmountPerPeriodCached = readCache(
-      "subscription:amountPerPeriod",
-      readSubscriptionAmountPerPeriod,
-      (addr) => addr,
+    const lease = await withCronLease(
+      "auto-charge-subscriptions",
+      CRON_LIMITS.autoChargeSubscriptions.ttlMs,
+      runSubscriptionCharges,
     );
-    const readSubscriptionSubscriberCached = readCache(
-      "subscription:subscriber",
-      readSubscriptionSubscriber,
-      (addr) => addr,
-    );
-    const readSubscriptionAssetCached = readCache(
-      "subscription:asset",
-      readSubscriptionAsset,
-      (addr) => addr,
-    );
+    if (!lease.acquired) {
+      log.info("auto-charge-subscriptions cron skipped: previous run still active");
+      return NextResponse.json({
+        data: {
+          platformCharged: 0,
+          userCharged: 0,
+          skipped: 0,
+          failed: 0,
+          details: [],
+          truncated: false,
+          leaseHeld: true,
+        },
+      });
+    }
+    return NextResponse.json({ data: lease.value });
+  });
+}
 
-    for (const d of deployments) {
+async function runSubscriptionCharges() {
+  const now = new Date();
+  const deadline = cronDeadline(CRON_LIMITS.autoChargeSubscriptions.budgetMs);
+  let truncated = false;
+  let attempted = 0;
+  const deployments = await db.deployment.findMany({
+    where: {
+      status: "CONFIRMED",
+      serviceState: "ACTIVE",
+      flow: { templateKind: { not: "PAYROLL" } },
+      chargeRelayerMode: { in: [ChargeRelayerMode.PLATFORM, ChargeRelayerMode.USER] },
+      OR: [{ nextChargeAt: { lte: now } }, { nextChargeAt: null }],
+    },
+    select: {
+      id: true,
+      chargeEndAt: true,
+      chargeRelayerMode: true,
+      chargeRelayerAddress: true,
+      chargeRelayerUrl: true,
+      chargeRelayerToken: true,
+      nextChargeAt: true,
+      pipelineSnapshot: true,
+    },
+    // Most overdue first, so a backlog drains
+    // oldest-first. Rows with no date (stopped or never automated, written as
+    // MANUAL + null) sort last so they cannot fill the batch ahead of due ones.
+    orderBy: [{ nextChargeAt: { sort: "asc", nulls: "last" } }, { id: "asc" }],
+    take: CRON_LIMITS.autoChargeSubscriptions.batch,
+  });
+
+  const results: ResultDetail[] = [];
+  let platformCharged = 0;
+  let userCharged = 0;
+
+  const readCache = createContractReadCache();
+  const readSubscriptionState = createSubscriptionStateReader();
+  // Only cache reads with no on-chain setters. NOTE: SUBSCRIPTION_DEV exposes
+  // set_amount/update_subscriber, so for dev deployments these cached readers
+  // are bypassed below in favor of fresh reads. Every subscription variant
+  // exposes set_relayer, so the relayer is never cached (a stale value would
+  // defeat the relayer-mismatch safety check right after a rotation).
+  const readSubscriptionAmountPerPeriodCached = readCache(
+    "subscription:amountPerPeriod",
+    readSubscriptionAmountPerPeriod,
+    (addr) => addr,
+  );
+  const readSubscriptionSubscriberCached = readCache(
+    "subscription:subscriber",
+    readSubscriptionSubscriber,
+    (addr) => addr,
+  );
+  const readSubscriptionAssetCached = readCache(
+    "subscription:asset",
+    readSubscriptionAsset,
+    (addr) => addr,
+  );
+
+  for (const d of deployments) {
+    if (deadline.expired()) {
+      truncated = true;
+      break;
+    }
+    await runDeploymentWork(d.id, "auto-charge-subscriptions", async () => {
+      // Unattempted deployments keep their nextChargeAt, so the next run finds them still due.
+      if (deadline.expired()) {
+        truncated = true;
+        log.warn(
+          { budgetMs: deadline.budgetMs, attempted, deploymentCount: deployments.length },
+          "auto-charge-subscriptions cron out of time; the rest waits for the next run",
+        );
+        return;
+      }
+      attempted += 1;
       const pipeline = d.pipelineSnapshot as Array<{
         nodeId: string;
         contractAddress: string;
@@ -173,15 +240,21 @@ export async function POST(req: NextRequest) {
           status: "skipped",
           error: "No subscription contract in pipeline",
         });
-        continue;
+        return;
       }
 
       try {
+        const state =
+          node.templateKind === "SUBSCRIPTION"
+            ? await readSubscriptionState(contractAddress)
+            : null;
         // Stop scheduling cancelled or expired subscriptions.
-        const [cancelled, nextChargeAt] = await Promise.all([
-          readSubscriptionIsCancelled(contractAddress),
-          readSubscriptionNextChargeAt(contractAddress),
-        ]);
+        const [cancelled, nextChargeAt] = state
+          ? ([state.isCancelled, state.nextChargeAt] as const)
+          : await Promise.all([
+              readSubscriptionIsCancelled(contractAddress),
+              readSubscriptionNextChargeAt(contractAddress),
+            ]);
 
         if (cancelled) {
           await db.deployment.update({
@@ -189,7 +262,7 @@ export async function POST(req: NextRequest) {
             data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
           });
           results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
-          continue;
+          return;
         }
 
         if (d.chargeEndAt && d.chargeEndAt <= now) {
@@ -198,34 +271,36 @@ export async function POST(req: NextRequest) {
             data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
           });
           results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
-          continue;
+          return;
         }
 
         // Verify the on-chain schedule is actually due.
-        const nextChargeDate = new Date(Number(nextChargeAt) * 1000);
+        const nextChargeDate = chargeDate(nextChargeAt);
         if (nextChargeDate > now) {
           await db.deployment.update({
             where: { id: d.id },
             data: { nextChargeAt: nextChargeDate },
           });
           results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
-          continue;
+          return;
         }
 
         // SUBSCRIPTION_DEV amount/subscriber are admin-mutable on-chain, so
         // read them fresh for dev deployments; the immutable SUBSCRIPTION
         // variant can use the cached readers.
         const isDevSubscription = node.templateKind === "SUBSCRIPTION_DEV";
-        const [amountPerPeriod, subscriber, asset, onChainRelayer] = await Promise.all([
-          isDevSubscription
-            ? readSubscriptionAmountPerPeriod(contractAddress)
-            : readSubscriptionAmountPerPeriodCached(contractAddress),
-          isDevSubscription
-            ? readSubscriptionSubscriber(contractAddress)
-            : readSubscriptionSubscriberCached(contractAddress),
-          readSubscriptionAssetCached(contractAddress),
-          readSubscriptionRelayer(contractAddress),
-        ]);
+        const [amountPerPeriod, subscriber, asset, onChainRelayer] = state
+          ? ([BigInt(state.amountPerPeriod), state.subscriber, state.asset, state.relayer] as const)
+          : await Promise.all([
+              isDevSubscription
+                ? readSubscriptionAmountPerPeriod(contractAddress)
+                : readSubscriptionAmountPerPeriodCached(contractAddress),
+              isDevSubscription
+                ? readSubscriptionSubscriber(contractAddress)
+                : readSubscriptionSubscriberCached(contractAddress),
+              readSubscriptionAssetCached(contractAddress),
+              readSubscriptionRelayer(contractAddress),
+            ]);
 
         const allowance = await readTokenAllowance({
           tokenContractAddress: asset,
@@ -239,7 +314,7 @@ export async function POST(req: NextRequest) {
             status: "skipped",
             error: "Insufficient allowance",
           });
-          continue;
+          return;
         }
 
         // Verify the configured relayer matches the on-chain relayer so we
@@ -255,21 +330,21 @@ export async function POST(req: NextRequest) {
             status: "skipped",
             error: `Relayer mismatch: on-chain ${onChainRelayer}, configured ${expectedRelayer}`,
           });
-          continue;
+          return;
         }
 
         let chargedCount = 0;
         if (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM) {
           for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
-            const submit = await withRelayerLock(async () => {
-              const { xdr } = await prepareSubscriptionChargeByRelayerTx(contractAddress);
+            const submit = await withRelayerChannel(async (channel) => {
+              const { xdr } = await prepareSubscriptionChargeByRelayerTx(contractAddress, channel);
               return submitSubscriptionChargeByRelayerTx(xdr);
             });
 
             if (submit.status === "SUCCESS") {
               chargedCount++;
               const next = await readSubscriptionNextChargeAt(contractAddress);
-              if (new Date(Number(next) * 1000) > new Date()) break;
+              if (chargeDate(next) > new Date()) break;
             } else {
               throw new Error(submit.errorMessage ?? "Platform charge submission failed");
             }
@@ -284,7 +359,7 @@ export async function POST(req: NextRequest) {
               status: "failed",
               error: "User relayer URL or address not configured",
             });
-            continue;
+            return;
           }
 
           // Check the stored URL again here, not just where it was saved: DNS
@@ -319,8 +394,13 @@ export async function POST(req: NextRequest) {
               },
               "Tenant relayer URL refused",
             );
-            results.push({ deploymentId: d.id, contractAddress, status: "failed", error: message });
-            continue;
+            results.push({
+              deploymentId: d.id,
+              contractAddress,
+              status: "failed",
+              error: message,
+            });
+            return;
           }
 
           for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
@@ -338,6 +418,7 @@ export async function POST(req: NextRequest) {
 
             let response: Response;
             try {
+              await beforeExternalRelayer();
               response = await fetch(relayerUrl, {
                 method: "POST",
                 headers,
@@ -396,6 +477,7 @@ export async function POST(req: NextRequest) {
             const body = parsed.data;
 
             if (body.status === "SUCCESS" && body.txHash) {
+              await observeExternalRelayer(body.txHash);
               chargedCount++;
             } else if (body.status === "PENDING" && body.signedXdr) {
               const submit = await submitSubscriptionChargeByRelayerTx(body.signedXdr);
@@ -409,7 +491,7 @@ export async function POST(req: NextRequest) {
             }
 
             const next = await readSubscriptionNextChargeAt(contractAddress);
-            if (new Date(Number(next) * 1000) > new Date()) break;
+            if (chargeDate(next) > new Date()) break;
           }
           userCharged += chargedCount;
         }
@@ -420,7 +502,7 @@ export async function POST(req: NextRequest) {
             where: { id: d.id },
             data: {
               lastChargedAt: new Date(),
-              nextChargeAt: new Date(Number(next) * 1000),
+              nextChargeAt: chargeDate(next),
             },
           });
           results.push({
@@ -471,18 +553,17 @@ export async function POST(req: NextRequest) {
           });
         }
       }
-    }
-
-    return NextResponse.json({
-      data: {
-        platformCharged,
-        userCharged,
-        skipped: results.filter((r) => r.status === "skipped").length,
-        failed: results.filter((r) => r.status === "failed").length,
-        details: results,
-      },
     });
-  });
+  }
+
+  return {
+    platformCharged,
+    userCharged,
+    skipped: results.filter((r) => r.status === "skipped").length,
+    failed: results.filter((r) => r.status === "failed").length,
+    details: results,
+    truncated,
+  };
 }
 
 export const GET = POST;

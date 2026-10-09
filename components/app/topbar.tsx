@@ -47,7 +47,12 @@ export default function Topbar({ username }: { username: string }) {
     <header className="glass-panel-nav sticky top-0 z-40 h-16">
       <div className="flex h-full w-full items-center justify-between px-4">
         <div className="gap-lg flex items-center">
-          <Link href="/dashboard" className="flex items-center" aria-label="Paiflow dashboard">
+          <Link
+            href="/dashboard"
+            data-analytics-control="nav-flows"
+            className="flex items-center"
+            aria-label="Paiflow dashboard"
+          >
             <Logo size={22} />
           </Link>
           <nav className="hidden items-center gap-1 md:flex">
@@ -57,6 +62,7 @@ export default function Topbar({ username }: { username: string }) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  data-analytics-control="nav-flows"
                   className={`text-label-md inline-flex items-center gap-2 rounded-lg px-3 py-1.5 font-mono transition-colors ${
                     active
                       ? "bg-surface-container-high/60 text-primary"

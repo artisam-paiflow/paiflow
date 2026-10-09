@@ -3,6 +3,7 @@ import { verifyRegistrationResponse } from "@simplewebauthn/server";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
+import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { popChallenge } from "@/lib/passkey/challenges";
 import { rp } from "@/lib/passkey/rp";
 import { audit } from "@/lib/audit";
@@ -10,6 +11,7 @@ import { audit } from "@/lib/audit";
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireSession();
+    await enforceWriteRateLimit("passkeyManage", user.id);
     const body = await req.json();
     const expectedChallenge = await popChallenge("reg", user.id);
     if (!expectedChallenge) throw new AppError("VALIDATION", "Challenge expired");

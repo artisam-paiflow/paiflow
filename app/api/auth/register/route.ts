@@ -5,7 +5,7 @@ import { hashPassword } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitedError } from "@/lib/rate-limit";
 import { pwnedCount } from "@/lib/hibp";
 
 const RegisterSchema = z.object({
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     }
     const ip = clientIp(req);
     const rl = await rateLimit(`register:${ip}`, 5, 60 * 10);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many registration attempts");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many registration attempts");
 
     const body = RegisterSchema.parse(await req.json());
     if (body.password.toLowerCase().includes(body.username.toLowerCase())) {

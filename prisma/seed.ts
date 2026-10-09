@@ -128,6 +128,23 @@ async function main() {
       },
     },
     {
+      kind: TemplateKind.TIMELOCK_BRANCH,
+      envKey: `STELLAR_WASM_HASH_TIMELOCK_BRANCH_${networkSuffix}`,
+      abi: {
+        functions: [
+          "__constructor",
+          "execute_step",
+          "release",
+          "release_by_relayer",
+          "balance",
+          "unlock_time",
+          "before_steps",
+          "after_steps",
+        ],
+        events: ["receive", "release"],
+      },
+    },
+    {
       kind: TemplateKind.SUBSCRIPTION,
       envKey: `STELLAR_WASM_HASH_SUBSCRIPTION_${networkSuffix}`,
       abi: {

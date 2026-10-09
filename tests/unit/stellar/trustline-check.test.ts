@@ -187,3 +187,36 @@ describe("payoutRecipients", () => {
     ]);
   });
 });
+
+describe("strict payout readiness", () => {
+  it("checks native recipient account existence when requested", async () => {
+    mockLoadAccount(async () => {
+      throw new NotFoundError("missing", { type: "not-found", title: "missing", status: 404 });
+    });
+    const result = await checkPayoutTrustlines(
+      [{ nodeId: "p", address: RECIPIENT, asset: { kind: "native" } }],
+      { fresh: true, requireAccount: true },
+    );
+    expect(result[0]?.status).toBe("no_account");
+  });
+  it("refuses inconclusive native readiness", async () => {
+    mockLoadAccount(async () => {
+      throw new Error("timeout");
+    });
+    const result = await checkPayoutTrustlines(
+      [{ nodeId: "p", address: RECIPIENT, asset: { kind: "native" } }],
+      { fresh: true, requireAccount: true },
+    );
+    expect(result[0]?.status).toBe("unknown");
+  });
+  it("fresh payout checks bypass a cached trustline approval", async () => {
+    const load = mockBalances([trustline("USDC", USDC_ISSUER)]);
+    await checkPayoutTrustlines([{ nodeId: "p", address: RECIPIENT, asset: USDC }]);
+    load.mockResolvedValue({ balances: [] });
+    const result = await checkPayoutTrustlines([{ nodeId: "p", address: RECIPIENT, asset: USDC }], {
+      fresh: true,
+      requireAccount: true,
+    });
+    expect(result[0]?.status).toBe("no_trustline");
+  });
+});

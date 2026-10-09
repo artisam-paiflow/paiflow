@@ -9,10 +9,11 @@ export function usePollTxStatus(): (
   deploymentId: string,
   txHash: string,
   signal?: AbortSignal,
+  statusPath?: string,
 ) => Promise<TxPollResult> {
   return useCallback(
-    (deploymentId: string, txHash: string, signal?: AbortSignal) =>
-      pollTxStatus(deploymentId, txHash, signal),
+    (deploymentId: string, txHash: string, signal?: AbortSignal, statusPath?: string) =>
+      pollTxStatus(deploymentId, txHash, signal, statusPath),
     [],
   );
 }

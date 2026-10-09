@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, clientIp, rateLimitedError } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
 import { generateResetToken, hashResetToken, resetTokenExpiresAt } from "@/lib/auth/password-reset";
@@ -31,8 +31,8 @@ export async function POST(req: NextRequest) {
     // targeted attempts at a single account.
     const ipBucket = await rateLimit(`pwreset:ip:${ip}`, 10, 60 * 60);
     if (!ipBucket.ok) {
-      throw new AppError(
-        "RATE_LIMITED",
+      throw rateLimitedError(
+        ipBucket,
         "Too many reset requests from this network. Try again in an hour.",
       );
     }
@@ -46,12 +46,12 @@ export async function POST(req: NextRequest) {
 
     const user = await db.user.findUnique({
       where: { email: body.email },
-      select: { id: true, email: true, username: true, isActive: true },
+      select: { id: true, email: true, username: true, isActive: true, passwordHash: true },
     });
 
     // Always return the same response shape regardless of whether the email
     // belongs to a known account. Only do real work when it does.
-    if (!user || !user.email || !user.isActive) {
+    if (!user || !user.email || !user.isActive || !user.passwordHash) {
       log.info(
         { ip, email: body.email, found: Boolean(user) },
         "password-reset: request for unknown/inactive email — returning generic ok",

@@ -1,0 +1,16 @@
+{
+  "environment": "isolated-local-postgres",
+  "at": "2026-10-04T14:23:36.450Z",
+  "concurrentAttempts": 20,
+  "accepted": 3,
+  "rejected": 17,
+  "limitStroops": "1500000000",
+  "committedStroops": "1500000000",
+  "reservationSumStroops": "1500000000",
+  "persistedCeilingRejected": true,
+  "duplicateRejected": true,
+  "duplicateRollbackCommittedStroops": "500000000",
+  "changedLimitRejected": true,
+  "auditCount": 3,
+  "networkSubmissions": 0
+}

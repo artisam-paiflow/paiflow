@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { StrKey, Keypair } from "@stellar/stellar-sdk";
+import { withDeploymentWork } from "@/lib/deployments/service-work";
 import { db } from "@/lib/db";
 import { requireDevApiToken } from "@/lib/auth";
+import { requireFeature } from "@/lib/features";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { env } from "@/lib/env";
 import { stellarRelayerAddress, stellarRelayerSecretKey, offRampTreasuryAddress } from "@/lib/env";
 import { getWasmHashes } from "@/lib/stellar/config";
@@ -113,8 +115,11 @@ function deploymentResponse(d: {
 export async function POST(req: NextRequest) {
   return withErrorHandler(async () => {
     const user = await requireDevApiToken(req);
+    // Deploying a payroll is new use: the whole route is off with the switch (#722).
+    requireFeature("payroll");
+    requireFeature("devMode");
     const rl = await rateLimit(`dev-payroll:${user.id}`, 10, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many dev-payroll deploys");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many dev-payroll deploys");
 
     const body = BodySchema.parse(await req.json());
 
@@ -139,6 +144,11 @@ export async function POST(req: NextRequest) {
       },
     });
     if (existing) {
+      if (existing.serviceState !== "ACTIVE")
+        throw new AppError(
+          "CONFLICT",
+          "This idempotency key belongs to a permanently retiring or retired deployment; use a new key",
+        );
       if (
         existing.status === "BUILDING" &&
         Date.now() - existing.createdAt.getTime() > BUILDING_TIMEOUT_MS
@@ -231,6 +241,7 @@ export async function POST(req: NextRequest) {
         templateKind: node.templateKind,
         wasmHash,
         params: node.params,
+        implementation: node.implementation,
       };
     });
 
@@ -274,125 +285,128 @@ export async function POST(req: NextRequest) {
             ownerId_idempotencyKey: { ownerId: user.id, idempotencyKey: body.idempotencyKey },
           },
         });
-        if (winner) return NextResponse.json({ data: deploymentResponse(winner) });
+        if (winner && winner.serviceState === "ACTIVE")
+          return NextResponse.json({ data: deploymentResponse(winner) });
       }
       throw err;
     }
 
-    // Phase 1 — submit on-chain. A throw here (prepare/sign/network) means no
-    // successful, fee-paying transaction was produced, so it is safe to mark
-    // the row FAILED.
-    let result: Awaited<ReturnType<typeof deployPipelineByRelayer>>;
-    try {
-      result = await deployPipelineByRelayer({ graph, nodes: deployNodes });
-    } catch (err) {
-      await db.deployment
-        .update({
-          where: { id: deployment.id },
-          data: { status: "FAILED", errorMessage: (err as Error).message },
-        })
-        .catch(() => {});
-      throw err;
-    }
+    return withDeploymentWork(deployment.id, "dev-payroll-deploy", async () => {
+      // Phase 1 — submit on-chain. A throw here (prepare/sign/network) means no
+      // successful, fee-paying transaction was produced, so it is safe to mark
+      // the row FAILED.
+      let result: Awaited<ReturnType<typeof deployPipelineByRelayer>>;
+      try {
+        result = await deployPipelineByRelayer({ graph, nodes: deployNodes });
+      } catch (err) {
+        await db.deployment
+          .update({
+            where: { id: deployment.id },
+            data: { status: "FAILED", errorMessage: (err as Error).message },
+          })
+          .catch(() => {});
+        throw err;
+      }
 
-    // On-chain rejection: the tx was submitted but did not succeed. Record the
-    // attempted hash for reconciliation, then fail.
-    if (result.status !== "SUCCESS") {
-      const isTimeout = result.errorMessage === "Timed out waiting for finality";
-      if (isTimeout) {
-        // The tx was accepted by the network but finality polling timed out.
-        // Keep the row BUILDING so the idempotency key is not poisoned with a
-        // false FAILED status; persist the txHash for reconciliation.
+      // On-chain rejection: the tx was submitted but did not succeed. Record the
+      // attempted hash for reconciliation, then fail.
+      if (result.status !== "SUCCESS") {
+        const isTimeout = result.errorMessage === "Timed out waiting for finality";
+        if (isTimeout) {
+          // The tx was accepted by the network but finality polling timed out.
+          // Keep the row BUILDING so the idempotency key is not poisoned with a
+          // false FAILED status; persist the txHash for reconciliation.
+          await db.deployment
+            .update({
+              where: { id: deployment.id },
+              data: {
+                deployTxHash: result.txHash || null,
+                errorMessage: result.errorMessage,
+              },
+            })
+            .catch(() => {});
+          return NextResponse.json(
+            {
+              data: {
+                deploymentId: deployment.id,
+                status: "BUILDING",
+                network,
+                deployTxHash: result.txHash || null,
+                subscriptionDevContractAddress: null,
+                splitterDevContractAddress: null,
+                message: "Deployment transaction submitted; waiting for finality",
+              },
+            },
+            { status: 202 },
+          );
+        }
+
         await db.deployment
           .update({
             where: { id: deployment.id },
             data: {
+              status: "FAILED",
               deployTxHash: result.txHash || null,
-              errorMessage: result.errorMessage,
+              errorMessage: result.errorMessage ?? "Deployment failed on-chain",
             },
           })
           .catch(() => {});
-        return NextResponse.json(
-          {
-            data: {
-              deploymentId: deployment.id,
-              status: "BUILDING",
-              network,
-              deployTxHash: result.txHash || null,
-              subscriptionDevContractAddress: null,
-              splitterDevContractAddress: null,
-              message: "Deployment transaction submitted; waiting for finality",
-            },
-          },
-          { status: 202 },
-        );
+        throw new AppError("UPSTREAM_RPC", result.errorMessage ?? "Deployment failed on-chain");
       }
 
-      await db.deployment
-        .update({
-          where: { id: deployment.id },
-          data: {
-            status: "FAILED",
-            deployTxHash: result.txHash || null,
-            errorMessage: result.errorMessage ?? "Deployment failed on-chain",
-          },
-        })
-        .catch(() => {});
-      throw new AppError("UPSTREAM_RPC", result.errorMessage ?? "Deployment failed on-chain");
-    }
+      // Phase 2 — the tx SUCCEEDED on-chain and relayer fees were spent; the
+      // contracts are live. From here the deploy must NEVER be recorded as FAILED:
+      // any bookkeeping error below still preserves the successful tx hash and a
+      // CONFIRMED status so the row can be reconciled to the real deployment.
+      const subscriptionNode = result.pipeline.find(
+        (p) => p.templateKind === TemplateKind.SUBSCRIPTION_DEV,
+      );
 
-    // Phase 2 — the tx SUCCEEDED on-chain and relayer fees were spent; the
-    // contracts are live. From here the deploy must NEVER be recorded as FAILED:
-    // any bookkeeping error below still preserves the successful tx hash and a
-    // CONFIRMED status so the row can be reconciled to the real deployment.
-    const subscriptionNode = result.pipeline.find(
-      (p) => p.templateKind === TemplateKind.SUBSCRIPTION_DEV,
-    );
-
-    let confirmed: Awaited<ReturnType<typeof db.deployment.update>>;
-    try {
-      confirmed = await db.deployment.update({
-        where: { id: deployment.id },
-        data: {
-          status: "CONFIRMED",
-          deployTxHash: result.txHash,
-          contractAddress: subscriptionNode?.contractAddress ?? null,
-          pipelineSnapshot: result.pipeline as object,
-          confirmedAt: new Date(),
-          // The relayer is the platform charger; enable auto-charge from the
-          // first payment date onward.
-          chargeRelayerMode: ChargeRelayerMode.PLATFORM,
-          chargeRelayerAddress: relayerAddress,
-          nextChargeAt: new Date(Math.max(startTs, Math.floor(Date.now() / 1000)) * 1000),
-          chargeEndAt: new Date(endTs * 1000),
-        },
-      });
-    } catch (err) {
-      // The full update failed, but the on-chain deploy succeeded. Best-effort
-      // persist just the successful hash + CONFIRMED status so the row never
-      // misrepresents a live deployment as FAILED, then surface the error.
-      await db.deployment
-        .update({
+      let confirmed: Awaited<ReturnType<typeof db.deployment.update>>;
+      try {
+        confirmed = await db.deployment.update({
           where: { id: deployment.id },
           data: {
             status: "CONFIRMED",
             deployTxHash: result.txHash,
             contractAddress: subscriptionNode?.contractAddress ?? null,
             pipelineSnapshot: result.pipeline as object,
+            confirmedAt: new Date(),
+            // The relayer is the platform charger; enable auto-charge from the
+            // first payment date onward.
+            chargeRelayerMode: ChargeRelayerMode.PLATFORM,
+            chargeRelayerAddress: relayerAddress,
+            nextChargeAt: new Date(Math.max(startTs, Math.floor(Date.now() / 1000)) * 1000),
+            chargeEndAt: new Date(endTs * 1000),
           },
-        })
-        .catch(() => {});
-      throw err;
-    }
+        });
+      } catch (err) {
+        // The full update failed, but the on-chain deploy succeeded. Best-effort
+        // persist just the successful hash + CONFIRMED status so the row never
+        // misrepresents a live deployment as FAILED, then surface the error.
+        await db.deployment
+          .update({
+            where: { id: deployment.id },
+            data: {
+              status: "CONFIRMED",
+              deployTxHash: result.txHash,
+              contractAddress: subscriptionNode?.contractAddress ?? null,
+              pipelineSnapshot: result.pipeline as object,
+            },
+          })
+          .catch(() => {});
+        throw err;
+      }
 
-    // Audit is a non-critical trail; a failure here must not mask the successful
-    // deploy or flip the (already CONFIRMED) row.
-    await audit({
-      action: "DEPLOY_DEV_PAYROLL",
-      userId: user.id,
-      metadata: { deploymentId: deployment.id, txHash: result.txHash, network },
-    }).catch(() => {});
+      // Audit is a non-critical trail; a failure here must not mask the successful
+      // deploy or flip the (already CONFIRMED) row.
+      await audit({
+        action: "DEPLOY_DEV_PAYROLL",
+        userId: user.id,
+        metadata: { deploymentId: deployment.id, txHash: result.txHash, network },
+      }).catch(() => {});
 
-    return NextResponse.json({ data: deploymentResponse(confirmed) });
+      return NextResponse.json({ data: deploymentResponse(confirmed) });
+    });
   });
 }

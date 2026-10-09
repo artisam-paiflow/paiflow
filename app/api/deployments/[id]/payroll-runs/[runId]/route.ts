@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import {
   RunDetailResponseSchema,
   serializePayout,
@@ -18,7 +19,7 @@ const isUuid = (v: string) => z.string().uuid().safeParse(v).success;
  * Return a single payroll run with its per-payout status, including off-ramp
  * job progress. 404s if the run does not belong to the given deployment.
  */
-export async function GET(
+async function GETHandler(
   req: NextRequest,
   ctx: { params: Promise<{ id: string; runId: string }> },
 ) {
@@ -27,7 +28,7 @@ export async function GET(
 
     const rlKey = `payroll-runs-detail:${user.id}`;
     const rl = await rateLimit(rlKey, 60, 60);
-    if (!rl.ok) throw new AppError("RATE_LIMITED", "Too many payroll run detail requests");
+    if (!rl.ok) throw rateLimitedError(rl, "Too many payroll run detail requests");
 
     const { id, runId } = await ctx.params;
     if (!isUuid(id)) throw new AppError("NOT_FOUND", "Deployment not found");
@@ -77,3 +78,5 @@ export async function GET(
     return NextResponse.json(RunDetailResponseSchema.parse(body));
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "dev");

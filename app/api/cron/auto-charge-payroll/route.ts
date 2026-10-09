@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  runDeploymentWork,
+  beforeExternalRelayer,
+  observeExternalRelayer,
+} from "@/lib/deployments/service-work";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { log } from "@/lib/log";
@@ -28,12 +33,16 @@ import {
   readPayerRecipients,
 } from "@/lib/stellar/relayer";
 import { preparePayrollChargeByRelayerUnsigned } from "@/lib/stellar/invoke";
-import { TENANT_RELAYER_TIMEOUT_MS, withRelayerLock } from "@/lib/stellar/client";
+import { TENANT_RELAYER_TIMEOUT_MS } from "@/lib/stellar/client";
+import { withRelayerChannel } from "@/lib/stellar/relayer-channels";
 import { readTokenAllowance } from "@/lib/stellar/relayer";
 import { stellarRelayerAddress, stellarPassphrase } from "@/lib/env";
 import { ChargeRelayerMode, EmployeePayoutMode, PayrollRunStatus } from "@prisma/client";
 import { createOffRampJobsForPayrollRun } from "@/lib/offramp/jobs";
 import { requireCronSecret } from "@/lib/auth/cron-secret";
+import { CRON_LIMITS } from "@/lib/cron/config";
+import { cronDeadline } from "@/lib/cron/deadline";
+import { withCronLease } from "@/lib/cron/lease";
 
 export const dynamic = "force-dynamic";
 
@@ -252,8 +261,11 @@ async function chargeSubscriptionPayrollDeployment(
     const currentNext = await readSubscriptionNextChargeAt(subscriptionContractAddress);
     if (new Date(Number(currentNext) * 1000) > now) break;
 
-    const submit = await withRelayerLock(async () => {
-      const { xdr } = await prepareSubscriptionChargeByRelayerTx(subscriptionContractAddress);
+    const submit = await withRelayerChannel(async (channel) => {
+      const { xdr } = await prepareSubscriptionChargeByRelayerTx(
+        subscriptionContractAddress,
+        channel,
+      );
       return submitSubscriptionChargeByRelayerTx(xdr);
     });
 
@@ -366,44 +378,93 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const now = new Date();
-    const deployments = await db.deployment.findMany({
-      where: {
-        status: "CONFIRMED",
-        flow: { templateKind: "PAYROLL" },
-        OR: [{ nextChargeAt: { lte: now } }, { nextChargeAt: null }],
-      },
-      select: {
-        id: true,
-        offRampEnabled: true,
-        chargeEndAt: true,
-        chargeRelayerMode: true,
-        chargeRelayerUrl: true,
-        chargeRelayerAddress: true,
-        chargeRelayerToken: true,
-        nextChargeAt: true,
-        pipelineSnapshot: true,
-      },
-    });
-
-    const results: ResultDetail[] = [];
-    let platformCharged = 0;
-    let userCharged = 0;
-
-    const readCache = createContractReadCache();
-    // Only employer/asset are cached: the payroll contract has no setters for
-    // them. Recipients (update_recipients) and relayer (set_relayer) are
-    // admin-mutable, so they are read fresh below — caching them could write
-    // stale amounts into PayrollPayout rows and the fiat off-ramp jobs derived
-    // from them.
-    const readPayrollEmployerCached = readCache(
-      "payroll:employer",
-      readPayrollEmployer,
-      (addr) => addr,
+    const lease = await withCronLease(
+      "auto-charge-payroll",
+      CRON_LIMITS.autoChargePayroll.ttlMs,
+      runPayrollCharges,
     );
-    const readPayrollAssetCached = readCache("payroll:asset", readPayrollAsset, (addr) => addr);
+    if (!lease.acquired) {
+      log.info("auto-charge-payroll cron skipped: previous run still active");
+      return NextResponse.json({
+        data: {
+          platformCharged: 0,
+          userCharged: 0,
+          skipped: 0,
+          failed: 0,
+          processed: 0,
+          details: [],
+          truncated: false,
+          leaseHeld: true,
+        },
+      });
+    }
+    return NextResponse.json({ data: lease.value });
+  });
+}
 
-    for (const d of deployments) {
+async function runPayrollCharges() {
+  const now = new Date();
+  const deadline = cronDeadline(CRON_LIMITS.autoChargePayroll.budgetMs);
+  let truncated = false;
+  let attempted = 0;
+  const deployments = await db.deployment.findMany({
+    where: {
+      status: "CONFIRMED",
+      serviceState: "ACTIVE",
+      flow: { templateKind: "PAYROLL" },
+      OR: [{ nextChargeAt: { lte: now } }, { nextChargeAt: null }],
+    },
+    select: {
+      id: true,
+      offRampEnabled: true,
+      chargeEndAt: true,
+      chargeRelayerMode: true,
+      chargeRelayerUrl: true,
+      chargeRelayerAddress: true,
+      chargeRelayerToken: true,
+      nextChargeAt: true,
+      pipelineSnapshot: true,
+    },
+    // Most overdue first, so a backlog drains
+    // oldest-first. Rows with no date (stopped or never automated, written as
+    // MANUAL + null) sort last so they cannot fill the batch ahead of due ones.
+    orderBy: [{ nextChargeAt: { sort: "asc", nulls: "last" } }, { id: "asc" }],
+    take: CRON_LIMITS.autoChargePayroll.batch,
+  });
+
+  const results: ResultDetail[] = [];
+  let platformCharged = 0;
+  let userCharged = 0;
+
+  const readCache = createContractReadCache();
+  // Only employer/asset are cached: the payroll contract has no setters for
+  // them. Recipients (update_recipients) and relayer (set_relayer) are
+  // admin-mutable, so they are read fresh below — caching them could write
+  // stale amounts into PayrollPayout rows and the fiat off-ramp jobs derived
+  // from them.
+  const readPayrollEmployerCached = readCache(
+    "payroll:employer",
+    readPayrollEmployer,
+    (addr) => addr,
+  );
+  const readPayrollAssetCached = readCache("payroll:asset", readPayrollAsset, (addr) => addr);
+
+  for (const d of deployments) {
+    if (deadline.expired()) {
+      truncated = true;
+      break;
+    }
+    await runDeploymentWork(d.id, "auto-charge-payroll", async () => {
+      // Unattempted deployments keep their nextChargeAt, so the next run finds them still due.
+      if (deadline.expired()) {
+        truncated = true;
+        log.warn(
+          { budgetMs: deadline.budgetMs, attempted, deploymentCount: deployments.length },
+          "auto-charge-payroll cron out of time; the rest waits for the next run",
+        );
+        return;
+      }
+      attempted += 1;
       const pipeline = d.pipelineSnapshot as Array<{
         nodeId: string;
         contractAddress: string;
@@ -445,7 +506,7 @@ export async function POST(req: NextRequest) {
           status: "skipped",
           error: "No chargeable payroll contract in pipeline",
         });
-        continue;
+        return;
       }
 
       let contractAddress = "";
@@ -469,7 +530,7 @@ export async function POST(req: NextRequest) {
             contractAddress,
             status: "charged",
           });
-          continue;
+          return;
         }
 
         if (isSubscriptionLike) {
@@ -490,7 +551,7 @@ export async function POST(req: NextRequest) {
             contractAddress,
             status: "charged",
           });
-          continue;
+          return;
         }
 
         contractAddress = payrollNode!.contractAddress;
@@ -505,7 +566,7 @@ export async function POST(req: NextRequest) {
             data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
           });
           results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
-          continue;
+          return;
         }
 
         if (d.chargeEndAt && d.chargeEndAt <= now) {
@@ -514,7 +575,7 @@ export async function POST(req: NextRequest) {
             data: { chargeRelayerMode: ChargeRelayerMode.MANUAL, nextChargeAt: null },
           });
           results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
-          continue;
+          return;
         }
 
         const nextChargeDate = new Date(Number(nextChargeAt) * 1000);
@@ -524,7 +585,7 @@ export async function POST(req: NextRequest) {
             data: { nextChargeAt: nextChargeDate },
           });
           results.push({ deploymentId: d.id, contractAddress, status: "skipped" });
-          continue;
+          return;
         }
 
         const [recipients, employer, asset, onChainRelayer] = await Promise.all([
@@ -556,7 +617,7 @@ export async function POST(req: NextRequest) {
             status: "skipped",
             error: "Insufficient allowance",
           });
-          continue;
+          return;
         }
 
         const expectedRelayer =
@@ -570,7 +631,7 @@ export async function POST(req: NextRequest) {
             status: "skipped",
             error: `Relayer mismatch: on-chain ${onChainRelayer}, configured ${expectedRelayer}`,
           });
-          continue;
+          return;
         }
 
         const payrollRun = await db.payrollRun.create({
@@ -588,8 +649,8 @@ export async function POST(req: NextRequest) {
 
         if (d.chargeRelayerMode === ChargeRelayerMode.PLATFORM) {
           for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
-            const submit = await withRelayerLock(async () => {
-              const { xdr } = await preparePayrollChargeByRelayerTx(contractAddress);
+            const submit = await withRelayerChannel(async (channel) => {
+              const { xdr } = await preparePayrollChargeByRelayerTx(contractAddress, channel);
               return submitPayrollChargeByRelayerTx(xdr);
             });
 
@@ -646,7 +707,7 @@ export async function POST(req: NextRequest) {
               status: "failed",
               error: "USER relayer mode missing url or address",
             });
-            continue;
+            return;
           }
 
           // Check the stored URL again here, not just where it was saved: DNS
@@ -691,8 +752,13 @@ export async function POST(req: NextRequest) {
               },
               "Tenant relayer URL refused",
             );
-            results.push({ deploymentId: d.id, contractAddress, status: "failed", error: message });
-            continue;
+            results.push({
+              deploymentId: d.id,
+              contractAddress,
+              status: "failed",
+              error: message,
+            });
+            return;
           }
 
           for (let i = 0; i < MAX_CATCHUP_PER_RUN; i++) {
@@ -711,6 +777,7 @@ export async function POST(req: NextRequest) {
 
             let res: Response;
             try {
+              await beforeExternalRelayer();
               res = await fetch(relayerUrl, {
                 method: "POST",
                 headers: {
@@ -766,6 +833,7 @@ export async function POST(req: NextRequest) {
               throw new RelayerResponseError("User relayer returned an unrecognised payload");
             }
             const json = parsed.data;
+            if (json.txHash) await observeExternalRelayer(json.txHash);
 
             let chargeTxHash: string | undefined;
             if (json.status === "SUCCESS" && json.txHash) {
@@ -834,7 +902,7 @@ export async function POST(req: NextRequest) {
             status: "skipped",
             error: "No charges executed",
           });
-          continue;
+          return;
         }
 
         const next = await readPayrollNextChargeAt(contractAddress);
@@ -930,17 +998,16 @@ export async function POST(req: NextRequest) {
           });
         }
       }
-    }
-
-    return NextResponse.json({
-      data: {
-        platformCharged,
-        userCharged,
-        skipped: results.filter((r) => r.status === "skipped").length,
-        failed: results.filter((r) => r.status === "failed").length,
-        processed: deployments.length,
-        details: results,
-      },
     });
-  });
+  }
+
+  return {
+    platformCharged,
+    userCharged,
+    skipped: results.filter((r) => r.status === "skipped").length,
+    failed: results.filter((r) => r.status === "failed").length,
+    processed: attempted,
+    details: results,
+    truncated,
+  };
 }

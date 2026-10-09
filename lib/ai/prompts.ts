@@ -1,10 +1,29 @@
 import { z } from "zod";
 import type { FlowGraph, FlowNode, FlowEdge } from "@/lib/flows/schema";
-import { isPendingAddress, MIN_SWAP_SLIPPAGE_BPS } from "@/lib/flows/schema";
+import {
+  EdgeBranchSchema,
+  NotifySchema,
+  isPendingAddress,
+  MIN_SWAP_SLIPPAGE_BPS,
+} from "@/lib/flows/schema";
 import { flowToEnglish } from "@/lib/flows/english";
 import type { AddressEntry } from "@/lib/address-book";
 
+// `sourceHandle` picks the True/False output of an amount condition. Without it
+// an edge out of a condition is its True branch, so a model that ignores the
+// field still can't draw a False branch by accident; validateFlow refuses the
+// flow until one is connected.
+const PatchEdgeSchema = z.object({
+  id: z.string(),
+  source: z.string(),
+  target: z.string(),
+  // A model may write `null` for "no handle"; that is the True branch, not a
+  // reason to throw the whole patch away.
+  sourceHandle: EdgeBranchSchema.nullish().transform((v) => v ?? undefined),
+});
+
 export const PatchOpSchema = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("setNotify"), notify: NotifySchema }),
   z.object({
     op: z.literal("updateNode"),
     id: z.string(),
@@ -13,7 +32,7 @@ export const PatchOpSchema = z.discriminatedUnion("op", [
   z.object({
     op: z.literal("addNode"),
     node: z.record(z.unknown()),
-    edge: z.object({ id: z.string(), source: z.string(), target: z.string() }).nullish(),
+    edge: PatchEdgeSchema.nullish(),
   }),
   z.object({
     op: z.literal("removeNode"),
@@ -21,7 +40,7 @@ export const PatchOpSchema = z.discriminatedUnion("op", [
   }),
   z.object({
     op: z.literal("addEdge"),
-    edge: z.object({ id: z.string(), source: z.string(), target: z.string() }),
+    edge: PatchEdgeSchema,
   }),
   z.object({
     op: z.literal("removeEdge"),
@@ -103,7 +122,7 @@ ABOUT BLOCKS (node types in Paiflow):
 
   WHAT'S IN THE BUILDER PALETTE TODAY:
     Triggers: On Receive, On Schedule, HTTP Webhook, Subscription, Payroll
-    Actions:  Pay, Split, Swap, Email Notify
+    Actions:  Pay, Split, Swap, Hold, Return to owner
     Logic:    Condition
 
   HIDDEN / LEGACY BLOCKS (exist in the schema and in older saved flows, but are
@@ -126,7 +145,6 @@ ABOUT BLOCKS (node types in Paiflow):
     - "Pay" (pay) — sends to ONE recipient. Three amount modes: a fixed amount, a percentage of the incoming funds, or the full incoming amount. Can pay out in crypto (to a Stellar wallet) or in fiat (to a bank account, via the PDAX off-ramp).
     - "Split" (split) — distributes to MULTIPLE recipients, either by percentage (shares add up to 100%) or by fixed per-recipient amounts. All recipients in one split must use the same amount mode, but each recipient independently chooses crypto (wallet) or fiat (bank) payout.
     - "Swap" (swap) — converts assetIn to assetOut on the Soroswap DEX with a slippage bound, then forwards the whole output to exactly ONE next step. The router address is pinned per environment on the server; the user never sets it.
-    - "Email Notify" (email_notify) — sends off-chain email notifications when the flow runs. It hangs off the end of the flow as a decorator and does NOT count as the flow's required action.
 
   LOGIC blocks — add conditions:
     - "Condition" (condition) — only proceed if a rule is met. Kinds: amount above/below a threshold, time before/after a date, oracle price ≥ a threshold, or multisig (N-of-M signer approvals).
@@ -162,10 +180,11 @@ You MUST respond with a JSON object containing exactly these fields:
 - "clarifyingQuestion": a question string when you need to disambiguate, or when the user's request conflicts with a flow constraint (if applicable)
 
 Supported patch operations:
+- { "op": "setNotify", "notify": { "mode": "off"|"every_transaction"|"shortfalls_only", "sendTo": string } }
 - { "op": "updateNode", "id": "node-id", "config": { ...partial config... } }
 - { "op": "addNode", "node": { id, type, config }, "edge": { id, source, target } }
 - { "op": "removeNode", "id": "node-id" }
-- { "op": "addEdge", "edge": { id, source, target } }
+- { "op": "addEdge", "edge": { id, source, target, sourceHandle? } }   // sourceHandle "true" | "false", only on an edge out of an amount or time condition
 - { "op": "removeEdge", "id": "edge-id" }
 
 ────────────────────────────────────────────────────────
@@ -277,9 +296,6 @@ Match informal references to node types:
 "the yield" / "vault" / "deposit block" / "lending"
   → yield node (HIDDEN — only touch if the user already has one in their flow)
 
-"the email" / "notification" / "notify block"
-  → email_notify node
-
 "the webhook" / "the relayer trigger" / "the HTTP trigger"
   → web2_webhook node (the HTTP one in the palette). If the user's flow already has a legacy "webhook" (relayer) node, match that instead — but for new flows always use web2_webhook.
 
@@ -318,7 +334,7 @@ GENERAL RULES:
 - Valid node types —
     TRIGGERS: on_receive, on_schedule, web2_webhook, subscription, payroll
               (also in schema but hidden from palette: webhook, oracle)
-    ACTIONS:  pay, split, swap, email_notify
+    ACTIONS:  pay, split, swap, hold, return_to_owner
               (also in schema but hidden from palette: yield, cash_out)
     LOGIC:    condition
 - Prefer palette-visible blocks. Only add a hidden block (yield, cash_out, webhook, oracle) if the user explicitly asks for it by name AND you confirm it's not currently offered in the builder.
@@ -358,8 +374,10 @@ TRIGGERS — a flow has EXACTLY ONE:
 - webhook (HIDDEN): { asset: Asset, relayer: stellarAddress }   // legacy relayer-authorized trigger
 - oracle (HIDDEN): { asset: Asset, threshold: string (integer string) }
 
-ACTIONS — a flow needs ≥1 of pay/split/swap (email_notify does NOT satisfy this; yield/cash_out also count but are hidden):
-- pay: { recipient: stellarAddress, asset: Asset, mode: "fixed"|"percentage", amountStroops?: string (required when mode="fixed"), percentage?: number 0–100 (required when mode="percentage"), fullAmount?: boolean, fillValueViaApi?: boolean (dev mode only), payoutMode?: "crypto"|"fiat", accountName?: string, accountNumber?: string, bankCode?: string }
+Email notifications are settings, never canvas nodes. New graphs include notify: { mode: "every_transaction", sendTo: "" }. Modes: every_transaction, shortfalls_only, off. Pay config and each Split recipient may include optional email. Never invent an email address. No subject or body fields. Existing graphs without notify are off and must stay off unless the user asks to enable notifications. Use setNotify to change owner notifications; use updateNode to set Pay email or Split recipient emails. Preserve existing emails unless asked to change them.
+
+ACTIONS — a flow needs ≥1 of pay/split/swap (yield/cash_out also count but are hidden):
+- pay: { recipient: stellarAddress, email?: string, asset: Asset, mode: "fixed"|"percentage", amountStroops?: string (required when mode="fixed"), percentage?: number 0–100 (required when mode="percentage"), fullAmount?: boolean, fillValueViaApi?: boolean (dev mode only), payoutMode?: "crypto"|"fiat", accountName?: string, accountNumber?: string, bankCode?: string }
     • "mode" is ALWAYS exactly "fixed" or "percentage". "fullAmount" / "full" / "all" are NOT valid mode values.
     • To pay the ENTIRE incoming amount: set "fullAmount": true AND keep a valid mode (use "fixed"); amountStroops/percentage are then ignored.
     • To pay a percentage: "mode":"percentage" + "percentage": <0–100>. To pay a set amount: "mode":"fixed" + "amountStroops".
@@ -373,7 +391,8 @@ ACTIONS — a flow needs ≥1 of pay/split/swap (email_notify does NOT satisfy t
 - swap: { assetIn: Asset, assetOut: Asset, slippageBps: int ${MIN_SWAP_SLIPPAGE_BPS}–10000, deadlineSecs: int 1–86400 }   // slippageBps 100 = max 1% below the Soroswap pool's spot price; the floor of ${MIN_SWAP_SLIPPAGE_BPS} is Soroswap's 0.3% pool fee, and anything under it is refused at deploy; deadlineSecs 300; assetIn and assetOut must each be {"kind":"native"} or {"kind":"known","symbol":"USDC"} — a custom asset is refused at deploy
 - yield (HIDDEN): { asset: Asset, vault: stellarAddress }   // vault may be "PENDING:<label>"
 - cash_out (HIDDEN — auto-generated, never add by hand): { asset: Asset, accountName: string, accountNumber: string, bankCode: string }
-- email_notify: { recipients: [{ address: string, email: string }], subject: string (non-empty), body?: string }
+- hold: {} — terminal marker, exactly one incoming edge from the BEFORE side of a time condition, no outgoing edges. Funds are strictly locked until the deadline (no early release), then sent to the after destination.
+- return_to_owner: {} — terminal, exactly one incoming condition edge, no outgoing edges; returns 100% to the deploying wallet, resolved at deployment preparation. Never guess or save an owner address. Immutable even in dev mode. Allowed after amount, time and multisig; forbidden after oracle_gte because that contract releases a fixed amount.
 
 LOGIC:
 - condition: EXACTLY ONE of —
@@ -387,9 +406,11 @@ LOGIC:
 CRITICAL SAFETY RULES:
 - NEVER add a second trigger node. Every flow has exactly ONE trigger (any of: on_receive, on_schedule, web2_webhook, subscription, payroll — plus hidden webhook/oracle on legacy flows). To change the trigger type, use updateNode on the existing trigger (changing "type" requires removeNode + addNode reusing the same numeric suffix).
 - NEVER remove the only trigger node. If asked, respond with mode "chat" and explain: "I can't remove the only trigger — every flow needs at least one. Would you like to change it instead?"
-- Every flow needs at least one CONTRACT action: pay, split, swap (or the hidden yield/cash_out on legacy flows). email_notify alone is NOT enough — never leave a flow whose only action is email_notify.
+- Every flow needs at least one CONTRACT action: pay, split, swap (or the hidden yield/cash_out on legacy flows).
 - A condition node must sit between a trigger and an action. Condition nodes cannot be leaf nodes.
-- A swap forwards its WHOLE output to exactly ONE next step: it must have exactly one outgoing edge to a pay or split (an email_notify hanging off it doesn't count as that destination). Never leave a swap as a leaf, and never fan a swap out to two steps — put a split after it instead.
+- An amount condition (amount_gt / amount_lt) has TWO outputs and needs BOTH connected, or the money that misses the condition is stuck: one edge with "sourceHandle": "true" (condition met) and one with "sourceHandle": "false" (otherwise), each to exactly ONE step (a pay, split, or return_to_owner). An edge from a condition without "sourceHandle" is its "true" output.
+- A time condition (time_after / time_before) also has TWO outputs and needs BOTH connected, each to exactly ONE step (a pay, split, or return_to_owner), or the money is stuck. The contract holds the funds and picks a side when it is RELEASED: released before the deadline "at" it takes the "before" side, released at or after it takes the "after" side. time_before: "true" is the before side, "false" the after side. time_after: "true" is the after side, "false" the before side. Example "pay the freelancer if they deliver before the deadline, refund the client after it": condition time_before, "true" edge to the freelancer's pay, "false" edge to the client's pay. The before side can be released early by the owner's wallet; the automatic release runs only at or after the deadline, so it always takes the after side. For strict locking, connect hold on the BEFORE side and a pay, split, or return_to_owner on the AFTER side; this disables early release and releases at or after the deadline. A time condition works only after an on_receive trigger. Oracle and multisig conditions have only the "true" output.
+- A swap forwards its WHOLE output to exactly ONE next step: it must have exactly one outgoing edge to a pay or split. Never leave a swap as a leaf, and never fan a swap out to two steps — put a split after it instead.
 - ASSET MATCHING: every action must use the asset that actually flows into it — the trigger's asset, or the swap's assetOut for anything downstream of a swap. A swap's own assetIn follows the same rule. Do NOT introduce a swap to work around an asset mismatch; instead, ask the user which asset they actually want and set it consistently. Only add a swap when the user asks to convert one asset into another.
 - WEBHOOK/HTTP-WEBHOOK/ORACLE triggers only support a "multisig" condition. They CANNOT be combined with amount_gt/amount_lt/time_after/time_before/oracle_gte conditions. If the user asks for one of those with such a trigger, use a clarifyingQuestion.
 - Split recipients all use the SAME amount mode (all percentage or all fixed — never mixed). Percentage shares sum to exactly 10000 bps (100%); each bps ≥ 1; never set bps to 0. Fixed amounts must each be > 0. To remove a recipient, omit them from the array entirely (and re-balance percentages so they still total 10000). Recipients in the same split MAY mix payoutMode (some crypto, some fiat).
@@ -401,7 +422,6 @@ CRITICAL SAFETY RULES:
   • A non-dev flow with ANY fiat payout needs a senderKyc profile at the flow level before it can deploy. Never invent KYC values — if it's missing, mention in your explanation that the user must complete their sender profile in the builder.
   • NEVER add a cash_out node by hand. Fiat payouts are configured on the pay/split node itself and the cash-out contract is auto-generated at deploy time.
   • For a fiat split recipient, use "PENDING:<label>" as the address — no Stellar wallet is needed. Do NOT add that label to missingAddresses (fiat recipients don't need wallet addresses).
-- email_notify is a LEAF decorator: it must have NO outgoing edges, needs a non-empty subject, and when attached to a split it must list exactly one email per split recipient (matching addresses).
 - multisig threshold must be ≥ 1 and ≤ the number of signers.
 - WHEN THE USER SAYS "CHANGE" — always use updateNode, never addNode. Updating a node's config is always preferred over adding a duplicate.
 
@@ -439,7 +459,6 @@ Templates (XXXX = random 4-digit number). Use the asset already present in the f
   PAY: {"id":"node-pay-XXXX","type":"pay","config":{"recipient":"PENDING:<label>","amountStroops":"10000000","asset":{"kind":"known","symbol":"USDC"},"mode":"fixed","fullAmount":false,"payoutMode":"crypto"}}
   SPLIT: {"id":"node-split-XXXX","type":"split","config":{"asset":{"kind":"known","symbol":"USDC"},"recipients":[{"address":"PENDING:Recipient1","mode":"percentage","bps":5000,"label":"Recipient 1","payoutMode":"crypto"},{"address":"PENDING:Recipient2","mode":"percentage","bps":5000,"label":"Recipient 2","payoutMode":"crypto"}]}}
   SWAP: {"id":"node-swap-XXXX","type":"swap","config":{"assetIn":{"kind":"native"},"assetOut":{"kind":"known","symbol":"USDC"},"slippageBps":100,"deadlineSecs":300}}
-  EMAIL_NOTIFY: {"id":"node-email-XXXX","type":"email_notify","config":{"recipients":[{"address":"PENDING:<label>","email":"<email>"}],"subject":"<subject>","body":""}}
   Actions (HIDDEN — do not add unless explicitly requested by name; never add cash_out by hand):
   YIELD: {"id":"node-yield-XXXX","type":"yield","config":{"asset":{"kind":"known","symbol":"USDC"},"vault":"PENDING:vault"}}
   Logic:
@@ -477,8 +496,8 @@ your job is to construct a complete, valid flow using addNode + addEdge operatio
 
 REQUIRED STRUCTURE FOR A VALID FLOW:
   1. Exactly 1 trigger node (on_receive, on_schedule, web2_webhook, subscription, or payroll — plus hidden webhook/oracle on legacy flows)
-  2. At least 1 contract action (pay, split or swap; hidden yield/cash_out also count on legacy flows) — email_notify does not count on its own
-  3. Edges connecting them in order: trigger → [condition?] → action(s) → [email_notify?]
+  2. At least 1 contract action (pay, split or swap; hidden yield/cash_out also count on legacy flows)
+  3. Edges connecting them in order: trigger → [condition?] → action(s)
   4. Keep assets consistent: each action uses the asset flowing into it — the trigger asset, or the swap's assetOut downstream of a swap
   5. webhook/web2_webhook/oracle triggers only allow a multisig condition (no amount/time/oracle_gte conditions)
   6. Fiat payouts: set payoutMode="fiat" + bank details on pay/split; never add a cash_out node by hand; remember non-dev fiat flows need senderKyc
@@ -602,6 +621,7 @@ export function buildUserMessage(
   let sections = `Current flow: ${english}`;
   sections += `\n\nNodes: ${JSON.stringify(graph.nodes)}`;
   sections += `\n\nEdges: ${JSON.stringify(graph.edges)}`;
+  sections += `\n\nOwner notifications: ${JSON.stringify(graph.notify ?? { mode: "off", sendTo: "" })}`;
   sections += `\n\nExisting addresses in this flow:\n${JSON.stringify(existingAddresses)}`;
   if (unresolved.length > 0) {
     sections += `\n\nUnresolved recipients in this flow (need addresses):\n${JSON.stringify(unresolved)}`;
@@ -632,6 +652,7 @@ export function buildCorrectionPrompt(
   let sections = `Current flow: ${english}`;
   sections += `\n\nNodes: ${JSON.stringify(graph.nodes)}`;
   sections += `\n\nEdges: ${JSON.stringify(graph.edges)}`;
+  sections += `\n\nOwner notifications: ${JSON.stringify(graph.notify ?? { mode: "off", sendTo: "" })}`;
   sections += `\n\nExisting addresses in this flow:\n${JSON.stringify(existingAddresses)}`;
   if (unresolved.length > 0) {
     sections += `\n\nUnresolved recipients in this flow (need addresses):\n${JSON.stringify(unresolved)}`;

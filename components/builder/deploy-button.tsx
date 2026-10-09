@@ -5,26 +5,34 @@ import Link from "next/link";
 type Props = {
   flowId: string;
   disabled?: boolean;
+  pending?: boolean;
   errorCount?: number;
   onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 };
 
-export default function DeployButton({ flowId, disabled = false, errorCount = 0, onClick }: Props) {
+export default function DeployButton({
+  flowId,
+  disabled = false,
+  pending = false,
+  errorCount = 0,
+  onClick,
+}: Props) {
   const label =
     errorCount === 1
       ? "1 validation error must be resolved before deploying"
       : `${errorCount} validation errors must be resolved before deploying`;
 
-  if (disabled) {
+  if (disabled || pending) {
     return (
       <span
         role="link"
         aria-disabled="true"
-        title={label}
+        aria-busy={pending}
+        title={pending ? "Saving before deploy" : label}
         className="text-label-md bg-surface-container-high text-on-surface-variant/60 inline-flex shrink-0 cursor-not-allowed items-center gap-2 rounded-lg px-4 py-2 font-mono font-bold max-md:px-3 max-md:py-1.5"
       >
         <span className="material-symbols-outlined text-[16px]">rocket_launch</span>
-        DEPLOY
+        {pending ? "SAVING…" : "DEPLOY"}
       </span>
     );
   }

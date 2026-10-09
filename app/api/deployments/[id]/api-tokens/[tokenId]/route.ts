@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -12,7 +13,7 @@ type Ctx = { params: Promise<{ id: string; tokenId: string }> };
  * Revoke a token. The row is kept, never deleted, so the audit trail keeps its
  * subject. Revoking an already-revoked token returns it unchanged.
  */
-export async function DELETE(req: NextRequest, ctx: Ctx) {
+async function DELETEHandler(req: NextRequest, ctx: Ctx) {
   return withErrorHandler(async () => {
     const { id, tokenId } = await ctx.params;
     const { user, deployment } = await requireTokenManager(id);
@@ -47,3 +48,5 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ data: token });
   });
 }
+
+export const DELETE = deploymentServiceRoute(DELETEHandler, "owner");

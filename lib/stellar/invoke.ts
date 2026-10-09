@@ -12,7 +12,9 @@ import {
 } from "@stellar/stellar-sdk";
 import { sorobanRpc, decodeContractAddress } from "./client";
 import { stellarPassphrase } from "@/lib/env";
+import { AppError } from "@/lib/errors";
 import { simulationFailure } from "./sim-error";
+import { subscriptionChargeFailure } from "./subscription-charge-error";
 
 export type PreparedInvoke = {
   xdr: string;
@@ -74,16 +76,12 @@ export async function prepareDistributeTx(opts: {
   });
 }
 
-export async function prepareWebhookExecuteInvocation(opts: {
+export function webhookExecuteOperation(opts: {
   contractAddress: string;
   from: string;
   amount: string;
-  relayerAddress: string;
   auth?: string[];
-}): Promise<PreparedInvokeTx> {
-  const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.relayerAddress);
-
+}): xdr.Operation {
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
   const fromScVal = new Address(opts.from).toScVal();
@@ -100,7 +98,20 @@ export async function prepareWebhookExecuteInvocation(opts: {
   const sorobanAuth =
     opts.auth?.map((a) => xdr.SorobanAuthorizationEntry.fromXDR(a, "base64")) ?? [];
 
-  const op = Operation.invokeHostFunction({ func: hostFunction, auth: sorobanAuth });
+  return Operation.invokeHostFunction({ func: hostFunction, auth: sorobanAuth });
+}
+
+export async function prepareWebhookExecuteInvocation(opts: {
+  contractAddress: string;
+  from: string;
+  amount: string;
+  relayerAddress: string;
+  auth?: string[];
+}): Promise<PreparedInvokeTx> {
+  const server = sorobanRpc();
+  const sourceAcct = await server.getAccount(opts.relayerAddress);
+
+  const op = webhookExecuteOperation(opts);
 
   const tx = new TransactionBuilder(sourceAcct, {
     fee: BASE_FEE,
@@ -160,14 +171,10 @@ export async function prepareWebhookDepositInvocation(opts: {
   return { xdr: assembled.toXDR(), tx: assembled };
 }
 
-export async function prepareWebhookEscrowInvocation(opts: {
+export function webhookEscrowOperation(opts: {
   contractAddress: string;
   amount?: string;
-  relayerAddress: string;
-}): Promise<PreparedInvokeTx> {
-  const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.relayerAddress);
-
+}): xdr.Operation {
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
 
@@ -183,7 +190,18 @@ export async function prepareWebhookEscrowInvocation(opts: {
     }),
   );
 
-  const op = Operation.invokeHostFunction({ func: hostFunction });
+  return Operation.invokeHostFunction({ func: hostFunction });
+}
+
+export async function prepareWebhookEscrowInvocation(opts: {
+  contractAddress: string;
+  amount?: string;
+  relayerAddress: string;
+}): Promise<PreparedInvokeTx> {
+  const server = sorobanRpc();
+  const sourceAcct = await server.getAccount(opts.relayerAddress);
+
+  const op = webhookEscrowOperation(opts);
 
   const tx = new TransactionBuilder(sourceAcct, {
     fee: BASE_FEE,
@@ -251,6 +269,7 @@ export async function prepareDepositInvocation(opts: {
   contractAddress: string;
   amount: string;
   invokerAddress: string;
+  timeoutSeconds?: 60 | 180;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
   const sourceAcct = await server.getAccount(opts.invokerAddress);
@@ -275,7 +294,7 @@ export async function prepareDepositInvocation(opts: {
     networkPassphrase: stellarPassphrase(),
   })
     .addOperation(op)
-    .setTimeout(180)
+    .setTimeout(opts.timeoutSeconds ?? 180)
     .build();
 
   const sim = await server.simulateTransaction(tx);
@@ -466,6 +485,13 @@ export async function prepareTokenApproveInvocation(opts: {
   // Using U32_MAX caused "live_until is greater than max".
   const expirationLedger =
     latestLedger.sequence + MAX_APPROVAL_LEDGER_DELTA - APPROVAL_LEDGER_BUFFER;
+  if (
+    !Number.isInteger(latestLedger.sequence) ||
+    latestLedger.sequence <= 0 ||
+    expirationLedger > 0xffff_ffff
+  ) {
+    throw new AppError("UPSTREAM_RPC", "Cannot establish a valid allowance expiration ledger");
+  }
   const expirationScVal = nativeToScVal(expirationLedger, { type: "u32" });
 
   const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
@@ -572,6 +598,8 @@ export async function prepareSubscriptionSubscribeInvocation(opts: {
 export async function prepareSubscriptionChargeInvocation(opts: {
   contractAddress: string;
   adminAddress: string;
+  /** Standard Subscription API only; Payroll and Dev callers retain their errors. */
+  classifyInsufficientAllowance?: boolean;
 }): Promise<PreparedInvokeTx> {
   const server = sorobanRpc();
   const sourceAcct = await server.getAccount(opts.adminAddress);
@@ -599,6 +627,9 @@ export async function prepareSubscriptionChargeInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
+    if (opts.classifyInsufficientAllowance) {
+      throw subscriptionChargeFailure(sim, opts.contractAddress);
+    }
     throw simulationFailure(sim.error, { contract: "subscription" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();

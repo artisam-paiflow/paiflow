@@ -22,13 +22,19 @@ const { mockDb, mockSaveChallenge, mockRateLimit, mockAudit } = vi.hoisted(() =>
   mockAudit: vi.fn(),
 }));
 
+// Errors are built with the AppError of the registry the route was just imported into.
+const errs = vi.hoisted(() => ({ make: (m: string): Error => new Error(m) }));
+
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/audit", () => ({ audit: mockAudit }));
 vi.mock("@/lib/passkey/challenges", () => ({ saveChallenge: mockSaveChallenge }));
-vi.mock("@/lib/rate-limit", () => ({
-  rateLimit: mockRateLimit,
-  clientIp: vi.fn(() => "203.0.113.9"),
-}));
+vi.mock("@/lib/rate-limit", () => {
+  return {
+    rateLimitedError: (_r: unknown, message: string) => errs.make(message),
+    rateLimit: mockRateLimit,
+    clientIp: vi.fn(() => "203.0.113.9"),
+  };
+});
 
 function req() {
   return new Request("http://localhost/api/auth/sandbox", { method: "POST" }) as never;
@@ -39,6 +45,8 @@ function req() {
 async function post() {
   vi.resetModules();
   const { POST } = await import("@/app/api/auth/sandbox/route");
+  const { AppError } = await import("@/lib/errors");
+  errs.make = (m) => new AppError("RATE_LIMITED", m);
   return POST(req());
 }
 
@@ -103,8 +111,9 @@ describe("POST /api/auth/sandbox", () => {
   });
 
   it("also caps the instance as a whole, since the client controls its own IP header", async () => {
-    // clientIp() reads the first X-Forwarded-For entry, which the caller sets
-    // freely — so the per-IP cap alone is not a real ceiling.
+    // clientIp() is only as honest as the edge in front of the app: Railway's
+    // replaces X-Forwarded-For (#433), a pass-through proxy would not. The
+    // global cap bounds the endpoint either way.
     mockRateLimit.mockImplementation(async (key: string) => ({
       ok: key !== "sandbox:global",
       remaining: 0,

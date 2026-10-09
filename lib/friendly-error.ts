@@ -61,7 +61,13 @@ export function friendlyError(err: unknown, fallback: string = DEFAULT_FALLBACK)
     }
   }
 
-  const rawMessage = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  // Wallets Kit's parseError() throws a plain { code, message, ext } object,
+  // including for Freighter refusals. Read only its message, never stringify
+  // the payload: ext may contain wallet-specific sensitive data.
+  const ownMessage =
+    err != null && typeof err === "object" && "message" in err ? err.message : undefined;
+  const rawMessage =
+    typeof err === "string" ? err : typeof ownMessage === "string" ? ownMessage : "";
   const message = rawMessage.trim() || fallback;
 
   if (WALLET_REJECTION.test(message)) {

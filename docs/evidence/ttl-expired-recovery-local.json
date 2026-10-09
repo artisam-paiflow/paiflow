@@ -1,0 +1,275 @@
+{
+  "network": "isolated LOCAL",
+  "passphrase": "Standalone Network ; February 2017",
+  "transactions": [
+    {
+      "label": "native SAC",
+      "hash": "810c56d063e0e3115aea872d049747f9bc55bbb558fe7be5e507c93927321a85",
+      "ledger": 477,
+      "feeCharged": "31347",
+      "feeBound": "71373"
+    },
+    {
+      "label": "Pay v4 upload",
+      "hash": "d1b962f26bad714151a40d4223799f3972475c621f25e915f2ebe3f8e28acfce",
+      "ledger": 478,
+      "feeCharged": "460718",
+      "feeBound": "529499"
+    },
+    {
+      "label": "historical Webhook v1 upload",
+      "hash": "b4133db7143aa82f96ee261e08fa74d35e6c0027039bdfaf9794adc8d2dae3f9",
+      "ledger": 479,
+      "feeCharged": "347475",
+      "feeBound": "407237"
+    },
+    {
+      "label": "Pay v4 deploy",
+      "hash": "02f97919d52845da50257bc04f00f22b740e0c0c53e5d04bf385523b042e0bda",
+      "ledger": 480,
+      "feeCharged": "48916",
+      "feeBound": "88950"
+    },
+    {
+      "label": "historical Webhook v1 deploy",
+      "hash": "b69520705593586a7f9b1c1c1125187a75e04972c9f0b10d9da3df0a6af53841",
+      "ledger": 481,
+      "feeCharged": "48039",
+      "feeBound": "88071"
+    },
+    {
+      "label": "escrow deposit",
+      "hash": "075ddd69d27e73a6004503baf360027523ad92bd85a6c1f4dd2933b1040380fd",
+      "ledger": 483,
+      "feeCharged": "192238",
+      "feeBound": "251811"
+    }
+  ],
+  "fixture": {
+    "relayer": "GA7J5F4G4HFOYXYBC5EY7MITPOPMFNQL3KNKWAGC3ZIFXZYM7YSRETLT",
+    "recipient": "GBMVANLGCWRWDWMS5KFYLFYTIEPAAUSYKHEPV7PVMDK4NWHG6725D4LZ",
+    "asset": "CDMLFMKMMD7MWZP3FKUBZPVHTUEDLSX4BYGYKH4GCESXYHS3IHQ4EIG4",
+    "webhook": "CAKT56EGIBDM7YHWMB3RBDIQZNES77S6N3DCWKA6YIZODULZ7UMOBJKM",
+    "pay": "CCLGGFR2GWBYGL6KA3UD6ATBY4L7ONU3OELPCS42KG3BOP52J7EF5TEV",
+    "webhookWasmHash": "5f274da25dffabcfa058e802541963eeb1923ae59731d0b19d4fc56637cd7745",
+    "payWasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+    "amount": "10000000",
+    "beforeExpiryLedger": 483,
+    "initialEntries": [
+      {
+        "key": "AAAABgAAAAEVPviGQEbP4PZgdxCNEMtJL/5ebsYrKB7CMuHRef0Y4AAAABQAAAAB",
+        "liveUntilLedgerSeq": 660
+      },
+      {
+        "key": "AAAABgAAAAGWYxY6NYODL8oG6D8CYccX9zabcRbxS5pRthc/uk/IXgAAABQAAAAB",
+        "liveUntilLedgerSeq": 659
+      },
+      {
+        "key": "AAAAB18nTaJd/6vPoFjoAlQZY+6xkjrllzHQsZ1PxWY3zXdF",
+        "liveUntilLedgerSeq": 658
+      },
+      {
+        "key": "AAAAB7Mx2xw+JtpP6K7HY1pWehH7XgaRI8NV6q6S0JXV70V/",
+        "liveUntilLedgerSeq": 657
+      }
+    ]
+  },
+  "recovery": {
+    "expiredAtLedger": 757,
+    "expiredEntriesReturned": 4,
+    "initialLiveUntilMaximum": 660,
+    "simulationKind": "automatic restoration",
+    "automaticArchivedEntryIndexes": [1, 2, 5, 6],
+    "recipientBefore": "100000000000",
+    "expiredEntriesReturnedWithExpiredTtl": [
+      {
+        "key": "AAAABgAAAAEVPviGQEbP4PZgdxCNEMtJL/5ebsYrKB7CMuHRef0Y4AAAABQAAAAB",
+        "liveUntilLedgerSeq": 0
+      },
+      {
+        "key": "AAAABgAAAAGWYxY6NYODL8oG6D8CYccX9zabcRbxS5pRthc/uk/IXgAAABQAAAAB",
+        "liveUntilLedgerSeq": 0
+      },
+      {
+        "key": "AAAAB18nTaJd/6vPoFjoAlQZY+6xkjrllzHQsZ1PxWY3zXdF",
+        "liveUntilLedgerSeq": 0
+      },
+      {
+        "key": "AAAAB7Mx2xw+JtpP6K7HY1pWehH7XgaRI8NV6q6S0JXV70V/",
+        "liveUntilLedgerSeq": 0
+      }
+    ],
+    "submission": {
+      "status": "PENDING",
+      "txHash": "8a7c77dcab106d47f0ec8b000d969c9e801f0fc308bc805a99fd10fa7cb65338",
+      "duplicate": false
+    },
+    "confirmed": {
+      "status": "SUCCESS",
+      "hash": "8a7c77dcab106d47f0ec8b000d969c9e801f0fc308bc805a99fd10fa7cb65338",
+      "ledger": 759,
+      "feeChargedResult": "60140681"
+    },
+    "restoredMetaEntries": [
+      {
+        "type": "contractCode",
+        "hash": "5f274da25dffabcfa058e802541963eeb1923ae59731d0b19d4fc56637cd7745"
+      },
+      {
+        "type": "contractCode",
+        "hash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f"
+      },
+      {
+        "type": "ttl",
+        "keyHash": "89b6da8afa91f0cde7c78b77f8f98e488f655377ec855470c16bde9ec9ee2c9a",
+        "liveUntilLedgerSeq": 657
+      },
+      {
+        "type": "contractData",
+        "contract": "CCLGGFR2GWBYGL6KA3UD6ATBY4L7ONU3OELPCS42KG3BOP52J7EF5TEV",
+        "key": "AAAAFA==",
+        "value": {
+          "executableWasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f",
+          "storage": {
+            "Admin": "GA7J5F4G4HFOYXYBC5EY7MITPOPMFNQL3KNKWAGC3ZIFXZYM7YSRETLT",
+            "Amount": "0",
+            "Asset": "CDMLFMKMMD7MWZP3FKUBZPVHTUEDLSX4BYGYKH4GCESXYHS3IHQ4EIG4",
+            "IsCashOut": false,
+            "NextSteps": [],
+            "ParentNode": "CAKT56EGIBDM7YHWMB3RBDIQZNES77S6N3DCWKA6YIZODULZ7UMOBJKM",
+            "PercentageBps": 10000,
+            "Recipient": "GBMVANLGCWRWDWMS5KFYLFYTIEPAAUSYKHEPV7PVMDK4NWHG6725D4LZ",
+            "Version": 4
+          }
+        }
+      },
+      {
+        "type": "ttl",
+        "keyHash": "cd57e454272f80744468a8631fd43ddd23cec4c539aa5baa0159ae692a56a178",
+        "liveUntilLedgerSeq": 938
+      },
+      {
+        "type": "contractData",
+        "contract": "CAKT56EGIBDM7YHWMB3RBDIQZNES77S6N3DCWKA6YIZODULZ7UMOBJKM",
+        "key": "AAAAFA==",
+        "value": {
+          "executableWasmHash": "5f274da25dffabcfa058e802541963eeb1923ae59731d0b19d4fc56637cd7745",
+          "storage": {
+            "Admin": "GA7J5F4G4HFOYXYBC5EY7MITPOPMFNQL3KNKWAGC3ZIFXZYM7YSRETLT",
+            "Asset": "CDMLFMKMMD7MWZP3FKUBZPVHTUEDLSX4BYGYKH4GCESXYHS3IHQ4EIG4",
+            "NextSteps": [
+              {
+                "address": "CCLGGFR2GWBYGL6KA3UD6ATBY4L7ONU3OELPCS42KG3BOP52J7EF5TEV",
+                "data": ""
+              }
+            ],
+            "Relayer": "GA7J5F4G4HFOYXYBC5EY7MITPOPMFNQL3KNKWAGC3ZIFXZYM7YSRETLT",
+            "Version": 1
+          }
+        }
+      },
+      {
+        "type": "ttl",
+        "keyHash": "e2be216db745c96b3089473110b41eb17ec330f949c6621ee3fe49b15299dbc8",
+        "liveUntilLedgerSeq": 659
+      },
+      {
+        "type": "ttl",
+        "keyHash": "f389e942ecdf462df2e18a4662755bc6bd33332ffda748af8d1a77f0dac33a6e",
+        "liveUntilLedgerSeq": 938
+      }
+    ],
+    "logicalExpiryVsPhysicalEviction": "Real automatic restoration verified for all four expired entries. Physical Core archive state was not queried in this first case; the separate funded-channel case records archived/live Core states explicitly.",
+    "recipientAfter": "100010000000",
+    "deliveredStroops": "10000000",
+    "webhookBalance": "0",
+    "payBalance": "0",
+    "restoredEntries": [
+      {
+        "key": "AAAABgAAAAEVPviGQEbP4PZgdxCNEMtJL/5ebsYrKB7CMuHRef0Y4AAAABQAAAAB",
+        "liveUntilLedgerSeq": 938
+      },
+      {
+        "key": "AAAABgAAAAGWYxY6NYODL8oG6D8CYccX9zabcRbxS5pRthc/uk/IXgAAABQAAAAB",
+        "liveUntilLedgerSeq": 500759
+      },
+      {
+        "key": "AAAAB18nTaJd/6vPoFjoAlQZY+6xkjrllzHQsZ1PxWY3zXdF",
+        "liveUntilLedgerSeq": 938
+      },
+      {
+        "key": "AAAAB7Mx2xw+JtpP6K7HY1pWehH7XgaRI8NV6q6S0JXV70V/",
+        "liveUntilLedgerSeq": 500759
+      }
+    ],
+    "emptyEscrowReject": "Error: The contract doesn't hold enough balance to cover this payout.",
+    "feeEvents": [
+      {
+        "stage": "transactionEventStageBeforeAllTxes",
+        "topics": ["fee", "GA7J5F4G4HFOYXYBC5EY7MITPOPMFNQL3KNKWAGC3ZIFXZYM7YSRETLT"],
+        "amount": "69154031"
+      },
+      {
+        "stage": "transactionEventStageAfterAllTxes",
+        "topics": ["fee", "GA7J5F4G4HFOYXYBC5EY7MITPOPMFNQL3KNKWAGC3ZIFXZYM7YSRETLT"],
+        "amount": "-9013350"
+      }
+    ],
+    "declaredFeeStroops": "69154031",
+    "refundedFeeStroops": "9013350",
+    "netFeeStroops": "60140681",
+    "contractEvents": [
+      {
+        "contract": "CDMLFMKMMD7MWZP3FKUBZPVHTUEDLSX4BYGYKH4GCESXYHS3IHQ4EIG4",
+        "topics": [
+          "transfer",
+          "CAKT56EGIBDM7YHWMB3RBDIQZNES77S6N3DCWKA6YIZODULZ7UMOBJKM",
+          "CCLGGFR2GWBYGL6KA3UD6ATBY4L7ONU3OELPCS42KG3BOP52J7EF5TEV",
+          "native"
+        ],
+        "value": "10000000"
+      },
+      {
+        "contract": "CDMLFMKMMD7MWZP3FKUBZPVHTUEDLSX4BYGYKH4GCESXYHS3IHQ4EIG4",
+        "topics": [
+          "transfer",
+          "CCLGGFR2GWBYGL6KA3UD6ATBY4L7ONU3OELPCS42KG3BOP52J7EF5TEV",
+          "GBMVANLGCWRWDWMS5KFYLFYTIEPAAUSYKHEPV7PVMDK4NWHG6725D4LZ",
+          "native"
+        ],
+        "value": "10000000"
+      },
+      {
+        "contract": "CCLGGFR2GWBYGL6KA3UD6ATBY4L7ONU3OELPCS42KG3BOP52J7EF5TEV",
+        "topics": ["pay", "GBMVANLGCWRWDWMS5KFYLFYTIEPAAUSYKHEPV7PVMDK4NWHG6725D4LZ"],
+        "value": ["CDMLFMKMMD7MWZP3FKUBZPVHTUEDLSX4BYGYKH4GCESXYHS3IHQ4EIG4", "10000000"]
+      },
+      {
+        "contract": "CAKT56EGIBDM7YHWMB3RBDIQZNES77S6N3DCWKA6YIZODULZ7UMOBJKM",
+        "topics": ["escrow", "CAKT56EGIBDM7YHWMB3RBDIQZNES77S6N3DCWKA6YIZODULZ7UMOBJKM"],
+        "value": "10000000"
+      }
+    ],
+    "immutableConfigurationAssertions": {
+      "allPassed": true,
+      "webhook": ["Admin", "Asset", "Relayer", "Version", "NextSteps"],
+      "pay": [
+        "Admin",
+        "Asset",
+        "Recipient",
+        "ParentNode",
+        "PercentageBps",
+        "Amount",
+        "Version",
+        "NextSteps"
+      ]
+    }
+  },
+  "date": "2026-10-04",
+  "scope": "Actual application submitWebhookExecuteTx / buildRelayerTx / withRelayerChannel source lane with genuine local Core/RPC, automatic restoration of expired instances and WASM, no mocks or application policy changes.",
+  "limits": [
+    "The first source-lane case proves real expired-state restoration. Core archival state was not queried before that transaction; separate ttl-archived-recovery-local.json proves physical hot-archive recovery.",
+    "Historical Webhookv1 proves immutable existing pipelines recover; current Webhookv2 and Subscriptionv7 downstream execution is separately verified on public TESTNET.",
+    "Legacy separate restorePreamble remains automated-test coverage; automatic restoration through a funded channel is verified separately in ttl-archived-recovery-local.json."
+  ]
+}

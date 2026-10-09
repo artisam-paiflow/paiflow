@@ -1,0 +1,266 @@
+{
+  "preparedAt": "2026-10-07T01:56:32.989928+00:00",
+  "issue": 486,
+  "authorization": "User explicitly approved the presented single-upload TESTNET diagnostic limits with proceed on 7 October 2026.",
+  "outcome": "upload-confirmed-no-deploy-or-invoke",
+  "runtime": {
+    "at": "2026-10-07T01:54:51.196Z",
+    "environment": "hackathon-testing",
+    "deployment": "c4aa6a5c-3855-4eee-be29-c0699d4f37fc",
+    "commit": "c1db0a8c290e03d8ef15f37ac53e218aed8a9b11",
+    "network": "testnet",
+    "rpc": "https://soroban-testnet.stellar.org",
+    "sandbox": false,
+    "paidTtlMaintenance": false,
+    "relayerChannels": 0,
+    "payroll": false,
+    "offramp": false,
+    "eventReaderSha256": "b7c63960b6036b6385cb66b3dc7b98c8769ef2db7f31f80e9e88d4af5b0b99c4"
+  },
+  "caps": {
+    "network": "TESTNET",
+    "rpcUrl": "https://soroban-testnet.stellar.org",
+    "signedAttempts": 1,
+    "feePerAttemptStroops": "28000000",
+    "totalFeeReservationsStroops": "28000000",
+    "principalStroops": "0",
+    "additionalRpcRequests": 40,
+    "priorRpcCeiling": 239,
+    "combinedRpcCeiling": 279,
+    "friendbotRequests": 1,
+    "durationMinutes": 15,
+    "timeoutSeconds": 180,
+    "eventCount": 101
+  },
+  "artifact": {
+    "wasmSha256": "92b458a551b0e426d6ad96fcf61f969ee91b7dc32f8c93d9286a5ba5239aa6dd",
+    "harnessSha256": "57235af72696ab2c63c7907075dd6ed5ceec0d8f786d7db609e6d2c32701f858",
+    "clientSha256": "14b6fbf92ba8464a13869797132f6329ad959fa11a8999dbf9218cdaaf8a11cb",
+    "evidenceSha256": "ed69e597f89058ece14d89c0c709fdca2b5956a6e87c44e5498f5225cd8e8530",
+    "runnerSha256": "9ba3ad955fbe8237e426e1ec1a0598f67d6870759ecfa26905d5d259139459ee",
+    "diagnosticRunnerSha256": "9f50be03d5f4f033b3f933de4518d5380936d8c337df89cd0c3ef70be917a30b"
+  },
+  "fixture": {
+    "source": "GBB4WW4UVZMWF32SYPBNI6ZQCDKFLKATIY5IKASPFFKPD5TPU2MAWLPU",
+    "salt": "8c3df6b1c49bcc120288de287b9e5a29b7d6bc00ec4d1fcf1aba9f54e408fdea",
+    "wasmHash": "92b458a551b0e426d6ad96fcf61f969ee91b7dc32f8c93d9286a5ba5239aa6dd",
+    "wasmUploaded": true,
+    "probeDeployed": false,
+    "probeInvoked": false,
+    "signerReleased": true,
+    "keyPersisted": false
+  },
+  "transaction": {
+    "hash": "7b00fef947aadd70ccff569a6f4da17cd12af25a276d602c5b05f56f057c1ae0",
+    "submissionStatus": "PENDING",
+    "finalityStatus": "SUCCESS",
+    "ledger": 5062908,
+    "resultCode": "txSuccess",
+    "reservedFeeStroops": "20754470",
+    "feeChargedStroops": "18042236",
+    "feeChargedTestXlm": "1.8042236",
+    "minimumTime": "0",
+    "maximumExpirySeconds": 180,
+    "wasmHashReturned": "92b458a551b0e426d6ad96fcf61f969ee91b7dc32f8c93d9286a5ba5239aa6dd",
+    "metadataVersion": 4
+  },
+  "accounting": {
+    "additionalRpcRequests": 11,
+    "priorRpcCeiling": 239,
+    "combinedRpcCeiling": 250,
+    "additionalFriendbotRequests": 1,
+    "combinedFriendbotRequests": 3,
+    "signedAttempts": 1,
+    "combinedSignedAttempts": 6,
+    "reservedFeesStroops": "20754470",
+    "combinedReservedFeesStroops": "52014692",
+    "principalStroops": "0",
+    "pendingHash": null,
+    "reservationsReplenished": false
+  },
+  "requests": [
+    {
+      "method": "getNetwork",
+      "id": 1,
+      "at": "2026-10-07T01:55:09.270Z",
+      "httpStatus": 200
+    },
+    {
+      "method": "getHealth",
+      "id": 2,
+      "at": "2026-10-07T01:55:11.195Z",
+      "httpStatus": 200
+    },
+    {
+      "method": "getLedgerEntries",
+      "id": 3,
+      "at": "2026-10-07T01:55:12.455Z",
+      "httpStatus": 200
+    },
+    {
+      "method": "friendbot",
+      "id": 0,
+      "at": "2026-10-07T01:55:13.716Z",
+      "httpStatus": 200
+    },
+    {
+      "method": "getLedgerEntries",
+      "id": 4,
+      "at": "2026-10-07T01:55:19.206Z",
+      "httpStatus": 200
+    },
+    {
+      "method": "simulateTransaction",
+      "id": 5,
+      "at": "2026-10-07T01:55:20.550Z",
+      "httpStatus": 200
+    },
+    {
+      "method": "sendTransaction",
+      "id": 6,
+      "at": "2026-10-07T01:55:21.853Z",
+      "httpStatus": 200
+    },
+    {
+      "method": "getTransaction",
+      "id": 7,
+      "at": "2026-10-07T01:55:23.139Z",
+      "httpStatus": 200
+    },
+    {
+      "method": "getTransaction",
+      "id": 8,
+      "at": "2026-10-07T01:55:24.430Z",
+      "httpStatus": 200
+    },
+    {
+      "method": "getTransaction",
+      "id": 9,
+      "at": "2026-10-07T01:55:25.687Z",
+      "httpStatus": 200
+    },
+    {
+      "method": "getTransaction",
+      "id": 10,
+      "at": "2026-10-07T01:55:26.949Z",
+      "httpStatus": 200
+    },
+    {
+      "method": "getTransaction",
+      "id": 11,
+      "at": "2026-10-07T01:55:28.215Z",
+      "httpStatus": 200
+    }
+  ],
+  "validation": {
+    "focusedLocalTestsPassed": 130,
+    "typecheckPassedBeforeExecution": true,
+    "runtimePinMatched": true,
+    "sourceManifestMatchedTestedReview": true,
+    "providerProtocolResourceChecksPassed": true,
+    "simulationAndExactEnvelopeReviewPassed": true,
+    "uploadFinalityAndWasmReturnMatched": true,
+    "savedResultIndependentlyDecodedOffline": true,
+    "noSignedEnvelopeFieldsInJsonCaptures": true,
+    "noRetryOrExtraTransaction": true,
+    "real101EventPagesCaptured": false,
+    "realPageRecoveryReplayPerformed": false
+  },
+  "cleanup": {
+    "signerReleased": true,
+    "fundedPublicAccountRetained": true,
+    "scratchDatabaseCreated": false,
+    "liveApplicationDatabaseMutated": false,
+    "sharedWasmActivated": false,
+    "settingsChanged": false,
+    "signedXdrPersisted": false
+  },
+  "interpretation": "Updated minimum-time-zero client uploaded successfully. The original ERROR cause remains unknown because its rejection details were discarded; this success is not proof of txTooEarly.",
+  "captures": {
+    "directory": "node_modules/.cache/event-probe-upload-diagnostic-live-20261007",
+    "files": [
+      {
+        "file": "execution-manifest.json",
+        "sha256": "14ebfafbdaae622b0ab99f767a4ba3db2a4ca45cfcb5b0b0253459addfae0304"
+      },
+      {
+        "file": "offline-result-verification.json",
+        "sha256": "405e3e1b520f5d12addf528b84b4458b273de3f9ea95d8335662559db5d8f737"
+      },
+      {
+        "file": "requests.json",
+        "sha256": "5977773e4bd6d5bb130b140822fd9dd69a3769383355b533f998a5b7130a0fdb"
+      },
+      {
+        "file": "reservations.jsonl",
+        "sha256": "7919062351d10969a8618815d76aba8cfdca21fa325c7173ce3527221754e2dd"
+      },
+      {
+        "file": "result.json",
+        "sha256": "2eec04989dbc969c010a2feb9e1d58ec684de05a78ea80f797a064b9954b0201"
+      },
+      {
+        "file": "rpc-1-getNetwork.json",
+        "sha256": "ab2c30443c98fed3c2024ec99c65dffadb980063c6cb1395e8cee0c6f6958739"
+      },
+      {
+        "file": "rpc-10-getTransaction.json",
+        "sha256": "f3724d17d4130fcf033bf444b8c6411c73645c6490df3106fdcfa1baf123f325"
+      },
+      {
+        "file": "rpc-11-getTransaction.json",
+        "sha256": "c99b03a8aab623321db324bdee028fa429464389a8a6acf29ffde164efacaa05"
+      },
+      {
+        "file": "rpc-2-getHealth.json",
+        "sha256": "dd65614d01007a847579af9ebbed532d1c371e5183430a71d38592669af20c97"
+      },
+      {
+        "file": "rpc-3-getLedgerEntries.json",
+        "sha256": "10252039fcf6abdca272d5b4819caa508eb7492e13145e5e09b147e37757cde9"
+      },
+      {
+        "file": "rpc-4-getLedgerEntries.json",
+        "sha256": "fdff639cee77b25c5f376f329eb212a7b40e64804f91551f790eeea85cdf6ef6"
+      },
+      {
+        "file": "rpc-5-simulateTransaction.json",
+        "sha256": "4057c258a44b2008c5f7dced479430dc7ec6f0327a66328b87ece6c882f56433"
+      },
+      {
+        "file": "rpc-6-sendTransaction.json",
+        "sha256": "2fe4fff8585ef2dd463a8d4233cce7d905eb2712b6200c915a7cac10673cc5f4"
+      },
+      {
+        "file": "rpc-6-submission-decoded.json",
+        "sha256": "6aacbcc7b1a7d9185f6694ab98a4f6d4b63d2272ae9f58d0aac2177e4d2cd192"
+      },
+      {
+        "file": "rpc-7-getTransaction.json",
+        "sha256": "f3724d17d4130fcf033bf444b8c6411c73645c6490df3106fdcfa1baf123f325"
+      },
+      {
+        "file": "rpc-8-getTransaction.json",
+        "sha256": "f3724d17d4130fcf033bf444b8c6411c73645c6490df3106fdcfa1baf123f325"
+      },
+      {
+        "file": "rpc-9-getTransaction.json",
+        "sha256": "f3724d17d4130fcf033bf444b8c6411c73645c6490df3106fdcfa1baf123f325"
+      },
+      {
+        "file": "runner-executed.ts",
+        "sha256": "9f50be03d5f4f033b3f933de4518d5380936d8c337df89cd0c3ef70be917a30b"
+      },
+      {
+        "file": "upload-confirmed.json",
+        "sha256": "7446d1f536e9765c449e77fa8aeffcf76142df811ba0e1b227a025743a73bdaf"
+      }
+    ]
+  },
+  "remaining": [
+    "Real 100+1 event pagination and local SQL/RPC recovery replay remain untested.",
+    "Upload success does not authorize deployment/invocation or another funding request.",
+    "Any further live execution needs a separately reviewed budget carrying baseline 250 RPC, three Friendbot requests and 52014692 reserved fee stroops.",
+    "The upload-only approval is consumed; do not restart or reset its claim."
+  ]
+}

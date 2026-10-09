@@ -30,3 +30,19 @@ export function nodeIssues(
   }
   return { field, general };
 }
+
+/**
+ * The message for a control that edits a whole object, such as an asset
+ * picker: an issue on the field itself (`asset`, from validateFlow's mismatch
+ * check) or on a key beneath it (`asset.code`, `asset.issuer`, `asset.kind`,
+ * from the Zod shape). The field's own issue wins over a nested one.
+ */
+export function fieldErrorUnder(field: ReadonlyMap<string, string>, name: string): string | null {
+  const own = field.get(name);
+  if (own !== undefined) return own;
+  const prefix = `${name}.`;
+  for (const [path, message] of field) {
+    if (path.startsWith(prefix)) return message;
+  }
+  return null;
+}

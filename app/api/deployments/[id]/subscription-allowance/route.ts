@@ -1,145 +1,102 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { StrKey } from "@stellar/stellar-sdk";
-import { db } from "@/lib/db";
-import { AppError, withErrorHandler } from "@/lib/errors";
-import { prepareTokenApproveInvocation } from "@/lib/stellar/invoke";
-import { readTokenAllowance, readSubscriptionIsCancelled } from "@/lib/stellar/relayer";
-import { assetContractId } from "@/lib/stellar/assets";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
+import { withErrorHandler, AppError } from "@/lib/errors";
+import { sorobanRpc } from "@/lib/stellar/client";
 import { stellarPassphrase } from "@/lib/env";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
-import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
+import { prepareTokenApproveInvocation } from "@/lib/stellar/invoke";
+import { readTokenAllowance } from "@/lib/stellar/relayer";
+import { subscriptionState, requireSubscriber } from "@/lib/subscription/state";
+import {
+  AllowanceDeploymentIdSchema,
+  AllowancePrepareSchema,
+  MAX_ALLOWANCE,
+} from "@/lib/subscription/schema";
+import { createAllowanceIntent } from "@/lib/subscription/intent";
 
-const PostSchema = z.object({
-  amount: z.string().regex(/^\d+$/, "Must be a positive integer string"),
-  userAddress: z.string().refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar address"),
-});
-
-const MAX_I128 = 170141183460469231731687303715884105727n;
-
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
-    const { id } = await ctx.params;
-    const ip = clientIp(req);
+    const id = AllowanceDeploymentIdSchema.parse((await ctx.params).id);
     await enforceRateLimit({
-      key: `subscription-allowance:${id}:${ip}`,
+      key: `subscription-allowance-read:${clientIp(req)}`,
       limit: 40,
       windowSeconds: 60,
     });
-
-    const d = await db.deployment.findFirst({
-      where: { id, status: "CONFIRMED" },
-      include: { flow: { select: { templateKind: true } } },
-    });
-    if (!d) throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
-    if (d.flow.templateKind !== "SUBSCRIPTION") {
-      throw new AppError("VALIDATION", "Deployment is not a subscription");
-    }
-
-    const pipeline = d.pipelineSnapshot as Array<{
-      nodeId: string;
-      contractAddress: string;
-      templateKind: string;
-    }> | null;
-    const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
-    if (!subscriptionNode?.contractAddress) {
-      throw new AppError("VALIDATION", "Subscription contract address not available");
-    }
-
-    const graph = FlowGraphSchema.safeParse(d.graphSnapshot);
-    if (!graph.success) {
-      throw new AppError("INTERNAL", "Invalid deployment graph snapshot");
-    }
-    const trigger = graph.data.nodes.find(isTrigger);
-    if (trigger?.type !== "subscription") {
-      throw new AppError("INTERNAL", "Subscription trigger not found in graph");
-    }
-
-    const tokenContractAddress = assetContractId(trigger.config.asset);
-    const [allowance, isCancelled] = await Promise.all([
-      readTokenAllowance({
-        tokenContractAddress,
-        owner: trigger.config.subscriber,
-        spender: subscriptionNode.contractAddress,
-      }),
-      readSubscriptionIsCancelled(subscriptionNode.contractAddress),
-    ]);
-
-    return NextResponse.json({
-      data: {
-        allowance: allowance.toString(),
-        subscriber: trigger.config.subscriber,
-        asset: trigger.config.asset,
-        isCancelled,
-      },
-    });
+    const state = await subscriptionState(id);
+    const allowance = state.subscriber
+      ? await readTokenAllowance({
+          tokenContractAddress: state.tokenContractAddress,
+          owner: state.subscriber,
+          spender: state.contractAddress,
+        })
+      : 0n;
+    return NextResponse.json(
+      { data: { ...state, allowance: allowance.toString(), setupRequired: !state.subscriber } },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   });
 }
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
-    const { id } = await ctx.params;
-    const ip = clientIp(req);
+    const id = AllowanceDeploymentIdSchema.parse((await ctx.params).id);
     await enforceRateLimit({
-      key: `subscription-allowance:${id}:${ip}`,
+      key: `subscription-allowance-prepare:${clientIp(req)}`,
       limit: 20,
       windowSeconds: 60,
     });
-    const body = PostSchema.parse(await req.json());
-
-    const d = await db.deployment.findFirst({
-      where: { id, status: "CONFIRMED" },
-      include: { flow: { select: { templateKind: true } } },
-    });
-    if (!d) throw new AppError("NOT_FOUND", "Deployment not found or not confirmed");
-    if (d.flow.templateKind !== "SUBSCRIPTION") {
-      throw new AppError("VALIDATION", "Deployment is not a subscription");
-    }
-
-    const pipeline = d.pipelineSnapshot as Array<{
-      nodeId: string;
-      contractAddress: string;
-      templateKind: string;
-    }> | null;
-    const subscriptionNode = pipeline?.find((n) => n.templateKind === "SUBSCRIPTION");
-    if (!subscriptionNode?.contractAddress) {
-      throw new AppError("VALIDATION", "Subscription contract address not available");
-    }
-
-    const graph = FlowGraphSchema.safeParse(d.graphSnapshot);
-    if (!graph.success) {
-      throw new AppError("INTERNAL", "Invalid deployment graph snapshot");
-    }
-    const trigger = graph.data.nodes.find(isTrigger);
-    if (trigger?.type !== "subscription") {
-      throw new AppError("INTERNAL", "Subscription trigger not found in graph");
-    }
-
-    if (trigger.config.subscriber !== body.userAddress) {
-      throw new AppError("VALIDATION", "User address does not match the subscriber");
-    }
-
-    const tokenContractAddress = assetContractId(trigger.config.asset);
+    const body = AllowancePrepareSchema.parse(await req.json());
+    const state = await subscriptionState(id);
+    const subscriber = requireSubscriber(state, body.userAddress);
     const currentAllowance = await readTokenAllowance({
-      tokenContractAddress,
-      owner: body.userAddress,
-      spender: subscriptionNode.contractAddress,
+      tokenContractAddress: state.tokenContractAddress,
+      owner: subscriber,
+      spender: state.contractAddress,
     });
-
-    const requested = BigInt(body.amount);
-    if (currentAllowance + requested > MAX_I128) {
+    const amount = currentAllowance + BigInt(body.amount);
+    if (currentAllowance < 0n || amount > MAX_ALLOWANCE)
       throw new AppError("VALIDATION", "Cumulative allowance would exceed the maximum i128 value");
-    }
-
+    // Capture before the envelope is exposed to the customer. Any possible
+    // inclusion must follow this ledger; wall-clock time is not a safe bound.
+    const { sequence: preparationLedger } = await sorobanRpc().getLatestLedger();
+    if (
+      !Number.isInteger(preparationLedger) ||
+      preparationLedger <= 0 ||
+      preparationLedger > 0xffff_ffff
+    )
+      throw new AppError("UPSTREAM_RPC", "Cannot establish approval preparation ledger");
     const { xdr } = await prepareTokenApproveInvocation({
-      tokenContractAddress,
-      from: body.userAddress,
-      spender: subscriptionNode.contractAddress,
-      amount: (currentAllowance + requested).toString(),
+      tokenContractAddress: state.tokenContractAddress,
+      from: subscriber,
+      spender: state.contractAddress,
+      amount: amount.toString(),
     });
-
-    return NextResponse.json({
-      data: { xdr, networkPassphrase: stellarPassphrase() },
-    });
+    const prepared = createAllowanceIntent(
+      xdr,
+      {
+        preparationLedger,
+        deploymentId: id,
+        network: state.network,
+        subscriber,
+        tokenContractAddress: state.tokenContractAddress,
+        contractAddress: state.contractAddress,
+      },
+      amount.toString(),
+    );
+    return NextResponse.json(
+      {
+        data: {
+          xdr,
+          ...prepared,
+          networkPassphrase: stellarPassphrase(),
+          allowance: amount.toString(),
+        },
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "public");
+
+export const POST = deploymentServiceRoute(POSTHandler, "public");

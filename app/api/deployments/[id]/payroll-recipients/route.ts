@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -29,7 +30,7 @@ function computeDevAmount(
   return { address: r.address, amount: "0" };
 }
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const { id } = await ctx.params;
@@ -135,3 +136,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     });
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "owner");

@@ -117,6 +117,23 @@ const boolishDefault = (defaultValue: boolean) =>
     .transform((v) => (typeof v === "boolean" ? v : v.toLowerCase() === "true"))
     .default(defaultValue);
 
+// A surface switch (#722): unset or blank is ON, so nothing changes until an
+// operator sets it. A value it cannot read is not a startup error, which would
+// take every route (crons and live deployments included) down over a typo:
+// it parses to "unrecognised", which lib/features.ts treats as OFF and warns
+// about, so "flase" hides the surface rather than leaving it showing.
+const featureSwitch = z
+  .union([z.boolean(), z.string()])
+  .optional()
+  .transform((v): boolean | "unrecognised" => {
+    if (v === undefined) return true;
+    if (typeof v === "boolean") return v;
+    const s = v.trim().toLowerCase();
+    if (s === "" || s === "true" || s === "1" || s === "on" || s === "yes") return true;
+    if (s === "false" || s === "0" || s === "off" || s === "no") return false;
+    return "unrecognised" as const;
+  });
+
 // Soroswap router address, pinned per network. Validated at config load so a
 // typo fails at startup rather than when the first swap flow is deployed.
 const optionalContractAddress = z
@@ -152,6 +169,7 @@ const optionalNonNegativeInt = (defaultValue: number) =>
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+  RAILWAY_ENVIRONMENT_NAME: optionalString,
 
   // ---- Temporary splitter/off-ramp hard limits ----
   // Exposed to the browser because validateFlow runs client-side. Whole-token
@@ -179,6 +197,10 @@ const EnvSchema = z.object({
   AUTH_RP_ID: z.string().default("localhost"),
   AUTH_RP_NAME: z.string().default("Paiflow"),
   ALLOW_PUBLIC_REGISTRATION: boolish,
+  GOOGLE_AUTH_ENABLED: boolish,
+  ALLOW_GOOGLE_REGISTRATION: boolish,
+  GOOGLE_CLIENT_ID: optionalString,
+  GOOGLE_CLIENT_SECRET: optionalString,
   // Offers a no-account, limited sandbox session from the login page.
   SANDBOX_ENABLED: boolish,
 
@@ -188,11 +210,26 @@ const EnvSchema = z.object({
   DEMO_API_ENABLED: boolish,
   DEMO_API_DEPLOYMENT_ID: optionalUuid,
 
+  // ---- Feature switches ----
+  // Hide a surface and refuse new use of it; existing deployments keep running.
+  // Read on the server and passed to the client as props, so a restart (not a
+  // rebuild) applies a change. See lib/feature-flags.ts.
+  FEATURE_OFFRAMP_ENABLED: featureSwitch,
+  FEATURE_PAYROLL_ENABLED: featureSwitch,
+  FEATURE_DEV_MODE_ENABLED: featureSwitch,
+  FEATURE_AI_ASSISTANT_ENABLED: featureSwitch,
+  FEATURE_ORACLE_CONDITION_ENABLED: featureSwitch,
+
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url().optional(),
 
   // Network is pinned per environment: staging/dev = testnet, prod = mainnet.
   STELLAR_NETWORK: z.enum(["testnet", "mainnet"]).default("testnet"),
+  // #808: operator-scoped, expiring testnet deployment recovery rehearsal.
+  STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID: optionalUuid,
+  STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL: optionalString.pipe(
+    z.string().datetime({ offset: true }).optional(),
+  ),
   STELLAR_NETWORK_PASSPHRASE_TESTNET: z.string().default("Test SDF Network ; September 2015"),
   STELLAR_HORIZON_URL_TESTNET: z.string().url().default("https://horizon-testnet.stellar.org"),
   STELLAR_SOROBAN_RPC_URL_TESTNET: z.string().url().default("https://soroban-testnet.stellar.org"),
@@ -210,12 +247,14 @@ const EnvSchema = z.object({
   STELLAR_WASM_HASH_DEPOSIT_TRIGGER_TESTNET: optionalWasmHash,
   STELLAR_WASM_HASH_ROUTER_TESTNET: optionalWasmHash,
   STELLAR_WASM_HASH_TIMELOCK_TESTNET: optionalWasmHash,
+  STELLAR_WASM_HASH_TIMELOCK_BRANCH_TESTNET: optionalWasmHash,
   STELLAR_WASM_HASH_SPLITTER_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_STREAMER_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_CONDITIONAL_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_DEPOSIT_TRIGGER_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_ROUTER_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_TIMELOCK_MAINNET: optionalWasmHash,
+  STELLAR_WASM_HASH_TIMELOCK_BRANCH_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_FACTORY_TESTNET: optionalWasmHash,
   STELLAR_WASM_HASH_FACTORY_MAINNET: optionalWasmHash,
   STELLAR_WASM_HASH_WEBHOOK_TESTNET: optionalWasmHash,
@@ -253,12 +292,39 @@ const EnvSchema = z.object({
   STELLAR_SOROSWAP_ROUTER_TESTNET: optionalContractAddress,
   STELLAR_SOROSWAP_ROUTER_MAINNET: optionalContractAddress,
 
+  // Local event provisioning only; never set this on the Paiflow service.
+  HACKATHON_ORGANISER_SECRET: optionalString,
+
   // ---- Relayer ----
   // Used for auto-releasing timelock contracts and for signing webhook
   // trigger transactions. Optional; when unset the admin address is used
   // as the relayer, disabling the relayer path.
   STELLAR_RELAYER_SECRET_KEY: optionalString,
   STELLAR_RELAYER_ADDRESS: optionalString,
+  // Channel accounts derived from STELLAR_RELAYER_SECRET_KEY. Each channel is
+  // the source and fee payer of relayer transactions so they can land in the
+  // same ledger; the relayer key only signs the Soroban auth entries. 0 keeps
+  // the relayer as its own source behind one lock. Capped so a typo cannot
+  // ask for thousands of accounts to fund.
+  STELLAR_RELAYER_CHANNELS: z.coerce.number().int().min(0).max(50).default(0),
+
+  // Paid TTL maintenance is opt-in; otherwise the cron only inventories.
+  STELLAR_TTL_MAINTENANCE_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  STELLAR_TTL_MAX_FEE_STROOPS: z
+    .string()
+    .regex(/^[1-9]\d{0,18}$/)
+    .default("1000000"),
+  STELLAR_TTL_FEE_BUDGET_NAME: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9-]{0,79}$/)
+    .optional(),
+  STELLAR_TTL_FEE_BUDGET_STROOPS: z
+    .string()
+    .regex(/^[1-9]\d{0,18}$/)
+    .optional(),
 
   // ---- Off-ramp treasury ----
   // Relayer-controlled holding address that cash_out nodes sink USDC to before
@@ -275,6 +341,12 @@ const EnvSchema = z.object({
   OFFRAMP_PDAX_DEPOSIT_MEMO_MAINNET: optionalNumericMemo,
 
   CRON_SECRET: optionalString,
+
+  // How many proxies in front of the app append to X-Forwarded-For; see
+  // clientIp() in lib/rate-limit.ts. 0 = the edge replaces the header (Railway).
+  // Invalid values make env() throw rather than guess: this decides which address
+  // every per-IP limit sees.
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
   SENTRY_DSN: optionalString,
 
   // ---- Analytics (PostHog) ----
@@ -357,6 +429,21 @@ export function env(): EnvShape {
   }
   // Cross-field guard, not a schema .superRefine(): ENV_VAR_NAMES relies on
   // EnvSchema staying a ZodObject so `.keyof()` works.
+  const rehearsalFlow = parsed.data.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID;
+  const rehearsalUntil = parsed.data.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL;
+  if (rehearsalFlow || rehearsalUntil) {
+    if (parsed.data.STELLAR_NETWORK !== "testnet") {
+      throw new Error("Deployment reconciliation rehearsal is testnet-only");
+    }
+    if (!rehearsalFlow || !rehearsalUntil) {
+      throw new Error(
+        "Deployment reconciliation rehearsal flow and expiry must be configured together",
+      );
+    }
+    if (Date.parse(rehearsalUntil) > Date.now() + 60 * 60_000) {
+      throw new Error("Deployment reconciliation rehearsal expiry must be at most one hour ahead");
+    }
+  }
   //
   // The sandbox mints a usable session for anyone who asks, with no account and
   // no credential. On mainnet that is an anonymous party pointing the builder at
@@ -389,6 +476,35 @@ export function env(): EnvShape {
     );
   }
 
+  if (!!parsed.data.STELLAR_TTL_FEE_BUDGET_NAME !== !!parsed.data.STELLAR_TTL_FEE_BUDGET_STROOPS) {
+    throw new Error("TTL fee budget name and limit must be configured together");
+  }
+
+  if (
+    parsed.data.GOOGLE_AUTH_ENABLED &&
+    (!parsed.data.GOOGLE_CLIENT_ID || !parsed.data.GOOGLE_CLIENT_SECRET)
+  ) {
+    throw new Error("Google authentication requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
+  }
+  if (parsed.data.ALLOW_GOOGLE_REGISTRATION && !parsed.data.GOOGLE_AUTH_ENABLED) {
+    throw new Error("Google registration requires GOOGLE_AUTH_ENABLED=true");
+  }
+  if (parsed.data.GOOGLE_AUTH_ENABLED) {
+    const origin = new URL(parsed.data.AUTH_URL);
+    if (
+      origin.username ||
+      origin.password ||
+      origin.search ||
+      origin.hash ||
+      origin.pathname !== "/" ||
+      (origin.protocol !== "https:" &&
+        !(origin.protocol === "http:" && origin.hostname === "localhost"))
+    ) {
+      throw new Error(
+        "Google authentication requires AUTH_URL to be an HTTPS origin (HTTP localhost allowed)",
+      );
+    }
+  }
   cached = parsed.data;
   return cached;
 }
@@ -460,6 +576,7 @@ export function stellarWasmHash(
     | "DEPOSIT_TRIGGER"
     | "ROUTER"
     | "TIMELOCK"
+    | "TIMELOCK_BRANCH"
     | "FACTORY"
     | "WEBHOOK"
     | "SUBSCRIPTION"
@@ -502,6 +619,10 @@ export function stellarRelayerSecretKey(): string | undefined {
   return env().STELLAR_RELAYER_SECRET_KEY;
 }
 
+export function stellarRelayerChannelCount(): number {
+  return env().STELLAR_RELAYER_CHANNELS;
+}
+
 export function stellarRelayerAddress(): string | undefined {
   return env().STELLAR_RELAYER_ADDRESS;
 }
@@ -534,4 +655,14 @@ export function offRampPdaxDepositConfig(): {
     address: e[addressKey] as string | undefined,
     memo: e[memoKey] as string | undefined,
   };
+}
+
+/** Script-only config: no app database/auth configuration is needed. */
+export function hackathonOrganiserSecret(): string {
+  if (process.env.STELLAR_NETWORK !== "testnet")
+    throw new Error("STELLAR_NETWORK must explicitly be testnet");
+  const secret = process.env.HACKATHON_ORGANISER_SECRET;
+  if (!secret || !StrKey.isValidEd25519SecretSeed(secret))
+    throw new Error("HACKATHON_ORGANISER_SECRET must be a valid testnet organiser key");
+  return secret;
 }

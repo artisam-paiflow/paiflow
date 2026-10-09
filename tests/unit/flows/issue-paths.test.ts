@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nodeIssues } from "@/lib/flows/issue-paths";
+import { fieldErrorUnder, nodeIssues } from "@/lib/flows/issue-paths";
 import type { ValidationIssue } from "@/lib/flows/validate";
 
 const issue = (path: string, friendlyMessage: string): ValidationIssue => ({
@@ -57,5 +57,52 @@ describe("nodeIssues", () => {
     );
     expect(r.field.size).toBe(0);
     expect(r.general).toEqual([]);
+  });
+});
+
+describe("fieldErrorUnder", () => {
+  const map = (entries: [string, string][]) => new Map(entries);
+
+  it("returns the field's own message", () => {
+    expect(fieldErrorUnder(map([["asset", "mismatch"]]), "asset")).toBe("mismatch");
+  });
+
+  it("falls back to a nested key's message", () => {
+    expect(fieldErrorUnder(map([["asset.issuer", "Invalid issuer"]]), "asset")).toBe(
+      "Invalid issuer",
+    );
+  });
+
+  it("prefers the field's own message over a nested one", () => {
+    expect(
+      fieldErrorUnder(
+        map([
+          ["asset.code", "bad code"],
+          ["asset", "mismatch"],
+        ]),
+        "asset",
+      ),
+    ).toBe("mismatch");
+  });
+
+  it("does not match a sibling that only shares the prefix", () => {
+    expect(
+      fieldErrorUnder(
+        map([
+          ["assetIn", "x"],
+          ["assetOut.code", "y"],
+        ]),
+        "asset",
+      ),
+    ).toBeNull();
+  });
+
+  it("returns null with nothing under the field", () => {
+    expect(fieldErrorUnder(map([["recipient", "x"]]), "asset")).toBeNull();
+  });
+
+  it("reads a Zod positional path end to end through nodeIssues", () => {
+    const r = nodeIssues([issue("nodes.0.config.asset.code", "bad code")], "t", 0);
+    expect(fieldErrorUnder(r.field, "asset")).toBe("bad code");
   });
 });

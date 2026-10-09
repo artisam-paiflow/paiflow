@@ -62,6 +62,11 @@ export async function scheduleNextStreamerClaimJob(
   params: StreamerJobParams,
   fromDate: Date = new Date(),
 ): Promise<{ id: string; runAt: Date } | null> {
+  const service = await prisma.deployment.findUnique({
+    where: { id: deploymentId },
+    select: { serviceState: true },
+  });
+  if (!service || service.serviceState !== "ACTIVE") return null;
   const nextRunAt = computeNextMilestone(
     params.startTs,
     params.endTs,
@@ -130,6 +135,7 @@ export async function getDueStreamerJobs(prisma: PrismaClient, limit = 50) {
   return prisma.streamerClaimJob.findMany({
     where: {
       status: StreamerClaimJobStatus.PENDING,
+      deployment: { serviceState: "ACTIVE" },
       runAt: { lte: new Date() },
     },
     orderBy: { runAt: "asc" },
@@ -183,10 +189,10 @@ export async function scheduleNextStreamerClaimJobFromJob(
 ): Promise<{ id: string; runAt: Date } | null> {
   const deployment = await prisma.deployment.findUnique({
     where: { id: job.deploymentId },
-    select: { paramsSnapshot: true },
+    select: { paramsSnapshot: true, serviceState: true },
   });
 
-  if (!deployment?.paramsSnapshot) {
+  if (!deployment?.paramsSnapshot || deployment.serviceState !== "ACTIVE") {
     return null;
   }
 

@@ -1,19 +1,21 @@
 "use client";
 
 import { useId } from "react";
-import type { TemplateKind } from "@prisma/client";
 import type { FlowNode } from "@/lib/flows/schema";
 import { isTrigger } from "@/lib/flows/schema";
-import { TEMPLATE_LABELS, TEMPLATE_DESCRIPTIONS } from "@/lib/flows/template-labels";
+import { isTimeCondition } from "@/lib/flows/branches";
+import type { FeatureFlags, FeatureSurface } from "@/lib/feature-flags";
 
 type Props = {
   onAdd: (node: FlowNode) => void;
   flowNodes: FlowNode[];
-  templateKind?: TemplateKind | null;
-  pipeline?: TemplateKind[];
   collapsed?: boolean;
-  onToggleCollapse?: () => void;
+  pinned?: boolean;
+  onExpand?: () => void;
+  onTogglePin?: () => void;
   devMode?: boolean;
+  /** Surface switches from the server (#722); an entry whose surface is off is not offered. */
+  features: FeatureFlags;
 };
 
 function makeId(prefix: string) {
@@ -27,6 +29,9 @@ type Template = {
   // Hidden templates stay in source (typechecked, easy to re-enable) but are
   // filtered out of the palette. Use this instead of commenting entries out.
   hidden?: boolean;
+  /** The switchable surface this block belongs to; off on the server hides it. */
+  feature?: FeatureSurface;
+  requiresCondition?: "time" | "non-oracle";
   make: () => FlowNode;
 };
 
@@ -98,6 +103,7 @@ export const TEMPLATES: Template[] = [
     group: "Triggers",
     label: "Payroll",
     icon: "group",
+    feature: "payroll",
     make: () => ({
       id: makeId("payroll"),
       type: "payroll",
@@ -179,6 +185,20 @@ export const TEMPLATES: Template[] = [
       },
     }),
   },
+  {
+    group: "Actions",
+    label: "Hold",
+    icon: "lock",
+    requiresCondition: "time",
+    make: () => ({ id: makeId("hold"), type: "hold", config: {} }),
+  },
+  {
+    group: "Actions",
+    label: "Return to owner",
+    icon: "undo",
+    requiresCondition: "non-oracle",
+    make: () => ({ id: makeId("return"), type: "return_to_owner", config: {} }),
+  },
   // Hidden: Yield action.
   {
     group: "Actions",
@@ -195,23 +215,13 @@ export const TEMPLATES: Template[] = [
     }),
   },
   {
-    group: "Actions",
-    label: "Email Notify",
-    icon: "mail",
-    make: () => ({
-      id: makeId("email"),
-      type: "email_notify",
-      config: {
-        recipients: [],
-        subject: "",
-        body: "",
-      },
-    }),
-  },
-  {
     group: "Logic",
     label: "Condition",
     icon: "rule",
+    // Stays an amount condition: it now drops with True and False outputs, so
+    // the validator's "connect the False output" is the next step to take,
+    // not a dead end. A time condition would need a date picked first and a
+    // relayer to release it.
     make: () => ({
       id: makeId("cond"),
       type: "condition",
@@ -224,6 +234,7 @@ export const TEMPLATES: Template[] = [
     label: "Cash Out",
     icon: "payments",
     hidden: true,
+    feature: "offramp",
     make: () => ({
       id: makeId("cashout"),
       type: "cash_out",
@@ -237,6 +248,11 @@ export const TEMPLATES: Template[] = [
   },
 ];
 
+/** The palette entries offered under these switches: not `hidden`, and their surface on. */
+export function visibleTemplates(features: FeatureFlags): Template[] {
+  return TEMPLATES.filter((t) => !t.hidden && (!t.feature || features[t.feature]));
+}
+
 const GROUP_TONE: Record<Template["group"], { tone: string; dot: string }> = {
   Triggers: { tone: "text-secondary", dot: "bg-secondary" },
   Actions: { tone: "text-primary", dot: "bg-primary" },
@@ -247,11 +263,12 @@ const GROUP_TONE: Record<Template["group"], { tone: string; dot: string }> = {
 export default function Palette({
   onAdd,
   flowNodes,
-  templateKind,
-  pipeline,
   collapsed,
-  onToggleCollapse,
+  pinned,
+  onExpand,
+  onTogglePin,
   devMode,
+  features,
 }: Props) {
   // Dev-only palette items (nodes with no immutable counterpart) appear only
   // when at least one exists. Currently Cash Out lives under Actions, so no
@@ -263,14 +280,17 @@ export default function Palette({
       : ["Triggers", "Actions", "Logic"];
   const headingId = useId();
   const hasTrigger = flowNodes.some(isTrigger);
-  const templateLabel = templateKind ? TEMPLATE_LABELS[templateKind] : null;
-  const templateDescription = templateKind ? TEMPLATE_DESCRIPTIONS[templateKind] : null;
+  const hasTimeCondition = flowNodes.some(isTimeCondition);
+  const hasReturnCondition = flowNodes.some(
+    (node) => node.type === "condition" && node.config.kind !== "oracle_gte",
+  );
 
   if (collapsed) {
     return (
       <aside className="glass-panel-sidebar pt-md relative flex h-full flex-col items-center">
         <button
-          onClick={onToggleCollapse}
+          type="button"
+          onClick={onExpand}
           className="text-on-surface-variant hover:bg-surface-container-high/50 hover:text-on-surface flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
           title="Expand sidebar"
           aria-label="Expand sidebar"
@@ -289,57 +309,18 @@ export default function Palette({
       className="glass-panel-sidebar p-md relative h-full overflow-y-auto"
     >
       <button
-        onClick={onToggleCollapse}
-        className="text-on-surface-variant hover:bg-surface-container-high/50 hover:text-on-surface absolute top-3 right-2 flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
-        title="Collapse sidebar"
-        aria-label="Collapse sidebar"
+        type="button"
+        onClick={onTogglePin}
+        className={`hover:bg-surface-container-high/50 hover:text-on-surface absolute top-3 left-1 z-10 flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${pinned ? "bg-primary/10 text-primary" : "text-on-surface-variant"}`}
+        title={pinned ? "Unpin sidebar" : "Pin sidebar"}
+        aria-label={pinned ? "Unpin sidebar" : "Pin sidebar"}
+        aria-pressed={!!pinned}
       >
         <span aria-hidden="true" className="material-symbols-outlined text-[18px]">
-          chevron_left
+          push_pin
         </span>
       </button>
-      <section aria-label="Pipeline architecture" className="mb-md">
-        <div className="text-label-sm text-on-surface-variant font-mono">
-          / PIPELINE ARCHITECTURE
-        </div>
-        {pipeline && pipeline.length > 0 ? (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {pipeline.map((kind, i) => (
-              <span key={`${kind}-${i}`} className="inline-flex items-center gap-1.5">
-                <span className="text-label-sm border-primary/20 bg-primary/10 text-primary inline-flex items-center rounded-md border px-2 py-1 font-mono">
-                  {TEMPLATE_LABELS[kind]}
-                </span>
-                {i < pipeline.length - 1 && (
-                  <span
-                    aria-hidden="true"
-                    className="material-symbols-outlined text-on-surface-variant text-[14px]"
-                  >
-                    arrow_forward
-                  </span>
-                )}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-2">
-            <span
-              className={`text-label-md inline-flex items-center gap-2 rounded-lg border px-2 py-1 font-mono ${
-                templateLabel
-                  ? "bg-primary/10 border-primary/20 text-primary"
-                  : "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant"
-              }`}
-            >
-              {templateLabel ?? "—"}
-            </span>
-          </div>
-        )}
-        {templateDescription && (
-          <p className="text-body-md text-on-surface-variant mt-2 leading-snug">
-            {templateDescription}
-          </p>
-        )}
-      </section>
-      <h2 id={headingId} className="text-label-sm text-on-surface-variant font-mono">
+      <h2 id={headingId} className="text-label-sm text-on-surface-variant pl-8 font-mono">
         / BLOCKS
       </h2>
       {groups.map((g) => {
@@ -351,46 +332,58 @@ export default function Palette({
               {g.toUpperCase()}
             </div>
             <div className="mt-2 grid gap-1.5">
-              {TEMPLATES.filter((tpl) => tpl.group === g && !tpl.hidden).map((tpl) => {
-                const isTriggerBlock = g === "Triggers";
-                const disabled = isTriggerBlock && hasTrigger;
+              {visibleTemplates(features)
+                .filter((tpl) => tpl.group === g)
+                .map((tpl) => {
+                  const isTriggerBlock = g === "Triggers";
+                  const disabledReason =
+                    isTriggerBlock && hasTrigger
+                      ? "A flow can only have one trigger"
+                      : tpl.requiresCondition === "time" && !hasTimeCondition
+                        ? "Add a time condition to enable Hold"
+                        : tpl.requiresCondition === "non-oracle" && !hasReturnCondition
+                          ? "Add an amount, time, or multisig condition to enable Return to owner"
+                          : undefined;
+                  const disabled = !!disabledReason;
 
-                return (
-                  <div key={tpl.label} className="group relative">
-                    <button
-                      data-testid={`palette-${tpl.label.toLowerCase().replace(/\s+/g, "-")}`}
-                      onClick={() => !disabled && onAdd(tpl.make())}
-                      disabled={disabled}
-                      className={`group inline-flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left font-mono transition-all ${
-                        disabled
-                          ? "border-outline-variant/20 bg-surface-container-low/40 cursor-not-allowed opacity-40"
-                          : "border-outline-variant/20 bg-surface-container-low/40 text-label-md text-on-surface-variant hover:border-primary/40 hover:bg-surface-container-high/50 hover:text-on-surface"
-                      }`}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={`material-symbols-outlined text-[16px] ${t.tone} opacity-90`}
+                  return (
+                    <div key={tpl.label} className="group relative">
+                      <button
+                        data-analytics-control="template-select"
+                        data-testid={`palette-${tpl.label.toLowerCase().replace(/\s+/g, "-")}`}
+                        onClick={() => !disabled && onAdd(tpl.make())}
+                        disabled={disabled}
+                        title={disabledReason}
+                        className={`group inline-flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left font-mono transition-all ${
+                          disabled
+                            ? "border-outline-variant/20 bg-surface-container-low/40 cursor-not-allowed opacity-40"
+                            : "border-outline-variant/20 bg-surface-container-low/40 text-label-md text-on-surface-variant hover:border-primary/40 hover:bg-surface-container-high/50 hover:text-on-surface"
+                        }`}
                       >
-                        {tpl.icon}
-                      </span>
-                      {tpl.label}
-                      <span
-                        aria-hidden="true"
-                        className="material-symbols-outlined text-outline-variant group-hover:text-primary ml-auto text-[14px] transition-colors"
-                      >
-                        add
-                      </span>
-                    </button>
-                    {disabled && (
-                      <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden -translate-x-1/2 group-hover:block">
-                        <div className="rounded bg-zinc-800 px-2 py-1 text-[11px] whitespace-nowrap text-zinc-300 shadow-lg ring-1 ring-zinc-700">
-                          A flow can only have one trigger
+                        <span
+                          aria-hidden="true"
+                          className={`material-symbols-outlined text-[16px] ${t.tone} opacity-90`}
+                        >
+                          {tpl.icon}
+                        </span>
+                        {tpl.label}
+                        <span
+                          aria-hidden="true"
+                          className="material-symbols-outlined text-outline-variant group-hover:text-primary ml-auto text-[14px] transition-colors"
+                        >
+                          add
+                        </span>
+                      </button>
+                      {disabled && (
+                        <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden -translate-x-1/2 group-hover:block">
+                          <div className="rounded bg-zinc-800 px-2 py-1 text-[11px] whitespace-nowrap text-zinc-300 shadow-lg ring-1 ring-zinc-700">
+                            {disabledReason}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           </div>
         );

@@ -1,0 +1,23 @@
+{
+  "environment": "hackathon-testing",
+  "network": "TESTNET",
+  "at": "2026-10-04T23:24:43.308Z",
+  "phase": "awaiting-natural-expiry",
+  "before": [
+    {
+      "address": "CB45SMSGGVRBYPCLO6J3HP4IWWACFKB3762WYKFHV4R6VSJ6A77OA7KA",
+      "latestLedger": 5026539,
+      "liveUntilLedger": 5147491,
+      "valueSha256": "d72964b94462cfdd64cc31d7dae1a093d5ddb2fd90ddc0dbf0f991556cdba5ec",
+      "wasmHash": "bcf0ad2d7cedc728bd24cee8f20efa289efc3d5d8f24ed8a513fe393a5507d6c"
+    },
+    {
+      "address": "CAIS64XNDGLYRRZGNPX2J4FGQOJGWHZ4VC2OVMZTNHXJH7SJGDSA2MS7",
+      "latestLedger": 5026539,
+      "liveUntilLedger": 5147491,
+      "valueSha256": "4847d2971d8ba5bda59e369efcfe9ddecd262eeb3e461c7d5160d608c6f7289e",
+      "wasmHash": "b331db1c3e26da4fe8aec7635a567a11fb5e069123c355eaae92d095d5ef457f"
+    }
+  ],
+  "networkSubmissions": 0
+}

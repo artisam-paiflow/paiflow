@@ -1,5 +1,8 @@
 #![no_std]
 #![allow(clippy::too_many_arguments)]
+#[path = "../../../payment-math.rs"]
+mod payment_math;
+
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, symbol_short, token,
     Address, Env, Vec,
@@ -47,9 +50,10 @@ pub enum Error {
     RetrieveNotAllowed = 9,
     NotPaused = 10,
     NothingToRetrieve = 11,
+    ArithmeticOverflow = 12,
 }
 
-const VERSION: u32 = 4;
+const VERSION: u32 = 5;
 const TOTAL_BPS: u32 = 10_000;
 const TTL_THRESHOLD: u32 = 50_000;
 const TTL_EXTEND_TO: u32 = 500_000;
@@ -80,6 +84,11 @@ impl Streamer {
         if end_ts <= start_ts || amount_per_interval <= 0 || interval_seconds == 0 {
             panic_with_error!(&env, Error::BadWindow);
         }
+        // Pauses can only reduce elapsed intervals, so this bounds all vesting.
+        let max_intervals = (end_ts - start_ts) / interval_seconds;
+        i128::from(max_intervals)
+            .checked_mul(amount_per_interval)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
         if recipients.is_empty() {
             panic_with_error!(&env, Error::NoRecipients);
         }
@@ -161,10 +170,12 @@ impl Streamer {
         }
         let elapsed = cap.saturating_sub(start).saturating_sub(pause_offset);
         let intervals = elapsed / interval_seconds;
-        let vested = (intervals as i128)
+        let vested = i128::from(intervals)
             .checked_mul(amount_per_interval)
-            .unwrap_or(0);
-        let available = vested.checked_sub(claimed).unwrap_or(0);
+            .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow));
+        let available = vested
+            .checked_sub(claimed)
+            .unwrap_or_else(|| panic_with_error!(env, Error::ArithmeticOverflow));
         (vested, available)
     }
 
@@ -188,16 +199,18 @@ impl Streamer {
         while i < len {
             let r = recipients.get(i).unwrap();
             let share: i128 = if i == last_idx {
-                available.checked_sub(distributed).unwrap_or(0)
-            } else {
                 available
-                    .checked_mul(r.bps as i128)
-                    .and_then(|v| v.checked_div(TOTAL_BPS as i128))
-                    .unwrap_or(0)
+                    .checked_sub(distributed)
+                    .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow))
+            } else {
+                payment_math::percentage_share(available, r.bps)
+                    .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow))
             };
             if share > 0 {
                 client.transfer(&env.current_contract_address(), &r.address, &share);
-                distributed = distributed.checked_add(share).unwrap_or(distributed);
+                distributed = distributed
+                    .checked_add(share)
+                    .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
             }
             i += 1;
         }
@@ -267,7 +280,9 @@ impl Streamer {
             panic_with_error!(&env, Error::NothingToRetrieve);
         }
 
-        let unvested = balance - available;
+        let unvested = balance
+            .checked_sub(available)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
         client.transfer(&env.current_contract_address(), &admin, &unvested);
 
         #[allow(deprecated)]
@@ -1247,3 +1262,7 @@ mod test {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "arithmetic-tests.rs"]
+mod arithmetic_tests;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { StrKey } from "@stellar/stellar-sdk";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { prepareTriggerTx, prepareWebhookDepositTx } from "@/lib/stellar/trigger";
@@ -19,7 +20,7 @@ const PostSchema = z.object({
   userAddress: z.string().refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar address"),
 });
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     const ip = clientIp(req);
@@ -138,3 +139,5 @@ function assertAmountMatchesFlow(
     );
   }
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "public");
