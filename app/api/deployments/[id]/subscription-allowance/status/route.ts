@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { withErrorHandler } from "@/lib/errors";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 import { allowanceHasExpired } from "@/lib/stellar/allowance-status";
@@ -6,7 +7,7 @@ import { readAllowanceIntent } from "@/lib/subscription/intent";
 import { AllowanceDeploymentIdSchema, AllowanceStatusSchema } from "@/lib/subscription/schema";
 import { GET as transactionStatus } from "@/app/api/deployments/[id]/tx-status/route";
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const id = AllowanceDeploymentIdSchema.parse((await ctx.params).id);
     await enforceRateLimit({
@@ -32,3 +33,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return transactionStatus(new NextRequest(url, { headers: req.headers }), ctx);
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "public");

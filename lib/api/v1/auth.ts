@@ -61,7 +61,8 @@ export async function requireDeploymentToken(
     row.revokedAt ||
     (row.expiresAt && row.expiresAt.getTime() <= Date.now()) ||
     row.deploymentId !== deploymentId ||
-    !row.deployment.owner.isActive
+    !row.deployment.owner.isActive ||
+    row.deployment.serviceState !== "ACTIVE"
   ) {
     throw refused();
   }

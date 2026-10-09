@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { recordTransactionOutcome } from "@/lib/analytics/outcomes";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -163,7 +164,7 @@ async function captureTriggerOutcome(
   }
 }
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     const ip = clientIp(req);
@@ -335,3 +336,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return NextResponse.json({ data: { status: "PENDING", txHash } });
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "public");

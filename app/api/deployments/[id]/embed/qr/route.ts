@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
 import QRCode from "qrcode";
 import { z } from "zod";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { publicEmbedDeployment } from "@/lib/deployments/public-embed-reads";
 
 export const dynamic = "force-dynamic";
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     // This path only encodes a customer page, never an invocation/allowance XDR.
     z.object({}).strict().parse(Object.fromEntries(req.nextUrl.searchParams));
@@ -20,3 +21,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     });
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "owner");

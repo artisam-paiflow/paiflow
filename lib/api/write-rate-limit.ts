@@ -20,6 +20,7 @@ export const WRITE_RATE_LIMITS = {
   passkeyManage: { limit: 20, windowSeconds: 60 },
   revokeAllSessions: { limit: 5, windowSeconds: 60 },
   adminWrite: { limit: 60, windowSeconds: 60 },
+  deploymentRetirement: { limit: 5, windowSeconds: 60 },
   deploymentPatch: { limit: 60, windowSeconds: 60 },
   // `deployments/prepare` is 10/min; a submit follows each prepare, with headroom for retries.
   deploymentSubmit: { limit: 30, windowSeconds: 60 },

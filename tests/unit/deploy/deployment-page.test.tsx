@@ -22,6 +22,7 @@ vi.mock("@/lib/env", () => ({
   }),
 }));
 vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
   notFound: () => {
     throw new Error("not-found");
   },
@@ -49,6 +50,7 @@ function deployment(overrides: Record<string, unknown> = {}) {
   return {
     id,
     status: "CONFIRMED",
+    serviceState: "ACTIVE",
     network: "testnet",
     contractAddress: address,
     createdAt: new Date(),
@@ -83,6 +85,26 @@ beforeEach(() => {
 });
 
 describe("owner deployment integration panel", () => {
+  it("shows retirement progress without execution or integration controls", async () => {
+    mocks.deployment.mockResolvedValue(
+      deployment({
+        serviceState: "RETIRING",
+        retirementBlocker: "Provider payout requires verified recovery",
+        retirementCutoffLedger: 600,
+        retirementReconciledAt: null,
+      }),
+    );
+    const view = render(await DeploymentPage({ params }));
+    expect(view.getByRole("status").textContent).toContain(
+      "Provider payout requires verified recovery",
+    );
+    expect(view.queryByText("Integration panel")).toBeNull();
+    expect(view.queryByText("Overview")).toBeNull();
+    expect(view.queryByRole("button", { name: "Permanently retire deployment" })).toBeNull();
+    expect(mocks.panel).not.toHaveBeenCalled();
+    expect(mocks.overview).not.toHaveBeenCalled();
+  });
+
   it("removes Dev configuration while retaining the overview and API panel", async () => {
     mocks.devModeEnabled = false;
     render(await DeploymentPage({ params }));
@@ -96,7 +118,11 @@ describe("owner deployment integration panel", () => {
   it("uses the owner guard, passes capabilities without a token and keeps funding in the overview", async () => {
     render(await DeploymentPage({ params }));
     expect(mocks.session).toHaveBeenCalled();
-    expect(mocks.deployment.mock.calls[0]![0].where).toEqual({ id, ownerId: "owner" });
+    expect(mocks.deployment.mock.calls[0]![0].where).toEqual({
+      id,
+      ownerId: "owner",
+      serviceState: { not: "RETIRED" },
+    });
     const props = mocks.panel.mock.calls[0]![0];
     expect(props.capabilities.triggerType).toBe("webhook");
     expect(props.capabilities.operations.execute.status).toBe("unsupported");

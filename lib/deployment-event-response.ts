@@ -1,4 +1,5 @@
 import "server-only";
+import { assertDeploymentService } from "@/lib/deployments/service-work";
 import { deploymentEventStreams } from "@/lib/deployment-event-streams";
 import { log } from "@/lib/log";
 import { eventChannel } from "@/lib/redis";
@@ -46,7 +47,9 @@ export function deploymentEventResponse(
       release = manager.join(eventChannel(id), {
         ready() {
           if (disposed) return;
-          heartbeat = setInterval(() => send(": ping\n\n"), 25000);
+          heartbeat = setInterval(() => {
+            void assertDeploymentService(id).then(() => send(": ping\n\n"), dispose);
+          }, 25000);
           send(": ping\n\n");
           send(
             `event: connected\ndata: ${JSON.stringify({ type: "connected", deploymentId: id })}\n\n`,
@@ -59,7 +62,19 @@ export function deploymentEventResponse(
           try {
             // Retain the existing malformed-message guard and framing.
             const event: unknown = JSON.parse(message);
-            send(`event: message\ndata: ${JSON.stringify(event)}\n\n`);
+            if (
+              event &&
+              typeof event === "object" &&
+              "type" in event &&
+              event.type === "service-retiring"
+            ) {
+              dispose();
+              return;
+            }
+            void assertDeploymentService(id).then(
+              () => send(`event: message\ndata: ${JSON.stringify(event)}\n\n`),
+              dispose,
+            );
           } catch {
             /* ignore malformed messages */
           }

@@ -20,6 +20,7 @@ export async function reconcileTransactions({
   let unresolved = 0;
   const rows = await db.signedTransaction.findMany({
     where: {
+      OR: [{ deploymentId: null }, { deployment: { serviceState: "ACTIVE" } }],
       trackingVersion: TRACKING_VERSION,
       network: env().STELLAR_NETWORK,
       outcome: { in: ["RECEIVED", "ACCEPTED", "UNRESOLVED", "REJECTED"] },

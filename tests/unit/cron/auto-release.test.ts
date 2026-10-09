@@ -45,6 +45,8 @@ import {
 const OWN = { owner: { username: { startsWith: "tlrel-" } } };
 
 async function cleanup() {
+  await db.serviceTransaction.deleteMany({ where: { work: { deployment: OWN } } });
+  await db.deploymentWork.deleteMany({ where: { deployment: OWN } });
   await db.deployment.deleteMany({ where: OWN });
   await db.flow.deleteMany({ where: OWN });
   await db.user.deleteMany({ where: { username: { startsWith: "tlrel-" } } });
@@ -100,6 +102,7 @@ async function makeTimelockDeployment(opts: {
       ownerId: user.id,
       network: "testnet",
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       graphSnapshot: {},
       paramsSnapshot: [
         { nodeId: "trigger", templateKind: "DEPOSIT_TRIGGER", params: { kind: "deposit_trigger" } },

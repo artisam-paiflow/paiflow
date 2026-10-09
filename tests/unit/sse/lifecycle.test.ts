@@ -1,3 +1,17 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 import { EventEmitter } from "node:events";
 import type { NextRequest } from "next/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -396,4 +410,27 @@ it("clears the heartbeat and request abort listener on shutdown", async () => {
   shutdown.beginServerShutdown();
   expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
   expect(vi.getTimerCount()).toBe(0);
+});
+
+it("closes an existing stream immediately when retirement is published", async () => {
+  const stream = open();
+  await flush();
+  await stream.reader.read();
+  await stream.reader.read();
+  sub.emit("message", "events:a", JSON.stringify({ type: "service-retiring" }));
+  await flush();
+  expect((await stream.reader.read()).done).toBe(true);
+  expect(manager.counts).toEqual({ channels: 0, viewers: 0 });
+});
+it("closes at heartbeat when the retirement signal is lost", async () => {
+  const stream = open();
+  await flush();
+  await stream.reader.read();
+  await stream.reader.read();
+  const { assertDeploymentService } = await import("@/lib/deployments/service-work");
+  vi.mocked(assertDeploymentService).mockRejectedValueOnce(new Error("retired"));
+  await vi.advanceTimersByTimeAsync(25000);
+  await flush();
+  expect((await stream.reader.read()).done).toBe(true);
+  expect(manager.counts).toEqual({ channels: 0, viewers: 0 });
 });

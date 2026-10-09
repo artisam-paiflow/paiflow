@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { withErrorHandler, AppError } from "@/lib/errors";
 import { sorobanRpc } from "@/lib/stellar/client";
 import { stellarPassphrase } from "@/lib/env";
@@ -13,7 +14,7 @@ import {
 } from "@/lib/subscription/schema";
 import { createAllowanceIntent } from "@/lib/subscription/intent";
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const id = AllowanceDeploymentIdSchema.parse((await ctx.params).id);
     await enforceRateLimit({
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   });
 }
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const id = AllowanceDeploymentIdSchema.parse((await ctx.params).id);
     await enforceRateLimit({
@@ -95,3 +96,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     );
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "public");
+
+export const POST = deploymentServiceRoute(POSTHandler, "public");

@@ -1,3 +1,7 @@
+// This suite isolates charge diagnostics; real admission is covered in retirement.test.ts.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import {

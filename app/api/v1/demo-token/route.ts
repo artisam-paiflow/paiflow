@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
       select: {
         id: true,
         status: true,
+        serviceState: true,
         network: true,
         pipelineSnapshot: true,
         ownerId: true,
@@ -87,6 +88,7 @@ export async function POST(req: NextRequest) {
     // NOT_EXECUTABLE_FLOW must not leak out of this route.
     const reason = ((): string | null => {
       if (!deployment) return "deployment row not found";
+      if (deployment.serviceState !== "ACTIVE") return "deployment service ended";
       if (deployment.network !== env().STELLAR_NETWORK) {
         return `deployment is on ${deployment.network}, instance is on ${env().STELLAR_NETWORK}`;
       }
@@ -116,6 +118,12 @@ export async function POST(req: NextRequest) {
       // without blocking the KEY SHARE lock that ContractEvent inserts take on this row, so event
       // ingestion never waits on a demo caller.
       await tx.$queryRaw`SELECT id FROM "Deployment" WHERE id = ${deploymentId}::uuid FOR NO KEY UPDATE`;
+      const service = await tx.deployment.findUnique({
+        where: { id: deploymentId },
+        select: { serviceState: true },
+      });
+      if (service?.serviceState !== "ACTIVE")
+        throw new AppError("NOT_FOUND", "Demo API is unavailable");
 
       // Evict oldest-first rather than refusing at the cap: a 409 would lock out the reviewer who
       // arrived last, which is the opposite of what a public demo is for.

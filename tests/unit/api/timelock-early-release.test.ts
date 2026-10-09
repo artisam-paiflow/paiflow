@@ -1,3 +1,17 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 /**
  * #751: early release of a timelock_branch's before side, through the owner's
  * session route and the partner API. Auth on the v1 route runs for real against
@@ -10,7 +24,7 @@ import { StrKey } from "@stellar/stellar-sdk";
 
 const { mockDb, mockRequireSession, mockSimulate, mockSend } = vi.hoisted(() => ({
   mockDb: {
-    deployment: { findFirst: vi.fn() },
+    deployment: { serviceState: "ACTIVE", findFirst: vi.fn() },
     deploymentApiToken: { findUnique: vi.fn(), update: vi.fn() },
   },
   mockRequireSession: vi.fn(),

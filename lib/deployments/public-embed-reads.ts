@@ -1,4 +1,5 @@
 import "server-only";
+import { assertDeploymentService } from "./service-work";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
@@ -25,6 +26,7 @@ export async function publicEmbedDeployment(req: Request, id: string) {
     select: {
       id: true,
       status: true,
+      serviceState: true,
       contractAddress: true,
       network: true,
       graphSnapshot: true,
@@ -35,6 +37,7 @@ export async function publicEmbedDeployment(req: Request, id: string) {
   if (
     !deployment ||
     deployment.status !== "CONFIRMED" ||
+    deployment.serviceState !== "ACTIVE" ||
     !deployment.contractAddress ||
     !FlowGraphSchema.safeParse(deployment.graphSnapshot).success
   ) {
@@ -47,6 +50,7 @@ export async function publicEmbedDeployment(req: Request, id: string) {
  * Bounded wait; failures return stored history while the cron continues ingestion.
  */
 export async function publicEmbedEvents(id: string) {
+  await assertDeploymentService(id);
   await refreshEventsIfStale(id);
   const rows = await db.contractEvent.findMany({
     where: { deploymentId: id },

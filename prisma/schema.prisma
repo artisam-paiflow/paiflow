@@ -321,32 +321,60 @@ model FactoryDeployment {
   createdAt DateTime @default(now())
 }
 
+enum DeploymentServiceState {
+  ACTIVE
+  RETIRING
+  RETIRED
+}
+
+enum DeploymentWorkState {
+  OPEN
+  DONE
+  BLOCKED
+}
+
+enum ServiceTransactionState {
+  PENDING
+  SUCCESS
+  FAILED
+  REJECTED
+}
+
 model Deployment {
-  id                      String            @id @default(uuid()) @db.Uuid
-  flowId                  String            @db.Uuid
-  ownerId                 String            @db.Uuid
+  id                      String                 @id @default(uuid()) @db.Uuid
+  flowId                  String                 @db.Uuid
+  ownerId                 String                 @db.Uuid
   network                 String
-  contractAddress         String?           @unique
-  deployTxHash            String?           @unique
-  status                  DeploymentStatus  @default(DRAFT)
+  contractAddress         String?                @unique
+  deployTxHash            String?                @unique
+  serviceState            DeploymentServiceState @default(ACTIVE)
+  retirementRequestedAt   DateTime?
+  retiredAt               DateTime?
+  retirementCutoffLedger  Int?
+  retirementReconciledAt  DateTime?
+  retirementCoverageGap   String?
+  retirementBlocker       String?
+  retirementCheckedAt     DateTime?
+  serviceWork             DeploymentWork[]
+  status                  DeploymentStatus       @default(DRAFT)
   errorMessage            String?
   graphSnapshot           Json
   paramsSnapshot          Json
   pipelineSnapshot        Json?
-  createdAt               DateTime          @default(now())
+  createdAt               DateTime               @default(now())
   confirmedAt             DateTime?
   unsignedXdr             String?
   sourceAccount           String?
   distributeAmountStroops String?
   webhookSecret           String?
-  chargeRelayerMode       ChargeRelayerMode @default(MANUAL)
+  chargeRelayerMode       ChargeRelayerMode      @default(MANUAL)
   chargeRelayerUrl        String?
   chargeRelayerToken      String?
   chargeRelayerAddress    String?
   nextChargeAt            DateTime?
   lastChargedAt           DateTime?
   chargeEndAt             DateTime?
-  offRampEnabled          Boolean           @default(false)
+  offRampEnabled          Boolean                @default(false)
   // Client-supplied key that makes deploy creation idempotent per owner. A
   // retry with the same key returns the existing deployment instead of
   // deploying a second set of contracts. NULL for endpoints that don't opt in.
@@ -358,7 +386,7 @@ model Deployment {
   // TTL inventory attempts rotate durably, including failed reads.
   ttlCheckedAt            DateTime?
   // Position within a large durable pipeline; each inventory reads one instance.
-  ttlScanOffset           Int               @default(0)
+  ttlScanOffset           Int                    @default(0)
 
   flow                 Flow                  @relation(fields: [flowId], references: [id], onDelete: Restrict)
   owner                User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
@@ -381,6 +409,11 @@ model Deployment {
   @@index([status, nextChargeAt])
   @@index([status, chargeRelayerMode, nextChargeAt])
   @@index([chargeRelayerMode])
+  @@index([serviceState, ownerId, createdAt(sort: Desc)])
+  @@index([serviceState, status, nextChargeAt])
+  @@index([serviceState, status, eventsPolledAt])
+  @@index([serviceState, retirementCheckedAt])
+  @@index([serviceState, network, status, ttlCheckedAt, id])
   @@index([status, eventsPolledAt])
   @@index([network, status, ttlCheckedAt, id])
 }
@@ -549,34 +582,38 @@ model PayrollPayout {
 }
 
 model OffRampPayoutJob {
-  id                String                 @id @default(uuid()) @db.Uuid
-  source            OffRampJobSource       @default(PAYROLL)
-  deploymentId      String                 @db.Uuid
-  sourceAddress     String?
-  amountStroops     String
-  bankAccountName   String?
-  bankAccountNumber String?
-  bankCode          String?
-  payrollRunId      String?                @db.Uuid
-  employeeId        String?                @db.Uuid
-  payrollPayoutId   String?                @db.Uuid
-  status            OffRampPayoutJobStatus @default(PENDING)
-  providerRef       String? // withdrawal identifier
-  tradeRef          String? // order/trade reference
-  requestId         String? // provider request id
-  pdaxDepositTxHash String? // native-XLM->PDAX deposit tx (idempotency guard)
-  providerQuote     Json?
-  runAt             DateTime
-  lockedAt          DateTime? // lease stamp for the atomic RUNNING claim (see claimOffRampJob)
-  attemptCount      Int                    @default(0)
-  lastError         String?
-  completedAt       DateTime?
-  quotedAt          DateTime?
-  initiatedAt       DateTime?
-  failedAt          DateTime?
-  cancelledAt       DateTime?
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
+  originatingEventId   String?                @unique @db.Uuid
+  originatingEvent     ContractEvent?         @relation(fields: [originatingEventId], references: [id], onDelete: Restrict)
+  id                   String                 @id @default(uuid()) @db.Uuid
+  source               OffRampJobSource       @default(PAYROLL)
+  deploymentId         String                 @db.Uuid
+  sourceAddress        String?
+  amountStroops        String
+  bankAccountName      String?
+  bankAccountNumber    String?
+  bankCode             String?
+  payrollRunId         String?                @db.Uuid
+  employeeId           String?                @db.Uuid
+  payrollPayoutId      String?                @db.Uuid
+  status               OffRampPayoutJobStatus @default(PENDING)
+  providerRef          String? // withdrawal identifier
+  tradeRef             String? // order/trade reference
+  requestId            String? // provider request id
+  pdaxDepositTxHash    String? // native-XLM->PDAX deposit tx (idempotency guard)
+  providerQuote        Json?
+  runAt                DateTime
+  lockedAt             DateTime? // lease stamp for the atomic RUNNING claim (see claimOffRampJob)
+  attemptCount         Int                    @default(0)
+  lastError            String?
+  settlementResolvedAt DateTime?
+  settlementEvidence   String?
+  completedAt          DateTime?
+  quotedAt             DateTime?
+  initiatedAt          DateTime?
+  failedAt             DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   deployment    Deployment     @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
   payrollRun    PayrollRun?    @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
@@ -636,15 +673,16 @@ model OffRampProviderCredential {
 }
 
 model ContractEvent {
-  id           String    @id @default(uuid()) @db.Uuid
-  deploymentId String    @db.Uuid
-  eventId      String    @unique
-  kind         EventKind
-  ledger       Int
-  txHash       String
-  payload      Json
-  decodedData  Json?
-  occurredAt   DateTime
+  cashOutObligation OffRampPayoutJob?
+  id                String            @id @default(uuid()) @db.Uuid
+  deploymentId      String            @db.Uuid
+  eventId           String            @unique
+  kind              EventKind
+  ledger            Int
+  txHash            String
+  payload           Json
+  decodedData       Json?
+  occurredAt        DateTime
 
   deployment         Deployment          @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
   emailNotifications EmailNotification[]
@@ -911,4 +949,36 @@ model GoogleLinkIntent {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+// Admission records are retained with financial history. OPEN after a process
+// crash requires verified operator reconciliation, never timeout completion.
+model DeploymentWork {
+  id                     String               @id @default(uuid()) @db.Uuid
+  deploymentId           String               @db.Uuid
+  kind                   String
+  state                  DeploymentWorkState  @default(OPEN)
+  blocker                String?
+  createdAt              DateTime             @default(now())
+  completedAt            DateTime?
+  reconciliationEvidence String?
+  deployment             Deployment           @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+  transactions           ServiceTransaction[]
+
+  @@index([deploymentId, state])
+}
+
+model ServiceTransaction {
+  id        String                  @id @default(uuid()) @db.Uuid
+  workId    String                  @db.Uuid
+  txHash    String
+  transport String
+  state     ServiceTransactionState @default(PENDING)
+  ledger    Int?
+  createdAt DateTime                @default(now())
+  work      DeploymentWork          @relation(fields: [workId], references: [id], onDelete: Restrict)
+
+  @@unique([workId, txHash])
+  @@index([txHash, state])
+  @@index([state, createdAt])
 }

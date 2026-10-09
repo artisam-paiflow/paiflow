@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { deploymentEventResponse } from "@/lib/deployment-event-response";
@@ -8,7 +9,7 @@ import { pollEventsFor } from "@/lib/stellar/events";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await requireSession().catch(() => null);
   if (!user) {
     return new Response("Unauthorized", { status: 401 });
@@ -23,3 +24,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   return deploymentEventResponse(id, req.signal, () => pollEventsFor(id));
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "owner");

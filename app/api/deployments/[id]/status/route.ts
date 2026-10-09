@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { isUuid } from "@/lib/api/v1/handler";
@@ -8,7 +9,7 @@ import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const { id } = await ctx.params;
@@ -27,3 +28,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     });
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "owner");

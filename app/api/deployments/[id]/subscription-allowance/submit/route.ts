@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { getSessionUser } from "@/lib/auth";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
@@ -10,7 +11,7 @@ import { subscriptionState, requireSubscriber } from "@/lib/subscription/state";
 import { AllowanceDeploymentIdSchema, AllowanceSubmitSchema } from "@/lib/subscription/schema";
 import { verifyAllowanceIntent } from "@/lib/subscription/intent";
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const id = AllowanceDeploymentIdSchema.parse((await ctx.params).id);
     const ip = clientIp(req);
@@ -92,3 +93,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ data: { txHash: intent.txHash, status: "PENDING" } });
   });
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "public");

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { clientIp, rateLimit, retryAfterSeconds } from "@/lib/rate-limit";
 import { eventChannel } from "@/lib/redis";
@@ -11,7 +12,7 @@ import {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { id } = await ctx.params;
     await publicEmbedDeployment(req, id);
@@ -139,3 +140,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     });
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "public");

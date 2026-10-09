@@ -1,6 +1,8 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import { TransactionBuilder, Address, StrKey, rpc, scValToNative, xdr } from "@stellar/stellar-sdk";
+import { runDeploymentWork } from "@/lib/deployments/service-work";
+import { AppError } from "@/lib/errors";
 import { EventKind, TemplateKind } from "@prisma/client";
 import { sorobanRpc } from "./client";
 import { db } from "@/lib/db";
@@ -983,6 +985,7 @@ async function pollEventsWithStartLedger(
   graph: FlowGraph | null,
   pipeline: PipelineNodeSnapshot[] | null,
   flowTemplateKind: TemplateKind,
+  cutoff?: number,
 ): Promise<ScanResult> {
   const server = sorobanRpc();
   const contractIds = contracts.map((node) => node.contractAddress);
@@ -999,9 +1002,16 @@ async function pollEventsWithStartLedger(
     reasons: ["rpc-error"],
   };
 
+  if (cutoff !== undefined && startLedger > cutoff)
+    return { written: 0, scannedThrough: cutoff, status: "complete", reasons };
   let resp: rpc.Api.GetEventsResponse;
   try {
-    resp = await server.getEvents({ startLedger, filters, limit: EVENTS_PAGE_LIMIT });
+    resp = await server.getEvents({
+      startLedger,
+      ...(cutoff === undefined ? {} : { endLedger: cutoff + 1 }),
+      filters,
+      limit: EVENTS_PAGE_LIMIT,
+    });
   } catch (err) {
     // The RPC refuses a start ledger outside the range it holds, on either side.
     const health = await server.getHealth().then(
@@ -1023,9 +1033,19 @@ async function pollEventsWithStartLedger(
       "getEvents start ledger is past RPC retention; events before oldestLedger are unrecoverable",
     );
     reasons.push("retention-gap");
+    // Record the missing coverage as soon as it is known, even if the retained
+    // history retry fails. Advancing a cursor later must not erase the gap.
+    await db.deployment.updateMany({
+      where: { id: deploymentId, serviceState: { not: "RETIRED" }, retirementCoverageGap: null },
+      data: {
+        retirementCoverageGap: `Event coverage starting at ledger ${startLedger} has a retention gap; verified archival reconciliation is required`,
+        retirementReconciledAt: null,
+      },
+    });
     try {
       resp = await server.getEvents({
         startLedger: oldestLedger,
+        ...(cutoff === undefined ? {} : { endLedger: cutoff + 1 }),
         filters,
         limit: EVENTS_PAGE_LIMIT,
       });
@@ -1046,7 +1066,7 @@ async function pollEventsWithStartLedger(
       deploymentId,
       emitters,
       writtenByContract,
-      events,
+      cutoff === undefined ? events : events.filter((event) => event.ledger <= cutoff),
       symbolMap,
       graph,
       pipeline,
@@ -1067,6 +1087,13 @@ async function pollEventsWithStartLedger(
     }
 
     const full = events.length >= EVENTS_PAGE_LIMIT;
+    if (
+      cutoff !== undefined &&
+      (events.some((event) => event.ledger > cutoff) ||
+        (!full && (cursorLedger(resp.cursor) ?? resp.latestLedger) >= cutoff))
+    ) {
+      return { written, scannedThrough: cutoff, status: "complete", reasons };
+    }
     const at = cursorLedger(resp.cursor);
     if (!full && (at === null || at >= resp.latestLedger)) {
       return { written, scannedThrough: resp.latestLedger, status: "complete", reasons };
@@ -1151,24 +1178,33 @@ async function ingestEventPage(
 
     let persisted = false;
     try {
-      const created = await db.contractEvent.create({
-        data: {
-          deploymentId,
-          eventId: ev.id,
-          kind,
-          ledger: ev.ledger,
-          txHash: ev.txHash,
-          payload: safePayload,
-          decodedData: (safeDecodedData ?? Prisma.JsonNull) as Prisma.InputJsonValue,
-          occurredAt: new Date(ev.ledgerClosedAt),
-        },
-      });
+      let fresh = true;
+      const created = await db.contractEvent
+        .create({
+          data: {
+            deploymentId,
+            eventId: ev.id,
+            kind,
+            ledger: ev.ledger,
+            txHash: ev.txHash,
+            payload: safePayload,
+            decodedData: (safeDecodedData ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+            occurredAt: new Date(ev.ledgerClosedAt),
+          },
+        })
+        .catch(async (error: unknown) => {
+          if ((error as { code?: string })?.code !== "P2002") throw error;
+          fresh = false;
+          return db.contractEvent.findUniqueOrThrow({ where: { eventId: ev.id } });
+        });
       persisted = true;
-      if (changesDashboardBalance(kind)) invalidateDashboardBalances(deploymentId, ev.txHash);
-      written += 1;
-      writtenByContract.set(contractAddress, (writtenByContract.get(contractAddress) ?? 0) + 1);
+      if (fresh && changesDashboardBalance(kind))
+        invalidateDashboardBalances(deploymentId, ev.txHash);
+      if (fresh) written += 1;
+      if (fresh)
+        writtenByContract.set(contractAddress, (writtenByContract.get(contractAddress) ?? 0) + 1);
       const client = redis();
-      if (client) {
+      if (client && fresh) {
         log.info(
           { deploymentId, eventId: ev.id, kind, redisStatus: client.status },
           "event publisher: attempting redis publish",
@@ -1198,11 +1234,11 @@ async function ingestEventPage(
           .catch((err) => {
             log.warn({ err, deploymentId, eventId: ev.id }, "redis publish failed");
           });
-      } else {
+      } else if (!client && fresh) {
         log.warn({ deploymentId, eventId: ev.id }, "event publisher: no redis client");
       }
 
-      // Fire-and-forget: cash_out events spawn off-ramp jobs so the PDAX leg
+      // Persist cash_out obligations before advancing the cursor so the PDAX leg
       // can run asynchronously. Payroll deployments are excluded: their jobs
       // are created by the payroll cron (with payrollRunId/employeeId) and
       // would otherwise be duplicated by the splitter's cash_out events.
@@ -1216,46 +1252,16 @@ async function ingestEventPage(
               ? resolvedData.amount
               : null;
         if (bank && source && amount) {
-          createCashOutJob(db, {
+          await createCashOutJob(db, {
             deploymentId,
+            originatingEventId: created.id,
+            replayingEvent: !fresh,
             sourceAddress: source,
             amountStroops: amount,
             bankAccountName: bank.accountName,
             bankAccountNumber: bank.accountNumber,
             bankCode: bank.bankCode,
-          })
-            .then((job) => {
-              log.info(
-                { deploymentId, eventId: created.id, jobId: job.id },
-                "cash_out off-ramp job created",
-              );
-            })
-            .catch(async (err) => {
-              const message = err instanceof Error ? err.message : String(err);
-              log.warn(
-                { err, deploymentId, eventId: created.id },
-                "cash_out event job creation failed; writing dead-letter record",
-              );
-              try {
-                await db.cashOutJobFailure.create({
-                  data: {
-                    deploymentId,
-                    contractEventId: created.id,
-                    sourceAddress: source,
-                    amountStroops: amount,
-                    bankAccountName: bank.accountName,
-                    bankAccountNumber: bank.accountNumber,
-                    bankCode: bank.bankCode,
-                    error: message,
-                  },
-                });
-              } catch (deadLetterErr) {
-                log.warn(
-                  { err: deadLetterErr, deploymentId, eventId: created.id },
-                  "cash_out dead-letter insert failed",
-                );
-              }
-            });
+          });
         } else {
           log.warn(
             {
@@ -1265,15 +1271,16 @@ async function ingestEventPage(
               hasSource: !!source,
               hasAmount: !!amount,
             },
-            "cash_out event missing bank/source/amount; skipping off-ramp job",
+            "cash_out obligation needs bank/source/amount reconciliation",
           );
+          return { written, failure: { ledger: ev.ledger, reason: "insert-error" } };
         }
       }
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (!persisted && code === "P2002") continue;
       log.warn({ err, deploymentId, eventId: ev.id }, "event ingestion failed");
-      if (!persisted) return { written, failure: { ledger: ev.ledger, reason: "insert-error" } };
+      return { written, failure: { ledger: ev.ledger, reason: "insert-error" } };
     }
   }
   return { written, failure: null };
@@ -1328,6 +1335,78 @@ async function findCashOutBank(
   return null;
 }
 
+/** Bounded recovery of persisted pre-cutoff cash-outs, including payroll events
+ * normally serviced by payroll jobs. Link exact run/hash matches before creating
+ * obligations; ambiguous legacy matches must be reconciled, never paid twice. */
+export async function reconcileStoredCashOutObligations(
+  deploymentId: string,
+  cutoff: number,
+): Promise<boolean> {
+  const deployment = await db.deployment.findUniqueOrThrow({
+    where: { id: deploymentId },
+    include: { flow: { select: { templateKind: true } } },
+  });
+  const graphResult = FlowGraphSchema.safeParse(deployment.graphSnapshot);
+  const pipeline = (deployment.pipelineSnapshot as PipelineNodeSnapshot[] | null) ?? [];
+  const rows = await db.contractEvent.findMany({
+    where: {
+      deploymentId,
+      kind: EventKind.CASH_OUT,
+      ledger: { lte: cutoff },
+      cashOutObligation: null,
+    },
+    orderBy: [{ ledger: "asc" }, { eventId: "asc" }],
+    take: 20,
+  });
+  for (const row of rows) {
+    const data = row.decodedData as Record<string, unknown> | null;
+    const payload = row.payload as Record<string, unknown> | null;
+    const source = typeof data?.source === "string" ? data.source : null;
+    const amount = typeof data?.amount === "string" ? data.amount : null;
+    const emitter = typeof payload?.contractAddress === "string" ? payload.contractAddress : source;
+    const bank = emitter
+      ? await findCashOutBank(
+          deploymentId,
+          graphResult.success ? graphResult.data : null,
+          emitter,
+          pipeline,
+        )
+      : null;
+    if (!bank || !source || !amount)
+      throw new AppError(
+        "CONFLICT",
+        `Cash-out event ${row.id} requires verified bank/source/amount recovery`,
+      );
+    await createCashOutJob(db, {
+      deploymentId,
+      originatingEventId: row.id,
+      replayingEvent: true,
+      ...(deployment.flow.templateKind === TemplateKind.PAYROLL
+        ? { payrollTxHash: row.txHash }
+        : {}),
+      sourceAddress: source,
+      amountStroops: amount,
+      bankAccountName: bank.accountName,
+      bankAccountNumber: bank.accountNumber,
+      bankCode: bank.bankCode,
+    });
+    await db.cashOutJobFailure.updateMany({
+      where: { contractEventId: row.id, retriedAt: null },
+      data: { retriedAt: new Date() },
+    });
+  }
+  return (
+    (await db.contractEvent.count({
+      where: {
+        deploymentId,
+        kind: EventKind.CASH_OUT,
+        ledger: { lte: cutoff },
+        cashOutObligation: null,
+      },
+    })) === 0
+  );
+}
+
 /** Compatible inserted-row count for SSE, transaction ingestion and manual/v1 callers. */
 export async function pollEventsFor(deploymentId: string): Promise<number> {
   const result = await pollEventsForWithOutcome(deploymentId);
@@ -1337,7 +1416,31 @@ export async function pollEventsFor(deploymentId: string): Promise<number> {
   return result.written;
 }
 
-export async function pollEventsForWithOutcome(deploymentId: string): Promise<EventPollResult> {
+export async function pollEventsForWithOutcome(
+  deploymentId: string,
+  options?: { retirementCutoff: number },
+): Promise<EventPollResult> {
+  const result = await runDeploymentWork(
+    deploymentId,
+    "event-poll",
+    () => pollEventsForWithOutcomeInner(deploymentId, options),
+    !!options,
+  );
+  return (
+    result ?? {
+      status: "skipped",
+      written: 0,
+      scannedThrough: null,
+      contracts: [],
+      reasons: ["deployment-unavailable"],
+    }
+  );
+}
+
+async function pollEventsForWithOutcomeInner(
+  deploymentId: string,
+  options?: { retirementCutoff: number },
+): Promise<EventPollResult> {
   const skipped = (reason: EventScanReason): EventPollResult => ({
     status: "skipped",
     written: 0,
@@ -1352,7 +1455,13 @@ export async function pollEventsForWithOutcome(deploymentId: string): Promise<Ev
       flow: { select: { templateKind: true } },
     },
   });
-  if (!deployment?.contractAddress || deployment.status !== "CONFIRMED")
+  if (
+    !deployment?.contractAddress ||
+    deployment.status !== "CONFIRMED" ||
+    deployment.serviceState === "RETIRED" ||
+    (deployment.serviceState === "RETIRING" &&
+      options?.retirementCutoff !== deployment.retirementCutoffLedger)
+  )
     return skipped("deployment-unavailable");
 
   const flowTemplateKind = deployment.flow?.templateKind;
@@ -1438,6 +1547,7 @@ export async function pollEventsForWithOutcome(deploymentId: string): Promise<Ev
       graph,
       (deployment.pipelineSnapshot as PipelineNodeSnapshot[] | null) ?? [],
       flowTemplateKind,
+      options?.retirementCutoff,
     );
     for (const node of group) {
       scans.push({
@@ -1455,6 +1565,7 @@ export async function pollEventsForWithOutcome(deploymentId: string): Promise<Ev
     );
   }
 
+  const reasons = [...new Set(scans.flatMap((scan) => scan.reasons))];
   if (scannedThrough > emptySetSentinel) {
     await advanceEventCursor(deploymentId, scannedThrough);
     void sendEmailNotificationsForTransactions({
@@ -1466,7 +1577,6 @@ export async function pollEventsForWithOutcome(deploymentId: string): Promise<Ev
     });
   }
 
-  const reasons = [...new Set(scans.flatMap((scan) => scan.reasons))];
   const status: EventScanStatus =
     scans.every((scan) => scan.status === "complete") && !reasons.includes("retention-gap")
       ? "complete"

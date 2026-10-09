@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { pollEventsFor } from "@/lib/stellar/events";
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
@@ -17,7 +18,7 @@ export const runtime = "nodejs";
 
 const { perCaller, ipBackstop } = CALLER_RATE_LIMITS.pollEvents;
 
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   // try/catch because the NOT_FOUND throws below used to escape the handler as
   // an unshaped 500; the success and 401/429 bodies are unchanged (#376).
   try {
@@ -92,3 +93,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return errorResponse(err);
   }
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "owner");

@@ -113,6 +113,16 @@ Flow.graph (JSON)
   → /api/deployments/[id]/submit → factory deploy_pipeline → Deployment.pipelineSnapshot
 ```
 
+Deployment service has an irreversible `ACTIVE → RETIRING → RETIRED` lifecycle,
+separate from transaction status. Owner/dev/public deployment routes use
+`deploymentServiceRoute`; partner routes retain `v1Route`. Every new deployment
+worker must use durable `withDeploymentWork` admission (TTL uses batch admission),
+and its selection must exclude retired deployments before LIMIT. Ordinary work
+also excludes RETIRING; only obligated settlement may use settlement admission.
+RPC/Horizon clients persist admitted submission hashes before sending bytes.
+Never clear unknown finality, crashed work, failed refunds or retention gaps by
+timeout. See [`docs/deployment-retirement.md`](docs/deployment-retirement.md).
+
 `pipelineSnapshot` (`nodeId → contractAddress → templateKind`) is the durable map. Anything that
 talks to a deployed contract (event polling, balances, dev-mode mutation, relayer charges) resolves
 through `lib/pipeline-snapshot.ts`, **not** by re-deriving from the graph.
@@ -378,7 +388,10 @@ manages only a few a minute. Channels lift that: N sources, one lock each.
 - Migrations are mandatory (`pnpm db:migrate` dev, `prisma migrate deploy` CI/prod). Never edit a
   merged migration.
 - `@@index` any non-PK column used in `WHERE` / `ORDER BY` on a list endpoint.
-- No soft-delete; cascades are explicit in the schema.
+- No soft-delete; cascades are explicit in the schema. The narrow exception is
+  deployment service retirement (#864): retain the Deployment and financial,
+  audit, contract and idempotency history while irreversibly ending service.
+  See [`docs/deployment-retirement.md`](docs/deployment-retirement.md).
 - Never expose Prisma errors: `P2002 → CONFLICT`, `P2025 → NOT_FOUND`, else `INTERNAL`.
 
 ---

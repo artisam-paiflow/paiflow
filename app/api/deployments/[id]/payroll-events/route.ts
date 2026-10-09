@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -12,7 +13,7 @@ import { loadPayrollEvents } from "@/lib/payroll/event-feed-source";
  * `PayrollPayout`, and `OffRampPayoutJob` rows. Cursor-based pagination on
  * (occurredAt, id): pass the returned `nextCursor` back as `?cursor=`.
  */
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function GETHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
     const { id } = await ctx.params;
@@ -37,3 +38,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return NextResponse.json(FeedResponseSchema.parse(page));
   });
 }
+
+export const GET = deploymentServiceRoute(GETHandler, "dev");

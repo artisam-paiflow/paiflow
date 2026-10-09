@@ -1,3 +1,17 @@
+// Admission/retirement is exercised with real PostgreSQL in retirement.test.ts.
+// This suite isolates its existing domain behavior from that service boundary.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/analytics/outcomes", () => ({
   recordTransactionOutcome: vi.fn(async () => false),
   beginTransactionSubmission: vi.fn(async () => undefined),
@@ -69,6 +83,7 @@ beforeEach(() => {
     ownerId: OWNER_ID,
     network: "testnet",
     status: "CONFIRMED",
+    serviceState: "ACTIVE",
     pipelineSnapshot: SWAPPER_PIPELINE,
     flow: { templateKind: "SPLITTER" },
   });

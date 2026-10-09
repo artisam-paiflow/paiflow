@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { audit } from "@/lib/audit";
@@ -14,7 +15,7 @@ import { parseReleaseBody, releaseTimelockBranchBefore } from "@/lib/timelock-ea
  * equivalent is `/api/v1/deployments/:id/release-early`. Not on the sandbox
  * allowlist (`lib/sandbox-paths.ts`): a sandbox account cannot deploy this kind.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     const { id } = await ctx.params;
@@ -44,3 +45,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
   });
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "owner");

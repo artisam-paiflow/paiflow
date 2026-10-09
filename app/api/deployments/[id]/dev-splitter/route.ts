@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { DevSplitterSchema, type DevSplitRecipient } from "@/lib/dev/schema";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
@@ -32,7 +33,7 @@ type NormalizedRecipient = Omit<Recipient, "address"> & { address: string };
  * CASH_OUT_DEV sink per recipient; the sink deploy/update-bank calls are awaited,
  * but the splitter update_recipients call is submitted and returned pending.
  */
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
     requireFeature("devMode");
@@ -219,3 +220,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
   });
 }
+
+export const POST = deploymentServiceRoute(POSTHandler, "dev");

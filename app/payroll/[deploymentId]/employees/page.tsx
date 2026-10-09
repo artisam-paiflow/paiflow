@@ -17,7 +17,7 @@ export default async function PayrollEmployeesPage({
   const { deploymentId } = await params;
 
   const deployment = await db.deployment.findFirst({
-    where: { id: deploymentId, ownerId: user.id },
+    where: { id: deploymentId, serviceState: "ACTIVE", ownerId: user.id },
     include: { flow: { select: { templateKind: true } } },
   });
 

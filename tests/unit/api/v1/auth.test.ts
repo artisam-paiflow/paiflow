@@ -1,3 +1,21 @@
+// Admission is tested with real PostgreSQL in deployments/retirement.test.ts.
+vi.mock("@/lib/deployments/service-route", () => ({
+  deploymentServiceRoute: (handler: unknown) => handler,
+}));
+vi.mock("@/lib/deployments/service-work", () => ({
+  assertDeploymentService: vi.fn(async () => undefined),
+  withDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  runDeploymentWork: async (_id: string, _kind: string, fn: () => Promise<unknown>) => fn(),
+  withDeploymentBatch: async (
+    ids: string[],
+    _kind: string,
+    fn: (ids: string[]) => Promise<unknown>,
+  ) => fn(ids),
+  beforeExternalRelayer: vi.fn(async () => undefined),
+  observeExternalRelayer: vi.fn(async () => undefined),
+  beforeServiceSubmission: vi.fn(async () => undefined),
+  observeServiceTransaction: vi.fn(async () => undefined),
+}));
 import crypto from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
@@ -51,6 +69,7 @@ function tokenRow(
     deployment: {
       id: deploymentId,
       status: "CONFIRMED",
+      serviceState: "ACTIVE",
       owner: overrides.owner ?? { isActive: true, role: "USER" },
     },
   };
@@ -79,6 +98,17 @@ beforeEach(() => {
 });
 
 describe("requireDeploymentToken", () => {
+  it.each(["RETIRING", "RETIRED"])(
+    "refuses %s deployment service with the generic token error",
+    async (state) => {
+      const row = tokenRow();
+      row.deployment.serviceState = state;
+      mockDb.deploymentApiToken.findUnique.mockResolvedValue(row);
+      await expectUnauthenticated(requireDeploymentToken(bearer(PLAINTEXT), DEPLOYMENT_A));
+      expect(mockDb.deploymentApiToken.update).not.toHaveBeenCalled();
+    },
+  );
+
   it("returns the token and its deployment, without the hash or the owner", async () => {
     mockDb.deploymentApiToken.findUnique.mockResolvedValue(tokenRow());
 
@@ -91,7 +121,7 @@ describe("requireDeploymentToken", () => {
     );
     expect(token.id).toBe(TOKEN_ID);
     expect(token).not.toHaveProperty("tokenHash");
-    expect(deployment).toEqual({ id: DEPLOYMENT_A, status: "CONFIRMED" });
+    expect(deployment).toEqual({ id: DEPLOYMENT_A, status: "CONFIRMED", serviceState: "ACTIVE" });
     expect(mockDb.deploymentApiToken.update).toHaveBeenCalledWith({
       where: { id: TOKEN_ID },
       data: { lastUsedAt: expect.any(Date) },

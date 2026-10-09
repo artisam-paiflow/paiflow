@@ -1,5 +1,6 @@
 import "server-only";
 import { rpc, Horizon, StrKey } from "@stellar/stellar-sdk";
+import { beforeServiceSubmission, observeServiceTransaction } from "@/lib/deployments/service-work";
 import { stellarHorizonUrl, stellarRpcUrl, stellarRelayerAddress } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 
@@ -53,6 +54,23 @@ export function sorobanRpc(): rpc.Server {
     g.__sorobanRpc = new rpc.Server(stellarRpcUrl(), { allowHttp: false });
     // Set on the HTTP client: SDK 16.3.1 still ignores rpc.Server's timeout option.
     g.__sorobanRpc.httpClient.defaults.timeout = STELLAR_HTTP_TIMEOUT_MS;
+    const server = g.__sorobanRpc;
+    const send = server.sendTransaction.bind(server);
+    server.sendTransaction = async (transaction) => {
+      const hash = transaction.hash().toString("hex");
+      await beforeServiceSubmission(hash, "rpc");
+      const result = await send(transaction);
+      if (result.status === "ERROR" || result.status === "TRY_AGAIN_LATER")
+        await observeServiceTransaction(hash, "REJECTED");
+      return result;
+    };
+    const get = server.getTransaction.bind(server);
+    server.getTransaction = async (hash) => {
+      const result = await get(hash);
+      if (result.status === "SUCCESS" || result.status === "FAILED")
+        await observeServiceTransaction(hash, result.status, result.ledger);
+      return result;
+    };
     // Validate in background; don't block startup.
     validateRelayerSequence(g.__sorobanRpc).catch(() => {});
   }
@@ -62,6 +80,16 @@ export function sorobanRpc(): rpc.Server {
 export function horizon(): Horizon.Server {
   if (!g.__horizon) {
     g.__horizon = new Horizon.Server(stellarHorizonUrl(), { allowHttp: false });
+    const server = g.__horizon;
+    const submit = server.submitTransaction.bind(server);
+    server.submitTransaction = async (transaction, options) => {
+      const hash = transaction.hash().toString("hex");
+      await beforeServiceSubmission(hash, "horizon");
+      // A thrown transport error is deliberately left PENDING.
+      const result = await submit(transaction, options);
+      await observeServiceTransaction(hash, "SUCCESS", result.ledger);
+      return result;
+    };
     // Horizon.Server has no timeout option either. submitTransaction passes
     // its own 60s per request, which overrides this default.
     g.__horizon.httpClient.defaults.timeout = STELLAR_HTTP_TIMEOUT_MS;

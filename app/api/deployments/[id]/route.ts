@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deploymentServiceRoute } from "@/lib/deployments/service-route";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -15,18 +16,29 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const user = await requireSession();
     const { id } = await ctx.params;
     const deployment = await db.deployment.findFirst({
-      where: { id, ownerId: user.id },
+      where: { id, ownerId: user.id, serviceState: { not: "RETIRED" } },
       include: {
         flow: { select: { name: true, templateKind: true } },
         events: { orderBy: [{ ledger: "desc" }, { eventId: "desc" }], take: 50 },
       },
     });
     if (!deployment) throw new AppError("NOT_FOUND", "Deployment not found");
+    if (deployment.serviceState === "RETIRING")
+      return NextResponse.json({
+        data: {
+          id: deployment.id,
+          serviceState: deployment.serviceState,
+          retirementRequestedAt: deployment.retirementRequestedAt,
+          retirementCutoffLedger: deployment.retirementCutoffLedger,
+          retirementReconciledAt: deployment.retirementReconciledAt,
+          retirementBlocker: deployment.retirementBlocker,
+        },
+      });
     return NextResponse.json({ data: deployment });
   });
 }
 
-export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     await enforceWriteRateLimit("deploymentPatch", user.id);
@@ -48,3 +60,5 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ data: updated });
   });
 }
+
+export const PATCH = deploymentServiceRoute(PATCHHandler, "owner");

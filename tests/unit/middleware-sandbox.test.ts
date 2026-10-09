@@ -38,6 +38,7 @@ const ALLOWED = [
   `/api/deployments/${DEPLOYMENT}`,
   `/api/deployments/${DEPLOYMENT}/submit`,
   `/api/deployments/${DEPLOYMENT}/status`,
+  `/api/deployments/${DEPLOYMENT}/retirement`,
   `/api/deployments/${DEPLOYMENT}/events`,
   `/api/deployments/${DEPLOYMENT}/balances`,
   `/api/deployments/${DEPLOYMENT}/trigger`,

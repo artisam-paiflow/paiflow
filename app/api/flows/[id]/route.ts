@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DeleteFlowSchema } from "@/lib/deployments/service-schema";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
@@ -65,13 +66,24 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   });
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const user = await requireSession();
     await enforceWriteRateLimit("flowMutate", user.id);
     const { id } = await ctx.params;
     await getOwned(id, user.id);
-    await db.flow.delete({ where: { id } });
+    DeleteFlowSchema.parse(await req.json());
+    try {
+      if ((await db.deployment.count({ where: { flowId: id } })) > 0)
+        throw new AppError("CONFLICT", "Flows with any deployment cannot be permanently deleted");
+      // Flow -> Deployment is ON DELETE RESTRICT. A concurrent prepare cannot
+      // turn this into a cascade or erase retained retirement/payment history.
+      await db.flow.delete({ where: { id } });
+    } catch (error) {
+      if ((error as { code?: string })?.code === "P2003")
+        throw new AppError("CONFLICT", "Flows with any deployment cannot be permanently deleted");
+      throw error;
+    }
     await audit({ action: "FLOW_DELETE", userId: user.id, metadata: { flowId: id } });
     return NextResponse.json({ data: { ok: true } });
   });

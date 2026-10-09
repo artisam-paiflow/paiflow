@@ -5,6 +5,7 @@ import {
   type Prisma,
 } from "@prisma/client";
 import { env } from "@/lib/env";
+import { AppError } from "@/lib/errors";
 
 export const TERMINAL_OFFRAMP_STATUSES: OffRampPayoutJobStatus[] = [
   OffRampPayoutJobStatus.COMPLETED,
@@ -39,6 +40,7 @@ export async function getDueOffRampJobs(prisma: PrismaClient, limit = 50) {
   const staleBefore = new Date(now.getTime() - OFFRAMP_JOB_LEASE_MS);
   return prisma.offRampPayoutJob.findMany({
     where: {
+      deployment: { serviceState: { not: "RETIRED" } },
       runAt: { lte: now },
       OR: [
         { status: OffRampPayoutJobStatus.PENDING },
@@ -71,6 +73,7 @@ export async function rescheduleOffRampJob(
     pdaxDepositTxHash?: string | null;
     providerQuote?: Prisma.InputJsonValue | null;
     lastError?: string | null;
+    settlementResolvedAt?: Date | null;
     completedAt?: Date | null;
     attemptCount?: number;
   },
@@ -83,6 +86,8 @@ export async function rescheduleOffRampJob(
   if (updates.pdaxDepositTxHash !== undefined) data.pdaxDepositTxHash = updates.pdaxDepositTxHash;
   if (updates.providerQuote !== undefined) data.providerQuote = updates.providerQuote;
   if (updates.lastError !== undefined) data.lastError = updates.lastError;
+  if (updates.settlementResolvedAt !== undefined)
+    data.settlementResolvedAt = updates.settlementResolvedAt;
   if (updates.completedAt !== undefined) data.completedAt = updates.completedAt;
   if (updates.attemptCount !== undefined) data.attemptCount = updates.attemptCount;
 
@@ -215,6 +220,9 @@ export async function createCashOutJob(
   prisma: PrismaClient,
   opts: {
     deploymentId: string;
+    originatingEventId?: string;
+    replayingEvent?: boolean;
+    payrollTxHash?: string;
     sourceAddress: string;
     amountStroops: string;
     bankAccountName: string;
@@ -222,19 +230,70 @@ export async function createCashOutJob(
     bankCode: string;
   },
 ) {
-  return prisma.offRampPayoutJob.create({
-    data: {
-      source: OffRampJobSource.CASH_OUT,
-      deploymentId: opts.deploymentId,
-      sourceAddress: opts.sourceAddress,
-      amountStroops: opts.amountStroops,
-      bankAccountName: opts.bankAccountName,
-      bankAccountNumber: opts.bankAccountNumber,
-      bankCode: opts.bankCode,
-      status: OffRampPayoutJobStatus.PENDING,
-      runAt: new Date(),
-    },
-  });
+  if (opts.originatingEventId && opts.payrollTxHash) {
+    const matches = await prisma.offRampPayoutJob.findMany({
+      where: {
+        deploymentId: opts.deploymentId,
+        source: OffRampJobSource.CASH_OUT,
+        sourceAddress: opts.sourceAddress,
+        amountStroops: opts.amountStroops,
+        payrollRun: { txHash: opts.payrollTxHash },
+      },
+      take: 2,
+    });
+    if (
+      matches.length > 1 ||
+      (matches[0]?.originatingEventId && matches[0].originatingEventId !== opts.originatingEventId)
+    )
+      throw new AppError(
+        "CONFLICT",
+        "Ambiguous payroll cash-out linkage requires verified reconciliation",
+      );
+    if (matches[0])
+      return prisma.offRampPayoutJob.update({
+        where: { id: matches[0].id },
+        data: { originatingEventId: opts.originatingEventId },
+      });
+  }
+  if (opts.originatingEventId && opts.replayingEvent) {
+    const linked = await prisma.offRampPayoutJob.findUnique({
+      where: { originatingEventId: opts.originatingEventId },
+    });
+    if (linked) return linked;
+    const legacy = await prisma.offRampPayoutJob.findFirst({
+      where: {
+        deploymentId: opts.deploymentId,
+        source: OffRampJobSource.CASH_OUT,
+        originatingEventId: null,
+        sourceAddress: opts.sourceAddress,
+        amountStroops: opts.amountStroops,
+      },
+    });
+    if (legacy)
+      throw new AppError(
+        "CONFLICT",
+        "Legacy cash-out obligation requires verified event linkage before replay",
+      );
+  }
+  const data = {
+    originatingEventId: opts.originatingEventId,
+    source: OffRampJobSource.CASH_OUT,
+    deploymentId: opts.deploymentId,
+    sourceAddress: opts.sourceAddress,
+    amountStroops: opts.amountStroops,
+    bankAccountName: opts.bankAccountName,
+    bankAccountNumber: opts.bankAccountNumber,
+    bankCode: opts.bankCode,
+    status: OffRampPayoutJobStatus.PENDING,
+    runAt: new Date(),
+  };
+  if (opts.originatingEventId)
+    return prisma.offRampPayoutJob.upsert({
+      where: { originatingEventId: opts.originatingEventId },
+      create: data,
+      update: {},
+    });
+  return prisma.offRampPayoutJob.create({ data });
 }
 
 /**

@@ -34,7 +34,9 @@ describe("cron/finalize-deployments", () => {
 
     expect(await res.json()).toEqual({ data: { failed: 1 } });
     expect(mockDb.deployment.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "d-confirmed-meanwhile", status: "SUBMITTED" } }),
+      expect.objectContaining({
+        where: { id: "d-confirmed-meanwhile", status: "SUBMITTED", serviceState: "ACTIVE" },
+      }),
     );
     expect(mockCapture).toHaveBeenCalledTimes(1);
     expect(mockCapture).toHaveBeenCalledWith(
