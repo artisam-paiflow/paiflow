@@ -51,6 +51,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const { xdr } = await prepareSubscriptionChargeInvocation({
       contractAddress: subscriptionNode.contractAddress,
       adminAddress: body.userAddress,
+      classifyInsufficientAllowance: true,
     });
 
     await audit({

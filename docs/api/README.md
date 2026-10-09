@@ -112,8 +112,18 @@ private window.
 
 ## Deployment API tokens
 
-A token is bound to **one deployment**. It can prepare and submit that deployment's execution and
-read its events, and nothing else: no other deployment, no account data, no admin routes.
+A token is bound to **one deployment**. Its supported operations depend on that deployment:
+reading events, transaction status and capabilities; preparing/submitting deposits for On Receive
+flows; and eligible payouts or relayer-authorized early releases. It grants no access to another
+deployment, account data or admin routes.
+
+The deployment's **API access** panel shows available operations and integration instructions
+before you create a token. For HTTP Webhook flows, it also contains the callback URL and webhook
+secret, with an escrow callback example and retry guidance. Callbacks use `x-webhook-secret`;
+`pfk_` tokens authenticate `/api/v1` tracking and other supported operations. Keep these credentials
+separate. Funding QR codes and wallet/manual controls remain in the deployment overview.
+Subscription approval requires the configured subscriber's wallet consent; an API token does not
+replace it. Only On Receive deployments show the deposit prepare/sign/submit example.
 
 - **Minting.** The deployment's owner signs in, opens the deployment page and uses the **API access**
   panel. Tokens can only be minted for a `CONFIRMED` deployment, and a deployment can have at most 10
@@ -657,7 +667,7 @@ available. This endpoint does not guarantee historical recovery or webhook retry
 ## Retry webhook rewards safely
 
 Deploy a standard **HTTP Webhook → Pay full amount** (or Split) flow, copy its URL and
-webhook secret from the authenticated owner deployment page, and fund it through
+webhook secret from **API access** on the authenticated owner deployment page, and fund it through
 `/trigger/{deploymentId}` with a wallet-signed deposit. Funding does not execute the flow.
 The recipients remain configured in the deployment; Dev mode is not required.
 

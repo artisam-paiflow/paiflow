@@ -14,6 +14,7 @@ import { sorobanRpc, decodeContractAddress } from "./client";
 import { stellarPassphrase } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { simulationFailure } from "./sim-error";
+import { subscriptionChargeFailure } from "./subscription-charge-error";
 
 export type PreparedInvoke = {
   xdr: string;
@@ -597,6 +598,8 @@ export async function prepareSubscriptionSubscribeInvocation(opts: {
 export async function prepareSubscriptionChargeInvocation(opts: {
   contractAddress: string;
   adminAddress: string;
+  /** Standard Subscription API only; Payroll and Dev callers retain their errors. */
+  classifyInsufficientAllowance?: boolean;
 }): Promise<PreparedInvokeTx> {
   const server = sorobanRpc();
   const sourceAcct = await server.getAccount(opts.adminAddress);
@@ -624,6 +627,9 @@ export async function prepareSubscriptionChargeInvocation(opts: {
 
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
+    if (opts.classifyInsufficientAllowance) {
+      throw subscriptionChargeFailure(sim, opts.contractAddress);
+    }
     throw simulationFailure(sim.error, { contract: "subscription" });
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
