@@ -1,3 +1,4 @@
+import { requireFeature } from "@/lib/features";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
@@ -15,6 +16,7 @@ const DEV_KINDS = new Set(["PAYER_DEV", "SPLITTER_DEV", "SUBSCRIPTION_DEV"]);
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(_req);
+    requireFeature("devMode");
     const { id } = await ctx.params;
 
     const d = await db.deployment.findFirst({ where: { id, ownerId: user.id } });

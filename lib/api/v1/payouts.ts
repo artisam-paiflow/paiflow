@@ -3,6 +3,7 @@ import type { Deployment } from "@prisma/client";
 import { audit } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
 import { env, stellarPassphrase } from "@/lib/env";
+import { requireFeature } from "@/lib/features";
 import { checkPayoutTrustlines } from "@/lib/stellar/trustline-check";
 import { updatePaymentByRelayer } from "@/lib/stellar/dev-mutate";
 import { prepareTriggerTx } from "@/lib/stellar/trigger";
@@ -19,6 +20,7 @@ export async function preparePayout(
   input: PayoutPrepare,
   ip: string,
 ): Promise<PayoutPrepared> {
+  requireFeature("devMode");
   const lease = await acquirePayoutLease(deployment.id, tokenId).catch((err: unknown) => {
     throw prepareFailure(err);
   });

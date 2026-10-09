@@ -30,12 +30,14 @@ export default function PayrollPanel({
   network,
   graph,
   pipeline,
+  canEditRecipients = true,
 }: {
   deploymentId: string;
   contractAddress: string;
   network: StellarNetwork;
   graph: FlowGraph;
   pipeline?: Array<{ nodeId: string; contractAddress: string; templateKind: string }> | null;
+  canEditRecipients?: boolean;
 }) {
   const [allowance, setAllowance] = useState<bigint | null>(null);
   const [allowanceError, setAllowanceError] = useState<string | null>(null);
@@ -329,7 +331,7 @@ export default function PayrollPanel({
             Total per period: {formatStroops(total.toString())} {asset ? assetLabel(asset) : ""}
           </div>
         </div>
-        {!isImmutablePayroll && (
+        {canEditRecipients && !isImmutablePayroll && (
           <a
             href={`/payroll/${deploymentId}/employees`}
             className="border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20 inline-block rounded border px-3 py-1.5 font-mono text-xs transition-colors"

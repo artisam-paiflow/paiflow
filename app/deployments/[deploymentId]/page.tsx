@@ -14,6 +14,7 @@ import {
 } from "@/lib/stellar/explorer";
 import { log } from "@/lib/log";
 import { env } from "@/lib/env";
+import { isFeatureEnabled } from "@/lib/features";
 import { deploymentCapabilities } from "@/lib/api/v1/capabilities";
 
 export const dynamic = "force-dynamic";
@@ -174,7 +175,8 @@ export default async function DeploymentPage({
         </div>
 
         <DeploymentView
-          canEditDevValues={user.role !== Role.SANDBOX}
+          devModeEnabled={isFeatureEnabled("devMode")}
+          canEditDevValues={user.role !== Role.SANDBOX && isFeatureEnabled("devMode")}
           deploymentId={d.id}
           contractAddress={d.contractAddress}
           network={network}

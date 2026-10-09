@@ -174,6 +174,14 @@ const GRAPHS: Record<string, { surface: FeatureSurface; node: string; graph: unk
 };
 
 describe("validateFlow with surface switches (#722)", () => {
+  it("refuses the flow-level Dev flag while leaving the same standard graph valid", () => {
+    const graph = GRAPHS["oracle_gte condition"]!.graph as Record<string, unknown>;
+    const result = validateFlow({ ...graph, devMode: true }, { features: off("devMode") });
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.errors[0]).toMatchObject({ code: "FEATURE_DISABLED", path: "devMode" });
+    expect(validateFlow(graph, { features: off("devMode") }).ok).toBe(true);
+  });
   for (const [name, { surface, node, graph }] of Object.entries(GRAPHS)) {
     describe(name, () => {
       it("validates when every surface is on, and without the option at all", () => {

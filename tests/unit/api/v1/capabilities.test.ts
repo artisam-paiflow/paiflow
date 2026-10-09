@@ -9,6 +9,14 @@ const { mockDb, mockRpc } = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/redis", () => ({ redis: () => null }));
 vi.mock("@/lib/stellar/client", () => ({ sorobanRpc: mockRpc }));
+const config = vi.hoisted(() => ({ devModeEnabled: true }));
+vi.mock("@/lib/env", async (original) => {
+  const module = await original<typeof import("@/lib/env")>();
+  return {
+    ...module,
+    env: () => ({ ...module.env(), FEATURE_DEV_MODE_ENABLED: config.devModeEnabled }),
+  };
+});
 
 import { GET } from "@/app/api/v1/deployments/[id]/capabilities/route";
 import { DeploymentCapabilitiesSchema } from "@/lib/api/v1/schema";
@@ -59,6 +67,7 @@ async function data() {
 }
 
 beforeEach(() => {
+  config.devModeEnabled = true;
   vi.clearAllMocks();
   token = newToken();
   mockDb.deploymentApiToken.update.mockResolvedValue({});
@@ -66,6 +75,20 @@ beforeEach(() => {
 });
 
 describe("deployment capabilities", () => {
+  it("stops advertising mutable payouts when Dev mode is off, retaining execution and reads", async () => {
+    config.devModeEnabled = false;
+    authorize({
+      graphSnapshot: { ...graph, devMode: true },
+      pipelineSnapshot: [pipeline[0], { ...pipeline[1], templateKind: "PAYER_DEV" }],
+    });
+    const result = await data();
+    expect(result.operations.payouts.status).toBe("unsupported");
+    expect(result.operations.payouts.nodeIds).toEqual([]);
+    expect(result.operations.payouts.requirements.join(" ")).toContain("Dev mode is turned off");
+    expect(result.operations.execute.status).toBe("supported");
+    expect(result.operations.events.status).toBe("supported");
+    expect(result.operations.transactions.status).toBe("supported");
+  });
   it("supports standard deposit execution and monitoring without offering mutable recipients", async () => {
     const result = await data();
     expect(result.network).toBe("testnet");
