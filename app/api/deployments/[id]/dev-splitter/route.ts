@@ -6,7 +6,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { invalidateDashboardBalances } from "@/lib/stellar/dashboard-balance-cache";
 import { audit } from "@/lib/audit";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
-import { refuseNewFiatRecipients } from "@/lib/features";
+import { requireFeature, refuseNewFiatRecipients } from "@/lib/features";
 import { findPipelineNode, type PipelineSnapshotNode } from "@/lib/pipeline-snapshot";
 import {
   updateRecipientsByRelayer,
@@ -35,6 +35,7 @@ type NormalizedRecipient = Omit<Recipient, "address"> & { address: string };
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return withErrorHandler(async () => {
     const { user } = await requireDevAuth(req);
+    requireFeature("devMode");
     const { id } = await ctx.params;
     const rlKey = `dev-mutate:${user.id}`;
     const rl = await rateLimit(rlKey, 30, 60);

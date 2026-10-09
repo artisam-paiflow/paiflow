@@ -94,6 +94,21 @@ beforeEach(() => {
   });
 });
 describe("payout preparation", () => {
+  it("refuses Dev payouts before acquiring a lease or changing a contract", async () => {
+    process.env.FEATURE_DEV_MODE_ENABLED = "false";
+    vi.resetModules();
+    try {
+      const { preparePayout: disabled } = await import("@/lib/api/v1/payouts");
+      await expect(disabled(deployment, "token", input, "ip")).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+      expect(acquire).not.toHaveBeenCalled();
+      expect(mutation).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.FEATURE_DEV_MODE_ENABLED;
+      vi.resetModules();
+    }
+  });
   it("records the channel mutation hash before send and exact deposit before returning XDR", async () => {
     const result = await preparePayout(deployment, "token", input, "ip");
     expect(events).toEqual(["checkpoint", "send config", "prepare deposit", "ready"]);

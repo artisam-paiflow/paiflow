@@ -7,6 +7,7 @@ import { audit } from "@/lib/audit";
 import { FlowPatchSchema, sandboxNotifications } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/validate";
 import { flowToPipeline } from "@/lib/flows/to-params";
+import { refuseIfFeatureOff } from "@/lib/features";
 
 async function getOwned(id: string, userId: string) {
   const flow = await db.flow.findFirst({ where: { id, ownerId: userId } });
@@ -35,6 +36,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     let parameters = flow.parameters;
     let graph = flow.graph;
     if (body.graph) {
+      if (body.graph.devMode) refuseIfFeatureOff("devMode", "devMode");
       if (user.role === "SANDBOX") body.graph = sandboxNotifications(body.graph);
       const v = validateFlow(body.graph, { ignoreOwnerEmail: true });
       if (v.ok) {

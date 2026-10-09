@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireDevAuth } from "@/lib/auth";
 import { AppError, withErrorHandler } from "@/lib/errors";
 import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
-import { refuseNewFiatRecipients } from "@/lib/features";
+import { refuseNewFiatRecipients, requireDevConfiguration } from "@/lib/features";
 import { preparePayrollUpdateRecipientsInvocation } from "@/lib/stellar/invoke";
 import {
   submitUpdateRecipientsByRelayer,
@@ -66,6 +66,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       include: { flow: { select: { templateKind: true } } },
     });
     if (!d) throw new AppError("NOT_FOUND", "Deployment not found");
+    requireDevConfiguration(d.graphSnapshot, d.pipelineSnapshot);
     if (d.flow.templateKind !== "PAYROLL") {
       throw new AppError("VALIDATION", "Deployment is not a payroll");
     }

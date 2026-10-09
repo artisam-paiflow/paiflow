@@ -8,20 +8,28 @@ import { TemplateKind } from "@prisma/client";
  * Every flag defaults to ON. Off hides the surface in the UI and refuses NEW
  * use on the server (flow validation, `/api/deployments/prepare`, `submit`, the
  * surface's own routes). Deployments that already exist keep running: the
- * crons, deployment pages, SSE and the routes that operate a deployed pipeline
- * do not read these flags.
+ * crons, SSE and ordinary contract execution do not read these flags. Dev mode
+ * also hides existing configuration controls on deployment pages and refuses
+ * Dev configuration APIs and per-payment recipient mutations.
  *
  * Deliberately not `NEXT_PUBLIC_*`: those are inlined at build time, and these
  * must flip with a restart. The server reads them and hands them to client
  * components as props.
  */
-export const FEATURE_SURFACES = ["offramp", "payroll", "aiAssistant", "oracleCondition"] as const;
+export const FEATURE_SURFACES = [
+  "offramp",
+  "payroll",
+  "devMode",
+  "aiAssistant",
+  "oracleCondition",
+] as const;
 export type FeatureSurface = (typeof FEATURE_SURFACES)[number];
 export type FeatureFlags = Readonly<Record<FeatureSurface, boolean>>;
 
 export const ALL_FEATURES_ON: FeatureFlags = {
   offramp: true,
   payroll: true,
+  devMode: true,
   aiAssistant: true,
   oracleCondition: true,
 };
@@ -54,6 +62,20 @@ export const FEATURE_GATED_BLOCKS: Readonly<
     }
   >
 > = {
+  devMode: {
+    envVar: "FEATURE_DEV_MODE_ENABLED",
+    label: "Dev mode",
+    remedy: "Use a standard flow with recipients and amounts configured before deployment.",
+    nodeTypes: [],
+    conditionKinds: [],
+    fiatPayout: false,
+    templateKinds: [
+      TemplateKind.PAYER_DEV,
+      TemplateKind.SPLITTER_DEV,
+      TemplateKind.SUBSCRIPTION_DEV,
+      TemplateKind.CASH_OUT_DEV,
+    ],
+  },
   offramp: {
     envVar: "FEATURE_OFFRAMP_ENABLED",
     label: "Fiat off-ramp",
@@ -108,4 +130,19 @@ export function disabledSurfaces(features: FeatureFlags): FeatureSurface[] {
 /** Contract kinds a pipeline may not contain under these flags. */
 export function disabledTemplateKinds(features: FeatureFlags): TemplateKind[] {
   return disabledSurfaces(features).flatMap((s) => FEATURE_GATED_BLOCKS[s].templateKinds);
+}
+
+/** Check persisted snapshots without recompiling a graph or requiring it to parse. */
+export function usesDevMode(graph: unknown, pipeline: unknown): boolean {
+  if (graph && typeof graph === "object" && "devMode" in graph && graph.devMode === true)
+    return true;
+  return (
+    Array.isArray(pipeline) &&
+    pipeline.some(
+      (node) =>
+        node &&
+        typeof node === "object" &&
+        FEATURE_GATED_BLOCKS.devMode.templateKinds.includes(node.templateKind),
+    )
+  );
 }

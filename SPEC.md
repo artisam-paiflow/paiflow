@@ -232,6 +232,12 @@ Fiat payouts:
 
 Deferred configuration:
 
+- `FEATURE_DEV_MODE_ENABLED=false` hides Dev builder and deployment configuration controls,
+  rejects Dev flow creation/graph updates and new deployments (including prepared submissions),
+  and disables `dev-*` APIs and v1 per-payment recipient payouts. Existing contract execution,
+  cancellation, status/event reads and scheduled automation continue. The flag defaults on;
+  set it explicitly to false in the hackathon environment.
+
 - Addresses may be left **pending** at design time and resolved before deploy.
 - "Fill via API after deploy" (an empty split roster, `fillValueViaApi`, `fillScheduleViaApi`) is
   only legal in dev mode, where the deployed contract is mutable. Background:

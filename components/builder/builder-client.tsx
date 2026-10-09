@@ -36,6 +36,7 @@ import { sendWithRateLimitRetry } from "./autosave-retry.utils";
 import { createSaveCoordinator, type SaveOutcome } from "./save-outcome.utils";
 import CanvasConfigPanel from "./canvas-config-panel";
 import Palette from "./palette";
+import DevModeToggle from "./dev-mode-toggle";
 import PaletteSidebar from "./palette-sidebar";
 import DeployButton from "./deploy-button";
 import EnglishPreview from "./english-preview";
@@ -847,7 +848,7 @@ function Builder({
             flowNodes={flowNodes}
             collapsed={sidebarCollapsed}
             pinned={sidebarPinned}
-            devMode={devMode}
+            devMode={devMode && features.devMode}
             features={features}
             onExpand={() => {
               setSidebarOpen(true);
@@ -911,40 +912,21 @@ function Builder({
                     </span>
                   </button>
                 )}
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={devMode}
-                  aria-label="Dev mode"
-                  onClick={() => {
-                    if (!devMode) track("off_script_feature_used", { feature: "dev_mode_on" });
-                    setDevMode((v) => !v);
-                  }}
-                  title={
-                    devMode
-                      ? "Dev mode ON — pay / split / subscription nodes deploy as mutable variants you fill via the API"
-                      : "Dev mode OFF — recipients and amounts are fixed at design time"
-                  }
-                  className={cn(
-                    "text-label-sm inline-flex min-h-8 shrink-0 items-center justify-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors max-md:px-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
-                    devMode
-                      ? "border-primary/40 bg-primary/10 text-primary"
-                      : "border-outline-variant/20 bg-surface-container-low/40 text-on-surface-variant hover:text-on-surface",
-                  )}
-                >
-                  <span aria-hidden="true" className="material-symbols-outlined text-[16px]">
-                    {devMode ? "toggle_on" : "toggle_off"}
-                  </span>
-                  <span className="max-md:sr-only">Dev mode</span>
-                </button>
+                <DevModeToggle enabled={features.devMode} value={devMode} onChange={setDevMode} />
               </div>
             </div>
+            {!features.devMode && devMode && (
+              <p role="alert" className="text-error text-label-sm">
+                Dev mode is turned off on this server. This saved Dev flow cannot be deployed here.
+                Create a standard flow instead.
+              </p>
+            )}
             <EnglishPreview
               english={english}
               showValidBadge={isValid && !!pipeline && pipeline.length > 0}
               hasFiatPayout={hasFiatPayout}
               hasSenderKyc={!!senderKyc}
-              devMode={devMode}
+              devMode={devMode && features.devMode}
               errorCount={isValid ? 0 : errors.length}
               onOpenKyc={() => setKycDialogOpen(true)}
               onOpenErrors={() => {
@@ -985,7 +967,7 @@ function Builder({
                     ...n.data,
                     label: nodeLabel(fn),
                     node: fn ?? n.data.node,
-                    isMutable: devMode && isMutableInDevMode(fn),
+                    isMutable: features.devMode && devMode && isMutableInDevMode(fn),
                   },
                   selected: n.id === selectedId,
                 };

@@ -7,6 +7,7 @@ import { AppError, withErrorHandler } from "@/lib/errors";
 import { audit } from "@/lib/audit";
 import { rateLimit, rateLimitedError } from "@/lib/rate-limit";
 import { updateBankByRelayer } from "@/lib/stellar/dev-mutate";
+import { requireDevConfiguration } from "@/lib/features";
 
 const BankDetailSchema = z.object({
   employeeId: z.string().uuid().optional(),
@@ -72,7 +73,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const rlKey = `employee-bank:${user.id}`;
     const rl = await rateLimit(rlKey, 60, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many bank detail updates");
-    await requirePayrollDeployment(id, user.id);
+    const deployment = await requirePayrollDeployment(id, user.id);
+    requireDevConfiguration(deployment.graphSnapshot, deployment.pipelineSnapshot);
 
     const body = PostSchema.parse(await req.json());
 
@@ -153,7 +155,8 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     const rlKey = `employee-bank:${user.id}`;
     const rl = await rateLimit(rlKey, 60, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many bank detail updates");
-    await requirePayrollDeployment(id, user.id);
+    const deployment = await requirePayrollDeployment(id, user.id);
+    requireDevConfiguration(deployment.graphSnapshot, deployment.pipelineSnapshot);
 
     const { searchParams } = new URL(req.url);
     const address = searchParams.get("address");

@@ -10,10 +10,17 @@ const mocks = vi.hoisted(() => ({
   session: vi.fn(),
   panel: vi.fn(),
   overview: vi.fn(),
+  devModeEnabled: true,
 }));
 vi.mock("@/lib/db", () => ({ db: { deployment: { findFirst: mocks.deployment } } }));
 vi.mock("@/lib/auth", () => ({ requirePageSession: mocks.session }));
-vi.mock("@/lib/env", () => ({ env: () => ({ STELLAR_NETWORK: "testnet", LOG_LEVEL: "silent" }) }));
+vi.mock("@/lib/env", () => ({
+  env: () => ({
+    STELLAR_NETWORK: "testnet",
+    LOG_LEVEL: "silent",
+    FEATURE_DEV_MODE_ENABLED: mocks.devModeEnabled,
+  }),
+}));
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("not-found");
@@ -70,11 +77,22 @@ function deployment(overrides: Record<string, unknown> = {}) {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.devModeEnabled = true;
   mocks.session.mockResolvedValue({ id: "owner", username: "Owner", role: "USER" });
   mocks.deployment.mockResolvedValue(deployment());
 });
 
 describe("owner deployment integration panel", () => {
+  it("removes Dev configuration while retaining the overview and API panel", async () => {
+    mocks.devModeEnabled = false;
+    render(await DeploymentPage({ params }));
+    expect(mocks.overview.mock.calls[0]![0]).toMatchObject({
+      canEditDevValues: false,
+      devModeEnabled: false,
+    });
+    expect(screen.getByText("Overview")).toBeTruthy();
+    expect(screen.getByText("Integration panel")).toBeTruthy();
+  });
   it("uses the owner guard, passes capabilities without a token and keeps funding in the overview", async () => {
     render(await DeploymentPage({ params }));
     expect(mocks.session).toHaveBeenCalled();

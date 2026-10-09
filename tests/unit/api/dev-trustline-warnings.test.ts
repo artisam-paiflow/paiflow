@@ -28,7 +28,10 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: vi.fn(async () => ({ ok: true })) }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
 vi.mock("@/lib/stellar/dev-mutate", () => mockRelayer);
-vi.mock("@/lib/features", () => ({ refuseNewFiatRecipients: vi.fn() }));
+vi.mock("@/lib/features", async (original) => ({
+  ...(await original<typeof import("@/lib/features")>()),
+  refuseNewFiatRecipients: vi.fn(),
+}));
 vi.mock("@/lib/employees", () => ({
   syncEmployees: vi.fn(),
   deriveFiatPlaceholderAddress: () => "GFIATPLACEHOLDER",

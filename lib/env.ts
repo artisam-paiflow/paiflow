@@ -216,6 +216,7 @@ const EnvSchema = z.object({
   // rebuild) applies a change. See lib/feature-flags.ts.
   FEATURE_OFFRAMP_ENABLED: featureSwitch,
   FEATURE_PAYROLL_ENABLED: featureSwitch,
+  FEATURE_DEV_MODE_ENABLED: featureSwitch,
   FEATURE_AI_ASSISTANT_ENABLED: featureSwitch,
   FEATURE_ORACLE_CONDITION_ENABLED: featureSwitch,
 

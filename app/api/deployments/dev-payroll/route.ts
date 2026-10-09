@@ -116,6 +116,7 @@ export async function POST(req: NextRequest) {
     const user = await requireDevApiToken(req);
     // Deploying a payroll is new use: the whole route is off with the switch (#722).
     requireFeature("payroll");
+    requireFeature("devMode");
     const rl = await rateLimit(`dev-payroll:${user.id}`, 10, 60);
     if (!rl.ok) throw rateLimitedError(rl, "Too many dev-payroll deploys");
 

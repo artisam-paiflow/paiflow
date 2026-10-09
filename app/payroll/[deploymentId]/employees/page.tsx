@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requirePageSession } from "@/lib/auth";
+import { isFeatureEnabled } from "@/lib/features";
+import { usesDevMode } from "@/lib/feature-flags";
 import Topbar from "@/components/app/topbar";
 import EmployeeManager from "@/components/payroll/employee-manager";
 import { assetLabel, type Asset } from "@/lib/flows/schema";
@@ -22,6 +24,11 @@ export default async function PayrollEmployeesPage({
   if (!deployment || deployment.flow.templateKind !== "PAYROLL") {
     notFound();
   }
+  if (
+    !isFeatureEnabled("devMode") &&
+    usesDevMode(deployment.graphSnapshot, deployment.pipelineSnapshot)
+  )
+    notFound();
 
   const graph = deployment.graphSnapshot as {
     nodes: Array<{ type: string; config?: { asset?: Asset } }>;

@@ -39,6 +39,7 @@ const { mockDb, mockDeploy, mockEnv, mockRedis, mockStreamer, mockFromXDR, fakeT
       STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
       STELLAR_RELAYER_ADDRESS: null as string | null,
       LOG_LEVEL: "silent",
+      FEATURE_DEV_MODE_ENABLED: true,
       NEXT_PUBLIC_APP_URL: "http://localhost:3000",
       NEXT_PUBLIC_APP_ENV: "local",
       STELLAR_NETWORK: "testnet",
@@ -139,8 +140,25 @@ function makePrismaError(code: string, message: string) {
 }
 
 describe("deployments/[id]/submit", () => {
+  it.each([
+    { graphSnapshot: { devMode: true }, pipelineSnapshot: [] },
+    { graphSnapshot: null, pipelineSnapshot: [{ templateKind: "PAYER_DEV" }] },
+  ])("refuses a previously prepared Dev deployment after disablement: %j", async (snapshots) => {
+    mockEnv.FEATURE_DEV_MODE_ENABLED = false;
+    mockDb.deployment.findFirst.mockResolvedValue(makeDeployment(snapshots));
+    const response = await POST(
+      makeRequest({ deploymentId: "dep-1", signedXdr: "signed-xdr" }),
+      makeContext("dep-1"),
+    );
+    expect(response.status).toBe(422);
+    expect((await response.json()).error.code).toBe("VALIDATION");
+    expect(mockDeploy.submitDeployTx).not.toHaveBeenCalled();
+    expect(mockDb.deployment.update).not.toHaveBeenCalled();
+    expect(mockDb.deployment.updateMany).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEnv.FEATURE_DEV_MODE_ENABLED = true;
     mockFromXDR.mockImplementation(() => fakeTx("aabbccdd"));
     mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_FLOW_ID = undefined;
     mockEnv.STELLAR_DEPLOY_RECONCILIATION_REHEARSAL_UNTIL = undefined;
