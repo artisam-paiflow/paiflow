@@ -4,6 +4,37 @@ Updated Oct 10, 2026
 
 Build your first payment integration: a customer's XLM payment automatically splits 90% to a shop and 10% to a community fund. Start with a working flow, prove its payout, then connect your own app.
 
+### Choose the right resource
+
+| Resource                                                                                                                             | Use it when you want to…                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| [Developer guide](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-guide.md)                  | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
+| [API quickstart](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-api-quickstart.md)          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
+| [Full API reference](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/README.md)                              | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                                       |
+| [OpenAPI JSON](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/openapi.json)                                 | Import the machine-readable API contract into development tools.                                                   |
+| [Postman collection](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/paiflow-api-v1.postman_collection.json) | Try API requests with your deployment UUID and token.                                                              |
+| [AI developer context (`llms.md`)](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md)                   | Give your AI assistant product rules, API details and worked examples.                                             |
+| [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter)                                                   | Get working payment preparation, Freighter signing, submission and event reads without implementing them yourself. |
+| [Freighter Testnet setup](https://developers.stellar.org/docs/build/guides/freighter/connect-testnet)                                | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
+| [Stellar Expert Testnet](https://stellar.expert/explorer/testnet)                                                                    | Inspect transaction evidence and verify actual payouts.                                                            |
+
+Follow your participant brief for event rules, preparation permissions, deadlines and submissions.
+
+### Contents
+
+1. [Before you begin](#before-you-begin)
+2. [Prepare your testnet wallets](#prepare-your-testnet-wallets)
+3. [Build a Receive → Split flow](#build-a-receive--split-flow)
+4. [Review and deploy](#review-and-deploy)
+5. [Make a payment through the hosted page](#make-a-payment-through-the-hosted-page)
+6. [Create your deployment API token](#create-your-deployment-api-token)
+7. [Run the starter in preparation mode](#run-the-starter-in-preparation-mode)
+8. [Configure your own deployment](#configure-your-own-deployment)
+9. [Make a payment from your app](#make-a-payment-from-your-app)
+10. [Replace the screens with your idea](#replace-the-screens-with-your-idea)
+11. [Troubleshoot your first integration](#troubleshoot-your-first-integration)
+12. [Check your result and go further](#check-your-result-and-go-further)
+
 ## Before you begin
 
 This walkthrough is event-neutral. Follow your participant brief and organisers' instructions for when preparation, deployment and app integration are allowed.
@@ -24,7 +55,7 @@ Paiflow is the money logic behind your app. Your app handles who pays and why; a
 
 **Recommended: watch the full wallet setup tutorial.** The video walks through installing Freighter, selecting Testnet, funding with Friendbot, adding Circle USDC and swapping XLM for USDC.
 
-[Watch the wallet setup tutorial](#) — link TBD; to be added after recording.
+[Watch the wallet setup tutorial](https://youtu.be/OBFtQsRe4b0).
 
 1. Install the [Freighter browser extension](https://www.freighter.app/) in the browser you will use for Paiflow and your local app. Complete its initial wallet setup, then switch to Stellar Testnet.
 2. Create a dedicated testnet account and fund it with testnet XLM using Freighter's Friendbot funding option.
@@ -188,12 +219,3 @@ Your first integration is ready when you have:
 - The deployment UUID and payment transaction hashes saved.
 - Server-only API credentials, with no wallet secrets in your app.
 - A clear way to display success, pending and failure to the customer.
-
-Use these references when extending it:
-
-- [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter) — setup and working payment plumbing.
-- [Paiflow developer context guide](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md) — blocks, API shapes, constraints and worked examples.
-- [Freighter Testnet setup](https://developers.stellar.org/docs/build/guides/freighter/connect-testnet) — wallet creation, Testnet selection and funding.
-- [Stellar Expert Testnet](https://stellar.expert/explorer/testnet) — inspect your transaction evidence.
-
-For API details, see the [API quickstart](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-api-quickstart.md), [API reference](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/README.md) and [beta OpenAPI specification](https://beta.paiflow.xyz/api/v1/openapi.json). For another instance, use its `/api/v1/openapi.json`. Keep event rules, deadlines and submission requirements in your participant brief.
