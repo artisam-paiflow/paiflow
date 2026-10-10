@@ -6,9 +6,9 @@ Shared technical guidance updated Oct 10, 2026. API and product details checked 
 
 | Resource | Purpose |
 | --- | --- |
-| [Developer guide](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-guide.md) | Wallet setup, building and deploying a flow, and configuring the ready-wired starter. |
-| [API quickstart](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-api-quickstart.md) | A separate Next.js frontend/backend example for an app built without the starter. Do not copy its routes into the starter. |
-| [Full API reference](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/README.md) | Endpoint schemas, errors, limits, pagination and advanced workflows. |
+| [Developer guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-guide.md) | Wallet setup, building and deploying a flow, and configuring the ready-wired starter. |
+| [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md) | A separate Next.js frontend/backend example for an app built without the starter. Do not copy its routes into the starter. |
+| [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md) | Endpoint schemas, errors, limits, pagination and advanced workflows. |
 | This `llms.md` | Product constraints, API details and examples for AI-assisted development. It complements the human walkthroughs. |
 
 Both human guides live directly in `docs/hackathon/` and are event-neutral. Their PDFs mirror their Markdown sources. Event rules belong in the participant brief. `PAIFLOW_MODE` is a starter/sample control, not a Paiflow API setting; the API quickstart does not use it.

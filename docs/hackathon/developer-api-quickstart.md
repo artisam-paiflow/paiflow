@@ -8,11 +8,11 @@ Connect your own app to a deployed Paiflow flow without using the hackathon star
 
 | Resource                                                                                                                             | Use it when you want to…                                                                                           |
 | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| [Developer guide](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-guide.md)                  | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
-| [API quickstart](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-api-quickstart.md)          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
-| [Full API reference](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/README.md)                              | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                                       |
-| [OpenAPI JSON](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/openapi.json)                                 | Import the machine-readable API contract into development tools.                                                   |
-| [Postman collection](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/paiflow-api-v1.postman_collection.json) | Try API requests with your deployment UUID and token.                                                              |
+| [Developer guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-guide.md)                  | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
+| [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md)          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
+| [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                              | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                                       |
+| [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                 | Import the machine-readable API contract into development tools.                                                   |
+| [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Try API requests with your deployment UUID and token.                                                              |
 | [AI developer context (`llms.md`)](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md)                   | Give your AI assistant product rules, API details and worked examples.                                             |
 | [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter)                                                   | Get working payment preparation, Freighter signing, submission and event reads without implementing them yourself. |
 | [Freighter Testnet setup](https://developers.stellar.org/docs/build/guides/freighter/connect-testnet)                                | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
@@ -349,7 +349,7 @@ Select **Pay 1 XLM**, sign in Freighter, and inspect the returned `status` and `
 
 **Read payout events** calls `GET /api/v1/deployments/{id}/events?txHash=…&limit=100`. Check `items`, `nextCursor` and `hasMore`. For this two-recipient example, verify **0.9 XLM to the shop and 0.1 XLM to the community fund**, using the event data and the transaction on [Stellar Expert Testnet](https://stellar.expert/explorer/testnet). A percentage Split event can describe shares rather than literal transfer amounts; use transaction evidence to verify the actual transfers.
 
-A delayed feed is not proof of failure. This example reads one event page on demand. For continuous feeds, follow `nextCursor` while `hasMore` is true, deduplicate by `eventId`, associate activity by `txHash`, and back off between polls. The [API reference](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/README.md) explains event shapes and pagination.
+A delayed feed is not proof of failure. This example reads one event page on demand. For continuous feeds, follow `nextCursor` while `hasMore` is true, deduplicate by `eventId`, associate activity by `txHash`, and back off between polls. The [API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md) explains event shapes and pagination.
 
 ## 5 Adapt it to your app
 
@@ -363,10 +363,10 @@ For other flow types, first inspect `GET /api/v1/deployments/{id}/capabilities` 
 
 ## References
 
-- [Full API reference](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/README.md) — schemas, errors, rate limits, pagination and advanced workflows.
-- [OpenAPI JSON](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/openapi.json) — the repository's machine-readable contract. The live instance normally serves `/api/v1/openapi.json`; verify its availability before importing it.
-- [Postman collection](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/paiflow-api-v1.postman_collection.json) — set `baseUrl`, deployment UUID and token for your instance.
+- [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md) — schemas, errors, rate limits, pagination and advanced workflows.
+- [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json) — the repository's machine-readable contract. The live instance normally serves `/api/v1/openapi.json`; verify its availability before importing it.
+- [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) — set `baseUrl`, deployment UUID and token for your instance.
 - [Freighter signing API](https://docs.freighter.app/extension-freighter-api/signing) — browser wallet signature interface.
-- [Developer guide](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-guide.md) — wallet/flow setup and the ready-wired starter path.
+- [Developer guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-guide.md) — wallet/flow setup and the ready-wired starter path.
 
 When requesting support, include the deployment UUID, transaction hash, error message and request ID when available. Keep tokens, wallet secrets and signed envelopes out of support messages.

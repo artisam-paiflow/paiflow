@@ -22,6 +22,10 @@ Paths below are relative to this folder unless stated otherwise.
 | [Video tutorial prompt](video-tutorial-prompt.md) and `video-tutorial/` recording materials                                               | Tutorial planning, captions, narration and recording checks                                                          | Current guide steps, sample configuration and recorded app/wallet behaviour                                            |
 | Recorded tutorial videos and their links                                                                                                  | Visual companions to the guides                                                                                      | Relevant guide section, actual UI and asset/network configuration; replace TBD links after recording                   |
 
+## Public documentation
+
+Participant-facing repository links use [`artisam-paiflow/paiflow` on `develop`](https://github.com/artisam-paiflow/paiflow/tree/develop/docs/hackathon). Keep the shared guides, PDFs and API resources aligned with that public copy. Before distributing the PDFs or updating starter/sample links, verify that every linked file exists on the public branch and contains the current revision.
+
 ## Sources and generated copies
 
 - Product and API claims must match the implementation. A documentation edit does not change or deploy the app.

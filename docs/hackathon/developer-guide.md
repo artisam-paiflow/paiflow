@@ -8,11 +8,11 @@ Build your first payment integration: a customer's XLM payment automatically spl
 
 | Resource                                                                                                                             | Use it when you want to…                                                                                           |
 | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| [Developer guide](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-guide.md)                  | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
-| [API quickstart](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-api-quickstart.md)          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
-| [Full API reference](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/README.md)                              | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                                       |
-| [OpenAPI JSON](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/openapi.json)                                 | Import the machine-readable API contract into development tools.                                                   |
-| [Postman collection](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/paiflow-api-v1.postman_collection.json) | Try API requests with your deployment UUID and token.                                                              |
+| [Developer guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-guide.md)                  | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
+| [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md)          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
+| [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                              | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                                       |
+| [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                 | Import the machine-readable API contract into development tools.                                                   |
+| [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Try API requests with your deployment UUID and token.                                                              |
 | [AI developer context (`llms.md`)](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md)                   | Give your AI assistant product rules, API details and worked examples.                                             |
 | [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter)                                                   | Get working payment preparation, Freighter signing, submission and event reads without implementing them yourself. |
 | [Freighter Testnet setup](https://developers.stellar.org/docs/build/guides/freighter/connect-testnet)                                | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
@@ -109,7 +109,7 @@ For this example, the payment should route **0.9 XLM to the shop and 0.1 XLM to 
 2. Open **API access**, create a token and copy it immediately. The full token is shown once.
 3. Keep the token with your confirmed deployment UUID for the starter's server configuration.
 
-See the [API quickstart](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-api-quickstart.md) for preparing, signing and submitting payments, checking transaction status and reading events.
+See the [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md) for preparing, signing and submitting payments, checking transaction status and reading events.
 
 | Value            | How to recognise it                                                    |
 | ---------------- | ---------------------------------------------------------------------- |

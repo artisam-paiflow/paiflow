@@ -8,8 +8,8 @@ runs (paying, splitting, routing or swapping on a real DEX) and you poll the eve
 
 | Artefact                  | Where                                                                                                                                                                                                                                                                                               |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OpenAPI 3.1 specification | Served at [`https://beta.app.paiflow.xyz/api/v1/openapi.json`](https://beta.app.paiflow.xyz/api/v1/openapi.json); source [`docs/api/openapi.json`](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/openapi.json)                                                                                     |
-| Postman collection        | [`paiflow-api-v1.postman_collection.json`](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/paiflow-api-v1.postman_collection.json) (import by link: [raw file](https://raw.githubusercontent.com/webnxt-2030/pinkraft/hackathon-staging/docs/api/paiflow-api-v1.postman_collection.json)) |
+| OpenAPI 3.1 specification | Served at [`https://beta.app.paiflow.xyz/api/v1/openapi.json`](https://beta.app.paiflow.xyz/api/v1/openapi.json); source [`docs/api/openapi.json`](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                                                                     |
+| Postman collection        | [`paiflow-api-v1.postman_collection.json`](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) (import by link: [raw file](https://raw.githubusercontent.com/artisam-paiflow/paiflow/develop/docs/api/paiflow-api-v1.postman_collection.json)) |
 | This guide                | [paiflow.gitbook.io/paiflow-docs/reference/api](https://paiflow.gitbook.io/paiflow-docs/reference/api); source `docs/api/README.md`                                                                                                                                                                 |
 
 {% hint style="warning" %}
@@ -501,9 +501,9 @@ hackathon venue's Wi-Fi) does not pay for one broken script:
 
 ## Postman
 
-Import [`paiflow-api-v1.postman_collection.json`](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/paiflow-api-v1.postman_collection.json)
+Import [`paiflow-api-v1.postman_collection.json`](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json)
 (in Postman, **Import → Link** and paste the
-[raw file URL](https://raw.githubusercontent.com/webnxt-2030/pinkraft/hackathon-staging/docs/api/paiflow-api-v1.postman_collection.json)), then:
+[raw file URL](https://raw.githubusercontent.com/artisam-paiflow/paiflow/develop/docs/api/paiflow-api-v1.postman_collection.json)), then:
 
 1. Fill in the collection variables `deploymentId`, `apiToken` and `from`, and adjust `amount`.
    `baseUrl` is already `https://beta.app.paiflow.xyz`.
@@ -548,7 +548,7 @@ Three ways to check the path without running it:
 
 - the curl transcript, audit log rows and transaction link in
   [`docs/instawards/evidence/d2/`](../instawards/evidence/d2/README.md);
-- the [Postman collection](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/paiflow-api-v1.postman_collection.json), whose first request mints a demo
+- the [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json), whose first request mints a demo
   token and fills in the rest of the variables for you;
 - this guide and the [OpenAPI document](https://beta.app.paiflow.xyz/api/v1/openapi.json).
 
