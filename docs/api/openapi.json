@@ -7,8 +7,8 @@
   },
   "servers": [
     {
-      "url": "https://paiflow.xyz",
-      "description": "Public instance (Stellar testnet)"
+      "url": "https://beta.app.paiflow.xyz",
+      "description": "Beta app (Stellar testnet)"
     }
   ],
   "tags": [

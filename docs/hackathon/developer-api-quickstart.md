@@ -26,7 +26,7 @@ Starter users can follow the developer guide without copying this quickstart’s
 
 Build and deploy a standard **On Receive XLM → percentage Split XLM** flow: 90% to a shop and 10% to a community fund. Use two distinct funded Testnet recipient addresses. Wait for **CONFIRMED**, then create a deployment token in **API access** and copy its UUID.
 
-Use a full/team Paiflow account at [beta.paiflow.xyz](https://beta.paiflow.xyz). Sandbox accounts cannot create tokens or use their deployments through the partner API. API access requires an **ACTIVE** deployment and active owner; retiring/retired deployments and revoked/expired tokens are refused.
+Use a full/team Paiflow account at [beta.paiflow.xyz](https://beta.app.paiflow.xyz). Sandbox accounts cannot create tokens or use their deployments through the partner API. API access requires an **ACTIVE** deployment and active owner; retiring/retired deployments and revoked/expired tokens are refused.
 
 The example charges **1 XLM**, so expect **0.9 XLM and 0.1 XLM** in payouts. The customer needs Testnet XLM for the payment and fees. One deployment serves all customers with the same configured rules.
 
@@ -54,7 +54,7 @@ In section 2, create `app/api/payment/route.js` using the server-route code. In 
 Create or edit `.env.local` in your project root. Set these server-only values, replace both placeholders with your deployment UUID and token, and restart the dev server if it is running:
 
 ```dotenv
-PAIFLOW_BASE_URL=https://beta.paiflow.xyz
+PAIFLOW_BASE_URL=https://beta.app.paiflow.xyz
 PAIFLOW_DEPLOYMENT_ID=YOUR_CONFIRMED_DEPLOYMENT_UUID
 PAIFLOW_API_TOKEN=YOUR_DEPLOYMENT_API_TOKEN
 ```

@@ -27,7 +27,7 @@ Paths below are relative to this folder unless stated otherwise.
 - Product and API claims must match the implementation. A documentation edit does not change or deploy the app.
 - The OpenAPI endpoint serves the definition in `lib/api/v1/openapi.ts`. Run `pnpm api:openapi` after changing that definition to refresh `docs/api/openapi.json`; the OpenAPI tests check for drift.
 - A deployed spec may differ from the current repository. Verify its availability and contents before claiming the live API is current.
-- Use `https://beta.paiflow.xyz` for the current beta instructions. Keep sample environment values and client defaults consistent with the documented origin.
+- Use `https://beta.app.paiflow.xyz` for the current beta instructions. Keep sample environment values and client defaults consistent with the documented origin.
 - Shared instructions may use different examples: the beginner guide starts with XLM; Campus Snacks uses Circle testnet USDC. Preserve the correct asset, issuer, amounts and payout expectations for each example.
 - Keep event-specific JRU/Iloilo instructions and older primer PDFs separate from the active FEU Tech documents. They are not sources for another event's rules.
 - `temp-memory.md` files are local working notes, not participant documentation or published sources.
@@ -43,3 +43,9 @@ node scripts/render-event-primer-pdf.mjs docs/hackathon/feu-tech/event-proposal.
 ```
 
 Check page boundaries, code examples and links after rendering. Do not regenerate PDFs for every intermediate Markdown edit.
+
+## Verification
+
+On Oct 10, 2026, the API quickstart’s exact `route.js` and `page.js` example was exercised against `https://beta.app.paiflow.xyz` on app version `b945e6a`. A new standard XLM Receive → Split deployment was signed in an isolated Freighter browser. A 1 XLM payment returned `SUCCESS` through submission, transaction lookup and Stellar RPC at ledger 5123377; the recipients received 0.9 XLM and 0.1 XLM. The event endpoint returned the matching deposit and percentage Split payout records.
+
+[Testnet transaction evidence](https://stellar.expert/explorer/testnet/tx/5db62598269536305986cd67da60ebb710e392bc7144b77449b330cc33df389d). The temporary API token was revoked after verification.

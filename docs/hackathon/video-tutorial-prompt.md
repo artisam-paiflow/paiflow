@@ -34,7 +34,7 @@ Use a snack shop where a customer's payment automatically splits:
 
 Show the complete journey:
 
-1. Open https://beta.paiflow.xyz and explain the sandbox.
+1. Open https://beta.app.paiflow.xyz and explain the sandbox.
 2. Create an “on receive → split” flow.
 3. Configure the asset, recipient addresses and percentages.
 4. Review the flow's English preview.

@@ -25,7 +25,7 @@ The Paiflow event at FEU Tech is a full-day hackathon from 8:00 AM to 5:00 PM PH
 
 After online onboarding, participants may start scaffolding their app: set up the project, build screens and develop features that do not involve payments. **Integration of the hackathon app with Paiflow begins on October 28 at 9:00 AM PHT**, using the team's event-day account and deployment.
 
-Participants may freely explore the sandbox at [beta.paiflow.xyz](https://beta.paiflow.xyz) before the event, including creating practice flows and testing payments with the features available there. A video tutorial is also available there. Sandbox deployments do not provide API access for connecting your own app.
+Participants may freely explore the sandbox at [beta.paiflow.xyz](https://beta.app.paiflow.xyz) before the event, including creating practice flows and testing payments with the features available there. A video tutorial is also available there. Sandbox deployments do not provide API access for connecting your own app.
 
 You may reuse a flow design practised in the sandbox. During the hackathon's integration window, deploy it from your team's event-day account and produce a confirmed on-chain payout from that deployment. Practice deployments and payouts do not count toward qualification. Keep your hackathon app's payment features and live feed disabled until the integration window opens.
 

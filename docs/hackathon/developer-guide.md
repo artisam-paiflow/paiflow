@@ -43,7 +43,7 @@ Paiflow is the money logic behind your app. Your app handles who pays and why; a
 
 | You need                                | Purpose                                          |
 | --------------------------------------- | ------------------------------------------------ |
-| [Paiflow](https://beta.paiflow.xyz)     | Build, deploy and inspect your payment flow      |
+| [Paiflow](https://beta.app.paiflow.xyz)     | Build, deploy and inspect your payment flow      |
 | A full/team Paiflow account             | Create your own deployment API token             |
 | [Freighter](https://www.freighter.app/) | Connect wallets and approve testnet transactions |
 | Node.js 22, pnpm 10 and git             | Run the supplied starter app                     |
@@ -67,7 +67,7 @@ Keep wallet secrets in Freighter. Never paste a secret key or recovery phrase in
 
 ## Build a Receive → Split flow
 
-1. Open [Paiflow](https://beta.paiflow.xyz) and log in, or use the sandbox to try it out.
+1. Open [Paiflow](https://beta.app.paiflow.xyz) and log in, or use the sandbox to try it out.
 2. Create a flow, using **On Receive** as its trigger and **Split** as its action. Connect On Receive to Split.
 3. Select native **XLM** as the flow's asset. Remove unrelated blocks or default recipients from the example graph.
 4. Configure two percentage recipients using your actual funded public addresses:
@@ -144,7 +144,7 @@ When integration is permitted, stop the dev server. Edit `.env.local` using your
 
 ```dotenv
 PAIFLOW_MODE=team
-PAIFLOW_BASE_URL=https://beta.paiflow.xyz
+PAIFLOW_BASE_URL=https://beta.app.paiflow.xyz
 PAIFLOW_DEPLOYMENT_ID=YOUR_CONFIRMED_DEPLOYMENT_UUID
 PAIFLOW_API_TOKEN=YOUR_DEPLOYMENT_API_TOKEN
 ```

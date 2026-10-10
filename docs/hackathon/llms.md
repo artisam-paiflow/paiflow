@@ -1,6 +1,17 @@
 # Paiflow developer context guide
 
-API reference based on pinkraft `hackathon` @ 18b89d56625ef562ea9b0458f6ccc6d19f0f6efe. Shared guidance updated Oct 9, 2026. Testnet only.
+Shared technical guidance updated Oct 10, 2026. API and product details checked against pinkraft `staging` @ b945e6a. Testnet only.
+
+## Choose the right resource
+
+| Resource | Purpose |
+| --- | --- |
+| [Developer guide](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-guide.md) | Wallet setup, building and deploying a flow, and configuring the ready-wired starter. |
+| [API quickstart](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-api-quickstart.md) | A separate Next.js frontend/backend example for an app built without the starter. Do not copy its routes into the starter. |
+| [Full API reference](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/README.md) | Endpoint schemas, errors, limits, pagination and advanced workflows. |
+| This `llms.md` | Product constraints, API details and examples for AI-assisted development. It complements the human walkthroughs. |
+
+Both human guides live directly in `docs/hackathon/` and are event-neutral. Their PDFs mirror their Markdown sources. Event rules belong in the participant brief. `PAIFLOW_MODE` is a starter/sample control, not a Paiflow API setting; the API quickstart does not use it.
 
 ## Event instructions
 
@@ -17,7 +28,7 @@ The supplied starter defaults to preparation mode when `PAIFLOW_MODE` is unset. 
 
 When your event's integration window opens, set server-only `PAIFLOW_MODE=team` alongside the supplied platform origin, your confirmed deployment UUID and API token, then restart. Explicit `PAIFLOW_MODE=demo` enables the shared testnet demo where available and permitted by your event. An empty token never selects demo automatically; missing or invalid team configuration disables integration with a clear error. Keep the starter's mode guards when replacing its screens or extending its server client. A pending signed payment may still execute after a mode change; confirm its status before switching modes.
 
-`PAIFLOW_MODE` applies to the starter. Campus Snacks uses its own deployment/token readiness checks and does not use the starter's demo fallback.
+`PAIFLOW_MODE` also applies to Campus Snacks: it defaults to `prepare`, enables its own deployment only in `team`, and rejects `demo`. It retains preparation guards in the UI, routes and server client; credentials alone never enable payments. The sample does not use the starter's shared demo fallback.
 
 ## Demonstrating your integration
 
@@ -553,7 +564,7 @@ Source: [artisam-paiflow/paiflow-campus-snacks](https://github.com/artisam-paifl
 
 Graph: **On Receive USDC → percentage Split**, with Dev mode off. Vendor first: **9000 bps (90%)**; student organisation second: **1000 bps (10%)**. Use distinct funded testnet recipients with the exact USDC trustline. One deployment serves all customers.
 
-When integration is permitted, configure server-only `PAIFLOW_BASE_URL` with the supplied platform origin, `PAIFLOW_DEPLOYMENT_ID` with the team's confirmed deployment UUID, and `PAIFLOW_API_TOKEN` with its token; restart the app. The sample requires its own configured deployment and does not use the starter's shared XLM demo. The server calculates snack prices; Freighter signs in the browser.
+When integration is permitted, set server-only `PAIFLOW_MODE=team` and configure `PAIFLOW_BASE_URL` with the supplied platform origin, `PAIFLOW_DEPLOYMENT_ID` with the team's confirmed deployment UUID, and `PAIFLOW_API_TOKEN` with its token; restart the app. The sample requires its own configured deployment and does not use the starter's shared XLM demo. The server calculates snack prices; Freighter signs in the browser.
 
 For example, a **3.50 USDC** payment splits into **3.15 USDC to the vendor + 0.35 USDC to the student organisation**. Verify your own deployment after setup. The two jars show cumulative received payouts, not wallet balances. They pair a USDC deposit with its percentage Split payout in the same transaction, deduplicate `eventId` and follow contract rounding; unmatched activity stays in history but does not increase totals. `$` labels denote testnet USDC; no real money or goods are involved.
 
