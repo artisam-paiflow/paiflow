@@ -1,5 +1,8 @@
 # Analytics tracking plan — usage-v2
 
+Current implementation, historical verification, and beta reporting evidence are
+reconciled in [#808 verification status](808-verification-status.md).
+
 This is the future-collection policy for #808. Its implementation is in
 `lib/analytics/`. Deployment, PostHog dashboard installation and live scheduler
 verification are separate rollout steps; code or local tests do not establish
