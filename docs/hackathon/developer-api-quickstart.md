@@ -342,7 +342,7 @@ Select **Pay 1 XLM**, sign in Freighter, and inspect the returned `status` and `
 | Result                                 | What to do                                                                                            |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `SUCCESS`                              | Payment confirmed. Select Read payout events and verify the expected two recipients and amounts.      |
-| `FAILED`                               | Confirmed on-chain failure. Read the error and fix its cause before a new payment.                    |
+| `FAILED`                               | Submission rejected or transaction failed. Read the error and check transaction status before preparing another payment.                    |
 | `PENDING` or an uncertain submit error | Keep the tab open. Check again submits the same signed envelope; it does not create a second payment. |
 
 **Look up status** checks `GET /api/v1/deployments/{id}/transactions/{txHash}` without resubmitting. It may also return `REJECTED` (submission refusal, not on-chain failure) or `UNKNOWN` (insufficient evidence). Neither `UNKNOWN`, a `404`, nor a timeout proves failure or authorises a replacement payment. Keep checking the original transaction; create a replacement only after confirmed failure or verified expiry without inclusion on-chain.
