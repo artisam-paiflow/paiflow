@@ -1,6 +1,6 @@
 # Paiflow Developer Guide
 
-Updated Oct 9, 2026
+Updated Oct 10, 2026
 
 Build your first payment integration: a customer's XLM payment automatically splits 90% to a shop and 10% to a community fund. Start with a working flow, prove its payout, then connect your own app.
 
@@ -22,19 +22,22 @@ Paiflow is the money logic behind your app. Your app handles who pays and why; a
 
 ## Prepare your testnet wallets
 
-1. Install Freighter in the browser you will use for Paiflow and your local app.
-2. Create dedicated testnet accounts for the deployer/customer, shop and community fund. The deployer may also act as the customer for this first walkthrough; keep recipient accounts distinct.
-3. Switch Freighter to **Stellar Testnet**. Fund each account with testnet XLM using Freighter's Friendbot prompt or [Stellar Lab](https://lab.stellar.org/).
-4. Copy each account's public address, starting with `G`. Check that all accounts exist and the paying wallet has enough XLM for the payment and transaction fees.
+**Recommended: watch the full wallet setup tutorial.** The video walks through installing Freighter, selecting Testnet, funding with Friendbot, adding Circle USDC and swapping XLM for USDC.
 
-XLM needs no trustline. Friendbot supplies testnet XLM, not USDC. See [Stellar's Freighter testnet setup guide](https://developers.stellar.org/docs/build/guides/freighter/connect-testnet) for wallet setup.
+[Watch the wallet setup tutorial](#) — link TBD; to be added after recording.
 
-**Keep wallet secrets in your wallet.** Never paste a secret key or recovery phrase into Paiflow, your app, an AI prompt or a repository. Testnet funds have no real-money value.
+1. Install the [Freighter browser extension](https://www.freighter.app/) in the browser you will use for Paiflow and your local app. Complete its initial wallet setup, then switch to Stellar Testnet.
+2. Create a dedicated testnet account and fund it with testnet XLM using Freighter's Friendbot funding option.
+3. Add a Circle testnet USDC trustline in Freighter. Use asset code `USDC` and issuer `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`. Adding the trustline enables receiving that asset; it does not provide a USDC balance.
+4. In Freighter, select Swap and exchange a small amount of testnet XLM for the Circle testnet USDC asset added above. Review the quote, confirm the Testnet transaction and check that your USDC balance appears. Keep some XLM for fees and reserves. If no swap quote is available, use the [Circle testnet faucet](https://faucet.circle.com/) to obtain USDC instead.
+5. Make a secondary wallet in Freighter, select Testnet, fund it with Friendbot and add the same USDC trustline. Feel free to create as many wallets as you need.
+
+Keep wallet secrets in Freighter. Never paste a secret key or recovery phrase into Paiflow, your app, an AI prompt or a repository. Testnet funds have no real-money value.
 
 ## Build a Receive → Split flow
 
-1. Open [Paiflow](https://beta.paiflow.xyz) and sign in with your full/team account when integration is permitted.
-2. Create a flow, using **On Receive** as its trigger and **Split** as its action. Connect On Receive to Split. Keep Dev mode off for this example.
+1. Open [Paiflow](https://beta.paiflow.xyz) and log in, or use the sandbox to try it out.
+2. Create a flow, using **On Receive** as its trigger and **Split** as its action. Connect On Receive to Split.
 3. Select native **XLM** as the flow's asset. Remove unrelated blocks or default recipients from the example graph.
 4. Configure two percentage recipients using your actual funded public addresses:
 
@@ -74,6 +77,8 @@ For this example, the payment should route **0.9 XLM to the shop and 0.1 XLM to 
 1. Return to your deployment page while signed in as its owner.
 2. Open **API access**, create a token and copy it immediately. The full token is shown once.
 3. Keep the token with your confirmed deployment UUID for the starter's server configuration.
+
+See the [API quickstart](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-api-quickstart.md) for preparing, signing and submitting payments, checking transaction status and reading events.
 
 | Value            | How to recognise it                                                    |
 | ---------------- | ---------------------------------------------------------------------- |
@@ -135,6 +140,8 @@ Ensure `.env.local` is ignored by git. Do not commit it. Missing or invalid team
 
 The amount field uses decimal units of your flow's input asset. Internally, 1 XLM is the integer string `"10000000"`. Let `lib/amount.ts` handle conversion with bigint; avoid floating-point money arithmetic.
 
+**Sign promptly.** The ordinary Pay preparation has an approximately **180-second validity window** (`expiresAt`). Have Freighter unlocked before selecting Pay. If preparation expires before signing/submission, dismiss the old request and prepare again. If signing finished or submission may have started, first check the original transaction's outcome; create a new payment only after confirming the original failed or expired without being included on-chain.
+
 **If pending:** use **Check again** with the same signed transaction. Keep the tab open. A timeout or submission `502` may mean it was already broadcast; do not prepare a duplicate payment because the result is uncertain. If you switch customer accounts, select **Refresh wallet** before paying again.
 
 ## Replace the screens with your idea
@@ -166,6 +173,7 @@ For subscriptions, schedules, escrow, webhooks or changing recipients per paymen
 | `422` validation error                    | Read the message; check asset, amount, recipients and trigger type                                          |
 | `429` rate limit                          | Wait for `Retry-After`; avoid repeated clicks and excessive polling                                         |
 | `PENDING`, timeout or submission `502`    | Preserve and resubmit the same signed envelope; check finality before creating a new payment                |
+| Preparation expired before signing        | Dismiss the old request and prepare again; if submission was attempted, check its outcome first             |
 | `FAILED`                                  | Read the confirmed failure and fix its cause before preparing another payment                               |
 | Payment confirmed, feed not updated       | Verify by transaction hash; allow the feed to catch up instead of paying again                              |
 
@@ -188,4 +196,4 @@ Use these references when extending it:
 - [Freighter Testnet setup](https://developers.stellar.org/docs/build/guides/freighter/connect-testnet) — wallet creation, Testnet selection and funding.
 - [Stellar Expert Testnet](https://stellar.expert/explorer/testnet) — inspect your transaction evidence.
 
-For API details, see the repository's `docs/hackathon/developer-api-quickstart.md` and `docs/api/README.md`, or the target instance's `/api/v1/openapi.json`. Keep event rules, deadlines and submission requirements in your participant brief.
+For API details, see the [API quickstart](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/hackathon/developer-api-quickstart.md), [API reference](https://github.com/webnxt-2030/pinkraft/blob/hackathon-staging/docs/api/README.md) and [beta OpenAPI specification](https://beta.paiflow.xyz/api/v1/openapi.json). For another instance, use its `/api/v1/openapi.json`. Keep event rules, deadlines and submission requirements in your participant brief.

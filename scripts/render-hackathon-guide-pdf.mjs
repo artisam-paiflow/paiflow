@@ -61,6 +61,8 @@ export function render(n) {
       return `<strong>${children()}</strong>`;
     case "emphasis":
       return `<em>${children()}</em>`;
+    case "code":
+      return `<pre><code>${escape(n.value)}</code></pre>`;
     case "inlineCode":
       return `<code>${escape(n.value)}</code>`;
     case "link":
@@ -101,11 +103,11 @@ async function main() {
       .find((n) => n.type === "heading" && n.depth === 1)
       ?.children.map((n) => n.value ?? "")
       .join("") || "Paiflow Hackathon Mechanics";
-  const footer = /Event Primer$/.test(title)
+  const footer = /Event Primer$|API quick start/.test(title)
     ? title.toUpperCase()
     : title.replace(/\s+Hackathon Mechanics$/, "").toUpperCase() + " HACKATHON · Mechanics";
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escape(title)}</title><style>
- @page{size:A4}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;line-height:1.45;color:#29262e;margin:0}h1{font-size:24pt;line-height:1.2;margin:0 0 6pt}h1+p{color:#756778;font-size:9pt;margin:0 0 18pt}h2{font-size:16pt;line-height:1.25;margin:19pt 0 9pt;padding-bottom:5pt;border-bottom:1px solid #ddc7df;break-after:avoid}h3{break-after:avoid}p{margin:8pt 0}a{color:#e60075;text-decoration:underline}ul,ol{padding-left:19pt;margin:8pt 0}li{margin:4pt 0}li p{margin:0}li::marker{color:#e60075}table{width:100%;border-collapse:collapse;font-size:9.2pt;line-height:1.4;margin:10pt 0;table-layout:auto}th,td{padding:6pt;border-bottom:1px solid #ddc7df;text-align:left;vertical-align:top}th{font-weight:bold;background:#faf6fa}tr:nth-child(even){background:#faf6fa}tr{break-inside:avoid}thead{display:table-header-group}code{font-family:monospace;font-size:8.5pt;overflow-wrap:anywhere}table:first-of-type td:first-child{font-weight:bold;min-width:120pt}
+ @page{size:A4}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;line-height:1.45;color:#29262e;margin:0}h1{font-size:24pt;line-height:1.2;margin:0 0 6pt}h1+p{color:#756778;font-size:9pt;margin:0 0 18pt}h2{font-size:16pt;line-height:1.25;margin:19pt 0 9pt;padding-bottom:5pt;border-bottom:1px solid #ddc7df;break-after:avoid}h3{break-after:avoid}p{margin:8pt 0}a{color:#e60075;text-decoration:underline}ul,ol{padding-left:19pt;margin:8pt 0}li{margin:4pt 0}li p{margin:0}li::marker{color:#e60075}table{width:100%;border-collapse:collapse;font-size:9.2pt;line-height:1.4;margin:10pt 0;table-layout:auto}th,td{padding:6pt;border-bottom:1px solid #ddc7df;text-align:left;vertical-align:top}th{font-weight:bold;background:#faf6fa}tr:nth-child(even){background:#faf6fa}tr{break-inside:avoid}thead{display:table-header-group}code{font-family:monospace;font-size:8.5pt;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#faf6fa;border-left:3pt solid #e60075;padding:9pt;line-height:1.4;break-inside:avoid}table:first-of-type td:first-child{font-weight:bold;min-width:120pt}
  </style></head><body>${render(ast)}</body></html>`;
   const browser = await chromium.launch();
   try {
