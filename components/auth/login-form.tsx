@@ -91,6 +91,7 @@ export default function LoginForm({
       />
 
       <div className="mt-2 flex flex-wrap items-start gap-2">
+        {googleEnabled ? <GoogleButton from={from} authOrigin={authOrigin} compact /> : null}
         <button
           type="submit"
           disabled={submitting}
@@ -103,7 +104,6 @@ export default function LoginForm({
             </span>
           ) : null}
         </button>
-        {googleEnabled ? <GoogleButton from={from} authOrigin={authOrigin} compact /> : null}
       </div>
     </form>
   );
