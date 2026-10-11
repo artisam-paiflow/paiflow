@@ -134,3 +134,17 @@ changing live settings.
 
 OAuth provider interaction and Railway redirects require this real hosted check; local unit and
 scratch-database tests cannot certify a configured Google client or consent-screen rollout.
+
+### Google usernames
+
+New Google accounts use a normalized email prefix (3–32 characters; letters,
+numbers, dots, underscores and hyphens). After a first Google sign-in redirects
+to **Complete your signup**, the verified email prefix is suggested in an editable
+Username field alongside the access code. Direct registration can choose a name
+or leave it blank to use the email prefix after Google verifies the account.
+Taken names receive a short random suffix. The chosen name is stored with the
+short-lived signup grant and applied atomically when the account is created.
+Existing names stay unchanged, including when a Google email changes; Google
+identity continues to use the provider's subject ID.
+
+Deploy migration `20261011150000_google_signup_username` before the new code.

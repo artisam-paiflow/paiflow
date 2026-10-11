@@ -996,6 +996,7 @@ model GoogleSignupCode {
 
 // A single browser authorization, never the reusable invitation itself.
 model GoogleSignupIntent {
+  username  String?
   id        String   @id @default(uuid()) @db.Uuid
   tokenHash String   @unique
   codeId    String   @db.Uuid

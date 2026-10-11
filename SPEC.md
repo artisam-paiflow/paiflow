@@ -289,6 +289,9 @@ history is the git log.
   classification only and does not restrict access. Existing accounts can explicitly link Google
   with recent authentication while retaining their role, classification, email and resources.
   Matching email alone never merges accounts; sandbox accounts cannot link Google.
+- New Google accounts suggest a normalized email prefix as an editable Paiflow username during
+  signup. Taken names receive a short random suffix; existing usernames remain stable when a
+  Google email changes. Google identity continues to use the provider subject ID.
 - New Google accounts require reusable admin-managed access codes with 1/7/30-day expiry and
   manual disable. Server-validated browser signup grants expire within ten minutes and are
   consumed atomically at account creation; invitation expiry/disable is rechecked there. Existing
