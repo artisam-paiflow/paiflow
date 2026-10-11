@@ -15,6 +15,8 @@ import { stellarPassphrase, stellarRelayerAddress, stellarRelayerSecretKey } fro
 import { AppError } from "@/lib/errors";
 import { simulationFailure } from "./sim-error";
 import { timelockSideArg } from "./scval";
+import { simulateGetter } from "./contract-read";
+export { simulateContractCall, simulateGetter } from "./contract-read";
 
 /** Which list a timelock_branch release intends to pay; absent for the old timelock. */
 export type ReleaseSide = "before" | "after";
@@ -1092,77 +1094,6 @@ export async function readSplitterRecipients(
   // The immutable splitter exposes the same recipients() shape as the dev
   // splitter: { address, bps, amount }[].
   return readSplitterDevRecipients(contractAddress);
-}
-
-/**
- * Simulate a read-only contract call and return its native value.
- *
- * Never submitted, so the relayer signs nothing and needs no authorization —
- * it is only the source account a simulation has to quote against.
- */
-export async function simulateContractCall(
-  contractAddress: string,
-  functionName: string,
-  args: xdr.ScVal[] = [],
-): Promise<unknown> {
-  const server = sorobanRpc();
-
-  const source = stellarRelayerAddress();
-  if (!source) {
-    throw new AppError("INTERNAL", "STELLAR_RELAYER_ADDRESS is not configured");
-  }
-
-  let sourceAcct;
-  try {
-    sourceAcct = await server.getAccount(source);
-  } catch {
-    throw new AppError(
-      "INSUFFICIENT_FUNDS",
-      `Relayer account ${source} is not funded or does not exist`,
-    );
-  }
-
-  const contractIdBytes = decodeContractAddress(contractAddress);
-  const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
-
-  const hostFunction = xdr.HostFunction.hostFunctionTypeInvokeContract(
-    new xdr.InvokeContractArgs({
-      contractAddress: scAddress,
-      functionName,
-      args,
-    }),
-  );
-
-  const tx = new TransactionBuilder(sourceAcct, {
-    fee: BASE_FEE,
-    networkPassphrase: stellarPassphrase(),
-  })
-    .addOperation(Operation.invokeHostFunction({ func: hostFunction }))
-    .setTimeout(30)
-    .build();
-
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw new AppError(
-      "UPSTREAM_RPC",
-      `${functionName}() simulation failed for ${contractAddress}: ${sim.error}`,
-    );
-  }
-  if (!sim.result?.retval) {
-    throw new AppError(
-      "UPSTREAM_RPC",
-      `${functionName}() simulation failed for ${contractAddress}`,
-    );
-  }
-  return scValToNative(sim.result.retval);
-}
-
-/** Simulate a no-arg getter on a contract and return its native value. */
-export async function simulateGetter(
-  contractAddress: string,
-  functionName: string,
-): Promise<unknown> {
-  return simulateContractCall(contractAddress, functionName);
 }
 
 /**
