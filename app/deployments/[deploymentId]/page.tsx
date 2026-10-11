@@ -8,6 +8,7 @@ import RetirementPanel from "@/components/deploy/retirement-panel";
 import DeploymentView from "@/components/deploy/deployment-view";
 import ApiAccessPanel from "@/components/deploy/api-access-panel";
 import { FlowGraphSchema, isTrigger } from "@/lib/flows/schema";
+import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 import {
   isStellarNetwork,
   stellarExpertContractUrl,
@@ -91,6 +92,13 @@ export default async function DeploymentPage({
   const graphResult = FlowGraphSchema.safeParse(d.graphSnapshot);
   if (!graphResult.success) notFound();
   const graph = graphResult.data;
+  // The legacy flow category can be SPLITTER even for a Pay-only flow.
+  // Describe the deployed blocks without implying an order across branches.
+  const blockLabels = [
+    ...new Set(
+      graph.nodes.filter((n) => n.type !== "email_notify").map((n) => NODE_TYPE_LABELS[n.type]),
+    ),
+  ].join(" · ");
 
   const pipeline = d.pipelineSnapshot as Array<{
     nodeId: string;
@@ -161,7 +169,7 @@ export default async function DeploymentPage({
             <div className="text-label-sm text-on-surface-variant mt-3 flex flex-wrap items-center gap-3 font-mono">
               <span className="inline-flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[14px]">category</span>
-                {d.flow.templateKind?.toUpperCase()}
+                Blocks: {blockLabels}
               </span>
               <span className="text-outline-variant">·</span>
               <span className="inline-flex items-center gap-1.5">
