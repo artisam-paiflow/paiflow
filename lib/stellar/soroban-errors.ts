@@ -609,11 +609,6 @@ export type SorobanErrorTranslation = {
 };
 
 /**
- * Diagnostic events are logged newest-first, so the first Error(Contract, N)
- * belongs to the innermost (most relevant) failure. The address on the same
- * event identifies which contract in a pipeline rejected.
- */
-/**
  * Every diagnostic entry whose topics carry a contract error, in log order.
  * The simulate log is newest-first: when a contract error escalates through
  * a pipeline (deposit trigger → swapper → Soroswap router), the outermost
@@ -626,6 +621,16 @@ function findContractErrors(raw: string): Array<{ address: string; code: number 
     out.push({ address: m[1]!, code: Number(m[2]) });
   }
   return out;
+}
+
+/** Require the innermost diagnostic frame; outer frames can re-raise another contract's code. */
+export function isOriginatingContractError(raw: string, address: string, code: number): boolean {
+  const topLevel = /^(?:Soroban simulate failed: )?HostError: Error\(Contract,\s*#?(\d+)\)/.exec(
+    raw,
+  );
+  if (!topLevel || Number(topLevel[1]) !== code) return false;
+  const origin = findContractErrors(raw).at(-1);
+  return origin?.address === address && origin.code === code;
 }
 
 function findContractError(raw: string): { address?: string; code: number } | undefined {

@@ -17,6 +17,7 @@ vi.mock("@/lib/stellar/client", () => ({
   sorobanRpc: () => server,
   decodeContractAddress: (address: string) => StrKey.decodeContract(address),
 }));
+import { SimulationError } from "@/lib/stellar/sim-error";
 import { prepareTriggerTx } from "@/lib/stellar/trigger";
 
 const from = Keypair.random().publicKey();
@@ -119,34 +120,58 @@ describe("deposit trustline attribution (#876)", () => {
     server.simulateTransaction.mockResolvedValue(failure(account));
     const lazyHint = vi.fn(async () => hint);
     await expect(prepareDeposit(lazyHint)).rejects.toMatchObject({
-      code: "UPSTREAM_RPC",
+      code: "VALIDATION",
+      status: 422,
+      details: `Soroban simulate failed: ${failure(account).error}`,
       message: expect.stringContaining(`The ${role} (${account}) has no trustline for ${label}`),
     });
+    await expect(prepareDeposit()).rejects.toBeInstanceOf(SimulationError);
     expect(lazyHint).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["unmapped", "successful", "no account", "unknown format"])(
-    "does not guess a wallet from %s diagnostics",
-    async (variant) => {
-      const sim = failure(
-        from,
-        variant === "unmapped" ? contract : asset,
-        13,
-        variant === "successful",
-      );
-      if (variant === "no account") sim.events = [];
-      if (variant === "unknown format")
-        sim.events[0]!.event().body().v0().data(xdr.ScVal.scvString("unknown"));
-      server.simulateTransaction.mockResolvedValue(sim);
-      await expect(prepareDeposit()).rejects.toMatchObject({
-        message: expect.stringContaining("An account involved in this transfer"),
-      });
-    },
-  );
+  it.each([
+    "unmapped",
+    "successful",
+    "no account",
+    "unknown format",
+    "unknown host message",
+    "contract account",
+    "non-error topic",
+    "different diagnostic code",
+    "non-diagnostic event",
+  ])("does not guess a wallet from %s diagnostics", async (variant) => {
+    const sim = failure(
+      from,
+      variant === "unmapped" ? contract : asset,
+      13,
+      variant === "successful",
+    );
+    if (variant === "no account") sim.events = [];
+    if (variant === "unknown format")
+      sim.events[0]!.event().body().v0().data(xdr.ScVal.scvString("unknown"));
+    const event = sim.events[0]?.event();
+    if (variant === "unknown host message")
+      event!.body().v0().data().vec()![0] = xdr.ScVal.scvString("unknown host message");
+    if (variant === "contract account")
+      event!.body().v0().data().vec()![1] = new Address(contract).toScVal();
+    if (variant === "non-error topic")
+      event!.body().v0().topics()[0] = xdr.ScVal.scvSymbol("transfer");
+    if (variant === "different diagnostic code")
+      event!.body().v0().topics()[1] = xdr.ScVal.scvError(xdr.ScError.sceContract(10));
+    if (variant === "non-diagnostic event") event!.type(xdr.ContractEventType.contract());
+    server.simulateTransaction.mockResolvedValue(sim);
+    await expect(prepareDeposit()).rejects.toMatchObject({
+      code: "UPSTREAM_RPC",
+      status: 502,
+      message: expect.stringContaining("An account involved in this transfer"),
+    });
+  });
 
   it("retains the insufficient-token-balance explanation", async () => {
     server.simulateTransaction.mockResolvedValue(failure(from, asset, 10));
     await expect(prepareDeposit()).rejects.toMatchObject({
+      code: "UPSTREAM_RPC",
+      status: 502,
       message: `There isn't enough ${label} to cover this transfer.`,
     });
   });
@@ -156,6 +181,8 @@ describe("deposit trustline attribution (#876)", () => {
     sim.error = `HostError: Error(Contract, #10) contract:${asset}, topics:[error, Error(Contract, #10)]`;
     server.simulateTransaction.mockResolvedValue(sim);
     await expect(prepareDeposit()).rejects.toMatchObject({
+      code: "UPSTREAM_RPC",
+      status: 502,
       message: `There isn't enough ${label} to cover this transfer.`,
     });
   });

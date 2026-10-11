@@ -66,6 +66,7 @@ vi.mock("@/lib/stellar/relayer", () => ({
 }));
 
 import { AppError } from "@/lib/errors";
+import { simulationFailure } from "@/lib/stellar/sim-error";
 import { readSoroswapQuote } from "@/lib/stellar/soroswap";
 
 const NATIVE_TO_USDC = {
@@ -167,14 +168,43 @@ describe("readSoroswapQuote", () => {
 
   it("reports a failing get_pair as a missing pool, keeping the reason in details", async () => {
     stub.getPair = () => {
-      throw new AppError("UPSTREAM_RPC", "get_pair() simulation failed: PairDoesNotExist");
+      throw simulationFailure(
+        `HostError: Error(Contract, #205)\n[Diagnostic Event] contract:${FACTORY}, topics:[error, Error(Contract, #205)]`,
+      );
     };
     await expect(readSoroswapQuote(NATIVE_TO_USDC)).rejects.toMatchObject({
       code: "VALIDATION",
       message: "Soroswap has no liquidity pool for this asset pair on this network.",
-      details: expect.stringContaining("PairDoesNotExist"),
+      details: expect.stringContaining("Error(Contract, #205)"),
     });
   });
+
+  it.each([
+    new AppError("UPSTREAM_RPC", "RPC unavailable"),
+    new Error("socket hang up"),
+    simulationFailure(
+      `HostError: Error(Contract, #201)\n[Diagnostic Event] contract:${FACTORY}, topics:[error, Error(Contract, #201)]`,
+    ),
+    simulationFailure(
+      `HostError: Error(Contract, #205)\n[Diagnostic Event] contract:${FACTORY}, topics:[error, Error(Contract, #205)]\n[Diagnostic Event] contract:${PAIR}, topics:[error, Error(Contract, #205)]`,
+    ),
+    simulationFailure("HostError: Error(Contract, #205)"),
+    simulationFailure(
+      `HostError: Error(Context, InvalidAction)\n[Diagnostic Event] contract:${FACTORY}, topics:[error, Error(Contract, #205)]`,
+    ),
+    simulationFailure(
+      `HostError: Error(Contract, #201)\n[Diagnostic Event] contract:${FACTORY}, topics:[error, Error(Contract, #205)]`,
+    ),
+    new AppError("UPSTREAM_RPC", `contract:${FACTORY}, topics:[error, Error(Contract, #205)]`),
+  ])(
+    "preserves transport, unrelated, unattributed, and non-simulation failures (%#)",
+    async (error) => {
+      stub.getPair = () => {
+        throw error;
+      };
+      await expect(readSoroswapQuote(NATIVE_TO_USDC)).rejects.toBe(error);
+    },
+  );
 
   it("does not disguise an unfunded relayer as a missing pool", async () => {
     stub.getPair = () => {

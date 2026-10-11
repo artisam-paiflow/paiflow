@@ -50,7 +50,7 @@ export function depositSimulationFailure(
     const role = address === sender ? "sender" : "recipient";
     const label = hint.assetLabels?.[asset] ?? "this asset";
     return new SimulationError(
-      fallback.code,
+      "VALIDATION",
       `The ${role} (${address}) has no trustline for ${label}. The ${role} must add a trustline for ${label} before this transfer can proceed.`,
       undefined,
       fallback.details,

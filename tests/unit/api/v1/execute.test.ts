@@ -476,6 +476,21 @@ describe("POST …/execute (prepare)", () => {
     expect(error.message).toContain("must be a funded account");
   });
 
+  it("keeps a VALIDATION-coded simulation rejection at 422 with details and prerequisites", async () => {
+    const details = "Soroban simulate failed: Error(Contract, #13)";
+    const message = `The sender (${FROM}) has no trustline for USDC.`;
+    mockPrepareTriggerTx.mockRejectedValue(
+      new SimulationError("VALIDATION", message, undefined, details),
+    );
+    const res = await callPrepare();
+    expect(res.status).toBe(422);
+    const { error } = await res.json();
+    expect(error.code).toBe("VALIDATION");
+    expect(error.message).toContain(message);
+    expect(error.message).toContain("must be a funded account");
+    expect(error.details).toBe(details);
+  });
+
   it("classifies by the error's class, not the wording of its details", async () => {
     mockPrepareTriggerTx.mockImplementation(async () => {
       throw new SimulationError("UPSTREAM_RPC", "reverted", undefined, "any wording at all");
