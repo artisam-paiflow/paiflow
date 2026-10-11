@@ -1,10 +1,14 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { Address, nativeToScVal, xdr, StrKey } from "@stellar/stellar-sdk";
 import { simulateContractCall, simulateGetter } from "./relayer";
 import { assetContractId } from "./assets";
 import { createContractReadCache } from "@/lib/contract-read-cache";
 import { soroswapRouterAddress, SWAP_ROUTER_UNSET_MESSAGE } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { SimulationError } from "./sim-error";
+import { isOriginatingContractError } from "./soroban-errors";
+import type { ContractReadContext } from "./contract-read";
 import type { Asset } from "@/lib/flows/schema";
 import { minOut, orientReserves, spotOut, type SoroswapQuote } from "@/lib/soroswap/quote";
 
@@ -22,8 +26,11 @@ import { minOut, orientReserves, spotOut, type SoroswapQuote } from "@/lib/soros
  * exposes no setter, which is the precondition `contract-read-cache` documents
  * for anything cached.
  */
-export async function readSoroswapFactory(routerAddress: string): Promise<string> {
-  const value = await simulateGetter(routerAddress, "get_factory");
+export async function readSoroswapFactory(
+  routerAddress: string,
+  context: ContractReadContext = {},
+): Promise<string> {
+  const value = await simulateGetter(routerAddress, "get_factory", context);
   if (typeof value !== "string" || !StrKey.isValidContract(value)) {
     throw new AppError(
       "UPSTREAM_RPC",
@@ -38,8 +45,12 @@ export async function readSoroswapFactory(routerAddress: string): Promise<string
  * — its in-memory memo lives on the returned closure — so build one per request
  * and let Redis carry the value between them.
  */
-export function cachedSoroswapFactoryReader() {
-  return createContractReadCache()("soroswap:factory", readSoroswapFactory, (router) => router);
+export function cachedSoroswapFactoryReader(context: ContractReadContext = {}) {
+  return createContractReadCache()(
+    "soroswap:factory",
+    (router: string) => readSoroswapFactory(router, context),
+    (router) => router,
+  );
 }
 
 const addr = (a: string) => new Address(a).toScVal();
@@ -64,31 +75,41 @@ export type SoroswapPool = {
  * Router → factory → pair → reserves for one asset pair, by simulation
  * (Instawards D1, #391). Read-only: nothing here is ever submitted.
  */
-export async function readSoroswapPool(input: {
-  assetIn: Asset;
-  assetOut: Asset;
-}): Promise<SoroswapPool> {
+export async function readSoroswapPool(
+  input: {
+    assetIn: Asset;
+    assetOut: Asset;
+  },
+  context: ContractReadContext = {},
+): Promise<SoroswapPool> {
   const routerAddress = requireRouterAddress();
   const inId = assetContractId(input.assetIn);
   const outId = assetContractId(input.assetOut);
 
-  const factoryAddress = await cachedSoroswapFactoryReader()(routerAddress);
+  const factoryAddress = await cachedSoroswapFactoryReader(context)(routerAddress);
   let rawPair: unknown;
   try {
-    rawPair = await simulateContractCall(factoryAddress, "get_pair", [addr(inId), addr(outId)]);
+    rawPair = await simulateContractCall(
+      factoryAddress,
+      "get_pair",
+      [addr(inId), addr(outId)],
+      context,
+    );
   } catch (err) {
-    // Only a failing simulation frame means "no pool". An unfunded relayer or a
-    // misconfigured router must not reach the operator as a claim about chain state.
-    if (err instanceof AppError && err.code !== "UPSTREAM_RPC") throw err;
+    // Only the originating factory's PairDoesNotExist (#205) means no pool.
+    // Transport errors, host errors, and a nested contract's re-raised #205 do not.
+    if (
+      !(err instanceof SimulationError) ||
+      !isOriginatingContractError(err.details ?? "", factoryAddress, 205)
+    )
+      throw err;
     throw new AppError(
       "VALIDATION",
       "Soroswap has no liquidity pool for this asset pair on this network.",
       undefined,
-      err instanceof Error ? err.message : String(err),
+      err.details,
     );
   }
-  // Validated below the catch, not inside it: that branch re-maps every
-  // UPSTREAM_RPC to "no liquidity pool", which this is not.
   if (typeof rawPair !== "string" || !StrKey.isValidContract(rawPair)) {
     throw new AppError(
       "UPSTREAM_RPC",
@@ -96,7 +117,7 @@ export async function readSoroswapPool(input: {
     );
   }
   const pairAddress = rawPair;
-  const rawReserves: unknown = await simulateContractCall(pairAddress, "get_reserves");
+  const rawReserves: unknown = await simulateContractCall(pairAddress, "get_reserves", [], context);
   // Same reasoning as the router quote below: an unvalidated decode reaches the
   // operator as a plausible number on a screen they sign from. A zero here would
   // spot at 0 and render "Minimum: ~0" beside a real expected output.
@@ -110,7 +131,7 @@ export async function readSoroswapPool(input: {
   ) {
     throw new AppError("UPSTREAM_RPC", `Soroswap pair ${pairAddress} returned unusable reserves`);
   }
-  const token0 = String(await simulateContractCall(pairAddress, "token_0"));
+  const token0 = String(await simulateContractCall(pairAddress, "token_0", [], context));
 
   return {
     routerAddress,
@@ -132,7 +153,8 @@ export async function readSoroswapQuote(input: {
   amountStroops: string;
   slippageBps: number;
 }): Promise<SoroswapQuote> {
-  const pool = await readSoroswapPool(input);
+  const context = { requestId: randomUUID() };
+  const pool = await readSoroswapPool(input, context);
   const inId = assetContractId(input.assetIn);
   const outId = assetContractId(input.assetOut);
   const amount = BigInt(input.amountStroops);
@@ -141,6 +163,7 @@ export async function readSoroswapQuote(input: {
     pool.routerAddress,
     "router_get_amounts_out",
     [nativeToScVal(amount, { type: "i128" }), xdr.ScVal.scvVec([addr(inId), addr(outId)])],
+    context,
   );
   // An empty vec or a scalar would otherwise fall through as a real "~0" quote,
   // which is worse than a visible failure on a screen the operator signs from.
