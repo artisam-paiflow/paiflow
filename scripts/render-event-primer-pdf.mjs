@@ -33,16 +33,25 @@ const find = (title) => {
 };
 const glance = find("At a glance");
 const program = find("Event program");
-const hackathon = find("Mini hackathon");
+const hackathon = nodes.some((n) => n.type === "heading" && plain(n) === "Hackathon schedule")
+  ? find("Hackathon schedule")
+  : find("Mini hackathon");
 const preparation = find("Preparation and integration timeline");
+const workshop = nodes.findIndex(
+  (n) => n.type === "heading" && plain(n) === "Workshop and seminar",
+);
 const challenge = find("The challenge");
 const prizes = find("Prizes");
+const coordination = nodes.findIndex(
+  (n) => n.type === "heading" && plain(n) === "Event support and coordination",
+);
+const pageCount = coordination < 0 ? 3 : 4;
 const title = plain(nodes[0]);
 const body = (items) => items.map(render).join("");
 const section = (start, end, number, className = "") =>
   `<section class="section ${className}"><div class="section-heading"><span class="number" aria-hidden="true">${number}</span>${render(nodes[start])}</div>${body(nodes.slice(start + 1, end))}</section>`;
 const footer = (number) =>
-  `<footer><span>${escape(title)}</span><span>${String(number).padStart(2, "0")} <span class="slash">/</span> 03</span></footer>`;
+  `<footer><span>${escape(title)}</span><span>${String(number).padStart(2, "0")} <span class="slash">/</span> ${String(pageCount).padStart(2, "0")}</span></footer>`;
 const examples = nodes.findIndex((n, i) => i > challenge && i < prizes && n.type === "table");
 if (examples < 0) throw new Error("Challenge examples table missing");
 const challengeHtml = `<section class="section challenge"><div class="section-heading"><span class="number" aria-hidden="true">04</span>${render(nodes[challenge])}</div>${body(nodes.slice(challenge + 1, examples + 1))}<div class="challenge-notes"><div>${body(nodes.slice(examples + 1, examples + 5))}</div><div>${body(nodes.slice(examples + 5, prizes))}</div></div></section>`;
@@ -62,8 +71,8 @@ h3{font-size:12pt;line-height:1.2;margin:13pt 0 7pt;break-after:avoid}
 p{margin:0 0 8pt}strong{font-weight:650}
 a{color:#0079c2;text-decoration:none;border-bottom:1px solid #acd7ef}
 code{font-family:'JetBrains Mono',monospace;font-size:7.5pt;color:#5b1641;overflow-wrap:anywhere}
-.hero{margin:-16mm -17mm 15pt;padding:18mm 17mm 14mm;background-color:#111013;color:#fff;background-image:radial-gradient(ellipse at 100% 0%,rgba(224,0,95,.22),transparent 70%),linear-gradient(rgba(255,177,196,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,177,196,.045) 1px,transparent 1px);background-size:auto,24px 24px,24px 24px;border-bottom:3pt solid #ffb1c4}
-.hero h1{max-width:145mm;color:#ffb1c4}
+.hero{margin:-16mm -17mm 15pt;padding:${title.length > 30 ? "12mm 17mm 9mm" : "18mm 17mm 12mm"};background-color:#111013;color:#fff;background-image:radial-gradient(ellipse at 100% 0%,rgba(224,0,95,.22),transparent 70%),linear-gradient(rgba(255,177,196,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,177,196,.045) 1px,transparent 1px);background-size:auto,24px 24px,24px 24px;border-bottom:3pt solid #ffb1c4}
+.hero h1{max-width:${title.length > 30 ? "176mm" : "145mm"};font-size:${title.length > 30 ? "26pt" : "34pt"};color:#ffb1c4}
 .hero .updated{font-family:'JetBrains Mono',monospace;font-size:7.3pt;color:#b9acb3;margin-bottom:15pt;letter-spacing:.025em}
 .hero .intro{font-size:10.2pt;line-height:1.55;color:#e3dde0;max-width:153mm}
 .hero .intro p{margin:0}
@@ -105,6 +114,7 @@ tr:nth-child(even){background:#f7f5f6}tr{break-inside:avoid}thead{display:table-
 .challenge table code{font-size:7pt}
 .challenge p:has(>strong:first-child){background:#eef7ff;padding:6pt 9pt;border-left:2pt solid #0079c2}
 .prizes{margin:0;break-inside:avoid}
+.coordination-page .prizes{margin-bottom:22pt}
 .prizes .section-heading{margin-bottom:7pt}
 .prizes table{font-size:8.4pt;margin:7pt 0 0}
 .prizes td,.prizes th{padding:4.5pt 7pt}
@@ -114,8 +124,9 @@ footer{position:absolute;bottom:10mm;left:17mm;right:17mm;padding-top:7pt;border
 footer .slash{color:#e0005f;margin:0 5pt}
 </style></head><body>
 <article class="sheet overview-page"><header class="hero">${render(nodes[0])}<div class="updated">${body(nodes.slice(1, 2))}</div><div class="intro">${body(nodes.slice(2, glance))}</div></header>${section(glance, program, "01", "overview")}${section(program, hackathon, "02", "program")}${footer(1)}</article>
-<article class="sheet"><section class="hackathon"><div class="track-heading"><span class="number" aria-hidden="true">02</span>${render(nodes[hackathon])}</div>${body(nodes.slice(hackathon + 1, find("Workshop and seminar")))}</section><section class="workshop">${body(nodes.slice(find("Workshop and seminar"), preparation))}</section>${section(preparation, challenge, "03", "preparation")}${footer(2)}</article>
-<article class="sheet challenge-page">${challengeHtml}${section(prizes, nodes.length, "05", "prizes")}${footer(3)}</article>
+<article class="sheet"><section class="hackathon"><div class="track-heading"><span class="number" aria-hidden="true">02</span>${render(nodes[hackathon])}</div>${body(nodes.slice(hackathon + 1, workshop < 0 ? preparation : workshop))}</section>${workshop < 0 ? "" : `<section class="workshop">${body(nodes.slice(workshop, preparation))}</section>`}${section(preparation, challenge, "03", "preparation")}${footer(2)}</article>
+<article class="sheet challenge-page">${challengeHtml}${coordination < 0 ? section(prizes, nodes.length, "05", "prizes") : ""}${footer(3)}</article>
+${coordination < 0 ? "" : `<article class="sheet coordination-page">${section(prizes, coordination, "05", "prizes")}${section(coordination, nodes.length, "06", "coordination")}${footer(4)}</article>`}
 </body></html>`;
 
 const browser = await chromium.launch();
