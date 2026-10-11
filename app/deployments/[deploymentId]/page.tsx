@@ -192,6 +192,14 @@ export default async function DeploymentPage({
               </span>
             </div>
           </div>
+          <div className="ml-auto shrink-0 self-start">
+            <RetirementPanel
+              displayMode="button"
+              deploymentId={d.id}
+              flowName={d.flow.name}
+              initial={{ serviceState: d.serviceState, retirementBlocker: null }}
+            />
+          </div>
         </div>
 
         <DeploymentView
@@ -226,10 +234,6 @@ export default async function DeploymentPage({
             webhookSecret={d.webhookSecret}
           />
         ) : null}
-        <RetirementPanel
-          deploymentId={d.id}
-          initial={{ serviceState: d.serviceState, retirementBlocker: null }}
-        />
       </main>
     </>
   );

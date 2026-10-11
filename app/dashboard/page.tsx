@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import Topbar from "@/components/app/topbar";
 import DeleteFlowButton from "@/components/flows/delete-flow-button";
+import RetirementPanel from "@/components/deploy/retirement-panel";
 import NewFlowButton from "@/components/flows/new-flow-button";
 import { isStellarNetwork, stellarExpertContractUrl } from "@/lib/stellar/explorer";
 
@@ -138,18 +139,15 @@ export default async function Dashboard() {
           ) : (
             <div className="gap-md grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {flows.map((f) => (
-                <div key={f.id} className="glass-panel rounded-xl">
+                <div key={f.id} className="glass-panel relative rounded-xl">
                   <Link
                     href={`/flows/${f.id}`}
                     className="glass-panel group gap-sm p-md hover:border-primary/50 flex flex-col rounded-xl transition-all duration-200 hover:shadow-[0_0_24px_-8px_rgba(255,177,196,0.5)]"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-label-sm text-primary inline-flex items-center gap-2 font-mono">
+                      <span className="text-label-sm text-primary inline-flex items-center gap-2 pr-10 font-mono">
                         <span className="bg-primary h-1.5 w-1.5 rounded-full" />
                         {f.templateKind?.toUpperCase() ?? "FLOW"}
-                      </span>
-                      <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-[16px] transition-colors">
-                        arrow_outward
                       </span>
                     </div>
                     <h3 className="text-headline-sm text-on-surface truncate">{f.name}</h3>
@@ -163,7 +161,11 @@ export default async function Dashboard() {
                       })}
                     </div>
                   </Link>
-                  <DeleteFlowButton flowId={f.id} hasDeployments={f._count.deployments > 0} />
+                  <DeleteFlowButton
+                    flowId={f.id}
+                    flowName={f.name}
+                    hasDeployments={f._count.deployments > 0}
+                  />
                 </div>
               ))}
             </div>
@@ -188,12 +190,12 @@ export default async function Dashboard() {
               <table className="w-full table-fixed">
                 <thead>
                   <tr className="bg-surface-container/60 text-label-sm text-on-surface-variant font-mono">
-                    <th className="px-md w-[32%] py-2.5 text-left">FLOW</th>
+                    <th className="px-md w-[28%] py-2.5 text-left">FLOW</th>
                     <th className="px-md w-[16%] py-2.5 text-left">STATUS</th>
                     <th className="px-md w-[16%] py-2.5 text-left">NETWORK</th>
                     <th className="px-md w-[12%] py-2.5 text-left">CONTRACT</th>
                     <th className="px-md w-[16%] py-2.5 text-right">CREATED</th>
-                    <th className="px-md w-[8%] py-2.5 text-left">Explorer</th>
+                    <th className="px-md w-[12%] py-2.5 text-left">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-outline-variant/10 divide-y">
@@ -270,22 +272,30 @@ export default async function Dashboard() {
                           </Link>
                         </td>
                         <td className="px-md py-0">
-                          {explorerUrl ? (
-                            <a
-                              href={explorerUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              aria-label="Open on stellar.expert"
-                              title="Open on stellar.expert"
-                              className="text-on-surface-variant hover:text-primary inline-flex h-8 w-8 items-center justify-center transition-colors"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">
-                                open_in_new
-                              </span>
-                            </a>
-                          ) : (
-                            <span className="inline-block h-8 w-8" aria-hidden />
-                          )}
+                          <div className="flex items-center gap-2">
+                            {explorerUrl ? (
+                              <a
+                                href={explorerUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label="Open on stellar.expert"
+                                title="Open on stellar.expert"
+                                className="text-on-surface-variant hover:text-primary inline-flex h-8 w-8 items-center justify-center transition-colors"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">
+                                  open_in_new
+                                </span>
+                              </a>
+                            ) : (
+                              <span className="inline-block h-8 w-8" aria-hidden />
+                            )}
+                            <RetirementPanel
+                              displayMode="icon"
+                              deploymentId={d.id}
+                              flowName={d.flow.name}
+                              initial={{ serviceState: d.serviceState, retirementBlocker: null }}
+                            />
+                          </div>
                         </td>
                       </tr>
                     );
