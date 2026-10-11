@@ -46,6 +46,9 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 vi.mock("@/lib/log", () => ({ log: { warn: vi.fn(), info: vi.fn(), error: vi.fn() } }));
 
+import { Address, StrKey, xdr } from "@stellar/stellar-sdk";
+import { AppError } from "@/lib/errors";
+import { depositSimulationFailure } from "@/lib/stellar/deposit-simulation-error";
 import { POST } from "@/app/api/deployments/[id]/trigger/route";
 import { log } from "@/lib/log";
 
@@ -257,5 +260,101 @@ describe("POST /api/deployments/[id]/trigger — amount shape", () => {
     const res = await call(((1n << 127n) - 1n).toString());
     expect(res.status).toBe(200);
     expect(mockPrepareWebhookDepositTx).toHaveBeenCalled();
+  });
+});
+
+// Exercise the real diagnostic classifier through the public route serializer.
+// Invocation/RPC integration is covered separately by trigger-timeout.test.ts.
+describe("public trustline status (#876)", () => {
+  const asset = StrKey.encodeContract(Buffer.alloc(32, 2));
+  const label = "USDC issued by " + RECIPIENT;
+  const raw = `HostError: Error(Contract, #13) contract:${asset}`;
+  const hint = {
+    addressMap: { [asset]: "stellar_asset" as const },
+    assetLabels: { [asset]: label },
+  };
+  function simulation(account: string, successful = false) {
+    return {
+      _parsed: true as const,
+      id: "1",
+      latestLedger: 1000,
+      error: raw,
+      events: [
+        new xdr.DiagnosticEvent({
+          inSuccessfulContractCall: successful,
+          event: new xdr.ContractEvent({
+            ext: new xdr.ExtensionPoint(0),
+            contractId: StrKey.decodeContract(asset) as unknown as xdr.Hash,
+            type: xdr.ContractEventType.diagnostic(),
+            body: new xdr.ContractEventBody(
+              0,
+              new xdr.ContractEventV0({
+                topics: [
+                  xdr.ScVal.scvSymbol("error"),
+                  xdr.ScVal.scvError(xdr.ScError.sceContract(13)),
+                ],
+                data: xdr.ScVal.scvVec([
+                  xdr.ScVal.scvString("trustline entry is missing for account"),
+                  new Address(account).toScVal(),
+                ]),
+              }),
+            ),
+          }),
+        }),
+      ],
+    };
+  }
+  beforeEach(() => {
+    mockDb.deployment.findFirst.mockResolvedValue(deployment());
+    mockPrepareTriggerTx.mockReset();
+  });
+
+  it.each([
+    ["sender", USER],
+    ["recipient", RECIPIENT],
+  ])("returns 422 with the proven %s and preserved diagnostics", async (role, account) => {
+    mockPrepareTriggerTx.mockImplementation(async () => {
+      throw depositSimulationFailure(simulation(account), hint, USER);
+    });
+    const res = await call(FIVE);
+    expect(res.status).toBe(422);
+    const { error } = await res.json();
+    expect(error.code).toBe("VALIDATION");
+    expect(error.message).toContain(`The ${role} (${account}) has no trustline for ${label}`);
+    expect(error.details).toBe(`Soroban simulate failed: ${raw}`);
+  });
+
+  it.each(["unmapped origin", "successful diagnostic"])(
+    "keeps ambiguous %s at its neutral 502 fallback",
+    async (variant) => {
+      mockPrepareTriggerTx.mockImplementation(async () => {
+        throw depositSimulationFailure(
+          simulation(USER, variant === "successful diagnostic"),
+          variant === "unmapped origin" ? undefined : hint,
+          USER,
+        );
+      });
+      const res = await call(FIVE);
+      expect(res.status).toBe(502);
+      const { error } = await res.json();
+      expect(error.code).toBe("UPSTREAM_RPC");
+      expect(error.message).not.toContain(`The sender (${USER})`);
+    },
+  );
+
+  it("preserves a true upstream error despite lookalike trustline wording", async () => {
+    mockPrepareTriggerTx.mockRejectedValue(
+      new AppError("UPSTREAM_RPC", "trustline entry is missing for account", undefined, raw),
+    );
+    const res = await call(FIVE);
+    expect(res.status).toBe(502);
+    expect((await res.json()).error.code).toBe("UPSTREAM_RPC");
+  });
+
+  it("leaves an unclassified transport exception at the existing public 500", async () => {
+    mockPrepareTriggerTx.mockRejectedValue(new Error("socket hang up"));
+    const res = await call(FIVE);
+    expect(res.status).toBe(500);
+    expect((await res.json()).error.code).toBe("INTERNAL");
   });
 });
