@@ -31,6 +31,12 @@ export default async function AdminHome() {
 
         <nav className="mt-md flex flex-wrap gap-2">
           <Link
+            href="/admin/google-signup-codes"
+            className="border-outline-variant/40 text-on-surface-variant rounded-lg border px-3 py-1.5"
+          >
+            GOOGLE SIGNUP CODES
+          </Link>
+          <Link
             href="/admin/users"
             className="border-outline-variant/40 bg-surface-container-low/40 text-label-md text-on-surface-variant hover:border-primary/40 hover:text-on-surface inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono transition-colors"
           >

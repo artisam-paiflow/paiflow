@@ -49,3 +49,53 @@ describe("Google sign-in UI", () => {
     expect(googleErrorMessage("email-conflict")).toContain("link Google from Account settings");
   });
 });
+
+describe("Google code modal", () => {
+  beforeEach(() => {
+    HTMLDialogElement.prototype.showModal = function () {
+      this.setAttribute("open", "");
+    };
+    HTMLDialogElement.prototype.close = function () {
+      this.removeAttribute("open");
+      this.dispatchEvent(new Event("close"));
+    };
+  });
+  it("opens the code modal before OAuth and automatically continues after server validation", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ data: { ok: true } }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<GoogleButton signup />);
+    await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    expect(signIn).not.toHaveBeenCalled();
+    const input = screen.getByLabelText("Access code");
+    await userEvent.type(input, "hackathon-code");
+    await userEvent.click(screen.getAllByRole("button", { name: "Continue with Google" })[1]!);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/google/signup",
+      expect.objectContaining({ body: JSON.stringify({ code: "hackathon-code" }) }),
+    );
+    expect(signIn).toHaveBeenCalledWith("google", { redirectTo: "/dashboard" });
+  });
+  it("keeps expired/disabled code feedback in the modal and does not start OAuth", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue({
+          ok: false,
+          json: async () => ({
+            error: { message: "This code is disabled. Ask your organizer for a new code." },
+          }),
+        }),
+    );
+    render(<GoogleButton signup />);
+    await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await userEvent.type(screen.getByLabelText("Access code"), "disabled-code");
+    await userEvent.click(screen.getAllByRole("button", { name: "Continue with Google" })[1]!);
+    expect(screen.getByRole("alert").textContent).toContain("disabled");
+    expect(signIn).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});

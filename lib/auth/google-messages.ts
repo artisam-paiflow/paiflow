@@ -3,6 +3,8 @@ export function googleErrorMessage(reason?: string): string {
   switch (reason) {
     case "rate-limited":
       return "Too many Google sign-in attempts. Try again in ten minutes.";
+    case "signup-code-required":
+      return "New accounts need a valid access code. Go to Create account and enter a code from your organizer.";
     case "registration-closed":
       return "New Google registrations are closed. Existing linked accounts can still sign in.";
     case "email-conflict":

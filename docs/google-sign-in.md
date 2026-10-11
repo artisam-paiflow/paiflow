@@ -28,7 +28,8 @@ configuration validation. Enabling Google registration while Google is unavailab
 Closing registration is enforced in the callback's database transaction, not only in the UI.
 Validated Google callbacks are capped at 20 attempts per identity per ten minutes; account linking
 initialization is capped at five per user per ten minutes. Google signup does not share the
-password-registration IP bucket, so participants on one Wi-Fi can register independently.
+password-registration IP bucket. Invitation validation uses ten attempts per browser and a
+600-attempt backstop per IP per ten minutes, sized for shared event Wi-Fi.
 Counters use the existing Redis limiter, with its usual per-process fallback when Redis is absent.
 
 Register each exact redirect URI used by an environment in the Google Web client:
@@ -48,6 +49,33 @@ refresh access are needed. Auth.js validates OIDC issuer, response, state, PKCE 
 only the `google` provider and validated Google `sub`; never persist/log provider tokens or codes.
 Refer to [Auth.js Google configuration](https://authjs.dev/getting-started/providers/google) and
 [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect).
+
+## Invited Google signup
+
+Apply migration `20261011120000_google_signup_codes` through `pnpm db:migrate:deploy` before
+running this release. It adds invitation codes and browser signup intents; it does not enable
+Google availability or registration.
+
+Admins open **Admin → Google signup codes** (`/admin/google-signup-codes`) to create a code with
+an event label and an expiry of **1, 7 or 30 days**. Expiry starts at creation, using elapsed 24-hour
+days. Copy the generated code immediately: it is shown once, stored only as a hash, and cannot
+be retrieved later. The admin list shows the latest 100 labels, expiry times and status. **Disable**
+immediately prevents that code from authorizing new or unfinished signups. It cannot be re-enabled;
+create a replacement code instead. Creation and disable actions record IDs in the audit log,
+never raw codes.
+
+Participants use **Create account → Continue with Google → Enter code**. Validating an active
+code automatically starts Google OAuth. A code is reusable by multiple participants until its
+expiry or disable time. Each validation creates a separate, single-use browser grant valid for
+at most ten minutes (and never beyond code expiry), carried in a protected HttpOnly cookie.
+Auth.js still checks state, PKCE and nonce. The server rechecks the invitation in the account
+creation transaction and consumes only that browser grant. OAuth cancellation clears the browser
+cookie; retry starts with another code validation. Expired intents are pruned during validation.
+
+Existing linked Google users sign in normally without a code, including while Google registration
+is closed. New identities entering through **Sign in** cannot create accounts without a valid
+browser grant and are directed to Create account. Codes do not override closed registration,
+link accounts by email, change roles, or affect username/password registration.
 
 ## Linking and recovery
 
@@ -78,7 +106,7 @@ changing live settings.
    Confirm Google is offered at login, no password-registration form is offered, and an unlinked
    identity cannot create an account (including calling the callback directly).
 2. Temporarily enable Google registration on the controlled testnet service. From a fresh browser,
-   register with Google. Confirm the browser's outbound `redirect_uri` is the exact HTTPS public
+   create an invitation in Admin, open Create account, and enter its code to register with Google. Confirm the browser's outbound `redirect_uri` is the exact HTTPS public
    callback, not a Railway container origin. Confirm the callback returns to the public app and
    sets its normal protected session cookie.
 3. Confirm one Paiflow user/identity exists with `USER`, `EXTERNAL`, no password, a valid unique
