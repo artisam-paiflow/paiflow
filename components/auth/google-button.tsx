@@ -3,17 +3,23 @@ import { useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import { googleStartUrl } from "@/lib/auth/google-navigation";
 import { safeReturnPath } from "@/lib/safe-return-path";
+import { cn } from "@/lib/utils";
+import styles from "./google-button.module.css";
 
 export default function GoogleButton({
   from,
   link = false,
   authOrigin,
   signup = false,
+  compact = false,
+  codeScreen = false,
 }: {
   from?: string;
   link?: boolean;
   authOrigin?: string;
   signup?: boolean;
+  compact?: boolean;
+  codeScreen?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [code, setCode] = useState("");
@@ -84,8 +90,53 @@ export default function GoogleButton({
       setBusy(false);
     }
   }
+  const signupForm = (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void start();
+      }}
+      className="grid gap-4"
+    >
+      {!codeScreen ? (
+        <h2 id="google-signup-title" className="font-display text-2xl">
+          Enter signup code
+        </h2>
+      ) : null}
+      <p className="text-on-surface-variant">
+        Enter the access code from your organizer to create your account with Google.
+      </p>
+      <label className="grid gap-2">
+        Access code
+        <input
+          autoFocus
+          required
+          maxLength={128}
+          autoComplete="off"
+          value={code}
+          onChange={(event) => setCode(event.target.value)}
+          disabled={busy}
+          className="border-outline-variant rounded-lg border bg-transparent p-3"
+        />
+      </label>
+      {error ? (
+        <p role="alert" className="text-error">
+          {error}
+        </p>
+      ) : null}
+      <button type="submit" disabled={busy} className={styles.googleButton}>
+        <GoogleButtonLabel busy={busy} />
+      </button>
+      {!codeScreen ? (
+        <button type="button" disabled={busy} onClick={() => dialog.current?.close()}>
+          Cancel
+        </button>
+      ) : null}
+    </form>
+  );
+  if (codeScreen) return <div className="glass-panel mt-md p-md rounded-xl">{signupForm}</div>;
   return (
-    <div className="mt-md grid gap-3">
+    <div className={cn("grid gap-3", !compact && "mt-md")}>
       <button
         type="button"
         disabled={busy}
@@ -108,9 +159,13 @@ export default function GoogleButton({
           setError(undefined);
           dialog.current?.showModal();
         }}
-        className="border-outline-variant text-on-surface rounded-lg border px-4 py-3 disabled:opacity-50"
+        className={
+          link
+            ? "border-outline-variant text-on-surface rounded-lg border px-4 py-3 disabled:opacity-50"
+            : styles.googleButton
+        }
       >
-        {busy ? "Connecting…" : link ? "Link Google" : "Continue with Google"}
+        {link ? busy ? "Connecting…" : "Link Google" : <GoogleButtonLabel busy={busy} />}
       </button>
       {signup ? (
         <dialog
@@ -125,48 +180,7 @@ export default function GoogleButton({
           }}
           className="bg-surface-container text-on-surface m-auto w-[calc(100%_-_2rem)] max-w-md rounded-xl p-6 backdrop:bg-black/60"
         >
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void start();
-            }}
-            className="grid gap-4"
-          >
-            <h2 id="google-signup-title" className="font-display text-2xl">
-              Enter code
-            </h2>
-            <p className="text-on-surface-variant">
-              Enter the access code from your organizer to create your account with Google.
-            </p>
-            <label className="grid gap-2">
-              Access code
-              <input
-                autoFocus
-                required
-                maxLength={128}
-                autoComplete="off"
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                disabled={busy}
-                className="border-outline-variant rounded-lg border bg-transparent p-3"
-              />
-            </label>
-            {error ? (
-              <p role="alert" className="text-error">
-                {error}
-              </p>
-            ) : null}
-            <button
-              type="submit"
-              disabled={busy}
-              className="bg-primary text-on-primary rounded-lg p-3 disabled:opacity-50"
-            >
-              {busy ? "Connecting…" : "Continue with Google"}
-            </button>
-            <button type="button" disabled={busy} onClick={() => dialog.current?.close()}>
-              Cancel
-            </button>
-          </form>
+          {signupForm}
         </dialog>
       ) : null}
       {!signup && error ? (
@@ -175,5 +189,16 @@ export default function GoogleButton({
         </p>
       ) : null}
     </div>
+  );
+}
+
+function GoogleButtonLabel({ busy }: { busy: boolean }) {
+  return (
+    <>
+      {/* Official Google brand asset; fixed dimensions preserve its proportions. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/google-g.png" alt="" width={20} height={20} className="shrink-0" />
+      <span>{busy ? "Connecting…" : "Continue with Google"}</span>
+    </>
   );
 }

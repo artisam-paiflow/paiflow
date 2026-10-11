@@ -1,0 +1,39 @@
+/* Google's light web button: https://developers.google.com/identity/branding-guidelines */
+@font-face {
+  font-family: "Google Sans Button";
+  src: url("../../app/fonts/google-sans-medium.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+.googleButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #747775;
+  border-radius: 4px;
+  background: #fff;
+  color: #1f1f1f;
+  font-family: "Google Sans Button", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.googleButton:hover {
+  background: #f8faff;
+}
+.googleButton:focus-visible {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
+.googleButton:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}

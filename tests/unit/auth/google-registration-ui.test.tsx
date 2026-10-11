@@ -12,8 +12,22 @@ vi.mock("@/components/auth/register-form", () => ({
 }));
 vi.mock("@/components/app/logo", () => ({ default: () => <span>Paiflow</span> }));
 import RegisterPage from "@/app/register/page";
+import GoogleSignupPage from "@/app/auth/signup/page";
 afterEach(() => cleanup());
 describe("independent registration UI gates", () => {
+  it("shows the signup code field immediately for a new Google user", async () => {
+    Object.assign(flags, { GOOGLE_AUTH_ENABLED: true, ALLOW_GOOGLE_REGISTRATION: true });
+    render(await GoogleSignupPage({ searchParams: Promise.resolve({ from: "/flows" }) }));
+    expect(screen.getByRole("heading", { name: "Complete your signup." })).toBeTruthy();
+    expect(screen.getByLabelText("Access code")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+  it("does not offer code entry when Google registration closes", async () => {
+    Object.assign(flags, { GOOGLE_AUTH_ENABLED: true, ALLOW_GOOGLE_REGISTRATION: false });
+    render(await GoogleSignupPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.queryByLabelText("Access code")).toBeNull();
+    expect(screen.getByRole("status").textContent).toContain("registrations are currently closed");
+  });
   it("offers Google registration without opening password registration", () => {
     Object.assign(flags, {
       ALLOW_PUBLIC_REGISTRATION: false,

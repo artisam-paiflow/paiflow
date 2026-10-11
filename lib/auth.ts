@@ -17,6 +17,7 @@ import {
   GOOGLE_LINK_COOKIE,
 } from "@/lib/auth/google";
 import { GOOGLE_SIGNUP_COOKIE } from "@/lib/auth/google-signup";
+import { safeReturnPath } from "@/lib/safe-return-path";
 import { isSessionCurrent } from "@/lib/auth/session-version";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
@@ -197,6 +198,15 @@ export const fullAuthConfig = {
         return true;
       } catch (error) {
         if (error instanceof GoogleAuthError) {
+          if (!session && error.reason === "signup-code-required") {
+            const origin = new URL(env().AUTH_URL).origin;
+            const target = new URL("/auth/signup", origin);
+            const callbackUrl = jar.get(
+              origin.startsWith("https:") ? "__Secure-authjs.callback-url" : "authjs.callback-url",
+            )?.value;
+            target.searchParams.set("from", safeReturnPath(callbackUrl, origin));
+            return target.toString();
+          }
           return `${env().AUTH_URL.replace(/\/$/, "")}/${session ? "account?googleError=" : "auth/error?error="}${error.reason}`;
         }
         throw error;

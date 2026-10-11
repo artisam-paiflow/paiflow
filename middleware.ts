@@ -15,6 +15,7 @@ const PUBLIC_PATHS = [
   /^\/forgot-password$/,
   /^\/auth\/new-password$/,
   /^\/auth\/error$/,
+  /^\/auth\/signup$/,
   /^\/api\/auth(\/.*)?$/,
   /^\/api\/health$/,
   /^\/api\/cron\/.*/,
@@ -54,7 +55,7 @@ function isPublic(pathname: string): boolean {
 
 // Auth-entry screens an already-authenticated user has no reason to see.
 // Visiting any of these while logged in bounces to the dashboard (issue #238).
-const AUTH_ENTRY_PATHS = [/^\/login$/, /^\/register$/, /^\/forgot-password$/];
+const AUTH_ENTRY_PATHS = [/^\/login$/, /^\/register$/, /^\/forgot-password$/, /^\/auth\/signup$/];
 
 function isAuthEntryPage(pathname: string): boolean {
   return AUTH_ENTRY_PATHS.some((re) => re.test(pathname));

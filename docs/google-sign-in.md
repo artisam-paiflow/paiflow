@@ -74,8 +74,12 @@ creation transaction and consumes only that browser grant. OAuth cancellation cl
 cookie; retry starts with another code validation. Expired intents are pruned during validation.
 
 Existing linked Google users sign in normally without a code, including while Google registration
-is closed. New identities entering through **Sign in** cannot create accounts without a valid
-browser grant and are directed to Create account. Codes do not override closed registration,
+is closed. The official light **Continue with Google** button appears beside password **Sign in**.
+New identities entering through **Sign in** are directed to **Complete your signup** (`/auth/signup`),
+with the access-code field immediately available and safe return navigation preserved. Validating
+the code starts a fresh Google OAuth flow to finish account creation. Invalid, expired or disabled
+codes show inline feedback. Older `signup-code-required` error links redirect to this screen.
+New identities cannot create accounts without a valid browser grant. Codes do not override closed registration,
 link accounts by email, change roles, or affect username/password registration.
 
 ## Linking and recovery
