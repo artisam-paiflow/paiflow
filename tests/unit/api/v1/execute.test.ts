@@ -503,6 +503,127 @@ describe("POST …/execute (prepare)", () => {
   });
 });
 
+describe("partner inbound amount admission (#876)", () => {
+  const fixedPay = (id: string, amountStroops: string) => ({
+    id,
+    type: "pay",
+    config: {
+      recipient: FROM,
+      asset: { kind: "native" },
+      mode: "fixed",
+      amountStroops,
+      fullAmount: false,
+    },
+  });
+  const fixedSplit = {
+    id: "s",
+    type: "split",
+    config: {
+      asset: { kind: "native" },
+      recipients: [{ address: FROM, mode: "fixed", amountStroops: "2500000" }],
+    },
+  };
+  function setGraph(actions: object[]) {
+    const nodes = [
+      { id: "t", type: "on_receive", config: { asset: { kind: "native" } } },
+      ...actions,
+    ];
+    authorize({
+      graphSnapshot: {
+        nodes,
+        edges: nodes.slice(1).map((node, i) => ({
+          id: `e${i}`,
+          source: (nodes[i] as { id: string }).id,
+          target: (node as { id: string }).id,
+        })),
+      },
+    });
+    mockPrepareTriggerTx.mockResolvedValue({ xdr: signedEnvelope() });
+  }
+
+  it.each(["2499999", "2500001"])(
+    "rejects terminal fixed Pay %s before preparation",
+    async (amount) => {
+      setGraph([fixedPay("p", "2500000")]);
+      const response = await callPrepare({ ...prepareBody, amount });
+      expect(response.status).toBe(422);
+      const { error } = await response.json();
+      expect(error.code).toBe("VALIDATION");
+      expect(error.message).toContain("exactly 0.25 XLM");
+      expect(error.fields.amount).toEqual(["Must be 0.25 XLM"]);
+      expect(mockPrepareTriggerTx).not.toHaveBeenCalled();
+      expect(audit).not.toHaveBeenCalled();
+    },
+  );
+
+  it("prepares the exact terminal fixed Pay amount", async () => {
+    setGraph([fixedPay("p", "2500000")]);
+    expect((await callPrepare({ ...prepareBody, amount: "2500000" })).status).toBe(200);
+    expect(mockPrepareTriggerTx).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: "2500000" }),
+    );
+  });
+
+  it.each(["4999999", "5000000", "5000001"])(
+    "bounds fixed Pay chains at their sum: %s",
+    async (amount) => {
+      setGraph([fixedPay("p", "2500000"), fixedPay("q", "2500000")]);
+      expect((await callPrepare({ ...prepareBody, amount })).status).toBe(
+        amount === "5000000" ? 200 : 422,
+      );
+    },
+  );
+
+  it.each(["1000000", "2500000", "2500001"])(
+    "preserves fixed Split batch/residual input %s",
+    async (amount) => {
+      setGraph([fixedSplit]);
+      expect((await callPrepare({ ...prepareBody, amount })).status).toBe(200);
+    },
+  );
+
+  it.each(["2499999", "2500000", "2500001"])(
+    "retains a fixed Pay floor before Split: %s",
+    async (amount) => {
+      setGraph([fixedPay("p", "2500000"), fixedSplit]);
+      expect((await callPrepare({ ...prepareBody, amount })).status).toBe(
+        amount === "2499999" ? 422 : 200,
+      );
+    },
+  );
+
+  it.each(["1", "2500001"])("preserves percentage Split input %s", async (amount) => {
+    setGraph([
+      {
+        id: "s",
+        type: "split",
+        config: {
+          asset: { kind: "native" },
+          recipients: [{ address: FROM, mode: "percentage", bps: 10000 }],
+        },
+      },
+    ]);
+    expect((await callPrepare({ ...prepareBody, amount })).status).toBe(200);
+  });
+
+  it.each(["1", "2500001"])("preserves percentage Pay input %s", async (amount) => {
+    setGraph([
+      {
+        id: "p",
+        type: "pay",
+        config: {
+          recipient: FROM,
+          asset: { kind: "native" },
+          mode: "percentage",
+          percentage: 50,
+          fullAmount: false,
+        },
+      },
+    ]);
+    expect((await callPrepare({ ...prepareBody, amount })).status).toBe(200);
+  });
+});
+
 describe("POST …/execute/submit", () => {
   describe("envelope assertion", () => {
     it.each([

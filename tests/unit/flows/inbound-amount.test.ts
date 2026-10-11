@@ -77,6 +77,21 @@ const chain = (nodes: unknown[], extra: object = {}) =>
   );
 
 describe("inboundRequirement", () => {
+  it("lets partner fixed Split deposits accumulate while public totals stay exact", () => {
+    const g = chain([trigger(), splitFixed("s")]);
+    expect(inboundRequirement(g)).toEqual({ kind: "exact", stroops: "80000000", asset: XLM });
+    expect(inboundRequirement(g, { fixedSplitBatching: true })).toEqual({ kind: "variable" });
+  });
+
+  it("retains the fixed Pay floor ahead of a partner batch Split", () => {
+    const g = chain([trigger(), payFixed("p", FIVE), splitFixed("s")]);
+    expect(inboundRequirement(g, { fixedSplitBatching: true })).toEqual({
+      kind: "minimum",
+      stroops: FIVE,
+      asset: XLM,
+    });
+  });
+
   it("locks a single fixed pay to its configured amount (the reported bug)", () => {
     expect(inboundRequirement(chain([trigger(), payFixed("p", FIVE)]))).toEqual({
       kind: "exact",

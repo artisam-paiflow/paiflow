@@ -33,7 +33,7 @@ export type CreatedApiToken = z.infer<typeof CreatedApiTokenSchema>;
 /** Stated wherever a caller can trip over them: the prepare docs and its 402/422 errors. */
 export const EXECUTE_PREREQUISITES =
   "`from` must be a funded account on this network: it pays the deposit and the fee, and signs " +
-  "the envelope. The flow's payout recipient must hold a trustline for the asset it receives; " +
+  "the envelope. For issued assets, the sender and payout recipients must hold trustlines for the assets they transfer; " +
   "a missing trustline reverts the whole pipeline.";
 
 export const ExecutePrepareSchema = z
@@ -44,7 +44,7 @@ export const ExecutePrepareSchema = z
       // Zod still runs this after the regex fails, and BigInt("1.5") throws.
       .refine((s) => !/^\d{1,39}$/.test(s) || BigInt(s) > 0n, "Must be greater than zero")
       .describe(
-        "Amount to deposit into the flow's deposit trigger, in stroops of the flow's input asset.",
+        "Amount to deposit into the flow's deposit trigger, in stroops of the flow's input asset. A terminal chain of fixed Pay steps requires the exact total. Fixed Pay steps before a variable step require at least their total; fixed Split supports partial batch deposits and retained residuals.",
       ),
     from: z
       .string()

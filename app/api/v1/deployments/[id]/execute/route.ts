@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { audit } from "@/lib/audit";
 import { AppError } from "@/lib/errors";
+import { assertAmountMatchesFlow } from "@/lib/flows/assert-inbound-amount";
 import { env, stellarPassphrase } from "@/lib/env";
 import { v1Route } from "@/lib/api/v1/handler";
 import { V1_RATE_LIMITS } from "@/lib/api/v1/limits";
@@ -24,6 +25,10 @@ export const POST = v1Route(
       }),
     );
     const { nodes, triggerAddress } = resolveExecutablePipeline(deployment);
+
+    assertAmountMatchesFlow(deployment.id, deployment.graphSnapshot, input.amount, {
+      fixedSplitBatching: true,
+    });
 
     const { xdr } = await prepareTriggerTx({
       contractAddress: triggerAddress,
