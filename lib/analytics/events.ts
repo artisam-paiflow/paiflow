@@ -49,6 +49,7 @@ type TriggerStage = "wallet" | "prepare" | "sign" | "submit" | "onchain" | "stat
 export type EventMap = {
   api_request_completed: {
     request_id: string;
+    preparation_request_id?: string | null;
     endpoint: string;
     method: string;
     http_status: number;

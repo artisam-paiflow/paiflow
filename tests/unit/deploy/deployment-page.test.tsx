@@ -85,6 +85,55 @@ beforeEach(() => {
 });
 
 describe("owner deployment integration panel", () => {
+  it.each([
+    ["on_receive", "On Receive"],
+    ["web2_webhook", "HTTP Webhook"],
+  ])(
+    "labels a %s → Pay deployment from its snapshot despite the SPLITTER category",
+    async (type, label) => {
+      const fixture = deployment();
+      mocks.deployment.mockResolvedValue(
+        deployment({
+          flow: { name: "Rewards", templateKind: "SPLITTER" },
+          graphSnapshot: {
+            ...fixture.graphSnapshot,
+            nodes: [{ ...fixture.graphSnapshot.nodes[0], type }, fixture.graphSnapshot.nodes[1]],
+          },
+        }),
+      );
+      const view = render(await DeploymentPage({ params }));
+      expect(view.getByText(`Blocks: ${label} · Pay`)).toBeTruthy();
+      expect(view.queryByText("SPLITTER")).toBeNull();
+      expect(mocks.overview.mock.calls[0]![0].templateKind).toBe("SPLITTER");
+    },
+  );
+
+  it("lists branching outcome types once without implying a linear path", async () => {
+    const fixture = deployment();
+    mocks.deployment.mockResolvedValue(
+      deployment({
+        graphSnapshot: {
+          nodes: [
+            ...fixture.graphSnapshot.nodes,
+            { ...fixture.graphSnapshot.nodes[1], id: "pay2" },
+            {
+              id: "condition",
+              type: "condition",
+              config: { kind: "time_after", at: "2026-10-12T00:00:00Z" },
+            },
+            { id: "hold", type: "hold", config: {} },
+            { id: "return", type: "return_to_owner", config: {} },
+          ],
+          edges: [],
+        },
+      }),
+    );
+    const view = render(await DeploymentPage({ params }));
+    expect(
+      view.getByText("Blocks: HTTP Webhook · Pay · Condition · Hold · Return to owner"),
+    ).toBeTruthy();
+  });
+
   it("shows retirement progress without execution or integration controls", async () => {
     mocks.deployment.mockResolvedValue(
       deployment({

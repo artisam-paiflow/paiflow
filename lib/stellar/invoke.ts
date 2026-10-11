@@ -14,7 +14,9 @@ import { sorobanRpc, decodeContractAddress } from "./client";
 import { stellarPassphrase } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { simulationFailure } from "./sim-error";
+import { depositSimulationFailure } from "./deposit-simulation-error";
 import { subscriptionChargeFailure } from "./subscription-charge-error";
+import { streamerRetrieveFailure } from "./streamer-retrieve-error";
 
 export type PreparedInvoke = {
   xdr: string;
@@ -300,7 +302,7 @@ export async function prepareDepositInvocation(opts: {
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
     const hint = typeof opts.hint === "function" ? await opts.hint() : opts.hint;
-    throw simulationFailure(sim.error, hint);
+    throw depositSimulationFailure(sim, hint, opts.invokerAddress);
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 
@@ -386,7 +388,13 @@ export async function prepareStreamerRetrieveUnvestedInvocation(opts: {
   invokerAddress: string;
 }): Promise<PreparedInvoke> {
   const server = sorobanRpc();
-  const sourceAcct = await server.getAccount(opts.invokerAddress);
+  const sourceAcct = await server.getAccount(opts.invokerAddress).catch((err: unknown) => {
+    if (err instanceof AppError) throw err;
+    throw new AppError(
+      "UPSTREAM_RPC",
+      "Unable to load the retrieval transaction account. Try again.",
+    );
+  });
 
   const contractIdBytes = decodeContractAddress(opts.contractAddress);
   const scAddress = xdr.ScAddress.scAddressTypeContract(contractIdBytes as unknown as xdr.Hash);
@@ -409,9 +417,12 @@ export async function prepareStreamerRetrieveUnvestedInvocation(opts: {
     .setTimeout(180)
     .build();
 
-  const sim = await server.simulateTransaction(tx);
+  const sim = await server.simulateTransaction(tx).catch((err: unknown) => {
+    if (err instanceof AppError) throw err;
+    throw new AppError("UPSTREAM_RPC", "Unable to simulate retrieval. Try again.");
+  });
   if (rpc.Api.isSimulationError(sim)) {
-    throw simulationFailure(sim.error, { contract: "streamer" });
+    throw streamerRetrieveFailure(sim, opts.contractAddress);
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 

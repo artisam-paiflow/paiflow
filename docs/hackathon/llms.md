@@ -1,15 +1,15 @@
 # Paiflow developer context guide
 
-Shared technical guidance updated Oct 10, 2026. API and product details checked against pinkraft `staging` @ b945e6a. Testnet only.
+Shared technical guidance updated Oct 11, 2026. API and product details checked against pinkraft `staging` @ b945e6a. Testnet only.
 
 ## Choose the right resource
 
-| Resource | Purpose |
-| --- | --- |
-| [Developer guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-guide.md) | Wallet setup, building and deploying a flow, and configuring the ready-wired starter. |
+| Resource                                                                                                             | Purpose                                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [Developer guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-guide.md)         | Wallet setup, building and deploying a flow, and configuring the ready-wired starter.                                      |
 | [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md) | A separate Next.js frontend/backend example for an app built without the starter. Do not copy its routes into the starter. |
-| [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md) | Endpoint schemas, errors, limits, pagination and advanced workflows. |
-| This `llms.md` | Product constraints, API details and examples for AI-assisted development. It complements the human walkthroughs. |
+| [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                     | Endpoint schemas, errors, limits, pagination and advanced workflows.                                                       |
+| This `llms.md`                                                                                                       | Product constraints, API details and examples for AI-assisted development. It complements the human walkthroughs.          |
 
 Both human guides live directly in `docs/hackathon/` and are event-neutral. Their PDFs mirror their Markdown sources. Event rules belong in the participant brief. `PAIFLOW_MODE` is a starter/sample control, not a Paiflow API setting; the API quickstart does not use it.
 
@@ -242,7 +242,7 @@ Preparation data has `xdr` (unsigned base64 envelope), `networkPassphrase`, `net
 
 Submit accepts only one deposit invocation on this deployment's trigger, not arbitrary operations or a fee-bump envelope. `?wait=false` returns once accepted; default `wait=true` waits for finality for a bounded period (about 25 seconds, with RPC calls capped at ten seconds). At most three concurrent waiters per token; extra calls still send and answer without waiting.
 
-Submission data has `txHash`, `status: "SUCCESS" | "PENDING" | "FAILED"`, optional `ledger`, and optional `error: { code, message }` for failure. **FAILED can be HTTP 200.** PENDING means not final: resubmit the **same signed envelope** to check again. A submission 502 can also mean it was broadcast already: retry the same envelope or poll its events, rather than preparing a duplicate payment. Retries are idempotent on transaction hash. SUCCESS records its decoded events before returning.
+Submission data has `txHash`, `status: "SUCCESS" | "PENDING" | "FAILED"`, optional `ledger`, and optional `error: { code, message }` for failure. **FAILED can be HTTP 200.** PENDING means not final: resubmit the **same signed envelope** to check again. A submission 502 can also mean it was broadcast already: retry the same envelope or poll its events, rather than preparing a duplicate payment. Retries are idempotent on transaction hash. Save the prepare response's `x-history-request-id` and send it as `x-preparation-request-id` on every submit/retry. This optional analytics link does not change transaction authorization or idempotency; missing links do not prove abandonment. SUCCESS records its decoded events before returning.
 
 ### Copy-paste curl
 
@@ -255,16 +255,18 @@ export PAIFLOW_TOKEN='pfk_YOUR_64_LOWERCASE_HEX_CHARACTERS'
 export FROM='YOUR_CUSTOMER_PUBLIC_G_ADDRESS'
 export RECIPIENT='YOUR_RECIPIENT_PUBLIC_G_ADDRESS'
 
-curl -sS --fail-with-body -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute" \
+curl -sS --fail-with-body -D /tmp/paiflow-prepared.headers -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute" \
   -H "Authorization: Bearer $PAIFLOW_TOKEN" -H 'Content-Type: application/json' \
   --data "$(jq -nc --arg from "$FROM" '{from:$from,amount:"100000000"}')" \
   > /tmp/paiflow-prepared.json
+EXECUTE_PREPARATION_ID=$(awk 'tolower($1)=="x-history-request-id:" {gsub("\r", "", $2); print $2}' /tmp/paiflow-prepared.headers)
 jq '.data | {xdr,networkPassphrase,network,expiresAt}' /tmp/paiflow-prepared.json
 
 # Send preparation data to the browser wallet. Copy its signed envelope here.
 # Signing is a wallet interaction, not a server-side secret-key script.
 read -r -p 'Wallet-signed XDR: ' SIGNED_XDR
 curl -sS --fail-with-body -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute/submit" \
+  -H "x-preparation-request-id: $EXECUTE_PREPARATION_ID" \
   -H "Authorization: Bearer $PAIFLOW_TOKEN" -H 'Content-Type: application/json' \
   --data "$(jq -nc --arg signedXdr "$SIGNED_XDR" '{signedXdr:$signedXdr}')"
 ```
@@ -282,6 +284,8 @@ type Prepared = {
   networkPassphrase: string;
   network: "testnet" | "mainnet";
   expiresAt: string;
+  // Local client metadata read from the response header, not the API JSON body.
+  preparationRequestId: string | null;
 };
 type Submitted = {
   txHash: string;
@@ -319,13 +323,18 @@ async function call<T>(
   method: "GET" | "POST",
   body?: unknown,
   query?: URLSearchParams,
+  preparationRequestId?: string | null,
 ): Promise<T> {
   const { origin, deploymentId, token } = config();
   const url = new URL(["api", "v1", "deployments", deploymentId, endpoint].join("/"), origin + "/");
   if (query) url.search = query.toString();
   const response = await fetch(url, {
     method,
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(preparationRequestId ? { "x-preparation-request-id": preparationRequestId } : {}),
+    },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const requestId = response.headers.get("x-request-id");
@@ -345,15 +354,27 @@ async function call<T>(
     );
   }
   if (!response.ok) throw new Error(unexpected);
+  if (endpoint === "execute" || endpoint === "payouts") {
+    return { ...result.data, preparationRequestId: response.headers.get("x-history-request-id") };
+  }
   return result.data;
 }
 export const prepareExecute = (input: { from: string; amount: string }) =>
   call<Prepared>("execute", "POST", input);
-export const submitExecute = (input: { signedXdr: string }, wait = true) =>
-  call<Submitted>("execute/submit", "POST", input, new URLSearchParams({ wait: String(wait) }));
+export const submitExecute = (
+  input: { signedXdr: string; preparationRequestId?: string | null },
+  wait = true,
+) =>
+  call<Submitted>(
+    "execute/submit",
+    "POST",
+    { signedXdr: input.signedXdr },
+    new URLSearchParams({ wait: String(wait) }),
+    input.preparationRequestId,
+  );
 ```
 
-In your browser checkout: request preparation from your own server, hand `xdr` and `networkPassphrase` to the wallet's transaction-signing function, then send its returned signed XDR to your own submit handler. Use the wallet adapter already in your starter; signing return shapes depend on that adapter. Do not add the bearer token to either browser call. The server handlers call `prepareExecute` and `submitExecute` above. Keep the same signed envelope while status is uncertain.
+In your browser checkout: request preparation from your own server, hand `xdr` and `networkPassphrase` to the wallet's transaction-signing function, then send its returned signed XDR to your own submit handler. Use the wallet adapter already in your starter; signing return shapes depend on that adapter. Do not add the bearer token to either browser call. The server handlers call `prepareExecute` and `submitExecute` above. Keep the same signed envelope and its `preparationRequestId` while status is uncertain. Pass `submitExecute({ signedXdr, preparationRequestId: prepared.preparationRequestId })`; use the same metadata with `submitPayout`. Forward this non-secret ID through your own server/browser boundary. Each new preparation gets its own ID; never reuse an earlier preparation's ID for a new envelope.
 
 ## GET events: cursor paging and freshness
 
@@ -414,16 +435,18 @@ Supported routes to that Pay are immediate amount conditions or fixed Split. A f
 **A deposit outside `/payouts` pays the last recipient set. Execute and direct deposits bypass the payout lease.** Keep them, owner changes and UI mutations from running concurrently with payouts. The lease does not isolate your deployment from those other paths. Only add envelope signatures to the prepared payout; changing source, amount, bounds, operations or authorisation entries is refused. Final retries are retained for seven days.
 
 ```bash
-curl -sS --fail-with-body -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/payouts" \
+curl -sS --fail-with-body -D /tmp/paiflow-payout.headers -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/payouts" \
   -H "Authorization: Bearer $PAIFLOW_TOKEN" -H 'Content-Type: application/json' \
   --data "$(jq -nc --arg from "$FROM" --arg recipient "$RECIPIENT" \
     '{from:$from,amount:"100000000",recipient:$recipient,nodeId:"pay"}')" \
   > /tmp/paiflow-payout.json
+PAYOUT_PREPARATION_ID=$(awk 'tolower($1)=="x-history-request-id:" {gsub("\r", "", $2); print $2}' /tmp/paiflow-payout.headers)
 jq '.data | {nodeId,xdr,networkPassphrase,network,expiresAt}' /tmp/paiflow-payout.json
 # Change nodeId "pay" to your actual Pay node id, or omit it if there is just one.
 # Customer signs .data.xdr in the browser wallet, with .data.networkPassphrase.
 read -r -p 'Wallet-signed payout XDR: ' SIGNED_XDR
 curl -sS --fail-with-body -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/payouts/submit" \
+  -H "x-preparation-request-id: $PAYOUT_PREPARATION_ID" \
   -H "Authorization: Bearer $PAIFLOW_TOKEN" -H 'Content-Type: application/json' \
   --data "$(jq -nc --arg signedXdr "$SIGNED_XDR" '{signedXdr:$signedXdr}')"
 ```
@@ -437,8 +460,17 @@ export const preparePayout = (input: {
   recipient: string;
   nodeId?: string;
 }) => call<Prepared & { nodeId: string }>("payouts", "POST", input);
-export const submitPayout = (input: { signedXdr: string }, wait = true) =>
-  call<Submitted>("payouts/submit", "POST", input, new URLSearchParams({ wait: String(wait) }));
+export const submitPayout = (
+  input: { signedXdr: string; preparationRequestId?: string | null },
+  wait = true,
+) =>
+  call<Submitted>(
+    "payouts/submit",
+    "POST",
+    { signedXdr: input.signedXdr },
+    new URLSearchParams({ wait: String(wait) }),
+    input.preparationRequestId,
+  );
 
 // Catch PaiflowError in your server handler. For status 409/429, forward status
 // and Retry-After to your UI; wait that many seconds before retrying.

@@ -3,6 +3,7 @@ import type { EventName } from "./events";
 const PROPERTIES: Record<EventName, readonly string[]> = {
   api_request_completed: [
     "request_id",
+    "preparation_request_id",
     "endpoint",
     "method",
     "http_status",
@@ -228,7 +229,7 @@ const WALLETS = new Set([
   "stellarwalletskit",
 ]);
 function approvedValue(key: string, value: unknown): unknown {
-  if (["request_id", "api_token_id", "token_creator_id"].includes(key))
+  if (["request_id", "preparation_request_id", "api_token_id", "token_creator_id"].includes(key))
     return value === null
       ? null
       : typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value)

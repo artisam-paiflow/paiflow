@@ -289,6 +289,10 @@ history is the git log.
   classification only and does not restrict access. Existing accounts can explicitly link Google
   with recent authentication while retaining their role, classification, email and resources.
   Matching email alone never merges accounts; sandbox accounts cannot link Google.
+- New Google accounts require reusable admin-managed access codes with 1/7/30-day expiry and
+  manual disable. Server-validated browser signup grants expire within ten minutes and are
+  consumed atomically at account creation; invitation expiry/disable is rechecked there. Existing
+  linked users sign in without codes.
 - Google-only accounts recover through Google. Local password change/reset and admin reset cannot
   enroll a password. Existing password recovery remains available. Configuration and hosted
   verification: [`docs/google-sign-in.md`](./docs/google-sign-in.md).

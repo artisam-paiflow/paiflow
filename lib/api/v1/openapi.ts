@@ -331,6 +331,23 @@ const deploymentIdParam = {
   example: EXAMPLE_DEPLOYMENT_ID,
 };
 
+const preparationRequestIdParam = {
+  name: "x-preparation-request-id",
+  in: "header",
+  required: false,
+  description:
+    "The preparation response's x-history-request-id. Send it with this prepared envelope and reuse it on retries; a new preparation gets a new ID. Optional analytics correlation only: it does not authorize or deduplicate a payment. Reports verify the account, token, deployment, operation and context before linking requests.",
+  schema: { type: "string", format: "uuid" },
+};
+
+const preparationResponseHeaders = {
+  "x-history-request-id": {
+    description:
+      "Server-generated request UUID. Keep it with the prepared envelope and send it as x-preparation-request-id on submit/retry. Missing linkage does not prove abandonment.",
+    schema: { type: "string", format: "uuid" },
+  },
+};
+
 const errorTable = (Object.keys(ERROR_STATUS) as ErrorCode[])
   .map((code) => `| \`${code}\` | ${ERROR_STATUS[code]} |`)
   .join("\n");
@@ -567,6 +584,7 @@ export const openApiDocument = {
         responses: {
           "200": {
             description: "Sign the unsigned envelope with from.",
+            headers: preparationResponseHeaders,
             content: json(dataEnvelope("#/components/schemas/PayoutPrepared"), {
               data: { ...examples.executeResponse.data, nodeId: "pay" },
             }),
@@ -607,6 +625,7 @@ export const openApiDocument = {
         security: [{ bearerAuth: [] }],
         parameters: [
           deploymentIdParam,
+          preparationRequestIdParam,
           {
             name: "wait",
             in: "query",
@@ -661,6 +680,7 @@ export const openApiDocument = {
         responses: {
           "200": {
             description: "The unsigned envelope.",
+            headers: preparationResponseHeaders,
             content: json(
               dataEnvelope("#/components/schemas/ExecutePrepared"),
               examples.executeResponse,
@@ -699,6 +719,7 @@ export const openApiDocument = {
         security: [{ bearerAuth: [] }],
         parameters: [
           deploymentIdParam,
+          preparationRequestIdParam,
           {
             name: "wait",
             in: "query",

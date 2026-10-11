@@ -147,6 +147,43 @@ describe("API request history boundary", () => {
       "b".repeat(64),
     ]);
   });
+  it.each(["execute", "payouts"])(
+    "preserves the %s preparation ID on submit retries",
+    async (operation) => {
+      const route = v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
+        NextResponse.json({ data: { ok: true } }),
+      );
+      const prepared = await route(request(operation), ctx);
+      const preparationId = prepared.headers.get("x-history-request-id")!;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const submit = request(`${operation}/submit`);
+        submit.headers.set("x-preparation-request-id", preparationId);
+        await route(submit, ctx);
+      }
+      const [prepare, first, retry] = mocks.queue.mock.calls.map((call) => call[0]);
+      expect(prepare.preparationRequestId).toBeNull();
+      expect(first.preparationRequestId).toBe(prepare.id);
+      expect(retry.preparationRequestId).toBe(prepare.id);
+      expect(first.requestId).not.toBe(retry.requestId);
+      expect(
+        eventProperties("api_request_completed", { preparation_request_id: preparationId }),
+      ).toEqual({
+        preparation_request_id: preparationId,
+      });
+    },
+  );
+  it.each([undefined, "pfk_synthetic", "not-a-uuid"])(
+    "keeps a missing or invalid preparation header out of telemetry (%s)",
+    async (value) => {
+      const submit = request("execute/submit");
+      if (value) submit.headers.set("x-preparation-request-id", value);
+      const response = await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
+        NextResponse.json({}),
+      )(submit, ctx);
+      expect(response.status).toBe(200);
+      expect(mocks.queue.mock.calls[0]![0].preparationRequestId).toBeNull();
+    },
+  );
   it("records the capabilities endpoint through storage and PostHog validation", async () => {
     await v1Route({ rateLimit: { limit: 5, windowSeconds: 60 } }, async () =>
       NextResponse.json({}),

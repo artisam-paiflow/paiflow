@@ -93,6 +93,7 @@ export async function drainApiRequests() {
                   occurredAt: new Date(record.occurredAt),
                   properties: {
                     request_id: record.requestId,
+                    preparation_request_id: record.preparationRequestId,
                     endpoint: record.endpoint,
                     method: record.method,
                     http_status: record.status,

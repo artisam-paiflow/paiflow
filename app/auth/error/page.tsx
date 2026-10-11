@@ -15,6 +15,7 @@ export default async function AuthError({
       <div className="mt-6 flex gap-6">
         <Link href="/login">Return to sign in</Link>
         <Link href="/account">Account settings</Link>
+        {error === "signup-code-required" ? <Link href="/register">Create account</Link> : null}
       </div>
     </main>
   );

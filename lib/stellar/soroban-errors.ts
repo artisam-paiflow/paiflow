@@ -241,7 +241,7 @@ export const CONTRACT_ERRORS: Record<ContractErrorKey, Record<number, ContractEr
     13: {
       name: "TrustlineMissingError",
       friendly:
-        "The payout recipient has no trustline for {asset}. The recipient must add a trustline for {asset} before this flow can pay them.",
+        "An account involved in this transfer has no trustline for {asset}. Add the missing trustline before trying again.",
     },
   },
   yield: {

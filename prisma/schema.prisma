@@ -982,3 +982,26 @@ model ServiceTransaction {
   @@index([txHash, state])
   @@index([state, createdAt])
 }
+
+// Reusable event invitations. The raw code is shown only when created.
+model GoogleSignupCode {
+  id         String   @id @default(uuid()) @db.Uuid
+  label      String
+  codeHash   String   @unique
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  disabledAt DateTime?
+  intents    GoogleSignupIntent[]
+}
+
+// A single browser authorization, never the reusable invitation itself.
+model GoogleSignupIntent {
+  id        String   @id @default(uuid()) @db.Uuid
+  tokenHash String   @unique
+  codeId    String   @db.Uuid
+  expiresAt DateTime
+  code      GoogleSignupCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([codeId])
+}

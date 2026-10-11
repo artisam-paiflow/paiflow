@@ -1,6 +1,7 @@
 import type { FlowGraph, FlowNode } from "@/lib/flows/schema";
 import { assetLabel, isAction, isLogic, isTrigger } from "@/lib/flows/schema";
 import { BRANCH_LABEL, edgeBranch, isBranchingCondition } from "@/lib/flows/branches";
+import { NODE_TYPE_LABELS } from "@/lib/flows/node-labels";
 
 /** Display data only: never pass node configs to a public canvas. */
 export type CanvasGraph = {
@@ -25,7 +26,9 @@ function nodeLabel(n: FlowNode): string {
     case "oracle":
       return `Oracle (${assetLabel(n.config.asset)})`;
     case "pay":
-      return "Pay";
+    case "hold":
+    case "return_to_owner":
+      return NODE_TYPE_LABELS[n.type];
     case "split":
       return n.config.recipients.length > 0 ? `Split (${n.config.recipients.length})` : "Split";
     case "swap":

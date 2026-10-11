@@ -31,6 +31,22 @@ Reports accept the link only when the persisted prepare/submit records match the
 authenticated account, token, deployment, network, environment and operation.
 No association is inferred from sharing an account/deployment.
 
+New request outbox events include `request_id` and nullable
+`preparation_request_id`, so the same explicit link is available alongside HTTP
+status and transaction outcomes. A supplied ID alone is not verified attribution;
+apply the same context and operation checks when querying PostHog.
+
+The API report's `submission_linkage` section measures verified link coverage for
+authenticated execute/payout submit requests with a validated hash in the selected
+window. It counts requests, including retries, rather than unique transactions.
+It separates `with_preparation_id`, `verified_linked_requests`,
+`missing_preparation_id` and `unmatched_preparation_id`. `linkage_coverage_percent`
+is verified linked requests divided by `submitted_requests`; it is null when the
+denominator is zero. A matching successful preparation may precede the report
+start, but must follow cutover and be within 24 hours of the submit. Missing or
+unmatched IDs are coverage gaps, not proof of abandoned payments. Existing
+historical rows remain unchanged.
+
 Duration covers wrapper entry through response preparation, before the telemetry
 acknowledgement. It excludes transfer time and streaming lifetime. An HTTP 200 is
 not a confirmed blockchain transaction; use the separate outcome report.
