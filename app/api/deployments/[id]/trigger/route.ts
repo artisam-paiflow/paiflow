@@ -9,7 +9,7 @@ import { prepareStreamerTopUpInvocation } from "@/lib/stellar/invoke";
 import { stellarPassphrase } from "@/lib/env";
 import { buildPipelineErrorHint } from "@/lib/stellar/pipeline-error-hint";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
-import { assertAmountMatchesFlow } from "@/lib/flows/assert-inbound-amount";
+import { assertAmountMatchesFlow } from "@/lib/stellar/assert-inbound-amount";
 import { stroopsSchema } from "@/lib/flows/primitives";
 
 const PostSchema = z.object({

@@ -2,8 +2,8 @@ import "server-only";
 import { AppError } from "@/lib/errors";
 import { log } from "@/lib/log";
 import { formatStroops } from "@/lib/utils";
-import { FlowGraphSchema, assetLabel, migrateFlowGraph } from "./schema";
-import { inboundRequirement } from "./inbound-amount";
+import { FlowGraphSchema, assetLabel, migrateFlowGraph } from "@/lib/flows/schema";
+import { inboundRequirement } from "@/lib/flows/inbound-amount";
 
 /**
  * Refuse an amount the pipeline will not consume as configured.
