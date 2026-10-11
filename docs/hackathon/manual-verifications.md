@@ -13,6 +13,39 @@ or promotion requires retesting, preserving links to previous evidence.
 
 ## Ready for verification after promotion
 
+### Wallet cancellation — #808 / PR #831
+
+Hosted candidate: <https://pinkraft-prod.up.railway.app>, testnet, full promotion
+commit `c1db0a8c290e03d8ef15f37ac53e218aed8a9b11` (#837). User-reported desktop
+results on 7 October 2026 cover the visible cancellation message and reopening the
+signing prompt on retry. Later session records also report DB/log/PostHog
+corroboration: four signing failures classified user_rejected, one error_shown
+each, and no submit/status-poll/signed-transaction records. This is recorded
+historical completion; the temporary evidence files were unavailable during the
+10 October reconciliation, and it is not fresh beta verification. Reported clock
+times are approximate; timezone and browser/wallet versions were not independently
+confirmed. See issue #808's 10 October verification reconciliation.
+
+- [x] Desktop Freighter deployment: user reported cancellation message and retry
+      working at approximately 9:25.
+- [x] Desktop Freighter payment/trigger: user reported completing rejection,
+      cancellation-message and retry checks at approximately 9:29.
+- [x] Recorded 7 October desktop analytics: `deploy_failed` / `trigger_failed` with
+      `stage: sign` and `error_class: user_rejected`, plus matching `error_shown`.
+      Session records report no submission or confirmation polling for these
+      rejected attempts. Historical corroboration and evidence limits are
+      described above; current-beta checks remain separate.
+- [ ] **Deferred at the user's request, 7 October 2026 — mobile WalletConnect
+      deployment cancellation.** Resume only when requested: connect a real mobile
+      wallet on testnet, reject the signing request, verify “Transaction cancelled
+      in your wallet.” and retry reopening signing, then reject again. Verify
+      cancellation analytics and no submission/polling; record device, browser,
+      wallet/version, deployed commit, time/timezone and sanitized evidence.
+- [ ] **Deferred at the user's request, 7 October 2026 — mobile WalletConnect
+      payment cancellation.** Repeat the same rejection/retry, analytics and
+      no-submission checks on the payment/trigger screen. Closing a picker or
+      allowing a connection to expire does not complete signing cancellation.
+
 ### Public embed security — #789 / PR #836
 
 Use an isolated testnet HTTP Webhook → Pay/Split deployment and controlled team

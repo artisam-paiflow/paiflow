@@ -1,7 +1,9 @@
 # PostHog usage-v2 dashboard definitions
 
-These are reviewable definitions ready for installation after rollout; they do
-not claim an existing hosted dashboard has been changed. The [tracking plan](alpha-tracking-plan.md)
+These are reviewable definitions. Initial hosted installation was recorded on
+6 October 2026; see [#808 verification status](808-verification-status.md) for
+evidence limits and remaining current-beta checks. This document does not change
+the hosted dashboard. The [tracking plan](alpha-tracking-plan.md)
 defines identity, scope and denominators. Every insight must pin the actual
 `AnalyticsPolicy.activatedAt`, end timestamp, network and audience.
 
@@ -79,6 +81,8 @@ Operational totals use the largest `outcome_revision` per hash, rather than deli
 order or timestamps that can tie. Pre-revision events default to revision 0; they are
 not rewritten or backfilled. Operational totals rely on the outbox and stable insert IDs. Journeys depend on
 browser delivery and may be incomplete. PostHog's project retention/window and
-HogQL compatibility must be checked during installation; this local definition
-has not executed against a live project. Preserve historical dashboards and add
+HogQL compatibility must be checked during installation; initial live installation was recorded on 6 October 2026 (project 610680,
+dashboard 2175078, 19 panels). See [#808 verification status](808-verification-status.md)
+for evidence qualifications and current-beta checks; installation does not prove
+current filters, cohort activity or retention. Preserve historical dashboards and add
 a new dashboard titled **Paiflow usage-v2 — classified future cohorts**.

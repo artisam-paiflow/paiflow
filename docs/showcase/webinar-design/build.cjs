@@ -30,7 +30,7 @@ const W = 13.333
 const M = 0.7 // slide margin
 const CW = W - 2 * M // content width
 const TOP = 1.95 // first content row under a title
-const TOTAL = 5
+const TOTAL = 6
 const bg = (name) => path.join(__dirname, 'assets', `${name}.jpg`)
 
 // ---------- helpers ----------
@@ -208,6 +208,12 @@ function flowNode(s,x,y,w,h,title,detail,color=C.accent){
  T(s,'Join a university event to bring Paiflow to more students\nthrough a booth, a mini hackathon, or both.',{x:M,y:5.8,w:CW,h:.6,fontSize:16,color:C.muted})
  T(s,'Draw the flow. Sign it. Watch it land.',{x:M,y:6.47,w:CW,h:.32,fontSize:20,bold:true,color:C.accent})
  T(s,'paiflow.xyz',{x:10.8,y:6.54,w:1.8,h:.22,fontSize:10,fontFace:MONO,color:C.blue})
+}
+{
+ const s=newSlide({title:'Follow Paiflow on X.',eyebrow:'STAY CONNECTED',background:'bg-hero'})
+ s.addImage({path:path.join(__dirname,'assets','x-usepaiflow-qr.png'),x:(W-3.3)/2,y:2.1,w:3.3,h:3.3,hyperlink:{url:'https://x.com/usepaiflow'}})
+ T(s,'@usepaiflow',{x:M,y:5.7,w:CW,h:.6,fontSize:32,bold:true,color:C.accent,align:'center',hyperlink:{url:'https://x.com/usepaiflow'}})
+ T(s,'Scan to follow',{x:M,y:6.42,w:CW,h:.3,fontSize:15,color:C.muted,align:'center'})
 }
 pres.author='Mychal Andres B. Pejana'
 pres.subject='Five-minute InstaAwards showcase with a required live demo'
