@@ -387,7 +387,7 @@ export const openApiDocument = {
       "The public instance runs on Stellar **testnet**. Guide: `docs/api/README.md`.",
     ].join("\n"),
   },
-  servers: [{ url: "https://paiflow.xyz", description: "Public instance (Stellar testnet)" }],
+  servers: [{ url: "https://beta.app.paiflow.xyz", description: "Beta app (Stellar testnet)" }],
   tags: [
     {
       name: "Capabilities",
