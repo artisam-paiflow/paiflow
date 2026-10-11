@@ -70,7 +70,7 @@ export default function DeleteFlowButton({
         ref={dialog}
         aria-labelledby={`delete-flow-title-${flowId}`}
         aria-describedby={`delete-flow-description-${flowId}`}
-        className="bg-surface-container-low text-on-surface border-outline-variant/30 fixed inset-0 m-auto w-[calc(100%_-_2rem)] max-w-md overflow-hidden rounded-2xl border p-0 shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop:bg-black/70 backdrop:backdrop-blur-sm"
+        className="bg-surface-container-low text-on-surface border-outline-variant/30 fixed inset-0 m-auto max-h-[calc(100dvh_-_2rem)] w-[calc(100%_-_2rem)] max-w-md overflow-y-auto rounded-2xl border p-0 shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop:bg-black/70 backdrop:backdrop-blur-sm"
         onCancel={(event) => {
           if (busy) event.preventDefault();
         }}

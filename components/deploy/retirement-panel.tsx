@@ -36,6 +36,7 @@ export default function RetirementPanel({
   }, [confirming, displayMode]);
   useEffect(() => {
     if (state.serviceState !== "RETIRING") return;
+    if (displayMode !== "panel" && !confirming) return;
     const timer = setInterval(() => {
       void fetch(`/api/deployments/${deploymentId}/retirement`)
         .then(async (response) => {
@@ -49,7 +50,7 @@ export default function RetirementPanel({
         .catch(() => setError("Retirement progress is temporarily unavailable."));
     }, 5000);
     return () => clearInterval(timer);
-  }, [deploymentId, router, state.serviceState]);
+  }, [confirming, deploymentId, displayMode, router, state.serviceState]);
   async function retire() {
     const body = RetireDeploymentSchema.safeParse({
       confirmation: "Permanently retire deployment",
