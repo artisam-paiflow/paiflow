@@ -48,7 +48,7 @@ describe("hackathon AI context pack", () => {
           });
         }
         globalThis.fetch = async () => Response.json({ data: { xdr: "prepared" } });
-        assert.deepEqual(await prepareExecute({ from: "test-account", amount: "1" }), { xdr: "prepared" });
+        assert.deepEqual(await prepareExecute({ from: "test-account", amount: "1" }), { xdr: "prepared", preparationRequestId: null });
         globalThis.fetch = async () => Response.json({ error: { code: "RATE_LIMITED", message: "Slow down" } }, {
           status: 429, headers: { "x-request-id": "api-request-123", "Retry-After": "60" },
         });

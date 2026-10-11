@@ -1,22 +1,22 @@
 # Paiflow API quickstart
 
-Updated Oct 10, 2026
+Updated Oct 11, 2026
 
 Connect your own app to a deployed Paiflow flow without using the hackathon starter. This example shows the complete payment path: your server prepares a payment, the customer signs in Freighter, your server submits it, and your app checks the outcome and payout events.
 
 ### Choose the right resource
 
-| Resource                                                                                                                             | Use it when you want to…                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Resource                                                                                                                      | Use it when you want to…                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | [Developer guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-guide.md)                  | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
 | [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md)          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
 | [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                              | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                                       |
 | [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                 | Import the machine-readable API contract into development tools.                                                   |
 | [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Try API requests with your deployment UUID and token.                                                              |
-| [AI developer context (`llms.md`)](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md)                   | Give your AI assistant product rules, API details and worked examples.                                             |
-| [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter)                                                   | Get working payment preparation, Freighter signing, submission and event reads without implementing them yourself. |
-| [Freighter Testnet setup](https://developers.stellar.org/docs/build/guides/freighter/connect-testnet)                                | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
-| [Stellar Expert Testnet](https://stellar.expert/explorer/testnet)                                                                    | Inspect transaction evidence and verify actual payouts.                                                            |
+| [AI developer context (`llms.md`)](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md)            | Give your AI assistant product rules, API details and worked examples.                                             |
+| [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter)                                            | Get working payment preparation, Freighter signing, submission and event reads without implementing them yourself. |
+| [Freighter Testnet setup](https://developers.stellar.org/docs/build/guides/freighter/connect-testnet)                         | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
+| [Stellar Expert Testnet](https://stellar.expert/explorer/testnet)                                                             | Inspect transaction evidence and verify actual payouts.                                                            |
 
 Follow your participant brief for event rules, preparation permissions, deadlines and submissions.
 
@@ -68,7 +68,7 @@ Create `app/api/payment/route.js`. It exposes only preparation, submission, tran
 ```javascript
 import "server-only";
 
-async function upstream(path, options = {}) {
+async function upstream(path, options = {}, preparationRequestId = null) {
   const origin = new URL(process.env.PAIFLOW_BASE_URL);
   const id = process.env.PAIFLOW_DEPLOYMENT_ID;
   const token = process.env.PAIFLOW_API_TOKEN;
@@ -89,12 +89,13 @@ async function upstream(path, options = {}) {
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      ...(preparationRequestId ? { "x-preparation-request-id": preparationRequestId } : {}),
     },
     cache: "no-store",
     signal: AbortSignal.timeout(35000),
   });
   const headers = { "Cache-Control": "no-store" };
-  for (const name of ["Retry-After", "x-request-id"]) {
+  for (const name of ["Retry-After", "x-request-id", "x-history-request-id"]) {
     const value = response.headers.get(name);
     if (value) headers[name] = value;
   }
@@ -140,15 +141,24 @@ export async function POST(request) {
     }
     if (
       body.action === "submit" &&
-      Object.keys(body).length === 2 &&
+      Object.keys(body).every((key) =>
+        ["action", "signedXdr", "preparationRequestId"].includes(key),
+      ) &&
+      (body.preparationRequestId == null ||
+        (typeof body.preparationRequestId === "string" &&
+          /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(body.preparationRequestId))) &&
       typeof body.signedXdr === "string" &&
       body.signedXdr.length >= 10 &&
       body.signedXdr.length <= 200000
     ) {
-      return await upstream("execute/submit", {
-        method: "POST",
-        body: JSON.stringify({ signedXdr: body.signedXdr }),
-      });
+      return await upstream(
+        "execute/submit",
+        {
+          method: "POST",
+          body: JSON.stringify({ signedXdr: body.signedXdr }),
+        },
+        body.preparationRequestId,
+      );
     }
     return invalid();
   } catch {
@@ -175,6 +185,8 @@ export async function GET(request) {
 ```
 
 The API validates the address checksum and transaction contents; the local route also restricts the accepted shape. `amount` is an integer string in the input asset's smallest units: **1 XLM = `"10000000"`**. For a real checkout, calculate the price from your server's order data with exact arithmetic, rather than trusting a browser-supplied total.
+
+The route forwards `x-history-request-id` from preparation. The browser keeps that non-secret ID with the signed envelope and sends it back on every submit/retry; the route forwards it as `x-preparation-request-id`. It is analytics metadata, not wallet authorization. A new preparation gets a new ID. Older deployments without the header still work, but those submissions remain unlinked in analytics.
 
 ## 3 Connect Freighter, sign and submit
 
@@ -210,6 +222,9 @@ async function api(url, body) {
     error.retryAfter = response.headers.get("Retry-After");
     error.requestId = response.headers.get("x-request-id");
     throw error;
+  }
+  if (body?.action === "prepare") {
+    return { ...result.data, preparationRequestId: response.headers.get("x-history-request-id") };
   }
   return result.data;
 }
@@ -249,7 +264,7 @@ export default function Checkout() {
   async function submit() {
     const data = await api("/api/payment", {
       action: "submit",
-      signedXdr: envelope.current,
+      ...envelope.current,
     });
     setResult(data);
     if (data.status === "SUCCESS" || data.status === "FAILED") {
@@ -288,7 +303,10 @@ export default function Checkout() {
     if (signed.error || !signed.signedTxXdr || signed.signerAddress !== from) {
       throw new Error("Payment was not signed by the expected customer.");
     }
-    envelope.current = signed.signedTxXdr;
+    envelope.current = {
+      signedXdr: signed.signedTxXdr,
+      preparationRequestId: prepared.preparationRequestId,
+    };
     setUncertain(true); // Save before submit, including timeout/error cases.
     await submit();
   }
@@ -339,11 +357,11 @@ Run `pnpm dev` and open `http://localhost:3000`. Review the asset, amount, netwo
 
 Select **Pay 1 XLM**, sign in Freighter, and inspect the returned `status` and `txHash`. HTTP 200 alone is not payment confirmation.
 
-| Result                                 | What to do                                                                                            |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `SUCCESS`                              | Payment confirmed. Select Read payout events and verify the expected two recipients and amounts.      |
-| `FAILED`                               | Submission rejected or transaction failed. Read the error and check transaction status before preparing another payment.                    |
-| `PENDING` or an uncertain submit error | Keep the tab open. Check again submits the same signed envelope; it does not create a second payment. |
+| Result                                 | What to do                                                                                                               |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `SUCCESS`                              | Payment confirmed. Select Read payout events and verify the expected two recipients and amounts.                         |
+| `FAILED`                               | Submission rejected or transaction failed. Read the error and check transaction status before preparing another payment. |
+| `PENDING` or an uncertain submit error | Keep the tab open. Check again submits the same signed envelope; it does not create a second payment.                    |
 
 **Look up status** checks `GET /api/v1/deployments/{id}/transactions/{txHash}` without resubmitting. It may also return `REJECTED` (submission refusal, not on-chain failure) or `UNKNOWN` (insufficient evidence). Neither `UNKNOWN`, a `404`, nor a timeout proves failure or authorises a replacement payment. Keep checking the original transaction; create a replacement only after confirmed failure or verified expiry without inclusion on-chain.
 

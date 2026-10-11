@@ -36,14 +36,6 @@
       "value": "10000000"
     },
     {
-      "key": "unsignedXdr",
-      "value": ""
-    },
-    {
-      "key": "signedXdr",
-      "value": ""
-    },
-    {
       "key": "txHash",
       "value": ""
     },
@@ -68,6 +60,36 @@
     {
       "key": "webhookEventKey",
       "value": "task-completed-42"
+    },
+    {
+      "key": "executePreparationRequestId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payoutPreparationRequestId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "executeUnsignedXdr",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "executeSignedXdr",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payoutUnsignedXdr",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payoutSignedXdr",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -249,7 +271,7 @@
             }
           }
         },
-        "description": "Prepare the deposit that executes a deposit-triggered flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run in the same transaction. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`.\n\nRate limit: 30 requests per 60 seconds per token."
+        "description": "Prepare the deposit that executes a deposit-triggered flow. `from` must be a funded account on this network: it pays the deposit and the fee, and signs the envelope. The flow's payout recipient must hold a trustline for the asset it receives; a missing trustline reverts the whole pipeline.\n\nThe flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run in the same transaction. Sign the returned `xdr` with the `from` key using `networkPassphrase`, before `expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`.\n\nRate limit: 30 requests per 60 seconds per token.\n\nThe collection saves executeUnsignedXdr and its preparation ID. Sign this envelope and paste the result into executeSignedXdr. A successful new preparation replaces this operation's unsigned envelope and ID and clears its previous signed envelope. Failed preparations preserve the previous payment's retry data."
       },
       "event": [
         {
@@ -261,7 +283,11 @@
               "  pm.response.to.have.status(200);",
               "  const { data } = pm.response.json();",
               "  pm.expect(data.xdr).to.be.a('string');",
-              "  pm.collectionVariables.set('unsignedXdr', data.xdr);",
+              "  const preparationId = pm.response.headers.get('x-history-request-id');",
+              "  pm.collectionVariables.set('executeUnsignedXdr', data.xdr);",
+              "  pm.collectionVariables.unset('executeSignedXdr');",
+              "  pm.collectionVariables.unset('executePreparationRequestId');",
+              "  if (preparationId) pm.collectionVariables.set('executePreparationRequestId', preparationId);",
               "});"
             ]
           }
@@ -395,16 +421,27 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+          "raw": "{\n  \"signedXdr\": \"{{executeSignedXdr}}\"\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
         },
-        "description": "Submit a signed deposit that executes a deposit-triggered flow.\n\nThe envelope must be the one `execute` returned, signed by `from`: anything but a single `deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a fee-bump envelope.\n\nIdempotent on the envelope hash: submitting the same `signedXdr` again never sends a second transaction, it reports the one already on the network. That is also how to check a `PENDING` result. A transaction that reached the network and failed is a `200` with `status: FAILED` and an `error`, not an HTTP error.\n\nRate limit: 30 requests per 60 seconds per token."
+        "description": "Submit a signed deposit that executes a deposit-triggered flow.\n\nThe envelope must be the one `execute` returned, signed by `from`: anything but a single `deposit` call on this flow's trigger contract is refused with `VALIDATION`, as is a fee-bump envelope.\n\nIdempotent on the envelope hash: submitting the same `signedXdr` again never sends a second transaction, it reports the one already on the network. That is also how to check a `PENDING` result. A transaction that reached the network and failed is a `200` with `status: FAILED` and an `error`, not an HTTP error.\n\nRate limit: 30 requests per 60 seconds per token.\n\nThe collection sends the matching preparation response ID as x-preparation-request-id when available. Reuse it for retries of this envelope; a new prepare replaces its own operation ID. It is optional analytics metadata, not payment authorization."
       },
       "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const preparationId = pm.collectionVariables.get('executePreparationRequestId');",
+              "pm.request.headers.remove('x-preparation-request-id');",
+              "if (preparationId) pm.request.headers.upsert({ key: 'x-preparation-request-id', value: preparationId });"
+            ]
+          }
+        },
         {
           "listen": "test",
           "script": {
@@ -438,7 +475,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "raw": "{\n  \"signedXdr\": \"{{executeSignedXdr}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -474,7 +511,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "raw": "{\n  \"signedXdr\": \"{{executeSignedXdr}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -510,7 +547,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "raw": "{\n  \"signedXdr\": \"{{executeSignedXdr}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -723,7 +760,7 @@
             }
           }
         },
-        "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination. Payout deposits expire after 60 seconds; execute keeps 180 seconds. Sign and submit before expiresAt. A 409 includes Retry-After when a held transaction is known: seconds until maxTime, rounded up (minimum 1). It is advisory; ledger-time expiry or finality is still required and a retry may return 409 again."
+        "description": "Configure one immediate PAYER_DEV recipient and prepare its deposit. Requires functioning Redis. Fixed Split is accepted only with empty balances and immediate surplus forwarding. Fill via API uses 100%; configured values must leave no funds in Pay. Sign xdr and submit it with the same token to payouts/submit. Direct deposits, execute, owner transactions and legacy mutations bypass coordination. Payout deposits expire after 60 seconds; execute keeps 180 seconds. Sign and submit before expiresAt. A 409 includes Retry-After when a held transaction is known: seconds until maxTime, rounded up (minimum 1). It is advisory; ledger-time expiry or finality is still required and a retry may return 409 again.\n\nThe collection saves payoutUnsignedXdr and its preparation ID. Sign this envelope and paste the result into payoutSignedXdr. A successful new preparation replaces this operation's unsigned envelope and ID and clears its previous signed envelope. Failed preparations preserve the previous payment's retry data."
       },
       "event": [
         {
@@ -735,7 +772,11 @@
               "  pm.response.to.have.status(200);",
               "  const { data } = pm.response.json();",
               "  pm.expect(data.xdr).to.be.a('string');",
-              "  pm.collectionVariables.set('unsignedXdr', data.xdr);",
+              "  const preparationId = pm.response.headers.get('x-history-request-id');",
+              "  pm.collectionVariables.set('payoutUnsignedXdr', data.xdr);",
+              "  pm.collectionVariables.unset('payoutSignedXdr');",
+              "  pm.collectionVariables.unset('payoutPreparationRequestId');",
+              "  if (preparationId) pm.collectionVariables.set('payoutPreparationRequestId', preparationId);",
               "});"
             ]
           }
@@ -913,16 +954,27 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+          "raw": "{\n  \"signedXdr\": \"{{payoutSignedXdr}}\"\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
         },
-        "description": "Only the exact prepared deposit for this deployment and token is accepted, with envelope signatures added. Retry the same signedXdr on PENDING. Protection remains through uncertain outcomes and can only be replaced after finality or ledger-time expiry. Final retries cannot release newer holders."
+        "description": "Only the exact prepared deposit for this deployment and token is accepted, with envelope signatures added. Retry the same signedXdr on PENDING. Protection remains through uncertain outcomes and can only be replaced after finality or ledger-time expiry. Final retries cannot release newer holders.\n\nThe collection sends the matching preparation response ID as x-preparation-request-id when available. Reuse it for retries of this envelope; a new prepare replaces its own operation ID. It is optional analytics metadata, not payment authorization."
       },
       "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const preparationId = pm.collectionVariables.get('payoutPreparationRequestId');",
+              "pm.request.headers.remove('x-preparation-request-id');",
+              "if (preparationId) pm.request.headers.upsert({ key: 'x-preparation-request-id', value: preparationId });"
+            ]
+          }
+        },
         {
           "listen": "test",
           "script": {
@@ -956,7 +1008,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "raw": "{\n  \"signedXdr\": \"{{payoutSignedXdr}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -993,7 +1045,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "raw": "{\n  \"signedXdr\": \"{{payoutSignedXdr}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1030,7 +1082,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+              "raw": "{\n  \"signedXdr\": \"{{payoutSignedXdr}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
