@@ -225,6 +225,24 @@ describe("Google Auth.js callback integration", () => {
   });
 
   it.each([
+    [undefined, "/dashboard"],
+    ["https://app.example/flows/new?template=payroll", "/flows/new?template=payroll"],
+    ["https://attacker.example/", "/dashboard"],
+  ])(
+    "asks new Google users for a signup code and preserves safe return navigation: %s",
+    async (callbackUrl, from) => {
+      h.cookieGet.mockImplementation((name) =>
+        name === "__Secure-authjs.callback-url" && callbackUrl ? { value: callbackUrl } : undefined,
+      );
+      h.resolve.mockRejectedValueOnce(new GoogleAuthError("signup-code-required"));
+      const target = new URL(String(await googleSignIn()));
+      expect(target.origin).toBe("https://app.example");
+      expect(target.pathname).toBe("/auth/signup");
+      expect(target.searchParams.get("from")).toBe(from);
+    },
+  );
+
+  it.each([
     null,
     { ...USER, isActive: false },
     { ...USER, role: "SANDBOX" },
