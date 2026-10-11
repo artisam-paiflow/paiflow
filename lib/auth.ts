@@ -16,6 +16,7 @@ import {
   GoogleAuthError,
   GOOGLE_LINK_COOKIE,
 } from "@/lib/auth/google";
+import { GOOGLE_SIGNUP_COOKIE } from "@/lib/auth/google-signup";
 import { isSessionCurrent } from "@/lib/auth/session-version";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
@@ -172,6 +173,15 @@ export const fullAuthConfig = {
         return `${env().AUTH_URL.replace(/\/$/, "")}/auth/error?error=account-disabled`;
       const jar = await cookies();
       const intent = jar.get(GOOGLE_LINK_COOKIE)?.value;
+      const signupToken = jar.get(GOOGLE_SIGNUP_COOKIE)?.value;
+      if (signupToken)
+        jar.set(GOOGLE_SIGNUP_COOKIE, "", {
+          path: "/",
+          secure: process.env.NODE_ENV === "production",
+          httpOnly: true,
+          sameSite: "lax",
+          maxAge: 0,
+        });
       // Clear regardless of success. Database consumption is atomic and remains
       // authoritative if two callbacks carry the same browser cookie.
       if (intent)
@@ -183,7 +193,7 @@ export const fullAuthConfig = {
           maxAge: 0,
         });
       try {
-        await resolveGoogleUser(profile, account.providerAccountId, session, intent);
+        await resolveGoogleUser(profile, account.providerAccountId, session, intent, signupToken);
         return true;
       } catch (error) {
         if (error instanceof GoogleAuthError) {

@@ -22,7 +22,7 @@ export default function RegisterPage() {
       </h1>
 
       {env().GOOGLE_AUTH_ENABLED && env().ALLOW_GOOGLE_REGISTRATION ? (
-        <GoogleButton authOrigin={new URL(env().AUTH_URL).origin} />
+        <GoogleButton signup authOrigin={new URL(env().AUTH_URL).origin} />
       ) : null}
 
       {allowed ? (

@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { rateLimit } from "@/lib/rate-limit";
+import { signupHash } from "@/lib/auth/google-signup";
 
 export const GOOGLE_LINK_COOKIE =
   process.env.NODE_ENV === "production" ? "__Host-paiflow.google-link" : "paiflow.google-link";
@@ -29,7 +30,8 @@ export class GoogleAuthError extends Error {
       | "provider-conflict"
       | "account-disabled"
       | "unavailable"
-      | "rate-limited",
+      | "rate-limited"
+      | "signup-code-required",
   ) {
     super(reason);
   }
@@ -131,6 +133,7 @@ export async function resolveGoogleUser(
   providerAccountId: string,
   session: GoogleSession | null,
   linkToken?: string,
+  signupToken?: string,
 ): Promise<User> {
   if (!env().GOOGLE_AUTH_ENABLED) throw new GoogleAuthError("unavailable");
   const profile = GoogleProfileSchema.parse(profileInput);
@@ -213,6 +216,23 @@ export async function resolveGoogleUser(
             })
           )
             throw new GoogleAuthError("email-conflict");
+          const intent = signupToken
+            ? await tx.googleSignupIntent.findUnique({
+                where: { tokenHash: signupHash(signupToken) },
+                include: { code: true },
+              })
+            : null;
+          if (
+            !intent ||
+            intent.expiresAt <= new Date() ||
+            intent.code.disabledAt ||
+            intent.code.expiresAt <= new Date()
+          )
+            throw new GoogleAuthError("signup-code-required");
+          const consumed = await tx.googleSignupIntent.deleteMany({
+            where: { id: intent.id, expiresAt: { gt: new Date() } },
+          });
+          if (consumed.count !== 1) throw new GoogleAuthError("signup-code-required");
           const user = await tx.user.create({
             data: {
               username: `google_${randomUUID().replaceAll("-", "").slice(0, 24)}`,

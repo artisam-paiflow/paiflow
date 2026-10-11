@@ -124,7 +124,13 @@ describe("Google Auth.js callback integration", () => {
       return USER;
     });
     expect(await googleSignIn()).toBe(true);
-    expect(h.resolve).toHaveBeenCalledWith(PROFILE, ACCOUNT.providerAccountId, null, undefined);
+    expect(h.resolve).toHaveBeenCalledWith(
+      PROFILE,
+      ACCOUNT.providerAccountId,
+      null,
+      undefined,
+      undefined,
+    );
     const persisted = await adapter.getUserByAccount!(key);
     expect(persisted).toMatchObject({
       id: USER.id,
@@ -148,7 +154,9 @@ describe("Google Auth.js callback integration", () => {
   it("passes explicit linking consent and authentication claims, then clears the browser grant", async () => {
     const authenticatedAt = Date.now();
     h.auth.mockResolvedValue({ user: { id: USER.id, sessionVersion: 4, authenticatedAt } });
-    h.cookieGet.mockReturnValue({ value: "one-use-link-grant" });
+    h.cookieGet.mockImplementation((name) =>
+      name === GOOGLE_LINK_COOKIE ? { value: "one-use-link-grant" } : undefined,
+    );
     expect(await googleSignIn()).toBe(true);
     expect(h.cookieGet).toHaveBeenCalledWith(GOOGLE_LINK_COOKIE);
     expect(h.cookieSet).toHaveBeenCalledWith(GOOGLE_LINK_COOKIE, "", {
@@ -163,6 +171,7 @@ describe("Google Auth.js callback integration", () => {
       ACCOUNT.providerAccountId,
       { id: USER.id, sessionVersion: 4, authenticatedAt },
       "one-use-link-grant",
+      undefined,
     );
   });
 

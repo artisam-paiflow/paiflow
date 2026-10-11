@@ -7,9 +7,11 @@ export function googleStartUrl(
   currentOrigin: string,
   link: boolean,
   from?: string,
+  signup = false,
 ): string | null {
   if (!authOrigin || currentOrigin === authOrigin) return null;
-  const target = new URL(link ? "/account" : "/login", authOrigin);
+  const target = new URL(link ? "/account" : signup ? "/register" : "/login", authOrigin);
+  if (signup) target.searchParams.set("googleSignup", "1");
   if (!link) target.searchParams.set("from", safeReturnPath(from, currentOrigin));
   return target.toString();
 }

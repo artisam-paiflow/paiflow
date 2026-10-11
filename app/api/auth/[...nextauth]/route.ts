@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { handlers } from "@/lib/auth";
+import { GOOGLE_SIGNUP_COOKIE } from "@/lib/auth/google-signup";
 import { env } from "@/lib/env";
 
 /** Railway can rewrite Host to its internal container. Use the operator's
@@ -19,7 +20,15 @@ function canonicalRequest(req: NextRequest) {
   });
 }
 export async function GET(req: NextRequest) {
-  return handlers.GET(canonicalRequest(req));
+  const response = await handlers.GET(canonicalRequest(req));
+  // Also clear on cancellation/OIDC errors, which never reach signIn callback.
+  if (req.nextUrl.pathname === "/api/auth/callback/google") {
+    response.headers.append(
+      "set-cookie",
+      `${GOOGLE_SIGNUP_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${process.env.NODE_ENV === "production" ? "; Secure" : ""}`,
+    );
+  }
+  return response;
 }
 export async function POST(req: NextRequest) {
   return handlers.POST(canonicalRequest(req));

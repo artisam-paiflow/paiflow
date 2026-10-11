@@ -23,6 +23,17 @@ vi.mock("@/lib/env", async (original) => {
   const module = await original<typeof import("@/lib/env")>();
   return { ...module, env: () => ({ ...module.env(), ...config }) };
 });
+import {
+  createGoogleSignupCode,
+  createGoogleSignupIntent,
+  signupHash,
+} from "@/lib/auth/google-signup";
+const codeIds: string[] = [];
+async function signupGrant() {
+  const code = await createGoogleSignupCode({ label: "OAuth integration test", days: 1 });
+  codeIds.push(code.id);
+  return createGoogleSignupIntent({ code: code.code });
+}
 const prefix = `oauth862-${randomUUID()}`;
 const ids: string[] = [];
 function profile(sub = randomUUID(), email = `${sub}@example.com`) {
@@ -47,6 +58,7 @@ beforeEach(() => {
   config.ALLOW_GOOGLE_REGISTRATION = true;
 });
 afterAll(async () => {
+  await db.googleSignupCode.deleteMany({ where: { id: { in: codeIds } } });
   await db.user.deleteMany({ where: { id: { in: ids } } });
 });
 
@@ -57,6 +69,8 @@ describe("Google identity persistence (scratch Postgres)", () => {
       { ...p, role: "ADMIN", analyticsAudience: "INTERNAL" },
       p.sub,
       null,
+      undefined,
+      await signupGrant(),
     );
     ids.push(user.id);
     expect(user).toMatchObject({
@@ -80,6 +94,70 @@ describe("Google identity persistence (scratch Postgres)", () => {
       1,
     );
   });
+  it("reuses an event code for separate users but never reuses their browser grants", async () => {
+    const code = await createGoogleSignupCode({ label: "Reusable event", days: 7 });
+    codeIds.push(code.id);
+    const firstGrant = await createGoogleSignupIntent({ code: code.code });
+    const first = profile();
+    const firstUser = await resolveGoogleUser(first, first.sub, null, undefined, firstGrant);
+    ids.push(firstUser.id);
+    expect(
+      await db.googleSignupIntent.findUnique({ where: { tokenHash: signupHash(firstGrant) } }),
+    ).toBeNull();
+    const second = profile();
+    await expect(
+      resolveGoogleUser(second, second.sub, null, undefined, firstGrant),
+    ).rejects.toThrow("signup-code-required");
+    const secondGrant = await createGoogleSignupIntent({ code: code.code });
+    const secondUser = await resolveGoogleUser(second, second.sub, null, undefined, secondGrant);
+    ids.push(secondUser.id);
+    expect(secondUser.id).not.toBe(firstUser.id);
+    expect(await db.googleSignupCode.findUnique({ where: { id: code.id } })).toMatchObject({
+      disabledAt: null,
+    });
+  });
+  it.each(["disable", "code-expiry", "grant-expiry"])(
+    "rejects %s after validation with no partial account",
+    async (kind) => {
+      const code = await createGoogleSignupCode({ label: "Callback recheck", days: 1 });
+      codeIds.push(code.id);
+      const grant = await createGoogleSignupIntent({ code: code.code });
+      if (kind === "disable")
+        await db.googleSignupCode.update({
+          where: { id: code.id },
+          data: { disabledAt: new Date() },
+        });
+      if (kind === "code-expiry")
+        await db.googleSignupCode.update({
+          where: { id: code.id },
+          data: { expiresAt: new Date(0) },
+        });
+      if (kind === "grant-expiry")
+        await db.googleSignupIntent.update({
+          where: { tokenHash: signupHash(grant) },
+          data: { expiresAt: new Date(0) },
+        });
+      const p = profile();
+      await expect(resolveGoogleUser(p, p.sub, null, undefined, grant)).rejects.toThrow(
+        "signup-code-required",
+      );
+      expect(await db.user.count({ where: { email: p.email } })).toBe(0);
+      expect(await db.googleIdentity.count({ where: { providerAccountId: p.sub } })).toBe(0);
+    },
+  );
+  it("denies missing or tampered browser grants on direct sign-in while valid grants never override closed registration", async () => {
+    const p = profile();
+    await expect(resolveGoogleUser(p, p.sub, null)).rejects.toThrow("signup-code-required");
+    await expect(resolveGoogleUser(p, p.sub, null, undefined, "forged-grant")).rejects.toThrow(
+      "signup-code-required",
+    );
+    const grant = await signupGrant();
+    config.ALLOW_GOOGLE_REGISTRATION = false;
+    await expect(resolveGoogleUser(p, p.sub, null, undefined, grant)).rejects.toThrow(
+      "registration-closed",
+    );
+    expect(await db.user.count({ where: { email: p.email } })).toBe(0);
+  });
   it("retries a real unique username collision without leaving a partial user", async () => {
     const fixed = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       p = profile();
@@ -91,27 +169,28 @@ describe("Google identity persistence (scratch Postgres)", () => {
     });
     ids.push(occupied.id);
     uuidControl.values.push(fixed);
-    const user = await resolveGoogleUser(p, p.sub, null);
+    const user = await resolveGoogleUser(p, p.sub, null, undefined, await signupGrant());
     ids.push(user.id);
     expect(user.username).not.toBe(occupied.username);
     expect(await db.user.count({ where: { email: p.email } })).toBe(1);
   });
   it("throttles validated Google identities without sharing a registration bucket by IP", async () => {
     const p = profile();
-    const user = await resolveGoogleUser(p, p.sub, null);
+    const user = await resolveGoogleUser(p, p.sub, null, undefined, await signupGrant());
     ids.push(user.id);
     for (let i = 1; i < 20; i++) await resolveGoogleUser(p, p.sub, null);
     await expect(resolveGoogleUser(p, p.sub, null)).rejects.toThrow("rate-limited");
     const q = profile();
-    const other = await resolveGoogleUser(q, q.sub, null);
+    const other = await resolveGoogleUser(q, q.sub, null, undefined, await signupGrant());
     ids.push(other.id);
     expect(other.id).not.toBe(user.id);
     expect(await db.user.count({ where: { email: p.email } })).toBe(1);
   });
   it("concurrent registration of the same sub creates no duplicates or orphans", async () => {
     const p = profile();
+    const grant = await signupGrant();
     const results = await Promise.all(
-      Array.from({ length: 3 }, () => resolveGoogleUser(p, p.sub, null)),
+      Array.from({ length: 3 }, () => resolveGoogleUser(p, p.sub, null, undefined, grant)),
     );
     ids.push(results[0]!.id);
     expect(new Set(results.map((u) => u.id)).size).toBe(1);
@@ -123,8 +202,8 @@ describe("Google identity persistence (scratch Postgres)", () => {
     const p = profile(randomUUID(), email),
       q = profile(randomUUID(), email);
     const results = await Promise.allSettled([
-      resolveGoogleUser(p, p.sub, null),
-      resolveGoogleUser(q, q.sub, null),
+      resolveGoogleUser(p, p.sub, null, undefined, await signupGrant()),
+      resolveGoogleUser(q, q.sub, null, undefined, await signupGrant()),
     ]);
     for (const result of results) if (result.status === "fulfilled") ids.push(result.value.id);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
@@ -241,7 +320,7 @@ describe("Google identity persistence (scratch Postgres)", () => {
   });
   it("refuses provider ownership/email collisions, sandbox and deactivated identities", async () => {
     const p = profile(),
-      registered = await resolveGoogleUser(p, p.sub, null);
+      registered = await resolveGoogleUser(p, p.sub, null, undefined, await signupGrant());
     ids.push(registered.id);
     const user = await existing(),
       session = { id: user.id, sessionVersion: 0, authenticatedAt: Date.now() },
