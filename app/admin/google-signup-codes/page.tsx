@@ -1,18 +1,13 @@
 import { Role } from "@prisma/client";
 import { requirePageSession } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { signupCodeSelect } from "@/lib/auth/google-signup";
+import { listGoogleSignupCodes } from "@/lib/auth/google-signup";
 import Topbar from "@/components/app/topbar";
 import GoogleSignupCodes from "@/components/admin/google-signup-codes";
 
 export const dynamic = "force-dynamic";
 export default async function GoogleSignupCodesPage() {
   const user = await requirePageSession({ role: Role.ADMIN });
-  const rows = await db.googleSignupCode.findMany({
-    select: signupCodeSelect,
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
+  const { data: rows, nextCursor } = await listGoogleSignupCodes();
   return (
     <>
       <Topbar username={user.username} />
@@ -23,6 +18,7 @@ export default async function GoogleSignupCodesPage() {
           Google registration is enabled.
         </p>
         <GoogleSignupCodes
+          initialNextCursor={nextCursor}
           initial={rows.map((row) => ({
             ...row,
             createdAt: row.createdAt.toISOString(),

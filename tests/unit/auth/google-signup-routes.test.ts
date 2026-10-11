@@ -102,7 +102,7 @@ describe("Google invitation API security", () => {
       h.require.mockRejectedValue(new AppError("FORBIDDEN", "Insufficient permissions"));
       const response =
         operation === "list"
-          ? await list()
+          ? await list(new NextRequest("https://app.example/api/admin/google-signup-codes"))
           : operation === "create"
             ? await create(request("/api/admin/google-signup-codes"))
             : await disable(request("/api/admin/google-signup-codes/id"), {
@@ -126,7 +126,9 @@ describe("Google invitation API security", () => {
     });
   });
   it("admin listing uses a selection that excludes hashes and raw codes", async () => {
-    const response = await list();
+    const response = await list(
+      new NextRequest("https://app.example/api/admin/google-signup-codes"),
+    );
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(h.list.mock.calls[0]![0].select).not.toHaveProperty("codeHash");
     expect(h.list.mock.calls[0]![0].select).not.toHaveProperty("code");
@@ -145,5 +147,70 @@ describe("Google invitation API security", () => {
       userId: "admin-id",
       metadata: { codeId: id },
     });
+  });
+  it.each(["", "not-a-uuid", "-1", "1.5"])(
+    "rejects invalid pagination cursor %j before querying codes",
+    async (cursor) => {
+      const response = await list(
+        new NextRequest(`https://app.example/api/admin/google-signup-codes?cursor=${cursor}`),
+      );
+      expect(response.status).toBe(422);
+      expect(h.list).not.toHaveBeenCalled();
+    },
+  );
+  it.each([0, 100, 101])("lists %i rows with accurate next-page metadata", async (count) => {
+    const rows = Array.from({ length: count }, (_, index) => ({ id: `code-${index}` }));
+    h.list.mockResolvedValue(rows);
+    const response = await list(
+      new NextRequest("https://app.example/api/admin/google-signup-codes"),
+    );
+    expect(await response.json()).toEqual({
+      data: rows.slice(0, 100),
+      nextCursor: count > 100 ? "code-99" : null,
+    });
+  });
+  it("keeps an active code reachable and disableable behind more than 100 newer codes", async () => {
+    const rows = Array.from({ length: 102 }, (_, index) => ({
+      id: `11111111-1111-4111-8111-${String(102 - index).padStart(12, "0")}`,
+      label: index === 101 ? "Older active code" : `Newer code ${index}`,
+      // Equal timestamps exercise the deterministic ID tie-breaker.
+      createdAt: new Date("2026-01-01"),
+      expiresAt: new Date("2099-01-01"),
+      disabledAt: null,
+    }));
+    h.list.mockImplementation(async ({ cursor, skip = 0, take }) => {
+      const start = cursor ? rows.findIndex((row) => row.id === cursor.id) + skip : 0;
+      return rows.slice(start, start + take);
+    });
+    const first = await list(new NextRequest("https://app.example/api/admin/google-signup-codes"));
+    const firstPage = await first.json();
+    expect(firstPage.data).toHaveLength(100);
+    expect(firstPage.nextCursor).toBe(rows[99]!.id);
+    const second = await list(
+      new NextRequest(
+        `https://app.example/api/admin/google-signup-codes?cursor=${firstPage.nextCursor}`,
+      ),
+    );
+    const secondPage = await second.json();
+    expect(secondPage.data.map((row: { id: string }) => row.id)).toEqual(
+      rows.slice(100).map((row) => row.id),
+    );
+    expect(secondPage.nextCursor).toBeNull();
+    expect(h.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        cursor: { id: rows[99]!.id },
+        skip: 1,
+        take: 101,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      }),
+    );
+    const oldCode = rows[101]!;
+    h.disable.mockResolvedValue({ ...oldCode, disabledAt: new Date() });
+    const response = await disable(request(`/api/admin/google-signup-codes/${oldCode.id}`), {
+      params: Promise.resolve({ id: oldCode.id }),
+    });
+    expect(response.status).toBe(200);
+    expect((await response.json()).data.disabledAt).toBeTruthy();
+    expect(h.disable).toHaveBeenCalledWith(expect.objectContaining({ where: { id: oldCode.id } }));
   });
 });

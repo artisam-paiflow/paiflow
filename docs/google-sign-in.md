@@ -59,7 +59,8 @@ Google availability or registration.
 Admins open **Admin → Google signup codes** (`/admin/google-signup-codes`) to create a code with
 an event label and an expiry of **1, 7 or 30 days**. Expiry starts at creation, using elapsed 24-hour
 days. Copy the generated code immediately: it is shown once, stored only as a hash, and cannot
-be retrieved later. The admin list shows the latest 100 labels, expiry times and status. **Disable**
+be retrieved later. The admin list shows labels, expiry times and status in pages of 100 codes,
+newest first. Use **Previous** and **Next** to reach older codes. **Disable**
 immediately prevents that code from authorizing new or unfinished signups. It cannot be re-enabled;
 create a replacement code instead. Creation and disable actions record IDs in the audit log,
 never raw codes.

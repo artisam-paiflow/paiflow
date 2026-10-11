@@ -32,6 +32,17 @@ export const signupCodeSelect = {
   disabledAt: true,
 } as const;
 
+export async function listGoogleSignupCodes(cursor?: string) {
+  const rows = await db.googleSignupCode.findMany({
+    select: signupCodeSelect,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: 101,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+  });
+  const data = rows.slice(0, 100);
+  return { data, nextCursor: rows.length > 100 ? data[data.length - 1]!.id : null };
+}
+
 export async function createGoogleSignupCode(input: unknown) {
   const { label, days } = CreateGoogleSignupCodeSchema.parse(input);
   const code = randomBytes(16).toString("hex");

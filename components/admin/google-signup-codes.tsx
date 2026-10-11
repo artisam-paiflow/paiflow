@@ -8,13 +8,45 @@ type Code = {
   expiresAt: string;
   disabledAt: string | null;
 };
-export default function GoogleSignupCodes({ initial }: { initial: Code[] }) {
+export default function GoogleSignupCodes({
+  initial,
+  initialNextCursor,
+}: {
+  initial: Code[];
+  initialNextCursor: string | null;
+}) {
   const [rows, setRows] = useState(initial);
+  const [nextCursor, setNextCursor] = useState(initialNextCursor);
+  const [pages, setPages] = useState<(string | undefined)[]>([undefined]);
   const [label, setLabel] = useState("");
   const [days, setDays] = useState(7);
   const [issued, setIssued] = useState<string>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  async function loadPage(cursor?: string) {
+    const response = await fetch(
+      `/api/admin/google-signup-codes${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
+      { cache: "no-store" },
+    );
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error?.message ?? "Could not load codes.");
+    setRows(result.data);
+    setNextCursor(result.nextCursor);
+  }
+  async function navigate(forward: boolean) {
+    if (forward ? !nextCursor : pages.length === 1) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      const target = forward ? [...pages, nextCursor!] : pages.slice(0, -1);
+      await loadPage(target[target.length - 1]);
+      setPages(target);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not load codes.");
+    } finally {
+      setBusy(false);
+    }
+  }
   async function request(id?: string) {
     setBusy(true);
     setError(undefined);
@@ -28,10 +60,10 @@ export default function GoogleSignupCodes({ initial }: { initial: Code[] }) {
       if (!response.ok) throw new Error(result.error?.message ?? "Could not save code.");
       if (id) setRows((old) => old.map((row) => (row.id === id ? result.data : row)));
       else {
-        const { code, ...row } = result.data;
-        setRows((old) => [row, ...old].slice(0, 100));
-        setIssued(code);
+        setIssued(result.data.code);
         setLabel("");
+        await loadPage();
+        setPages([undefined]);
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save code.");
@@ -95,7 +127,7 @@ export default function GoogleSignupCodes({ initial }: { initial: Code[] }) {
         </p>
       ) : null}
       <p className="text-on-surface-variant">
-        Latest 100 codes. Disabling a code also blocks unfinished signups.
+        Codes are listed newest first. Disabling a code also blocks unfinished signups.
       </p>
       <ul className="grid gap-3">
         {rows.map((row) => {
@@ -131,6 +163,23 @@ export default function GoogleSignupCodes({ initial }: { initial: Code[] }) {
         })}
       </ul>
       {!rows.length ? <p>No codes created yet.</p> : null}
+      <nav aria-label="Signup code pagination" className="flex items-center justify-between gap-4">
+        <button
+          disabled={busy || pages.length === 1}
+          onClick={() => void navigate(false)}
+          className="border-outline-variant rounded-lg border px-4 py-2 disabled:opacity-50"
+        >
+          Previous
+        </button>
+        <span aria-live="polite">Page {pages.length}</span>
+        <button
+          disabled={busy || !nextCursor}
+          onClick={() => void navigate(true)}
+          className="border-outline-variant rounded-lg border px-4 py-2 disabled:opacity-50"
+        >
+          Next
+        </button>
+      </nav>
     </div>
   );
 }

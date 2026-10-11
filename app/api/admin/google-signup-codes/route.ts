@@ -1,25 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { requireSession } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { createGoogleSignupCode, signupCodeSelect } from "@/lib/auth/google-signup";
+import { z } from "zod";
+import { createGoogleSignupCode, listGoogleSignupCodes } from "@/lib/auth/google-signup";
 import { withErrorHandler } from "@/lib/errors";
 import { enforceWriteRateLimit } from "@/lib/api/write-rate-limit";
 import { audit } from "@/lib/audit";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   return withErrorHandler(async () => {
     await requireSession({ role: Role.ADMIN });
-    return NextResponse.json(
-      {
-        data: await db.googleSignupCode.findMany({
-          select: signupCodeSelect,
-          orderBy: { createdAt: "desc" },
-          take: 100,
-        }),
-      },
-      { headers: { "Cache-Control": "no-store" } },
-    );
+    const cursor = z
+      .string()
+      .uuid()
+      .optional()
+      .parse(req.nextUrl.searchParams.get("cursor") ?? undefined);
+    return NextResponse.json(await listGoogleSignupCodes(cursor), {
+      headers: { "Cache-Control": "no-store" },
+    });
   });
 }
 export async function POST(req: NextRequest) {
