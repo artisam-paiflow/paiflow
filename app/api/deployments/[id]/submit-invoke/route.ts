@@ -40,7 +40,7 @@ async function POSTHandler(req: NextRequest, ctx: { params: Promise<{ id: string
       ip,
     });
 
-    const result = await submitTriggerTx(body.signedXdr);
+    const result = await submitTriggerTx(body.signedXdr, { recoverFinality: true });
     if (result.status === "PENDING") {
       // `tx-status` runs its confirmation bookkeeping off this row, one per
       // hash: a duplicate send writes it only if the earlier one left none.

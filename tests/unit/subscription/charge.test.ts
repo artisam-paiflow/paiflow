@@ -142,6 +142,58 @@ describe("standard Subscription charge errors", () => {
       expect(mocks.audit).not.toHaveBeenCalled();
     },
   );
+  it("does not classify a nested failure propagated through the subscription frame", async () => {
+    const topics = [xdr.ScVal.scvSymbol("error"), xdr.ScVal.scvError(xdr.ScError.sceContract(4))];
+    mocks.server.simulateTransaction.mockResolvedValue({
+      ...allowanceFailure(),
+      error: "HostError: Error(Contract, #4)",
+      events: [
+        diagnostic(subscription, topics, xdr.ScVal.scvString("contract call failed")),
+        diagnostic(otherContract, topics, xdr.ScVal.scvString("recipient rejected payment")),
+      ],
+    });
+    expect((await charge()).status).toBe(502);
+  });
+  it.each([
+    [4, "cancelled"],
+    [5, "isn't due"],
+  ])("returns conflict for subscription-owned charge guard #%s", async (code, message) => {
+    mocks.server.simulateTransaction.mockResolvedValue({
+      ...allowanceFailure(),
+      error: `HostError: Error(Contract, #${code})\nDebug log (newest first):`,
+      events: [
+        diagnostic(
+          subscription,
+          [xdr.ScVal.scvSymbol("error"), xdr.ScVal.scvError(xdr.ScError.sceContract(code))],
+          xdr.ScVal.scvString("contract guard"),
+        ),
+      ],
+    });
+    const response = await charge();
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toMatchObject({
+      code: "CONFLICT",
+      message: expect.stringContaining(message),
+    });
+    expect(mocks.audit).not.toHaveBeenCalled();
+  });
+  it.each([4, 5])(
+    "does not attribute nested contract guard #%s to the subscription",
+    async (code) => {
+      mocks.server.simulateTransaction.mockResolvedValue({
+        ...allowanceFailure(),
+        error: `HostError: Error(Contract, #${code})`,
+        events: [
+          diagnostic(
+            otherContract,
+            [xdr.ScVal.scvSymbol("error"), xdr.ScVal.scvError(xdr.ScError.sceContract(code))],
+            xdr.ScVal.scvString("contract guard"),
+          ),
+        ],
+      });
+      expect((await charge()).status).toBe(502);
+    },
+  );
   it.each([
     [4, "cancelled"],
     [5, "isn't due"],
