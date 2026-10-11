@@ -83,6 +83,8 @@ Local tests use isolated Postgres and mocked RPC. They cover the real submission
 and confirmation/setup functions, an RPC read interruption followed by recovery,
 stable webhook credentials, repeated reconciliation, same-envelope retries and
 durable event deduplication. They do not establish hosted scheduling, chain
-finality or live PostHog delivery. The live acceptance check remains pending until
-the procedure above succeeds. Testnet accepts the transaction and deployment
+finality or live PostHog delivery. The initial hosted rehearsal was recorded as completed on 6 October 2026;
+see [#808 verification status](808-verification-status.md) for the historical
+result, evidence limits and remaining current-beta verification. This does not
+establish complete crash atomicity or authorize repeating the rehearsal. Testnet accepts the transaction and deployment
 fees still apply; this path changes who observes finality, not transaction validity.

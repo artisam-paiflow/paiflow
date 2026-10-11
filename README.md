@@ -14,6 +14,8 @@ Drag `On Receive USDC` → `Split 60/30/10` onto a canvas, hit **Deploy**, get a
 
 [`Live App`](https://paiflow.xyz) — Stellar **testnet**; no account needed, use _Try the sandbox_ on the login page
 
+For wallet setup, flow deployment and the ready-wired starter, follow the [developer guide](docs/hackathon/developer-guide.md). To integrate your own app without the starter, use the [API quickstart](docs/hackathon/developer-api-quickstart.md). See the [full API reference](docs/api/README.md) for endpoint details and the [documentation sync map](docs/hackathon/README.md) for related resources. These guides are event-neutral.
+
 [`Survey Responses`](https://docs.google.com/spreadsheets/d/1qpaEZPdl_vHMjrSe1Ld6OEMmiliarMKl-i4zdRtLIJQ/edit?usp=sharing) — view aggregated feedback
 
 ---
