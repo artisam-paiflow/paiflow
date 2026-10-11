@@ -1047,7 +1047,6 @@ mod test {
     }
 
     #[test]
-    #[should_panic]
     fn retrieve_unvested_requires_paused() {
         let env = Env::default();
         env.mock_all_auths();
@@ -1084,7 +1083,40 @@ mod test {
         client.top_up(&funder, &10_000);
 
         env.ledger().set_timestamp(1500);
-        client.retrieve_unvested();
+        let tok = token::Client::new(&env, &asset.address());
+        let balances_before = (
+            tok.balance(&admin),
+            tok.balance(&contract_id),
+            tok.balance(&funder),
+        );
+        let state_before = (
+            client.is_paused(),
+            client.paused_at(),
+            client.claimed(),
+            client.available(),
+        );
+        assert!(!state_before.0);
+        assert_eq!(
+            client.try_retrieve_unvested(),
+            Err(Ok(Error::NotPaused.into()))
+        );
+        assert_eq!(
+            (
+                tok.balance(&admin),
+                tok.balance(&contract_id),
+                tok.balance(&funder)
+            ),
+            balances_before
+        );
+        assert_eq!(
+            (
+                client.is_paused(),
+                client.paused_at(),
+                client.claimed(),
+                client.available()
+            ),
+            state_before
+        );
     }
 
     #[test]
