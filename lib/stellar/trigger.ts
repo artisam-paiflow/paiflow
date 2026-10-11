@@ -69,11 +69,41 @@ export type SubmitTriggerResult = {
   duplicate?: boolean;
 };
 
-export async function submitTriggerTx(signedXdr: string): Promise<SubmitTriggerResult> {
+export async function submitTriggerTx(
+  signedXdr: string,
+  opts: { recoverFinality?: boolean } = {},
+): Promise<SubmitTriggerResult> {
   const server = sorobanRpc();
   const tx = TransactionBuilder.fromXDR(signedXdr, stellarPassphrase());
   const signer = signerFromTransaction(tx);
   const txHash = tx.hash().toString("hex");
+  // Invoke retries carry the identical envelope. Query its hash, never a
+  // caller-supplied receipt hash, before attempting another network submission.
+  // Missing finality is not success and retains the normal submission path.
+  const existingResult = async (): Promise<SubmitTriggerResult | undefined> => {
+    const existing = await server.getTransaction(txHash).catch((error: unknown) => {
+      if (error instanceof AppError) throw error;
+      throw new AppError(
+        "UPSTREAM_RPC",
+        "Transaction finality could not be checked; retry with the same envelope",
+      );
+    });
+    if (existing.status !== "SUCCESS" && existing.status !== "FAILED") return undefined;
+    await recordTransactionOutcome(txHash, existing.status === "SUCCESS" ? "CONFIRMED" : "FAILED", {
+      ledger: existing.ledger,
+      ...(existing.status === "FAILED" ? { failureCode: "ONCHAIN_FAILED" as const } : {}),
+    });
+    return {
+      status: existing.status,
+      txHash,
+      signer,
+      ...(existing.status === "FAILED" ? { errorMessage: "Transaction failed on-chain" } : {}),
+    };
+  };
+  if (opts.recoverFinality) {
+    const existing = await existingResult();
+    if (existing) return existing;
+  }
   const submissionAttempt = await beginTransactionSubmission(txHash);
   let send;
   try {
@@ -86,6 +116,12 @@ export async function submitTriggerTx(signedXdr: string): Promise<SubmitTriggerR
     throw error;
   }
   const sent = classifySend(send);
+  // Finality can arrive between the lookup and send. A replay refusal must not
+  // overwrite that receipt, but a truly unknown hash still reports the refusal.
+  if (opts.recoverFinality && sent.outcome !== "QUEUED") {
+    const existing = await existingResult();
+    if (existing) return existing;
+  }
 
   // Thrown, not returned as FAILED: nothing was sent, so there is no hash for
   // the caller to poll or record, only a request to make again.

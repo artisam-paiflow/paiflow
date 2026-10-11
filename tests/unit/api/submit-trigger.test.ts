@@ -77,7 +77,9 @@ const routes = [
 ] as const;
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
+  mockRpc.getTransaction.mockResolvedValue({ status: "NOT_FOUND" });
+  vi.mocked(needsSubmitRow).mockImplementation(async (_d, _h, duplicate) => !duplicate);
   mockDb.deployment.findFirst.mockResolvedValue({
     id: DEPLOYMENT_ID,
     ownerId: OWNER_ID,
@@ -172,3 +174,58 @@ for (const [name, POST, action] of routes) {
     });
   });
 }
+
+describe("submit-invoke finalized-envelope recovery", () => {
+  const call = (signedXdr: string) =>
+    submitInvoke(
+      request(`/api/deployments/${DEPLOYMENT_ID}/submit-invoke`, { body: { signedXdr } }),
+      ctx(),
+    );
+  it("returns the exact finalized hash without resending or writing another submit row", async () => {
+    const signed = signedEnvelope();
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 123 });
+    const res = await call(signed);
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual({ txHash: hashOf(signed) });
+    expect(mockRpc.getTransaction).toHaveBeenCalledWith(hashOf(signed));
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+    expect(audit).not.toHaveBeenCalled();
+  });
+  it.each(["TRY_AGAIN_LATER", "ERROR"])(
+    "recovers finality that arrives during %s send",
+    async (status) => {
+      const signed = signedEnvelope();
+      mockRpc.getTransaction
+        .mockResolvedValueOnce({ status: "NOT_FOUND" })
+        .mockResolvedValueOnce({ status: "SUCCESS", ledger: 124 });
+      mockRpc.sendTransaction.mockResolvedValue({ status, hash: hashOf(signed) });
+      const res = await call(signed);
+      expect(res.status).toBe(200);
+      expect((await res.json()).data.txHash).toBe(hashOf(signed));
+      expect(mockRpc.sendTransaction).toHaveBeenCalledOnce();
+      expect(audit).not.toHaveBeenCalled();
+    },
+  );
+  it("does not turn known on-chain failure into success or resend it", async () => {
+    mockRpc.getTransaction.mockResolvedValue({ status: "FAILED", ledger: 125 });
+    const res = await call(signedEnvelope());
+    expect(res.status).toBe(502);
+    expect((await res.json()).error.message).toBe("Transaction failed on-chain");
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+  });
+  it("does not bypass the deployment lookup for a known receipt", async () => {
+    mockDb.deployment.findFirst.mockResolvedValue(null);
+    mockRpc.getTransaction.mockResolvedValue({ status: "SUCCESS", ledger: 126 });
+    const res = await call(signedEnvelope());
+    expect(res.status).toBe(404);
+    expect(mockRpc.getTransaction).not.toHaveBeenCalled();
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+  });
+  it("does not claim successful finality when the RPC lookup fails", async () => {
+    mockRpc.getTransaction.mockRejectedValue(new Error("connection unavailable"));
+    const res = await call(signedEnvelope());
+    expect(res.status).toBe(502);
+    expect((await res.json()).error.code).toBe("UPSTREAM_RPC");
+    expect(mockRpc.sendTransaction).not.toHaveBeenCalled();
+  });
+});

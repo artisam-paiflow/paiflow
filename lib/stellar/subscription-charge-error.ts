@@ -25,6 +25,58 @@ export function subscriptionChargeFailure(
   subscription: string,
 ): SimulationError {
   const failure = simulationFailure(sim.error, { contract: "subscription" });
+  // Only classify errors emitted by this subscription itself. A nested token
+  // or recipient contract can use the same numeric error codes, including an
+  // error propagated through the subscription's own diagnostic frame.
+  const nestedFailure = sim.events.some((diagnostic) => {
+    const event = diagnostic.event();
+    const origin = contractAddress(event);
+    if (
+      diagnostic.inSuccessfulContractCall() ||
+      event.type().name !== "diagnostic" ||
+      !origin ||
+      origin === subscription
+    )
+      return false;
+    const [topic, error] = event.body().v0().topics();
+    return (
+      topic?.switch().name === "scvSymbol" &&
+      topic.sym().toString() === "error" &&
+      error?.switch().name === "scvError"
+    );
+  });
+  for (const diagnostic of sim.events) {
+    const event = diagnostic.event();
+    if (
+      diagnostic.inSuccessfulContractCall() ||
+      event.type().name !== "diagnostic" ||
+      contractAddress(event) !== subscription
+    )
+      continue;
+    const [topic, error] = event.body().v0().topics();
+    if (
+      topic?.switch().name !== "scvSymbol" ||
+      topic.sym().toString() !== "error" ||
+      error?.switch().name !== "scvError" ||
+      error.error().switch().name !== "sceContract"
+    )
+      continue;
+    const code = error.error().contractCode();
+    if (
+      (code === 4 || code === 5) &&
+      !nestedFailure &&
+      Number(/Error\(Contract,\s*#?(\d+)\)/.exec(sim.error)?.[1]) === code
+    ) {
+      return new SimulationError(
+        "CONFLICT",
+        code === 4
+          ? "This subscription has already been cancelled."
+          : "The next subscription charge isn't due yet.",
+        undefined,
+        failure.details,
+      );
+    }
+  }
   for (const diagnostic of sim.events) {
     const event = diagnostic.event();
     if (diagnostic.inSuccessfulContractCall() || event.type().name !== "diagnostic") continue;
