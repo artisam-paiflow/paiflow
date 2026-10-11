@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { env } from "@/lib/env";
 import Logo from "@/components/app/logo";
-import GoogleButton from "@/components/auth/google-button";
 import LoginForm from "@/components/auth/login-form";
 import SandboxEntry from "@/components/auth/sandbox-entry";
 
@@ -39,12 +38,12 @@ async function LoginFormWrapper({
 }) {
   const p = await params;
   return (
-    <>
-      {" "}
-      {env().GOOGLE_AUTH_ENABLED ? (
-        <GoogleButton from={p.from} authOrigin={new URL(env().AUTH_URL).origin} />
-      ) : null}
-      <LoginForm from={p.from} error={p.error} reason={p.reason} />
-    </>
+    <LoginForm
+      from={p.from}
+      error={p.error}
+      reason={p.reason}
+      googleEnabled={env().GOOGLE_AUTH_ENABLED}
+      authOrigin={new URL(env().AUTH_URL).origin}
+    />
   );
 }

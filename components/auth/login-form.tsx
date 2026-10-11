@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { safeReturnPath } from "@/lib/safe-return-path";
+import GoogleButton from "@/components/auth/google-button";
 
 // Keyed by the `reason` query param. A lookup rather than the param itself, so
 // a crafted link cannot put its own words on the sign-in page.
@@ -17,10 +18,14 @@ export default function LoginForm({
   from,
   error,
   reason,
+  googleEnabled = false,
+  authOrigin,
 }: {
   from?: string;
   error?: string;
   reason?: string;
+  googleEnabled?: boolean;
+  authOrigin?: string;
 }) {
   const notice = reason && Object.hasOwn(NOTICES, reason) ? NOTICES[reason] : undefined;
   const [submitting, setSubmitting] = useState(false);
@@ -85,16 +90,21 @@ export default function LoginForm({
         }
       />
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="bg-primary px-md py-sm text-label-md text-on-primary mt-2 inline-flex items-center justify-center gap-2 rounded-lg font-mono font-bold transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_20px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
-      >
-        {submitting ? "SIGNING IN…" : "SIGN IN"}
-        {!submitting ? (
-          <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-        ) : null}
-      </button>
+      <div className="mt-2 flex flex-wrap items-start gap-2">
+        {googleEnabled ? <GoogleButton from={from} authOrigin={authOrigin} compact /> : null}
+        <button
+          type="submit"
+          disabled={submitting}
+          className="bg-primary text-label-md text-on-primary inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg px-1 font-mono font-bold whitespace-nowrap transition-all duration-200 hover:-translate-y-px hover:shadow-[0_0_20px_rgba(255,177,196,0.55)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+        >
+          {submitting ? "SIGNING IN…" : "SIGN IN"}
+          {!submitting && !googleEnabled ? (
+            <span aria-hidden="true" className="material-symbols-outlined text-[16px]">
+              arrow_forward
+            </span>
+          ) : null}
+        </button>
+      </div>
     </form>
   );
 }
