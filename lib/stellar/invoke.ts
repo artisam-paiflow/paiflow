@@ -14,6 +14,7 @@ import { sorobanRpc, decodeContractAddress } from "./client";
 import { stellarPassphrase } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { simulationFailure } from "./sim-error";
+import { depositSimulationFailure } from "./deposit-simulation-error";
 import { subscriptionChargeFailure } from "./subscription-charge-error";
 import { streamerRetrieveFailure } from "./streamer-retrieve-error";
 
@@ -301,7 +302,7 @@ export async function prepareDepositInvocation(opts: {
   const sim = await server.simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) {
     const hint = typeof opts.hint === "function" ? await opts.hint() : opts.hint;
-    throw simulationFailure(sim.error, hint);
+    throw depositSimulationFailure(sim, hint, opts.invokerAddress);
   }
   const assembled = rpc.assembleTransaction(tx, sim).build();
 

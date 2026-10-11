@@ -196,6 +196,12 @@ when selecting an integration, rather than polling it as a live balance or readi
 ### 1. Prepare
 
 `amount` is in **stroops** of the flow's input asset, as a string: 1 XLM = `10000000`.
+A terminal chain of fixed Pay steps requires its exact total; below or above that total returns
+`422 VALIDATION`. Fixed Pay steps before a variable step require at least their total. Fixed Split
+supports partial deposits towards its payout batch and keeps residual funds for the next batch;
+percentage routes retain variable input. Issued-asset transfers require trustlines on both sender
+and recipient accounts. Missing-trustline responses identify the affected account when the network
+supplies it; otherwise the explanation does not guess which wallet is missing the trustline.
 
 ```bash
 curl -sS -D prepared.headers -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute" \

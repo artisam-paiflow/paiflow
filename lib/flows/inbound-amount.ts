@@ -88,7 +88,10 @@ function pipelineChildren(graph: FlowGraph): Map<string, string[]> {
   return children;
 }
 
-export function inboundRequirement(graph: FlowGraph): InboundRequirement {
+export function inboundRequirement(
+  graph: FlowGraph,
+  options: { fixedSplitBatching?: boolean } = {},
+): InboundRequirement {
   // Dev-mode amounts are filled in after deploy through the dev-* routes, so
   // what the graph holds is not what the contract holds.
   if (graph.devMode === true) return VARIABLE;
@@ -126,7 +129,15 @@ export function inboundRequirement(graph: FlowGraph): InboundRequirement {
     const node = byId.get(cursor);
     if (!node) break;
 
-    const takes = consumption(node);
+    // Partner callers may accumulate partial deposits in a fixed Split and
+    // retain its residual for the next batch. That threshold is not an exact
+    // per-deposit consumption; fixed Pay steps before it still need covering.
+    const takes =
+      options.fixedSplitBatching &&
+      node.type === "split" &&
+      splitTotalFixedStroops(node.config.recipients) !== null
+        ? "variable"
+        : consumption(node);
     if (takes === "variable") {
       variable = true;
       break;

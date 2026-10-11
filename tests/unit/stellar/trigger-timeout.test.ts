@@ -1,6 +1,8 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import {
   Account,
+  Address,
+  xdr,
   Keypair,
   Networks,
   SorobanDataBuilder,
@@ -58,4 +60,115 @@ describe("prepared deposit validity", () => {
       );
     },
   );
+});
+
+// Exercise the real deposit preparation boundary, including the lazy hint and
+// RPC response's structured diagnostics, rather than a mock of translation.
+describe("deposit trustline attribution (#876)", () => {
+  const asset = StrKey.encodeContract(Buffer.alloc(32, 2));
+  const recipient = Keypair.random().publicKey();
+  const label = "USDC issued by GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+  const hint = {
+    addressMap: { [asset]: "stellar_asset" as const },
+    assetLabels: { [asset]: label },
+  };
+  function failure(account: string, origin = asset, code = 13, successful = false) {
+    return {
+      _parsed: true,
+      id: "1",
+      latestLedger: 1000,
+      error: `HostError: Error(Contract, #${code}) contract:${asset}, topics:[error, Error(Contract, #${code})]`,
+      events: [
+        new xdr.DiagnosticEvent({
+          inSuccessfulContractCall: successful,
+          event: new xdr.ContractEvent({
+            ext: new xdr.ExtensionPoint(0),
+            contractId: StrKey.decodeContract(origin) as unknown as xdr.Hash,
+            type: xdr.ContractEventType.diagnostic(),
+            body: new xdr.ContractEventBody(
+              0,
+              new xdr.ContractEventV0({
+                topics: [
+                  xdr.ScVal.scvSymbol("error"),
+                  xdr.ScVal.scvError(xdr.ScError.sceContract(code)),
+                ],
+                data: xdr.ScVal.scvVec([
+                  xdr.ScVal.scvString("trustline entry is missing for account"),
+                  new Address(account).toScVal(),
+                ]),
+              }),
+            ),
+          }),
+        }),
+      ],
+    };
+  }
+  const prepareDeposit = (lazyHint = async () => hint) =>
+    prepareTriggerTx({
+      contractAddress: contract,
+      amount: "2500000",
+      fromAddress: from,
+      isPipeline: true,
+      hint: lazyHint,
+    });
+
+  it.each([
+    ["sender", from],
+    ["recipient", recipient],
+  ])("identifies the %s from the SAC diagnostic", async (role, account) => {
+    server.simulateTransaction.mockResolvedValue(failure(account));
+    const lazyHint = vi.fn(async () => hint);
+    await expect(prepareDeposit(lazyHint)).rejects.toMatchObject({
+      code: "UPSTREAM_RPC",
+      message: expect.stringContaining(`The ${role} (${account}) has no trustline for ${label}`),
+    });
+    expect(lazyHint).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["unmapped", "successful", "no account", "unknown format"])(
+    "does not guess a wallet from %s diagnostics",
+    async (variant) => {
+      const sim = failure(
+        from,
+        variant === "unmapped" ? contract : asset,
+        13,
+        variant === "successful",
+      );
+      if (variant === "no account") sim.events = [];
+      if (variant === "unknown format")
+        sim.events[0]!.event().body().v0().data(xdr.ScVal.scvString("unknown"));
+      server.simulateTransaction.mockResolvedValue(sim);
+      await expect(prepareDeposit()).rejects.toMatchObject({
+        message: expect.stringContaining("An account involved in this transfer"),
+      });
+    },
+  );
+
+  it("retains the insufficient-token-balance explanation", async () => {
+    server.simulateTransaction.mockResolvedValue(failure(from, asset, 10));
+    await expect(prepareDeposit()).rejects.toMatchObject({
+      message: `There isn't enough ${label} to cover this transfer.`,
+    });
+  });
+
+  it("does not classify an earlier #13 diagnostic over a different failure", async () => {
+    const sim = failure(from);
+    sim.error = `HostError: Error(Contract, #10) contract:${asset}, topics:[error, Error(Contract, #10)]`;
+    server.simulateTransaction.mockResolvedValue(sim);
+    await expect(prepareDeposit()).rejects.toMatchObject({
+      message: `There isn't enough ${label} to cover this transfer.`,
+    });
+  });
+
+  it("does not turn unknown RPC transport errors into trustline failures", async () => {
+    const transport = new Error("socket hang up");
+    server.simulateTransaction.mockRejectedValue(transport);
+    await expect(prepareDeposit()).rejects.toBe(transport);
+  });
+
+  it("does not build the diagnostic hint for a successful deposit", async () => {
+    const lazyHint = vi.fn(async () => hint);
+    await prepareDeposit(lazyHint);
+    expect(lazyHint).not.toHaveBeenCalled();
+  });
 });
