@@ -8,7 +8,7 @@ runs (paying, splitting, routing or swapping on a real DEX) and you poll the eve
 
 | Artefact                  | Where                                                                                                                                                                                                                                                                                               |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OpenAPI 3.1 specification | Served at [`https://beta.app.paiflow.xyz/api/v1/openapi.json`](https://beta.app.paiflow.xyz/api/v1/openapi.json); source [`docs/api/openapi.json`](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                                                                     |
+| OpenAPI 3.1 specification | Served at [`https://beta.app.paiflow.xyz/api/v1/openapi.json`](https://beta.app.paiflow.xyz/api/v1/openapi.json); source [`docs/api/openapi.json`](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                                                   |
 | Postman collection        | [`paiflow-api-v1.postman_collection.json`](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) (import by link: [raw file](https://raw.githubusercontent.com/artisam-paiflow/paiflow/develop/docs/api/paiflow-api-v1.postman_collection.json)) |
 | This guide                | [paiflow.gitbook.io/paiflow-docs/reference/api](https://paiflow.gitbook.io/paiflow-docs/reference/api); source `docs/api/README.md`                                                                                                                                                                 |
 
@@ -198,10 +198,11 @@ when selecting an integration, rather than polling it as a live balance or readi
 `amount` is in **stroops** of the flow's input asset, as a string: 1 XLM = `10000000`.
 
 ```bash
-curl -sS -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute" \
+curl -sS -D prepared.headers -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute" \
   -H "Authorization: Bearer $PAIFLOW_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"amount\":\"10000000\",\"from\":\"$FROM\"}" | tee prepared.json
+PREPARATION_REQUEST_ID=$(awk 'tolower($1)=="x-history-request-id:" {gsub("\r", "", $2); print $2}' prepared.headers)
 ```
 
 ```json
@@ -246,18 +247,23 @@ const headers = {
   "Content-Type": "application/json",
 };
 
-const prepared = await fetch(`${base}/execute`, {
+const prepareResponse = await fetch(`${base}/execute`, {
   method: "POST",
   headers,
   body: JSON.stringify({ amount: "10000000", from: process.env.FROM }),
-}).then((r) => r.json());
+});
+const preparationRequestId = prepareResponse.headers.get("x-history-request-id");
+const prepared = await prepareResponse.json();
 
 const tx = TransactionBuilder.fromXDR(prepared.data.xdr, prepared.data.networkPassphrase);
 tx.sign(Keypair.fromSecret(process.env.FROM_SECRET!));
 
 const submitted = await fetch(`${base}/execute/submit`, {
   method: "POST",
-  headers,
+  headers: {
+    ...headers,
+    ...(preparationRequestId ? { "x-preparation-request-id": preparationRequestId } : {}),
+  },
   body: JSON.stringify({ signedXdr: tx.toXDR() }),
 }).then((r) => r.json());
 ```
@@ -269,6 +275,7 @@ network is rejected.
 
 ```bash
 curl -sS -X POST "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/execute/submit" \
+  -H "x-preparation-request-id: $PREPARATION_REQUEST_ID" \
   -H "Authorization: Bearer $PAIFLOW_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"signedXdr\":\"$(cat signed.xdr)\"}"
@@ -466,6 +473,15 @@ as a Soroban simulation diagnostic.
 
 Every response carries an `x-request-id` header. Include it when you report a problem.
 
+Wrapped deployment API responses also include `x-history-request-id`, a server-generated
+analytics request UUID. Save it with the prepared envelope; send it as
+`x-preparation-request-id` on `/execute/submit` or `/payouts/submit`, including retries.
+A new preparation gets a new ID. This optional metadata does not authorize or deduplicate
+transactions. Missing or unmatched links do not prove abandonment. Forward the header
+through your own backend to the browser when signing there, keeping the bearer token
+server-side. The [API analytics report](../analytics/api-request-history-v1.md) exposes
+verified linkage coverage without treating unlinked requests as drop-off.
+
 ## Rate limits
 
 Token-authenticated endpoints are counted **per token**, per endpoint, in fixed 60-second windows.
@@ -507,10 +523,10 @@ Import [`paiflow-api-v1.postman_collection.json`](https://github.com/artisam-pai
 
 1. Fill in the collection variables `deploymentId`, `apiToken` and `from`, and adjust `amount`.
    `baseUrl` is already `https://beta.app.paiflow.xyz`.
-2. Run **Prepare execute**. It stores the envelope in the `unsignedXdr` variable.
-3. Sign it on your side (`stellar tx sign --sign-with-key S… --network testnet "<unsignedXdr>"`) and
-   paste the result into `signedXdr`.
-4. Run **Submit execute**. It stores `txHash`.
+2. Run **Prepare execute**. It stores the envelope in `executeUnsignedXdr` and the response ID in `executePreparationRequestId`.
+3. Sign it on your side (`stellar tx sign --sign-with-key S… --network testnet "<executeUnsignedXdr>"`) and
+   paste the result into `executeSignedXdr`.
+4. Run **Submit execute**. It sends the saved preparation ID and stores `txHash`. Retries reuse that ID. Payout requests use separate `payoutUnsignedXdr`, `payoutSignedXdr` and `payoutPreparationRequestId` variables. A successful new preparation replaces only its operation's unsigned envelope and ID and clears its previous signed envelope. Failed preparations preserve the previous payment's retry data.
 5. Run **List events**. It stores `nextCursor` in `cursor`; enable the `cursor` query parameter to
    page forward.
 

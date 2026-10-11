@@ -94,6 +94,30 @@ export async function apiRequestReport(input: z.infer<typeof ApiRequestReportSch
               AND s."occurredAt"<p."occurredAt"+interval '24 hours' AND s."txHash" IS NOT NULL
           ))::text AS explicitly_linked_submissions
         FROM preparations p`;
+      const submissionLinkage = await tx.$queryRaw<Record<string, unknown>[]>`
+        WITH submissions AS (
+          SELECT * FROM "ApiRequestLog" WHERE "trackingVersion"=${API_HISTORY_VERSION}
+            AND network=${options.network} AND environment=${options.environment}
+            AND audience=${options.audience}::"AnalyticsAudience" AND "occurredAt">=${start} AND "occurredAt"<${end}
+            AND method='POST' AND "apiTokenId" IS NOT NULL AND "txHash" IS NOT NULL
+            AND endpoint IN ('/api/v1/deployments/:id/execute/submit','/api/v1/deployments/:id/payouts/submit')
+        ), links AS (
+          SELECT s.*, EXISTS (
+            SELECT 1 FROM "ApiRequestLog" p WHERE p.id=s."preparationRequestId"
+              AND p."trackingVersion"=s."trackingVersion" AND p.status<400 AND p.method='POST'
+              AND p.network=s.network AND p.environment=s.environment AND p.audience=s.audience
+              AND p."accountId"=s."accountId" AND p."apiTokenId"=s."apiTokenId"
+              AND p."deploymentId"=s."deploymentId" AND s.endpoint=p.endpoint || '/submit'
+              AND p."occurredAt">=${policy.activatedAt} AND p."occurredAt"<=s."occurredAt"
+              AND s."occurredAt"<p."occurredAt"+interval '24 hours'
+          ) AS linked FROM submissions s
+        ) SELECT count(*)::text AS submitted_requests,
+          count(*) FILTER (WHERE "preparationRequestId" IS NOT NULL)::text AS with_preparation_id,
+          count(*) FILTER (WHERE linked)::text AS verified_linked_requests,
+          count(*) FILTER (WHERE "preparationRequestId" IS NULL)::text AS missing_preparation_id,
+          count(*) FILTER (WHERE "preparationRequestId" IS NOT NULL AND NOT linked)::text AS unmatched_preparation_id,
+          100.0 * count(*) FILTER (WHERE linked) / NULLIF(count(*),0) AS linkage_coverage_percent
+        FROM links`;
       const recovery = await tx.$queryRaw<Record<string, unknown>[]>`
         SELECT count(*)::text AS failed_submit_requests,
           count(*) FILTER (WHERE EXISTS (
@@ -134,6 +158,7 @@ export async function apiRequestReport(input: z.infer<typeof ApiRequestReportSch
         outcomes,
         activation,
         preparation,
+        submission_linkage: submissionLinkage,
         recovery,
         scheduled_jobs: jobs,
         repeated_submission_hashes: retries.length,
@@ -162,6 +187,8 @@ export async function apiRequestReport(input: z.infer<typeof ApiRequestReportSch
         "Repeated submit requests for the same validated hash; distinct from chain submissionRevision",
       preparation:
         "Successful preparations with an explicitly linked validated submit within 24h, matching token/account/deployment/network/environment and operation. Missing links do not prove drop-off; windows under 24h old are immature.",
+      submission_linkage:
+        "Validated authenticated execute/payout submit requests in [start,end), including HTTP retries and failed responses with a validated hash. Coverage is requests with a verified successful preparation / all such requests. Preparation may precede start, but must follow cutover and be within 24h. IDs are verified against account/token/deployment/network/environment/audience and operation; a missing or unmatched ID does not prove abandonment. No requests yields null coverage.",
       recovery:
         "Failed submit HTTP responses followed by successful same-hash HTTP submit within 24h and confirmed chain outcome at report time; failure requests are denominator, not distinct intents.",
       scheduled_jobs:

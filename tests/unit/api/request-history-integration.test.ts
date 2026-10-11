@@ -83,6 +83,9 @@ describe.skipIf(!url)("request history on disposable PostgreSQL and Redis", () =
     expect(await h.db!.apiRequestLog.count({ where: { id: a.id } })).toBe(1);
     expect(await h.db!.analyticsDelivery.count({ where: { id: a.id } })).toBe(1);
     const report = await apiRequestReport(options());
+    expect(report.submission_linkage).toEqual([
+      expect.objectContaining({ submitted_requests: "0", linkage_coverage_percent: null }),
+    ]);
     expect(report.endpoints).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -281,6 +284,27 @@ describe.skipIf(!url)("request history on disposable PostgreSQL and Redis", () =
         },
       });
       const report = await apiRequestReport({ ...options(), audience: "INTERNAL" });
+      expect(report.submission_linkage).toEqual([
+        expect.objectContaining({
+          submitted_requests: "3",
+          with_preparation_id: "2",
+          verified_linked_requests: "1",
+          missing_preparation_id: "1",
+          unmatched_preparation_id: "1",
+        }),
+      ]);
+      expect(Number(report.submission_linkage[0]?.linkage_coverage_percent)).toBeCloseTo(100 / 3);
+      const outbox = await client.analyticsDelivery.findUniqueOrThrow({ where: { id: retry.id } });
+      expect(outbox.properties).toMatchObject({ preparation_request_id: prepare.id });
+      // A legitimate prepare outside the submission window must still establish linkage.
+      const submissionWindow = await apiRequestReport({
+        ...options(),
+        audience: "INTERNAL",
+        start: new Date(time + 500).toISOString(),
+      });
+      expect(submissionWindow.submission_linkage).toEqual([
+        expect.objectContaining({ submitted_requests: "3", verified_linked_requests: "1" }),
+      ]);
       expect(report.preparation).toEqual([
         expect.objectContaining({ preparations: "2", explicitly_linked_submissions: "1" }),
       ]);
@@ -361,6 +385,16 @@ describe.skipIf(!url)("request history on disposable PostgreSQL and Redis", () =
       );
       await drainApiRequests();
       const externalReport = await apiRequestReport({ ...options(), audience: "EXTERNAL" });
+      expect(externalReport.submission_linkage).toEqual([
+        expect.objectContaining({
+          submitted_requests: "2",
+          verified_linked_requests: "0",
+          missing_preparation_id: "1",
+          unmatched_preparation_id: "1",
+          linkage_coverage_percent: expect.anything(),
+        }),
+      ]);
+      expect(Number(externalReport.submission_linkage[0]?.linkage_coverage_percent)).toBe(0);
       expect(externalReport.weeks).toEqual([
         expect.objectContaining({ calling_accounts: "1", confirmed_accounts: "0" }),
       ]);

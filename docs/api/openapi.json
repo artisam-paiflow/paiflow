@@ -487,6 +487,15 @@
         "responses": {
           "200": {
             "description": "Sign the unsigned envelope with from.",
+            "headers": {
+              "x-history-request-id": {
+                "description": "Server-generated request UUID. Keep it with the prepared envelope and send it as x-preparation-request-id on submit/retry. Missing linkage does not prove abandonment.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -630,6 +639,16 @@
               "format": "uuid"
             },
             "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          },
+          {
+            "name": "x-preparation-request-id",
+            "in": "header",
+            "required": false,
+            "description": "The preparation response's x-history-request-id. Send it with this prepared envelope and reuse it on retries; a new preparation gets a new ID. Optional analytics correlation only: it does not authorize or deduplicate a payment. Reports verify the account, token, deployment, operation and context before linking requests.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           },
           {
             "name": "wait",
@@ -789,6 +808,15 @@
         "responses": {
           "200": {
             "description": "The unsigned envelope.",
+            "headers": {
+              "x-history-request-id": {
+                "description": "Server-generated request UUID. Keep it with the prepared envelope and send it as x-preparation-request-id on submit/retry. Missing linkage does not prove abandonment.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -911,6 +939,16 @@
               "format": "uuid"
             },
             "example": "6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d"
+          },
+          {
+            "name": "x-preparation-request-id",
+            "in": "header",
+            "required": false,
+            "description": "The preparation response's x-history-request-id. Send it with this prepared envelope and reuse it on retries; a new preparation gets a new ID. Optional analytics correlation only: it does not authorize or deduplicate a payment. Reports verify the account, token, deployment, operation and context before linking requests.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           },
           {
             "name": "wait",
