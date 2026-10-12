@@ -56,7 +56,14 @@ export async function recordTransactionOutcome(
   outcome: TransactionOutcome,
   details: {
     ledger?: number;
-    failureCode?: "RPC_REJECTED" | "ONCHAIN_FAILED" | "RPC_UNAVAILABLE" | "FINALITY_UNKNOWN";
+    failureCode?:
+      | "RPC_REJECTED"
+      | "ONCHAIN_FAILED"
+      | "RPC_UNAVAILABLE"
+      | "FINALITY_UNKNOWN"
+      | "CONTROL_EXPIRED";
+    /** Persisted exact-hash wallet-control proof, checked within this transaction. */
+    controlIntentId?: string;
     deploymentId?: string;
     executionOnly?: boolean;
     /** Only a sendTransaction attempt, never a status read, can supply this. */
@@ -92,6 +99,39 @@ export async function recordTransactionOutcome(
                   details.observation.outcomeRevision !== row.outcomeRevision))))
         )
           return false;
+        // Only persisted control proof may settle a previously accepted/unknown
+        // transaction as expired. Ordinary queue refusals retain existing rules.
+        const control = details.controlIntentId
+          ? await tx.walletControlIntent.findFirst({
+              where: {
+                id: details.controlIntentId,
+                txHash: row.txHash,
+                deploymentId: row.deploymentId ?? undefined,
+                network: row.network,
+              },
+            })
+          : null;
+        const provenExpiry =
+          control?.state === "EXPIRED" &&
+          outcome === "REJECTED" &&
+          details.failureCode === "CONTROL_EXPIRED";
+        if (
+          details.controlIntentId &&
+          !(
+            provenExpiry ||
+            (control?.state === "SUCCESS" && outcome === "CONFIRMED") ||
+            (control?.state === "FAILED" && outcome === "FAILED")
+          )
+        )
+          return false;
+        if (details.failureCode === "CONTROL_EXPIRED" && !provenExpiry) return false;
+        // Expiry proof is immutable finality, not an ordinary queue rejection.
+        if (
+          row.outcome === "REJECTED" &&
+          row.failureCode === "CONTROL_EXPIRED" &&
+          !TERMINAL_OUTCOMES.includes(outcome)
+        )
+          return false;
         // Queued acceptance is positive same-hash evidence, even when an older send
         // answers late. Enrich terminal rows without reopening their lifecycle.
         if (outcome === "ACCEPTED" && !row.acceptedAt && TERMINAL_OUTCOMES.includes(row.outcome)) {
@@ -108,6 +148,7 @@ export async function recordTransactionOutcome(
           return false;
         }
         if (
+          !(provenExpiry && !TERMINAL_OUTCOMES.includes(row.outcome)) &&
           !canTransition(
             row.outcome,
             outcome,
@@ -134,7 +175,10 @@ export async function recordTransactionOutcome(
             ...(outcome === "CONFIRMED" ? { confirmedAt: now } : {}),
             ...(outcome === "FAILED" ? { failedAt: now } : {}),
             ...(outcome === "REJECTED" ? { rejectedAt: now } : {}),
-            nextCheckAt: TERMINAL_OUTCOMES.includes(outcome) ? null : new Date(Date.now() + 30_000),
+            nextCheckAt:
+              TERMINAL_OUTCOMES.includes(outcome) || provenExpiry
+                ? null
+                : new Date(Date.now() + 30_000),
           },
         });
         if (!count) continue;

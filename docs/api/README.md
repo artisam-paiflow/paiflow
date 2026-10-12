@@ -1,6 +1,6 @@
 # Developer API
 
-For a complete frontend/backend integration without the starter, follow the [API quickstart](../hackathon/developer-api-quickstart.md). For wallet setup, flow deployment and the ready-wired starter, use the [developer guide](../hackathon/developer-guide.md). Both guides are event-neutral; this reference provides the detailed API contract.
+For a complete frontend/backend integration without the starter, follow the [API quickstart](../hackathon/developer-api-quickstart.md). For wallet setup, flow deployment and the ready-wired starter, use the [Paiflow Guide](../hackathon/paiflow-guide.md). Both guides are event-neutral; this reference provides the detailed API contract.
 
 Paiflow's `/api/v1` lets your backend run a deployed **deposit-triggered flow** (Pay, Split, condition or swap) and watch what it did on
 chain, with no browser and no wallet integration on Paiflow's side. You send the deposit, the flow
@@ -157,6 +157,37 @@ export FROM=G...                  # the funded account that deposits and signs
 export FROM_SECRET=S...           # its secret key; stays on your machine
 ```
 
+### Read current Subscription state
+
+On builds containing #911, an ordinary or Dev Subscription exposes
+`GET /api/v1/deployments/{id}/subscription/state` with its deployment bearer token:
+
+```bash
+curl -sS "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/subscription/state" \
+  -H "Authorization: Bearer $PAIFLOW_TOKEN"
+```
+
+The `data` response contains `deploymentId`, `flowName`, `network`, `templateKind`,
+`contractAddress`, `tokenContractAddress`, `subscriber`, `isCancelled`, `allowance`,
+`setupRequired`, `asset` and `assetLabel`. Subscriber, token, cancellation and allowance
+come from current on-chain reads; amounts are integer stroop strings. If a Dev subscriber
+is unconfigured, `subscriber` is null, `setupRequired` is true and `allowance` is "0";
+no allowance read is attempted. A configured subscriber can have zero allowance even
+when setup is complete. Cancelled subscriptions remain readable.
+
+`tokenContractAddress` identifies the deployed asset. `asset` is metadata from the
+original graph only when it matches that token; otherwise it is null and `assetLabel`
+is the token contract address. Payroll, unsupported or malformed deployments and
+network mismatches are refused. Invalid/revoked/wrong-deployment tokens and inactive
+service are refused before live reads. RPC errors are reported, never substituted
+with zero or an active subscription. Responses are `no-store`; limit: **40/minute
+per token**. These fields are live observations, not a guaranteed atomic ledger snapshot.
+
+The token authorizes this read only. Continue using the configured subscriber's wallet
+and existing [allowance workflow](../hackathon/participant-guide.md) for approval.
+This endpoint neither charges nor cancels/reactivates a subscription. Hosted testnet
+verification remains required before relying on a deployed version's support.
+
 ### Discover the deployment's capabilities
 
 On builds containing the capabilities endpoint, check your deployment before choosing an integration:
@@ -168,8 +199,8 @@ curl -sS "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/capabilities" \
 
 `data` contains `deploymentId`, `network`, `triggerType`, `inputAsset`,
 `configurationSource: "deployment_snapshot"` and `operations`. The operation keys are
-`execute`, `events`, `transactions`, `releaseEarly`, `payouts`, `webhook` and
-`subscriptionAllowance`. Each has a `status`, `authentication`, `requirements` and `nodeIds`:
+`execute`, `balances`, `events`, `transactions`, `releaseEarly`, `payouts`, `webhook`,
+`subscriptionAllowance`, `subscriptionState` and `swapQuote`. Each has a `status`, `authentication`, `requirements` and `nodeIds`:
 
 - **`supported`**: the integration path exists for the recorded deployment. This does not promise
   the next transaction will succeed; balances, deadlines, trustlines and simulation still apply.
@@ -516,6 +547,7 @@ hackathon venue's Wi-Fi) does not pay for one broken script:
 | `POST …/execute/submit`                       | 30 per minute                                             |
 | `POST …/release-early`                        | 10 per minute                                             |
 | `GET …/events`                                | 120 per minute                                            |
+| `GET …/subscription/state`                    | 40 per minute                                             |
 | `GET …/capabilities`                          | 60 per minute                                             |
 | `GET /api/v1/openapi.json`                    | 60 per minute per client IP (no token)                    |
 | `POST /api/v1/demo-token`                     | 3 per hour per client IP, 60 per hour instance-wide       |
@@ -598,6 +630,8 @@ if the committed copy falls behind, if a route under `app/api/v1` has no entry, 
 matching its Zod schema, or if the Postman collection misses a v1 request.
 
 ## Per-payment payouts
+
+**Hackathon availability:** Dev mode will stay disabled for the duration of the hackathon. These endpoints require Dev mode and are unavailable during the event. Use `execute` with the recipients configured in your standard deployment.
 
 For a deposit-triggered dev flow, `POST /api/v1/deployments/:id/payouts` accepts
 `{ "from": "G…", "amount": "1000000000", "recipient": "G…", "nodeId": "pay" }`.
@@ -735,3 +769,198 @@ Idempotency covers only callers reusing the same key; it does not deduplicate di
 keys, operator releases or other funding/execution paths, and is not an unconditional
 exactly-once payout guarantee. Both new migrations must be applied before rollout; only
 isolated local tests have run, with no live webhook payout or application database migration.
+
+## Deployment contract balances
+
+The source API adds `GET /api/v1/deployments/{id}/balances` with the deployment's
+`Authorization: Bearer pfk_…` token. This endpoint is independent of execute: a
+Schedule or Webhook deployment can read its funding pool without an owner session.
+Check `operations.balances` in capabilities; `conditional` identifies candidate
+nodes and does not establish live RPC availability. Hosted testnet verification
+of this new endpoint remains pending; check the deployed capabilities and OpenAPI
+before using it in a participant app.
+
+```bash
+curl "$BASE_URL/api/v1/deployments/$DEPLOYMENT_ID/balances" \
+  -H "Authorization: Bearer $API_TOKEN"
+```
+
+The `{ data }` response contains `deploymentId`, `network`, `nodes`, `totals` and
+`freshness`. Each node names its `nodeId`, `templateKind`, deployed
+`contractAddress` and current `tokenContract`, with `balanceStroops` as an integer
+string, `readAt`, `stale`, and an optional generic `error`. Token contract addresses
+are asset identity; display asset labels from the original graph may be stale.
+Swap nodes report separate input and output token balances. Only the selected
+contract's configured token balances are read: account balances, recipients,
+credentials and the private graph are not returned.
+
+Candidates include Schedule, Webhook, time conditions, oracle conditions, Pay,
+Split and Swap. Mutable Pay/Split reads require Dev mode enabled and read the
+current on-chain asset. Multisig, Payroll and other unsupported kinds are excluded;
+when they coexist with supported nodes, their error entries make totals incomplete.
+An invalid or ambiguous pipeline, more than 64 candidate contracts, or no supported
+target returns 422. An unconfirmed deployment returns 404; network mismatch returns 422. Invalid, revoked, expired, wrong-deployment or retiring/retired tokens return
+the same generic 401. The service boundary also rejects retirement races.
+
+`totals` sums successful reads per token contract across the supported holding
+nodes only. It is not all customer funds. Always check
+`freshness.totalsComplete`: a failed/unresolved/unsupported target has a null
+balance and `stale: true`, never a fabricated zero. `status` is `fresh` if all
+requested holding targets succeeded, `partial` if only some succeeded, or `stale`
+if none succeeded. Partial totals omit failed targets. Reads are independent
+simulations, not an atomic ledger snapshot.
+
+This is display data, not Schedule payout availability, vested/unvested amounts,
+or evidence of successful payment. Use transaction status and events to check a
+payment. Genuine zero balances have an integer string `"0"`, a read timestamp and
+`stale: false`.
+
+Poll no faster than every 10 seconds. The per-token route limit is 30/minute; a
+10-second cache and in-process single-flight combine callers across tokens.
+`cached` indicates a cached response and the original `readAt`/`attemptedAt`
+timestamps remain intact. Live reads use four workers, at most 64 contracts and a
+25-second scheduling deadline, followed by completion of in-flight RPC calls
+(10 seconds each; a lazy account lookup plus balance simulation can take up to
+20 seconds beyond the scheduling deadline). A deployment-wide Redis refresh lease spans replicas; a
+replica without a cached result returns 429 while another holds that lease.
+Configured but unavailable Redis refuses new refreshes with 429. Without Redis,
+coordination is process-local. A shared process admission queue also bounds RPC
+refreshes across deployments. Honor `Retry-After` for overload; retrying an error
+must never be interpreted as permission to send another payment.
+
+## Wallet-authorized deployment controls
+
+The shared [wallet control foundation](wallet-controls.md) documents the preparation,
+submission and recovery protocol for future wallet-authorized controls; it does not
+by itself expose cancellation/reactivation routes.
+
+### Subscription cancellation and reactivation (#913)
+
+The deployment token opens the integration API; the currently configured subscriber's
+wallet supplies consent. Read `subscription/state` and check `subscriptionCancel` or
+`subscriptionReactivate` in capabilities first. These operations are conditional on
+live state and successful simulation. Ordinary subscriptions are supported by the
+implementation. Existing Dev cancellation continues with `FEATURE_DEV_MODE_ENABLED=false`;
+Dev reactivation requires the feature enabled. New Dev deployments remain disabled for the
+hackathon. Payroll, unsupported variants and ambiguous snapshots are refused.
+Hosted testnet verification is pending; confirm deployed availability before rehearsal.
+
+Both actions expose three POST routes below `/api/v1/deployments/{id}`:
+
+| Route suffix                                                           | Body                                | Limit per token |
+| ---------------------------------------------------------------------- | ----------------------------------- | --------------- |
+| `subscription/cancel/prepare` or `subscription/reactivate/prepare`     | `{"walletAddress":"G…"}`            | 10/minute       |
+| `subscription/cancel/submit` or `subscription/reactivate/submit`       | `{"intent":"UUID","signedXdr":"…"}` | 30/minute       |
+| `subscription/cancel/reconcile` or `subscription/reactivate/reconcile` | `{"intent":"UUID"}`                 | 30/minute       |
+
+Cancellation requires an active subscription, calls `unsubscribe` and revokes that
+subscription's token allowance. Reactivation requires cancelled state and calls
+`subscribe`; it grants no allowance, creates no subscriber and does not immediately
+charge or change billing. Use the existing public allowance approval workflow separately
+before later scheduled charges can resume.
+
+A complete browser/backend integration keeps the bearer token on its server and the
+subscriber's private key in their wallet. Your authenticated application server proxies
+only this deployment's action routes. Browser pseudocode with your wallet adapter:
+
+```js
+const action = "cancel"; // Use "reactivate" only after observing cancelled state.
+const walletAddress = await wallet.getAddress();
+const base = `/your-backend/subscription/${action}`;
+const preparedResponse = await fetch(`${base}/prepare`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ walletAddress }),
+});
+const preparedBody = await preparedResponse.json();
+if (!preparedResponse.ok) throw new Error(preparedBody.error.message);
+const p = preparedBody.data;
+// Save p.intent and p.txHash before signing; reconcile these after interruptions.
+const signedXdr = await wallet.signTransaction(p.xdr, {
+  networkPassphrase: p.networkPassphrase,
+});
+const submission = await fetch(`${base}/submit`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ intent: p.intent, signedXdr }),
+});
+// After any response or transport interruption, poll the same p.txHash through
+// GET /api/v1/deployments/{id}/transactions/{txHash} on your authenticated backend.
+// Never interpret UNKNOWN, REJECTED, a 404 or a timeout as permission to replace.
+```
+
+Your server forwards these bodies unchanged and adds `Authorization: Bearer pfk_…`.
+Preparation returns `{data:{intent,txHash,expiresAt,xdr,network,networkPassphrase,action,
+walletAddress,nodeId,contractAddress,tokenContractAddress}}`. Only envelope signatures
+may be added; source, sequence, fee, bounds, operation and authorization must stay exact.
+Submission returns the existing `{data:{txHash,network,status,...}}` transaction status.
+It records the admitted hash before broadcasting; exact signed retries use the same
+intent and status. Changed envelopes and wrong-wallet signatures are refused.
+
+To recover a lost response, an externally submitted envelope or an abandoned preparation,
+POST the saved intent to the corresponding `reconcile` route. It returns
+`{data:{intent,txHash,action,state,ledger,replacementAllowed}}`. `PREPARED` and `SUBMITTING`
+retain the reservation; `SUCCESS`, `FAILED` and ledger-proven `EXPIRED` permit a new
+preparation subject to current eligibility. RPC history gaps, queue refusal and local
+clock expiry retain the reservation. A successful cancellation can therefore be reconciled
+without satisfying the now-false "active" precondition again. Retired services do not reopen
+API access for recovery; internal retirement reconciliation retains unresolved evidence.
+See [wallet-control finality protocol](wallet-controls.md) for the exact recovery rules.
+
+After `SUCCESS`, read state again and verify actual cancellation or reactivation. An empty
+event feed alone proves nothing. Rehearse cancel → finality → cancelled state/zero allowance →
+reactivate → finality → active state → separate allowance approval using a real consenting
+testnet wallet before advertising availability.
+## Deployment-specific Swap estimates
+
+The source API adds `GET /api/v1/deployments/{id}/swap-quote?amountStroops=10000000`
+with this deployment's `Authorization: Bearer pfk_…` token. Hosted availability and
+quote-versus-completed-swap testnet verification remain pending; verify the live
+OpenAPI document before integrating a deployed instance. Discovery exposes
+`operations.swapQuote` as conditional with candidate deployed `nodeIds`.
+
+If several standard Swap nodes exist, pass `nodeId`. The amount is the input **at
+that node**, which may differ from the deposit amount after upstream splits or
+conditions. Contract addresses come from `pipelineSnapshot`; live getters determine
+the input/output token contracts, router and slippage. Caller-selected assets,
+routes, router or slippage overrides are rejected. The deployed router must match
+the environment's configured router. Unsupported or ambiguous nodes return 422.
+
+The response contains `amountInStroops`, `amountOutStroops` and
+`amountOutMinStroops` as exact integer strings, authoritative token contract
+addresses, `slippageBps`, `readStartedAt`, `quotedAt`, `freshness:"live"`,
+`estimate:true` and `scope:"selected_node"`. Live means reserves/configuration were
+read during this request, using successive simulations rather than an atomic
+ledger snapshot. It does not guarantee future freshness. The estimated minimum
+uses pool spot output less the deployed slippage, matching the contract's
+arithmetic at quote time. `meetsMinimumAtQuote:false` signals the estimated router
+output is below that estimate; true does not prove execution readiness.
+
+Quotes predict one node, never an entire flow or guaranteed recipient payout.
+Final transaction preparation, simulation and chain execution determine whether a
+swap succeeds and its actual amount. Quote reads never sign or submit a transaction
+and preserve the signed-in builder quote endpoint. Responses use `Cache-Control:
+no-store`; RPC failures return errors, never fabricated zero amounts.
+
+The endpoint permits 20 requests/minute per token and 20/minute per deployment
+across tokens. Production requires a functioning shared Redis RPC budget; missing
+coordination returns 502. Each request performs four configuration getter calls
+and at most five pool/router calls. Back off on errors and honor `Retry-After` on 429. Retiring and retired deployments are unavailable to deployment tokens.
+
+### Deployment funding (#916)
+
+Schedule top-ups and Webhook pool deposits use deployment-token GET/POST `/api/v1/deployments/{id}/funding`, `/funding/submit` and `/funding/reconcile`. Any consenting funding wallet may sign; a token alone cannot move funds. Funding adds funds only and does not execute payouts or callbacks. One unresolved intent per node blocks replacements until confirmed finality or ledger-proven expiry; UNKNOWN never permits another deposit. Public `/trigger`, `/submit-trigger` and hosted funding remain available. Webhook callbacks separately require `x-webhook-secret`. See the [complete signing and recovery example](funding.md). Hosted testnet verification remains pending.
+
+### Schedule state and controller wallet actions
+
+`GET /api/v1/deployments/{id}/schedule/state` reads current controller, pause/retrieval
+permissions, token holdings and vested payout availability. Select `nodeId` when
+multiple Schedule nodes exist. `POST /schedule/pause`, `/schedule/resume` and
+`/schedule/retrieve` prepare an unsigned transaction; their `/submit` routes require
+the unchanged controller-wallet-signed envelope and intent. Each `/reconcile` route
+recovers the corresponding intent using durable finality evidence. Retrieval returns
+only permitted unvested funds to the deployed controller; it never pays recipients.
+See [Schedule controls](schedule-controls.md) for complete wallet/recovery examples,
+amount semantics and the pending hosted testnet verification gate. Discovery exposes
+`scheduleState` and conditional `scheduleControls`; a token alone does not authorize
+controls. Funding remains a separate operation.

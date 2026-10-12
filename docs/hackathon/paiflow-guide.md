@@ -1,6 +1,6 @@
-# Paiflow Developer Guide
+# Paiflow Guide
 
-Updated Oct 10, 2026
+Updated Oct 11, 2026
 
 Build your first payment integration: a customer's XLM payment automatically splits 90% to a shop and 10% to a community fund. Start with a working flow, prove its payout, then connect your own app.
 
@@ -8,14 +8,14 @@ Build your first payment integration: a customer's XLM payment automatically spl
 
 | Resource                                                                                                                             | Use it when you want to…                                                                                           |
 | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| [Developer guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-guide.md)                  | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
-| [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md)          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
+| [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing)                  | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
+| [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing)          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
 | [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                              | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                                       |
 | [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                 | Import the machine-readable API contract into development tools.                                                   |
 | [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Try API requests with your deployment UUID and token.                                                              |
 | [AI developer context (`llms.md`)](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md)                   | Give your AI assistant product rules, API details and worked examples.                                             |
 | [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter)                                                   | Get working payment preparation, Freighter signing, submission and event reads without implementing them yourself. |
-| [Freighter Testnet setup](https://developers.stellar.org/docs/build/guides/freighter/connect-testnet)                                | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
+| [Freighter Testnet setup (video)](https://youtu.be/OBFtQsRe4b0)                                | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
 | [Stellar Expert Testnet](https://stellar.expert/explorer/testnet)                                                                    | Inspect transaction evidence and verify actual payouts.                                                            |
 
 Follow your participant brief for event rules, preparation permissions, deadlines and submissions.
@@ -37,7 +37,9 @@ Follow your participant brief for event rules, preparation permissions, deadline
 
 ## Before you begin
 
-This walkthrough is event-neutral. Follow your participant brief and organisers' instructions for when preparation, deployment and app integration are allowed.
+You may deploy, integrate and test payments before this hackathon once your team credentials are available. Follow your participant brief for submission and qualification requirements.
+
+**Dev mode will stay disabled for the duration of the hackathon.** Configure recipients and required values before deploying. Per-payment recipients, **Fill value via API** and **Dev values** are unavailable; standard Pay and Split flows remain available. `PAIFLOW_MODE=team` and `pnpm dev` do not enable flow Dev mode.
 
 Paiflow is the money logic behind your app. Your app handles who pays and why; a deployed flow handles when money moves and where it goes. One deployment serves one business or group and can receive payments from many customers.
 
@@ -46,7 +48,6 @@ Paiflow is the money logic behind your app. Your app handles who pays and why; a
 | [Paiflow](https://beta.app.paiflow.xyz)     | Build, deploy and inspect your payment flow      |
 | A full/team Paiflow account             | Create your own deployment API token             |
 | [Freighter](https://www.freighter.app/) | Connect wallets and approve testnet transactions |
-| Node.js 22, pnpm 10 and git             | Run the supplied starter app                     |
 | Dedicated testnet wallets               | Deploy, pay and receive the split                |
 
 **Sandbox or team account?** The sandbox supports practice using its available features, including flows and test payments. Sandbox accounts cannot create deployment API tokens or connect their deployments to your app through the partner API. Use a full/team account for the integration steps.
@@ -69,7 +70,7 @@ Keep wallet secrets in Freighter. Never paste a secret key or recovery phrase in
 
 1. Open [Paiflow](https://beta.app.paiflow.xyz) and log in, or use the sandbox to try it out.
 2. Create a flow, using **On Receive** as its trigger and **Split** as its action. Connect On Receive to Split.
-3. Select native **XLM** as the flow's asset. Remove unrelated blocks or default recipients from the example graph.
+3. Select native **XLM** as the flow's asset and keep **Dev mode off** for this example. Remove unrelated blocks or default recipients from the example graph.
 4. Configure two percentage recipients using your actual funded public addresses:
 
 | Recipient      | Percentage | Expected share of 1 XLM |
@@ -109,7 +110,7 @@ For this example, the payment should route **0.9 XLM to the shop and 0.1 XLM to 
 2. Open **API access**, create a token and copy it immediately. The full token is shown once.
 3. Keep the token with your confirmed deployment UUID for the starter's server configuration.
 
-See the [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md) for preparing, signing and submitting payments, checking transaction status and reading events.
+See the [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing) for preparing, signing and submitting payments, checking transaction status and reading events.
 
 | Value            | How to recognise it                                                    |
 | ---------------- | ---------------------------------------------------------------------- |
@@ -120,6 +121,8 @@ See the [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop
 **Keep the API token server-side.** Do not put it in browser code, `NEXT_PUBLIC_` variables, screenshots or public repositories. If exposed, revoke it and issue a replacement. Customers approve their own payments in their wallets; your server never needs their secret keys.
 
 ## Run the starter in preparation mode
+
+**For the supplied starter, install Node.js 22, pnpm 10 and Git.** Run `pnpm install` to install the starter's application dependencies. These development tools are needed only from this section onward; the wallet, flow and hosted-payment steps use your browser and Freighter.
 
 Use the [Paiflow hackathon starter](https://github.com/artisam-paiflow/paiflow-hackathon-starter). Run these commands in a terminal:
 
@@ -132,7 +135,7 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-Open `http://localhost:3000`. These copy commands work in bash; on Windows you can copy `.env.example` to `.env.local` in your editor instead. Keep `PAIFLOW_MODE=prepare` while preparing non-payment screens or while event rules require it.
+Open `http://localhost:3000`. These copy commands work in bash; on Windows you can copy `.env.example` to `.env.local` in your editor instead. Use `PAIFLOW_MODE=prepare` to work without a Paiflow connection. Switch to `team` whenever your deployment and API token are ready, including before the event.
 
 Preparation mode disables wallet actions, payments and event polling. It makes no upstream Paiflow requests. Payment, payout and event routes return `403 PREPARATION_MODE`; that is expected in this mode.
 
@@ -140,7 +143,7 @@ Preparation mode disables wallet actions, payments and event polling. It makes n
 
 ## Configure your own deployment
 
-When integration is permitted, stop the dev server. Edit `.env.local` using your deployment and token:
+When your deployment and API token are ready, stop the dev server. Edit `.env.local` using your deployment and token:
 
 ```dotenv
 PAIFLOW_MODE=team
@@ -165,7 +168,7 @@ Ensure `.env.local` is ignored by git. Do not commit it. Missing or invalid team
 
 1. Open the local starter in the browser with Freighter installed. Confirm team mode is configured and the deployment uses XLM.
 2. Select **Connect Freighter** and approve access to the local site. Connecting to Paiflow does not automatically grant access to your local app.
-3. Confirm the customer address and Testnet network. Enter **1** in the ordinary **Pay** amount field and select **Pay**. Do not use the per-payment recipient form for this fixed Split example.
+3. Confirm the customer address and Testnet network. Enter **1** in the ordinary **Pay** amount field and select **Pay**. The per-payment recipient form is hidden when deployment capabilities do not support it; Dev mode stays disabled throughout the hackathon.
 4. Review the Testnet signing request in Freighter and confirm. The starter prepares through its server, Freighter signs, and the server submits.
 5. Check for **SUCCESS**, then verify the expected 0.9/0.1 XLM payout. Save the transaction hash.
 

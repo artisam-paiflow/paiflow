@@ -89,6 +89,33 @@ beforeEach(() => {
 });
 
 describe("deployment capabilities", () => {
+  it("discovers deployed Swap candidates without RPC or graph recompilation", async () => {
+    authorize({ pipelineSnapshot: [pipeline[0], { ...pipeline[1], templateKind: "SWAPPER" }] });
+    const result = await data();
+    expect(result.operations.swapQuote).toMatchObject({
+      status: "conditional",
+      authentication: "deployment_token",
+      nodeIds: ["pay"],
+    });
+    expect(result.operations.swapQuote.requirements.join(" ")).toContain("selected node");
+    expect(result.operations.swapQuote.requirements.join(" ")).toContain("pending");
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+  it("does not advertise quoting duplicate or unsupported Swap snapshots", async () => {
+    for (const templateKind of ["SWAPPER_DEV", "PAYER"]) {
+      authorize({ pipelineSnapshot: [pipeline[0], { ...pipeline[1], templateKind }] });
+      expect((await data()).operations.swapQuote.status).toBe("unsupported");
+    }
+    authorize({
+      pipelineSnapshot: [
+        pipeline[0],
+        { ...pipeline[1], templateKind: "SWAPPER" },
+        { ...pipeline[1], templateKind: "SWAPPER" },
+      ],
+    });
+    expect((await data()).operations.swapQuote.status).toBe("unsupported");
+  });
+
   it("stops advertising mutable payouts when Dev mode is off, retaining execution and reads", async () => {
     config.devModeEnabled = false;
     authorize({
@@ -259,6 +286,9 @@ describe("deployment capabilities", () => {
       expect(result.triggerType).toBe("subscription");
       expect(result.inputAsset).toEqual({ kind: "known", symbol: "USDC" });
       expect(result.operations.execute.status).toBe("unsupported");
+      expect(result.operations.subscriptionState.status).toBe("supported");
+      expect(result.operations.subscriptionState.authentication).toBe("deployment_token");
+      expect(result.operations.subscriptionState.nodeIds).toEqual(["trigger"]);
       expect(result.operations.subscriptionAllowance.status).toBe("conditional");
       expect(result.operations.subscriptionAllowance.authentication).toBe("subscriber_wallet");
       expect(result.operations.subscriptionAllowance.requirements.join(" ")).toContain(
@@ -285,6 +315,7 @@ describe("deployment capabilities", () => {
     });
     const result = await data();
     expect(result.triggerType).toBe("payroll");
+    expect(result.operations.subscriptionState.status).toBe("unsupported");
     expect(result.operations.subscriptionAllowance.status).toBe("unsupported");
   });
 
@@ -415,5 +446,18 @@ describe("capabilities access boundaries", () => {
     const response = await call();
     expect(response.status).toBe(429);
     expect(response.headers.get("retry-after")).not.toBeNull();
+  });
+});
+
+describe("Schedule discovery", () => {
+  it("reports deployed Schedule candidates without RPC or mutable graph permissions", async () => {
+    authorize({ pipelineSnapshot: [{ nodeId: "schedule", templateKind: "STREAMER", contractAddress: TRIGGER }] });
+    const response = await GET(new Request(`https://paiflow.test${PATH}`, {
+      headers: { authorization: `Bearer ${token.plaintext}` },
+    }) as NextRequest, ctx(DEPLOYMENT_ID));
+    const data = DeploymentCapabilitiesSchema.parse((await response.json()).data);
+    expect(data.operations.scheduleState).toMatchObject({ status: "supported", nodeIds: ["schedule"] });
+    expect(data.operations.scheduleControls).toMatchObject({ status: "conditional", authentication: "deployment_token", nodeIds: ["schedule"] });
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 });

@@ -276,11 +276,19 @@ export const DeploymentCapabilitiesSchema = z
       .object({
         execute: CapabilityOperationSchema,
         events: CapabilityOperationSchema,
+        balances: CapabilityOperationSchema,
+        funding: CapabilityOperationSchema,
         transactions: CapabilityOperationSchema,
         releaseEarly: CapabilityOperationSchema,
         payouts: CapabilityOperationSchema,
         webhook: CapabilityOperationSchema,
         subscriptionAllowance: CapabilityOperationSchema,
+        subscriptionState: CapabilityOperationSchema,
+        subscriptionCancel: CapabilityOperationSchema,
+        subscriptionReactivate: CapabilityOperationSchema,
+        swapQuote: CapabilityOperationSchema,
+        scheduleState: CapabilityOperationSchema,
+        scheduleControls: CapabilityOperationSchema,
       })
       .strict(),
   })
@@ -289,3 +297,150 @@ export const DeploymentCapabilitiesSchema = z
     "Supported means the integration path exists for the recorded deployment. Conditional requires additional eligibility checks. Unsupported means no matching path can be established. No status guarantees current balances, configuration, consent, deadline or infrastructure readiness.",
   );
 export type DeploymentCapabilities = z.infer<typeof DeploymentCapabilitiesSchema>;
+
+/** Live Subscription configuration; allowance uses integer stroops, never floating point. */
+export const SubscriptionStateSchema = z
+  .object({
+    deploymentId: z.string().uuid(),
+    flowName: z.string(),
+    network: z.enum(["testnet", "mainnet"]),
+    templateKind: z.enum(["SUBSCRIPTION", "SUBSCRIPTION_DEV"]),
+    contractAddress: z.string().refine(StrKey.isValidContract),
+    tokenContractAddress: z.string().refine(StrKey.isValidContract),
+    subscriber: z.string().refine(StrKey.isValidEd25519PublicKey).nullable(),
+    isCancelled: z.boolean(),
+    asset: CapabilitiesAssetSchema.nullable(),
+    assetLabel: z.string(),
+    allowance: z
+      .string()
+      .regex(/^\d{1,39}$/)
+      .refine((v) => !/^\d{1,39}$/.test(v) || BigInt(v) <= (1n << 127n) - 1n),
+    setupRequired: z.boolean(),
+  })
+  .strict();
+export type SubscriptionState = z.infer<typeof SubscriptionStateSchema>;
+
+export const DeploymentBalanceNodeSchema = z
+  .object({
+    nodeId: z.string().min(1),
+    templateKind: z.string().min(1),
+    contractAddress: z.string().refine(StrKey.isValidContract),
+    tokenContract: z.string().refine(StrKey.isValidContract).nullable(),
+    balanceStroops: z
+      .string()
+      .regex(/^\d{1,39}$/)
+      .refine((v) => !/^\d{1,39}$/.test(v) || BigInt(v) <= (1n << 127n) - 1n)
+      .nullable(),
+    readAt: z.string().datetime().nullable(),
+    stale: z.boolean(),
+    error: z.string().optional(),
+  })
+  .strict();
+export const DeploymentBalancesSchema = z
+  .object({
+    deploymentId: z.string().uuid(),
+    network: z.enum(["testnet", "mainnet"]),
+    totals: z.array(
+      z
+        .object({
+          tokenContract: z.string().refine(StrKey.isValidContract),
+          balanceStroops: z.string().regex(/^\d+$/),
+        })
+        .strict(),
+    ),
+    nodes: z.array(DeploymentBalanceNodeSchema),
+    freshness: z
+      .object({
+        status: z.enum(["fresh", "partial", "stale"]),
+        totalsComplete: z.boolean(),
+        attemptedAt: z.string().datetime(),
+        cached: z.boolean(),
+      })
+      .strict(),
+  })
+  .strict();
+export type DeploymentBalances = z.infer<typeof DeploymentBalancesSchema>;
+
+export const ScheduleStateQuerySchema = z
+  .object({ nodeId: z.string().min(1).max(128).optional() })
+  .strict();
+export const SchedulePrepareSchema = ScheduleStateQuerySchema.extend({
+  walletAddress: z.string().refine(StrKey.isValidEd25519PublicKey),
+}).strict();
+export const ScheduleReconcileSchema = z.object({ intent: z.string().uuid() }).strict();
+export const ScheduleStateSchema = z
+  .object({
+    deploymentId: z.string().uuid(),
+    network: z.enum(["testnet", "mainnet"]),
+    nodeId: z.string().min(1),
+    contractAddress: z.string().refine(StrKey.isValidContract),
+    controller: z
+      .string()
+      .refine((v) => StrKey.isValidEd25519PublicKey(v) || StrKey.isValidContract(v)),
+    tokenContractAddress: z.string().refine(StrKey.isValidContract),
+    controlEligibility: z
+      .object({
+        walletProtocolSupported: z.boolean(),
+        pause: z.boolean(),
+        resume: z.boolean(),
+        retrieve: z.boolean(),
+      })
+      .strict(),
+    paused: z.boolean(),
+    pauseAllowed: z.boolean(),
+    retrieveAllowed: z.boolean(),
+    balanceStroops: z.string().regex(/^(0|[1-9][0-9]*)$/),
+    availableStroops: z.string().regex(/^(0|[1-9][0-9]*)$/),
+    claimedStroops: z.string().regex(/^(0|[1-9][0-9]*)$/),
+    unvestedStroops: z.string().regex(/^(0|[1-9][0-9]*)$/),
+    retrievableStroops: z.string().regex(/^(0|[1-9][0-9]*)$/),
+    retrievalRecipient: z
+      .string()
+      .refine((v) => StrKey.isValidEd25519PublicKey(v) || StrKey.isValidContract(v)),
+    readAt: z.string().datetime(),
+  })
+  .strict();
+
+export type ScheduleStateQuery = z.infer<typeof ScheduleStateQuerySchema>;
+export type SchedulePrepare = z.infer<typeof SchedulePrepareSchema>;
+export type ScheduleReconcile = z.infer<typeof ScheduleReconcileSchema>;
+export type ScheduleState = z.infer<typeof ScheduleStateSchema>;
+/** The integration token never substitutes for the configured subscriber's signature. */
+export const SubscriptionControlPrepareSchema = z
+  .object({
+    walletAddress: z
+      .string()
+      .refine(StrKey.isValidEd25519PublicKey, "Invalid Stellar wallet address"),
+  })
+  .strict();
+export type SubscriptionControlPrepare = z.infer<typeof SubscriptionControlPrepareSchema>;
+export const SubscriptionControlReconcileSchema = z.object({ intent: z.string().uuid() }).strict();
+export type SubscriptionControlReconcile = z.infer<typeof SubscriptionControlReconcileSchema>;
+
+export const SubscriptionControlPreparedSchema = z
+  .object({
+    intent: z.string().uuid(),
+    txHash: z.string().regex(/^[0-9a-f]{64}$/),
+    expiresAt: z.string().datetime(),
+    xdr: z.string().min(1),
+    network: z.enum(["testnet", "mainnet"]),
+    networkPassphrase: z.string().min(1),
+    action: z.enum(["subscription.cancel", "subscription.reactivate"]),
+    walletAddress: z.string().refine(StrKey.isValidEd25519PublicKey),
+    nodeId: z.string().min(1),
+    contractAddress: z.string().refine(StrKey.isValidContract),
+    tokenContractAddress: z.string().refine(StrKey.isValidContract),
+  })
+  .strict();
+export type SubscriptionControlPrepared = z.infer<typeof SubscriptionControlPreparedSchema>;
+export const SubscriptionControlReconciledSchema = z
+  .object({
+    intent: z.string().uuid(),
+    txHash: z.string().regex(/^[0-9a-f]{64}$/),
+    action: z.enum(["subscription.cancel", "subscription.reactivate"]),
+    state: z.enum(["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"]),
+    ledger: z.number().int().positive().nullable(),
+    replacementAllowed: z.boolean(),
+  })
+  .strict();
+export type SubscriptionControlReconciled = z.infer<typeof SubscriptionControlReconciledSchema>;

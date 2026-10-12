@@ -2,6 +2,8 @@ import "server-only";
 import type { Deployment } from "@prisma/client";
 import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
+import { BalancePipelineSnapshotSchema } from "@/lib/pipeline-snapshot";
+import { balanceCandidates } from "./balance-targets";
 import { AppError } from "@/lib/errors";
 import { env } from "@/lib/env";
 import { isFeatureEnabled } from "@/lib/features";
@@ -135,6 +137,22 @@ export function deploymentCapabilities(
     subscriptionTrigger?.type === "subscription" &&
     subscriptionNodes.length === 1 &&
     subscriptionNodes[0]?.nodeId === subscriptionTrigger.id;
+  const stateCandidate =
+    allowanceCandidate &&
+    recordedGraph?.nodes.filter(isTrigger).length === 1 &&
+    new Set(nodes.map((node) => node.nodeId)).size === nodes.length &&
+    new Set(nodes.map((node) => node.contractAddress)).size === nodes.length &&
+    head?.nodeId === subscriptionTrigger?.id;
+  const fundingSnapshot = BalancePipelineSnapshotSchema.safeParse(deployment.pipelineSnapshot);
+  const fundNodes = fundingSnapshot.success
+    ? fundingSnapshot.data.filter((n) => ["STREAMER", "WEBHOOK"].includes(n.templateKind))
+    : [];
+  const scheduleNodes = nodes.filter((node) => node.templateKind === "STREAMER");
+  const scheduleValid =
+    scheduleNodes.length > 0 &&
+    nodes.length <= 128 &&
+    new Set(nodes.map((node) => node.nodeId)).size === nodes.length &&
+    new Set(nodes.map((node) => node.contractAddress)).size === nodes.length;
   const webhookEnabled = triggerType === "webhook" && !!deployment.webhookSecret;
 
   return {
@@ -153,6 +171,31 @@ export function deploymentCapabilities(
           : operation("unsupported", [
               "Execute requires a pipeline headed by a deposit trigger; other triggers use their own funding, schedule or callback workflow.",
             ]),
+      funding:
+        fundNodes.length && fundNodes.length <= 16
+          ? operation(
+              "conditional",
+              [
+                "GET /funding discovers live assets; POST /funding prepares Schedule top-ups or Webhook pool deposits. Any consenting funder may sign; the deployment token cannot move funds.",
+                "Funding adds funds only; it does not execute Schedule payouts or Webhook callbacks. One unresolved intent per node blocks all further preparations; reconcile before replacement. Hosted testnet verification remains pending.",
+              ],
+              fundNodes.map((n) => n.nodeId),
+            )
+          : operation("unsupported", [
+              "No unambiguous supported Schedule or Webhook funding nodes.",
+            ]),
+      balances: balanceCandidates(deployment.pipelineSnapshot, devModeEnabled).length
+        ? operation(
+            "conditional",
+            [
+              "Reads current token contract balances, not Schedule payout availability or proof of payment. Live asset and balance reads must succeed; stale, partial and unsupported targets make totals incomplete.",
+              "Display reads may be cached for 10 seconds. Multisig is excluded. Hosted testnet verification remains required before participant availability is claimed.",
+            ],
+            balanceCandidates(deployment.pipelineSnapshot, devModeEnabled).map((n) => n.nodeId),
+          )
+        : operation("unsupported", [
+            "No supported balance targets were established from the deployment snapshot. Multisig is excluded.",
+          ]),
       events: operation("supported", [
         "Returns recorded deployment events with forward pagination; collection can lag the chain. Missing events do not prove payment failure.",
       ]),
@@ -200,6 +243,74 @@ export function deploymentCapabilities(
             [],
             "webhook_secret",
           ),
+      swapQuote:
+        nodes.some((node) => node.templateKind === "SWAPPER") &&
+        new Set(nodes.map((node) => node.nodeId)).size === nodes.length &&
+        new Set(nodes.map((node) => node.contractAddress)).size === nodes.length
+          ? operation(
+              "conditional",
+              [
+                "GET /api/v1/deployments/{id}/swap-quote with amountStroops and nodeId when several Swap nodes exist. Live getters determine assets, router and slippage; no caller-selected pairs or routes.",
+                "Requires the configured network router, liquidity and shared Redis in production. Fresh estimates cover only the selected node, never the entire flow or guaranteed output. Final preparation, simulation and execution remain authoritative.",
+                "Hosted testnet quote-versus-execution verification remains pending; metadata identifies candidates, not verified hosted support.",
+              ],
+              nodes.filter((node) => node.templateKind === "SWAPPER").map((node) => node.nodeId),
+            )
+          : operation("unsupported", [
+              "Requires a valid deployment snapshot containing a standard Swap node.",
+            ]),
+      scheduleState: scheduleValid
+        ? operation(
+            "supported",
+            [
+              "Read /schedule/state for current controller, token, pause permissions, holding balance and vested payout availability. Select nodeId when several Schedule nodes exist; reads are uncached and fail closed.",
+            ],
+            scheduleNodes.map((node) => node.nodeId),
+          )
+        : operation("unsupported", ["Requires a valid deployed STREAMER node."]),
+      scheduleControls: scheduleValid
+        ? operation(
+            "conditional",
+            [
+              "Prepare /schedule/pause, /schedule/resume or /schedule/retrieve, sign the unchanged envelope with the current controller account wallet, then /submit. The token grants API access, not wallet authorization.",
+              "Live permissions and state are checked before preparation and first submission. Retrieval requires a paused permitted Schedule; funds return only to its contract-configured controller. Contract controllers requiring address credentials are unsupported.",
+              "Only one unresolved intent per node is permitted, including funding. Reconcile the matching action intent before replacement; UNKNOWN, queue rejection or elapsed wall-clock time does not authorize another envelope. Hosted testnet verification remains pending.",
+            ],
+            scheduleNodes.map((node) => node.nodeId),
+          )
+        : operation("unsupported", ["Requires a valid deployed STREAMER node."]),
+      subscriptionState: stateCandidate
+        ? operation(
+            "supported",
+            [
+              "Read /api/v1/deployments/{id}/subscription/state for live subscriber, token, allowance and cancellation state. This deployment token permits reading, not wallet approval or cancellation.",
+              "Ordinary and Dev subscriptions are supported. Unconfigured Dev subscribers return setupRequired:true and zero allowance without a token allowance read. Mutable asset metadata can be unavailable; tokenContractAddress is authoritative.",
+            ],
+            [head!.nodeId],
+          )
+        : operation("unsupported", [
+            "Requires an unambiguous subscription-headed deployment; payroll and malformed snapshots are refused.",
+          ]),
+      subscriptionCancel: operation(
+        stateCandidate ? "conditional" : "unsupported",
+        [
+          "Use subscription/cancel/prepare, sign with the currently configured subscriber, then submit the identical envelope. Requires an active subscription; cancellation revokes its allowance without charging. Recover an existing intent through subscription/cancel/reconcile before replacement.",
+          "Deployment bearer token is also required for every route. Existing Dev cancellation remains available when Dev mode is disabled; live state, consent and simulation determine eligibility.",
+        ],
+        stateCandidate ? [head!.nodeId] : [],
+        "subscriber_wallet",
+      ),
+      subscriptionReactivate: operation(
+        stateCandidate && (head?.templateKind !== "SUBSCRIPTION_DEV" || devModeEnabled)
+          ? "conditional"
+          : "unsupported",
+        [
+          "Use subscription/reactivate/prepare, sign with the currently configured subscriber, then submit the identical envelope. Requires a cancelled subscription; reactivation does not grant allowance, change billing, create a subscriber or immediately charge. Approve allowance separately. Recover through subscription/reactivate/reconcile before replacement.",
+          "Deployment bearer token is also required for every route. Dev reactivation requires Dev mode enabled; live state, consent and simulation determine eligibility.",
+        ],
+        stateCandidate ? [head!.nodeId] : [],
+        "subscriber_wallet",
+      ),
       subscriptionAllowance: allowanceCandidate
         ? operation(
             "conditional",

@@ -8,23 +8,25 @@ Connect your own app to a deployed Paiflow flow without using the hackathon star
 
 | Resource                                                                                                                      | Use it when you want to…                                                                                           |
 | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [Developer guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-guide.md)                  | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
-| [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md)          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
+| [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing)                  | Set up wallets, build and deploy a flow, then configure and customise the ready-wired starter.                     |
+| [API quickstart](https://drive.google.com/file/d/1mTFaoICZwW2Ha3OttgJkp2q50o2H5siJ/view?usp=sharing)          | Integrate your own app without the starter, using a complete frontend/backend example.                             |
 | [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                              | Look up endpoint schemas, errors, limits, pagination and advanced workflows.                                       |
 | [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                 | Import the machine-readable API contract into development tools.                                                   |
 | [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Try API requests with your deployment UUID and token.                                                              |
 | [AI developer context (`llms.md`)](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md)            | Give your AI assistant product rules, API details and worked examples.                                             |
 | [Starter repository](https://github.com/artisam-paiflow/paiflow-hackathon-starter)                                            | Get working payment preparation, Freighter signing, submission and event reads without implementing them yourself. |
-| [Freighter Testnet setup](https://developers.stellar.org/docs/build/guides/freighter/connect-testnet)                         | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
+| [Freighter Testnet setup (video)](https://youtu.be/OBFtQsRe4b0)                         | Create a wallet, select Testnet and obtain testnet XLM.                                                            |
 | [Stellar Expert Testnet](https://stellar.expert/explorer/testnet)                                                             | Inspect transaction evidence and verify actual payouts.                                                            |
 
 Follow your participant brief for event rules, preparation permissions, deadlines and submissions.
 
-Starter users can follow the developer guide without copying this quickstart’s `route.js` or `page.js`. This quickstart implements a separate integration and does not use the starter’s mode settings.
+Starter users can follow the [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing) without copying this quickstart’s `route.js` or `page.js`. This quickstart implements a separate integration and does not use the starter’s mode settings.
 
 ## 1 Prepare a deployment and app
 
-Build and deploy a standard **On Receive XLM → percentage Split XLM** flow: 90% to a shop and 10% to a community fund. Use two distinct funded Testnet recipient addresses. Wait for **CONFIRMED**, then create a deployment token in **API access** and copy its UUID.
+**Dev mode will stay disabled for the duration of the hackathon.** Configure recipients and required values before deploying. Per-payment recipients, **Fill value via API** and **Dev values** are unavailable; standard Pay and Split flows remain available. `PAIFLOW_MODE=team` and `pnpm dev` do not enable flow Dev mode.
+
+Build and deploy a standard **On Receive XLM → percentage Split XLM** flow: 90% to a shop and 10% to a community fund. Keep **Dev mode off** for this example and use two distinct funded Testnet recipient addresses. Wait for **CONFIRMED**, then create a deployment token in **API access** and copy its UUID.
 
 Use a full/team Paiflow account at [beta.paiflow.xyz](https://beta.app.paiflow.xyz). Sandbox accounts cannot create tokens or use their deployments through the partner API. API access requires an **ACTIVE** deployment and active owner; retiring/retired deployments and revoked/expired tokens are refused.
 
@@ -32,13 +34,35 @@ The example charges **1 XLM**, so expect **0.9 XLM and 0.1 XLM** in payouts. The
 
 This example uses a **Next.js App Router app with JavaScript**. The same server/browser boundary applies to other stacks.
 
+### Install development tools
+
+For this JavaScript example, use **Node.js 22 and pnpm 10**. On the [Node.js download page](https://nodejs.org/en/download), select **22.x** in the version selector and install it for your operating system. Then open a terminal and install pnpm using npm, which comes with Node.js:
+
+```bash
+node --version
+npm install --global pnpm@10
+pnpm --version
+```
+
+Check that the versions begin with `v22.` and `10.` respectively. If both tools are already installed at those versions, skip installation. These tools run this example app; Paiflow's API can also be used from other languages and frameworks.
+
+### Create an app and install integration packages
+
 **Starting a new app:** run the app generator:
 
 ```bash
 pnpm create next-app@latest paiflow-api-example
 ```
 
-When prompted, choose JavaScript, enable App Router and choose not to use a `src/` directory, so `app/` is at the project root. Then enter the new project folder and install the two integration packages:
+When asked whether to use the recommended defaults, choose **No, customize settings**. Select:
+
+- **TypeScript:** No, so the app uses JavaScript and `app/page.js`.
+- **React Compiler:** No for this example.
+- **`src/` directory:** No, so `app/` is at the project root.
+- **App Router:** Yes.
+- **Cache Components:** No for this example, if prompted.
+
+Keep the other settings at their defaults. Then enter the new project folder and install the two integration packages:
 
 ```bash
 cd paiflow-api-example
@@ -59,7 +83,7 @@ PAIFLOW_DEPLOYMENT_ID=YOUR_CONFIRMED_DEPLOYMENT_UUID
 PAIFLOW_API_TOKEN=YOUR_DEPLOYMENT_API_TOKEN
 ```
 
-Never prefix the token with `NEXT_PUBLIC_`, send it to the browser or commit `.env.local`. This independent example has no starter mode setting; connect it only when integration is permitted. No wallet secret keys belong in your app.
+Never prefix the token with `NEXT_PUBLIC_`, send it to the browser or commit `.env.local`. This independent example has no starter mode setting; you may connect and test before the event as soon as your deployment and API token are ready. No wallet secret keys belong in your app.
 
 ## 2 Add the server route
 
@@ -385,6 +409,28 @@ For other flow types, first inspect `GET /api/v1/deployments/{id}/capabilities` 
 - [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json) — the repository's machine-readable contract. The live instance normally serves `/api/v1/openapi.json`; verify its availability before importing it.
 - [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) — set `baseUrl`, deployment UUID and token for your instance.
 - [Freighter signing API](https://docs.freighter.app/extension-freighter-api/signing) — browser wallet signature interface.
-- [Developer guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-guide.md) — wallet/flow setup and the ready-wired starter path.
+- [Paiflow Guide](https://drive.google.com/file/d/1abY-gT2TERr_av3eRPHjc9e8vTfkDnuY/view?usp=sharing) — wallet/flow setup and the ready-wired starter path.
 
 When requesting support, include the deployment UUID, transaction hash, error message and request ID when available. Keep tokens, wallet secrets and signed envelopes out of support messages.
+
+## Preview one deployed Swap
+
+The source endpoint `GET /api/v1/deployments/{id}/swap-quote?amountStroops=10000000`
+uses that deployment's bearer token. Hosted quote-versus-execution testnet evidence
+is pending; check the hosted OpenAPI before relying on availability. Discover
+candidate nodes through `operations.swapQuote`; pass `nodeId` if multiple Swaps
+exist. Only amount and node selection are accepted, with assets/router/slippage
+read from the deployed contract. This is an estimate of the input reaching that
+node, never a whole-flow prediction or guaranteed payout. Read timestamps describe
+successive live simulations; later preparation/execution can differ. See the
+[API reference](../api/README.md#deployment-specific-swap-estimates) for exact
+stroop output, estimated minimum, eligibility and 20/min deployment quote budget.
+
+### Deployment funding (#916)
+
+Schedule top-ups and Webhook pool deposits use deployment-token GET/POST `/api/v1/deployments/{id}/funding`, `/funding/submit` and `/funding/reconcile`. Any consenting funding wallet may sign; a token alone cannot move funds. Funding adds funds only and does not execute payouts or callbacks. One unresolved intent per node blocks replacements until confirmed finality or ledger-proven expiry; UNKNOWN never permits another deposit. Public `/trigger`, `/submit-trigger` and hosted funding remain available. Webhook callbacks separately require `x-webhook-secret`. See the [complete signing and recovery example](../api/funding.md). Hosted testnet verification remains pending.
+For Schedule integrations, discover `scheduleState`/`scheduleControls` and read
+`/api/v1/deployments/{id}/schedule/state`. Controller-wallet pause/resume/retrieve
+use action-specific preparation, `/submit` and `/reconcile`; funding is separate.
+See [Schedule wallet/recovery example](../api/schedule-controls.md). Hosted testnet
+verification remains pending before these routes are claimed participant-ready.

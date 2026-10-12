@@ -90,6 +90,67 @@
       "key": "payoutSignedXdr",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "subscriberAddress",
+      "value": ""
+    },
+    {
+      "key": "controlIntent",
+      "value": ""
+    },
+    {
+      "key": "controlTxHash",
+      "value": ""
+    },
+    {
+      "key": "unsignedControlXdr",
+      "value": ""
+    },
+    {
+      "key": "scheduleNodeId",
+      "value": ""
+    },
+    {
+      "key": "scheduleWalletAddress",
+      "value": ""
+    },
+    {
+      "key": "scheduleIntent",
+      "value": ""
+    },
+    {
+      "key": "scheduleUnsignedXdr",
+      "value": ""
+    },
+    {
+      "key": "scheduleSignedXdr",
+      "value": ""
+    },
+    {
+      "key": "fundingNodeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "fundingAsset",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "fundingIntent",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "fundingAction",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "fundingSignedXdr",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -103,8 +164,14 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/demo-token",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "v1", "demo-token"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "demo-token"
+          ]
         },
         "description": "Public; no token and no account. Returns a bearer token for one shared swapper deployment on testnet, so you can run the calls above before registering. Takes no body. Available only where the public demo is enabled (the testnet instance); 403 otherwise.\n\n**This deployment is shared.** Anyone else holding a demo token can read the events your deposit produces, including the account you deposited from. The swap proceeds are paid to a Paiflow-owned testnet account, not back to you, so the testnet XLM you deposit is spent. Fund a throwaway account with friendbot and never point this at an account you care about.\n\nFor an isolated deployment and a token that does not expire in an hour, register, deploy your own flow and mint a token in the **API access** panel.\n\nRate limit: 3 requests per 3600 seconds per client IP. Rate limit: 60 requests per 3600 seconds instance-wide."
       },
@@ -136,8 +203,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/demo-token",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "demo-token"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "demo-token"
+              ]
             }
           },
           "status": "Created",
@@ -160,8 +233,16 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/capabilities",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "v1", "deployments", "{{deploymentId}}", "capabilities"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "capabilities"
+          ]
         },
         "description": "Discover recorded integration support and prerequisites. Requires the deployment token. Conditional support is not live eligibility; no transactions are sent."
       },
@@ -173,8 +254,16 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/capabilities",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "capabilities"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "capabilities"
+              ]
             },
             "description": "Discover recorded integration support and prerequisites. Requires the deployment token. Conditional support is not live eligibility; no transactions are sent."
           },
@@ -186,7 +275,60 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"network\": \"testnet\",\n    \"configurationSource\": \"deployment_snapshot\",\n    \"triggerType\": \"deposit\",\n    \"inputAsset\": {\n      \"kind\": \"native\"\n    },\n    \"operations\": {\n      \"execute\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"The paying wallet signs the prepared deposit; simulation checks current configuration.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"events\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Recorded events can lag the chain.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"transactions\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Only attributable transactions can be read; missing evidence does not prove failure.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"releaseEarly\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"No deployed timelock branch supports early release.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"payouts\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Standard flows use configured recipients; per-payment recipients require an eligible Dev flow.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"webhook\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"webhook_secret\",\n        \"requirements\": [\n          \"Requires a deployed webhook trigger with HTTP callbacks enabled.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionAllowance\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      }\n    }\n  }\n}"
+          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"network\": \"testnet\",\n    \"configurationSource\": \"deployment_snapshot\",\n    \"triggerType\": \"deposit\",\n    \"inputAsset\": {\n      \"kind\": \"native\"\n    },\n    \"operations\": {\n      \"execute\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"The paying wallet signs the prepared deposit; simulation checks current configuration.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"funding\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"No supported funding nodes.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"balances\": {\n        \"status\": \"conditional\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Live contract assets and balances must be readable; cached for up to 10 seconds.\"\n        ],\n        \"nodeIds\": [\n          \"pay\"\n        ]\n      },\n      \"events\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Recorded events can lag the chain.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"transactions\": {\n        \"status\": \"supported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Only attributable transactions can be read; missing evidence does not prove failure.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"releaseEarly\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"No deployed timelock branch supports early release.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"payouts\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Standard flows use configured recipients; per-payment recipients require an eligible Dev flow.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"webhook\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"webhook_secret\",\n        \"requirements\": [\n          \"Requires a deployed webhook trigger with HTTP callbacks enabled.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"swapQuote\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Requires a deployed Swap node.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"scheduleState\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [],\n        \"nodeIds\": []\n      },\n      \"scheduleControls\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [],\n        \"nodeIds\": []\n      },\n      \"subscriptionState\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"deployment_token\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionCancel\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a supported subscription and current subscriber wallet consent.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionReactivate\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a supported cancelled subscription and current subscriber wallet consent.\"\n        ],\n        \"nodeIds\": []\n      },\n      \"subscriptionAllowance\": {\n        \"status\": \"unsupported\",\n        \"authentication\": \"subscriber_wallet\",\n        \"requirements\": [\n          \"Requires a subscription deployment.\"\n        ],\n        \"nodeIds\": []\n      }\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get deployment balances",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/balances",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "balances"
+          ]
+        },
+        "description": "Display current contract token balances, with read timestamps and partial/completeness information. Poll at most every 10 seconds. Not Schedule payout availability or payment success. Hosted testnet verification pending."
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/balances",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "balances"
+              ]
+            },
+            "description": "Display current contract token balances, with read timestamps and partial/completeness information. Poll at most every 10 seconds. Not Schedule payout availability or payment success. Hosted testnet verification pending."
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"network\": \"testnet\",\n    \"totals\": [\n      {\n        \"tokenContract\": \"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC\",\n        \"balanceStroops\": \"10000000\"\n      }\n    ],\n    \"nodes\": [\n      {\n        \"nodeId\": \"schedule\",\n        \"templateKind\": \"STREAMER\",\n        \"contractAddress\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n        \"tokenContract\": \"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC\",\n        \"balanceStroops\": \"10000000\",\n        \"readAt\": \"2026-10-12T00:00:00.000Z\",\n        \"stale\": false\n      }\n    ],\n    \"freshness\": {\n      \"status\": \"fresh\",\n      \"totalsComplete\": true,\n      \"attemptedAt\": \"2026-10-12T00:00:00.000Z\",\n      \"cached\": false\n    }\n  }\n}"
         }
       ]
     },
@@ -200,8 +342,14 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/v1/openapi.json",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "v1", "openapi.json"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "openapi.json"
+          ]
         },
         "description": "Public; no token. Returned as the bare document, without the `data` envelope. Rate limit: 60 requests per 60 seconds per client IP."
       },
@@ -230,8 +378,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/openapi.json",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "openapi.json"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "openapi.json"
+              ]
             }
           },
           "status": "OK",
@@ -259,8 +413,16 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "execute"
+          ]
         },
         "body": {
           "mode": "raw",
@@ -306,8 +468,16 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "execute"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -342,8 +512,16 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "execute"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -378,8 +556,16 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "execute"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -416,8 +602,17 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "execute",
+            "submit"
+          ]
         },
         "body": {
           "mode": "raw",
@@ -470,8 +665,17 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "execute",
+                "submit"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -506,8 +710,17 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "execute",
+                "submit"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -542,8 +755,17 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/execute/submit",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "execute", "submit"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "execute",
+                "submit"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -580,8 +802,16 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/release-early",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "v1", "deployments", "{{deploymentId}}", "release-early"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "release-early"
+          ]
         },
         "body": {
           "mode": "raw",
@@ -621,8 +851,16 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/release-early",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "release-early"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "release-early"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -654,8 +892,16 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/events?limit=50",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "v1", "deployments", "{{deploymentId}}", "events"],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "events"
+          ],
           "query": [
             {
               "key": "limit",
@@ -701,8 +947,16 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/events?limit=50",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "events"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "events"
+              ],
               "query": [
                 {
                   "key": "limit",
@@ -748,8 +1002,16 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "payouts"
+          ]
         },
         "body": {
           "mode": "raw",
@@ -795,8 +1057,16 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "payouts"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -832,8 +1102,16 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "payouts"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -869,8 +1147,16 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "payouts"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -906,8 +1192,16 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "payouts"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -949,8 +1243,17 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts/submit",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts", "submit"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "payouts",
+            "submit"
+          ]
         },
         "body": {
           "mode": "raw",
@@ -1003,8 +1306,17 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts/submit",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts", "submit"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "payouts",
+                "submit"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1040,8 +1352,17 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts/submit",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts", "submit"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "payouts",
+                "submit"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1077,8 +1398,17 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/payouts/submit",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "deployments", "{{deploymentId}}", "payouts", "submit"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "payouts",
+                "submit"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1111,8 +1441,17 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/transactions/{{txHash}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "v1", "deployments", "{{deploymentId}}", "transactions", "{{txHash}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "transactions",
+            "{{txHash}}"
+          ]
         },
         "description": "Poll existing transaction without resubmitting; UNKNOWN never authorizes another payment."
       },
@@ -1150,12 +1489,1088 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/webhooks/{{deploymentId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "webhooks", "{{deploymentId}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "webhooks",
+            "{{deploymentId}}"
+          ]
         },
         "description": "Requires a separately funded webhook deployment and its callback secret. Keep the same event key and payload for retries; changing payload conflicts. Keys never reopen automatically; UNKNOWN must not trigger a fresh payment. This route uses the relayer, not caller wallet signing."
       },
       "response": []
+    },
+    {
+      "name": "Get Subscription state",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/state",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "subscription",
+            "state"
+          ]
+        },
+        "description": "Read live subscriber, token, allowance and cancellation state. Unconfigured Dev subscriber returns setupRequired:true and allowance:\"0\". Read only; no wallet mutation. Limit 40/minute/token."
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/state",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "subscription",
+                "state"
+              ]
+            },
+            "description": "Read live subscriber, token, allowance and cancellation state. Unconfigured Dev subscriber returns setupRequired:true and allowance:\"0\". Read only; no wallet mutation. Limit 40/minute/token."
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-store"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"flowName\": \"Club membership\",\n    \"network\": \"testnet\",\n    \"templateKind\": \"SUBSCRIPTION\",\n    \"contractAddress\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n    \"tokenContractAddress\": \"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC\",\n    \"subscriber\": \"GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY\",\n    \"isCancelled\": false,\n    \"asset\": {\n      \"kind\": \"native\"\n    },\n    \"assetLabel\": \"XLM\",\n    \"allowance\": \"1000000000\",\n    \"setupRequired\": false\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Subscription cancel \u2014 prepare",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"walletAddress\": \"{{subscriberAddress}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/cancel/prepare",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "subscription",
+            "cancel",
+            "prepare"
+          ]
+        },
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) { const p = pm.response.json().data; pm.collectionVariables.set(\"controlIntent\", p.intent); pm.collectionVariables.set(\"controlTxHash\", p.txHash); pm.collectionVariables.set(\"unsignedControlXdr\", p.xdr); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscription cancel \u2014 submit",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{controlIntent}}\",\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/cancel/submit",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "subscription",
+            "cancel",
+            "submit"
+          ]
+        },
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending."
+      },
+      "response": []
+    },
+    {
+      "name": "Subscription cancel \u2014 reconcile",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{controlIntent}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/cancel/reconcile",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "subscription",
+            "cancel",
+            "reconcile"
+          ]
+        },
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending."
+      },
+      "response": []
+    },
+    {
+      "name": "Subscription reactivate \u2014 prepare",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"walletAddress\": \"{{subscriberAddress}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/reactivate/prepare",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "subscription",
+            "reactivate",
+            "prepare"
+          ]
+        },
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) { const p = pm.response.json().data; pm.collectionVariables.set(\"controlIntent\", p.intent); pm.collectionVariables.set(\"controlTxHash\", p.txHash); pm.collectionVariables.set(\"unsignedControlXdr\", p.xdr); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscription reactivate \u2014 submit",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{controlIntent}}\",\n  \"signedXdr\": \"{{signedXdr}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/reactivate/submit",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "subscription",
+            "reactivate",
+            "submit"
+          ]
+        },
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending."
+      },
+      "response": []
+    },
+    {
+      "name": "Subscription reactivate \u2014 reconcile",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{controlIntent}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/subscription/reactivate/reconcile",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "subscription",
+            "reactivate",
+            "reconcile"
+          ]
+        },
+        "description": "Deployment bearer token plus current subscriber wallet signature for mutations. Existing Dev cancellation remains available with Dev disabled; Dev reactivation requires the feature enabled. Prepare exact envelope; save intent/hash before wallet signs on returned networkPassphrase. Cancel revokes allowance; reactivate grants none and charges nothing. Unknown/refused status never authorizes replacement: poll same transaction and reconcile saved intent. Hosted testnet verification pending."
+      },
+      "response": []
+    },
+    {
+      "name": "Get deployed Swap quote",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/swap-quote?amountStroops={{amount}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "swap-quote"
+          ],
+          "query": [
+            {
+              "key": "amountStroops",
+              "value": "{{amount}}"
+            },
+            {
+              "key": "nodeId",
+              "value": "swap",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Estimate the selected deployed Swap node, not the entire flow or guaranteed output. Enable nodeId for multiple Swap nodes. Assets/router/slippage come from live getters. Hosted verification pending."
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/swap-quote?amountStroops={{amount}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "swap-quote"
+              ],
+              "query": [
+                {
+                  "key": "amountStroops",
+                  "value": "{{amount}}"
+                },
+                {
+                  "key": "nodeId",
+                  "value": "swap",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Estimate the selected deployed Swap node, not the entire flow or guaranteed output. Enable nodeId for multiple Swap nodes. Assets/router/slippage come from live getters. Hosted verification pending."
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Cache-Control",
+              "value": "no-store"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"network\": \"testnet\",\n    \"nodeId\": \"swap\",\n    \"contractAddress\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n    \"assetInContractAddress\": \"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC\",\n    \"assetOutContractAddress\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n    \"routerAddress\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n    \"pairAddress\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n    \"amountInStroops\": \"10000000\",\n    \"amountOutStroops\": \"1050000\",\n    \"amountOutMinStroops\": \"1040000\",\n    \"slippageBps\": 100,\n    \"readStartedAt\": \"2026-10-12T09:00:00.000Z\",\n    \"quotedAt\": \"2026-10-12T09:00:01.000Z\",\n    \"freshness\": \"live\",\n    \"estimate\": true,\n    \"scope\": \"selected_node\",\n    \"meetsMinimumAtQuote\": true\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Schedule state",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/state",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "schedule",
+            "state"
+          ],
+          "query": [
+            {
+              "key": "nodeId",
+              "value": "{{scheduleNodeId}}",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery."
+      },
+      "response": []
+    },
+    {
+      "name": "Schedule pause",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/pause",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "schedule",
+            "pause"
+          ]
+        },
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"walletAddress\": \"{{scheduleWalletAddress}}\",\n  \"nodeId\": \"{{scheduleNodeId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const data = pm.response.json().data;",
+              "  pm.collectionVariables.set(\"scheduleIntent\", data.intent);",
+              "  pm.collectionVariables.set(\"scheduleUnsignedXdr\", data.unsignedXdr);",
+              "  pm.collectionVariables.set(\"txHash\", data.txHash);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Schedule pause/submit",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/pause/submit",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "schedule",
+            "pause",
+            "submit"
+          ]
+        },
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{scheduleIntent}}\",\n  \"signedXdr\": \"{{scheduleSignedXdr}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Schedule pause/reconcile",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/pause/reconcile",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "schedule",
+            "pause",
+            "reconcile"
+          ]
+        },
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{scheduleIntent}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Schedule resume",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/resume",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "schedule",
+            "resume"
+          ]
+        },
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"walletAddress\": \"{{scheduleWalletAddress}}\",\n  \"nodeId\": \"{{scheduleNodeId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const data = pm.response.json().data;",
+              "  pm.collectionVariables.set(\"scheduleIntent\", data.intent);",
+              "  pm.collectionVariables.set(\"scheduleUnsignedXdr\", data.unsignedXdr);",
+              "  pm.collectionVariables.set(\"txHash\", data.txHash);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Schedule resume/submit",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/resume/submit",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "schedule",
+            "resume",
+            "submit"
+          ]
+        },
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{scheduleIntent}}\",\n  \"signedXdr\": \"{{scheduleSignedXdr}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Schedule resume/reconcile",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/resume/reconcile",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "schedule",
+            "resume",
+            "reconcile"
+          ]
+        },
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{scheduleIntent}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Schedule retrieve",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/retrieve",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "schedule",
+            "retrieve"
+          ]
+        },
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"walletAddress\": \"{{scheduleWalletAddress}}\",\n  \"nodeId\": \"{{scheduleNodeId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const data = pm.response.json().data;",
+              "  pm.collectionVariables.set(\"scheduleIntent\", data.intent);",
+              "  pm.collectionVariables.set(\"scheduleUnsignedXdr\", data.unsignedXdr);",
+              "  pm.collectionVariables.set(\"txHash\", data.txHash);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Schedule retrieve/submit",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/retrieve/submit",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "schedule",
+            "retrieve",
+            "submit"
+          ]
+        },
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{scheduleIntent}}\",\n  \"signedXdr\": \"{{scheduleSignedXdr}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Schedule retrieve/reconcile",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/schedule/retrieve/reconcile",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "schedule",
+            "retrieve",
+            "reconcile"
+          ]
+        },
+        "description": "Schedule controller wallet required for controls. Never include private keys. Follow docs/api/schedule-controls.md; keep each intent and signed envelope separately for recovery.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intent\": \"{{scheduleIntent}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Discover funding",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "funding"
+          ]
+        },
+        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending."
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "funding"
+              ]
+            },
+            "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending."
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"deploymentId\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"network\": \"testnet\",\n    \"nodes\": [\n      {\n        \"nodeId\": \"schedule\",\n        \"templateKind\": \"STREAMER\",\n        \"contractAddress\": \"CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA\",\n        \"action\": \"schedule.fund\",\n        \"tokenContractAddress\": \"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC\",\n        \"authorization\": \"funding_wallet\",\n        \"effect\": \"Adds funds only; does not execute a payout or Webhook callback\"\n      }\n    ]\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Prepare funding",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "funding"
+          ]
+        },
+        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nodeId\": \"{{fundingNodeId}}\",\n  \"fromAddress\": \"{{from}}\",\n  \"tokenContractAddress\": \"{{fundingAsset}}\",\n  \"amountStroops\": \"{{amount}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"prepared funding\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const data = pm.response.json().data; pm.collectionVariables.set(\"fundingIntent\", data.intent); pm.collectionVariables.set(\"fundingAction\", data.action); pm.collectionVariables.set(\"unsignedXdr\", data.xdr); pm.collectionVariables.set(\"txHash\", data.txHash); }"
+            ]
+          }
+        }
+      ],
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "funding"
+              ]
+            },
+            "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nodeId\": \"{{fundingNodeId}}\",\n  \"fromAddress\": \"{{from}}\",\n  \"tokenContractAddress\": \"{{fundingAsset}}\",\n  \"amountStroops\": \"{{amount}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"intent\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"expiresAt\": \"2026-10-12T00:03:00.000Z\",\n    \"xdr\": \"BASE64_UNSIGNED_XDR_FROM_PREPARATION\",\n    \"action\": \"schedule.fund\",\n    \"nodeId\": \"schedule\",\n    \"fromAddress\": \"GDMFZ5QQMDSOTPEQ6YCAWPFAB626Q6C3KLRLYMO3VWMWHQHL4L2DSIHY\",\n    \"tokenContractAddress\": \"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC\",\n    \"amountStroops\": \"10000000\",\n    \"network\": \"testnet\",\n    \"networkPassphrase\": \"Test SDF Network ; September 2015\"\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Submit funding",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding/submit",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "funding",
+            "submit"
+          ]
+        },
+        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"action\": \"{{fundingAction}}\",\n  \"intent\": \"{{fundingIntent}}\",\n  \"signedXdr\": \"{{fundingSignedXdr}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Reconcile funding",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding/reconcile",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "deployments",
+            "{{deploymentId}}",
+            "funding",
+            "reconcile"
+          ]
+        },
+        "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"action\": \"{{fundingAction}}\",\n  \"intent\": \"{{fundingIntent}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/deployments/{{deploymentId}}/funding/reconcile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "deployments",
+                "{{deploymentId}}",
+                "funding",
+                "reconcile"
+              ]
+            },
+            "description": "Funding requires deployment bearer token and funding wallet signature. Adds funds only; any consenting wallet may fund. One unresolved intent per node; UNKNOWN never permits replacement. See docs/api/funding.md. Hosted testnet verification pending.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"{{fundingAction}}\",\n  \"intent\": \"{{fundingIntent}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"data\": {\n    \"intent\": \"6b1f0c52-3d4e-4a8b-9c7d-2e5f8a1b3c4d\",\n    \"action\": \"schedule.fund\",\n    \"txHash\": \"94be52e8a937b6ddcb85da7cd917f97d412753e5e3ca47ea48b252a264b2278d\",\n    \"network\": \"testnet\",\n    \"state\": \"PREPARED\",\n    \"expiresAt\": \"2026-10-12T00:03:00.000Z\"\n  }\n}"
+        }
+      ]
     }
   ]
 }

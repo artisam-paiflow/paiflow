@@ -2,7 +2,7 @@
 
 Updated Oct 6, 2026
 
-Build an app that solves a real problem with automated payments. Choose your idea now. After onboarding on October 12, build your app’s screens and features that don’t involve payments. Add Paiflow payments on October 14.
+Build an app that solves a real problem with automated payments. Choose your idea and start building now. You may deploy, integrate Paiflow and test payments before the event once your team credentials are available.
 
 ## At a glance
 
@@ -12,7 +12,7 @@ Build an app that solves a real problem with automated payments. Choose your ide
 | Who                 | Students                                                                    |
 | Teams               | 10 teams of 1–4 people                                                      |
 | Event starts        | October 14, 2026, 10:30 AM PHT                                              |
-| Integration time    | 4 hours on October 14 to integrate your app with Paiflow                    |
+| Event development time    | 4 hours on October 14 to finish your app and prepare the demo                    |
 | Prize pool          | PHP 10,000 across five awards                                               |
 | Network             | Stellar testnet                                                             |
 | Online onboarding   | October 12, 2026, 9:00 PM                                                   |
@@ -38,22 +38,24 @@ A maximum of 10 teams can participate. Solo teams are welcome, but teams are enc
 
 **Online onboarding: October 12, 2026, 9:00 PM.** Hear the rules and watch a live demo: build, deploy, scan the QR and see the payout. The meeting link will be provided through **blockhub.academy** or through the student organisation representatives.
 
-**After October 12 onboarding:** start building your app’s screens and features that don’t involve payments. You may use the supplied starter, but keep its payment features and live feed disabled until October 14.
+**Before the event:** build your app, deploy flows, connect Paiflow and test payments. Ask organisers for team credentials in advance; switch the starter to `team` when your deployment and token are ready.
 
-**October 14, 10:30 AM PHT:** receive your team's Paiflow account credentials and begin Paiflow integration. Flow deployment, connecting your app to Paiflow APIs and live payment testing must wait until October 14. Preparing a wallet, adding its trustline and obtaining testnet funds are allowed beforehand.
+**October 14, 10:30 AM PHT:** continue development, finish your integration and prepare the demo. Early deployment, API integration, wallet preparation and test payments are allowed.
 
-**Integration window:** Paiflow integration starts at **10:30 AM PHT on October 14**. All times below are in Philippine Time (PHT).
+**Event development session:** starts at **10:30 AM PHT on October 14**. Early integration is allowed. Follow the schedule below.
 
 | Start    | Length | Block                 | What happens                                                         |
 | -------- | ------ | --------------------- | -------------------------------------------------------------------- |
-| 10:30 AM | 2 h    | Integration, part 1   | Deploy and aim for your first confirmed payout                       |
+| 10:30 AM | 2 h    | Development, part 1   | Deploy and aim for your first confirmed payout                       |
 | 12:30 PM | 1 h    | Lunch + checkpoint    | Optional coding; check your deployment and payout evidence           |
-| 1:30 PM  | 2 h    | Integration, part 2   | Complete integration and prepare your demo                           |
+| 1:30 PM  | 2 h    | Development, part 2   | Complete integration and prepare your demo                           |
 | 3:00 PM  | 30 min | Submission            | Submit before 3:30 PM with your deployment ID and payout transaction |
 | 3:30 PM  | 1 h    | Pitching              | 10 teams × 5 minutes; random order drawn at 3:30 PM                  |
 | 4:30 PM  | 30 min | Deliberation + awards |                                                                      |
 
 ## The challenge
+
+**Dev mode will stay disabled for the duration of the hackathon.** Configure recipients and required values before deploying. Per-payment recipients, **Fill value via API** and **Dev values** are unavailable; standard Pay and Split flows remain available. `PAIFLOW_MODE=team` and `pnpm dev` do not enable flow Dev mode.
 
 The theme is open. Start with a problem you or people around you have, then choose the Paiflow blocks that fit. These examples show how blocks combine and can inspire your own idea.
 
@@ -73,7 +75,7 @@ Paiflow deploys a flow you draw as Stellar contracts. Your app decides _who_ pay
 
 Strong projects have a real user, a flow that fits their problem, and a demo with visible payouts.
 
-On builds containing #577, public embeds show a read-only flow diagram and recent live activity, with a payment-page QR for supported payment and funding flows. If the live connection is unavailable, activity updates periodically. Webhook and streamer QR links add funds; they do not execute rewards or release streams. Subscription approval uses its separate allowance page. On builds containing #790, the configured customer opens that page and signs with their wallet without a Paiflow login or deployment token. Ordinary and Dev subscriptions are supported; the team must fill an unconfigured Dev subscriber first. If confirmation is unknown, check the existing approval status before approving again. Approval grants consent; the later scheduled charge must still be rehearsed with a real wallet and verified recipient payout. Confirm the deployed version with support before your rehearsal. For Web2 rewards, obtain the callback URL and secret from your authenticated owner deployment page and keep the secret on your server. Public embeds omit credentials and private configuration.
+On builds containing #577, public embeds show a read-only flow diagram and recent live activity, with a payment-page QR for supported payment and funding flows. If the live connection is unavailable, activity updates periodically. Webhook and streamer QR links add funds; they do not execute rewards or release streams. Subscription approval uses its separate allowance page. On builds containing #790, the configured customer opens that page and signs with their wallet without a Paiflow login or deployment token. For this hackathon, use ordinary subscriptions with the subscriber configured before deployment; Dev mode stays disabled throughout the event. If confirmation is unknown, check the existing approval status before approving again. Approval grants consent; the later scheduled charge must still be rehearsed with a real wallet and verified recipient payout. Confirm the deployed version with support before your rehearsal. For Web2 rewards, obtain the callback URL and secret from your authenticated owner deployment page and keep the secret on your server. Public embeds omit credentials and private configuration.
 
 For setup instructions and example payment flows, see the [AI context pack](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/llms.md). Confirm feature availability with the support contact before choosing an idea.
 
@@ -83,9 +85,68 @@ Set up Paiflow once for the business, group or branch your app serves. For examp
 
 If your idea requires a separate payment setup for every customer, explain that as a future feature in your pitch.
 
+On builds containing #911, Subscription apps can read current subscriber, deployed token,
+allowance and cancellation state through `GET /api/v1/deployments/{id}/subscription/state`
+using their deployment bearer token. Check `subscriptionState` in capabilities first;
+discovery contains metadata, while this endpoint reads live state. It does not authorize
+wallet approval or charge the customer. [API response and error details](../api/README.md#read-current-subscription-state)
+include setup-required Dev behavior, although Dev mode remains disabled for this hackathon.
+Hosted testnet verification of this endpoint is still pending; confirm the deployed version
+before using it in a rehearsal.
+
+### Subscription wallet controls (source implementation; hosted verification pending)
+
+On builds containing #913, ordinary Subscription apps can request cancellation or
+reactivation through `subscription/cancel/{prepare,submit,reconcile}` and
+`subscription/reactivate/{prepare,submit,reconcile}` under the deployment-token API.
+Check capabilities and live Subscription state, then ask the configured subscriber's
+wallet to sign the exact prepared transaction. The token alone never consents. Cancellation
+revokes allowance; reactivation neither restores it nor immediately charges. Approval
+remains a separate wallet action. Persist the intent/hash and reconcile uncertainty before
+trying another preparation. Dev stays disabled for this hackathon. Hosted testnet verification
+is pending: confirm deployed availability and rehearse actual state/finality with support.
+The [API reference](../api/README.md#subscription-cancellation-and-reactivation-913) includes
+the integration and recovery sequence.
+
+### Contract balance reads (source implementation; hosted verification pending)
+
+Issue #915 adds `GET /api/v1/deployments/{id}/balances` for deployment-token apps.
+It reads funds held by supported deployed contracts, including Schedule funding
+and Webhook reward pools, without an owner session. Check the hosted capabilities
+and OpenAPI first: the source change still needs testnet chain-evidence validation
+before participant support is claimed.
+
+Poll at most every 10 seconds. `tokenContract` identifies each current asset;
+`balanceStroops` stays an integer string. Inspect each node's `stale`/`readAt` and
+`freshness.status`/`totalsComplete` before displaying totals. Null or failed targets
+are unknown, not zero; partial totals omit failures. Multisig remains disabled and
+excluded. Contract balances are not Schedule payout availability or proof that a
+payment succeeded. Read [the API balance contract](../api/README.md#deployment-contract-balances)
+for caching, unsupported kinds and retry behavior. The existing owner dashboard
+continues to use its separate balance endpoint.
+
+### Preview a deployed Swap
+
+Issue [#917](https://github.com/webnxt-2030/pinkraft/issues/917) adds the source API
+`GET /api/v1/deployments/{id}/swap-quote?amountStroops=10000000`, authenticated with
+that deployment's `pfk_` bearer token. Hosted testnet comparison against a completed
+wallet-authorized swap remains pending; check the hosted OpenAPI before assuming
+availability. Use `operations.swapQuote.nodeIds` from discovery and provide
+`nodeId` if more than one Swap exists. Input is the amount reaching that particular
+node, not necessarily the amount deposited into the flow.
+
+Assets, router and slippage come from the deployed contract, with no request
+overrides. Integer stroop output and minimum estimates include live read timestamps;
+`estimate:true` and `scope:"selected_node"` exclude guaranteed payouts and whole-flow
+predictions. `meetsMinimumAtQuote` only compares current estimates. A quote does not
+submit funds, authorize payment or replace final transaction simulation. See the
+[API reference](../api/README.md#deployment-specific-swap-estimates) for freshness,
+limits and error handling.
+
+
 ## Before the event
 
-Choose your idea now. After October 12 onboarding, build your app’s screens and features that don’t involve payments. Use the four-hour integration window on October 14 to integrate your app with Paiflow.
+Choose your idea now. Build and integrate before the event; use October 14 to finish your app, verify its payout and prepare your demo.
 
 - [ ] Register through the [Google Form](https://forms.gle/eTabEoJMh9zfYNLD6) by October 11, 2026, 12:59 PM
 - [ ] Attend onboarding on October 12, 2026, 9:00 PM; the meeting link will be provided through blockhub.academy or through the student organisation representatives. Share the instructions with your team
@@ -99,7 +160,7 @@ Choose your idea now. After October 12 onboarding, build your app’s screens an
 **October 12–13 preparation checklist:**
 
 - [ ] Install and run the supplied starter on your laptop
-- [ ] Build your app’s screens and features that don’t involve payments
+- [ ] Build your app, including its Paiflow integration and test payments once credentials are ready
 - [ ] Prepare dedicated testnet wallets for your customer and payout recipients
 - [ ] If using USDC, enable each recipient wallet to receive the exact testnet USDC asset by adding its trustline; follow the AI context pack’s instructions
 - [ ] Obtain testnet XLM for wallet setup and transaction fees, and testnet USDC for payments if needed
@@ -114,7 +175,7 @@ For more setup instructions, see the [AI context pack](https://github.com/artisa
 
 Organiser-provided wallets are for testnet only. Organisers retain copies of their keys. Never use these wallets for real funds or import their keys into a wallet you use for real money.
 
-## Your first payout on October 14
+## Your first payout
 
 Get one confirmed payout working before polishing your app.
 
@@ -133,7 +194,7 @@ Use your team’s deployment for your qualifying payout. Payments through the st
 1. **Use Paiflow for the core money flow.** Your app's essential transfer must run through a Paiflow deployment.
 2. **Testnet only.** No mainnet deployments or real funds.
 3. **AI tools are encouraged.** Use any AI assistant; an AI context pack is provided.
-4. **Prepare early; integrate Paiflow on October 14.** Choose your idea now. After October 12 onboarding, build your app’s screens and features that don’t involve payments. You may use boilerplate, open-source libraries and the supplied starter; keep its payment features and live feed disabled until October 14. Deploying flows, connecting your app to Paiflow and testing payments must wait until October 14. Wallet preparation and testnet funding are allowed beforehand.
+4. **Build and integrate early.** Boilerplate, open-source libraries, the starter and AI tools are allowed. You may prepare wallets, deploy flows, connect your app to Paiflow, test payments and use the live feed before the event. Ask organisers for team credentials in advance; use your team deployment for qualifying evidence.
 5. **Lunch coding is optional.** It does not count as extra time and carries no penalty.
 6. **Respect shared infrastructure.** No load testing or spamming the Paiflow API or relayer. Rate limits apply.
 7. **Organisers decide disputes.** Their ruling is final.
@@ -189,3 +250,20 @@ PHP 10,000 across five awards, for qualifying teams only. Prizes go by QR Ph to 
 **If fewer than three teams qualify:** award only the available places at their published amounts. With one qualifying team, award first place only; with two, award first and second. Both special awards are still awarded when at least one team qualifies. Vacant placing prizes remain unawarded, and unused prize funds are not redistributed. If no team qualifies, no prizes are awarded.
 
 Winning projects are featured on the Paiflow homepage and socials.
+
+### Deployment funding (#916)
+
+Schedule top-ups and Webhook pool deposits use deployment-token GET/POST `/api/v1/deployments/{id}/funding`, `/funding/submit` and `/funding/reconcile`. Any consenting funding wallet may sign; a token alone cannot move funds. Funding adds funds only and does not execute payouts or callbacks. One unresolved intent per node blocks replacements until confirmed finality or ledger-proven expiry; UNKNOWN never permits another deposit. Public `/trigger`, `/submit-trigger` and hosted funding remain available. Webhook callbacks separately require `x-webhook-secret`. See the [complete signing and recovery example](../api/funding.md). Hosted testnet verification remains pending.
+
+### Schedule integration APIs
+
+The Schedule state and controller wallet prepare/sign/submit/reconcile APIs are
+implemented under `/api/v1/deployments/{id}/schedule`. Hosted testnet verification
+remains pending before they are advertised as participant-ready. Use capabilities
+`scheduleState` and `scheduleControls`, then current state and simulated preparation
+to check eligibility. Pause/resume/retrieval need the deployed controller's wallet
+consent; a deployment token is API access only. Retrieval requires a paused permitted
+Schedule and returns unvested funds to that controller, not scheduled recipients.
+Holding balance differs from vested payout availability. Never prepare another
+envelope merely because a request times out. Follow the complete
+[Schedule wallet and recovery example](../api/schedule-controls.md).

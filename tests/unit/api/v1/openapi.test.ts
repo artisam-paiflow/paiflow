@@ -1,8 +1,17 @@
+import { SwapQuoteSchema } from "@/lib/api/v1/swap-quote-schema";
 /**
  * The drift guard for the hand-written OpenAPI document (#470): a v1 route added without a spec
  * entry, a committed copy that falls behind, an example that no longer parses, or an error table
  * that disagrees with `lib/errors.ts` fails the suite.
  */
+import {
+  FundingDiscoverySchema,
+  FundingPrepareSchema,
+  FundingPreparedSchema,
+  FundingSubmitSchema,
+  FundingReconcileSchema,
+  FundingReconciledSchema,
+} from "@/lib/api/v1/funding-schema";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -17,6 +26,13 @@ import { APP_ERROR_STATUS } from "@/lib/errors";
 import { ERROR_STATUS, examples, openApiDocument } from "@/lib/api/v1/openapi";
 import {
   DeploymentCapabilitiesSchema,
+  DeploymentBalancesSchema,
+  SubscriptionStateSchema,
+  ScheduleStateSchema,
+  SubscriptionControlPrepareSchema,
+  SubscriptionControlPreparedSchema,
+  SubscriptionControlReconcileSchema,
+  SubscriptionControlReconciledSchema,
   TransactionStatusSchema,
   WebhookAttemptResponseSchema,
   ApiTokenSchema,
@@ -64,6 +80,24 @@ function specOperations(prefix: string): string[] {
 }
 
 describe("OpenAPI document", () => {
+  it("balances example matches its response schema", () => {
+    expect(DeploymentBalancesSchema.safeParse(examples.balances.data).success).toBe(true);
+  });
+  it("keeps subscription wallet control request and response examples valid", () => {
+    expect(SubscriptionControlPrepareSchema.parse(examples.subscriptionControlRequest)).toEqual(
+      examples.subscriptionControlRequest,
+    );
+    expect(
+      SubscriptionControlPreparedSchema.parse(examples.subscriptionControlPrepared.data),
+    ).toEqual(examples.subscriptionControlPrepared.data);
+    expect(
+      SubscriptionControlReconcileSchema.parse(examples.subscriptionControlReconcileRequest),
+    ).toEqual(examples.subscriptionControlReconcileRequest);
+    expect(
+      SubscriptionControlReconciledSchema.parse(examples.subscriptionControlReconciled.data),
+    ).toEqual(examples.subscriptionControlReconciled.data);
+  });
+
   it("matches the committed docs/api/openapi.json (run `pnpm api:openapi`)", () => {
     const committed = JSON.parse(
       fs.readFileSync(path.join(root, "docs/api/openapi.json"), "utf8"),
@@ -118,6 +152,15 @@ describe("OpenAPI document", () => {
   });
 
   const parses: Array<[string, z.ZodTypeAny, unknown]> = [
+    ["fundingDiscovery", FundingDiscoverySchema, examples.fundingDiscovery.data],
+    ["fundingPrepare", FundingPrepareSchema, examples.fundingPrepare],
+    ["fundingPrepared", FundingPreparedSchema, examples.fundingPrepared.data],
+    ["fundingSubmit", FundingSubmitSchema, examples.fundingSubmit],
+    ["fundingReconcile", FundingReconcileSchema, examples.fundingReconcile],
+    ["fundingReconciled", FundingReconciledSchema, examples.fundingReconciled.data],
+    ["swap quote", SwapQuoteSchema, examples.swapQuote.data],
+    ["Schedule state", ScheduleStateSchema, examples.scheduleState.data],
+    ["subscription state", SubscriptionStateSchema, examples.subscriptionState.data],
     ["deployment capabilities", DeploymentCapabilitiesSchema, examples.capabilities.data],
     ["keyed webhook", WebhookAttemptResponseSchema, examples.webhookPending.data],
     ["transaction status", TransactionStatusSchema, examples.transactionStatus.data],
@@ -182,6 +225,9 @@ describe("Postman collection", () => {
       ) as unknown;
     expect(body("Get demo token", "201 Created")).toEqual(examples.demoTokenResponse);
     expect(body("Get deployment capabilities", "200 OK")).toEqual(examples.capabilities);
+    expect(body("Get deployed Swap quote", "200 OK")).toEqual(examples.swapQuote);
+    expect(body("Get Subscription state", "200 OK")).toEqual(examples.subscriptionState);
+    expect(body("Get deployment balances", "200 OK")).toEqual(examples.balances);
     expect(body("Prepare execute", "200 OK")).toEqual(examples.executeResponse);
     expect(body("Submit execute", "200 SUCCESS")).toEqual(examples.submitSuccess);
     expect(body("Submit execute", "200 FAILED")).toEqual(examples.submitFailed);

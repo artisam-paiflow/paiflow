@@ -107,6 +107,14 @@ describe("readSoroswapQuote", () => {
     expect(q.amountOutMinStroops).toBe(MIN_1PCT.toString());
   });
 
+  it("rejects a quote whose contract spot multiplication would overflow i128", async () => {
+    const amount = ((1n << 127n) - 1n).toString();
+    stub.amountsOut = [BigInt(amount), ROUTER_OUTPUT];
+    await expect(
+      readSoroswapQuote({ ...NATIVE_TO_USDC, amountStroops: amount }),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
   it("resolves the factory through the cached reader", async () => {
     await readSoroswapQuote(NATIVE_TO_USDC);
     expect(stub.cacheBuilds).toBe(1);
@@ -115,6 +123,9 @@ describe("readSoroswapQuote", () => {
   const unusable: Array<[string, unknown]> = [
     ["an empty vec", []],
     ["a scalar", 10_562_889n],
+    ["a wrong input echo", [1n, ROUTER_OUTPUT]],
+    ["a multi-hop vec", [BigInt(TEN_XLM), 1n, ROUTER_OUTPUT]],
+    ["an overflowing output", [BigInt(TEN_XLM), 1n << 127n]],
     ["a trailing zero", [BigInt(TEN_XLM), 0n]],
     ["a non-bigint element", [BigInt(TEN_XLM), "10562889"]],
   ];

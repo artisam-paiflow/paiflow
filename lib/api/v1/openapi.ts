@@ -1,5 +1,7 @@
+import { SwapQuoteSchema } from "./swap-quote-schema";
 import {
   DeploymentCapabilitiesSchema,
+  SubscriptionStateSchema,
   TransactionStatusSchema,
   WebhookAttemptResponseSchema,
   DemoTokenSchema,
@@ -57,6 +59,176 @@ const capabilityExample = (
 ) => ({ status, authentication, requirements, nodeIds });
 
 export const examples = {
+  fundingDiscovery: {
+    data: {
+      deploymentId: EXAMPLE_DEPLOYMENT_ID,
+      network: "testnet",
+      nodes: [
+        {
+          nodeId: "schedule",
+          templateKind: "STREAMER",
+          contractAddress: USDC_SAC_TESTNET,
+          action: "schedule.fund",
+          tokenContractAddress: XLM_SAC_TESTNET,
+          authorization: "funding_wallet",
+          effect: "Adds funds only; does not execute a payout or Webhook callback",
+        },
+      ],
+    },
+  },
+  fundingPrepare: {
+    nodeId: "schedule",
+    fromAddress: EXAMPLE_FROM,
+    tokenContractAddress: XLM_SAC_TESTNET,
+    amountStroops: "10000000",
+  },
+  fundingPrepared: {
+    data: {
+      intent: EXAMPLE_DEPLOYMENT_ID,
+      txHash: EXAMPLE_TX_HASH,
+      expiresAt: "2026-10-12T00:03:00.000Z",
+      xdr: "BASE64_UNSIGNED_XDR_FROM_PREPARATION",
+      action: "schedule.fund",
+      nodeId: "schedule",
+      fromAddress: EXAMPLE_FROM,
+      tokenContractAddress: XLM_SAC_TESTNET,
+      amountStroops: "10000000",
+      network: "testnet",
+      networkPassphrase: "Test SDF Network ; September 2015",
+    },
+  },
+  fundingSubmit: {
+    action: "schedule.fund",
+    intent: EXAMPLE_DEPLOYMENT_ID,
+    signedXdr: "BASE64_SIGNED_EXACT_PREPARATION",
+  },
+  fundingReconcile: { action: "schedule.fund", intent: EXAMPLE_DEPLOYMENT_ID },
+  fundingReconciled: {
+    data: {
+      intent: EXAMPLE_DEPLOYMENT_ID,
+      action: "schedule.fund",
+      txHash: EXAMPLE_TX_HASH,
+      network: "testnet",
+      state: "PREPARED",
+      expiresAt: "2026-10-12T00:03:00.000Z",
+    },
+  },
+
+  balances: {
+    data: {
+      deploymentId: EXAMPLE_DEPLOYMENT_ID,
+      network: "testnet",
+      totals: [{ tokenContract: XLM_SAC_TESTNET, balanceStroops: "10000000" }],
+      nodes: [
+        {
+          nodeId: "schedule",
+          templateKind: "STREAMER",
+          contractAddress: USDC_SAC_TESTNET,
+          tokenContract: XLM_SAC_TESTNET,
+          balanceStroops: "10000000",
+          readAt: "2026-10-12T00:00:00.000Z",
+          stale: false,
+        },
+      ],
+      freshness: {
+        status: "fresh",
+        totalsComplete: true,
+        attemptedAt: "2026-10-12T00:00:00.000Z",
+        cached: false,
+      },
+    },
+  },
+  subscriptionControlRequest: { walletAddress: EXAMPLE_FROM },
+  subscriptionControlReconcileRequest: { intent: EXAMPLE_DEPLOYMENT_ID },
+  subscriptionControlPrepared: {
+    data: {
+      intent: EXAMPLE_DEPLOYMENT_ID,
+      txHash: EXAMPLE_TX_HASH,
+      expiresAt: "2026-10-12T12:03:00.000Z",
+      xdr: "SIMULATED_UNSIGNED_XDR",
+      network: "testnet",
+      networkPassphrase: "Test SDF Network ; September 2015",
+      action: "subscription.cancel",
+      walletAddress: EXAMPLE_FROM,
+      nodeId: "sub",
+      contractAddress: USDC_SAC_TESTNET,
+      tokenContractAddress: XLM_SAC_TESTNET,
+    },
+  },
+  subscriptionControlReconciled: {
+    data: {
+      intent: EXAMPLE_DEPLOYMENT_ID,
+      txHash: EXAMPLE_TX_HASH,
+      action: "subscription.cancel",
+      state: "PREPARED",
+      ledger: null,
+      replacementAllowed: false,
+    },
+  },
+  swapQuote: {
+    data: {
+      deploymentId: EXAMPLE_DEPLOYMENT_ID,
+      network: "testnet",
+      nodeId: "swap",
+      contractAddress: USDC_SAC_TESTNET,
+      assetInContractAddress: XLM_SAC_TESTNET,
+      assetOutContractAddress: USDC_SAC_TESTNET,
+      routerAddress: USDC_SAC_TESTNET,
+      pairAddress: USDC_SAC_TESTNET,
+      amountInStroops: "10000000",
+      amountOutStroops: "1050000",
+      amountOutMinStroops: "1040000",
+      slippageBps: 100,
+      readStartedAt: "2026-10-12T09:00:00.000Z",
+      quotedAt: "2026-10-12T09:00:01.000Z",
+      freshness: "live",
+      estimate: true,
+      scope: "selected_node",
+      meetsMinimumAtQuote: true,
+    },
+  },
+  scheduleState: {
+    data: {
+      deploymentId: EXAMPLE_DEPLOYMENT_ID,
+      network: "testnet",
+      nodeId: "schedule",
+      contractAddress: USDC_SAC_TESTNET,
+      controller: EXAMPLE_FROM,
+      controlEligibility: {
+        walletProtocolSupported: true,
+        pause: false,
+        resume: true,
+        retrieve: true,
+      },
+      tokenContractAddress: XLM_SAC_TESTNET,
+      paused: true,
+      pauseAllowed: true,
+      retrieveAllowed: true,
+      balanceStroops: "20000000",
+      availableStroops: "10000000",
+      claimedStroops: "0",
+      unvestedStroops: "10000000",
+      retrievableStroops: "10000000",
+      retrievalRecipient: EXAMPLE_FROM,
+      readAt: "2026-10-12T00:00:00.000Z",
+    },
+  },
+  subscriptionState: {
+    data: {
+      deploymentId: EXAMPLE_DEPLOYMENT_ID,
+      flowName: "Club membership",
+      network: "testnet",
+      templateKind: "SUBSCRIPTION",
+      contractAddress: USDC_SAC_TESTNET,
+      tokenContractAddress: XLM_SAC_TESTNET,
+      subscriber: EXAMPLE_FROM,
+      isCancelled: false,
+      asset: { kind: "native" },
+      assetLabel: "XLM",
+      allowance: "1000000000",
+      setupRequired: false,
+    },
+  },
   capabilities: {
     data: {
       deploymentId: EXAMPLE_DEPLOYMENT_ID,
@@ -68,6 +240,15 @@ export const examples = {
         execute: capabilityExample("supported", "deployment_token", [
           "The paying wallet signs the prepared deposit; simulation checks current configuration.",
         ]),
+        funding: capabilityExample("unsupported", "deployment_token", [
+          "No supported funding nodes.",
+        ]),
+        balances: capabilityExample(
+          "conditional",
+          "deployment_token",
+          ["Live contract assets and balances must be readable; cached for up to 10 seconds."],
+          ["pay"],
+        ),
         events: capabilityExample("supported", "deployment_token", [
           "Recorded events can lag the chain.",
         ]),
@@ -82,6 +263,20 @@ export const examples = {
         ]),
         webhook: capabilityExample("unsupported", "webhook_secret", [
           "Requires a deployed webhook trigger with HTTP callbacks enabled.",
+        ]),
+        swapQuote: capabilityExample("unsupported", "deployment_token", [
+          "Requires a deployed Swap node.",
+        ]),
+        scheduleState: capabilityExample("unsupported"),
+        scheduleControls: capabilityExample("unsupported"),
+        subscriptionState: capabilityExample("unsupported", "deployment_token", [
+          "Requires a subscription deployment.",
+        ]),
+        subscriptionCancel: capabilityExample("unsupported", "subscriber_wallet", [
+          "Requires a supported subscription and current subscriber wallet consent.",
+        ]),
+        subscriptionReactivate: capabilityExample("unsupported", "subscriber_wallet", [
+          "Requires a supported cancelled subscription and current subscriber wallet consent.",
         ]),
         subscriptionAllowance: capabilityExample("unsupported", "subscriber_wallet", [
           "Requires a subscription deployment.",
@@ -364,6 +559,114 @@ const demoShape = DemoTokenSchema.shape;
 const releasedShape = ReleasedSchema.shape;
 const releaseShape = ReleaseBeforeSchema.shape;
 
+function schedulePaths(): Record<string, Record<string, unknown>> {
+  const paths: Record<string, Record<string, unknown>> = {};
+  const failures = errors(
+    "UNAUTHENTICATED",
+    "FORBIDDEN",
+    "NOT_FOUND",
+    "VALIDATION",
+    "CONFLICT",
+    "RATE_LIMITED",
+    "UPSTREAM_RPC",
+  );
+  const security = [{ bearerAuth: [] }];
+  paths["/api/v1/deployments/{id}/schedule/state"] = {
+    get: {
+      tags: ["Capabilities"],
+      operationId: "getScheduleState",
+      summary: "Read live Schedule state and control eligibility",
+      description:
+        "Uncached reads of snapshot-selected STREAMER controller/asset instance fields, state and permission getters, and token holding balance. availableStroops is vested unpaid payout entitlement, not token balance or a guarantee of sufficient funding; claimedStroops is cumulative claimed entitlement. unvestedStroops is max(balance minus available, zero); retrievableStroops is that difference only while paused and retrieval-permitted. Retrieval returns funds to the contract-configured controller. Reads occur across RPC calls, not an atomic ledger snapshot; amounts are indicative and simulation/execution are authoritative. Contract-address controllers can be read but cannot use this account-wallet signing protocol. Errors never masquerade as zero balances. Active service required; hosted testnet verification remains pending. " +
+        rate(V1_RATE_LIMITS.scheduleState, "per token"),
+      security,
+      parameters: [
+        deploymentIdParam,
+        {
+          name: "nodeId",
+          in: "query",
+          required: false,
+          schema: { type: "string", minLength: 1, maxLength: 128 },
+          description: "Required to disambiguate multiple Schedule nodes",
+        },
+      ],
+      responses: {
+        "200": {
+          description: "Current Schedule state",
+          content: json(dataEnvelope("#/components/schemas/ScheduleState"), examples.scheduleState),
+        },
+        ...failures,
+      },
+    },
+  };
+  for (const action of ["pause", "resume", "retrieve"] as const) {
+    const base = `/api/v1/deployments/{id}/schedule/${action}`;
+    const body = (properties: object, required: string[]) => ({
+      required: true,
+      content: json({ type: "object", additionalProperties: false, required, properties }),
+    });
+    const response = (ref: string) => ({
+      "200": { description: "Action result", content: json(dataEnvelope(ref)) },
+      ...failures,
+    });
+    paths[base] = {
+      post: {
+        tags: ["Capabilities"],
+        operationId: `prepareSchedule${action}`,
+        summary: `Prepare wallet-authorized Schedule ${action}`,
+        description:
+          "The deployment token grants API access, not wallet consent. Select deployed nodeId when ambiguous. Requires current controller account wallet and live state/permissions. Pause only unpaused permitted schedules; resume only paused pause-permitted schedules; retrieve only paused retrieval-permitted schedules with holding balance greater than vested unpaid entitlement. Simulation uses the server network and 180-second envelope; return unsignedXdr, intent, txHash and expiresAt. For retrieval, recipient is the deployed controller and estimatedAmountStroops is indicative; no caller recipient/amount is accepted. Sign unchanged in the wallet; no keys belong in request bodies. One unresolved intent per node across controls/funding; conflicts include the existing intent/hash for reconciliation. Hosted testnet verification remains pending. " +
+          rate(V1_RATE_LIMITS.schedulePrepare, "per token"),
+        security,
+        parameters: [deploymentIdParam],
+        requestBody: body(
+          {
+            walletAddress: { type: "string", description: "Current controller account G-address" },
+            nodeId: { type: "string", minLength: 1, maxLength: 128 },
+          },
+          ["walletAddress"],
+        ),
+        responses: response("#/components/schemas/SchedulePrepared"),
+      },
+    };
+    paths[`${base}/submit`] = {
+      post: {
+        tags: ["Capabilities"],
+        operationId: `submitSchedule${action}`,
+        summary: `Submit unchanged wallet-signed Schedule ${action}`,
+        description:
+          "Strict exact intent/action/deployment/network/node/hash and valid controller wallet signature. Recheck live controller/permissions before the first send. Durable admission records the hash before sending; repeated/concurrent/uncertain submissions look up the same outcome without rebroadcasting. Poll /transactions/{txHash}; UNKNOWN, queue REJECTED or a timeout does not authorize replacement. First-send expiry requires reconciliation, never a new envelope by time alone. " +
+          rate(V1_RATE_LIMITS.scheduleSubmit, "per token"),
+        security,
+        parameters: [deploymentIdParam],
+        requestBody: body(
+          {
+            intent: { type: "string", format: "uuid" },
+            signedXdr: { type: "string", minLength: 1, maxLength: 100000 },
+          },
+          ["intent", "signedXdr"],
+        ),
+        responses: response("#/components/schemas/TransactionStatus"),
+      },
+    };
+    paths[`${base}/reconcile`] = {
+      post: {
+        tags: ["Capabilities"],
+        operationId: `reconcileSchedule${action}`,
+        summary: `Reconcile an existing Schedule ${action} intent`,
+        description:
+          "Reconcile the matching action intent, including abandoned unsigned preparation. SUCCESS/FAILED require durable ledger finality; EXPIRED requires a closed ledger after maxTime plus covered historical NOT_FOUND proof. Missing/lagging history and RPC errors retain reservations. replacementAllowed=true only for durable SUCCESS/FAILED/proven EXPIRED, and new preparation still checks live eligibility. Active deployment service required; retired token access is not reopened. " +
+          rate(V1_RATE_LIMITS.scheduleReconcile, "per token"),
+        security,
+        parameters: [deploymentIdParam],
+        requestBody: body({ intent: { type: "string", format: "uuid" } }, ["intent"]),
+        responses: response("#/components/schemas/ScheduleReconciled"),
+      },
+    };
+  }
+  return paths;
+}
+
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
@@ -428,6 +731,11 @@ export const openApiDocument = {
       description:
         "Signal that work was delivered: release a timelock branch's before side ahead of its deadline.",
     },
+    {
+      name: "Subscriptions",
+      description:
+        "Current-subscriber wallet cancellation and reactivation with explicit finality recovery.",
+    },
     { name: "Events", description: "Cursor-based polling of a deployment's decoded events." },
     { name: "Spec", description: "This document." },
     {
@@ -445,6 +753,344 @@ export const openApiDocument = {
     },
   ],
   paths: {
+    "/api/v1/deployments/{id}/funding": {
+      get: {
+        tags: ["Capabilities"],
+        operationId: "discoverFunding",
+        summary: "Discover live funding assets",
+        description:
+          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending." +
+          rate(V1_RATE_LIMITS.funding, "per token"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        responses: {
+          "200": {
+            description: "Discover live funding assets",
+            content: json(
+              dataEnvelope("#/components/schemas/FundingDiscovery"),
+              examples.fundingDiscovery,
+            ),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "FORBIDDEN",
+            "VALIDATION",
+            "CONFLICT",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+            "INTERNAL",
+          ),
+        },
+      },
+      post: {
+        tags: ["Capabilities"],
+        operationId: "prepareFunding",
+        summary: "Prepare wallet-authorized funding",
+        description:
+          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending." +
+          rate(V1_RATE_LIMITS.funding, "per token"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        requestBody: {
+          required: true,
+          content: json({ $ref: "#/components/schemas/FundingPrepare" }, examples.fundingPrepare),
+        },
+        responses: {
+          "200": {
+            description: "Prepare wallet-authorized funding",
+            content: json(
+              dataEnvelope("#/components/schemas/FundingPrepared"),
+              examples.fundingPrepared,
+            ),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "FORBIDDEN",
+            "VALIDATION",
+            "CONFLICT",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+            "INTERNAL",
+          ),
+        },
+      },
+    },
+    "/api/v1/deployments/{id}/funding/submit": {
+      post: {
+        tags: ["Capabilities"],
+        operationId: "submitFunding",
+        summary: "Submit the exact signed funding envelope",
+        description:
+          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending." +
+          rate(V1_RATE_LIMITS.fundingSubmit, "per token"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        requestBody: {
+          required: true,
+          content: json({ $ref: "#/components/schemas/FundingSubmit" }, examples.fundingSubmit),
+        },
+        responses: {
+          "200": {
+            description: "Submit the exact signed funding envelope",
+            content: json(dataEnvelope("#/components/schemas/TransactionStatus")),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "FORBIDDEN",
+            "VALIDATION",
+            "CONFLICT",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+            "INTERNAL",
+          ),
+        },
+      },
+    },
+    "/api/v1/deployments/{id}/funding/reconcile": {
+      post: {
+        tags: ["Capabilities"],
+        operationId: "reconcileFunding",
+        summary: "Reconcile funding finality and ledger-proven expiry",
+        description:
+          "Deployment bearer token required; no session. Active, confirmed deployment on the environment network. Any consenting funding wallet may fund; no owner/admin requirement. Funding adds funds only, never executes a Schedule payout or Webhook callback. Public /trigger, /submit-trigger and hosted /trigger/{deploymentId} alternatives remain available. One unresolved preparation per node blocks other actions; reconcile the original before replacement. UNKNOWN, timeout, REJECTED or missing history alone never permits another deposit. Hosted testnet evidence remains pending." +
+          rate(V1_RATE_LIMITS.fundingSubmit, "per token"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        requestBody: {
+          required: true,
+          content: json(
+            { $ref: "#/components/schemas/FundingReconcile" },
+            examples.fundingReconcile,
+          ),
+        },
+        responses: {
+          "200": {
+            description: "Reconcile funding finality and ledger-proven expiry",
+            content: json(
+              dataEnvelope("#/components/schemas/FundingReconciled"),
+              examples.fundingReconciled,
+            ),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "NOT_FOUND",
+            "FORBIDDEN",
+            "VALIDATION",
+            "CONFLICT",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+            "INTERNAL",
+          ),
+        },
+      },
+    },
+    ...schedulePaths(),
+    ...Object.fromEntries(
+      (["cancel", "reactivate"] as const).flatMap((action) =>
+        (["prepare", "submit", "reconcile"] as const).map((step) => {
+          const request =
+            step === "prepare"
+              ? "SubscriptionControlPrepare"
+              : step === "submit"
+                ? "WalletControlSubmit"
+                : "SubscriptionControlReconcile";
+          const response =
+            step === "prepare"
+              ? "SubscriptionControlPrepared"
+              : step === "submit"
+                ? "TransactionStatus"
+                : "SubscriptionControlReconciled";
+          return [
+            `/api/v1/deployments/{id}/subscription/${action}/${step}`,
+            {
+              post: {
+                tags: ["Subscriptions"],
+                operationId: `${step}Subscription${action === "cancel" ? "Cancel" : "Reactivate"}`,
+                summary: `${step} wallet-authorized subscription ${action}`,
+                description: [
+                  "Requires the deployment bearer token and ACTIVE service. Ordinary subscriptions are eligible. Existing Dev cancellation continues when Dev mode is disabled; Dev reactivation requires the feature enabled. Payroll and malformed or ambiguous snapshots are refused.",
+                  "Preparation reads the deployed current subscriber, asset and cancellation state. Only that configured wallet can cancel an active subscription or reactivate a cancelled subscription. The builder simulates on the server network with finite transaction bounds. Cancellation revokes allowance; reactivation grants no allowance, creates no subscriber and never immediately charges or changes billing.",
+                  "Sign exactly the returned xdr in the subscriber wallet on networkPassphrase; submit intent and signedXdr. Changed envelopes, wrong signers and fee-bumps are refused. Submission rechecks live eligibility on the first send and durably admits the exact hash before broadcasting. Retrying an already claimed intent returns status, even when successful cancellation changed state.",
+                  "UNKNOWN, REJECTED, timeouts and expired clocks never authorize replacement. Poll the deployment transaction endpoint and explicitly POST the action's reconcile endpoint with intent. Recovery adopts externally submitted ledger results and proves expiry only with complete RPC history. PREPARED or SUBMITTING retains the reservation; SUCCESS, FAILED or proven EXPIRED sets replacementAllowed:true, subject to current eligibility for a new preparation. RPC/history gaps retain reservations. No generic or token-only wallet consent.",
+                  "Hosted testnet rehearsal remains required before advertising event availability; these paths describe the implemented API surface.",
+                  rate(
+                    V1_RATE_LIMITS[
+                      step === "prepare"
+                        ? "subscriptionControlPrepare"
+                        : step === "submit"
+                          ? "subscriptionControlSubmit"
+                          : "subscriptionControlReconcile"
+                    ],
+                    "per token",
+                  ),
+                ].join("\n\n"),
+                security: [{ bearerAuth: [] }],
+                parameters: [deploymentIdParam],
+                requestBody: {
+                  required: true,
+                  content: json(
+                    { $ref: `#/components/schemas/${request}` },
+                    step === "prepare"
+                      ? examples.subscriptionControlRequest
+                      : step === "reconcile"
+                        ? examples.subscriptionControlReconcileRequest
+                        : undefined,
+                  ),
+                },
+                responses: {
+                  "200": {
+                    description:
+                      "Wallet control preparation, submission status or explicit recovery result.",
+                    content: json(
+                      dataEnvelope(`#/components/schemas/${response}`),
+                      step === "prepare"
+                        ? {
+                            data: {
+                              ...examples.subscriptionControlPrepared.data,
+                              action: `subscription.${action}`,
+                            },
+                          }
+                        : step === "reconcile"
+                          ? {
+                              data: {
+                                ...examples.subscriptionControlReconciled.data,
+                                action: `subscription.${action}`,
+                              },
+                            }
+                          : examples.transactionStatus,
+                    ),
+                  },
+                  ...errors(
+                    "UNAUTHENTICATED",
+                    "FORBIDDEN",
+                    "NOT_FOUND",
+                    "CONFLICT",
+                    "VALIDATION",
+                    "RATE_LIMITED",
+                    "UPSTREAM_RPC",
+                    "INTERNAL",
+                    "INSUFFICIENT_FUNDS",
+                  ),
+                },
+              },
+            },
+          ];
+        }),
+      ),
+    ),
+    "/api/v1/deployments/{id}/balances": {
+      get: {
+        tags: ["Capabilities"],
+        operationId: "getDeploymentBalances",
+        summary: "Read deployment contract balances with freshness",
+        description:
+          "Deployment-scoped display reads of current token contracts from supported on-chain instance storage. Schedule, Webhook, time/oracle conditions, Pay, Split and Swap balances are supported candidates; mutable Pay/Split require Dev mode enabled. Swap reports both input and output tokens. No owner account balances or private configuration. Multisig and unsupported kinds are excluded and, when present beside supported nodes, reported as errors making totals incomplete. Token contract addresses are asset identity; graph asset labels are not authoritative. Balances are not Schedule payout availability or evidence of payment success. The 10-second process-local single-flight cache preserves original readAt/attemptedAt; a Redis per-deployment refresh lease spans replicas (another replica without cached data answers 429), configured unavailable Redis fails closed for refreshes, and no Redis means process-local coordination; poll no faster than every 10 seconds. Each refresh admits at most four workers and 64 contracts, stops scheduling at 25 seconds, with existing finite HTTP timeouts. Errors use null balances and stale:true; partial totals sum only successful reads, never stand for complete balances. Fresh means all supported/holding targets read successfully within the display window, not a ledger-consistent atomic snapshot. Hosted testnet verification remains pending before participant support is claimed. " +
+          rate(V1_RATE_LIMITS.balances, "per token"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        responses: {
+          "200": {
+            description: "Display balances and partial/completeness information",
+            content: json(
+              dataEnvelope("#/components/schemas/DeploymentBalances"),
+              examples.balances,
+            ),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "FORBIDDEN",
+            "NOT_FOUND",
+            "VALIDATION",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+          ),
+        },
+      },
+    },
+    "/api/v1/deployments/{id}/swap-quote": {
+      get: {
+        tags: ["Capabilities"],
+        operationId: "getDeploymentSwapQuote",
+        summary: "Estimate output of one deployed Swap node",
+        description: [
+          "Requires this deployment's bearer token, confirmed deployment on the environment network and active service. Select a standard SWAPPER from pipelineSnapshot; nodeId is required if several exist. Only amountStroops and nodeId are accepted; arbitrary assets, router, slippage and routes are rejected. Live asset_in/asset_out/router/slippage_bps getters determine quote configuration; the router must match the environment's configured router.",
+          "Returns exact integer stroop strings, current slippage, live readStartedAt/quotedAt and estimate:true with scope:selected_node. Reads are a sequence of simulations, not an atomic ledger snapshot; live means read during this request, not cached reserves or guaranteed freshness at execution. amountOutMinStroops is the spot-less-slippage estimate at quote time, not a guaranteed payout or the final minimum for a later transaction. meetsMinimumAtQuote only compares estimated output to that estimate; false means the quote currently falls below that bound, true does not establish full-flow readiness. No full-flow prediction or new execution path; final preparation, simulation and execution remain authoritative. Cache-Control:no-store.",
+          "Fixed RPC work: four configuration getters and at most five pool/router reads. Deployment-wide 20/min quote budget across tokens, with functioning shared Redis required in production. RPC/provider failures return errors, never a zero quote. Hosted testnet quote-versus-execution verification remains pending; this source API must be deployed and verified before claiming hosted support.",
+          rate(V1_RATE_LIMITS.swapQuote, "per token"),
+        ].join("\n\n"),
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          deploymentIdParam,
+          {
+            name: "amountStroops",
+            in: "query",
+            required: true,
+            schema: { type: "string", pattern: "^[0-9]{1,39}$" },
+            description:
+              "Positive i128 input for the selected node, not a whole-flow deposit amount. Contract arithmetic range is checked.",
+          },
+          {
+            name: "nodeId",
+            in: "query",
+            required: false,
+            schema: { type: "string", minLength: 1, maxLength: 128 },
+            description: "Deployed Swap node ID; required if several candidates exist.",
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Live selected-node estimate.",
+            content: json(dataEnvelope("#/components/schemas/SwapQuote"), examples.swapQuote),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "FORBIDDEN",
+            "NOT_FOUND",
+            "VALIDATION",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+            "INTERNAL",
+            "INSUFFICIENT_FUNDS",
+          ),
+        },
+      },
+    },
+    "/api/v1/deployments/{id}/subscription/state": {
+      get: {
+        tags: ["Capabilities"],
+        operationId: "getSubscriptionState",
+        summary: "Read live Subscription state and allowance",
+        description: [
+          "Requires this deployment's bearer token, a confirmed ordinary or Dev Subscription on the environment network and active deployment service. Payroll and malformed snapshots are refused. Reads the deployed contract's current subscriber, token and cancellation state, then that subscriber's token allowance. An unconfigured Dev subscription returns subscriber:null, setupRequired:true and allowance:\"0\" without querying allowance. RPC failures return errors rather than a zero allowance or active state.",
+          "tokenContractAddress is authoritative; asset is initial metadata only when it matches that token, otherwise null. Allowance is an integer stroop string. Reading does not authorize approval, charge, cancellation or reactivation. No-store response.",
+          rate(V1_RATE_LIMITS.subscriptionState, "per token"),
+        ].join("\n\n"),
+        security: [{ bearerAuth: [] }],
+        parameters: [deploymentIdParam],
+        responses: {
+          "200": {
+            description: "Current deployed Subscription configuration and allowance.",
+            content: json(
+              dataEnvelope("#/components/schemas/SubscriptionState"),
+              examples.subscriptionState,
+            ),
+          },
+          ...errors(
+            "UNAUTHENTICATED",
+            "FORBIDDEN",
+            "NOT_FOUND",
+            "VALIDATION",
+            "RATE_LIMITED",
+            "UPSTREAM_RPC",
+            "INTERNAL",
+            "INSUFFICIENT_FUNDS",
+          ),
+        },
+      },
+    },
     "/api/v1/deployments/{id}/capabilities": {
       get: {
         tags: ["Capabilities"],
@@ -453,7 +1099,7 @@ export const openApiDocument = {
         description: [
           DeploymentCapabilitiesSchema.description,
           "Requires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.",
-          "Operations are execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
+          "Operations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), scheduleState (/api/v1/deployments/{id}/schedule/state), scheduleControls (Schedule pause, resume and retrieve preparation, submit and reconcile), subscriptionState (/api/v1/deployments/{id}/subscription/state), subscriptionCancel and subscriptionReactivate (subscription/cancel or subscription/reactivate prepare, submit and reconcile), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
           "Returns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.",
           rate(V1_RATE_LIMITS.capabilities, "per token"),
         ].join("\n\n"),
@@ -1079,6 +1725,184 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      SubscriptionControlPrepare: {
+        type: "object",
+        additionalProperties: false,
+        required: ["walletAddress"],
+        properties: {
+          walletAddress: {
+            type: "string",
+            description: "Current configured subscriber's Stellar account address.",
+          },
+        },
+      },
+      WalletControlSubmit: {
+        type: "object",
+        additionalProperties: false,
+        required: ["intent", "signedXdr"],
+        properties: {
+          intent: { type: "string", format: "uuid" },
+          signedXdr: { type: "string", minLength: 1, maxLength: 100000 },
+        },
+      },
+      SubscriptionControlReconcile: {
+        type: "object",
+        additionalProperties: false,
+        required: ["intent"],
+        properties: { intent: { type: "string", format: "uuid" } },
+      },
+      SubscriptionControlPrepared: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "intent",
+          "txHash",
+          "expiresAt",
+          "xdr",
+          "network",
+          "networkPassphrase",
+          "action",
+          "walletAddress",
+          "nodeId",
+          "contractAddress",
+          "tokenContractAddress",
+        ],
+        properties: {
+          intent: { type: "string", format: "uuid" },
+          txHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+          expiresAt: { type: "string", format: "date-time" },
+          xdr: { type: "string" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          networkPassphrase: { type: "string" },
+          action: { type: "string", enum: ["subscription.cancel", "subscription.reactivate"] },
+          walletAddress: { type: "string" },
+          nodeId: { type: "string" },
+          contractAddress: { type: "string" },
+          tokenContractAddress: {
+            type: "string",
+            description: "Live token used when preparing, rather than stale graph asset metadata.",
+          },
+        },
+      },
+      SubscriptionControlReconciled: {
+        type: "object",
+        additionalProperties: false,
+        required: ["intent", "txHash", "action", "state", "ledger", "replacementAllowed"],
+        properties: {
+          intent: { type: "string", format: "uuid" },
+          txHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+          action: { type: "string", enum: ["subscription.cancel", "subscription.reactivate"] },
+          state: {
+            type: "string",
+            enum: ["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"],
+          },
+          ledger: { type: ["integer", "null"] },
+          replacementAllowed: { type: "boolean" },
+        },
+      },
+      ScheduleState: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "deploymentId",
+          "network",
+          "nodeId",
+          "contractAddress",
+          "controller",
+          "controlEligibility",
+          "tokenContractAddress",
+          "paused",
+          "pauseAllowed",
+          "retrieveAllowed",
+          "balanceStroops",
+          "availableStroops",
+          "claimedStroops",
+          "unvestedStroops",
+          "retrievableStroops",
+          "retrievalRecipient",
+          "readAt",
+        ],
+        properties: {
+          deploymentId: { type: "string", format: "uuid" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          nodeId: { type: "string" },
+          contractAddress: { type: "string" },
+          controller: { type: "string" },
+          controlEligibility: {
+            type: "object",
+            additionalProperties: false,
+            required: ["walletProtocolSupported", "pause", "resume", "retrieve"],
+            properties: {
+              walletProtocolSupported: { type: "boolean" },
+              pause: { type: "boolean" },
+              resume: { type: "boolean" },
+              retrieve: { type: "boolean" },
+            },
+          },
+          tokenContractAddress: { type: "string" },
+          paused: { type: "boolean" },
+          pauseAllowed: { type: "boolean" },
+          retrieveAllowed: { type: "boolean" },
+          balanceStroops: { type: "string", pattern: "^[0-9]+$" },
+          availableStroops: { type: "string", pattern: "^[0-9]+$" },
+          claimedStroops: { type: "string", pattern: "^[0-9]+$" },
+          unvestedStroops: { type: "string", pattern: "^[0-9]+$" },
+          retrievableStroops: { type: "string", pattern: "^[0-9]+$" },
+          retrievalRecipient: { type: "string" },
+          readAt: { type: "string", format: "date-time" },
+        },
+      },
+      SchedulePrepared: {
+        type: "object",
+        required: [
+          "intent",
+          "txHash",
+          "expiresAt",
+          "unsignedXdr",
+          "network",
+          "action",
+          "nodeId",
+          "contractAddress",
+          "walletAddress",
+        ],
+        properties: {
+          intent: { type: "string", format: "uuid" },
+          txHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+          expiresAt: { type: "string", format: "date-time" },
+          unsignedXdr: { type: "string" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          action: { type: "string", enum: ["pause", "resume", "retrieve"] },
+          nodeId: { type: "string" },
+          contractAddress: { type: "string" },
+          walletAddress: { type: "string" },
+          recipient: { type: "string", description: "Retrieval only: current contract controller" },
+          estimatedAmountStroops: {
+            type: "string",
+            pattern: "^[0-9]+$",
+            description:
+              "Retrieval only: indicative holding balance minus available; actual ledger execution determines the amount",
+          },
+          tokenContractAddress: { type: "string", description: "Retrieval only: live token" },
+        },
+      },
+      ScheduleReconciled: {
+        type: "object",
+        required: ["intent", "txHash", "network", "action", "state", "replacementAllowed"],
+        properties: {
+          intent: { type: "string", format: "uuid" },
+          txHash: { type: "string" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          action: { type: "string", enum: ["pause", "resume", "retrieve"] },
+          state: {
+            type: "string",
+            enum: ["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"],
+          },
+          replacementAllowed: {
+            type: "boolean",
+            description: "True only for durable success/failure or ledger-proven expiry",
+          },
+        },
+      },
       CapabilityOperation: {
         type: "object",
         additionalProperties: false,
@@ -1091,6 +1915,150 @@ export const openApiDocument = {
           },
           requirements: { type: "array", items: { type: "string" } },
           nodeIds: { type: "array", items: { type: "string" } },
+        },
+      },
+      SwapQuote: {
+        type: "object",
+        additionalProperties: false,
+        required: Object.keys(SwapQuoteSchema.shape),
+        properties: {
+          deploymentId: { type: "string", format: "uuid" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          nodeId: { type: "string", minLength: 1 },
+          contractAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+          assetInContractAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+          assetOutContractAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+          routerAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+          pairAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+          amountInStroops: {
+            type: "string",
+            pattern: "^[0-9]{1,39}$",
+            description: "Positive i128 input amount.",
+          },
+          amountOutStroops: {
+            type: "string",
+            pattern: "^[0-9]{1,39}$",
+            description: "Positive i128 estimated output.",
+          },
+          amountOutMinStroops: {
+            type: "string",
+            pattern: "^[0-9]{1,39}$",
+            description: "Nonnegative i128 spot-less-slippage estimate at quote time.",
+          },
+          slippageBps: { type: "integer", minimum: 0, maximum: 10000 },
+          readStartedAt: { type: "string", format: "date-time" },
+          quotedAt: { type: "string", format: "date-time" },
+          freshness: { type: "string", const: "live" },
+          estimate: { type: "boolean", const: true },
+          scope: { type: "string", const: "selected_node" },
+          meetsMinimumAtQuote: { type: "boolean" },
+        },
+      },
+      SubscriptionState: {
+        type: "object",
+        additionalProperties: false,
+        required: Object.keys(SubscriptionStateSchema.shape),
+        properties: {
+          deploymentId: { type: "string", format: "uuid" },
+          flowName: { type: "string" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          templateKind: { type: "string", enum: ["SUBSCRIPTION", "SUBSCRIPTION_DEV"] },
+          contractAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+          tokenContractAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+          subscriber: { type: ["string", "null"], pattern: "^G[A-Z2-7]{55}$" },
+          isCancelled: { type: "boolean" },
+          setupRequired: { type: "boolean" },
+          allowance: {
+            type: "string",
+            pattern: "^[0-9]+$",
+            description: "Current allowance in stroops; nonnegative i128 range.",
+          },
+          assetLabel: { type: "string" },
+          asset: {
+            anyOf: [
+              {
+                type: "object",
+                additionalProperties: false,
+                required: ["kind"],
+                properties: { kind: { const: "native" } },
+              },
+              {
+                type: "object",
+                additionalProperties: false,
+                required: ["kind", "symbol"],
+                properties: { kind: { const: "known" }, symbol: { const: "USDC" } },
+              },
+              {
+                type: "object",
+                additionalProperties: false,
+                required: ["kind", "code", "issuer"],
+                properties: {
+                  kind: { const: "custom" },
+                  code: { type: "string", pattern: "^[A-Za-z0-9]{1,12}$" },
+                  issuer: { type: "string", pattern: "^G[A-Z2-7]{55}$" },
+                },
+              },
+              { type: "null" },
+            ],
+          },
+        },
+      },
+      DeploymentBalances: {
+        type: "object",
+        additionalProperties: false,
+        required: ["deploymentId", "network", "totals", "nodes", "freshness"],
+        properties: {
+          deploymentId: { type: "string", format: "uuid" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          totals: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["tokenContract", "balanceStroops"],
+              properties: {
+                tokenContract: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+                balanceStroops: { type: "string", pattern: "^\\d+$" },
+              },
+            },
+          },
+          nodes: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "nodeId",
+                "templateKind",
+                "contractAddress",
+                "tokenContract",
+                "balanceStroops",
+                "readAt",
+                "stale",
+              ],
+              properties: {
+                nodeId: { type: "string", minLength: 1 },
+                templateKind: { type: "string", minLength: 1 },
+                contractAddress: { type: "string", pattern: "^C[A-Z2-7]{55}$" },
+                tokenContract: { type: ["string", "null"], pattern: "^C[A-Z2-7]{55}$" },
+                balanceStroops: { type: ["string", "null"], pattern: "^\\d{1,39}$" },
+                readAt: { type: ["string", "null"], format: "date-time" },
+                stale: { type: "boolean" },
+                error: { type: "string" },
+              },
+            },
+          },
+          freshness: {
+            type: "object",
+            additionalProperties: false,
+            required: ["status", "totalsComplete", "attemptedAt", "cached"],
+            properties: {
+              status: { type: "string", enum: ["fresh", "partial", "stale"] },
+              totalsComplete: { type: "boolean" },
+              attemptedAt: { type: "string", format: "date-time" },
+              cached: { type: "boolean" },
+            },
+          },
         },
       },
       DeploymentCapabilities: {
@@ -1158,22 +2126,158 @@ export const openApiDocument = {
             required: [
               "execute",
               "events",
+              "balances",
+              "funding",
               "transactions",
               "releaseEarly",
               "payouts",
               "webhook",
               "subscriptionAllowance",
+              "subscriptionState",
+              "scheduleState",
+              "scheduleControls",
+              "subscriptionCancel",
+              "subscriptionReactivate",
+              "swapQuote",
             ],
             properties: {
               execute: { $ref: "#/components/schemas/CapabilityOperation" },
+              funding: { $ref: "#/components/schemas/CapabilityOperation" },
+              balances: { $ref: "#/components/schemas/CapabilityOperation" },
               events: { $ref: "#/components/schemas/CapabilityOperation" },
               transactions: { $ref: "#/components/schemas/CapabilityOperation" },
               releaseEarly: { $ref: "#/components/schemas/CapabilityOperation" },
               payouts: { $ref: "#/components/schemas/CapabilityOperation" },
               webhook: { $ref: "#/components/schemas/CapabilityOperation" },
+              subscriptionCancel: { $ref: "#/components/schemas/CapabilityOperation" },
+              subscriptionReactivate: { $ref: "#/components/schemas/CapabilityOperation" },
+              swapQuote: { $ref: "#/components/schemas/CapabilityOperation" },
+              scheduleState: { $ref: "#/components/schemas/CapabilityOperation" },
+              scheduleControls: { $ref: "#/components/schemas/CapabilityOperation" },
+              subscriptionState: { $ref: "#/components/schemas/CapabilityOperation" },
               subscriptionAllowance: { $ref: "#/components/schemas/CapabilityOperation" },
             },
           },
+        },
+      },
+      FundingPrepare: {
+        type: "object",
+        additionalProperties: false,
+        required: ["fromAddress", "tokenContractAddress", "amountStroops"],
+        properties: {
+          nodeId: { type: "string", minLength: 1, maxLength: 128 },
+          fromAddress: {
+            type: "string",
+            description: "Consenting funding wallet, Stellar G address",
+          },
+          tokenContractAddress: {
+            type: "string",
+            description: "Exact live deployed asset C address from funding discovery",
+          },
+          amountStroops: {
+            type: "string",
+            pattern: "^[1-9]\\d{0,38}$",
+            description: "Positive integer stroops at most i128::MAX",
+          },
+        },
+      },
+      FundingSubmit: {
+        type: "object",
+        additionalProperties: false,
+        required: ["action", "intent", "signedXdr"],
+        properties: {
+          action: { type: "string", enum: ["schedule.fund", "webhook.fund"] },
+          intent: { type: "string", format: "uuid" },
+          signedXdr: { type: "string", minLength: 1, maxLength: 100000 },
+        },
+      },
+      FundingReconcile: {
+        type: "object",
+        additionalProperties: false,
+        required: ["action", "intent"],
+        properties: {
+          action: { type: "string", enum: ["schedule.fund", "webhook.fund"] },
+          intent: { type: "string", format: "uuid" },
+        },
+      },
+      FundingDiscovery: {
+        type: "object",
+        additionalProperties: false,
+        required: ["deploymentId", "network", "nodes"],
+        properties: {
+          deploymentId: { type: "string", format: "uuid" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          nodes: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "nodeId",
+                "templateKind",
+                "contractAddress",
+                "action",
+                "tokenContractAddress",
+                "authorization",
+                "effect",
+              ],
+              properties: {
+                nodeId: { type: "string" },
+                templateKind: { type: "string", enum: ["STREAMER", "WEBHOOK"] },
+                contractAddress: { type: "string" },
+                action: { type: "string", enum: ["schedule.fund", "webhook.fund"] },
+                tokenContractAddress: { type: "string" },
+                authorization: { const: "funding_wallet" },
+                effect: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+      FundingPrepared: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "intent",
+          "txHash",
+          "expiresAt",
+          "xdr",
+          "action",
+          "nodeId",
+          "fromAddress",
+          "tokenContractAddress",
+          "amountStroops",
+          "network",
+          "networkPassphrase",
+        ],
+        properties: {
+          intent: { type: "string", format: "uuid" },
+          txHash: { type: "string", pattern: "^[a-f0-9]{64}$" },
+          expiresAt: { type: "string", format: "date-time" },
+          xdr: { type: "string" },
+          action: { type: "string", enum: ["schedule.fund", "webhook.fund"] },
+          nodeId: { type: "string" },
+          fromAddress: { type: "string" },
+          tokenContractAddress: { type: "string" },
+          amountStroops: { type: "string" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          networkPassphrase: { type: "string" },
+        },
+      },
+      FundingReconciled: {
+        type: "object",
+        additionalProperties: false,
+        required: ["intent", "action", "txHash", "network", "state", "expiresAt"],
+        properties: {
+          intent: { type: "string", format: "uuid" },
+          action: { type: "string", enum: ["schedule.fund", "webhook.fund"] },
+          txHash: { type: "string" },
+          network: { type: "string", enum: ["testnet", "mainnet"] },
+          state: {
+            type: "string",
+            enum: ["PREPARED", "SUBMITTING", "SUCCESS", "FAILED", "EXPIRED"],
+          },
+          expiresAt: { type: "string", format: "date-time" },
         },
       },
       Error: {

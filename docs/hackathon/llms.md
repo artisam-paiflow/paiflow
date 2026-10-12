@@ -1,32 +1,42 @@
 # Paiflow developer context guide
 
-Shared technical guidance updated Oct 11, 2026. API and product details checked against pinkraft `staging` @ b945e6a. Testnet only.
+Shared technical guidance updated Oct 12, 2026. API and product details checked against pinkraft `staging` @ b945e6a. Testnet only.
 
 ## Choose the right resource
 
-| Resource                                                                                                             | Purpose                                                                                                                    |
-| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| [Developer guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-guide.md)         | Wallet setup, building and deploying a flow, and configuring the ready-wired starter.                                      |
-| [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md) | A separate Next.js frontend/backend example for an app built without the starter. Do not copy its routes into the starter. |
-| [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                     | Endpoint schemas, errors, limits, pagination and advanced workflows.                                                       |
-| This `llms.md`                                                                                                       | Product constraints, API details and examples for AI-assisted development. It complements the human walkthroughs.          |
+| Resource                                                                                                                      | Purpose                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [Paiflow Guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/paiflow-guide.md)                      | Wallet setup, building and deploying a flow, and configuring the ready-wired starter.                                      |
+| [API quickstart](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/developer-api-quickstart.md)          | A separate Next.js frontend/backend example for an app built without the starter. Do not copy its routes into the starter. |
+| [Full API reference](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md)                              | Endpoint schemas, errors, limits, pagination and advanced workflows.                                                       |
+| [OpenAPI JSON](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/openapi.json)                                 | Machine-readable endpoint schemas for integration tools.                                                                   |
+| [Postman collection](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/paiflow-api-v1.postman_collection.json) | Runnable API requests for your configured deployment.                                                                      |
+| [Starter configuration](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/.env.example)                  | Server-only mode, platform origin, deployment UUID and token settings.                                                     |
+| [Starter agent instructions](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/AGENTS.md)                | Coding boundaries, event scope and verification commands.                                                                  |
+| [Starter package manifest](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/package.json)               | Node.js range, package manager, dependencies and scripts.                                                                  |
+| [Starter server client](https://github.com/artisam-paiflow/paiflow-hackathon-starter/blob/main/lib/paiflow.ts)                | Current implementation of mode guards and Paiflow API calls.                                                               |
+| This `llms.md`                                                                                                                | Product constraints, API details and examples for AI-assisted development. It complements the human walkthroughs.          |
+
+Use the Markdown sources above when supplying references to an AI assistant. Participant-facing PDFs are presentation copies; keep them aligned with these sources.
 
 Both human guides live directly in `docs/hackathon/` and are event-neutral. Their PDFs mirror their Markdown sources. Event rules belong in the participant brief. `PAIFLOW_MODE` is a starter/sample control, not a Paiflow API setting; the API quickstart does not use it.
 
 ## Event instructions
 
-This guide explains how to build with Paiflow. For preparation rules, integration start times, team credentials, submission requirements and judging, follow your event's primer and organiser instructions. Do not infer event rules from the technical examples in this guide. If event information is missing, ask the organisers.
+This guide explains how to build with Paiflow. Early deployment, app integration and test payments are allowed for this hackathon once your team's credentials and deployment are ready. Follow your event's primer for onboarding, credentials, submission requirements and judging. If event information is missing, ask the organisers.
+
+**Hackathon availability:** Dev mode will stay disabled for the duration of the hackathon. Configure all recipients and required values before deployment. Per-payment recipients (`payouts`), **Fill value via API**, **Dev values** and deferred subscriber/recipient setup are unavailable during the event. Use standard flows and `execute` with configured recipients. `PAIFLOW_MODE=team` and `pnpm dev` do not enable flow Dev mode. The Dev-mode sections below describe product features only where enabled; do not use them for this hackathon.
 
 ## Preparation and starter modes
 
 - Choose a problem, research users and sketch your app according to your event's preparation rules.
-- If your event allows scaffolding after onboarding, use that time to set up the project, build screens and develop non-payment features.
-- If integration is reserved for an announced window, keep payment features and the live feed disabled until that window opens. Follow the event's rules for sandbox practice, flow deployment, API integration and live payment testing.
-- Prepare dedicated testnet wallets, the exact USDC trustline if needed, and testnet funds where permitted. Confirm internet access, account distribution and any wallet support with your organisers; this guide does not promise those services.
+- Build your app before the event, including its payment integration. Use onboarding to resolve setup questions and rehearse your flow.
+- Flow deployment, Paiflow API integration, test payments and the live feed may be used before the event. Ask organisers for your team credentials in advance; configure team mode when your confirmed deployment and token are ready.
+- Prepare dedicated testnet wallets, the exact USDC trustline if needed, and testnet funds. Confirm internet access, account distribution and wallet support with your organisers; this guide does not promise those services.
 
 The supplied starter defaults to preparation mode when `PAIFLOW_MODE` is unset. Run `pnpm install` and `pnpm dev`, then open http://localhost:3000 to build non-payment screens. You can also copy `.env.example` to `.env.local` and keep server-only `PAIFLOW_MODE=prepare`. This disables wallet actions, payments and event polling; the starter makes no upstream Paiflow requests or demo-token requests. Direct payment, payout and event routes return HTTP 403 `PREPARATION_MODE`.
 
-When your event's integration window opens, set server-only `PAIFLOW_MODE=team` alongside the supplied platform origin, your confirmed deployment UUID and API token, then restart. Explicit `PAIFLOW_MODE=demo` enables the shared testnet demo where available and permitted by your event. An empty token never selects demo automatically; missing or invalid team configuration disables integration with a clear error. Keep the starter's mode guards when replacing its screens or extending its server client. A pending signed payment may still execute after a mode change; confirm its status before switching modes.
+When your confirmed deployment and API token are ready, set server-only `PAIFLOW_MODE=team` alongside the supplied platform origin, your confirmed deployment UUID and API token, then restart. Explicit `PAIFLOW_MODE=demo` enables the shared testnet demo where available. An empty token never selects demo automatically; missing or invalid team configuration disables integration with a clear error. Keep the starter's mode guards when replacing its screens or extending its server client. A pending signed payment may still execute after a mode change; confirm its status before switching modes.
 
 `PAIFLOW_MODE` also applies to Campus Snacks: it defaults to `prepare`, enables its own deployment only in `team`, and rejects `demo`. It retains preparation guards in the UI, routes and server client; credentials alone never enable payments. The sample does not use the starter's shared demo fallback.
 
@@ -107,13 +117,15 @@ Fields: `asset`, `subscriber` (account address), `amountPerPeriodStroops` (integ
 
 Pull payments from the configured subscriber after they approve an allowance. The relayer charges when due, without the subscriber signing every charge, until the window ends or allowance/balance is exhausted. Starts at deployment time; end/count/default window follow the rules above. The non-deferred amount must be greater than zero. If the next Split has all fixed recipients, its total determines the pull amount instead of a stale manual period amount. Use the allowance page; `execute` cannot start a subscription. Use Pay or Split downstream; amount and time branching conditions are refused under this trigger.
 
-Dev mode can defer/change the subscriber and payment values through **Dev values** on the deployment page. On builds containing #790, the configured customer can open `/allowance/[deploymentId]` while logged out and approve with their wallet, without a Paiflow account or deployment token. The page supports ordinary and Dev subscriptions and reads the current deployed subscriber and token. An unconfigured Dev subscriber must be filled by the team first; a different wallet is refused. An allowance still needs the customer's wallet signature. Do not claim that connecting any new wallet automatically creates a new subscriber in this one deployment.
+Outside this hackathon, where Dev mode is enabled, Dev mode can defer/change the subscriber and payment values through **Dev values** on the deployment page. On builds containing #790, the configured customer can open `/allowance/[deploymentId]` while logged out and approve with their wallet, without a Paiflow account or deployment token. The page supports ordinary and Dev subscriptions and reads the current deployed subscriber and token. An unconfigured Dev subscriber must be filled by the team first; a different wallet is refused. An allowance still needs the customer's wallet signature. Do not claim that connecting any new wallet automatically creates a new subscriber in this one deployment.
 
 ## Pay — `pay`
 
 Fields: `recipient`, `asset`; optional `email` (up to 254 characters), `mode` (`fixed` or `percentage`), `amountStroops`, `percentage` (0–100), `fullAmount` (default false), `fillValueViaApi`, `payoutMode` (use `crypto`).
 
 Pay one recipient. Unless full amount or deferred value is selected, choose a mode: a fixed amount must be positive; a percentage must be greater than zero and at most 100. `fullAmount: true` pays 100% of what arrives. Fixed Pay sends the smaller of incoming amount and its configured cap; any surplus goes to its next step. With no next step, surplus stays in the Pay contract: avoid overfunding a terminal fixed Pay. For variable checkout prices, full amount is simpler.
+
+**Unavailable during this hackathon:** Dev mode stays disabled. The following deferred-value behavior applies only where Dev mode is enabled.
 
 `fillValueViaApi` is only allowed with graph `devMode: true`. That mutable Pay can deploy before its recipient/value is filled. Set these in **Dev values**, or use `payouts` for a per-payment recipient; do not call `execute` against an unconfigured Pay. A deferred-value payout configures that Pay to 100%.
 
@@ -124,7 +136,7 @@ Fields: `asset`, `recipients` (up to 20), optional `amountPerIntervalStroops`. E
 - All recipients use the same mode. Never mix percentage and fixed rows.
 - Percentage shares must each be greater than zero and sum to exactly 10,000 bps. For three equal shares use 3333, 3333, 3334. Rounding remainder goes to the last recipient.
 - Fixed amounts must each be positive, with a positive total. Short deposits accumulate; the roster is paid when enough funds are held. Surplus is forwarded to a next step if one exists.
-- No duplicate recipient addresses. A non-Dev flow needs at least one recipient. Dev mode may deploy an empty roster, but fill it in **Dev values** before payments.
+- No duplicate recipient addresses. A non-Dev flow needs at least one recipient. Outside this hackathon, Dev mode may deploy an empty roster, but fill it in **Dev values** before payments.
 - A scheduled percentage Split needs a positive `amountPerIntervalStroops`; a fixed scheduled Split derives the amount from its roster.
 
 Use Split for fan-out rather than drawing several outgoing money paths and expecting automatic division. A percentage Split consumes the deposit; it does not leave money for a subsequent per-payment Pay.
@@ -184,7 +196,7 @@ The usual trigger QR opens this hosted page (or the allowance page for a subscri
 On builds containing capabilities discovery, `GET /api/v1/deployments/:id/capabilities` with the
 deployment's bearer token returns `data` with `network`, `triggerType`, initial `inputAsset` metadata,
 `configurationSource: "deployment_snapshot"` and `operations`. Operation keys are `execute`,
-`events`, `transactions`, `releaseEarly`, `payouts`, `webhook` and `subscriptionAllowance`. Each has
+`events`, `balances`, `transactions`, `releaseEarly`, `payouts`, `webhook`, `subscriptionState`, `subscriptionAllowance`, `subscriptionCancel` and `subscriptionReactivate`. Each has
 `status` (`supported`, `conditional` or `unsupported`), `authentication`, `requirements` and
 candidate `nodeIds`. This is recorded integration support, not live readiness: no RPC or transaction
 is performed, and current funds, deadlines, consent and eligibility must be checked through the
@@ -199,6 +211,26 @@ Limit: 60 requests/minute per token; confirmed deployments on this environment's
 Use `Authorization: Bearer pfk_<64 lowercase hex characters>`. A token is bound to exactly one deployment. Mint it in **API access** on the team's confirmed deployment; it is shown only once. Store it on the app server. Missing, malformed, unknown, expired, revoked or wrong-deployment tokens all return HTTP 401 `UNAUTHENTICATED`, with `A valid API token for this deployment is required`. A malformed deployment UUID is 404. Revocation takes effect on the next call.
 
 **Put all Paiflow calls in one typed, server-only `lib/paiflow.ts` module in the starter repo, and call the API through it.** Use `import "server-only";`, read `PAIFLOW_API_TOKEN` and `PAIFLOW_DEPLOYMENT_ID` from server environment, and expose `prepareExecute`, `submitExecute`, `listEvents`, `preparePayout`, `submitPayout`, `releaseEarly`. Its header should say: `starter code, not a supported package — edit freely.` Follow the shapes below and the public OpenAPI document. Do not invent other v1 methods. Keep the bearer token out of browser bundles, browser requests and logs.
+
+On builds containing #913, Subscription controls use POST
+
+- `POST /api/v1/deployments/{id}/subscription/cancel/prepare`
+- `POST /api/v1/deployments/{id}/subscription/cancel/submit`
+- `POST /api/v1/deployments/{id}/subscription/cancel/reconcile`
+- `POST /api/v1/deployments/{id}/subscription/reactivate/prepare`
+- `POST /api/v1/deployments/{id}/subscription/reactivate/submit`
+- `POST /api/v1/deployments/{id}/subscription/reactivate/reconcile`
+
+Read `subscription/state`, prepare with
+`{walletAddress}`, sign the returned exact `xdr` on `networkPassphrase`, then submit
+`{intent,signedXdr}`. Cancel requires active state and revokes allowance; reactivate requires
+cancelled state and grants no allowance, new subscriber or immediate charge. Both require the
+current configured subscriber's wallet, in addition to the scoped deployment token. Save the
+intent/hash and reconcile `{intent}` before replacing any uncertain preparation. Existing Dev cancellation
+continues when Dev is disabled; Dev reactivation requires Dev enabled. New Dev deployments
+remain unavailable for this hackathon. Hosted testnet verification is
+pending; confirm deployed revision and rehearse wallet consent, finality and actual state before
+claiming availability. See the [complete API example](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md#subscription-cancellation-and-reactivation-913).
 
 Browser → your app's server → Paiflow is the API path. The server returns unsigned preparation data to the browser. The customer's wallet signs there; the browser sends the signed envelope back to your server, which submits it. No private key crosses that boundary. Protect your own server routes: a browser action must not let an unauthorised caller release escrow or choose a payout recipient merely because your server holds the token.
 
@@ -426,6 +458,8 @@ export function listEvents(input: { cursor?: string; limit?: number; txHash?: st
 
 ## Per-payment payouts
 
+**Unavailable during this hackathon:** Dev mode stays disabled; use `execute` with configured recipients. The following payout reference applies only where Dev mode is enabled.
+
 `payouts` prepares a deposit **after configuring one mutable Pay for its recipient**. Requires a confirmed deposit-triggered flow and a Pay block with **Fill value via API** on, in a Dev mode flow. Body is `{ from, amount, recipient, nodeId? }`; `nodeId` is required when multiple deployed mutable Pay nodes exist. `recipient` is a valid account address, amount is positive stroops bounded by i128 (and percentage multiplication range). Account/trustline checks must succeed before recipient mutation. Preparation returns Execute's fields plus `nodeId`; its deposit has a **60-second validity window**, so sign promptly. Submit through `payouts/submit` using the same token and deployment.
 
 Supported routes to that Pay are immediate amount conditions or fixed Split. A fixed Split must have zero token/accumulated balances, positive fixed recipients, one next step, and incoming amount greater than its fixed total; surplus reaches Pay. Percentage Split consumes everything; a shortfall accumulates; neither qualifies. Time holds, Swap and other delayed/unsupported paths are refused. Pay must have no existing pooled balance. Deferred value sets Pay to 100%; otherwise current configuration is preserved: percentage must consume all incoming funds, or incoming must not exceed a fixed cap. These checks concern the amount reaching Pay after upstream payouts.
@@ -499,7 +533,7 @@ export const releaseEarly = (input: { nodeId?: string } = {}) =>
 
 ## Public spec and demo access
 
-The OpenAPI document is bare JSON (no `data` wrapper). A public demo token takes no body, returns HTTP 201 `{ data: { deploymentId, token, expiresAt } }`, and expires in 60 minutes. Available only where enabled; otherwise 403. The demo is a shared testnet swap deployment: other callers can read events including your depositing address, and deposited testnet XLM goes to a Paiflow-owned account, not back to you. Use a throwaway funded wallet. Build your actual idea against the team's deployment/token. The starter can obtain a demo token on its server only after explicit `PAIFLOW_MODE=demo` selection. Follow your event's rules for when shared-demo payment testing is permitted and whether any demo evidence is eligible for submission.
+The OpenAPI document is bare JSON (no `data` wrapper). A public demo token takes no body, returns HTTP 201 `{ data: { deploymentId, token, expiresAt } }`, and expires in 60 minutes. Available only where enabled; otherwise 403. The demo is a shared testnet swap deployment: other callers can read events including your depositing address, and deposited testnet XLM goes to a Paiflow-owned account, not back to you. Use a throwaway funded wallet. Build your actual idea against the team's deployment/token. The starter can obtain a demo token on its server only after explicit `PAIFLOW_MODE=demo` selection. Shared-demo testing is allowed before the event, but qualifying evidence must use your team's deployment.
 
 ```bash
 curl -sS --fail-with-body "$PAIFLOW/api/v1/openapi.json"
@@ -512,7 +546,7 @@ These optional public calls can also live in the server module:
 export async function getOpenApi(origin: string): Promise<unknown> {
   if (!["demo", "team"].includes(process.env.PAIFLOW_MODE ?? "prepare"))
     throw new Error(
-      "Paiflow requests are disabled; select demo or team mode when integration is permitted",
+      "Paiflow requests are disabled; select demo or team mode to enable integration",
     );
   const response = await fetch(new URL("/api/v1/openapi.json", origin));
   if (!response.ok) throw new Error(`OpenAPI HTTP ${response.status}`);
@@ -539,9 +573,9 @@ export async function getDemoToken(origin: string) {
 
 # 5. Testnet wallets and simulating customers
 
-Prepare dedicated testnet wallets and obtain testnet XLM and USDC before integration where your event permits it. Add the exact USDC trustline described below; a trustline alone provides no balance. Ask your organisers whether wallet support or fallback wallets are available.
+Prepare dedicated testnet wallets and obtain testnet XLM and USDC before integration. Add the exact USDC trustline described below; a trustline alone provides no balance. Ask your organisers whether wallet support or fallback wallets are available.
 
-When payment testing is permitted, use different wallets to simulate customers: connect/switch to the relevant wallet, prepare using its public address, have it sign in the browser, then submit. Each customer signs their own payment. **The app must never hold a customer's secret key**, even for a demo. Import any fallback-wallet handout keys only into dedicated testnet wallets, outside the app code; never commit them.
+To test payments before or during the event, use different wallets to simulate customers: connect/switch to the relevant wallet, prepare using its public address, have it sign in the browser, then submit. Each customer signs their own payment. **The app must never hold a customer's secret key**, even for a demo. Import any fallback-wallet handout keys only into dedicated testnet wallets, outside the app code; never commit them.
 
 Organiser-provided fallback wallets are testnet-only; organisers hold copies of their keys. Never send real (mainnet) funds to them or import them into a wallet you use for real money. Anyone with the key can take what's in them.
 
@@ -596,7 +630,7 @@ Source: [artisam-paiflow/paiflow-campus-snacks](https://github.com/artisam-paifl
 
 Graph: **On Receive USDC → percentage Split**, with Dev mode off. Vendor first: **9000 bps (90%)**; student organisation second: **1000 bps (10%)**. Use distinct funded testnet recipients with the exact USDC trustline. One deployment serves all customers.
 
-When integration is permitted, set server-only `PAIFLOW_MODE=team` and configure `PAIFLOW_BASE_URL` with the supplied platform origin, `PAIFLOW_DEPLOYMENT_ID` with the team's confirmed deployment UUID, and `PAIFLOW_API_TOKEN` with its token; restart the app. The sample requires its own configured deployment and does not use the starter's shared XLM demo. The server calculates snack prices; Freighter signs in the browser.
+When your deployment and token are ready, set server-only `PAIFLOW_MODE=team` and configure `PAIFLOW_BASE_URL` with the supplied platform origin, `PAIFLOW_DEPLOYMENT_ID` with the team's confirmed deployment UUID, and `PAIFLOW_API_TOKEN` with its token; restart the app. The sample requires its own configured deployment and does not use the starter's shared XLM demo. The server calculates snack prices; Freighter signs in the browser.
 
 For example, a **3.50 USDC** payment splits into **3.15 USDC to the vendor + 0.35 USDC to the student organisation**. Verify your own deployment after setup. The two jars show cumulative received payouts, not wallet balances. They pair a USDC deposit with its percentage Split payout in the same transaction, deduplicate `eventId` and follow contract rounding; unmatched activity stays in history but does not increase totals. `$` labels denote testnet USDC; no real money or goods are involved.
 
@@ -604,7 +638,7 @@ For example, a **3.50 USDC** payment splits into **3.15 USDC to the vendor + 0.3
 
 Graph: **On Receive USDC → Pay full amount to the store wallet**, or → percentage Split for the store and partner. The app's basket total supplies input `amount` as stroops. This one deployment serves this store; it does not create a new contract for every shopper.
 
-App calls: prepareExecute for the customer's address and checkout amount → browser wallet signs → submitExecute → listEvents, optionally filtering `txHash` to show that checkout's payout. Only mark the payment complete on SUCCESS, not merely HTTP 200. If the use case needs a recipient chosen per sale, use a Dev Pay with deferred value and preparePayout → sign → submitPayout; serialise payouts and do not mix execute/QR payments into that deployment while a payout lease is held.
+App calls: prepareExecute for the customer's address and checkout amount → browser wallet signs → submitExecute → listEvents, optionally filtering `txHash` to show that checkout's payout. Only mark the payment complete on SUCCESS, not merely HTTP 200. For this hackathon, keep the store and partner recipients configured in the deployment. Choosing a recipient per sale requires Dev mode and is unavailable throughout the event. Outside this hackathon, where Dev mode is enabled, that path uses a Dev Pay with deferred value and preparePayout → sign → submitPayout; serialise payouts and do not mix execute/QR payments into that deployment while a payout lease is held.
 
 ## Freelance escrow
 
@@ -617,3 +651,31 @@ App calls: prepareExecute for the client deposit → client signs → submitExec
 Graph: **On Receive USDC → Condition `time_after` at the collection deadline**. False/before → Hold; True/after → Return to owner. Customers contribute to one shared locked balance. Early release is disabled; at/after the deadline all funds go to the wallet that signed deployment so the group organiser can buy the goods. This is not automatic per-contributor refunds or a target-based success/failure pool.
 
 App calls: prepareExecute for each customer contribution → that customer's wallet signs → submitExecute → listEvents for the shared deposit history. No releaseEarly call: Hold makes it a strict lock. Wait for automatic after-side release and show its event in the feed/embed. Explain in the pitch who controls the deploying wallet and that it receives the pooled money at the deadline.
+
+### Source API: selected deployed Swap quotes (#917)
+
+`GET /api/v1/deployments/{id}/swap-quote?amountStroops=10000000` requires this
+deployment's bearer token. Optional `nodeId` is required when several standard
+SWAPPER nodes exist. Discover candidates via `operations.swapQuote` (conditional).
+Assets, router and slippage are determined by live deployed getters; caller
+configuration overrides are rejected. Returns integer stroop input/output/minimum,
+readStartedAt/quotedAt, freshness:live, estimate:true, scope:selected_node and
+meetsMinimumAtQuote. Sequential live reads are not an atomic snapshot or guaranteed
+payout/full-flow prediction; preparation and execution remain authoritative. Budget
+is 20/min per token and deployment across tokens, shared Redis required in production.
+Hosted testnet quote-versus-completed-swap evidence is pending. Confirm hosted
+OpenAPI availability before claiming support; no new swap execution path is added.
+
+### Deployment funding (#916)
+
+Schedule top-ups and Webhook pool deposits use deployment-token GET/POST `/api/v1/deployments/{id}/funding`, `/funding/submit` and `/funding/reconcile`. Any consenting funding wallet may sign; a token alone cannot move funds. Funding adds funds only and does not execute payouts or callbacks. One unresolved intent per node blocks replacements until confirmed finality or ledger-proven expiry; UNKNOWN never permits another deposit. Public `/trigger`, `/submit-trigger` and hosted funding remain available. Webhook callbacks separately require `x-webhook-secret`. See the [complete signing and recovery example](../api/funding.md). Hosted testnet verification remains pending.
+Schedule controller API: GET `/api/v1/deployments/{id}/schedule/state` and POST
+`/schedule/{pause|resume|retrieve}`, plus each action's `/submit` and `/reconcile`.
+Use the deployed STREAMER's live controller wallet and permissions, never mutable
+flow configuration. State distinguishes token holding balance from vested payout
+entitlement and unvested retrieval. Retrieval returns to the contract controller,
+requires paused+permitted state, and uses no caller-specified recipient/amount.
+One unresolved intent per node across controls/funding. UNKNOWN, queue refusal or
+local expiry never permits replacement without durable ledger reconciliation.
+Wallet secrets remain outside API requests. Hosted testnet verification is pending;
+see `docs/api/schedule-controls.md` for integration and recovery examples.

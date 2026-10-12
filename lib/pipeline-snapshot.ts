@@ -1,4 +1,6 @@
 import "server-only";
+import { StrKey } from "@stellar/stellar-sdk";
+import { z } from "zod";
 import { AppError } from "@/lib/errors";
 import type { PipelineImplementation } from "@/lib/flows/implementation";
 import type { TemplateKind } from "@prisma/client";
@@ -64,3 +66,22 @@ export function pipelineNodesOfKind(
       (n as PipelineSnapshotNode).contractAddress.length > 0,
   );
 }
+
+// Contract addresses always come from the deployment record, never the graph.
+export const BalancePipelineSnapshotSchema = z
+  .array(
+    z.object({
+      nodeId: z.string().min(1),
+      templateKind: z.string().min(1),
+      contractAddress: z.string().refine(StrKey.isValidContract),
+    }),
+  )
+  .min(1)
+  .max(128)
+  .superRefine((nodes, ctx) => {
+    if (
+      new Set(nodes.map((n) => n.nodeId)).size !== nodes.length ||
+      new Set(nodes.map((n) => n.contractAddress)).size !== nodes.length
+    )
+      ctx.addIssue({ code: "custom", message: "Ambiguous deployment pipeline" });
+  });

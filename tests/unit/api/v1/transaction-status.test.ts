@@ -27,6 +27,8 @@ import type { Deployment } from "@prisma/client";
 import { NextRequest } from "next/server";
 const mocks = vi.hoisted(() => ({
   signed: vi.fn(),
+  control: vi.fn(),
+  updateControl: vi.fn(),
   attempt: vi.fn(),
   updateAttempt: vi.fn(),
   event: vi.fn(),
@@ -40,6 +42,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({
   db: {
     signedTransaction: { findFirst: mocks.signed },
+    walletControlIntent: { findFirst: mocks.control, updateMany: mocks.updateControl },
     webhookAttempt: { findFirst: mocks.attempt, updateMany: mocks.updateAttempt },
     contractEvent: { findFirst: mocks.event },
     auditLog: { findFirst: mocks.audit },
@@ -71,6 +74,8 @@ const received = { outcome: "RECEIVED", acceptedAt: null, ledger: null, failureC
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.signed.mockResolvedValue(received);
+  mocks.control.mockResolvedValue(null);
+  mocks.updateControl.mockResolvedValue({ count: 1 });
   mocks.attempt.mockResolvedValue(null);
   mocks.updateAttempt.mockResolvedValue({ count: 1 });
   mocks.event.mockResolvedValue(null);
@@ -383,4 +388,61 @@ describe("transaction status response schema", () => {
       }).success,
     ).toBe(false);
   });
+});
+
+describe("wallet-control status recovery", () => {
+  it.each(["PREPARED", "SUBMITTING"])(
+    "attributes %s preparations without signed/audit records",
+    async (state) => {
+      mocks.signed.mockResolvedValue(null);
+      mocks.control.mockResolvedValue({ network: "testnet", state, ledger: null });
+      expect((await getTransactionStatus(deployment, hash)).status).toBe("UNKNOWN");
+      expect(mocks.control).toHaveBeenCalledWith({
+        where: { deploymentId: id, network: "testnet", txHash: hash },
+      });
+    },
+  );
+  it("uses accepted same-hash evidence for submitted controls", async () => {
+    mocks.control.mockResolvedValue({ state: "SUBMITTING", ledger: null });
+    mocks.signed.mockResolvedValue({ ...received, outcome: "ACCEPTED", acceptedAt: new Date() });
+    expect((await getTransactionStatus(deployment, hash)).status).toBe("PENDING");
+  });
+  it.each(["SUCCESS", "FAILED", "EXPIRED"])(
+    "retains durable %s after RPC history expiry",
+    async (state) => {
+      mocks.control.mockResolvedValue({
+        network: "testnet",
+        state,
+        ledger: state === "EXPIRED" ? null : 22,
+      });
+      const status = await getTransactionStatus(deployment, hash);
+      expect(status.status).toBe(state === "EXPIRED" ? "REJECTED" : state);
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    },
+  );
+  it.each(["SUCCESS", "FAILED"])(
+    "stores recovered RPC %s in the durable control reservation",
+    async (status) => {
+      mocks.control.mockResolvedValue({ state: "SUBMITTING", ledger: null });
+      mocks.rpc.mockResolvedValue({ status, ledger: 23 });
+      expect((await getTransactionStatus(deployment, hash)).status).toBe(status);
+      expect(mocks.updateControl).toHaveBeenCalledWith({
+        where: { deploymentId: id, txHash: hash, state: { in: ["PREPARED", "SUBMITTING"] } },
+        data: { state: status, ledger: 23, completedAt: expect.any(Date) },
+      });
+    },
+  );
+  it.each([false, true])(
+    "retains concurrent control confirmation over stale/error RPC (error=%s)",
+    async (error) => {
+      mocks.control
+        .mockResolvedValueOnce({ state: "SUBMITTING", ledger: null })
+        .mockResolvedValue({ network: "testnet", state: "SUCCESS", ledger: 24 });
+      if (error) mocks.rpc.mockRejectedValue(new Error("RPC down"));
+      expect(await getTransactionStatus(deployment, hash)).toMatchObject({
+        status: "SUCCESS",
+        ledger: 24,
+      });
+    },
+  );
 });

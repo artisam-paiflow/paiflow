@@ -6,7 +6,7 @@ import { parsers } from "prettier/plugins/markdown";
 import { render } from "./render-hackathon-guide-pdf.mjs";
 import { guideTheme } from "./pdf-guide-theme.mjs";
 
-const input = path.resolve(process.argv[2] ?? "docs/hackathon/developer-guide.md");
+const input = path.resolve(process.argv[2] ?? "docs/hackathon/paiflow-guide.md");
 if (!input.endsWith(".md")) throw new Error("Expected a Markdown input");
 const output = input.replace(/\.md$/, ".pdf");
 const source = fs.readFileSync(input, "utf8");
@@ -54,7 +54,7 @@ const groups = starts.map(
   (start, i) =>
     `<section class="section" id="${escape(slug(plain(nodes[start])))}"><div class="section-heading"><span class="number">${String(i + 1).padStart(2, "0")}</span>${render(nodes[start])}</div>${body(nodes.slice(start + 1, starts[i + 1] ?? nodes.length))}</section>`,
 );
-const pageGroups = [[0], [1], [2, 3], [4, 5], [6, 7], [8], [9], [10, 11]];
+const pageGroups = [[0], [1], [2, 3], [4, 5], [6], [7], [8], [9], [10, 11]];
 if (resourcesStart >= 0) pageGroups.unshift([]);
 const count = pageGroups.length;
 const footer = (i) =>
