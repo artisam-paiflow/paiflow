@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { rateLimit } from "@/lib/rate-limit";
+import { GoogleUsernameSchema, googleUsernameSuggestion } from "@/lib/auth/google-username";
 import { signupHash } from "@/lib/auth/google-signup";
 
 export const GOOGLE_LINK_COOKIE =
@@ -32,6 +33,7 @@ export class GoogleAuthError extends Error {
       | "unavailable"
       | "rate-limited"
       | "signup-code-required",
+    public readonly suggestedUsername?: string,
   ) {
     super(reason);
   }
@@ -228,14 +230,31 @@ export async function resolveGoogleUser(
             intent.code.disabledAt ||
             intent.code.expiresAt <= new Date()
           )
-            throw new GoogleAuthError("signup-code-required");
+            throw new GoogleAuthError(
+              "signup-code-required",
+              googleUsernameSuggestion(profile.email),
+            );
           const consumed = await tx.googleSignupIntent.deleteMany({
             where: { id: intent.id, expiresAt: { gt: new Date() } },
           });
-          if (consumed.count !== 1) throw new GoogleAuthError("signup-code-required");
+          if (consumed.count !== 1)
+            throw new GoogleAuthError(
+              "signup-code-required",
+              googleUsernameSuggestion(profile.email),
+            );
+          const preferred = intent.username
+            ? GoogleUsernameSchema.parse(intent.username)
+            : googleUsernameSuggestion(profile.email);
+          const occupied = await tx.user.findFirst({
+            where: { username: { equals: preferred, mode: "insensitive" } },
+            select: { id: true },
+          });
+          const username = occupied
+            ? `${preferred.slice(0, 25)}-${randomUUID().replaceAll("-", "").slice(0, 6)}`
+            : preferred;
           const user = await tx.user.create({
             data: {
-              username: `google_${randomUUID().replaceAll("-", "").slice(0, 24)}`,
+              username,
               email: profile.email,
               passwordHash: null,
               role: "USER",

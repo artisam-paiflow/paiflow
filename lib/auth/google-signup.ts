@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
+import { GoogleUsernameSchema } from "@/lib/auth/google-username";
 
 export const GOOGLE_SIGNUP_COOKIE =
   process.env.NODE_ENV === "production" ? "__Host-paiflow.google-signup" : "paiflow.google-signup";
@@ -14,7 +15,9 @@ export const CreateGoogleSignupCodeSchema = z
     days: z.union([z.literal(1), z.literal(7), z.literal(30)]),
   })
   .strict();
-export const GoogleSignupSchema = z.object({ code: z.string().trim().min(1).max(128) }).strict();
+export const GoogleSignupSchema = z
+  .object({ code: z.string().trim().min(1).max(128), username: GoogleUsernameSchema.optional() })
+  .strict();
 export function signupHash(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
 }
@@ -60,8 +63,7 @@ export async function createGoogleSignupCode(input: unknown) {
 export async function createGoogleSignupIntent(codeInput: unknown, previousToken?: string) {
   if (!env().GOOGLE_AUTH_ENABLED || !env().ALLOW_GOOGLE_REGISTRATION)
     throw new AppError("FORBIDDEN", "New Google registrations are currently closed.");
-  const parsed = GoogleSignupSchema.safeParse(codeInput);
-  if (!parsed.success) throw new AppError("VALIDATION", "Enter an access code to continue.");
+  const parsed = GoogleSignupSchema.parse(codeInput);
   const raw = randomBytes(32).toString("base64url");
   await db.$transaction(async (tx) => {
     // Retrying replaces this browser's grant. Old and cancelled grants are pruned.
@@ -74,7 +76,7 @@ export async function createGoogleSignupIntent(codeInput: unknown, previousToken
       },
     });
     const code = await tx.googleSignupCode.findUnique({
-      where: { codeHash: signupHash(parsed.data.code) },
+      where: { codeHash: signupHash(parsed.code) },
     });
     if (!code)
       throw new AppError(
@@ -91,6 +93,7 @@ export async function createGoogleSignupIntent(codeInput: unknown, previousToken
       data: {
         tokenHash: signupHash(raw),
         codeId: code.id,
+        username: parsed.username,
         expiresAt: new Date(
           Math.min(Date.now() + GOOGLE_SIGNUP_INTENT_MS, code.expiresAt.getTime()),
         ),

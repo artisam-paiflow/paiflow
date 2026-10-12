@@ -16,7 +16,8 @@ import {
   GoogleAuthError,
   GOOGLE_LINK_COOKIE,
 } from "@/lib/auth/google";
-import { GOOGLE_SIGNUP_COOKIE } from "@/lib/auth/google-signup";
+import { GOOGLE_SIGNUP_COOKIE, GOOGLE_SIGNUP_INTENT_MS } from "@/lib/auth/google-signup";
+import { GOOGLE_USERNAME_COOKIE } from "@/lib/auth/google-username";
 import { safeReturnPath } from "@/lib/safe-return-path";
 import { isSessionCurrent } from "@/lib/auth/session-version";
 import { db } from "@/lib/db";
@@ -195,10 +196,25 @@ export const fullAuthConfig = {
         });
       try {
         await resolveGoogleUser(profile, account.providerAccountId, session, intent, signupToken);
+        jar.set(GOOGLE_USERNAME_COOKIE, "", {
+          path: "/",
+          secure: process.env.NODE_ENV === "production",
+          httpOnly: true,
+          sameSite: "lax",
+          maxAge: 0,
+        });
         return true;
       } catch (error) {
         if (error instanceof GoogleAuthError) {
           if (!session && error.reason === "signup-code-required") {
+            if (error.suggestedUsername)
+              jar.set(GOOGLE_USERNAME_COOKIE, error.suggestedUsername, {
+                path: "/",
+                secure: process.env.NODE_ENV === "production",
+                httpOnly: true,
+                sameSite: "lax",
+                maxAge: GOOGLE_SIGNUP_INTENT_MS / 1000,
+              });
             const origin = new URL(env().AUTH_URL).origin;
             const target = new URL("/auth/signup", origin);
             const callbackUrl = jar.get(

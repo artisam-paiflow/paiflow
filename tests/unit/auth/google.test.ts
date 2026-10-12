@@ -80,6 +80,7 @@ describe("Google identity persistence (scratch Postgres)", () => {
       email: p.email,
     });
     expect(CreateAnalyticsAccountSchema.shape.username.safeParse(user.username).success).toBe(true);
+    expect(user.username).toBe(p.email.split("@")[0]!.slice(0, 32));
     expect(await analyticsContext(user.id)).toMatchObject({
       account_id: user.id,
       audience: "EXTERNAL",
@@ -158,12 +159,12 @@ describe("Google identity persistence (scratch Postgres)", () => {
     );
     expect(await db.user.count({ where: { email: p.email } })).toBe(0);
   });
-  it("retries a real unique username collision without leaving a partial user", async () => {
+  it("adds a short suffix to an occupied email prefix without leaving a partial user", async () => {
     const fixed = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       p = profile();
     const occupied = await db.user.create({
       data: {
-        username: `google_${fixed.replaceAll("-", "").slice(0, 24)}`,
+        username: p.email.split("@")[0]!.slice(0, 32),
         passwordHash: "synthetic-only",
       },
     });
@@ -171,8 +172,36 @@ describe("Google identity persistence (scratch Postgres)", () => {
     uuidControl.values.push(fixed);
     const user = await resolveGoogleUser(p, p.sub, null, undefined, await signupGrant());
     ids.push(user.id);
-    expect(user.username).not.toBe(occupied.username);
+    expect(user.username).toBe(`${occupied.username.slice(0, 25)}-aaaaaa`);
     expect(await db.user.count({ where: { email: p.email } })).toBe(1);
+  });
+  it("persists the selected name and keeps it stable when Google's email changes", async () => {
+    const p = profile();
+    const code = await createGoogleSignupCode({ label: "Editable name", days: 1 });
+    codeIds.push(code.id);
+    const chosen = `chosen-${randomUUID().slice(0, 12)}`;
+    const grant = await createGoogleSignupIntent({ code: code.code, username: chosen });
+    const user = await resolveGoogleUser(p, p.sub, null, undefined, grant);
+    ids.push(user.id);
+    expect(user.username).toBe(chosen);
+    expect(
+      (await resolveGoogleUser({ ...p, email: "changed@example.com" }, p.sub, null)).username,
+    ).toBe(chosen);
+  });
+  it("registers concurrent distinct identities with the same email prefix without duplicates", async () => {
+    const name = `same-${randomUUID().slice(0, 12)}`;
+    const a = profile(randomUUID(), `${name}@example.com`);
+    const b = profile(randomUUID(), `${name}@example.org`);
+    const grants = [await signupGrant(), await signupGrant()];
+    const users = await Promise.all(
+      [a, b].map((p, i) => resolveGoogleUser(p, p.sub, null, undefined, grants[i])),
+    );
+    ids.push(...users.map((u) => u.id));
+    expect(new Set(users.map((u) => u.username)).size).toBe(2);
+    expect(users.some((u) => u.username === name)).toBe(true);
+    expect(
+      users.every((u) => CreateAnalyticsAccountSchema.shape.username.safeParse(u.username).success),
+    ).toBe(true);
   });
   it("throttles validated Google identities without sharing a registration bucket by IP", async () => {
     const p = profile();

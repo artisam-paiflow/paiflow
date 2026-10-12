@@ -140,6 +140,27 @@ describe("Google reusable signup invitations", () => {
       passwordHash: null,
     });
   });
+  it("persists an edited username in the grant and uses it at account creation", async () => {
+    await createGoogleSignupIntent({ code: "valid", username: "  chosen.name  " });
+    expect(h.tx.googleSignupIntent.create.mock.calls[0]![0].data.username).toBe("chosen.name");
+    h.tx.googleSignupIntent.findUnique.mockResolvedValue({
+      ...validIntent(),
+      username: "chosen.name",
+    });
+    await resolveGoogleUser(profile, profile.sub, null, undefined, "grant");
+    expect(h.tx.user.create.mock.calls[0]![0].data.username).toBe("chosen.name");
+  });
+  it.each(["ab", "a".repeat(33), "<script>", "name@domain", "has space", 123])(
+    "rejects invalid requested username %s before issuing a grant",
+    async (username) => {
+      await expect(createGoogleSignupIntent({ code: "valid", username })).rejects.toThrow();
+      expect(h.tx.googleSignupIntent.create).not.toHaveBeenCalled();
+    },
+  );
+  it("uses the verified email prefix when the grant has no username", async () => {
+    await resolveGoogleUser(profile, profile.sub, null, undefined, "grant");
+    expect(h.tx.user.create.mock.calls[0]![0].data.username).toBe("invited");
+  });
   it("allows existing linked users without codes, even with registration closed", async () => {
     const user = { id: "existing", isActive: true, role: "USER" };
     h.tx.googleIdentity.findUnique.mockResolvedValue({ user, userId: user.id });
