@@ -16,7 +16,7 @@ function compile(code: string) {
 }
 
 describe("documented preparation correlation", () => {
-  it("Postman keeps operation IDs separate and preserves retry data after failed preparations", () => {
+  it("Postman preserves execute correlation and retry data after failed preparations", () => {
     const collection = JSON.parse(
       readFileSync("docs/api/paiflow-api-v1.postman_collection.json", "utf8"),
     );
@@ -41,7 +41,7 @@ describe("documented preparation correlation", () => {
       };
       let responseId;
       // Execute the published collection scripts in a child process, with no HTTP requests.
-      ${["Prepare execute", "Submit execute", "Prepare payout", "Submit payout"]
+      ${["Prepare execute", "Submit execute"]
         .map((name) => {
           const item = collection.item.find((i: { name: string }) => i.name === name);
           return (item.event ?? [])
@@ -57,7 +57,7 @@ describe("documented preparation correlation", () => {
         for (const [index, event] of (item.event ?? []).entries()) {
           if (event.listen !== listen) continue;
           const functions = {
-            ${["Prepare execute", "Submit execute", "Prepare payout", "Submit payout"]
+            ${["Prepare execute", "Submit execute"]
               .map((name) => {
                 const item = collection.item.find((i: { name: string }) => i.name === name);
                 return (item.event ?? [])
@@ -74,43 +74,36 @@ describe("documented preparation correlation", () => {
       };
       responseId = "execute-id";
       run("Prepare execute", "prerequest"); run("Prepare execute", "test");
-      responseId = "payout-id";
-      run("Prepare payout", "prerequest"); run("Prepare payout", "test");
       for (let retry = 0; retry < 2; retry++) {
         run("Submit execute", "prerequest"); assert.equal(headers.get("x-preparation-request-id"), "execute-id");
       }
-      run("Submit payout", "prerequest"); assert.equal(headers.get("x-preparation-request-id"), "payout-id");
       const executeBody = collection.item.find(i => i.name === "Submit execute").request.body.raw;
-      const payoutBody = collection.item.find(i => i.name === "Submit payout").request.body.raw;
       assert.equal(JSON.parse(executeBody).signedXdr, "{{executeSignedXdr}}");
-      assert.equal(JSON.parse(payoutBody).signedXdr, "{{payoutSignedXdr}}");
       variables.set("executeUnsignedXdr", "old-execute"); variables.set("executeSignedXdr", "signed-execute");
-      variables.set("payoutUnsignedXdr", "old-payout"); variables.set("payoutSignedXdr", "signed-payout");
       pm.response.code = 422;
       run("Prepare execute", "prerequest"); run("Prepare execute", "test");
       assert.equal(variables.get("executeUnsignedXdr"), "old-execute");
       assert.equal(variables.get("executeSignedXdr"), "signed-execute");
       run("Submit execute", "prerequest"); assert.equal(headers.get("x-preparation-request-id"), "execute-id");
       pm.response.code = 409;
-      run("Prepare payout", "prerequest"); run("Prepare payout", "test");
-      assert.equal(variables.get("payoutUnsignedXdr"), "old-payout");
-      assert.equal(variables.get("payoutSignedXdr"), "signed-payout");
-      run("Submit payout", "prerequest"); assert.equal(headers.get("x-preparation-request-id"), "payout-id");
+      run("Prepare execute", "prerequest"); run("Prepare execute", "test");
+      assert.equal(variables.get("executeUnsignedXdr"), "old-execute");
+      assert.equal(variables.get("executeSignedXdr"), "signed-execute");
+      run("Submit execute", "prerequest"); assert.equal(headers.get("x-preparation-request-id"), "execute-id");
       pm.response.code = 200; responseId = null;
-      run("Prepare payout", "prerequest"); run("Prepare payout", "test");
-      assert.equal(variables.get("payoutUnsignedXdr"), "new-unsigned");
-      assert.equal(variables.has("payoutSignedXdr"), false);
-      run("Submit payout", "prerequest"); assert.equal(headers.has("x-preparation-request-id"), false);
+      run("Prepare execute", "prerequest"); run("Prepare execute", "test");
+      assert.equal(variables.get("executeUnsignedXdr"), "new-unsigned");
+      assert.equal(variables.has("executeSignedXdr"), false);
+      run("Submit execute", "prerequest"); assert.equal(headers.has("x-preparation-request-id"), false);
     `);
   });
   it.each(["docs/hackathon/llms.md", "docs/hackathon/web3-iloilo/llms.md"])(
-    "%s keeps concurrent preparations and retries separate for execute and payouts",
+    "%s keeps concurrent execute preparations and retries separate",
     (file) => {
       const source = readFileSync(file, "utf8");
       const helper = source.match(/```ts\n(import "server-only";[\s\S]*?)\n```/)![1]!;
-      const payout = source.match(/```ts\n(export const preparePayout[\s\S]*?)\n```/)![1]!;
       execute(`
-        ${compile(helper.replace('import "server-only";', "") + "\n" + payout)}
+        ${compile(helper.replace('import "server-only";', ""))}
         process.env.PAIFLOW_MODE = "team";
         process.env.PAIFLOW_BASE_URL = "https://beta.app.paiflow.xyz";
         process.env.PAIFLOW_DEPLOYMENT_ID = "test-deployment";
@@ -135,11 +128,11 @@ describe("documented preparation correlation", () => {
           });
         };
         const first = await prepareExecute({ from: "source", amount: "1" });
-        const second = await preparePayout({ from: "source", amount: "1", recipient: "recipient" });
+        const second = await prepareExecute({ from: "source", amount: "2" });
         const firstSubmit = { signedXdr: "signed-first", preparationRequestId: first.preparationRequestId };
         await assert.rejects(submitExecute(firstSubmit), { message: "Uncertain" });
         await submitExecute(firstSubmit, false);
-        await submitPayout({ signedXdr: "signed-second", preparationRequestId: second.preparationRequestId });
+        await submitExecute({ signedXdr: "signed-second", preparationRequestId: second.preparationRequestId });
         assert.deepEqual(submits.map(s => s.headers["x-preparation-request-id"]), [ids[0], ids[0], ids[1]]);
         assert.deepEqual(submits.map(s => s.body), [{ signedXdr: "signed-first" }, { signedXdr: "signed-first" }, { signedXdr: "signed-second" }]);
         const legacy = await prepareExecute({ from: "source", amount: "1" });

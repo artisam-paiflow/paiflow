@@ -45,19 +45,51 @@ It does not cancel, rewrite the schedule, or pay its recipients.
 
 ## Prepare, sign, submit
 
-This browser example assumes an available compatible Freighter wallet, a token passed
-in from the app's backend, and the configured deployment. The SDK and wallet keys
-remain in the browser. Use `action = "pause"`, `"resume"` or `"retrieve"` as appropriate.
+Keep the deployment token on your authenticated application server. Expose only the
+Schedule actions and transaction lookup that this UI needs, after authorizing the
+current app user for this deployment and action. The browser calls those application
+routes; your server forwards them to Paiflow with its bearer token. Preserve the
+upstream status and error fields, including `error.fields.intent` and `txHash` on 409,
+so interrupted actions can be reconciled. Do not log the token or signed envelope.
+
+For example, this helper belongs in your server-only route handlers. Validate and
+allowlist the requested action and path before calling it; do not accept an arbitrary
+Paiflow URL from the browser.
+
+```ts
+import "server-only";
+
+const deploymentId = process.env.PAIFLOW_DEPLOYMENT_ID!;
+const token = process.env.PAIFLOW_API_TOKEN!;
+const origin = process.env.PAIFLOW_BASE_URL!;
+
+export async function scheduleUpstream(path: string, body?: unknown) {
+  const allowed = /^\/(?:schedule\/(?:state|(?:pause|resume|retrieve)(?:\/(?:submit|reconcile))?)|transactions\/[a-f0-9]{64})(?:\?nodeId=[A-Za-z0-9_-]+)?$/;
+  if (!allowed.test(path)) throw new Error("Unsupported Schedule API path");
+  const response = await fetch(`${origin}/api/v1/deployments/${deploymentId}${path}`, {
+    method: body === undefined ? "GET" : "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    cache: "no-store",
+  });
+  return response; // Route handler forwards status and JSON after its own authorization check.
+}
+```
+
+The following browser code assumes your authenticated backend routes map
+`/your-backend/paiflow/*` to that allowlisted helper. A compatible Freighter wallet
+signs in the browser; the deployment token stays on the server. Use
+`action = "pause"`, `"resume"` or `"retrieve"` as appropriate.
 
 ```ts
 import { signTransaction } from "@stellar/freighter-api";
 import { Networks } from "@stellar/stellar-sdk";
 
-const base = `${baseUrl}/api/v1/deployments/${deploymentId}`;
+const base = "/your-backend/paiflow";
 async function api(path: string, body?: unknown) {
   const res = await fetch(`${base}${path}`, {
     method: body === undefined ? "GET" : "POST",
-    headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const result = await res.json();

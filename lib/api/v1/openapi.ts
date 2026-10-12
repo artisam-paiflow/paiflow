@@ -6,9 +6,6 @@ import {
   WebhookAttemptResponseSchema,
   DemoTokenSchema,
   EXECUTE_PREREQUISITES,
-  PayoutPrepareSchema,
-  PayoutPreparedSchema,
-  PayoutSubmitSchema,
   ExecutePrepareSchema,
   ExecutePreparedSchema,
   ExecuteSubmitQuerySchema,
@@ -719,10 +716,6 @@ export const openApiDocument = {
         "Authenticated callbacks releasing a pre-funded flow, optionally deduplicated by application-event key.",
     },
     {
-      name: "Payouts",
-      description: "Coordinate immediate deposits to one mutable Pay with a per-payment recipient.",
-    },
-    {
       name: "Execute",
       description: "Run a deposit-triggered flow: prepare, sign on your side, submit.",
     },
@@ -1099,7 +1092,7 @@ export const openApiDocument = {
         description: [
           DeploymentCapabilitiesSchema.description,
           "Requires this deployment's pfk_ bearer token and a confirmed deployment on the environment's network. Reads only recorded deployment metadata: no RPC, simulation, transaction submission or mutation. inputAsset is initial snapshot metadata and may be stale after Dev mutations; null means unavailable. The recorded pipeline determines contract kinds, not the current editable flow.",
-          "Operations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), payouts (payouts and payouts/submit), webhook (/api/webhooks/{id}), scheduleState (/api/v1/deployments/{id}/schedule/state), scheduleControls (Schedule pause, resume and retrieve preparation, submit and reconcile), subscriptionState (/api/v1/deployments/{id}/subscription/state), subscriptionCancel and subscriptionReactivate (subscription/cancel or subscription/reactivate prepare, submit and reconcile), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). Each includes status, authentication, requirements and candidate nodeIds. Conditional payouts and subscription approval must be checked by their own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
+          "Operations also include balances (/balances), a conditional live read of supported deployed contract funds. Operations are swapQuote (/api/v1/deployments/{id}/swap-quote), execute (execute and execute/submit), events, transactions, releaseEarly (release-early), webhook (/api/webhooks/{id}), scheduleState (/api/v1/deployments/{id}/schedule/state), scheduleControls (Schedule pause, resume and retrieve preparation, submit and reconcile), subscriptionState (/api/v1/deployments/{id}/subscription/state), subscriptionCancel and subscriptionReactivate (subscription/cancel or subscription/reactivate prepare, submit and reconcile), and subscriptionAllowance (/api/deployments/{id}/subscription-allowance and its submit/status paths, or /allowance/{id}). The payouts capability key remains in discovery responses but reports unsupported while Dev mode is disabled; no payout route is published. Each operation includes status, authentication, requirements and candidate nodeIds. Subscription approval must be checked by its own preparation/state endpoints; discovery does not establish live eligibility. nodeIds are candidates, not a guarantee that a chosen amount or path succeeds. A webhook_secret or subscriber_wallet operation is not authorized by the discovery token.",
           "Returns an explicit projection without webhook secrets, API credentials, recipients, subscriber addresses, bank details, KYC, notification settings or private graph configuration. Responses are no-store.",
           rate(V1_RATE_LIMITS.capabilities, "per token"),
         ].join("\n\n"),
@@ -1206,100 +1199,6 @@ export const openApiDocument = {
         },
       },
     },
-    "/api/v1/deployments/{id}/payouts": {
-      post: {
-        tags: ["Payouts"],
-        operationId: "preparePayout",
-        summary: "Prepare a deposit with a per-payment recipient",
-        description: [
-          PayoutPrepareSchema.description,
-          "Requires a confirmed deposit-triggered dev flow and one selected PAYER_DEV. Only immediate paths through amount conditions and fixed Split are supported. Current on-chain connectivity and values are checked against the deployed graph. Split must have zero token and accumulated balances, a fixed crypto roster and a deposit greater than its total; it forwards the surplus immediately and resets its accumulator. Percentage Split, shortfalls, delayed/unsupported paths and deposits that miss this Pay are refused.",
-          "For fillValueViaApi, Pay is set to 100%. Otherwise its current configured value is preserved: percentage must consume all incoming funds, or fixed incoming funds must be at most its fixed cap (Pay pays min(incoming, cap)). Pay must start with zero balance. Recipient account/trustline checks must succeed before mutation; unchanged configuration skips the relayer transaction.",
-          "Requires functioning Redis. Concurrent preparation returns CONFLICT. Coordination records retain uncertain configuration transactions and the exact prepared deposit through finality or ledger-time expiry; wall-clock expiry does not release protection. Payout deposits have a 60-second validity window; execute retains 180 seconds. Sign this xdr before expiresAt and post it to payouts/submit using the same token. Direct deposits, execute, legacy dev mutations and owner transactions bypass this coordination. Never flush payout coordination records while transactions may still land.",
-          rate(V1_RATE_LIMITS.payouts, "per token"),
-        ].join("\n\n"),
-        security: [{ bearerAuth: [] }],
-        parameters: [deploymentIdParam],
-        requestBody: {
-          required: true,
-          content: json(
-            { $ref: "#/components/schemas/PayoutPrepareRequest" },
-            examples.payoutRequest,
-          ),
-        },
-        responses: {
-          "200": {
-            description: "Sign the unsigned envelope with from.",
-            headers: preparationResponseHeaders,
-            content: json(dataEnvelope("#/components/schemas/PayoutPrepared"), {
-              data: { ...examples.executeResponse.data, nodeId: "pay" },
-            }),
-          },
-          ...errors(
-            "UNAUTHENTICATED",
-            "INSUFFICIENT_FUNDS",
-            "NOT_FOUND",
-            "CONFLICT",
-            "VALIDATION",
-            "RATE_LIMITED",
-            "UPSTREAM_RPC",
-          ),
-          "409": {
-            ...errorResponse("`CONFLICT`: Another payout is preparing or can still execute."),
-            headers: {
-              "Retry-After": {
-                description:
-                  "Present when a held transaction is known: whole seconds until its maxTime, rounded up with a minimum of 1. Advisory only; finality or ledger-time expiry is still required, so a retry may return 409 again.",
-                schema: { type: "integer", minimum: 1 },
-                example: 60,
-              },
-            },
-          },
-        },
-      },
-    },
-    "/api/v1/deployments/{id}/payouts/submit": {
-      post: {
-        tags: ["Payouts"],
-        operationId: "submitPayout",
-        summary: "Submit exactly the prepared payout",
-        description: [
-          PayoutSubmitSchema.description,
-          "The hash must match the exact prepared deposit for this deployment and API token. Changing amount, source, operations, bounds or authorization entries is refused; add envelope signatures only. Fee-bump envelopes are refused. PENDING or uncertain RPC outcomes retain recipient protection. Confirmed finality releases only this holder, never a newer payout's protection. A network submission refusal can return FAILED while protection remains until finality or ledger-time expiry. Retry the same signedXdr to obtain status; final retries remain available for seven days. An expired unconfirmed envelope cannot be resubmitted after a successor acquires protection.",
-          rate(V1_RATE_LIMITS.payoutsSubmit, "per token"),
-        ].join("\n\n"),
-        security: [{ bearerAuth: [] }],
-        parameters: [
-          deploymentIdParam,
-          preparationRequestIdParam,
-          {
-            name: "wait",
-            in: "query",
-            required: false,
-            description: `Default true: bounded wait, as execute/submit; false answers PENDING immediately. At most ${V1_WAIT_SLOTS.perToken} concurrent waits per token.`,
-            schema: { type: "string", enum: ["true", "false"], default: "true" },
-          },
-        ],
-        requestBody: {
-          required: true,
-          content: json(
-            { $ref: "#/components/schemas/PayoutSubmitRequest" },
-            examples.submitRequest,
-          ),
-        },
-        responses: {
-          "200": {
-            description:
-              "SUCCESS, PENDING or FAILED; retries are idempotent on the exact prepared hash.",
-            content: json(
-              dataEnvelope("#/components/schemas/ExecuteSubmitted"),
-              examples.submitSuccess,
-            ),
-          },
-          ...errors("UNAUTHENTICATED", "NOT_FOUND", "VALIDATION", "RATE_LIMITED", "UPSTREAM_RPC"),
-        },
-      },
-    },
     "/api/v1/deployments/{id}/execute": {
       post: {
         tags: ["Execute"],
@@ -1310,7 +1209,7 @@ export const openApiDocument = {
           "",
           "The flow runs through its deposit trigger; the next pipeline steps (pay, split, condition, swap) run as part of the same transaction. " +
             "Sign the returned `xdr` with the `from` key using `networkPassphrase`, before " +
-            "`expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`. A Pay or Split step with no recipient yet (dev mode) reverts with a plain message.",
+            "`expiresAt`, and post it to `execute/submit`. Only flows that start with a deposit trigger can be executed; subscription, webhook, payroll and other trigger-headed flows are refused with `VALIDATION`. Configure every Pay and Split recipient before deployment.",
           "",
           rate(V1_RATE_LIMITS.execute, "per token"),
         ].join("\n"),
@@ -2300,61 +2199,6 @@ export const openApiDocument = {
                 description: "Raw technical detail, e.g. a Soroban simulation diagnostic.",
               },
             },
-          },
-        },
-      },
-      PayoutPrepareRequest: {
-        type: "object",
-        additionalProperties: false,
-        required: ["amount", "from", "recipient"],
-        description: PayoutPrepareSchema.description,
-        properties: {
-          amount: {
-            type: "string",
-            pattern: "^\\d{1,39}$",
-            description:
-              "Positive integer stroops, bounded by i128 and the selected percentage payment's multiplication range.",
-          },
-          from: {
-            type: "string",
-            pattern: "^G[A-Z2-7]{55}$",
-            description: executeShape.from.description,
-          },
-          recipient: {
-            type: "string",
-            pattern: "^G[A-Z2-7]{55}$",
-            description: PayoutPrepareSchema.shape.recipient.description,
-          },
-          nodeId: {
-            type: "string",
-            minLength: 1,
-            maxLength: 128,
-            description: PayoutPrepareSchema.shape.nodeId.description,
-          },
-        },
-      },
-      PayoutPrepared: {
-        description: PayoutPreparedSchema.description,
-        allOf: [
-          { $ref: "#/components/schemas/ExecutePrepared" },
-          {
-            type: "object",
-            required: ["nodeId"],
-            properties: { nodeId: { type: "string", description: "The selected Pay node." } },
-          },
-        ],
-      },
-      PayoutSubmitRequest: {
-        type: "object",
-        additionalProperties: false,
-        required: ["signedXdr"],
-        description: PayoutSubmitSchema.description,
-        properties: {
-          signedXdr: {
-            type: "string",
-            minLength: 10,
-            maxLength: 200000,
-            description: "Exactly the prepared deposit with envelope signatures added.",
           },
         },
       },

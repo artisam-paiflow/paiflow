@@ -29,8 +29,7 @@ means depositing into its trigger.
 
 Flows that start with anything else (a subscription, webhook, payroll, timelock or oracle trigger)
 run on their own schedule or callback, which a deposit can't start. Execute refuses them with a
-`422` naming the step the flow starts with. A Pay or Split step in a dev-mode flow that has no
-recipient yet also reverts, with a plain message: set the recipient first, then execute.
+`422` naming the step the flow starts with. Configure every Pay and Split recipient before deploying the flow.
 
 The deposit has to be authorized by the account the funds come from. That's you, so executing a
 flow takes three steps:
@@ -199,19 +198,21 @@ curl -sS "$PAIFLOW/api/v1/deployments/$DEPLOYMENT_ID/capabilities" \
 
 `data` contains `deploymentId`, `network`, `triggerType`, `inputAsset`,
 `configurationSource: "deployment_snapshot"` and `operations`. The operation keys are
-`execute`, `balances`, `events`, `transactions`, `releaseEarly`, `payouts`, `webhook`,
-`subscriptionAllowance`, `subscriptionState` and `swapQuote`. Each has a `status`, `authentication`, `requirements` and `nodeIds`:
+`execute`, `events`, `balances`, `funding`, `transactions`, `releaseEarly`, `payouts`,
+`webhook`, `subscriptionAllowance`, `subscriptionState`, `subscriptionCancel`,
+`subscriptionReactivate`, `swapQuote`, `scheduleState` and `scheduleControls`.
+Each has a `status`, `authentication`, `requirements` and `nodeIds`:
 
 - **`supported`**: the integration path exists for the recorded deployment. This does not promise
   the next transaction will succeed; balances, deadlines, trustlines and simulation still apply.
 - **`conditional`**: a candidate path exists, but its own state/preparation endpoint must establish
-  eligibility. Payouts must verify current connectivity, amounts and balances; subscription approval
-  must verify subscription classification, the configured subscriber and active state.
+  eligibility. Subscription approval must verify subscription classification, the configured
+  subscriber and active state.
 - **`unsupported`**: no matching path can be established from the recorded deployment metadata.
 
-Standard On Receive flows support `execute` with configured recipients; they report `payouts` as
-unsupported. Dev payout candidate `nodeIds` include only mutable crypto Pay nodes reachable through
-immediate Split or amount-condition paths. A delayed path or swap is not a payout candidate.
+Standard On Receive flows support `execute` with configured recipients. The `payouts` capability key
+remains in discovery responses but reports `unsupported` while Dev mode is disabled; no payout route
+is published for this event.
 `releaseEarly.nodeIds` lists timelock branches, excluding strict Hold contracts. For webhook flows,
 `execute` is unsupported and `webhook` uses **`webhook_secret`**, obtained separately by the owner.
 Subscription allowance uses **`subscriber_wallet`** consent; the discovery token does not authorize
@@ -502,7 +503,7 @@ as a Soroban simulation diagnostic.
 | `INSUFFICIENT_FUNDS` | 402  | The `from` account doesn't exist on this network (prepare)                                                                                        |
 | `FORBIDDEN`          | 403  | Not allowed for this caller (sandbox), or the public demo is not enabled on this instance (demo token)                                            |
 | `NOT_FOUND`          | 404  | A malformed deployment id, or (execute) a deployment that isn't confirmed                                                                         |
-| `CONFLICT`           | 409  | Already 10 active tokens, or a payout is preparing or can still execute                                                                           |
+| `CONFLICT`           | 409  | Already 10 active tokens, or another operation holds a conflicting state                                                                           |
 | `VALIDATION`         | 422  | Bad body or query; a deposit the simulation rejects; a flow that doesn't start with a deposit trigger; an envelope that isn't this flow's deposit |
 | `RATE_LIMITED`       | 429  | Too many requests in the window (see below); on the demo token, also when the instance has no shared rate limiter                                 |
 | `INTERNAL`           | 500  | Unexpected server error; on the demo token, also a deliberate refusal when the demo flow is misconfigured, with the reason logged                 |
@@ -512,7 +513,7 @@ Every response carries an `x-request-id` header. Include it when you report a pr
 
 Wrapped deployment API responses also include `x-history-request-id`, a server-generated
 analytics request UUID. Save it with the prepared envelope; send it as
-`x-preparation-request-id` on `/execute/submit` or `/payouts/submit`, including retries.
+`x-preparation-request-id` on `/execute/submit`, including retries.
 A new preparation gets a new ID. This optional metadata does not authorize or deduplicate
 transactions. Missing or unmatched links do not prove abandonment. Forward the header
 through your own backend to the browser when signing there, keeping the bearer token
@@ -626,59 +627,8 @@ points the endpoint at:
 
 The OpenAPI document is a TypeScript object in `lib/api/v1/openapi.ts`. After changing it, run
 `pnpm api:openapi` to regenerate `docs/api/openapi.json`. `tests/unit/api/v1/openapi.test.ts` fails
-if the committed copy falls behind, if a route under `app/api/v1` has no entry, if an example stops
-matching its Zod schema, or if the Postman collection misses a v1 request.
-
-## Per-payment payouts
-
-**Hackathon availability:** Dev mode will stay disabled for the duration of the hackathon. These endpoints require Dev mode and are unavailable during the event. Use `execute` with the recipients configured in your standard deployment.
-
-For a deposit-triggered dev flow, `POST /api/v1/deployments/:id/payouts` accepts
-`{ "from": "G…", "amount": "1000000000", "recipient": "G…", "nodeId": "pay" }`.
-`nodeId` is optional when there is only one deployed `PAYER_DEV`. Sign the returned `xdr` with
-`from` and the supplied network passphrase, then post `{ "signedXdr": "…" }` to
-`POST /api/v1/deployments/:id/payouts/submit` with the same deployment token. The response adds
-`nodeId` to execute's preparation fields. Payout deposits have a **60-second validity window**;
-`execute` keeps 180 seconds. Sign and submit before `expiresAt`. Submission keeps execute's bounded wait,
-`?wait=false`,
-and `SUCCESS | PENDING | FAILED` conventions.
-
-The selected Pay must receive this deposit through immediate amount conditions or fixed Split,
-with no delayed or unsupported steps. Eligibility uses the deployed graph and current on-chain
-configuration, resolving every address through `pipelineSnapshot`. A fixed Split is accepted only
-with zero token and accumulated balances, positive fixed crypto recipients, exactly one next
-step, and an incoming deposit greater than its fixed total. It pays its roster and immediately
-forwards the surplus to the next step, resetting its accumulator. Percentage Split consumes the
-deposit; shortfalls accumulate; neither reaches the selected Pay and both are refused.
-
-If Pay uses **Fill value via API**, payouts configures it to 100%. Otherwise its current value is
-preserved. Fixed Pay pays `min(incoming, configured cap)`, so incoming must be at most that cap;
-percentage Pay must consume all incoming funds. This refers to the amount that reaches Pay after
-upstream fixed payouts. Pay must have zero existing balance. Any account/trustline refusal or
-inconclusive check blocks recipient mutation, including missing accounts for native XLM. Matching
-recipient and payment configuration skip mutation.
-
-Functioning Redis is required. A unique holder protects each deployment while preparing,
-configuring and awaiting the exact prepared deposit. Configuration hashes are saved before
-submission. A timeout, network error or `PENDING` result retains protection: another request
-cannot change the recipient until the configuration/deposit is final or a closed ledger's time
-passes its transaction validity window. **Wall-clock Redis expiry is insufficient.** `CONFLICT`
-means an earlier payout may still execute. When a held transaction is known, the 409 includes
-`Retry-After`: seconds until its `maxTime`, rounded up with a minimum of 1. This is advisory;
-ledger time can lag, so retrying may still return 409. An abandoned deposit permits a new prepare
-only once ledger-time expiry is proved. For a submitted payout, retry its same signed envelope.
-Signature changes are allowed; transaction-body changes are refused. Confirmed
-retries remain available for seven days and cannot release a newer holder. A send refusal can
-return `FAILED` without releasing protection if finality is still uncertain.
-
-Coordination covers these payout endpoints only. **Direct deposits, `execute`, legacy dev mutation
-routes and owner-signed transactions bypass it** and must not run concurrently with payouts.
-Keep Redis coordination records durable; never flush or evict them while transactions can still
-land. This feature adds no coordination to those other surfaces.
-
-Maintainer staging check: run two successive payouts to different recipients and verify both
-recipient destinations and all pipeline balances. No staging transaction was performed by these
-tests.
+if the committed copy falls behind, if a published route under `app/api/v1` has no entry, if an
+example stops matching its Zod schema, or if the Postman collection misses a published v1 request.
 
 ## Recover a pending transaction
 
